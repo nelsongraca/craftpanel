@@ -1,0 +1,118 @@
+site_name: CraftPanel
+site_description: Minecraft Server Management Platform — Documentation
+repo_url: https://github.com/nelsongraca/craftpanel
+
+repo_name: craftpanel
+docs_dir: docs
+
+theme:
+  name: material
+  palette:
+    - scheme: default
+      media: "(prefers-color-scheme: light)"
+      primary: green
+      accent: light green
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - scheme: slate
+      media: "(prefers-color-scheme: dark)"
+      primary: green
+      accent: light green
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.highlight
+    - content.code.copy
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - tables
+  - toc:
+      permalink: true
+
+nav:
+  - Overview: index.md
+  - Requirements:
+    - Access Control: access-control/index.md
+    - Node Management: nodes/index.md
+    - Server Management:
+      - Overview: servers/index.md
+      - Configuration: servers/configuration.md
+      - Mods & Plugins: servers/mods.md
+      - File Explorer & Console: servers/files-console.md
+    - Server Networks: servers/networks.md
+    - Networking & Ingress: networking/index.md
+    - Backups: backups/index.md
+    - Migration: migration/index.md
+    - Monitoring: monitoring/index.md
+  - Data Model:
+    - Overview: data-model/index.md
+    - Users & Auth: data-model/users-auth.md
+    - Access Control: data-model/access-control.md
+    - Nodes: data-model/nodes.md
+    - Server Networks: data-model/server-networks.md
+    - Servers: data-model/servers.md
+    - Mods: data-model/mods.md
+    - Backups: data-model/backups.md
+    - Migrations: data-model/migrations.md
+    - Alerts: data-model/alerts.md
+    - System Settings: data-model/system-settings.md
+  - API Reference:
+    - Overview: api/index.md
+    - Auth: api/auth.md
+    - Users & Groups: api/users-groups.md
+    - Nodes: api/nodes.md
+    - Server Networks: api/server-networks.md
+    - Servers: api/servers.md
+    - Configuration: api/configuration.md
+    - Mods: api/mods.md
+    - Files: api/files.md
+    - Backups: api/backups.md
+    - Migrations: api/migrations.md
+    - Monitoring: api/monitoring.md
+    - System Settings: api/system-settings.md
+    - WebSocket Events: api/websocket.md
+  - gRPC:
+    - Schema: grpc/schema.md
+    - Proto Definition: grpc/craftpanel.proto
+  - Architecture:
+    - Tech Stack: tech-stack/index.md
+    - Configuration & Secrets: tech-stack/configuration.md
+    - Data Persistence: tech-stack/persistence.md
+    - Security: tech-stack/security.md
+  - UI Mockups:
+    - Overview: screens/index.md
+    - Layout: screens/layout.md
+    - Dashboard: screens/dashboard.md
+    - Server List: screens/servers-list.md
+    - Server Detail: screens/server-detail.md
+    - Server Console: screens/server-console.md
+    - Server Files: screens/server-files.md
+    - Server Mods: screens/server-mods.md
+    - Server Backups: screens/server-backups.md
+    - Server Configuration: screens/server-config.md
+    - Migration: screens/migration.md
+    - Nodes: screens/nodes.md
+    - Networks: screens/networks.md
+    - Alerts: screens/alerts.md
+    - Users: screens/users.md
+    - Groups: screens/groups.md
+
+plugins:
+  - search
+  - print-site:
+      add_to_navigation: false
+      add_print_site_banner: false
+      add_table_of_contents: false
