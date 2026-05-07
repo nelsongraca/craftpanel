@@ -5,6 +5,7 @@ Low-fidelity wireframes of the CraftPanel interface. Each mockup shows the conte
 ## Pages
 
 - [Layout](layout.md) — top nav, sidebar, page shell
+- [Colour Scheme](colour-scheme.md) — colours used in the UI and their meaning
 - [Dashboard](dashboard.md) — home overview
 - [Server List](servers-list.md) — all servers
 - [Server Detail](server-detail.md) — overview tab
