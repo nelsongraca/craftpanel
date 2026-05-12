@@ -1,9 +1,16 @@
-pluginManagement {
+rootProject.name = "craftpanel"
+
+include("docs","master", "agent", "frontend")
+
+dependencyResolutionManagement {
     repositories {
-        gradlePluginPortal()
-    }
-    plugins {
-        kotlin("jvm") version "2.3.10"
+        mavenCentral()
     }
 }
 
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}

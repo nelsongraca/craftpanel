@@ -1,58 +1,37 @@
-import ru.vyarus.gradle.plugin.mkdocs.task.MkdocsTask
+import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
+import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
 
 plugins {
-    kotlin("jvm")
-    id("ru.vyarus.mkdocs") version "4.0.1"
+    alias(libs.plugins.kotlin.jvm) apply false
+    alias(libs.plugins.kotlin.serialization) apply false
+    alias(libs.plugins.ktor) apply false
+    alias(libs.plugins.protobuf) apply false
+    id("com.bmuschko.docker-remote-api") version "10.0.0" apply false
 }
 
-group = project.property("maven_group")
-    .toString()
-version = project.property("mod_version")
-    .toString()
+// ---------------------------------------------------------------------------
+// Project-wide properties
+// ---------------------------------------------------------------------------
+val imageRegistry: String? = findProperty("imageRegistry")?.toString()
+val imageVersion: String = findProperty("imageVersion")?.toString() ?: "latest"
 
-
-base {
-    archivesName = project.property("archives_base_name")
-        .toString()
-}
-val targetJavaVersion = 25
-
-java {
-    toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
-    withSourcesJar()
-}
-kotlin {
-    jvmToolchain(25)
+// ---------------------------------------------------------------------------
+// Docker aggregation tasks
+// ---------------------------------------------------------------------------
+val dockerBuildAll by tasks.registering {
+    group = "docker"
+    description = "Builds all Docker images"
 }
 
-repositories {
-   mavenCentral()
+val dockerPushAll by tasks.registering {
+    group = "docker"
+    description = "Pushes all Docker images"
 }
 
-dependencies {
-}
-
-configurations {
-}
-
-tasks.withType<JavaCompile>()
-    .configureEach {
-        options.encoding = "UTF-8"
-        options.release.set(targetJavaVersion)
+// Wire subproject docker tasks into the root aggregators once subprojects configure
+subprojects {
+    afterEvaluate {
+        tasks.findByName("dockerBuildImage")?.let { dockerBuildAll.configure { dependsOn(it) } }
+        tasks.findByName("dockerPushImage")?.let { dockerPushAll.configure { dependsOn(it) } }
     }
-
-python {
-    pip("mkdocs:1.6.1")
-    pip("mkdocs-material:9.7.6")
-    pip("mkdocs-print-site-plugin:2.8.0")
-}
-
-mkdocs {
-    sourcesDir = "./"
-    strict = true
-}
-
-tasks.register<MkdocsTask>("serveRemote") {
-    description = "Serve MkDocs documentation on all network interfaces, making it accessible remotely."
-    command = "serve -a 0.0.0.0:8000"
 }
