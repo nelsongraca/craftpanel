@@ -95,6 +95,7 @@ nav:
     - Configuration & Secrets: tech-stack/configuration.md
     - Data Persistence: tech-stack/persistence.md
     - Security: tech-stack/security.md
+    - Build & Packaging: tech-stack/build-and-packaging.md
   - UI Mockups:
     - Overview: screens/index.md
     - Colour Scheme: screens/colour-scheme.md
