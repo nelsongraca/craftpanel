@@ -40,7 +40,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
     <div className="flex flex-col h-full">
       {/* Top Navigation */}
       <header className="flex items-center justify-between bg-surface px-5 py-3 text-text-primary border-b border-border">
-        <span className="text-[17px] font-bold font-heading tracking-wide">
+        <span className="text-[17px] font-bold font-heading tracking-wide text-accent">
           ⛏ CraftPanel
         </span>
         <nav className="flex gap-5 text-[13px] opacity-85">
@@ -50,7 +50,7 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               href={item.href}
               className={
                 item.active
-                  ? "opacity-100 font-bold border-b-2 border-text-primary pb-0.5"
+                  ? "opacity-100 font-bold border-b-2 border-accent pb-0.5"
                   : "hover:opacity-100"
               }
             >
