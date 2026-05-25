@@ -1,7 +1,21 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
+  LayoutDashboard,
+  Server,
+  Network,
+  Monitor,
+  Bell,
+  Settings,
+  Users,
+  KeyRound,
+  type LucideIcon,
+} from "lucide-react";
 
 const topNavItems = [
-  { label: "Dashboard", href: "/", active: true },
+  { label: "Dashboard", href: "/" },
   { label: "Servers", href: "/servers" },
   { label: "Networks", href: "/networks" },
   { label: "Nodes", href: "/nodes" },
@@ -11,31 +25,33 @@ const topNavItems = [
 
 const sidebarSections: {
   title: string;
-  items: { label: string; href: string; icon: string }[];
+  items: { label: string; href: string; icon: LucideIcon }[];
 }[] = [
   {
     title: "Servers",
     items: [
-      { label: "All Servers", href: "/servers", icon: "⬛" },
-      { label: "Networks", href: "/networks", icon: "🌐" },
+      { label: "All Servers", href: "/servers", icon: Server },
+      { label: "Networks", href: "/networks", icon: Network },
     ],
   },
   {
     title: "Infrastructure",
-    items: [{ label: "Nodes", href: "/nodes", icon: "🖥" }],
+    items: [{ label: "Nodes", href: "/nodes", icon: Monitor }],
   },
   {
     title: "System",
     items: [
-      { label: "Alerts", href: "/alerts", icon: "🔔" },
-      { label: "Users", href: "/users", icon: "👥" },
-      { label: "Groups", href: "/groups", icon: "🔑" },
-      { label: "Settings", href: "/settings", icon: "⚙️" },
+      { label: "Alerts", href: "/alerts", icon: Bell },
+      { label: "Users", href: "/users", icon: Users },
+      { label: "Groups", href: "/groups", icon: KeyRound },
+      { label: "Settings", href: "/settings", icon: Settings },
     ],
   },
 ];
 
 export default function Shell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+
   return (
     <div className="flex flex-col h-full">
       {/* Top Navigation */}
@@ -44,19 +60,23 @@ export default function Shell({ children }: { children: React.ReactNode }) {
           ⛏ CraftPanel
         </span>
         <nav className="flex gap-5 text-[13px] opacity-85">
-          {topNavItems.map((item) => (
-            <Link
-              key={item.label}
-              href={item.href}
-              className={
-                item.active
-                  ? "opacity-100 font-bold border-b-2 border-accent pb-0.5"
-                  : "hover:opacity-100"
-              }
-            >
-              {item.label}
-            </Link>
-          ))}
+          {topNavItems.map((item) => {
+            const isActive =
+              item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
+            return (
+              <Link
+                key={item.label}
+                href={item.href}
+                className={
+                  isActive
+                    ? "opacity-100 font-bold border-b-2 border-accent pb-0.5"
+                    : "hover:opacity-100"
+                }
+              >
+                {item.label}
+              </Link>
+            );
+          })}
           <span className="cursor-pointer">admin ▾</span>
         </nav>
       </header>
@@ -70,16 +90,22 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               <div className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-text-muted">
                 {section.title}
               </div>
-              {section.items.map((item) => (
-                <Link
-                  key={item.label}
-                  href={item.href}
-                  className="flex items-center gap-2 px-4 py-[7px] text-[13px] text-text-primary hover:bg-surface-high"
-                >
-                  <span>{item.icon}</span>
-                  <span>{item.label}</span>
-                </Link>
-              ))}
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                const isActive = pathname.startsWith(item.href);
+                return (
+                  <Link
+                    key={item.label}
+                    href={item.href}
+                    className={`flex items-center gap-2 px-4 py-[7px] text-[13px] hover:bg-surface-high ${
+                      isActive ? "text-accent bg-surface-high" : "text-text-primary"
+                    }`}
+                  >
+                    <Icon size={14} />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
             </div>
           ))}
         </aside>

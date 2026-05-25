@@ -2,6 +2,9 @@
 
 Self-hosted multi-user multi-node Minecraft server management platform.
 
+## Base Instructions
+Always use Context7 when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
+
 ## Module Structure
 
 ```

@@ -43,6 +43,7 @@ dependencies {
 
     // Docker Java client
     implementation(libs.docker.java.api)
+    implementation(libs.docker.java.core)
     implementation(libs.docker.java.transport.httpclient5)
 
     // Logging

@@ -42,6 +42,9 @@ dependencies {
     implementation(libs.hikaricp)
     implementation(libs.postgresql)
 
+    // Argon2id password hashing
+    implementation(libs.bcprov.jdk18on)
+
     // Logging
     implementation(libs.logback.classic)
 }
@@ -94,6 +97,12 @@ val imageVersion: String = rootProject.findProperty("imageVersion")?.toString() 
 val imageName = buildString {
     if (imageRegistry != null) append("$imageRegistry/")
     append("craftpanel-master:$imageVersion")
+}
+
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+    compilerOptions {
+        freeCompilerArgs.add("-opt-in=kotlin.uuid.ExperimentalUuidApi")
+    }
 }
 
 tasks.register<DockerBuildImage>("dockerBuildImage") {
