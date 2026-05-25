@@ -34,6 +34,18 @@ object DatabaseFactory {
                 UserGroupAssignments,
                 Nodes,
                 NodeMetrics,
+                ServerNetworks,
+                Servers,
+                ServerEnvVars,
+                PortRegistry,
+                ProxyBackends,
+                ServerMods,
+                Backups,
+                ServerMigrations,
+                MigrationStepLog,
+                AlertThresholds,
+                AlertEvents,
+                SystemSettings,
             )
             seedSystemGroups()
         }
