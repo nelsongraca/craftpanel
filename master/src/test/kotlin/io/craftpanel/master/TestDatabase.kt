@@ -7,6 +7,7 @@ import io.craftpanel.master.database.schema.NodeMetrics
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.PortRegistry
 import io.craftpanel.master.database.schema.RefreshTokens
+import io.craftpanel.master.database.schema.ServerEnvVars
 import io.craftpanel.master.database.schema.ServerMigrations
 import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.Servers
@@ -26,7 +27,7 @@ object TestDatabase {
         transaction {
             SchemaUtils.create(
                 Users, RefreshTokens, Groups, GroupPermissions, UserGroupAssignments,
-                ServerNetworks, Nodes, Servers, NodeMetrics, PortRegistry, ServerMigrations,
+                ServerNetworks, Nodes, Servers, ServerEnvVars, NodeMetrics, PortRegistry, ServerMigrations,
             )
             seedSystemGroups()
         }
@@ -38,6 +39,7 @@ object TestDatabase {
             ServerMigrations.deleteAll()
             PortRegistry.deleteAll()
             NodeMetrics.deleteAll()
+            ServerEnvVars.deleteAll()
             Servers.deleteAll()
             Nodes.deleteAll()
             ServerNetworks.deleteAll()

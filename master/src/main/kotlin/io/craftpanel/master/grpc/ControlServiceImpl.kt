@@ -3,7 +3,9 @@ package io.craftpanel.master.grpc
 import com.craftpanel.agent.v1.*
 import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.database.schema.Nodes
+import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.util.toKotlinUuid
+import java.util.UUID
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
@@ -120,6 +122,7 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
                     }
                     msg.hasServerStatus() -> {
                         log.debug("Node ${msg.nodeId} server status: ${msg.serverStatus.serverId} → ${msg.serverStatus.status}")
+                        persistServerStatus(msg.serverStatus)
                     }
                     msg.hasPlayerUpdate() -> {
                         log.debug("Node ${msg.nodeId} player update: ${msg.playerUpdate.serverId} — ${msg.playerUpdate.playerCount} players")
@@ -133,11 +136,48 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
     }
 
     private fun reconcileNodeState(nodeId: String, snapshot: NodeStateSnapshot) {
-        // TODO: update server run states in DB based on snapshot
+        val kotlinNodeId = runCatching { UUID.fromString(nodeId).toKotlinUuid() }.getOrNull() ?: return
+        transaction {
+            val byServerId = snapshot.containersList.associateBy { it.serverId }
+            Servers.selectAll().where { Servers.nodeId eq kotlinNodeId }.forEach { server ->
+                val serverId = server[Servers.id]
+                val container = byServerId[serverId.toString()]
+                val newStatus = when (container?.runState) {
+                    ContainerState.RunState.RUNNING -> "RUNNING"
+                    ContainerState.RunState.STOPPED -> "STOPPED"
+                    ContainerState.RunState.EXITED -> "ERROR"
+                    null -> null
+                    else -> null
+                } ?: return@forEach
+                Servers.update({ Servers.id eq serverId }) {
+                    it[Servers.status] = newStatus
+                    it[Servers.containerId] = container?.containerId?.takeIf { s -> s.isNotEmpty() }
+                }
+            }
+        }
     }
 
     private fun persistNodeMetrics(nodeId: String, metrics: NodeMetricsUpdate) {
         // TODO: write NodeMetrics row
+    }
+
+    private fun persistServerStatus(update: ServerStatusUpdate) {
+        val serverId = runCatching { UUID.fromString(update.serverId).toKotlinUuid() }.getOrNull() ?: return
+        val dbStatus = when (update.status) {
+            ServerStatusUpdate.ServerStatus.STARTING -> "STARTING"
+            ServerStatusUpdate.ServerStatus.HEALTHY -> "RUNNING"
+            ServerStatusUpdate.ServerStatus.STOPPED -> "STOPPED"
+            ServerStatusUpdate.ServerStatus.UNHEALTHY -> "ERROR"
+            else -> return
+        }
+        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        transaction {
+            Servers.update({ Servers.id eq serverId }) {
+                it[Servers.status] = dbStatus
+                it[Servers.containerId] = update.containerId.takeIf { s -> s.isNotEmpty() }
+                it[Servers.lastSeenAt] = now
+            }
+        }
     }
 
     fun generateNodeKey(): String {

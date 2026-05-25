@@ -1,9 +1,19 @@
 package io.craftpanel.master.routes
 
+import com.craftpanel.agent.v1.MasterMessage
+import com.craftpanel.agent.v1.createContainerCommand
+import com.craftpanel.agent.v1.masterMessage
+import com.craftpanel.agent.v1.pullImageCommand
+import com.craftpanel.agent.v1.removeContainerCommand
+import com.craftpanel.agent.v1.restartContainerCommand
+import com.craftpanel.agent.v1.startContainerCommand
+import com.craftpanel.agent.v1.stopContainerCommand
+import com.craftpanel.agent.v1.volumeMount
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.database.schema.GroupPermissions
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.PortRegistry
+import io.craftpanel.master.database.schema.ServerEnvVars
 import io.craftpanel.master.database.schema.ServerMigrations
 import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.Servers
@@ -83,7 +93,12 @@ data class PatchExposureRequest(
     @SerialName("public_subdomain") val publicSubdomain: String? = null,
 )
 
-fun Route.serversRoutes() {
+@Serializable
+data class UpgradeServerRequest(
+    @SerialName("itzg_image_tag") val itzgImageTag: String,
+)
+
+fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
     authenticate("auth-jwt") {
         route("/api/v1/servers") {
 
@@ -428,6 +443,317 @@ fun Route.serversRoutes() {
                 }
             }
 
+            post("/{id}/start") {
+                val principal = call.principal<JWTPrincipal>()!!
+                val userId = UUID.fromString(principal.payload.subject)
+
+                val id = parseServerId(call.parameters["id"]) ?: run {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid server ID"))
+                    return@post
+                }
+
+                val serverRow = transaction {
+                    Servers.selectAll().where { Servers.id eq id }.firstOrNull()
+                } ?: run {
+                    call.respond(HttpStatusCode.NotFound, mapOf("message" to "Server not found"))
+                    return@post
+                }
+
+                val serverIdJava = UUID.fromString(id.toString())
+                val netIdJava = serverRow[Servers.networkId]?.let { UUID.fromString(it.toString()) }
+                if (!PermissionResolver.hasPermission(userId, "server.start", serverId = serverIdJava, networkId = netIdJava)) {
+                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    return@post
+                }
+
+                val currentStatus = serverRow[Servers.status]
+                if (currentStatus == "RUNNING" || currentStatus == "STARTING") {
+                    call.respond(HttpStatusCode.Conflict, mapOf("message" to "Server is already running"))
+                    return@post
+                }
+
+                val nodeKotlinId = serverRow[Servers.nodeId]
+                val nodeRow = transaction {
+                    Nodes.selectAll().where { Nodes.id eq nodeKotlinId }.firstOrNull()
+                } ?: run {
+                    call.respond(HttpStatusCode.UnprocessableEntity, mapOf("message" to "Node not found"))
+                    return@post
+                }
+
+                val dbEnvVars = transaction {
+                    ServerEnvVars.selectAll().where { ServerEnvVars.serverId eq id }.toList()
+                }
+
+                val serverType = serverRow[Servers.serverType]
+                val serverImage = deriveImage(serverType, serverRow[Servers.itzgImageTag])
+                val dataVolumePath = "${nodeRow[Nodes.dataPath]}/servers/$id"
+                val netName = serverRow[Servers.networkId]?.let { "craftpanel-net-$it" } ?: ""
+                val systemVars = mapOf(
+                    "EULA" to "TRUE",
+                    "TYPE" to serverType,
+                    "MEMORY" to "${serverRow[Servers.memoryMb]}M",
+                )
+                val userVars = dbEnvVars.associate { it[ServerEnvVars.key] to it[ServerEnvVars.value] }
+                val allVars = systemVars + userVars
+
+                val nodeId = nodeKotlinId.toString()
+                val hasContainer = serverRow[Servers.containerId] != null
+
+                if (!hasContainer) {
+                    val createCmd = masterMessage {
+                        createContainer = createContainerCommand {
+                            serverId = id.toString()
+                            containerName = "craftpanel-$id"
+                            image = serverImage
+                            ramMb = serverRow[Servers.memoryMb]
+                            cpuShares = serverRow[Servers.cpuShares]
+                            hostPort = serverRow[Servers.gamePort]
+                            envVars.putAll(allVars)
+                            this.mounts.add(volumeMount {
+                                hostPath = dataVolumePath
+                                containerPath = "/data"
+                                readOnly = false
+                            })
+                            dockerNetwork = netName
+                            restartPolicy = "unless-stopped"
+                            stopCommand = serverRow[Servers.stopCommand]
+                        }
+                    }
+                    if (!sendToNode(nodeId, createCmd)) {
+                        call.respond(HttpStatusCode.BadGateway, mapOf("message" to "Agent not connected"))
+                        return@post
+                    }
+                }
+
+                val startCmd = masterMessage {
+                    startContainer = startContainerCommand {
+                        serverId = id.toString()
+                        containerName = "craftpanel-$id"
+                    }
+                }
+                if (!sendToNode(nodeId, startCmd)) {
+                    call.respond(HttpStatusCode.BadGateway, mapOf("message" to "Agent not connected"))
+                    return@post
+                }
+
+                transaction {
+                    Servers.update({ Servers.id eq id }) {
+                        it[status] = "STARTING"
+                        it[updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+                    }
+                }
+
+                call.respond(HttpStatusCode.Accepted, mapOf("message" to "Server start initiated"))
+            }
+
+            post("/{id}/stop") {
+                val principal = call.principal<JWTPrincipal>()!!
+                val userId = UUID.fromString(principal.payload.subject)
+
+                val id = parseServerId(call.parameters["id"]) ?: run {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid server ID"))
+                    return@post
+                }
+
+                val serverRow = transaction {
+                    Servers.selectAll().where { Servers.id eq id }.firstOrNull()
+                } ?: run {
+                    call.respond(HttpStatusCode.NotFound, mapOf("message" to "Server not found"))
+                    return@post
+                }
+
+                val serverIdJava = UUID.fromString(id.toString())
+                val netIdJava = serverRow[Servers.networkId]?.let { UUID.fromString(it.toString()) }
+                if (!PermissionResolver.hasPermission(userId, "server.stop", serverId = serverIdJava, networkId = netIdJava)) {
+                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    return@post
+                }
+
+                if (serverRow[Servers.status] == "STOPPED") {
+                    call.respond(HttpStatusCode.Conflict, mapOf("message" to "Server is already stopped"))
+                    return@post
+                }
+
+                val nodeId = serverRow[Servers.nodeId].toString()
+                val stopCmd = masterMessage {
+                    stopContainer = stopContainerCommand {
+                        serverId = id.toString()
+                        containerName = "craftpanel-$id"
+                        timeoutSeconds = 30
+                        stopCommand = serverRow[Servers.stopCommand]
+                    }
+                }
+                if (!sendToNode(nodeId, stopCmd)) {
+                    call.respond(HttpStatusCode.BadGateway, mapOf("message" to "Agent not connected"))
+                    return@post
+                }
+
+                call.respond(HttpStatusCode.Accepted, mapOf("message" to "Server stop initiated"))
+            }
+
+            post("/{id}/restart") {
+                val principal = call.principal<JWTPrincipal>()!!
+                val userId = UUID.fromString(principal.payload.subject)
+
+                val id = parseServerId(call.parameters["id"]) ?: run {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid server ID"))
+                    return@post
+                }
+
+                val serverRow = transaction {
+                    Servers.selectAll().where { Servers.id eq id }.firstOrNull()
+                } ?: run {
+                    call.respond(HttpStatusCode.NotFound, mapOf("message" to "Server not found"))
+                    return@post
+                }
+
+                val serverIdJava = UUID.fromString(id.toString())
+                val netIdJava = serverRow[Servers.networkId]?.let { UUID.fromString(it.toString()) }
+                if (!PermissionResolver.hasPermission(userId, "server.restart", serverId = serverIdJava, networkId = netIdJava)) {
+                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    return@post
+                }
+
+                val nodeId = serverRow[Servers.nodeId].toString()
+                val restartCmd = masterMessage {
+                    restartContainer = restartContainerCommand {
+                        serverId = id.toString()
+                        containerName = "craftpanel-$id"
+                        timeoutSeconds = 30
+                        stopCommand = serverRow[Servers.stopCommand]
+                    }
+                }
+                if (!sendToNode(nodeId, restartCmd)) {
+                    call.respond(HttpStatusCode.BadGateway, mapOf("message" to "Agent not connected"))
+                    return@post
+                }
+
+                call.respond(HttpStatusCode.Accepted, mapOf("message" to "Server restart initiated"))
+            }
+
+            post("/{id}/upgrade") {
+                val principal = call.principal<JWTPrincipal>()!!
+                val userId = UUID.fromString(principal.payload.subject)
+
+                val id = parseServerId(call.parameters["id"]) ?: run {
+                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid server ID"))
+                    return@post
+                }
+
+                val serverRow = transaction {
+                    Servers.selectAll().where { Servers.id eq id }.firstOrNull()
+                } ?: run {
+                    call.respond(HttpStatusCode.NotFound, mapOf("message" to "Server not found"))
+                    return@post
+                }
+
+                val serverIdJava = UUID.fromString(id.toString())
+                val netIdJava = serverRow[Servers.networkId]?.let { UUID.fromString(it.toString()) }
+                if (!PermissionResolver.hasPermission(userId, "server.upgrade", serverId = serverIdJava, networkId = netIdJava)) {
+                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    return@post
+                }
+
+                if (serverRow[Servers.status] != "STOPPED") {
+                    call.respond(HttpStatusCode.Conflict, mapOf("message" to "Server must be STOPPED before upgrade"))
+                    return@post
+                }
+
+                val req = call.receive<UpgradeServerRequest>()
+                if (req.itzgImageTag.isBlank()) {
+                    call.respond(HttpStatusCode.UnprocessableEntity, mapOf("message" to "itzg_image_tag must not be blank"))
+                    return@post
+                }
+
+                val nodeRow = transaction {
+                    Nodes.selectAll().where { Nodes.id eq serverRow[Servers.nodeId] }.firstOrNull()
+                } ?: run {
+                    call.respond(HttpStatusCode.UnprocessableEntity, mapOf("message" to "Node not found"))
+                    return@post
+                }
+
+                val dbEnvVars = transaction {
+                    ServerEnvVars.selectAll().where { ServerEnvVars.serverId eq id }.toList()
+                }
+
+                val nodeId = serverRow[Servers.nodeId].toString()
+                val serverType = serverRow[Servers.serverType]
+                val serverImage = deriveImage(serverType, req.itzgImageTag)
+
+                // Remove old container if it exists
+                if (serverRow[Servers.containerId] != null) {
+                    val removeCmd = masterMessage {
+                        removeContainer = removeContainerCommand {
+                            serverId = id.toString()
+                            containerName = "craftpanel-$id"
+                            force = false
+                        }
+                    }
+                    if (!sendToNode(nodeId, removeCmd)) {
+                        call.respond(HttpStatusCode.BadGateway, mapOf("message" to "Agent not connected"))
+                        return@post
+                    }
+                }
+
+                // Pull new image
+                val pullCmd = masterMessage {
+                    pullImage = pullImageCommand {
+                        serverId = id.toString()
+                        image = serverImage
+                    }
+                }
+                if (!sendToNode(nodeId, pullCmd)) {
+                    call.respond(HttpStatusCode.BadGateway, mapOf("message" to "Agent not connected"))
+                    return@post
+                }
+
+                // Recreate container with new image
+                val dataVolumePath = "${nodeRow[Nodes.dataPath]}/servers/$id"
+                val netName = serverRow[Servers.networkId]?.let { "craftpanel-net-$it" } ?: ""
+                val systemVars = mapOf(
+                    "EULA" to "TRUE",
+                    "TYPE" to serverType,
+                    "MEMORY" to "${serverRow[Servers.memoryMb]}M",
+                )
+                val userVars = dbEnvVars.associate { it[ServerEnvVars.key] to it[ServerEnvVars.value] }
+                val allVars = systemVars + userVars
+
+                val createCmd = masterMessage {
+                    createContainer = createContainerCommand {
+                        serverId = id.toString()
+                        containerName = "craftpanel-$id"
+                        image = serverImage
+                        ramMb = serverRow[Servers.memoryMb]
+                        cpuShares = serverRow[Servers.cpuShares]
+                        hostPort = serverRow[Servers.gamePort]
+                        envVars.putAll(allVars)
+                        this.mounts.add(volumeMount {
+                            hostPath = dataVolumePath
+                            containerPath = "/data"
+                            readOnly = false
+                        })
+                        dockerNetwork = netName
+                        restartPolicy = "unless-stopped"
+                        stopCommand = serverRow[Servers.stopCommand]
+                    }
+                }
+                if (!sendToNode(nodeId, createCmd)) {
+                    call.respond(HttpStatusCode.BadGateway, mapOf("message" to "Agent not connected"))
+                    return@post
+                }
+
+                // Update itzg_image_tag and clear containerId (will be set when agent reports back after create)
+                transaction {
+                    Servers.update({ Servers.id eq id }) {
+                        it[Servers.itzgImageTag] = req.itzgImageTag
+                        it[Servers.containerId] = null
+                        it[updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+                    }
+                }
+
+                call.respond(HttpStatusCode.Accepted, mapOf("message" to "Server upgrade initiated"))
+            }
+
             patch("/{id}/exposure") {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
@@ -547,3 +873,8 @@ private fun rowToServerResponse(row: ResultRow, isMigrating: Boolean) = ServerRe
 
 private fun parseServerId(raw: String?): kotlin.uuid.Uuid? =
     raw?.let { runCatching { UUID.fromString(it).toKotlinUuid() }.getOrNull() }
+
+private fun deriveImage(serverType: String, tag: String): String = when (serverType) {
+    "BUNGEECORD", "VELOCITY", "WATERFALL" -> "itzg/mc-proxy:$tag"
+    else -> "itzg/minecraft-server:$tag"
+}

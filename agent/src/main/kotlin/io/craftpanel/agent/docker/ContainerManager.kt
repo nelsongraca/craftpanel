@@ -4,6 +4,7 @@ import com.craftpanel.agent.v1.ContainerState
 import com.craftpanel.agent.v1.CreateContainerCommand
 import com.craftpanel.agent.v1.containerState
 import com.github.dockerjava.api.DockerClient
+import com.github.dockerjava.api.command.PullImageResultCallback
 import com.github.dockerjava.api.model.AccessMode
 import com.github.dockerjava.api.model.Bind
 import com.github.dockerjava.api.model.ExposedPort
@@ -35,7 +36,7 @@ class ContainerManager(private val docker: DockerClient) {
             }
     }
 
-    fun createContainer(cmd: CreateContainerCommand) {
+    fun createContainer(cmd: CreateContainerCommand): String {
         val minecraftPort = ExposedPort.tcp(25565)
         val portBindings = Ports()
         if (cmd.hostPort > 0) {
@@ -62,7 +63,7 @@ class ContainerManager(private val docker: DockerClient) {
                 if (cmd.dockerNetwork.isNotEmpty()) cfg.withNetworkMode(cmd.dockerNetwork) else cfg
             }
 
-        docker.createContainerCmd(cmd.image)
+        val response = docker.createContainerCmd(cmd.image)
             .withName(cmd.containerName)
             .withEnv(envList)
             .withExposedPorts(minecraftPort)
@@ -71,6 +72,12 @@ class ContainerManager(private val docker: DockerClient) {
             .exec()
 
         log.info("Created container ${cmd.containerName} (server ${cmd.serverId})")
+        return response.id
+    }
+
+    fun pullImage(image: String) {
+        docker.pullImageCmd(image).exec(PullImageResultCallback()).awaitCompletion()
+        log.info("Pulled image $image")
     }
 
     fun startContainer(containerName: String) {

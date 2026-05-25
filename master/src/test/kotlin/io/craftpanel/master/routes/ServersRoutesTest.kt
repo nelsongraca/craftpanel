@@ -1,5 +1,6 @@
 package io.craftpanel.master.routes
 
+import com.craftpanel.agent.v1.MasterMessage
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.auth.JwtManager
@@ -58,7 +59,7 @@ class ServersRoutesTest {
         TestDatabase.reset()
     }
 
-    private fun Application.configureTest() {
+    private fun Application.configureTest(sendToNode: (String, MasterMessage) -> Boolean = { _, _ -> true }) {
         install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         install(Authentication) {
             jwt("auth-jwt") {
@@ -72,7 +73,7 @@ class ServersRoutesTest {
                 }
             }
         }
-        routing { serversRoutes() }
+        routing { serversRoutes(sendToNode) }
     }
 
     private fun ApplicationTestBuilder.jsonClient() = createClient {
@@ -136,6 +137,7 @@ class ServersRoutesTest {
         status: String = "STOPPED",
         memoryMb: Int = 1024,
         port: Int = 25565,
+        containerId: String? = null,
     ): UUID = transaction {
         Servers.insert {
             it[Servers.nodeId] = nodeId.toKotlinUuid()
@@ -147,6 +149,7 @@ class ServersRoutesTest {
             it[Servers.memoryMb] = memoryMb
             it[Servers.cpuShares] = 0
             it[Servers.status] = status
+            it[Servers.containerId] = containerId
         }[Servers.id].let { UUID.fromString(it.toString()) }
     }
 
@@ -658,5 +661,293 @@ class ServersRoutesTest {
             setBody("""{"exposed_externally":false}""")
         }
         assertEquals(HttpStatusCode.Forbidden, resp.status)
+    }
+
+    // ── POST /servers/{id}/start ─────────────────────────────────────────────
+
+    @Test
+    fun `POST start returns 401 without token`() = testApplication {
+        application { configureTest() }
+        val nodeId = createNode()
+        val serverId = createServer(nodeId)
+        val resp = client.post("/api/v1/servers/$serverId/start")
+        assertEquals(HttpStatusCode.Unauthorized, resp.status)
+    }
+
+    @Test
+    fun `POST start returns 403 without server-start permission`() = testApplication {
+        application { configureTest() }
+        val client = jsonClient()
+        val userId = createUser()
+        assignGlobalGroup(userId, "Viewer")
+        val nodeId = createNode()
+        val serverId = createServer(nodeId)
+        val resp = client.post("/api/v1/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
+        assertEquals(HttpStatusCode.Forbidden, resp.status)
+    }
+
+    @Test
+    fun `POST start returns 404 for unknown server`() = testApplication {
+        application { configureTest() }
+        val client = jsonClient()
+        val userId = createUser()
+        assignGlobalGroup(userId, "Super Admin")
+        val resp = client.post("/api/v1/servers/${UUID.randomUUID()}/start") { bearerAuth(tokenFor(userId)) }
+        assertEquals(HttpStatusCode.NotFound, resp.status)
+    }
+
+    @Test
+    fun `POST start returns 409 if server is RUNNING`() = testApplication {
+        application { configureTest() }
+        val client = jsonClient()
+        val userId = createUser()
+        assignGlobalGroup(userId, "Super Admin")
+        val nodeId = createNode()
+        val serverId = createServer(nodeId, status = "RUNNING")
+        val resp = client.post("/api/v1/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
+        assertEquals(HttpStatusCode.Conflict, resp.status)
+    }
+
+    @Test
+    fun `POST start returns 409 if server is STARTING`() = testApplication {
+        application { configureTest() }
+        val client = jsonClient()
+        val userId = createUser()
+        assignGlobalGroup(userId, "Super Admin")
+        val nodeId = createNode()
+        val serverId = createServer(nodeId, status = "STARTING")
+        val resp = client.post("/api/v1/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
+        assertEquals(HttpStatusCode.Conflict, resp.status)
+    }
+
+    @Test
+    fun `POST start returns 502 when agent not connected`() = testApplication {
+        application { configureTest(sendToNode = { _, _ -> false }) }
+        val client = jsonClient()
+        val userId = createUser()
+        assignGlobalGroup(userId, "Super Admin")
+        val nodeId = createNode()
+        val serverId = createServer(nodeId, status = "STOPPED")
+        val resp = client.post("/api/v1/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
+        assertEquals(HttpStatusCode.BadGateway, resp.status)
+    }
+
+    @Test
+    fun `POST start returns 202 and updates status to STARTING`() = testApplication {
+        application { configureTest() }
+        val client = jsonClient()
+        val userId = createUser()
+        assignGlobalGroup(userId, "Super Admin")
+        val nodeId = createNode()
+        val serverId = createServer(nodeId, status = "STOPPED")
+        val resp = client.post("/api/v1/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
+        assertEquals(HttpStatusCode.Accepted, resp.status)
+        val row = transaction { Servers.selectAll().where { Servers.id eq serverId.toKotlinUuid() }.first() }
+        assertEquals("STARTING", row[Servers.status])
+    }
+
+    @Test
+    fun `POST start sends only StartContainerCommand when container already exists`() = testApplication {
+        val sentCommands = mutableListOf<MasterMessage>()
+        application { configureTest(sendToNode = { _, msg -> sentCommands.add(msg); true }) }
+        val client = jsonClient()
+        val userId = createUser()
+        assignGlobalGroup(userId, "Super Admin")
+        val nodeId = createNode()
+        val serverId = createServer(nodeId, status = "STOPPED", containerId = "abc123")
+        val resp = client.post("/api/v1/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
+        assertEquals(HttpStatusCode.Accepted, resp.status)
+        assertEquals(1, sentCommands.size)
+        assertTrue(sentCommands[0].hasStartContainer())
+    }
+
+    @Test
+    fun `POST start sends CreateContainerCommand then StartContainerCommand when no container`() = testApplication {
+        val sentCommands = mutableListOf<MasterMessage>()
+        application { configureTest(sendToNode = { _, msg -> sentCommands.add(msg); true }) }
+        val client = jsonClient()
+        val userId = createUser()
+        assignGlobalGroup(userId, "Super Admin")
+        val nodeId = createNode()
+        val serverId = createServer(nodeId, status = "STOPPED")
+        val resp = client.post("/api/v1/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
+        assertEquals(HttpStatusCode.Accepted, resp.status)
+        assertEquals(2, sentCommands.size)
+        assertTrue(sentCommands[0].hasCreateContainer())
+        assertTrue(sentCommands[1].hasStartContainer())
+        val create = sentCommands[0].createContainer
+        assertEquals("craftpanel-$serverId", create.containerName)
+        assertEquals("itzg/minecraft-server:latest", create.image)
+        assertEquals("TRUE", create.envVarsMap["EULA"])
+    }
+
+    // ── POST /servers/{id}/stop ──────────────────────────────────────────────
+
+    @Test
+    fun `POST stop returns 403 without server-stop permission`() = testApplication {
+        application { configureTest() }
+        val client = jsonClient()
+        val userId = createUser()
+        assignGlobalGroup(userId, "Viewer")
+        val nodeId = createNode()
+        val serverId = createServer(nodeId, status = "RUNNING")
+        val resp = client.post("/api/v1/servers/$serverId/stop") { bearerAuth(tokenFor(userId)) }
+        assertEquals(HttpStatusCode.Forbidden, resp.status)
+    }
+
+    @Test
+    fun `POST stop returns 409 if server is already STOPPED`() = testApplication {
+        application { configureTest() }
+        val client = jsonClient()
+        val userId = createUser()
+        assignGlobalGroup(userId, "Super Admin")
+        val nodeId = createNode()
+        val serverId = createServer(nodeId, status = "STOPPED")
+        val resp = client.post("/api/v1/servers/$serverId/stop") { bearerAuth(tokenFor(userId)) }
+        assertEquals(HttpStatusCode.Conflict, resp.status)
+    }
+
+    @Test
+    fun `POST stop returns 502 when agent not connected`() = testApplication {
+        application { configureTest(sendToNode = { _, _ -> false }) }
+        val client = jsonClient()
+        val userId = createUser()
+        assignGlobalGroup(userId, "Super Admin")
+        val nodeId = createNode()
+        val serverId = createServer(nodeId, status = "RUNNING")
+        val resp = client.post("/api/v1/servers/$serverId/stop") { bearerAuth(tokenFor(userId)) }
+        assertEquals(HttpStatusCode.BadGateway, resp.status)
+    }
+
+    @Test
+    fun `POST stop returns 202 and sends StopContainerCommand`() = testApplication {
+        val sentCommands = mutableListOf<MasterMessage>()
+        application { configureTest(sendToNode = { _, msg -> sentCommands.add(msg); true }) }
+        val client = jsonClient()
+        val userId = createUser()
+        assignGlobalGroup(userId, "Super Admin")
+        val nodeId = createNode()
+        val serverId = createServer(nodeId, status = "RUNNING")
+        val resp = client.post("/api/v1/servers/$serverId/stop") { bearerAuth(tokenFor(userId)) }
+        assertEquals(HttpStatusCode.Accepted, resp.status)
+        assertEquals(1, sentCommands.size)
+        assertTrue(sentCommands[0].hasStopContainer())
+        assertEquals("craftpanel-$serverId", sentCommands[0].stopContainer.containerName)
+    }
+
+    // ── POST /servers/{id}/restart ───────────────────────────────────────────
+
+    @Test
+    fun `POST restart returns 403 without server-restart permission`() = testApplication {
+        application { configureTest() }
+        val client = jsonClient()
+        val userId = createUser()
+        assignGlobalGroup(userId, "Viewer")
+        val nodeId = createNode()
+        val serverId = createServer(nodeId, status = "RUNNING")
+        val resp = client.post("/api/v1/servers/$serverId/restart") { bearerAuth(tokenFor(userId)) }
+        assertEquals(HttpStatusCode.Forbidden, resp.status)
+    }
+
+    @Test
+    fun `POST restart returns 502 when agent not connected`() = testApplication {
+        application { configureTest(sendToNode = { _, _ -> false }) }
+        val client = jsonClient()
+        val userId = createUser()
+        assignGlobalGroup(userId, "Super Admin")
+        val nodeId = createNode()
+        val serverId = createServer(nodeId, status = "RUNNING")
+        val resp = client.post("/api/v1/servers/$serverId/restart") { bearerAuth(tokenFor(userId)) }
+        assertEquals(HttpStatusCode.BadGateway, resp.status)
+    }
+
+    @Test
+    fun `POST restart returns 202 and sends RestartContainerCommand`() = testApplication {
+        val sentCommands = mutableListOf<MasterMessage>()
+        application { configureTest(sendToNode = { _, msg -> sentCommands.add(msg); true }) }
+        val client = jsonClient()
+        val userId = createUser()
+        assignGlobalGroup(userId, "Super Admin")
+        val nodeId = createNode()
+        val serverId = createServer(nodeId, status = "RUNNING")
+        val resp = client.post("/api/v1/servers/$serverId/restart") { bearerAuth(tokenFor(userId)) }
+        assertEquals(HttpStatusCode.Accepted, resp.status)
+        assertEquals(1, sentCommands.size)
+        assertTrue(sentCommands[0].hasRestartContainer())
+        assertEquals("craftpanel-$serverId", sentCommands[0].restartContainer.containerName)
+    }
+
+    // ── POST /servers/{id}/upgrade ───────────────────────────────────────────
+
+    @Test
+    fun `POST upgrade returns 403 without server-upgrade permission`() = testApplication {
+        application { configureTest() }
+        val client = jsonClient()
+        val userId = createUser()
+        assignGlobalGroup(userId, "Operator")
+        val nodeId = createNode()
+        val serverId = createServer(nodeId, status = "STOPPED")
+        val resp = client.post("/api/v1/servers/$serverId/upgrade") {
+            bearerAuth(tokenFor(userId))
+            contentType(ContentType.Application.Json)
+            setBody("""{"itzg_image_tag":"1.21"}""")
+        }
+        assertEquals(HttpStatusCode.Forbidden, resp.status)
+    }
+
+    @Test
+    fun `POST upgrade returns 409 when server is not STOPPED`() = testApplication {
+        application { configureTest() }
+        val client = jsonClient()
+        val userId = createUser()
+        assignGlobalGroup(userId, "Super Admin")
+        val nodeId = createNode()
+        val serverId = createServer(nodeId, status = "RUNNING")
+        val resp = client.post("/api/v1/servers/$serverId/upgrade") {
+            bearerAuth(tokenFor(userId))
+            contentType(ContentType.Application.Json)
+            setBody("""{"itzg_image_tag":"1.21"}""")
+        }
+        assertEquals(HttpStatusCode.Conflict, resp.status)
+    }
+
+    @Test
+    fun `POST upgrade returns 502 when agent not connected`() = testApplication {
+        application { configureTest(sendToNode = { _, _ -> false }) }
+        val client = jsonClient()
+        val userId = createUser()
+        assignGlobalGroup(userId, "Super Admin")
+        val nodeId = createNode()
+        val serverId = createServer(nodeId, status = "STOPPED")
+        val resp = client.post("/api/v1/servers/$serverId/upgrade") {
+            bearerAuth(tokenFor(userId))
+            contentType(ContentType.Application.Json)
+            setBody("""{"itzg_image_tag":"1.21"}""")
+        }
+        assertEquals(HttpStatusCode.BadGateway, resp.status)
+    }
+
+    @Test
+    fun `POST upgrade returns 202 and updates itzg_image_tag`() = testApplication {
+        val sentCommands = mutableListOf<MasterMessage>()
+        application { configureTest(sendToNode = { _, msg -> sentCommands.add(msg); true }) }
+        val client = jsonClient()
+        val userId = createUser()
+        assignGlobalGroup(userId, "Super Admin")
+        val nodeId = createNode()
+        val serverId = createServer(nodeId, status = "STOPPED")
+        val resp = client.post("/api/v1/servers/$serverId/upgrade") {
+            bearerAuth(tokenFor(userId))
+            contentType(ContentType.Application.Json)
+            setBody("""{"itzg_image_tag":"1.21"}""")
+        }
+        assertEquals(HttpStatusCode.Accepted, resp.status)
+        val row = transaction { Servers.selectAll().where { Servers.id eq serverId.toKotlinUuid() }.first() }
+        assertEquals("1.21", row[Servers.itzgImageTag])
+        // Pull + Create (no Remove since no existing container)
+        assertTrue(sentCommands.any { it.hasPullImage() })
+        assertTrue(sentCommands.any { it.hasCreateContainer() })
+        val create = sentCommands.first { it.hasCreateContainer() }.createContainer
+        assertEquals("itzg/minecraft-server:1.21", create.image)
     }
 }

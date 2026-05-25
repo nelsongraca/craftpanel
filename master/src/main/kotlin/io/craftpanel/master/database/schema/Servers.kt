@@ -22,6 +22,9 @@ object Servers : Table("servers") {
     val cfRecordName = varchar("cf_record_name", 255).nullable()
     val configMode = varchar("config_mode", 10).default("MANAGED")  // MANAGED | MANUAL
     val stopCommand = varchar("stop_command", 50).default("stop")
+    val itzgImageTag = varchar("itzg_image_tag", 100).default("latest")
+    val containerId = varchar("container_id", 64).nullable()
+    val lastSeenAt = datetime("last_seen_at").nullable()
     val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
     val updatedAt = datetime("updated_at").defaultExpression(CurrentDateTime)
 

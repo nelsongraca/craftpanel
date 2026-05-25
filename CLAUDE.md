@@ -133,10 +133,18 @@ Under `/api/v1/servers`. Visibility and mutations are all permission-scoped.
 | DELETE | `/{id}` | `server.delete` (scoped) | 409 if not STOPPED; cleans up PortRegistry |
 | PATCH | `/{id}/resources` | `server.resources` (scoped) | Updates `memory_mb`, `cpu_shares`; checks capacity excluding self; 409 on overflow |
 | PATCH | `/{id}/exposure` | `server.configure` (scoped) | Updates `exposed_externally`, `public_subdomain`; 422 if subdomain taken |
+| POST | `/{id}/start` | `server.start` (scoped) | 409 if RUNNING/STARTING; sends Create+Start if no container, Start only if container exists; sets status→STARTING; 502 if agent unreachable |
+| POST | `/{id}/stop` | `server.stop` (scoped) | 409 if STOPPED; sends StopContainerCommand (30s timeout, server's stop_command); 502 if agent unreachable |
+| POST | `/{id}/restart` | `server.restart` (scoped) | Sends RestartContainerCommand (30s timeout); 502 if agent unreachable |
+| POST | `/{id}/upgrade` | `server.upgrade` (scoped) | Body: `{"itzg_image_tag":"..."}`. Server must be STOPPED (409 otherwise). Removes old container, pulls new image, recreates container. Updates `itzg_image_tag` in DB; 502 if agent unreachable |
 
 `is_migrating` is derived: true when a `ServerMigrations` row for this server has status `PENDING` or `RUNNING`.
 Port allocation: first-fit scan of `[portRangeStart, portRangeEnd]` against existing TCP `PortRegistry` entries; uniqueness enforced by PK constraint.
 `image_type` is NOT stored — derived from `server_type` at runtime by the agent.
+Container name is always `craftpanel-{server_id}`. Docker network is `craftpanel-net-{network_id}` when network_id set.
+Image derivation: BUNGEECORD/VELOCITY/WATERFALL → `itzg/mc-proxy:{tag}`; all others → `itzg/minecraft-server:{tag}`.
+System env vars injected: `EULA=TRUE`, `TYPE={server_type}`, `MEMORY={memory_mb}M`. ServerEnvVars override system vars.
+`serversRoutes()` takes `sendToNode: (String, MasterMessage) -> Boolean` — injected from `ControlServiceImpl`.
 
 ## gRPC
 
@@ -279,9 +287,9 @@ Tests live in `master/src/test/kotlin/`. Run with `./gradlew :master:test`. Cove
 
 ### TestDatabase (`io.craftpanel.master.TestDatabase`)
 Singleton H2 in-memory DB shared across all tests. Call `initIfNeeded()` once and `reset()` in `@BeforeTest`.
-- Creates: `Users`, `RefreshTokens`, `Groups`, `GroupPermissions`, `UserGroupAssignments`, `ServerNetworks`, `Nodes`, `Servers`, `NodeMetrics`, `PortRegistry`, `ServerMigrations`
+- Creates: `Users`, `RefreshTokens`, `Groups`, `GroupPermissions`, `UserGroupAssignments`, `ServerNetworks`, `Nodes`, `Servers`, `ServerEnvVars`, `NodeMetrics`, `PortRegistry`, `ServerMigrations`
 - Seeds system groups on first init
-- `reset()` deletes in FK-safe order: `ServerMigrations → PortRegistry → NodeMetrics → Servers → Nodes → ServerNetworks → RefreshTokens → UserGroupAssignments → Users`
+- `reset()` deletes in FK-safe order: `ServerMigrations → PortRegistry → NodeMetrics → ServerEnvVars → Servers → Nodes → ServerNetworks → RefreshTokens → UserGroupAssignments → Users`
 
 ### Route test conventions
 - `configureTest()` is an `Application.()` extension (not `ApplicationTestBuilder.()`), called via `application { configureTest() }` — avoids implicit receiver ambiguity with `install()`
@@ -309,6 +317,7 @@ Schema migrations via `exposed-migration-jdbc`.
 - Don't login via email **and** username — login is email-only (`LoginRequest.email`)
 - Don't use `revokeAll` with `deleteWhere` — it uses `UPDATE SET revoked=true` (soft delete)
 - Don't store `image_type`/`mc_image` in the Servers schema — it was removed; derive Docker image from `server_type` at runtime in the agent
+- Don't use `putAllEnvVars(map)` in proto DSL builders — use `envVars.putAll(map)` (extension function on the DslMap property)
 - Don't use `eq`/`neq`/`inList` from `SqlExpressionBuilder.*` imports — use `import org.jetbrains.exposed.v1.core.*` and only call them inside `where {}` lambdas
 - Don't read `defaultExpression` columns (e.g. `createdAt`) from an `InsertStatement` — SELECT the row after insert instead
 - Don't install Python packages with system pip — use `uv` or `pipx`

@@ -67,7 +67,7 @@ fun Application.module() {
         authRoutes(jwtManager, refreshTokenService)
         nodesRoutes(controlService::sendToNode)
         networksRoutes()
-        serversRoutes()
+        serversRoutes(controlService::sendToNode)
         usersRoutes()
         groupsRoutes()
     }
