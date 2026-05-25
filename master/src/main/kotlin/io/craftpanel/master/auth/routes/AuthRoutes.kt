@@ -2,6 +2,7 @@ package io.craftpanel.master.auth.routes
 
 import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.auth.JwtManager
+import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.auth.RefreshTokenService
 import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.database.schema.Groups
@@ -16,6 +17,7 @@ import io.ktor.server.auth.principal
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
+import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import kotlinx.serialization.Serializable
@@ -29,6 +31,15 @@ data class LoginRequest(val email: String, val password: String)
 
 @Serializable
 data class LoginResponse(val accessToken: String)
+
+@Serializable
+data class MeResponse(
+    val id: String,
+    val username: String,
+    val email: String,
+    val groups: List<String>,
+    val permissions: List<String>,
+)
 
 private data class UserRecord(
     val userId: UUID,
@@ -67,7 +78,7 @@ private fun lookupUser(email: String): UserRecord? = transaction {
 private fun lookupUserById(userId: UUID): Triple<String, String, List<String>>? = transaction {
     val kotlinId = userId.toKotlinUuid()
     val user = Users.selectAll()
-        .where { Users.id eq kotlinId }
+        .where { (Users.id eq kotlinId) and (Users.isActive eq true) }
         .firstOrNull() ?: return@transaction null
 
     val groups = (UserGroupAssignments innerJoin Groups)
@@ -139,17 +150,19 @@ fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenSe
             call.respond(LoginResponse(accessToken))
         }
 
-        authenticate("auth-jwt") {
-            post("/logout") {
-                val rawToken = call.request.cookies["refresh_token"]
-                if (rawToken != null) refreshTokenService.rotate(rawToken)
-                call.response.cookies.append(
-                    name = "refresh_token", value = "", httpOnly = true, secure = true,
-                    extensions = mapOf("SameSite" to "Strict"), path = "/api/v1/auth", maxAge = 0,
-                )
-                call.respond(HttpStatusCode.NoContent)
-            }
+        // No JWT required — cookie alone is sufficient to end the session.
+        // This avoids a UX dead-end when the access token has already expired.
+        post("/logout") {
+            val rawToken = call.request.cookies["refresh_token"]
+            if (rawToken != null) refreshTokenService.revoke(rawToken)
+            call.response.cookies.append(
+                name = "refresh_token", value = "", httpOnly = true, secure = true,
+                extensions = mapOf("SameSite" to "Strict"), path = "/api/v1/auth", maxAge = 0,
+            )
+            call.respond(HttpStatusCode.NoContent)
+        }
 
+        authenticate("auth-jwt") {
             post("/logout-all") {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
@@ -159,6 +172,26 @@ fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenSe
                     extensions = mapOf("SameSite" to "Strict"), path = "/api/v1/auth", maxAge = 0,
                 )
                 call.respond(HttpStatusCode.NoContent)
+            }
+
+            get("/me") {
+                val principal = call.principal<JWTPrincipal>()!!
+                val userId = UUID.fromString(principal.payload.subject)
+
+                val (username, email, groupNames) = lookupUserById(userId)
+                    ?: run { call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "User not found or inactive")); return@get }
+
+                val permissions = PermissionResolver.resolve(userId).toList().sorted()
+
+                call.respond(
+                    MeResponse(
+                        id = userId.toString(),
+                        username = username,
+                        email = email,
+                        groups = groupNames,
+                        permissions = permissions,
+                    )
+                )
             }
         }
     }

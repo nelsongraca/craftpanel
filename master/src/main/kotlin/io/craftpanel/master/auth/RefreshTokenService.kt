@@ -75,6 +75,13 @@ class RefreshTokenService {
         Pair(userId, newToken)
     }
 
+    fun revoke(rawToken: String): Unit = transaction {
+        val hash = sha256Hex(rawToken)
+        RefreshTokens.update({ RefreshTokens.tokenHash eq hash }) {
+            it[RefreshTokens.revoked] = true
+        }
+    }
+
     fun revokeAll(userId: UUID): Unit = transaction {
         val kotlinId = userId.toKotlinUuid()
         RefreshTokens.deleteWhere { RefreshTokens.userId eq kotlinId }
