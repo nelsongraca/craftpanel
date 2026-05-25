@@ -54,7 +54,6 @@ class AuthRoutesTest {
         TestDatabase.reset()
     }
 
-    // Application.() extension so `install` always resolves on Application.
     private fun Application.configureTest() {
         install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         install(Authentication) {
@@ -65,7 +64,7 @@ class AuthRoutesTest {
                     if (credential.payload.subject != null) JWTPrincipal(credential.payload) else null
                 }
                 challenge { _, _ ->
-                    call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Token is not valid or has expired"))
+                    call.respond(HttpStatusCode.Unauthorized, mapOf("message" to "Token is not valid or has expired"))
                 }
             }
         }
@@ -105,12 +104,24 @@ class AuthRoutesTest {
             ?.split(";")?.first()?.removePrefix("refresh_token=")
             ?.takeIf { it.isNotEmpty() }
 
+    // Performs a full login and returns (accessToken, refreshTokenCookie).
+    private suspend fun ApplicationTestBuilder.login(
+        email: String = "alice@example.com",
+        password: String = "hunter2",
+    ): Pair<String, String> {
+        val response = jsonClient().post("/api/v1/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody(LoginRequest(email, password))
+        }
+        return response.body<LoginResponse>().accessToken to response.refreshTokenCookie()!!
+    }
+
     // -------------------------------------------------------------------------
     // login
     // -------------------------------------------------------------------------
 
     @Test
-    fun `login with valid credentials returns access token and sets refresh cookie`() = testApplication {
+    fun `login with valid credentials returns access token, expires_in, and refresh cookie`() = testApplication {
         application { configureTest() }
         val client = jsonClient()
         createUser()
@@ -123,6 +134,7 @@ class AuthRoutesTest {
         assertEquals(HttpStatusCode.OK, response.status)
         val body = response.body<LoginResponse>()
         assertTrue(body.accessToken.isNotBlank())
+        assertEquals(900L, body.expiresIn)
         assertNotNull(response.refreshTokenCookie())
     }
 
@@ -177,21 +189,19 @@ class AuthRoutesTest {
         val client = jsonClient()
         createUser()
 
-        val loginResponse = client.post("/api/v1/auth/login") {
-            contentType(ContentType.Application.Json)
-            setBody(LoginRequest("alice@example.com", "hunter2"))
-        }
-        val firstToken = loginResponse.refreshTokenCookie()!!
+        val (_, firstRefreshToken) = login()
 
         val refreshResponse = client.post("/api/v1/auth/refresh") {
-            cookie("refresh_token", firstToken)
+            cookie("refresh_token", firstRefreshToken)
         }
 
         assertEquals(HttpStatusCode.OK, refreshResponse.status)
-        assertTrue(refreshResponse.body<LoginResponse>().accessToken.isNotBlank())
-        val newToken = refreshResponse.refreshTokenCookie()
-        assertNotNull(newToken)
-        assertNotEquals(firstToken, newToken)
+        val body = refreshResponse.body<LoginResponse>()
+        assertTrue(body.accessToken.isNotBlank())
+        assertEquals(900L, body.expiresIn)
+        val newRefreshToken = refreshResponse.refreshTokenCookie()
+        assertNotNull(newRefreshToken)
+        assertNotEquals(firstRefreshToken, newRefreshToken)
     }
 
     @Test
@@ -215,14 +225,9 @@ class AuthRoutesTest {
     @Test
     fun `refresh token cannot be reused after rotation`() = testApplication {
         application { configureTest() }
-        val client = jsonClient()
         createUser()
 
-        val loginResponse = client.post("/api/v1/auth/login") {
-            contentType(ContentType.Application.Json)
-            setBody(LoginRequest("alice@example.com", "hunter2"))
-        }
-        val token = loginResponse.refreshTokenCookie()!!
+        val (_, token) = login()
 
         client.post("/api/v1/auth/refresh") { cookie("refresh_token", token) }
 
@@ -238,19 +243,23 @@ class AuthRoutesTest {
     // -------------------------------------------------------------------------
 
     @Test
+    fun `logout requires valid JWT`() = testApplication {
+        application { configureTest() }
+
+        assertEquals(HttpStatusCode.Unauthorized, client.post("/api/v1/auth/logout").status)
+    }
+
+    @Test
     fun `logout clears the refresh cookie`() = testApplication {
         application { configureTest() }
         val client = jsonClient()
         createUser()
 
-        val loginResponse = client.post("/api/v1/auth/login") {
-            contentType(ContentType.Application.Json)
-            setBody(LoginRequest("alice@example.com", "hunter2"))
-        }
-        val token = loginResponse.refreshTokenCookie()!!
+        val (accessToken, refreshToken) = login()
 
         val logoutResponse = client.post("/api/v1/auth/logout") {
-            cookie("refresh_token", token)
+            bearerAuth(accessToken)
+            cookie("refresh_token", refreshToken)
         }
 
         assertEquals(HttpStatusCode.NoContent, logoutResponse.status)
@@ -266,26 +275,31 @@ class AuthRoutesTest {
         val client = jsonClient()
         createUser()
 
-        val loginResponse = client.post("/api/v1/auth/login") {
-            contentType(ContentType.Application.Json)
-            setBody(LoginRequest("alice@example.com", "hunter2"))
-        }
-        val token = loginResponse.refreshTokenCookie()!!
+        val (accessToken, refreshToken) = login()
 
-        client.post("/api/v1/auth/logout") { cookie("refresh_token", token) }
-
-        val refreshResponse = client.post("/api/v1/auth/refresh") {
-            cookie("refresh_token", token)
+        client.post("/api/v1/auth/logout") {
+            bearerAuth(accessToken)
+            cookie("refresh_token", refreshToken)
         }
 
-        assertEquals(HttpStatusCode.Unauthorized, refreshResponse.status)
+        assertEquals(
+            HttpStatusCode.Unauthorized,
+            client.post("/api/v1/auth/refresh") { cookie("refresh_token", refreshToken) }.status,
+        )
     }
 
     @Test
-    fun `logout without cookie still returns 204`() = testApplication {
+    fun `logout with valid JWT but no cookie returns 204`() = testApplication {
         application { configureTest() }
+        val client = jsonClient()
+        createUser()
 
-        assertEquals(HttpStatusCode.NoContent, client.post("/api/v1/auth/logout").status)
+        val (accessToken, _) = login()
+
+        assertEquals(
+            HttpStatusCode.NoContent,
+            client.post("/api/v1/auth/logout") { bearerAuth(accessToken) }.status,
+        )
     }
 
     // -------------------------------------------------------------------------
@@ -298,22 +312,14 @@ class AuthRoutesTest {
         val client = jsonClient()
         createUser()
 
-        val loginResponse = client.post("/api/v1/auth/login") {
-            contentType(ContentType.Application.Json)
-            setBody(LoginRequest("alice@example.com", "hunter2"))
-        }
-        val accessToken = loginResponse.body<LoginResponse>().accessToken
-        val refreshToken = loginResponse.refreshTokenCookie()!!
+        val (accessToken, refreshToken) = login()
 
-        val logoutAllResponse = client.post("/api/v1/auth/logout-all") {
-            bearerAuth(accessToken)
-        }
-        assertEquals(HttpStatusCode.NoContent, logoutAllResponse.status)
+        assertEquals(HttpStatusCode.NoContent, client.post("/api/v1/auth/logout-all") { bearerAuth(accessToken) }.status)
 
-        val refreshResponse = client.post("/api/v1/auth/refresh") {
-            cookie("refresh_token", refreshToken)
-        }
-        assertEquals(HttpStatusCode.Unauthorized, refreshResponse.status)
+        assertEquals(
+            HttpStatusCode.Unauthorized,
+            client.post("/api/v1/auth/refresh") { cookie("refresh_token", refreshToken) }.status,
+        )
     }
 
     @Test
@@ -333,10 +339,7 @@ class AuthRoutesTest {
         val client = jsonClient()
         createUser()
 
-        val accessToken = client.post("/api/v1/auth/login") {
-            contentType(ContentType.Application.Json)
-            setBody(LoginRequest("alice@example.com", "hunter2"))
-        }.body<LoginResponse>().accessToken
+        val (accessToken, _) = login()
 
         val meResponse = client.get("/api/v1/auth/me") { bearerAuth(accessToken) }
 
@@ -354,13 +357,9 @@ class AuthRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Viewer")
 
-        val accessToken = client.post("/api/v1/auth/login") {
-            contentType(ContentType.Application.Json)
-            setBody(LoginRequest("alice@example.com", "hunter2"))
-        }.body<LoginResponse>().accessToken
+        val (accessToken, _) = login()
 
-        val me = client.get("/api/v1/auth/me") { bearerAuth(accessToken) }
-            .body<MeResponse>()
+        val me = client.get("/api/v1/auth/me") { bearerAuth(accessToken) }.body<MeResponse>()
 
         assertEquals(listOf("server.view"), me.permissions)
         assertEquals(listOf("Viewer"), me.groups)
@@ -379,10 +378,7 @@ class AuthRoutesTest {
         val client = jsonClient()
         val userId = createUser()
 
-        val accessToken = client.post("/api/v1/auth/login") {
-            contentType(ContentType.Application.Json)
-            setBody(LoginRequest("alice@example.com", "hunter2"))
-        }.body<LoginResponse>().accessToken
+        val (accessToken, _) = login()
 
         transaction {
             Users.update({ Users.id eq userId.toKotlinUuid() }) { it[Users.isActive] = false }

@@ -6,13 +6,13 @@ import io.grpc.netty.NettyServerBuilder
 import org.slf4j.LoggerFactory
 import java.io.File
 
-class GrpcServer(private val config: AppConfig) {
+class GrpcServer(private val config: AppConfig, private val controlService: ControlServiceImpl) {
     private val log = LoggerFactory.getLogger(GrpcServer::class.java)
     private lateinit var server: Server
 
     fun start(): GrpcServer {
         val builder = NettyServerBuilder.forPort(config.grpc.port)
-            .addService(ControlServiceImpl(config.node))
+            .addService(controlService)
             .addService(DataServiceImpl())
 
         if (config.grpc.tlsEnabled) {

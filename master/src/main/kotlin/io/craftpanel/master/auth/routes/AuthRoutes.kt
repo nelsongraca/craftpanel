@@ -20,6 +20,7 @@ import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.route
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -30,7 +31,10 @@ import java.util.UUID
 data class LoginRequest(val email: String, val password: String)
 
 @Serializable
-data class LoginResponse(val accessToken: String)
+data class LoginResponse(
+    @SerialName("access_token") val accessToken: String,
+    @SerialName("expires_in") val expiresIn: Long,
+)
 
 @Serializable
 data class MeResponse(
@@ -99,7 +103,7 @@ fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenSe
             val record = lookupUser(req.email)
 
             if (record == null || !record.isActive || !Argon2Hasher.verify(req.password, record.passwordHash)) {
-                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid credentials"))
+                call.respond(HttpStatusCode.Unauthorized, mapOf("message" to "Invalid credentials"))
                 return@post
             }
 
@@ -116,24 +120,24 @@ fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenSe
                 extensions = mapOf("SameSite" to "Strict"),
                 path = "/api/v1/auth",
             )
-            call.respond(LoginResponse(accessToken))
+            call.respond(LoginResponse(accessToken, jwtManager.expirySeconds))
         }
 
         post("/refresh") {
             val rawToken = call.request.cookies["refresh_token"]
                 ?: run {
-                    call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "No refresh token"))
+                    call.respond(HttpStatusCode.Unauthorized, mapOf("message" to "No refresh token"))
                     return@post
                 }
 
             val (userId, newToken) = refreshTokenService.rotate(rawToken)
                 ?: run {
-                    call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Invalid or expired refresh token"))
+                    call.respond(HttpStatusCode.Unauthorized, mapOf("message" to "Invalid or expired refresh token"))
                     return@post
                 }
 
             val (name, email, groupNames) = lookupUserById(userId)
-                ?: run { call.respond(HttpStatusCode.Unauthorized); return@post }
+                ?: run { call.respond(HttpStatusCode.Unauthorized, mapOf("message" to "User not found or inactive")); return@post }
 
             val accessToken = jwtManager.generate(
                 TokenClaims(userId = userId, name = name, email = email, groups = groupNames)
@@ -147,22 +151,20 @@ fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenSe
                 extensions = mapOf("SameSite" to "Strict"),
                 path = "/api/v1/auth",
             )
-            call.respond(LoginResponse(accessToken))
-        }
-
-        // No JWT required — cookie alone is sufficient to end the session.
-        // This avoids a UX dead-end when the access token has already expired.
-        post("/logout") {
-            val rawToken = call.request.cookies["refresh_token"]
-            if (rawToken != null) refreshTokenService.revoke(rawToken)
-            call.response.cookies.append(
-                name = "refresh_token", value = "", httpOnly = true, secure = true,
-                extensions = mapOf("SameSite" to "Strict"), path = "/api/v1/auth", maxAge = 0,
-            )
-            call.respond(HttpStatusCode.NoContent)
+            call.respond(LoginResponse(accessToken, jwtManager.expirySeconds))
         }
 
         authenticate("auth-jwt") {
+            post("/logout") {
+                val rawToken = call.request.cookies["refresh_token"]
+                if (rawToken != null) refreshTokenService.revoke(rawToken)
+                call.response.cookies.append(
+                    name = "refresh_token", value = "", httpOnly = true, secure = true,
+                    extensions = mapOf("SameSite" to "Strict"), path = "/api/v1/auth", maxAge = 0,
+                )
+                call.respond(HttpStatusCode.NoContent)
+            }
+
             post("/logout-all") {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
@@ -179,7 +181,7 @@ fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenSe
                 val userId = UUID.fromString(principal.payload.subject)
 
                 val (username, email, groupNames) = lookupUserById(userId)
-                    ?: run { call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "User not found or inactive")); return@get }
+                    ?: run { call.respond(HttpStatusCode.Unauthorized, mapOf("message" to "User not found or inactive")); return@get }
 
                 val permissions = PermissionResolver.resolve(userId).toList().sorted()
 

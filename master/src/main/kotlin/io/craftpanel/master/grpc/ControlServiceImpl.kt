@@ -4,9 +4,9 @@ import com.craftpanel.agent.v1.*
 import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.util.toKotlinUuid
+import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.channelFlow
-import kotlinx.coroutines.launch
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -19,12 +19,19 @@ import org.slf4j.LoggerFactory
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
+import java.util.concurrent.ConcurrentHashMap
 
 class ControlServiceImpl(private val nodeConfig: NodeConfig) :
     ControlServiceGrpcKt.ControlServiceCoroutineImplBase() {
 
     private val log = LoggerFactory.getLogger(ControlServiceImpl::class.java)
     private val random = SecureRandom()
+    private val connectedAgents = ConcurrentHashMap<String, SendChannel<MasterMessage>>()
+
+    fun sendToNode(nodeId: String, msg: MasterMessage): Boolean {
+        val channel = connectedAgents[nodeId] ?: return false
+        return channel.trySend(msg).isSuccess
+    }
 
     override suspend fun registerNode(request: RegisterNodeRequest): RegisterNodeResponse {
         require(request.bootstrapToken == nodeConfig.bootstrapToken) {
@@ -46,6 +53,7 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
                 it[status] = "PENDING"
                 it[totalRamMb] = meta.totalRamMb
                 it[totalCpuShares] = meta.totalCpuShares
+                it[agentVersion] = meta.agentVersion.takeIf { it.isNotEmpty() }
                 it[lastSeenAt] = now
             }[Nodes.id]
         }
@@ -71,6 +79,7 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
                     it[lastSeenAt] = now
                     it[publicIp] = request.metadata.publicIp
                     it[privateIp] = request.metadata.privateIp
+                    it[agentVersion] = request.metadata.agentVersion.takeIf { it.isNotEmpty() }
                 }
             }
             r
@@ -92,10 +101,14 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
 
     override fun control(requests: Flow<AgentMessage>): Flow<MasterMessage> = channelFlow {
         var connectedNodeId: String? = null
+        val outChannel = this.channel
 
-        launch {
+        try {
             requests.collect { msg ->
-                connectedNodeId = msg.nodeId
+                if (connectedNodeId == null) {
+                    connectedNodeId = msg.nodeId
+                    connectedAgents[msg.nodeId] = outChannel
+                }
 
                 when {
                     msg.hasNodeState() -> {
@@ -114,8 +127,9 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
                     else -> log.debug("Node ${msg.nodeId} sent unhandled message type")
                 }
             }
+        } finally {
+            connectedNodeId?.let { nodeId -> connectedAgents.remove(nodeId, outChannel) }
         }
-        // channelFlow stays open until all child coroutines complete (i.e. until the stream ends)
     }
 
     private fun reconcileNodeState(nodeId: String, snapshot: NodeStateSnapshot) {
@@ -126,12 +140,12 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
         // TODO: write NodeMetrics row
     }
 
-    private fun generateNodeKey(): String {
+    fun generateNodeKey(): String {
         val bytes = ByteArray(32).also { random.nextBytes(it) }
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
     }
 
-    private fun sha256Hex(input: String): String {
+    fun sha256Hex(input: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
         return digest.digest(input.toByteArray()).joinToString("") { "%02x".format(it) }
     }

@@ -9,7 +9,6 @@ import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.*
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -84,7 +83,9 @@ class RefreshTokenService {
 
     fun revokeAll(userId: UUID): Unit = transaction {
         val kotlinId = userId.toKotlinUuid()
-        RefreshTokens.deleteWhere { RefreshTokens.userId eq kotlinId }
+        RefreshTokens.update({ RefreshTokens.userId eq kotlinId }) {
+            it[RefreshTokens.revoked] = true
+        }
     }
 
     private fun generateRaw(): String {

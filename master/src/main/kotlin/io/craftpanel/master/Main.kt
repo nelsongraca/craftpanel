@@ -5,6 +5,7 @@ import io.craftpanel.master.auth.RefreshTokenService
 import io.craftpanel.master.auth.routes.authRoutes
 import io.craftpanel.master.config.AppConfig
 import io.craftpanel.master.database.DatabaseFactory
+import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.GrpcServer
 import io.craftpanel.master.routes.groupsRoutes
 import io.craftpanel.master.routes.nodesRoutes
@@ -32,7 +33,8 @@ fun Application.module() {
 
     DatabaseFactory.init(appConfig.database)
 
-    val grpcServer = GrpcServer(appConfig).start()
+    val controlService = ControlServiceImpl(appConfig.node)
+    val grpcServer = GrpcServer(appConfig, controlService).start()
     environment.monitor.subscribe(ApplicationStopped) { grpcServer.stop() }
 
     val jwtManager = JwtManager(appConfig.jwt)
@@ -61,7 +63,7 @@ fun Application.module() {
 
     routing {
         authRoutes(jwtManager, refreshTokenService)
-        nodesRoutes()
+        nodesRoutes(controlService::sendToNode)
         usersRoutes()
         groupsRoutes()
     }

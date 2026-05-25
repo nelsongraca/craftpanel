@@ -15,6 +15,8 @@ data class TokenClaims(
 )
 
 class JwtManager(private val config: JwtConfig) {
+    val expirySeconds: Long get() = config.expirySeconds
+
     private val algorithm = Algorithm.HMAC256(config.secret)
 
     val verifier = JWT.require(algorithm)

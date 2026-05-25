@@ -77,6 +77,39 @@ GitHub Actions builds images and pushes to GHCR (`ghcr.io/nelsongraca`).
 Registry and version passed via `-PimageRegistry` and `-PimageVersion` Gradle properties.
 CI config not yet written.
 
+## Implemented REST API (master)
+
+### Auth — `master/src/main/kotlin/.../auth/routes/AuthRoutes.kt`
+All endpoints live under `/api/v1/auth`. Login is by **email** (not username).
+
+| Method | Path | Auth | Notes |
+|--------|------|------|-------|
+| POST | `/login` | — | Returns `access_token`, `expires_in`; sets `refresh_token` cookie |
+| POST | `/refresh` | cookie | Rotates refresh token |
+| POST | `/logout` | JWT | Revokes cookie token, clears cookie |
+| POST | `/logout-all` | JWT | Revokes all user refresh tokens |
+| GET | `/me` | JWT | Returns id, username, email, groups, permissions (live DB lookup) |
+
+JSON responses use snake_case via `@SerialName`. Errors are `{"message": "..."}`.
+Refresh cookie: `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth`.
+
+### Nodes — `master/src/main/kotlin/.../routes/NodesRoutes.kt`
+All endpoints require JWT + `system.nodes` permission. Under `/api/v1/nodes`.
+
+| Method | Path | Notes |
+|--------|------|-------|
+| GET | `/` | Lists all nodes; `allocated_ram_mb`/`allocated_cpu_shares` computed from Servers table |
+| GET | `/{id}` | Full node detail |
+| POST | `/{id}/trust` | Sets status → `ACTIVE` |
+| POST | `/{id}/reject` | Sets status → `REJECTED` |
+| POST | `/{id}/token/rotate` | Generates new node key; returns `{"node_key": "..."}` |
+| POST | `/{id}/shutdown` | Sends `ShutdownCommand` on gRPC stream; 202 if sent, 502 if agent not connected |
+| PATCH | `/{id}` | Updates `display_name`, `port_range_start`, `port_range_end`, `data_path`; validates range against current DB values |
+| DELETE | `/{id}` | Sets status → `DECOMMISSIONED` |
+| GET | `/{id}/metrics` | Columnar response `{timestamps, cpu_percent, ram_used_mb, ...}`; `?limit=60` (max 360) |
+
+`nodesRoutes()` takes `sendToNode: (String, MasterMessage) -> Boolean` — injected from `ControlServiceImpl`.
+
 ## gRPC
 
 Proto files live at repo root `/proto/`, shared by master and agent.
@@ -92,6 +125,11 @@ Node authentication over gRPC:
 - **Subsequent connections**: agent calls `IdentifyNode` with node key → master returns `ACTIVE`, `PENDING`, or `REJECTED`
 - Node keys stored as SHA-256 hashes in DB, never raw
 - TLS on gRPC channel; node key is the auth mechanism (not mTLS client certs)
+
+### Agent registry (`ControlServiceImpl`)
+`ConcurrentHashMap<String, SendChannel<MasterMessage>>` tracks connected agents by nodeId.
+Registered on first message inside `channelFlow`, deregistered in `finally` using `remove(nodeId, channel)` (atomic — safe against reconnect races).
+`sendToNode(nodeId, msg)` uses `trySend` — returns `false` if agent disconnected.
 
 ## Auth (REST/WebSocket)
 
@@ -207,6 +245,22 @@ Use `bg-accent`, `text-accent`, `border-accent` for amber. Use `bg-surface`, `bg
 - Live rsync-based server migration between nodes
 - Node registration: agent-initiated via bootstrap token, requires admin approval
 
+## Testing (master)
+
+Tests live in `master/src/test/kotlin/`. Run with `./gradlew :master:test`. Coverage via Kover: `./gradlew :master:koverHtmlReport`.
+
+### TestDatabase (`io.craftpanel.master.TestDatabase`)
+Singleton H2 in-memory DB shared across all tests. Call `initIfNeeded()` once and `reset()` in `@BeforeTest`.
+- Creates: `Users`, `RefreshTokens`, `Groups`, `GroupPermissions`, `UserGroupAssignments`, `ServerNetworks`, `Nodes`, `Servers`, `NodeMetrics`
+- Seeds system groups on first init
+- `reset()` deletes in FK-safe order (children before parents)
+
+### Route test conventions
+- `configureTest()` is an `Application.()` extension (not `ApplicationTestBuilder.()`), called via `application { configureTest() }` — avoids implicit receiver ambiguity with `install()`
+- Server/client `ContentNegotiation` are disambiguated with `as` import aliases
+- Generate JWTs directly with `jwtManager.generate(TokenClaims(...))` — no need to go through the login endpoint
+- Inject lambdas for dependencies that require external state (e.g. `sendToNode: (String, MasterMessage) -> Boolean`)
+
 ## Database
 
 PostgreSQL via Exposed ORM 1.0 and HikariCP.
@@ -224,4 +278,6 @@ Schema migrations via `exposed-migration-jdbc`.
 - Don't use raw hex colours in components — use token classes
 - Don't put permission nodes in the JWT
 - Don't skip DB lookup for permission checks — no shortcut based on JWT claims alone
+- Don't login via email **and** username — login is email-only (`LoginRequest.email`)
+- Don't use `revokeAll` with `deleteWhere` — it uses `UPDATE SET revoked=true` (soft delete)
 - Don't install Python packages with system pip — use `uv` or `pipx`
