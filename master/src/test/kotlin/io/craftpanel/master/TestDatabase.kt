@@ -5,7 +5,9 @@ import io.craftpanel.master.database.schema.GroupPermissions
 import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.NodeMetrics
 import io.craftpanel.master.database.schema.Nodes
+import io.craftpanel.master.database.schema.PortRegistry
 import io.craftpanel.master.database.schema.RefreshTokens
+import io.craftpanel.master.database.schema.ServerMigrations
 import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.database.schema.UserGroupAssignments
@@ -24,7 +26,7 @@ object TestDatabase {
         transaction {
             SchemaUtils.create(
                 Users, RefreshTokens, Groups, GroupPermissions, UserGroupAssignments,
-                ServerNetworks, Nodes, Servers, NodeMetrics,
+                ServerNetworks, Nodes, Servers, NodeMetrics, PortRegistry, ServerMigrations,
             )
             seedSystemGroups()
         }
@@ -33,6 +35,8 @@ object TestDatabase {
 
     fun reset() {
         transaction {
+            ServerMigrations.deleteAll()
+            PortRegistry.deleteAll()
             NodeMetrics.deleteAll()
             Servers.deleteAll()
             Nodes.deleteAll()

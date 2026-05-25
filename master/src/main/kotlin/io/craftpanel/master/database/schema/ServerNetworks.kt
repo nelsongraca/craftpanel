@@ -10,6 +10,7 @@ object ServerNetworks : Table("server_networks") {
     val type = varchar("type", 10)              // PROXY | VANILLA
     val proxyType = varchar("proxy_type", 12).nullable()   // VELOCITY | BUNGEECORD
     val proxyPort = integer("proxy_port").nullable()
+    val description = varchar("description", 500).nullable()
     val cfZoneId = varchar("cf_zone_id", 100).nullable()
     val cfDomainSuffix = varchar("cf_domain_suffix", 255).nullable()
     val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)

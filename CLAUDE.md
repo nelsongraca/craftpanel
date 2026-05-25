@@ -110,6 +110,34 @@ All endpoints require JWT + `system.nodes` permission. Under `/api/v1/nodes`.
 
 `nodesRoutes()` takes `sendToNode: (String, MasterMessage) -> Boolean` — injected from `ControlServiceImpl`.
 
+### Networks — `master/src/main/kotlin/.../routes/NetworksRoutes.kt`
+GET endpoints require `server.view`. Under `/api/v1/networks`.
+
+| Method | Path | Permission | Notes |
+|--------|------|------------|-------|
+| GET | `/` | `server.view` (GLOBAL) | List all; includes `server_count` computed from Servers |
+| POST | `/` | `server.create` (GLOBAL) | Creates network; 409 on duplicate name |
+| GET | `/{id}` | `server.view` (GLOBAL) | Full detail with `servers[]` array (id, display_name, server_type, status) |
+| PATCH | `/{id}` | `server.configure` (NETWORK-scoped) | Updates `name`, `description`; 409 on name conflict |
+| DELETE | `/{id}` | `server.delete` (NETWORK-scoped) | NULLs `network_id` on member servers before deleting network |
+
+### Servers — `master/src/main/kotlin/.../routes/ServersRoutes.kt`
+Under `/api/v1/servers`. Visibility and mutations are all permission-scoped.
+
+| Method | Path | Permission | Notes |
+|--------|------|------------|-------|
+| GET | `/` | `server.view` (any scope) | Returns only visible servers; resolves GLOBAL/NETWORK/SERVER scopes |
+| POST | `/` | `server.create` (GLOBAL) | Validates node ACTIVE + RAM/CPU capacity; allocates lowest free TCP port; 409 on insufficient capacity or duplicate name; 422 if node/network not found |
+| GET | `/{id}` | `server.view` (scoped) | Full server object including `is_migrating` |
+| PATCH | `/{id}` | `server.configure` (scoped) | Updates `display_name`, `description`, `network_id`; send `"network_id": null` to remove from network; absent key = no change |
+| DELETE | `/{id}` | `server.delete` (scoped) | 409 if not STOPPED; cleans up PortRegistry |
+| PATCH | `/{id}/resources` | `server.resources` (scoped) | Updates `memory_mb`, `cpu_shares`; checks capacity excluding self; 409 on overflow |
+| PATCH | `/{id}/exposure` | `server.configure` (scoped) | Updates `exposed_externally`, `public_subdomain`; 422 if subdomain taken |
+
+`is_migrating` is derived: true when a `ServerMigrations` row for this server has status `PENDING` or `RUNNING`.
+Port allocation: first-fit scan of `[portRangeStart, portRangeEnd]` against existing TCP `PortRegistry` entries; uniqueness enforced by PK constraint.
+`image_type` is NOT stored — derived from `server_type` at runtime by the agent.
+
 ## gRPC
 
 Proto files live at repo root `/proto/`, shared by master and agent.
@@ -251,9 +279,9 @@ Tests live in `master/src/test/kotlin/`. Run with `./gradlew :master:test`. Cove
 
 ### TestDatabase (`io.craftpanel.master.TestDatabase`)
 Singleton H2 in-memory DB shared across all tests. Call `initIfNeeded()` once and `reset()` in `@BeforeTest`.
-- Creates: `Users`, `RefreshTokens`, `Groups`, `GroupPermissions`, `UserGroupAssignments`, `ServerNetworks`, `Nodes`, `Servers`, `NodeMetrics`
+- Creates: `Users`, `RefreshTokens`, `Groups`, `GroupPermissions`, `UserGroupAssignments`, `ServerNetworks`, `Nodes`, `Servers`, `NodeMetrics`, `PortRegistry`, `ServerMigrations`
 - Seeds system groups on first init
-- `reset()` deletes in FK-safe order (children before parents)
+- `reset()` deletes in FK-safe order: `ServerMigrations → PortRegistry → NodeMetrics → Servers → Nodes → ServerNetworks → RefreshTokens → UserGroupAssignments → Users`
 
 ### Route test conventions
 - `configureTest()` is an `Application.()` extension (not `ApplicationTestBuilder.()`), called via `application { configureTest() }` — avoids implicit receiver ambiguity with `install()`
@@ -280,4 +308,7 @@ Schema migrations via `exposed-migration-jdbc`.
 - Don't skip DB lookup for permission checks — no shortcut based on JWT claims alone
 - Don't login via email **and** username — login is email-only (`LoginRequest.email`)
 - Don't use `revokeAll` with `deleteWhere` — it uses `UPDATE SET revoked=true` (soft delete)
+- Don't store `image_type`/`mc_image` in the Servers schema — it was removed; derive Docker image from `server_type` at runtime in the agent
+- Don't use `eq`/`neq`/`inList` from `SqlExpressionBuilder.*` imports — use `import org.jetbrains.exposed.v1.core.*` and only call them inside `where {}` lambdas
+- Don't read `defaultExpression` columns (e.g. `createdAt`) from an `InsertStatement` — SELECT the row after insert instead
 - Don't install Python packages with system pip — use `uv` or `pipx`

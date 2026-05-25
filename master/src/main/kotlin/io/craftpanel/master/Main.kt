@@ -8,7 +8,9 @@ import io.craftpanel.master.database.DatabaseFactory
 import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.GrpcServer
 import io.craftpanel.master.routes.groupsRoutes
+import io.craftpanel.master.routes.networksRoutes
 import io.craftpanel.master.routes.nodesRoutes
+import io.craftpanel.master.routes.serversRoutes
 import io.craftpanel.master.routes.usersRoutes
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
@@ -64,6 +66,8 @@ fun Application.module() {
     routing {
         authRoutes(jwtManager, refreshTokenService)
         nodesRoutes(controlService::sendToNode)
+        networksRoutes()
+        serversRoutes()
         usersRoutes()
         groupsRoutes()
     }
