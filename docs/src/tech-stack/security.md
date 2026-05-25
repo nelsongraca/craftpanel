@@ -5,10 +5,22 @@
 | Channel | Protocol | Authentication |
 |---|---|---|
 | Browser → Master | HTTPS + WSS (TLS) | JWT bearer token |
-| Master ↔ Agent | gRPC over mTLS | Node key (256-bit, stored hashed in DB) |
+| Master ↔ Agent | gRPC over TLS | Node key (256-bit, stored hashed in DB) |
 | Agent → Docker | Unix socket (local only) | Not exposed over network |
 | Players → mc-router | Plain Minecraft protocol TCP (port 25565) | n/a |
 | mc-router → Container | Docker bridge or host port | n/a |
+
+---
+
+## JWT Authentication
+
+Access tokens are short-lived JWTs (15 minutes) signed with HS256. The payload contains the user UUID, display name, email, and group names — but **no permission nodes**. Permissions are always resolved from the database on each request, scoped to the resource being accessed.
+
+Refresh tokens are long-lived, stored as SHA-256 hashes in the database, and rotated on every use. They are transmitted as `HttpOnly; Secure; SameSite=Strict` cookies and never appear in response bodies.
+
+See [Auth API](../api/auth.md) for the full JWT structure and endpoint reference.
+
+---
 
 ## Node Bootstrap and Keys
 
@@ -26,23 +38,32 @@ All subsequent connections use the node's unique key, presented via `IdentifyNod
 - A leaked bootstrap token can only produce `PENDING` node records — harmless until an admin explicitly trusts them. Rotate in master config and restart if compromised.
 - Nodes remain `PENDING` after registration and cannot be used until an admin trusts them from the UI
 
+---
+
 ## TLS
 
 All network communication between components uses TLS.
 
 - **Browser ↔ Master** — standard HTTPS certificate (Let's Encrypt or operator-provided)
-- **Master ↔ Agent** — TLS on the gRPC channel. For nodes on a private network, self-signed certificates with the CA bundled into the agent config are acceptable. For nodes on the public internet, a wildcard certificate or per-node certificate is recommended.
+- **Master ↔ Agent** — TLS on the gRPC channel. The node key in `IdentifyNode` is the authentication mechanism; client certificates are not required. For nodes on a private network, self-signed certificates with the CA bundled into the agent config are acceptable. For nodes on the public internet, a wildcard or per-node certificate is recommended.
+
+---
 
 ## Docker Socket Access
 
 The Docker socket (`/var/run/docker.sock`) is accessed only by the node agent process, on the local machine. It is never exposed over the network. The agent communicates with master via gRPC; master never has direct access to any Docker socket.
 
+---
+
 ## File Explorer Sandboxing
 
 The file explorer is rooted at the server's data directory. Path traversal outside the server's own directory is rejected by the agent — the restriction is enforced server-side, not only in the UI.
+
+---
 
 ## Credential Storage
 
 - User passwords: Argon2id hashed, never stored in plaintext
 - Node keys: stored as SHA-256 hashes in PostgreSQL — raw keys are never persisted
+- Refresh tokens: stored as SHA-256 hashes in PostgreSQL — raw tokens transmitted only via HttpOnly cookie
 - DNS provider API keys: deployment-time config only — stored in config file or mounted secrets, never in the database. See [Configuration & Secrets](configuration.md).

@@ -3,7 +3,7 @@ site_description: Minecraft Server Management Platform — Documentation
 repo_url: https://github.com/nelsongraca/craftpanel
 
 repo_name: craftpanel
-docs_dir: docs
+docs_dir: src
 
 theme:
   name: material

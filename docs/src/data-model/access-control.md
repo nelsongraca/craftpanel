@@ -12,6 +12,16 @@ server.mods      server.console   server.export     server.backup
 server.upgrade   server.migrate   server.view
 ```
 
+Wildcards are supported in permission checks using dot-separated prefix matching:
+
+| Pattern | Matches |
+|---|---|
+| `*` | All permissions |
+| `server.*` | All `server.*` permissions |
+| `system.*` | All `system.*` permissions |
+
+Wildcards are resolved at runtime — only explicit permission nodes are stored in `group_permissions`.
+
 ### `assignment_scope`
 
 | Value | Meaning |
@@ -28,15 +38,17 @@ server.upgrade   server.migrate   server.view
 |---|---|---|
 | `id` | UUID | Primary key |
 | `name` | VARCHAR(64) | Unique display name |
-| `is_system` | BOOLEAN | `true` = pre-configured default group; cannot be deleted |
+| `is_system` | BOOLEAN | `true` = pre-defined system group; cannot be deleted or renamed |
 | `created_at` | TIMESTAMPTZ | |
 | `updated_at` | TIMESTAMPTZ | |
 
-### Default groups
+### System groups
+
+Pre-seeded at first boot. `is_system = true` — cannot be deleted or renamed.
 
 | Group | Permissions |
 |---|---|
-| Super Admin | All permission nodes |
+| Super Admin | All permission nodes (`*`) |
 | Server Admin | All except `system.settings`, `system.users`, `system.nodes`, `server.resources`, `server.migrate` |
 | Operator | `server.restart`, `server.console`, `server.view`, `server.backup` |
 | Viewer | `server.view` |
@@ -45,7 +57,7 @@ server.upgrade   server.migrate   server.view
 
 ## `group_permissions`
 
-One row per permission granted to a group.
+One row per permission node granted to a group.
 
 | Column | Type | Description |
 |---|---|---|
@@ -66,10 +78,24 @@ Assigns a group to a user, either globally or scoped to a specific server or net
 | `user_id` | UUID | FK → `users`, CASCADE DELETE |
 | `group_id` | UUID | FK → `groups`, CASCADE DELETE |
 | `scope_type` | `assignment_scope` ENUM | `GLOBAL`, `SERVER`, or `NETWORK` |
-| `scope_id` | UUID | `NULL` if `GLOBAL`; server or network ID otherwise |
+| `scope_id` | UUID | `NULL` if `GLOBAL`; server or network UUID otherwise |
 | `created_at` | TIMESTAMPTZ | |
 
 **Unique constraint:** `(user_id, group_id, scope_type, scope_id)`
 
+---
+
+## Permission Resolution
+
+A user's effective permissions for a given resource are resolved as follows:
+
+1. Fetch all `user_group_assignments` for the user where `scope_type = GLOBAL`
+2. If the resource is a server, also fetch assignments where `scope_type = SERVER` and `scope_id = server_id`
+3. If the resource belongs to a network, also fetch assignments where `scope_type = NETWORK` and `scope_id = network_id`
+4. Union all permission nodes from the matched group assignments
+5. Permissions are **additive only** — no deny rules exist
+
+`is_active` on the user record is checked as part of every resolution query. Inactive users are rejected regardless of group assignments.
+
 !!! note
-    Permission resolution: a user's effective permissions for a given server are the union of all their global assignments plus any assignments scoped to that server or its network.
+    Permission resolution always hits the database. Caching may be added later if it becomes a bottleneck.
