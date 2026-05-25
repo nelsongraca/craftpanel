@@ -14,7 +14,7 @@ object Nodes : Table("nodes") {
     // SHA-256 hex of the 256-bit node key
     val tokenHash = varchar("token_hash", 64).uniqueIndex()
 
-    // PENDING | ACTIVE | REJECTED | DECOMMISSIONED
+    // PENDING | ACTIVE | REJECTED | DECOMMISSIONED | DEGRADED
     val status = varchar("status", 20).default("PENDING")
 
     val totalRamMb = integer("total_ram_mb").default(0)
