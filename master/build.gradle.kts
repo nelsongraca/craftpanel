@@ -6,6 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ktor)
     alias(libs.plugins.protobuf)
+    alias(libs.plugins.kover)
     id("com.bmuschko.docker-remote-api") version "10.0.0"
     application
 }
@@ -125,4 +126,26 @@ tasks.register<DockerPushImage>("dockerPushImage") {
     description = "Pushes the Docker image for master"
     dependsOn("dockerBuildImage")
     images.add(imageName)
+}
+
+// ---------------------------------------------------------------------------
+// Coverage
+// ---------------------------------------------------------------------------
+kover {
+    reports {
+        filters {
+            excludes {
+                // Protobuf/gRPC generated classes (com.craftpanel.* package from proto files)
+                packages("com.craftpanel")
+                // gRPC generated stubs
+                classes("*Grpc*", "*OuterClass")
+                // Application entry point
+                classes("io.craftpanel.master.MainKt")
+            }
+        }
+        total {
+            html { title = "CraftPanel Master" }
+            xml { xmlFile = layout.buildDirectory.file("reports/kover/report.xml") }
+        }
+    }
 }

@@ -7,6 +7,7 @@ plugins {
     alias(libs.plugins.ktor) apply false
     alias(libs.plugins.protobuf) apply false
     id("com.bmuschko.docker-remote-api") version "10.0.0" apply false
+    alias(libs.plugins.kover) apply false
 }
 
 // ---------------------------------------------------------------------------
