@@ -30,6 +30,7 @@ import io.ktor.server.netty.EngineMain
 import io.ktor.server.plugins.calllogging.CallLogging
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.response.respond
+import io.ktor.server.routing.get
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import io.ktor.server.websocket.WebSockets
@@ -90,6 +91,7 @@ fun Application.module() {
     }
 
     routing {
+        get("health") { call.respond(mapOf("status" to "ok")) }
         route("openapi.json") { openApi() }
         route("swagger") { swaggerUI("/openapi.json") }
         authRoutes(jwtManager, refreshTokenService)

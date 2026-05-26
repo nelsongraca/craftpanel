@@ -267,7 +267,7 @@ Schema migrations via `exposed-migration-jdbc`.
 - Don't hardcode image registry or version values
 - Don't use `org.jetbrains.exposed.*` imports — use `org.jetbrains.exposed.v1.*`
 - Don't add a light theme
-- Don't use raw hex colours in components — use token classes
+- Don't use raw hex codes or `rgba(...)` literals in component `style` props or Tailwind arbitrary value brackets — use the corresponding CSS variable token (`var(--token)`) or Tailwind token class instead. Raw values are only permitted in `globals.css` and `tailwind.config.js` where the tokens are defined
 - Don't put permission nodes in the JWT
 - Don't skip DB lookup for permission checks — no shortcut based on JWT claims alone
 - Don't login via email **and** username — login is email-only (`LoginRequest.email`)
@@ -278,5 +278,5 @@ Schema migrations via `exposed-migration-jdbc`.
 - Don't read `defaultExpression` columns (e.g. `createdAt`) from an `InsertStatement` — SELECT the row after insert instead
 - Don't install Python packages with system pip — use `uv` or `pipx`
 - Don't use `openapi-fetch` or `openapi-typescript` — replaced by `@hey-api/openapi-ts`
-- Don't call API endpoints with inline URL strings (e.g. `api.GET("/api/v1/servers")`) — use the generated named functions from `lib/generated/sdk.gen`
+- Don't call API endpoints with inline URL strings (e.g. `api.GET("/api/servers")`) — use the generated named functions from `lib/generated/sdk.gen`
 - Don't add new Ktor routes without an `operationId` in the doc block — it's required for the codegen to produce a usable function name

@@ -13,6 +13,8 @@ python {
 mkdocs {
     sourcesDir = "./"
     strict = true
+    devPort = 4000
+
 }
 
 tasks.register<MkdocsTask>("serveRemote") {

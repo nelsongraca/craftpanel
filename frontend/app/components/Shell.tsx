@@ -18,15 +18,6 @@ import {
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/lib/permissions";
 
-const topNavItems = [
-  { label: "Dashboard", href: "/" },
-  { label: "Servers", href: "/servers" },
-  { label: "Networks", href: "/networks" },
-  { label: "Nodes", href: "/nodes" },
-  { label: "Alerts", href: "/alerts" },
-  { label: "Settings", href: "/settings" },
-];
-
 interface SidebarItem {
   label: string;
   href: string;
@@ -84,34 +75,12 @@ export default function Shell({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex flex-col flex-1 min-h-0">
-      {/* Top bar — 3-column: logo | centred tabs | user menu */}
-      <header className="grid grid-cols-3 items-center bg-surface border-b border-border px-5 h-[48px] shrink-0">
+      {/* Top bar — brand + user menu */}
+      <header className="flex items-center justify-between bg-surface border-b border-border px-5 h-[48px] shrink-0">
         {/* Logo */}
         <span className="text-[15px] font-bold font-heading tracking-widest uppercase text-accent">
           ⛏ CraftPanel
         </span>
-
-        {/* Centred nav tabs */}
-        <nav className="flex items-end justify-center gap-1 h-full">
-          {topNavItems.map((item) => {
-            const isActive =
-              item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
-            return (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={[
-                  "relative flex items-center px-3 h-full text-[12px] font-heading font-bold uppercase tracking-widest transition-colors",
-                  isActive
-                    ? "text-accent after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-accent"
-                    : "text-text-dim hover:text-text-primary",
-                ].join(" ")}
-              >
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
 
         {/* User menu */}
         <div ref={menuRef} className="relative flex justify-end">

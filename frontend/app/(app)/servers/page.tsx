@@ -50,14 +50,28 @@ const FILTER_OPTIONS = [
   { label: "Stopped",      value: "STOPPED" },
 ];
 
-function RamBar({ total }: { total: number }) {
-  // No live usage data yet — show allocated only
+function ramFillColor(pct: number): string {
+  if (pct >= 86) return "var(--error)";
+  if (pct >= 66) return "var(--warning)";
+  return "var(--accent)";
+}
+
+function RamBar({ total, used }: { total: number; used?: number }) {
+  const hasData = used != null;
+  const pct = hasData && total > 0 ? Math.min(100, (used! / total) * 100) : 0;
   return (
     <div className="flex flex-col gap-1">
       <span className="font-mono text-[11px] text-text-muted whitespace-nowrap">
-        — / {total} MB
+        {hasData ? `${used} / ${total} MB` : `— / ${total} MB`}
       </span>
-      <div className="w-20 h-1 rounded-full bg-surface-higher" />
+      <div className="w-20 h-1 rounded-full" style={{ background: "var(--border)" }}>
+        {hasData && pct > 0 && (
+          <div
+            className="h-full rounded-full"
+            style={{ width: `${pct}%`, background: ramFillColor(pct) }}
+          />
+        )}
+      </div>
     </div>
   );
 }
@@ -68,26 +82,24 @@ function ActionButton({
   label,
   loading,
   onClick,
-  variant,
+  isStop,
 }: {
   icon: React.ReactNode;
   label: string;
   loading: boolean;
   onClick: () => void;
-  variant: "green" | "red" | "yellow";
+  isStop?: boolean;
 }) {
-  const cls = {
-    green:  "text-healthy  border-healthy/40  hover:bg-healthy/10",
-    red:    "text-error    border-error/40    hover:bg-error/10",
-    yellow: "text-warning  border-warning/40  hover:bg-warning/10",
-  }[variant];
+  const cls = isStop
+    ? "bg-error/10 border-error/20 text-error"
+    : "bg-surface-high border-border text-text-muted hover:border-border-high hover:text-text-primary";
 
   return (
     <button
       onClick={onClick}
       disabled={loading}
       title={label}
-      className={`flex items-center justify-center w-6 h-6 rounded border transition-colors disabled:opacity-40 ${cls}`}
+      className={`flex items-center justify-center px-2 py-1 border rounded-[2px] transition-colors disabled:opacity-40 ${cls}`}
     >
       {loading ? (
         <span className="w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin" />
@@ -223,7 +235,7 @@ export default function ServersPage() {
           canCreate ? (
             <Link
               href="/servers/new"
-              className="flex items-center gap-1.5 bg-accent hover:bg-accent-bright text-bg font-heading font-bold text-[11px] uppercase tracking-widest px-3 py-1.5 rounded transition-colors"
+              className="flex items-center gap-1.5 bg-accent hover:bg-accent-bright text-bg font-heading font-bold text-[11px] uppercase tracking-widest px-3 py-1.5 rounded transition-colors hover:shadow-[0_0_16px_var(--accent-glow)]"
             >
               <Plus size={12} strokeWidth={3} />
               New Server
@@ -309,7 +321,7 @@ export default function ServersPage() {
                     <th
                       key={col}
                       className={[
-                        "pb-2 text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted",
+                        "pb-2 text-[9px] font-mono font-semibold uppercase tracking-[0.1em] text-text-muted",
                         col === "Actions" ? "text-right" : "text-left pr-4",
                       ].join(" ")}
                     >
@@ -350,7 +362,10 @@ export default function ServersPage() {
 
                     {/* TYPE */}
                     <td className="py-3 pr-4">
-                      <span className="font-mono text-[10px] uppercase tracking-wider text-text-dim border border-border bg-surface-high px-1.5 py-0.5 rounded">
+                      <span
+                        className="font-mono text-[10px] uppercase tracking-wider text-text-dim border border-border px-1.5 py-0.5 rounded"
+                        style={{ background: "var(--text-dim-bg)" }}
+                      >
                         {server.server_type}
                       </span>
                     </td>
@@ -393,7 +408,6 @@ export default function ServersPage() {
                             label="Start"
                             loading={pending === "start"}
                             onClick={() => doAction(server.id, "start")}
-                            variant="green"
                           />
                         )}
                         {(ds === "HEALTHY" || ds === "STARTING") && hasPermission(permissions, "server.stop") && (
@@ -402,7 +416,7 @@ export default function ServersPage() {
                             label="Stop"
                             loading={pending === "stop"}
                             onClick={() => doAction(server.id, "stop")}
-                            variant="red"
+                            isStop
                           />
                         )}
                         {ds === "HEALTHY" && hasPermission(permissions, "server.restart") && (
@@ -411,7 +425,6 @@ export default function ServersPage() {
                             label="Restart"
                             loading={pending === "restart"}
                             onClick={() => doAction(server.id, "restart")}
-                            variant="yellow"
                           />
                         )}
 
@@ -422,7 +435,7 @@ export default function ServersPage() {
                               e.stopPropagation();
                               setOpenMenuId((id) => (id === server.id ? null : server.id));
                             }}
-                            className="flex items-center justify-center w-6 h-6 rounded border border-border text-text-muted hover:text-text-primary hover:bg-surface-high transition-colors"
+                            className="flex items-center justify-center px-2 py-1 border rounded-[2px] border-border bg-surface-high text-text-muted hover:border-border-high hover:text-text-primary transition-colors"
                           >
                             <MoreHorizontal size={12} strokeWidth={2} />
                           </button>

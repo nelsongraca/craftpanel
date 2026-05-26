@@ -75,10 +75,11 @@
     --accent: #d97706;
     --accent-bright: #f59e0b;
     --accent-subtle: rgba(217, 119, 6, 0.07);
-    --accent-glow: rgba(217, 119, 6, 0.15);
+    --accent-glow: rgba(217, 119, 6, 0.3);
 
     --text-primary: #f5f0e8;
     --text-dim: #a89880;
+    --text-dim-bg: rgba(168, 152, 128, 0.08);
     --text-muted: #665e52;
 
     --healthy: #4ade80;

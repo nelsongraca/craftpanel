@@ -5,9 +5,7 @@ The overall page shell used across all CraftPanel screens. All other mockups sho
 <style>
 .cp-nav { background: var(--md-primary-fg-color); color: var(--md-primary-bg-color); padding: 12px 20px; display: flex; justify-content: space-between; align-items: center; border-radius: 6px 6px 0 0; }
 .cp-nav-brand { font-size: 17px; font-weight: bold; }
-.cp-nav-links { display: flex; gap: 20px; font-size: 13px; opacity: 0.85; }
-.cp-nav-links span { cursor: pointer; }
-.cp-nav-links span.active { opacity: 1; font-weight: bold; border-bottom: 2px solid var(--md-primary-bg-color); padding-bottom: 2px; }
+.cp-nav-user { font-size: 13px; opacity: 0.85; cursor: pointer; }
 .cp-shell { display: grid; grid-template-columns: 200px 1fr; border: 1px solid var(--md-default-fg-color--lightest); border-top: none; border-radius: 0 0 6px 6px; overflow: hidden; font-family: Arial, sans-serif; font-size: 14px; color: var(--md-default-fg-color); }
 .cp-sidebar { background: var(--md-default-bg-color); border-right: 1px solid var(--md-default-fg-color--lightest); padding: 16px 0; min-height: 400px; }
 .cp-sidebar-section { font-size: 10px; font-weight: bold; text-transform: uppercase; letter-spacing: 0.8px; color: var(--md-default-fg-color--light); padding: 12px 16px 4px; }
@@ -28,15 +26,7 @@ The overall page shell used across all CraftPanel screens. All other mockups sho
 
   <div class="cp-nav">
     <span class="cp-nav-brand">⛏ CraftPanel</span>
-    <div class="cp-nav-links">
-      <span>Dashboard</span>
-      <span class="active">Servers</span>
-      <span>Networks</span>
-      <span>Nodes</span>
-      <span>Alerts</span>
-      <span>Settings</span>
-      <span>admin ▾</span>
-    </div>
+    <span class="cp-nav-user">admin ▾</span>
   </div>
 
   <div class="cp-shell">

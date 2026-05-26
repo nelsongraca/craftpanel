@@ -7,8 +7,21 @@ services:
       POSTGRES_DB: craftpanel
       POSTGRES_USER: craftpanel
       POSTGRES_PASSWORD: craftpanel
-    volumes:
-      - postgres_dev_data:/var/lib/postgresql/data
 
-volumes:
-  postgres_dev_data:
+  seed:
+    image: postgres:17-alpine
+    depends_on:
+      - db
+    volumes:
+      - ./dev/seed.sql:/seed.sql:ro
+    environment:
+      PGPASSWORD: craftpanel
+    # Waits for master's /health endpoint (which confirms schema is ready), then loads seed data.
+    entrypoint: >
+      sh -c "
+        until wget -qO- http://host.docker.internal:8080/health; do sleep 2; done &&
+        psql -h db -U craftpanel -d craftpanel -f /seed.sql
+      "
+    restart: "no"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
