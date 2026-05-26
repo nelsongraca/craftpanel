@@ -86,6 +86,7 @@ fun Route.nodesRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
         route("/api/v1/nodes") {
 
             get("", {
+                operationId = "listNodes"
                 summary = "List nodes"
                 response {
                     code(HttpStatusCode.OK) { body<List<NodeResponse>>() }
@@ -128,7 +129,9 @@ fun Route.nodesRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
             }
 
             get("/{id}", {
+                operationId = "getNode"
                 summary = "Get node"
+                request { pathParameter<String>("id") }
                 response {
                     code(HttpStatusCode.OK) { body<NodeResponse>() }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
@@ -178,7 +181,9 @@ fun Route.nodesRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
             }
 
             post("/{id}/trust", {
+                operationId = "trustNode"
                 summary = "Trust node"
+                request { pathParameter<String>("id") }
                 response {
                     code(HttpStatusCode.NoContent) { }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
@@ -207,7 +212,9 @@ fun Route.nodesRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
             }
 
             post("/{id}/reject", {
+                operationId = "rejectNode"
                 summary = "Reject node"
+                request { pathParameter<String>("id") }
                 response {
                     code(HttpStatusCode.NoContent) { }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
@@ -236,7 +243,9 @@ fun Route.nodesRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
             }
 
             post("/{id}/token/rotate", {
+                operationId = "rotateNodeToken"
                 summary = "Rotate node token"
+                request { pathParameter<String>("id") }
                 response {
                     code(HttpStatusCode.OK) { body<NodeKeyResponse>() }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
@@ -274,7 +283,9 @@ fun Route.nodesRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
             }
 
             post("/{id}/shutdown", {
+                operationId = "shutdownNode"
                 summary = "Shutdown node agent"
+                request { pathParameter<String>("id") }
                 response {
                     code(HttpStatusCode.Accepted) { body<MessageResponse>() }
                     code(HttpStatusCode.BadGateway) { body<ErrorResponse>() }
@@ -311,8 +322,9 @@ fun Route.nodesRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
             }
 
             patch("/{id}", {
+                operationId = "updateNode"
                 summary = "Update node"
-                request { body<PatchNodeRequest>() }
+                request { pathParameter<String>("id"); body<PatchNodeRequest>() }
                 response {
                     code(HttpStatusCode.NoContent) { }
                     code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
@@ -361,7 +373,9 @@ fun Route.nodesRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
             }
 
             delete("/{id}", {
+                operationId = "decommissionNode"
                 summary = "Decommission node"
+                request { pathParameter<String>("id") }
                 response {
                     code(HttpStatusCode.NoContent) { }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
@@ -390,7 +404,9 @@ fun Route.nodesRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
             }
 
             get("/{id}/metrics", {
+                operationId = "getNodeMetrics"
                 summary = "Get node metrics"
+                request { pathParameter<String>("id") }
                 response {
                     code(HttpStatusCode.OK) { body<NodeMetricsResponse>() }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }

@@ -27,8 +27,29 @@ tasks.named("clean") {
 }
 
 // ---------------------------------------------------------------------------
+// API type generation: run openapi-typescript after backend spec is generated
+// ---------------------------------------------------------------------------
+tasks.register<Exec>("generateApiTypes") {
+    group = "build"
+    description = "Generates lib/generated/api.ts from the backend OpenAPI spec"
+    dependsOn("installFrontend", ":master:generateOpenApiSpec")
+    workingDir = layout.projectDirectory.asFile
+    // Use pnpm from the node distribution installed by the frontend plugin
+    commandLine(layout.projectDirectory.file(".node/bin/pnpm").asFile, "run", "generate-api")
+    inputs.files(
+        rootProject.layout.projectDirectory.file("openapi.json"),
+        layout.projectDirectory.file("openapi-ts.config.ts"),
+    )
+    outputs.dir(layout.projectDirectory.dir("lib/generated"))
+}
+
+// ---------------------------------------------------------------------------
 // Wire into Gradle lifecycle
 // ---------------------------------------------------------------------------
+tasks.named("assembleFrontend") {
+    dependsOn("generateApiTypes")
+}
+
 tasks.named("assemble") {
     dependsOn("assembleFrontend")
 }

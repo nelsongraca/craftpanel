@@ -1,7 +1,8 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
-import { setAccessToken, getAccessToken } from "./api";
+import { setAccessToken } from "./client";
+import { authLogin, authLogout, authLogoutAll, authMe, authRefresh } from "./generated/sdk.gen";
 import { useRouter } from "next/navigation";
 
 export interface AuthUser {
@@ -30,72 +31,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     async function restoreSession() {
       try {
-        const refreshRes = await fetch("/api/v1/auth/refresh", {
-          method: "POST",
-          credentials: "include",
-        });
-        if (!refreshRes.ok) return;
-        const { access_token } = await refreshRes.json();
-        setAccessToken(access_token);
+        const { data: refreshData } = await authRefresh();
+        if (!refreshData) return;
+        setAccessToken(refreshData.access_token);
 
-        const meRes = await fetch("/api/v1/auth/me", {
-          headers: { Authorization: `Bearer ${access_token}` },
-          credentials: "include",
-        });
-        if (meRes.ok) setUser(await meRes.json());
+        const { data: me } = await authMe();
+        if (me) setUser(me);
       } catch {
         // no session
       } finally {
         setIsLoading(false);
       }
     }
-    restoreSession();
+    void restoreSession();
   }, []);
 
   const login = useCallback(
     async (email: string, password: string) => {
-      const res = await fetch("/api/v1/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, password }),
-        credentials: "include",
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        throw new Error((data as { message?: string }).message ?? "Invalid credentials");
-      }
-      const { access_token } = await res.json();
-      setAccessToken(access_token);
+      const { data, error } = await authLogin({ body: { email, password } });
+      if (error) throw new Error(error.message ?? "Invalid credentials");
+      setAccessToken(data!.access_token);
 
-      const meRes = await fetch("/api/v1/auth/me", {
-        headers: { Authorization: `Bearer ${access_token}` },
-        credentials: "include",
-      });
-      if (meRes.ok) setUser(await meRes.json());
+      const { data: me } = await authMe();
+      if (me) setUser(me);
       router.push("/");
     },
     [router]
   );
 
   const logout = useCallback(async () => {
-    const token = getAccessToken();
-    await fetch("/api/v1/auth/logout", {
-      method: "POST",
-      credentials: "include",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }).catch(() => {});
+    await authLogout().catch(() => {});
     setAccessToken(null);
     setUser(null);
     router.push("/login");
   }, [router]);
 
   const logoutAll = useCallback(async () => {
-    const token = getAccessToken();
-    await fetch("/api/v1/auth/logout-all", {
-      method: "POST",
-      credentials: "include",
-      headers: token ? { Authorization: `Bearer ${token}` } : {},
-    }).catch(() => {});
+    await authLogoutAll().catch(() => {});
     setAccessToken(null);
     setUser(null);
     router.push("/login");

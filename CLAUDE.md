@@ -4,6 +4,13 @@ Self-hosted multi-user multi-node Minecraft server management platform.
 
 ## Base Instructions
 Always use Context7 when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
+If an idea MCP tool is adequate consider using it most relevant ones, reading files, searching, and running code analysis.
+
+Before starting any task, assess complexity:
+- Straightforward implementation (schema, CRUD endpoints, mechanical wiring):
+  proceed directly with Sonnet
+- Ambiguous architecture, cross-module coordination, new proto changes,
+  state machine logic: pause and flag for advisor review before proceeding
 
 ## Module Structure
 
@@ -60,6 +67,14 @@ Dockerfile COPYs `installDist` output into `eclipse-temurin:25-jdk-alpine`.
 ```
 Dockerfile COPYs `.next/standalone`, `.next/static`, and `public/` into `node:22-alpine`.
 
+### API codegen
+```bash
+./gradlew :master:generateOpenApiSpec   # boots testApplication, writes openapi.json at repo root
+./gradlew :frontend:generateApiTypes    # runs @hey-api/openapi-ts → frontend/lib/generated/
+```
+Both run automatically as part of `:frontend:assembleFrontend`. `lib/generated/` is gitignored.
+The spec task is in `master/src/test/kotlin/.../OpenApiSpecTask.kt` and excluded from `:master:test`.
+
 ### Aggregation tasks
 ```bash
 ./gradlew dockerBuildAll   # builds all three images
@@ -76,75 +91,6 @@ Dockerfile COPYs `.next/standalone`, `.next/static`, and `public/` into `node:22
 GitHub Actions builds images and pushes to GHCR (`ghcr.io/nelsongraca`).
 Registry and version passed via `-PimageRegistry` and `-PimageVersion` Gradle properties.
 CI config not yet written.
-
-## Implemented REST API (master)
-
-### Auth — `master/src/main/kotlin/.../auth/routes/AuthRoutes.kt`
-All endpoints live under `/api/v1/auth`. Login is by **email** (not username).
-
-| Method | Path | Auth | Notes |
-|--------|------|------|-------|
-| POST | `/login` | — | Returns `access_token`, `expires_in`; sets `refresh_token` cookie |
-| POST | `/refresh` | cookie | Rotates refresh token |
-| POST | `/logout` | JWT | Revokes cookie token, clears cookie |
-| POST | `/logout-all` | JWT | Revokes all user refresh tokens |
-| GET | `/me` | JWT | Returns id, username, email, groups, permissions (live DB lookup) |
-
-JSON responses use snake_case via `@SerialName`. Errors are `{"message": "..."}`.
-Refresh cookie: `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth`.
-
-### Nodes — `master/src/main/kotlin/.../routes/NodesRoutes.kt`
-All endpoints require JWT + `system.nodes` permission. Under `/api/v1/nodes`.
-
-| Method | Path | Notes |
-|--------|------|-------|
-| GET | `/` | Lists all nodes; `allocated_ram_mb`/`allocated_cpu_shares` computed from Servers table |
-| GET | `/{id}` | Full node detail |
-| POST | `/{id}/trust` | Sets status → `ACTIVE` |
-| POST | `/{id}/reject` | Sets status → `REJECTED` |
-| POST | `/{id}/token/rotate` | Generates new node key; returns `{"node_key": "..."}` |
-| POST | `/{id}/shutdown` | Sends `ShutdownCommand` on gRPC stream; 202 if sent, 502 if agent not connected |
-| PATCH | `/{id}` | Updates `display_name`, `port_range_start`, `port_range_end`, `data_path`; validates range against current DB values |
-| DELETE | `/{id}` | Sets status → `DECOMMISSIONED` |
-| GET | `/{id}/metrics` | Columnar response `{timestamps, cpu_percent, ram_used_mb, ...}`; `?limit=60` (max 360) |
-
-`nodesRoutes()` takes `sendToNode: (String, MasterMessage) -> Boolean` — injected from `ControlServiceImpl`.
-
-### Networks — `master/src/main/kotlin/.../routes/NetworksRoutes.kt`
-GET endpoints require `server.view`. Under `/api/v1/networks`.
-
-| Method | Path | Permission | Notes |
-|--------|------|------------|-------|
-| GET | `/` | `server.view` (GLOBAL) | List all; includes `server_count` computed from Servers |
-| POST | `/` | `server.create` (GLOBAL) | Creates network; 409 on duplicate name |
-| GET | `/{id}` | `server.view` (GLOBAL) | Full detail with `servers[]` array (id, display_name, server_type, status) |
-| PATCH | `/{id}` | `server.configure` (NETWORK-scoped) | Updates `name`, `description`; 409 on name conflict |
-| DELETE | `/{id}` | `server.delete` (NETWORK-scoped) | NULLs `network_id` on member servers before deleting network |
-
-### Servers — `master/src/main/kotlin/.../routes/ServersRoutes.kt`
-Under `/api/v1/servers`. Visibility and mutations are all permission-scoped.
-
-| Method | Path | Permission | Notes |
-|--------|------|------------|-------|
-| GET | `/` | `server.view` (any scope) | Returns only visible servers; resolves GLOBAL/NETWORK/SERVER scopes |
-| POST | `/` | `server.create` (GLOBAL) | Validates node ACTIVE + RAM/CPU capacity; allocates lowest free TCP port; 409 on insufficient capacity or duplicate name; 422 if node/network not found |
-| GET | `/{id}` | `server.view` (scoped) | Full server object including `is_migrating` |
-| PATCH | `/{id}` | `server.configure` (scoped) | Updates `display_name`, `description`, `network_id`; send `"network_id": null` to remove from network; absent key = no change |
-| DELETE | `/{id}` | `server.delete` (scoped) | 409 if not STOPPED; cleans up PortRegistry |
-| PATCH | `/{id}/resources` | `server.resources` (scoped) | Updates `memory_mb`, `cpu_shares`; checks capacity excluding self; 409 on overflow |
-| PATCH | `/{id}/exposure` | `server.configure` (scoped) | Updates `exposed_externally`, `public_subdomain`; 422 if subdomain taken |
-| POST | `/{id}/start` | `server.start` (scoped) | 409 if RUNNING/STARTING; sends Create+Start if no container, Start only if container exists; sets status→STARTING; 502 if agent unreachable |
-| POST | `/{id}/stop` | `server.stop` (scoped) | 409 if STOPPED; sends StopContainerCommand (30s timeout, server's stop_command); 502 if agent unreachable |
-| POST | `/{id}/restart` | `server.restart` (scoped) | Sends RestartContainerCommand (30s timeout); 502 if agent unreachable |
-| POST | `/{id}/upgrade` | `server.upgrade` (scoped) | Body: `{"itzg_image_tag":"..."}`. Server must be STOPPED (409 otherwise). Removes old container, pulls new image, recreates container. Updates `itzg_image_tag` in DB; 502 if agent unreachable |
-
-`is_migrating` is derived: true when a `ServerMigrations` row for this server has status `PENDING` or `RUNNING`.
-Port allocation: first-fit scan of `[portRangeStart, portRangeEnd]` against existing TCP `PortRegistry` entries; uniqueness enforced by PK constraint.
-`image_type` is NOT stored — derived from `server_type` at runtime by the agent.
-Container name is always `craftpanel-{server_id}`. Docker network is `craftpanel-net-{network_id}` when network_id set.
-Image derivation: BUNGEECORD/VELOCITY/WATERFALL → `itzg/mc-proxy:{tag}`; all others → `itzg/minecraft-server:{tag}`.
-System env vars injected: `EULA=TRUE`, `TYPE={server_type}`, `MEMORY={memory_mb}M`. ServerEnvVars override system vars.
-`serversRoutes()` takes `sendToNode: (String, MasterMessage) -> Boolean` — injected from `ControlServiceImpl`.
 
 ## gRPC
 
@@ -191,7 +137,7 @@ Short-lived access tokens, HS256 signed, **15 minute lifetime**.
 ### Refresh tokens
 
 - Long-lived, stored as SHA-256 hashes in DB
-- Transmitted as `HttpOnly; Secure; SameSite=Strict` cookies
+- Transmitted as `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth` cookies
 - Rotated on every use — old token revoked, new one issued
 - `logout-all` revokes all tokens for a user
 
@@ -249,6 +195,16 @@ Always hits DB. Cache may be added later.
 - Styling: Tailwind CSS v4 + shadcn/ui (base-nova style, uses `@base-ui/react`)
 - Fonts: Barlow (body, `--font-sans`), Barlow Condensed (headings, `--font-condensed`), JetBrains Mono (data values, `--font-mono`)
 - Dark-only — no light theme, `dark` class hardcoded on `<html>`
+
+### API client
+
+- Codegen: `@hey-api/openapi-ts` (devDep). Config in `frontend/openapi-ts.config.ts`. Generates `lib/generated/`:
+  - `sdk.gen.ts` — one named function per endpoint: `listServers()`, `startServer({ path: { id } })`, `authLogin({ body: { email, password } })`, …
+  - `types.gen.ts` — TypeScript types (named `IoCraftpanelMaster…`, re-exported with friendly aliases from `lib/types.ts`)
+  - `client.gen.ts` + `client/` — the bundled fetch client
+- `lib/client.ts` — configures the generated client singleton: sets `baseUrl: ""` and `credentials: "include"`, registers request interceptor (Bearer token), and response interceptor (401 → refresh + retry). The bare `fetch` inside `refreshToken()` is intentional — using the SDK client there would cause infinite recursion.
+- All routes must have `operationId` set in their ktor-openapi doc block — it controls the generated function name.
+- Response shape: `{ data?, error?, response? }`. `data` is populated on success; `error` on API error (has `.message`); `response` may be undefined on network failure — always use `response?.status`.
 
 ## CraftPanel Colour Tokens
 
@@ -321,3 +277,6 @@ Schema migrations via `exposed-migration-jdbc`.
 - Don't use `eq`/`neq`/`inList` from `SqlExpressionBuilder.*` imports — use `import org.jetbrains.exposed.v1.core.*` and only call them inside `where {}` lambdas
 - Don't read `defaultExpression` columns (e.g. `createdAt`) from an `InsertStatement` — SELECT the row after insert instead
 - Don't install Python packages with system pip — use `uv` or `pipx`
+- Don't use `openapi-fetch` or `openapi-typescript` — replaced by `@hey-api/openapi-ts`
+- Don't call API endpoints with inline URL strings (e.g. `api.GET("/api/v1/servers")`) — use the generated named functions from `lib/generated/sdk.gen`
+- Don't add new Ktor routes without an `operationId` in the doc block — it's required for the codegen to produce a usable function name

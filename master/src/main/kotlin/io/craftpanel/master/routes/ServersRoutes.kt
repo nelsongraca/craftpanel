@@ -103,6 +103,7 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
         route("/api/v1/servers") {
 
             get("", {
+                operationId = "listServers"
                 summary = "List servers"
                 response {
                     code(HttpStatusCode.OK) { body<List<ServerResponse>>() }
@@ -147,6 +148,7 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
             }
 
             post("", {
+                operationId = "createServer"
                 summary = "Create server"
                 request { body<CreateServerRequest>() }
                 response {
@@ -260,7 +262,9 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
             }
 
             get("/{id}", {
+                operationId = "getServer"
                 summary = "Get server"
+                request { pathParameter<String>("id") }
                 response {
                     code(HttpStatusCode.OK) { body<ServerResponse>() }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
@@ -302,9 +306,10 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
             }
 
             patch("/{id}", {
+                operationId = "updateServer"
                 summary = "Update server"
                 // Body uses tri-state: absent key = no change, null value = clear field, string = set field
-                request { body<JsonObject>() }
+                request { pathParameter<String>("id"); body<JsonObject>() }
                 response {
                     code(HttpStatusCode.NoContent) { }
                     code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
@@ -377,7 +382,9 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
             }
 
             delete("/{id}", {
+                operationId = "deleteServer"
                 summary = "Delete server"
+                request { pathParameter<String>("id") }
                 response {
                     code(HttpStatusCode.NoContent) { }
                     code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
@@ -421,8 +428,9 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
             }
 
             patch("/{id}/resources", {
+                operationId = "updateServerResources"
                 summary = "Update server resources"
-                request { body<PatchResourcesRequest>() }
+                request { pathParameter<String>("id"); body<PatchResourcesRequest>() }
                 response {
                     code(HttpStatusCode.NoContent) { }
                     code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
@@ -499,7 +507,9 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
             }
 
             post("/{id}/start", {
+                operationId = "startServer"
                 summary = "Start server"
+                request { pathParameter<String>("id") }
                 response {
                     code(HttpStatusCode.Accepted) { body<MessageResponse>() }
                     code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
@@ -612,7 +622,9 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
             }
 
             post("/{id}/stop", {
+                operationId = "stopServer"
                 summary = "Stop server"
+                request { pathParameter<String>("id") }
                 response {
                     code(HttpStatusCode.Accepted) { body<MessageResponse>() }
                     code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
@@ -667,7 +679,9 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
             }
 
             post("/{id}/restart", {
+                operationId = "restartServer"
                 summary = "Restart server"
+                request { pathParameter<String>("id") }
                 response {
                     code(HttpStatusCode.Accepted) { body<MessageResponse>() }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
@@ -716,8 +730,9 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
             }
 
             post("/{id}/upgrade", {
+                operationId = "upgradeServer"
                 summary = "Upgrade server image"
-                request { body<UpgradeServerRequest>() }
+                request { pathParameter<String>("id"); body<UpgradeServerRequest>() }
                 response {
                     code(HttpStatusCode.Accepted) { body<MessageResponse>() }
                     code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
@@ -850,8 +865,9 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
             }
 
             patch("/{id}/exposure", {
+                operationId = "updateServerExposure"
                 summary = "Update server exposure"
-                request { body<PatchExposureRequest>() }
+                request { pathParameter<String>("id"); body<PatchExposureRequest>() }
                 response {
                     code(HttpStatusCode.NoContent) { }
                     code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }

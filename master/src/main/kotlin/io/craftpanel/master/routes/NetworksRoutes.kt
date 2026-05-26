@@ -79,6 +79,7 @@ fun Route.networksRoutes() {
         route("/api/v1/networks") {
 
             get("", {
+                operationId = "listNetworks"
                 summary = "List networks"
                 response {
                     code(HttpStatusCode.OK) { body<List<NetworkResponse>>() }
@@ -116,6 +117,7 @@ fun Route.networksRoutes() {
             }
 
             post("", {
+                operationId = "createNetwork"
                 summary = "Create network"
                 request { body<CreateNetworkRequest>() }
                 response {
@@ -166,7 +168,9 @@ fun Route.networksRoutes() {
             }
 
             get("/{id}", {
+                operationId = "getNetwork"
                 summary = "Get network"
+                request { pathParameter<String>("id") }
                 response {
                     code(HttpStatusCode.OK) { body<NetworkDetailResponse>() }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
@@ -221,8 +225,9 @@ fun Route.networksRoutes() {
             }
 
             patch("/{id}", {
+                operationId = "updateNetwork"
                 summary = "Update network"
-                request { body<PatchNetworkRequest>() }
+                request { pathParameter<String>("id"); body<PatchNetworkRequest>() }
                 response {
                     code(HttpStatusCode.NoContent) { }
                     code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
@@ -274,7 +279,9 @@ fun Route.networksRoutes() {
             }
 
             delete("/{id}", {
+                operationId = "deleteNetwork"
                 summary = "Delete network"
+                request { pathParameter<String>("id") }
                 response {
                     code(HttpStatusCode.NoContent) { }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }

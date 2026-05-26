@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Play, Square, RotateCcw, MoreHorizontal, Plus, X } from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
-import { api } from "@/lib/api";
+import { deleteServer, listNetworks, listNodes, listServers, restartServer, startServer, stopServer } from "@/lib/generated/sdk.gen";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/lib/permissions";
 import type { Server, Node, Network } from "@/lib/types";
@@ -67,21 +67,6 @@ function RamBar({ total }: { total: number }) {
   );
 }
 
-function RamBarLive({ used, total }: { used: number; total: number }) {
-  const pct = Math.min(100, (used / total) * 100);
-  const barColor =
-    pct > 85 ? "bg-error" : pct > 65 ? "bg-warning" : "bg-accent";
-  return (
-    <div className="flex flex-col gap-1">
-      <span className="font-mono text-[11px] text-text-primary whitespace-nowrap">
-        {used} / {total} MB
-      </span>
-      <div className="w-20 h-1 rounded-full bg-surface-higher overflow-hidden">
-        <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct}%` }} />
-      </div>
-    </div>
-  );
-}
 
 function ActionButton({
   icon,
@@ -137,8 +122,8 @@ export default function ServersPage() {
   const [filterNode, setFilterNode] = useState("");
 
   const fetchServers = useCallback(async () => {
-    const res = await api.get("/servers");
-    if (res.ok) setServers(await res.json());
+    const { data } = await listServers();
+    if (data) setServers(data);
   }, []);
 
   useEffect(() => {
@@ -146,9 +131,12 @@ export default function ServersPage() {
       await fetchServers();
       setInitialLoad(false);
       // best-effort — non-admins may get 403
-      const [nr, nwr] = await Promise.all([api.get("/nodes"), api.get("/networks")]);
-      if (nr.ok)  setNodes(await nr.json());
-      if (nwr.ok) setNetworks(await nwr.json());
+      const [{ data: nodeData }, { data: networkData }] = await Promise.all([
+        listNodes(),
+        listNetworks(),
+      ]);
+      if (nodeData)    setNodes(nodeData);
+      if (networkData) setNetworks(networkData);
     }
     init();
   }, [fetchServers]);
@@ -191,14 +179,19 @@ export default function ServersPage() {
     return true;
   });
 
-  async function doAction(serverId: string, action: string) {
+  const ACTION_FNS = {
+    start:   startServer,
+    stop:    stopServer,
+    restart: restartServer,
+  } as const;
+
+  async function doAction(serverId: string, action: "start" | "stop" | "restart") {
     setPendingAction((p) => ({ ...p, [serverId]: action }));
     setActionError(null);
     try {
-      const res = await api.post(`/servers/${serverId}/${action}`);
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setActionError(body.message ?? `Failed to ${action} server`);
+      const { error } = await ACTION_FNS[action]({ path: { id: serverId } });
+      if (error) {
+        setActionError(error.message ?? `Failed to ${action} server`);
       } else {
         await fetchServers();
       }
@@ -213,10 +206,9 @@ export default function ServersPage() {
     if (!window.confirm(`Delete "${server.display_name}"? This cannot be undone.`)) return;
     setActionError(null);
     try {
-      const res = await api.delete(`/servers/${server.id}`);
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setActionError(body.message ?? "Failed to delete server");
+      const { error } = await deleteServer({ path: { id: server.id } });
+      if (error) {
+        setActionError(error.message ?? "Failed to delete server");
       } else {
         await fetchServers();
       }

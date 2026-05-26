@@ -16,7 +16,7 @@ import {
   ArrowUpCircle,
   Shuffle,
 } from "lucide-react";
-import { api } from "@/lib/api";
+import { deleteServer, getNetwork, getNode, getServer, restartServer, startServer, stopServer, upgradeServer } from "@/lib/generated/sdk.gen";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/lib/permissions";
 import type { Server, Node, Network } from "@/lib/types";
@@ -197,13 +197,15 @@ export default function ServerDetailPage() {
   // ── Data fetching ──────────────────────────────────────────────────────────
 
   const fetchServer = useCallback(async () => {
-    const res = await api.get(`/servers/${id}`);
-    if (res.status === 404) { setNotFound(true); return; }
-    if (res.ok) setServer(await res.json());
+    const { data, response } = await getServer({ path: { id } });
+    if (response?.status === 404) { setNotFound(true); setLoading(false); return; }
+    if (data) setServer(data);
+    setLoading(false);
   }, [id]);
 
   useEffect(() => {
-    fetchServer().then(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchServer();
   }, [fetchServer]);
 
   const nodeId    = server?.node_id;
@@ -211,12 +213,12 @@ export default function ServerDetailPage() {
 
   useEffect(() => {
     if (!nodeId) return;
-    api.get(`/nodes/${nodeId}`).then(r => { if (r.ok) r.json().then(setNode); });
+    getNode({ path: { id: nodeId } }).then(({ data }) => { if (data) setNode(data); });
   }, [nodeId]);
 
   useEffect(() => {
     if (!networkId) return;
-    api.get(`/networks/${networkId}`).then(r => { if (r.ok) r.json().then(setNetwork); });
+    getNetwork({ path: { id: networkId } }).then(({ data }) => { if (data) setNetwork(data); });
   }, [networkId]);
 
   useEffect(() => {
@@ -232,14 +234,19 @@ export default function ServerDetailPage() {
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
-  async function doAction(action: string) {
+  const ACTION_FNS = {
+    start:   startServer,
+    stop:    stopServer,
+    restart: restartServer,
+  } as const;
+
+  async function doAction(action: "start" | "stop" | "restart") {
     setPending(action);
     setActionError(null);
     try {
-      const res = await api.post(`/servers/${id}/${action}`);
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setActionError(body.message ?? `Failed to ${action} server`);
+      const { error } = await ACTION_FNS[action]({ path: { id } });
+      if (error) {
+        setActionError(error.message ?? `Failed to ${action} server`);
       } else {
         await fetchServer();
       }
@@ -255,10 +262,9 @@ export default function ServerDetailPage() {
     if (!window.confirm(`Delete "${server.display_name}"? This cannot be undone.`)) return;
     setActionError(null);
     try {
-      const res = await api.delete(`/servers/${id}`);
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setActionError(body.message ?? "Failed to delete server");
+      const { error } = await deleteServer({ path: { id } });
+      if (error) {
+        setActionError(error.message ?? "Failed to delete server");
       } else {
         router.push("/servers");
       }
@@ -275,10 +281,9 @@ export default function ServerDetailPage() {
     if (!tag?.trim()) return;
     setActionError(null);
     try {
-      const res = await api.post(`/servers/${id}/upgrade`, { itzg_image_tag: tag.trim() });
-      if (!res.ok) {
-        const body = await res.json().catch(() => ({}));
-        setActionError(body.message ?? "Failed to upgrade server");
+      const { error } = await upgradeServer({ path: { id }, body: { itzg_image_tag: tag.trim() } });
+      if (error) {
+        setActionError(error.message ?? "Failed to upgrade server");
       } else {
         await fetchServer();
       }

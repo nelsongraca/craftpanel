@@ -19,6 +19,7 @@ fun Route.groupsRoutes() {
     authenticate("auth-jwt") {
         route("/api/v1/groups") {
             get("", {
+                operationId = "listGroups"
                 summary = "List groups"
                 response {
                     code(HttpStatusCode.OK) { body<List<GroupResponse>>() }

@@ -100,6 +100,7 @@ private fun lookupUserById(userId: UUID): Triple<String, String, List<String>>? 
 fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenService) {
     route("/api/v1/auth") {
         post("/login", {
+            operationId = "authLogin"
             summary = "Login"
             securitySchemeNames = emptyList()
             request { body<LoginRequest>() }
@@ -133,6 +134,7 @@ fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenSe
         }
 
         post("/refresh", {
+            operationId = "authRefresh"
             summary = "Refresh access token"
             securitySchemeNames = emptyList()
             response {
@@ -172,6 +174,7 @@ fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenSe
 
         authenticate("auth-jwt") {
             post("/logout", {
+                operationId = "authLogout"
                 summary = "Logout"
                 response {
                     code(HttpStatusCode.NoContent) { }
@@ -188,6 +191,7 @@ fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenSe
             }
 
             post("/logout-all", {
+                operationId = "authLogoutAll"
                 summary = "Logout all sessions"
                 response {
                     code(HttpStatusCode.NoContent) { }
@@ -205,6 +209,7 @@ fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenSe
             }
 
             get("/me", {
+                operationId = "authMe"
                 summary = "Get current user"
                 response {
                     code(HttpStatusCode.OK) { body<MeResponse>() }

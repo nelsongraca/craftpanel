@@ -25,6 +25,7 @@ fun Route.usersRoutes() {
     authenticate("auth-jwt") {
         route("/api/v1/users") {
             get("", {
+                operationId = "listUsers"
                 summary = "List users"
                 response {
                     code(HttpStatusCode.OK) { body<List<UserResponse>>() }
@@ -46,6 +47,7 @@ fun Route.usersRoutes() {
             }
 
             post("", {
+                operationId = "createUser"
                 summary = "Create user"
                 request { body<CreateUserRequest>() }
                 response {
