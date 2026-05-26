@@ -8,8 +8,11 @@ import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
+import io.craftpanel.master.routes.ErrorResponse
 import io.craftpanel.master.util.toJavaUuid
 import io.craftpanel.master.util.toKotlinUuid
+import io.github.smiley4.ktoropenapi.get
+import io.github.smiley4.ktoropenapi.post
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.jwt.JWTPrincipal
@@ -17,8 +20,6 @@ import io.ktor.server.auth.principal
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
-import io.ktor.server.routing.get
-import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -98,12 +99,20 @@ private fun lookupUserById(userId: UUID): Triple<String, String, List<String>>? 
 
 fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenService) {
     route("/api/v1/auth") {
-        post("/login") {
+        post("/login", {
+            summary = "Login"
+            securitySchemeNames = emptyList()
+            request { body<LoginRequest>() }
+            response {
+                code(HttpStatusCode.OK) { body<LoginResponse>() }
+                code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+            }
+        }) {
             val req = call.receive<LoginRequest>()
             val record = lookupUser(req.email)
 
             if (record == null || !record.isActive || !Argon2Hasher.verify(req.password, record.passwordHash)) {
-                call.respond(HttpStatusCode.Unauthorized, mapOf("message" to "Invalid credentials"))
+                call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid credentials"))
                 return@post
             }
 
@@ -123,21 +132,28 @@ fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenSe
             call.respond(LoginResponse(accessToken, jwtManager.expirySeconds))
         }
 
-        post("/refresh") {
+        post("/refresh", {
+            summary = "Refresh access token"
+            securitySchemeNames = emptyList()
+            response {
+                code(HttpStatusCode.OK) { body<LoginResponse>() }
+                code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+            }
+        }) {
             val rawToken = call.request.cookies["refresh_token"]
                 ?: run {
-                    call.respond(HttpStatusCode.Unauthorized, mapOf("message" to "No refresh token"))
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("No refresh token"))
                     return@post
                 }
 
             val (userId, newToken) = refreshTokenService.rotate(rawToken)
                 ?: run {
-                    call.respond(HttpStatusCode.Unauthorized, mapOf("message" to "Invalid or expired refresh token"))
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid or expired refresh token"))
                     return@post
                 }
 
             val (name, email, groupNames) = lookupUserById(userId)
-                ?: run { call.respond(HttpStatusCode.Unauthorized, mapOf("message" to "User not found or inactive")); return@post }
+                ?: run { call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found or inactive")); return@post }
 
             val accessToken = jwtManager.generate(
                 TokenClaims(userId = userId, name = name, email = email, groups = groupNames)
@@ -155,7 +171,13 @@ fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenSe
         }
 
         authenticate("auth-jwt") {
-            post("/logout") {
+            post("/logout", {
+                summary = "Logout"
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val rawToken = call.request.cookies["refresh_token"]
                 if (rawToken != null) refreshTokenService.revoke(rawToken)
                 call.response.cookies.append(
@@ -165,7 +187,13 @@ fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenSe
                 call.respond(HttpStatusCode.NoContent)
             }
 
-            post("/logout-all") {
+            post("/logout-all", {
+                summary = "Logout all sessions"
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
                 refreshTokenService.revokeAll(userId)
@@ -176,12 +204,18 @@ fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenSe
                 call.respond(HttpStatusCode.NoContent)
             }
 
-            get("/me") {
+            get("/me", {
+                summary = "Get current user"
+                response {
+                    code(HttpStatusCode.OK) { body<MeResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
 
                 val (username, email, groupNames) = lookupUserById(userId)
-                    ?: run { call.respond(HttpStatusCode.Unauthorized, mapOf("message" to "User not found or inactive")); return@get }
+                    ?: run { call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found or inactive")); return@get }
 
                 val permissions = PermissionResolver.resolve(userId).toList().sorted()
 

@@ -12,6 +12,12 @@ import io.craftpanel.master.routes.networksRoutes
 import io.craftpanel.master.routes.nodesRoutes
 import io.craftpanel.master.routes.serversRoutes
 import io.craftpanel.master.routes.usersRoutes
+import io.github.smiley4.ktoropenapi.OpenApi
+import io.github.smiley4.ktoropenapi.config.AuthScheme
+import io.github.smiley4.ktoropenapi.config.AuthType
+import io.github.smiley4.ktoropenapi.config.SchemaGenerator
+import io.github.smiley4.ktoropenapi.openApi
+import io.github.smiley4.ktorswaggerui.swaggerUI
 import io.ktor.http.HttpStatusCode
 import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.application.Application
@@ -24,6 +30,7 @@ import io.ktor.server.netty.EngineMain
 import io.ktor.server.plugins.calllogging.CallLogging
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.server.response.respond
+import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 import io.ktor.server.websocket.WebSockets
 import kotlinx.serialization.json.Json
@@ -50,6 +57,25 @@ fun Application.module() {
 
     install(CallLogging)
 
+    install(OpenApi) {
+        info {
+            title = "CraftPanel API"
+            version = "1.0.0"
+            description = "CraftPanel master REST API"
+        }
+        server { url = "http://localhost:8080" }
+        security {
+            securityScheme("BearerAuth") {
+                type = AuthType.HTTP
+                scheme = AuthScheme.BEARER
+            }
+            defaultSecuritySchemeNames("BearerAuth")
+        }
+        schemas {
+            generator = SchemaGenerator.kotlinx()
+        }
+    }
+
     install(Authentication) {
         jwt("auth-jwt") {
             realm = "CraftPanel"
@@ -64,6 +90,8 @@ fun Application.module() {
     }
 
     routing {
+        route("openapi.json") { openApi() }
+        route("swagger") { swaggerUI("/openapi.json") }
         authRoutes(jwtManager, refreshTokenService)
         nodesRoutes(controlService::sendToNode)
         networksRoutes()

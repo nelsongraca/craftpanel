@@ -20,6 +20,10 @@ import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.util.toKotlinUuid
+import io.github.smiley4.ktoropenapi.delete
+import io.github.smiley4.ktoropenapi.get
+import io.github.smiley4.ktoropenapi.patch
+import io.github.smiley4.ktoropenapi.post
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.jwt.JWTPrincipal
@@ -27,10 +31,6 @@ import io.ktor.server.auth.principal
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
-import io.ktor.server.routing.delete
-import io.ktor.server.routing.get
-import io.ktor.server.routing.patch
-import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import kotlinx.datetime.Clock
 import kotlinx.datetime.TimeZone
@@ -102,7 +102,13 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
     authenticate("auth-jwt") {
         route("/api/v1/servers") {
 
-            get {
+            get("", {
+                summary = "List servers"
+                response {
+                    code(HttpStatusCode.OK) { body<List<ServerResponse>>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
 
@@ -140,32 +146,42 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                 call.respond(servers)
             }
 
-            post {
+            post("", {
+                summary = "Create server"
+                request { body<CreateServerRequest>() }
+                response {
+                    code(HttpStatusCode.Created) { body<ServerResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
                 if (!PermissionResolver.hasPermission(userId, "server.create")) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@post
                 }
 
                 val req = call.receive<CreateServerRequest>()
 
                 if (req.memoryMb <= 0) {
-                    call.respond(HttpStatusCode.UnprocessableEntity, mapOf("message" to "memory_mb must be positive"))
+                    call.respond(HttpStatusCode.UnprocessableEntity, ErrorResponse("memory_mb must be positive"))
                     return@post
                 }
                 if (req.cpuShares < 0) {
-                    call.respond(HttpStatusCode.UnprocessableEntity, mapOf("message" to "cpu_shares must be non-negative"))
+                    call.respond(HttpStatusCode.UnprocessableEntity, ErrorResponse("cpu_shares must be non-negative"))
                     return@post
                 }
 
                 val nodeKotlinId = parseServerId(req.nodeId) ?: run {
-                    call.respond(HttpStatusCode.UnprocessableEntity, mapOf("message" to "Invalid node_id"))
+                    call.respond(HttpStatusCode.UnprocessableEntity, ErrorResponse("Invalid node_id"))
                     return@post
                 }
                 val networkKotlinId = req.networkId?.let {
                     parseServerId(it) ?: run {
-                        call.respond(HttpStatusCode.UnprocessableEntity, mapOf("message" to "Invalid network_id"))
+                        call.respond(HttpStatusCode.UnprocessableEntity, ErrorResponse("Invalid network_id"))
                         return@post
                     }
                 }
@@ -233,22 +249,30 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
 
                 when (result.status) {
                     "ok" -> call.respond(HttpStatusCode.Created, result.server!!)
-                    "node_not_found" -> call.respond(HttpStatusCode.UnprocessableEntity, mapOf("message" to "Node not found"))
-                    "node_not_active" -> call.respond(HttpStatusCode.UnprocessableEntity, mapOf("message" to "Node is not active"))
-                    "network_not_found" -> call.respond(HttpStatusCode.UnprocessableEntity, mapOf("message" to "Network not found"))
-                    "name_taken" -> call.respond(HttpStatusCode.Conflict, mapOf("message" to "Server name already taken"))
-                    "insufficient_ram" -> call.respond(HttpStatusCode.Conflict, mapOf("message" to "Insufficient RAM capacity on node"))
-                    "insufficient_cpu" -> call.respond(HttpStatusCode.Conflict, mapOf("message" to "Insufficient CPU capacity on node"))
-                    "no_ports" -> call.respond(HttpStatusCode.Conflict, mapOf("message" to "No free ports available on node"))
+                    "node_not_found" -> call.respond(HttpStatusCode.UnprocessableEntity, ErrorResponse("Node not found"))
+                    "node_not_active" -> call.respond(HttpStatusCode.UnprocessableEntity, ErrorResponse("Node is not active"))
+                    "network_not_found" -> call.respond(HttpStatusCode.UnprocessableEntity, ErrorResponse("Network not found"))
+                    "name_taken" -> call.respond(HttpStatusCode.Conflict, ErrorResponse("Server name already taken"))
+                    "insufficient_ram" -> call.respond(HttpStatusCode.Conflict, ErrorResponse("Insufficient RAM capacity on node"))
+                    "insufficient_cpu" -> call.respond(HttpStatusCode.Conflict, ErrorResponse("Insufficient CPU capacity on node"))
+                    "no_ports" -> call.respond(HttpStatusCode.Conflict, ErrorResponse("No free ports available on node"))
                 }
             }
 
-            get("/{id}") {
+            get("/{id}", {
+                summary = "Get server"
+                response {
+                    code(HttpStatusCode.OK) { body<ServerResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
 
                 val id = parseServerId(call.parameters["id"]) ?: run {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid server ID"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                     return@get
                 }
 
@@ -263,40 +287,51 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                         .firstOrNull() != null
                     r to migrating
                 } ?: run {
-                    call.respond(HttpStatusCode.NotFound, mapOf("message" to "Server not found"))
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
                     return@get
                 }
 
                 val serverIdJava = UUID.fromString(id.toString())
                 val netIdJava = row[Servers.networkId]?.let { UUID.fromString(it.toString()) }
                 if (!PermissionResolver.hasPermission(userId, "server.view", serverId = serverIdJava, networkId = netIdJava)) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@get
                 }
 
                 call.respond(rowToServerResponse(row, isMigrating))
             }
 
-            patch("/{id}") {
+            patch("/{id}", {
+                summary = "Update server"
+                // Body uses tri-state: absent key = no change, null value = clear field, string = set field
+                request { body<JsonObject>() }
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
 
                 val id = parseServerId(call.parameters["id"]) ?: run {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid server ID"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                     return@patch
                 }
 
                 val existing = transaction {
                     Servers.selectAll().where { Servers.id eq id }.firstOrNull()
                 } ?: run {
-                    call.respond(HttpStatusCode.NotFound, mapOf("message" to "Server not found"))
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
                     return@patch
                 }
 
                 val serverIdJava = UUID.fromString(id.toString())
                 val netIdJava = existing[Servers.networkId]?.let { UUID.fromString(it.toString()) }
                 if (!PermissionResolver.hasPermission(userId, "server.configure", serverId = serverIdJava, networkId = netIdJava)) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@patch
                 }
 
@@ -312,7 +347,7 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                 val newNetworkId: kotlin.uuid.Uuid? = if (networkIdKey && body["network_id"] !is JsonNull) {
                     val raw = body["network_id"]!!.jsonPrimitive.content
                     parseServerId(raw) ?: run {
-                        call.respond(HttpStatusCode.UnprocessableEntity, mapOf("message" to "Invalid network_id"))
+                        call.respond(HttpStatusCode.UnprocessableEntity, ErrorResponse("Invalid network_id"))
                         return@patch
                     }
                 } else null
@@ -336,36 +371,45 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                 when (result) {
                     "ok" -> call.respond(HttpStatusCode.NoContent)
                     "network_not_found" -> call.respond(
-                        HttpStatusCode.UnprocessableEntity, mapOf("message" to "Network not found")
+                        HttpStatusCode.UnprocessableEntity, ErrorResponse("Network not found")
                     )
                 }
             }
 
-            delete("/{id}") {
+            delete("/{id}", {
+                summary = "Delete server"
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
 
                 val id = parseServerId(call.parameters["id"]) ?: run {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid server ID"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                     return@delete
                 }
 
                 val existing = transaction {
                     Servers.selectAll().where { Servers.id eq id }.firstOrNull()
                 } ?: run {
-                    call.respond(HttpStatusCode.NotFound, mapOf("message" to "Server not found"))
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
                     return@delete
                 }
 
                 val serverIdJava = UUID.fromString(id.toString())
                 val netIdJava = existing[Servers.networkId]?.let { UUID.fromString(it.toString()) }
                 if (!PermissionResolver.hasPermission(userId, "server.delete", serverId = serverIdJava, networkId = netIdJava)) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@delete
                 }
 
                 if (existing[Servers.status] != "STOPPED") {
-                    call.respond(HttpStatusCode.Conflict, mapOf("message" to "Server must be STOPPED before deletion"))
+                    call.respond(HttpStatusCode.Conflict, ErrorResponse("Server must be STOPPED before deletion"))
                     return@delete
                 }
 
@@ -376,37 +420,48 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                 call.respond(HttpStatusCode.NoContent)
             }
 
-            patch("/{id}/resources") {
+            patch("/{id}/resources", {
+                summary = "Update server resources"
+                request { body<PatchResourcesRequest>() }
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
 
                 val id = parseServerId(call.parameters["id"]) ?: run {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid server ID"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                     return@patch
                 }
 
                 val existing = transaction {
                     Servers.selectAll().where { Servers.id eq id }.firstOrNull()
                 } ?: run {
-                    call.respond(HttpStatusCode.NotFound, mapOf("message" to "Server not found"))
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
                     return@patch
                 }
 
                 val serverIdJava = UUID.fromString(id.toString())
                 val netIdJava = existing[Servers.networkId]?.let { UUID.fromString(it.toString()) }
                 if (!PermissionResolver.hasPermission(userId, "server.resources", serverId = serverIdJava, networkId = netIdJava)) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@patch
                 }
 
                 val req = call.receive<PatchResourcesRequest>()
 
                 if (req.memoryMb <= 0) {
-                    call.respond(HttpStatusCode.UnprocessableEntity, mapOf("message" to "memory_mb must be positive"))
+                    call.respond(HttpStatusCode.UnprocessableEntity, ErrorResponse("memory_mb must be positive"))
                     return@patch
                 }
                 if (req.cpuShares < 0) {
-                    call.respond(HttpStatusCode.UnprocessableEntity, mapOf("message" to "cpu_shares must be non-negative"))
+                    call.respond(HttpStatusCode.UnprocessableEntity, ErrorResponse("cpu_shares must be non-negative"))
                     return@patch
                 }
 
@@ -437,38 +492,48 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
 
                 when (result) {
                     "ok" -> call.respond(HttpStatusCode.NoContent)
-                    "node_not_found" -> call.respond(HttpStatusCode.UnprocessableEntity, mapOf("message" to "Node not found"))
-                    "insufficient_ram" -> call.respond(HttpStatusCode.Conflict, mapOf("message" to "Insufficient RAM capacity on node"))
-                    "insufficient_cpu" -> call.respond(HttpStatusCode.Conflict, mapOf("message" to "Insufficient CPU capacity on node"))
+                    "node_not_found" -> call.respond(HttpStatusCode.UnprocessableEntity, ErrorResponse("Node not found"))
+                    "insufficient_ram" -> call.respond(HttpStatusCode.Conflict, ErrorResponse("Insufficient RAM capacity on node"))
+                    "insufficient_cpu" -> call.respond(HttpStatusCode.Conflict, ErrorResponse("Insufficient CPU capacity on node"))
                 }
             }
 
-            post("/{id}/start") {
+            post("/{id}/start", {
+                summary = "Start server"
+                response {
+                    code(HttpStatusCode.Accepted) { body<MessageResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.BadGateway) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
 
                 val id = parseServerId(call.parameters["id"]) ?: run {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid server ID"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                     return@post
                 }
 
                 val serverRow = transaction {
                     Servers.selectAll().where { Servers.id eq id }.firstOrNull()
                 } ?: run {
-                    call.respond(HttpStatusCode.NotFound, mapOf("message" to "Server not found"))
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
                     return@post
                 }
 
                 val serverIdJava = UUID.fromString(id.toString())
                 val netIdJava = serverRow[Servers.networkId]?.let { UUID.fromString(it.toString()) }
                 if (!PermissionResolver.hasPermission(userId, "server.start", serverId = serverIdJava, networkId = netIdJava)) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@post
                 }
 
                 val currentStatus = serverRow[Servers.status]
                 if (currentStatus == "RUNNING" || currentStatus == "STARTING") {
-                    call.respond(HttpStatusCode.Conflict, mapOf("message" to "Server is already running"))
+                    call.respond(HttpStatusCode.Conflict, ErrorResponse("Server is already running"))
                     return@post
                 }
 
@@ -476,7 +541,7 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                 val nodeRow = transaction {
                     Nodes.selectAll().where { Nodes.id eq nodeKotlinId }.firstOrNull()
                 } ?: run {
-                    call.respond(HttpStatusCode.UnprocessableEntity, mapOf("message" to "Node not found"))
+                    call.respond(HttpStatusCode.UnprocessableEntity, ErrorResponse("Node not found"))
                     return@post
                 }
 
@@ -520,7 +585,7 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                         }
                     }
                     if (!sendToNode(nodeId, createCmd)) {
-                        call.respond(HttpStatusCode.BadGateway, mapOf("message" to "Agent not connected"))
+                        call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent not connected"))
                         return@post
                     }
                 }
@@ -532,7 +597,7 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                     }
                 }
                 if (!sendToNode(nodeId, startCmd)) {
-                    call.respond(HttpStatusCode.BadGateway, mapOf("message" to "Agent not connected"))
+                    call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent not connected"))
                     return@post
                 }
 
@@ -543,34 +608,44 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                     }
                 }
 
-                call.respond(HttpStatusCode.Accepted, mapOf("message" to "Server start initiated"))
+                call.respond(HttpStatusCode.Accepted, MessageResponse("Server start initiated"))
             }
 
-            post("/{id}/stop") {
+            post("/{id}/stop", {
+                summary = "Stop server"
+                response {
+                    code(HttpStatusCode.Accepted) { body<MessageResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.BadGateway) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
 
                 val id = parseServerId(call.parameters["id"]) ?: run {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid server ID"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                     return@post
                 }
 
                 val serverRow = transaction {
                     Servers.selectAll().where { Servers.id eq id }.firstOrNull()
                 } ?: run {
-                    call.respond(HttpStatusCode.NotFound, mapOf("message" to "Server not found"))
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
                     return@post
                 }
 
                 val serverIdJava = UUID.fromString(id.toString())
                 val netIdJava = serverRow[Servers.networkId]?.let { UUID.fromString(it.toString()) }
                 if (!PermissionResolver.hasPermission(userId, "server.stop", serverId = serverIdJava, networkId = netIdJava)) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@post
                 }
 
                 if (serverRow[Servers.status] == "STOPPED") {
-                    call.respond(HttpStatusCode.Conflict, mapOf("message" to "Server is already stopped"))
+                    call.respond(HttpStatusCode.Conflict, ErrorResponse("Server is already stopped"))
                     return@post
                 }
 
@@ -584,33 +659,42 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                     }
                 }
                 if (!sendToNode(nodeId, stopCmd)) {
-                    call.respond(HttpStatusCode.BadGateway, mapOf("message" to "Agent not connected"))
+                    call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent not connected"))
                     return@post
                 }
 
-                call.respond(HttpStatusCode.Accepted, mapOf("message" to "Server stop initiated"))
+                call.respond(HttpStatusCode.Accepted, MessageResponse("Server stop initiated"))
             }
 
-            post("/{id}/restart") {
+            post("/{id}/restart", {
+                summary = "Restart server"
+                response {
+                    code(HttpStatusCode.Accepted) { body<MessageResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.BadGateway) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
 
                 val id = parseServerId(call.parameters["id"]) ?: run {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid server ID"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                     return@post
                 }
 
                 val serverRow = transaction {
                     Servers.selectAll().where { Servers.id eq id }.firstOrNull()
                 } ?: run {
-                    call.respond(HttpStatusCode.NotFound, mapOf("message" to "Server not found"))
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
                     return@post
                 }
 
                 val serverIdJava = UUID.fromString(id.toString())
                 val netIdJava = serverRow[Servers.networkId]?.let { UUID.fromString(it.toString()) }
                 if (!PermissionResolver.hasPermission(userId, "server.restart", serverId = serverIdJava, networkId = netIdJava)) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@post
                 }
 
@@ -624,51 +708,62 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                     }
                 }
                 if (!sendToNode(nodeId, restartCmd)) {
-                    call.respond(HttpStatusCode.BadGateway, mapOf("message" to "Agent not connected"))
+                    call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent not connected"))
                     return@post
                 }
 
-                call.respond(HttpStatusCode.Accepted, mapOf("message" to "Server restart initiated"))
+                call.respond(HttpStatusCode.Accepted, MessageResponse("Server restart initiated"))
             }
 
-            post("/{id}/upgrade") {
+            post("/{id}/upgrade", {
+                summary = "Upgrade server image"
+                request { body<UpgradeServerRequest>() }
+                response {
+                    code(HttpStatusCode.Accepted) { body<MessageResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.BadGateway) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
 
                 val id = parseServerId(call.parameters["id"]) ?: run {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid server ID"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                     return@post
                 }
 
                 val serverRow = transaction {
                     Servers.selectAll().where { Servers.id eq id }.firstOrNull()
                 } ?: run {
-                    call.respond(HttpStatusCode.NotFound, mapOf("message" to "Server not found"))
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
                     return@post
                 }
 
                 val serverIdJava = UUID.fromString(id.toString())
                 val netIdJava = serverRow[Servers.networkId]?.let { UUID.fromString(it.toString()) }
                 if (!PermissionResolver.hasPermission(userId, "server.upgrade", serverId = serverIdJava, networkId = netIdJava)) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@post
                 }
 
                 if (serverRow[Servers.status] != "STOPPED") {
-                    call.respond(HttpStatusCode.Conflict, mapOf("message" to "Server must be STOPPED before upgrade"))
+                    call.respond(HttpStatusCode.Conflict, ErrorResponse("Server must be STOPPED before upgrade"))
                     return@post
                 }
 
                 val req = call.receive<UpgradeServerRequest>()
                 if (req.itzgImageTag.isBlank()) {
-                    call.respond(HttpStatusCode.UnprocessableEntity, mapOf("message" to "itzg_image_tag must not be blank"))
+                    call.respond(HttpStatusCode.UnprocessableEntity, ErrorResponse("itzg_image_tag must not be blank"))
                     return@post
                 }
 
                 val nodeRow = transaction {
                     Nodes.selectAll().where { Nodes.id eq serverRow[Servers.nodeId] }.firstOrNull()
                 } ?: run {
-                    call.respond(HttpStatusCode.UnprocessableEntity, mapOf("message" to "Node not found"))
+                    call.respond(HttpStatusCode.UnprocessableEntity, ErrorResponse("Node not found"))
                     return@post
                 }
 
@@ -690,7 +785,7 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                         }
                     }
                     if (!sendToNode(nodeId, removeCmd)) {
-                        call.respond(HttpStatusCode.BadGateway, mapOf("message" to "Agent not connected"))
+                        call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent not connected"))
                         return@post
                     }
                 }
@@ -703,7 +798,7 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                     }
                 }
                 if (!sendToNode(nodeId, pullCmd)) {
-                    call.respond(HttpStatusCode.BadGateway, mapOf("message" to "Agent not connected"))
+                    call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent not connected"))
                     return@post
                 }
 
@@ -738,7 +833,7 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                     }
                 }
                 if (!sendToNode(nodeId, createCmd)) {
-                    call.respond(HttpStatusCode.BadGateway, mapOf("message" to "Agent not connected"))
+                    call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent not connected"))
                     return@post
                 }
 
@@ -751,29 +846,39 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                     }
                 }
 
-                call.respond(HttpStatusCode.Accepted, mapOf("message" to "Server upgrade initiated"))
+                call.respond(HttpStatusCode.Accepted, MessageResponse("Server upgrade initiated"))
             }
 
-            patch("/{id}/exposure") {
+            patch("/{id}/exposure", {
+                summary = "Update server exposure"
+                request { body<PatchExposureRequest>() }
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
 
                 val id = parseServerId(call.parameters["id"]) ?: run {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid server ID"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                     return@patch
                 }
 
                 val existing = transaction {
                     Servers.selectAll().where { Servers.id eq id }.firstOrNull()
                 } ?: run {
-                    call.respond(HttpStatusCode.NotFound, mapOf("message" to "Server not found"))
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
                     return@patch
                 }
 
                 val serverIdJava = UUID.fromString(id.toString())
                 val netIdJava = existing[Servers.networkId]?.let { UUID.fromString(it.toString()) }
                 if (!PermissionResolver.hasPermission(userId, "server.configure", serverId = serverIdJava, networkId = netIdJava)) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@patch
                 }
 
@@ -798,7 +903,7 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                 when (result) {
                     "ok" -> call.respond(HttpStatusCode.NoContent)
                     "subdomain_taken" -> call.respond(
-                        HttpStatusCode.UnprocessableEntity, mapOf("message" to "Public subdomain already taken")
+                        HttpStatusCode.UnprocessableEntity, ErrorResponse("Public subdomain already taken")
                     )
                 }
             }

@@ -8,6 +8,10 @@ import io.craftpanel.master.database.schema.NodeMetrics
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.util.toKotlinUuid
+import io.github.smiley4.ktoropenapi.delete
+import io.github.smiley4.ktoropenapi.get
+import io.github.smiley4.ktoropenapi.patch
+import io.github.smiley4.ktoropenapi.post
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.jwt.JWTPrincipal
@@ -15,10 +19,6 @@ import io.ktor.server.auth.principal
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
-import io.ktor.server.routing.delete
-import io.ktor.server.routing.get
-import io.ktor.server.routing.patch
-import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -85,11 +85,18 @@ fun Route.nodesRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
     authenticate("auth-jwt") {
         route("/api/v1/nodes") {
 
-            get {
+            get("", {
+                summary = "List nodes"
+                response {
+                    code(HttpStatusCode.OK) { body<List<NodeResponse>>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
                 if (!PermissionResolver.hasPermission(userId, "system.nodes")) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@get
                 }
 
@@ -120,16 +127,24 @@ fun Route.nodesRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                 call.respond(nodes)
             }
 
-            get("/{id}") {
+            get("/{id}", {
+                summary = "Get node"
+                response {
+                    code(HttpStatusCode.OK) { body<NodeResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
                 if (!PermissionResolver.hasPermission(userId, "system.nodes")) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@get
                 }
 
                 val id = parseNodeId(call.parameters["id"]) ?: run {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid node ID"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid node ID"))
                     return@get
                 }
 
@@ -156,64 +171,88 @@ fun Route.nodesRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                         )
                     }
                 } ?: run {
-                    call.respond(HttpStatusCode.NotFound, mapOf("message" to "Node not found"))
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Node not found"))
                     return@get
                 }
                 call.respond(node)
             }
 
-            post("/{id}/trust") {
+            post("/{id}/trust", {
+                summary = "Trust node"
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
                 if (!PermissionResolver.hasPermission(userId, "system.nodes")) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@post
                 }
 
                 val id = parseNodeId(call.parameters["id"]) ?: run {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid node ID"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid node ID"))
                     return@post
                 }
 
                 val updated = transaction { Nodes.update({ Nodes.id eq id }) { it[status] = "ACTIVE" } }
                 if (updated == 0) {
-                    call.respond(HttpStatusCode.NotFound, mapOf("message" to "Node not found"))
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Node not found"))
                     return@post
                 }
                 call.respond(HttpStatusCode.NoContent)
             }
 
-            post("/{id}/reject") {
+            post("/{id}/reject", {
+                summary = "Reject node"
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
                 if (!PermissionResolver.hasPermission(userId, "system.nodes")) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@post
                 }
 
                 val id = parseNodeId(call.parameters["id"]) ?: run {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid node ID"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid node ID"))
                     return@post
                 }
 
                 val updated = transaction { Nodes.update({ Nodes.id eq id }) { it[status] = "REJECTED" } }
                 if (updated == 0) {
-                    call.respond(HttpStatusCode.NotFound, mapOf("message" to "Node not found"))
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Node not found"))
                     return@post
                 }
                 call.respond(HttpStatusCode.NoContent)
             }
 
-            post("/{id}/token/rotate") {
+            post("/{id}/token/rotate", {
+                summary = "Rotate node token"
+                response {
+                    code(HttpStatusCode.OK) { body<NodeKeyResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
                 if (!PermissionResolver.hasPermission(userId, "system.nodes")) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@post
                 }
 
                 val id = parseNodeId(call.parameters["id"]) ?: run {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid node ID"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid node ID"))
                     return@post
                 }
 
@@ -228,50 +267,69 @@ fun Route.nodesRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                 }
 
                 if (updated == 0) {
-                    call.respond(HttpStatusCode.NotFound, mapOf("message" to "Node not found"))
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Node not found"))
                     return@post
                 }
-                call.respond(mapOf("node_key" to rawKey!!))
+                call.respond(NodeKeyResponse(rawKey!!))
             }
 
-            post("/{id}/shutdown") {
+            post("/{id}/shutdown", {
+                summary = "Shutdown node agent"
+                response {
+                    code(HttpStatusCode.Accepted) { body<MessageResponse>() }
+                    code(HttpStatusCode.BadGateway) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
                 if (!PermissionResolver.hasPermission(userId, "system.nodes")) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@post
                 }
 
                 val id = parseNodeId(call.parameters["id"]) ?: run {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid node ID"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid node ID"))
                     return@post
                 }
 
                 val exists = transaction { Nodes.selectAll().where { Nodes.id eq id }.firstOrNull() != null }
                 if (!exists) {
-                    call.respond(HttpStatusCode.NotFound, mapOf("message" to "Node not found"))
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Node not found"))
                     return@post
                 }
 
                 val msg = masterMessage { shutdown = shutdownCommand { timeoutSeconds = 30 } }
                 val sent = sendToNode(id.toString(), msg)
                 if (!sent) {
-                    call.respond(HttpStatusCode.BadGateway, mapOf("message" to "Agent not connected"))
+                    call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent not connected"))
                     return@post
                 }
-                call.respond(HttpStatusCode.Accepted, mapOf("message" to "Shutdown command sent"))
+                call.respond(HttpStatusCode.Accepted, MessageResponse("Shutdown command sent"))
             }
 
-            patch("/{id}") {
+            patch("/{id}", {
+                summary = "Update node"
+                request { body<PatchNodeRequest>() }
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
                 if (!PermissionResolver.hasPermission(userId, "system.nodes")) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@patch
                 }
 
                 val id = parseNodeId(call.parameters["id"]) ?: run {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid node ID"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid node ID"))
                     return@patch
                 }
 
@@ -296,43 +354,59 @@ fun Route.nodesRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                 }
 
                 when (result) {
-                    null -> call.respond(HttpStatusCode.NotFound, mapOf("message" to "Node not found"))
+                    null -> call.respond(HttpStatusCode.NotFound, ErrorResponse("Node not found"))
                     "ok" -> call.respond(HttpStatusCode.NoContent)
-                    else -> call.respond(HttpStatusCode.UnprocessableEntity, mapOf("message" to result))
+                    else -> call.respond(HttpStatusCode.UnprocessableEntity, ErrorResponse(result))
                 }
             }
 
-            delete("/{id}") {
+            delete("/{id}", {
+                summary = "Decommission node"
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
                 if (!PermissionResolver.hasPermission(userId, "system.nodes")) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@delete
                 }
 
                 val id = parseNodeId(call.parameters["id"]) ?: run {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid node ID"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid node ID"))
                     return@delete
                 }
 
                 val updated = transaction { Nodes.update({ Nodes.id eq id }) { it[status] = "DECOMMISSIONED" } }
                 if (updated == 0) {
-                    call.respond(HttpStatusCode.NotFound, mapOf("message" to "Node not found"))
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Node not found"))
                     return@delete
                 }
                 call.respond(HttpStatusCode.NoContent)
             }
 
-            get("/{id}/metrics") {
+            get("/{id}/metrics", {
+                summary = "Get node metrics"
+                response {
+                    code(HttpStatusCode.OK) { body<NodeMetricsResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
                 if (!PermissionResolver.hasPermission(userId, "system.nodes")) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@get
                 }
 
                 val id = parseNodeId(call.parameters["id"]) ?: run {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid node ID"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid node ID"))
                     return@get
                 }
 
@@ -340,7 +414,7 @@ fun Route.nodesRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
 
                 val exists = transaction { Nodes.selectAll().where { Nodes.id eq id }.firstOrNull() != null }
                 if (!exists) {
-                    call.respond(HttpStatusCode.NotFound, mapOf("message" to "Node not found"))
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Node not found"))
                     return@get
                 }
 

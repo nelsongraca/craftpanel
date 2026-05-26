@@ -18,6 +18,8 @@ h2 = "2.3.232"
 kover = "0.9.8"
 frontend-plugin = "10.0.0"
 bmuschko-docker = "10.0.0"
+ktor-openapi-tools = "5.7.0"
+schema-kenerator = "2.7.2"
 
 [libraries]
 # Ktor server
@@ -71,6 +73,13 @@ docker-java-transport-httpclient5 = { module = "com.github.docker-java:docker-ja
 
 # Bouncy Castle (Argon2id password hashing — pure Java, no native deps)
 bcprov-jdk18on = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
+
+# OpenAPI spec generation
+ktor-openapi                    = { module = "io.github.smiley4:ktor-openapi",                    version.ref = "ktor-openapi-tools" }
+ktor-swagger-ui                 = { module = "io.github.smiley4:ktor-swagger-ui",                 version.ref = "ktor-openapi-tools" }
+schema-kenerator-core           = { module = "io.github.smiley4:schema-kenerator-core",           version.ref = "schema-kenerator" }
+schema-kenerator-serialization  = { module = "io.github.smiley4:schema-kenerator-serialization",  version.ref = "schema-kenerator" }
+schema-kenerator-swagger        = { module = "io.github.smiley4:schema-kenerator-swagger",        version.ref = "schema-kenerator" }
 
 # Test
 h2 = { module = "com.h2database:h2", version.ref = "h2" }

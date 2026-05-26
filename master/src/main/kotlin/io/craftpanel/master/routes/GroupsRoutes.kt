@@ -2,10 +2,11 @@ package io.craftpanel.master.routes
 
 import io.craftpanel.master.database.schema.GroupPermissions
 import io.craftpanel.master.database.schema.Groups
+import io.github.smiley4.ktoropenapi.get
+import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.authenticate
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
-import io.ktor.server.routing.get
 import io.ktor.server.routing.route
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -17,7 +18,13 @@ data class GroupResponse(val id: String, val name: String, val isSystem: Boolean
 fun Route.groupsRoutes() {
     authenticate("auth-jwt") {
         route("/api/v1/groups") {
-            get {
+            get("", {
+                summary = "List groups"
+                response {
+                    code(HttpStatusCode.OK) { body<List<GroupResponse>>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 // TODO: permission check — system.users
                 val groups = transaction {
                     val allPerms = GroupPermissions.selectAll()

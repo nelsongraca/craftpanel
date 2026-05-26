@@ -7,9 +7,11 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "generate-api": "openapi-typescript ../openapi.json -o lib/generated/api.ts"
   },
   "dependencies": {
+    "openapi-fetch": "^0.14.0",
     "@base-ui/react": "^1.4.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -21,6 +23,7 @@
     "tw-animate-css": "^1.4.0"
   },
   "devDependencies": {
+    "openapi-typescript": "^7.8.0",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

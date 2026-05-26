@@ -43,6 +43,14 @@ dependencies {
     implementation(libs.hikaricp)
     implementation(libs.postgresql)
 
+    // OpenAPI spec generation
+    implementation(libs.ktor.openapi)
+    implementation(libs.ktor.swagger.ui)
+    // Expose schema-kenerator on compile classpath so SchemaGenerator.kotlinx() resolves
+    implementation(libs.schema.kenerator.core)
+    implementation(libs.schema.kenerator.serialization)
+    implementation(libs.schema.kenerator.swagger)
+
     // Argon2id password hashing
     implementation(libs.bcprov.jdk18on)
 

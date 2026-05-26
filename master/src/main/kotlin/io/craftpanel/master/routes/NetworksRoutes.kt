@@ -4,6 +4,10 @@ import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.util.toKotlinUuid
+import io.github.smiley4.ktoropenapi.delete
+import io.github.smiley4.ktoropenapi.get
+import io.github.smiley4.ktoropenapi.patch
+import io.github.smiley4.ktoropenapi.post
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.auth.authenticate
 import io.ktor.server.auth.jwt.JWTPrincipal
@@ -11,10 +15,6 @@ import io.ktor.server.auth.principal
 import io.ktor.server.request.receive
 import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
-import io.ktor.server.routing.delete
-import io.ktor.server.routing.get
-import io.ktor.server.routing.patch
-import io.ktor.server.routing.post
 import io.ktor.server.routing.route
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -78,11 +78,18 @@ fun Route.networksRoutes() {
     authenticate("auth-jwt") {
         route("/api/v1/networks") {
 
-            get {
+            get("", {
+                summary = "List networks"
+                response {
+                    code(HttpStatusCode.OK) { body<List<NetworkResponse>>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
                 if (!PermissionResolver.hasPermission(userId, "server.view")) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@get
                 }
 
@@ -108,11 +115,20 @@ fun Route.networksRoutes() {
                 call.respond(networks)
             }
 
-            post {
+            post("", {
+                summary = "Create network"
+                request { body<CreateNetworkRequest>() }
+                response {
+                    code(HttpStatusCode.Created) { body<NetworkResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
                 if (!PermissionResolver.hasPermission(userId, "server.create")) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@post
                 }
 
@@ -122,7 +138,7 @@ fun Route.networksRoutes() {
                     ServerNetworks.selectAll().where { ServerNetworks.name eq req.name }.firstOrNull() != null
                 }
                 if (nameTaken) {
-                    call.respond(HttpStatusCode.Conflict, mapOf("message" to "Network name already taken"))
+                    call.respond(HttpStatusCode.Conflict, ErrorResponse("Network name already taken"))
                     return@post
                 }
 
@@ -149,16 +165,24 @@ fun Route.networksRoutes() {
                 call.respond(HttpStatusCode.Created, network)
             }
 
-            get("/{id}") {
+            get("/{id}", {
+                summary = "Get network"
+                response {
+                    code(HttpStatusCode.OK) { body<NetworkDetailResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
                 if (!PermissionResolver.hasPermission(userId, "server.view")) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@get
                 }
 
                 val id = parseNetworkId(call.parameters["id"]) ?: run {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid network ID"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid network ID"))
                     return@get
                 }
 
@@ -190,24 +214,34 @@ fun Route.networksRoutes() {
                         createdAt = row[ServerNetworks.createdAt].toString(),
                     )
                 } ?: run {
-                    call.respond(HttpStatusCode.NotFound, mapOf("message" to "Network not found"))
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Network not found"))
                     return@get
                 }
                 call.respond(detail)
             }
 
-            patch("/{id}") {
+            patch("/{id}", {
+                summary = "Update network"
+                request { body<PatchNetworkRequest>() }
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
 
                 val id = parseNetworkId(call.parameters["id"]) ?: run {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid network ID"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid network ID"))
                     return@patch
                 }
 
                 val networkIdJava = UUID.fromString(id.toString())
                 if (!PermissionResolver.hasPermission(userId, "server.configure", networkId = networkIdJava)) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@patch
                 }
 
@@ -233,24 +267,32 @@ fun Route.networksRoutes() {
                 }
 
                 when (result) {
-                    null -> call.respond(HttpStatusCode.Conflict, mapOf("message" to "Network name already taken"))
-                    false -> call.respond(HttpStatusCode.NotFound, mapOf("message" to "Network not found"))
+                    null -> call.respond(HttpStatusCode.Conflict, ErrorResponse("Network name already taken"))
+                    false -> call.respond(HttpStatusCode.NotFound, ErrorResponse("Network not found"))
                     else -> call.respond(HttpStatusCode.NoContent)
                 }
             }
 
-            delete("/{id}") {
+            delete("/{id}", {
+                summary = "Delete network"
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
 
                 val id = parseNetworkId(call.parameters["id"]) ?: run {
-                    call.respond(HttpStatusCode.BadRequest, mapOf("message" to "Invalid network ID"))
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid network ID"))
                     return@delete
                 }
 
                 val networkIdJava = UUID.fromString(id.toString())
                 if (!PermissionResolver.hasPermission(userId, "server.delete", networkId = networkIdJava)) {
-                    call.respond(HttpStatusCode.Forbidden, mapOf("message" to "Insufficient permissions"))
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     return@delete
                 }
 
@@ -263,7 +305,7 @@ fun Route.networksRoutes() {
                 }
 
                 if (!deleted) {
-                    call.respond(HttpStatusCode.NotFound, mapOf("message" to "Network not found"))
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Network not found"))
                     return@delete
                 }
                 call.respond(HttpStatusCode.NoContent)
