@@ -13,8 +13,9 @@ plugins {
 // ---------------------------------------------------------------------------
 // Project-wide properties
 // ---------------------------------------------------------------------------
-val imageRegistry: String? = findProperty("imageRegistry")?.toString()
-val imageVersion: String = findProperty("imageVersion")?.toString() ?: "latest"
+val imageVersion: String = findProperty("imageVersion")?.toString()
+    ?: findProperty("craftpanelVersion")?.toString()
+    ?: "latest"
 
 // ---------------------------------------------------------------------------
 // Docker aggregation tasks

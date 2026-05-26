@@ -76,7 +76,7 @@ data class PatchNetworkRequest(
 
 fun Route.networksRoutes() {
     authenticate("auth-jwt") {
-        route("/api/v1/networks") {
+        route("/api/networks") {
 
             get("", {
                 operationId = "listNetworks"

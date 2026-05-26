@@ -1,6 +1,6 @@
 # System Settings
 
-Base path: `/api/v1/system`
+Base path: `/api/system`
 
 | Method | Path | Permission | Description |
 |---|---|---|---|

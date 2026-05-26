@@ -7,7 +7,7 @@ export function setAccessToken(token: string | null) { _accessToken = token }
 export function getAccessToken() { return _accessToken }
 
 async function refreshToken(): Promise<string | null> {
-  const res = await fetch("/api/v1/auth/refresh", { method: "POST", credentials: "include" })
+  const res = await fetch("/api/auth/refresh", { method: "POST", credentials: "include" })
   if (!res.ok) { _accessToken = null; return null }
   const data = await res.json() as { access_token: string }
   _accessToken = data.access_token

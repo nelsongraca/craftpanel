@@ -1,6 +1,6 @@
 # Backups
 
-Base path: `/api/v1/servers/{id}`
+Base path: `/api/servers/{id}`
 
 | Method | Path | Permission | Description |
 |---|---|---|---|

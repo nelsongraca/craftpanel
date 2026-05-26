@@ -137,7 +137,7 @@ Short-lived access tokens, HS256 signed, **15 minute lifetime**.
 ### Refresh tokens
 
 - Long-lived, stored as SHA-256 hashes in DB
-- Transmitted as `HttpOnly; Secure; SameSite=Strict; Path=/api/v1/auth` cookies
+- Transmitted as `HttpOnly; Secure; SameSite=Strict; Path=/api/auth` cookies
 - Rotated on every use — old token revoked, new one issued
 - `logout-all` revokes all tokens for a user
 

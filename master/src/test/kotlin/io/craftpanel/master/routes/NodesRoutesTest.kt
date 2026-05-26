@@ -162,7 +162,7 @@ class NodesRoutesTest {
     fun `GET nodes without JWT returns 401`() = testApplication {
         application { configureTest() }
 
-        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/nodes").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/nodes").status)
     }
 
     @Test
@@ -171,7 +171,7 @@ class NodesRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Viewer")
 
-        val response = client.get("/api/v1/nodes") { bearerAuth(tokenFor(userId)) }
+        val response = client.get("/api/nodes") { bearerAuth(tokenFor(userId)) }
 
         assertEquals(HttpStatusCode.Forbidden, response.status)
     }
@@ -182,7 +182,7 @@ class NodesRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.OK, client.get("/api/v1/nodes") { bearerAuth(tokenFor(userId)) }.status)
+        assertEquals(HttpStatusCode.OK, client.get("/api/nodes") { bearerAuth(tokenFor(userId)) }.status)
     }
 
     // -------------------------------------------------------------------------
@@ -196,7 +196,7 @@ class NodesRoutesTest {
         assignGlobalGroup(userId, "Super Admin")
         val client = jsonClient()
 
-        val body = client.get("/api/v1/nodes") { bearerAuth(tokenFor(userId)) }.body<List<JsonObject>>()
+        val body = client.get("/api/nodes") { bearerAuth(tokenFor(userId)) }.body<List<JsonObject>>()
 
         assertTrue(body.isEmpty())
     }
@@ -209,7 +209,7 @@ class NodesRoutesTest {
         createNode(hostname = "alpha")
         val client = jsonClient()
 
-        val body = client.get("/api/v1/nodes") { bearerAuth(tokenFor(userId)) }.body<List<JsonObject>>()
+        val body = client.get("/api/nodes") { bearerAuth(tokenFor(userId)) }.body<List<JsonObject>>()
 
         assertEquals(1, body.size)
         val node = body[0]
@@ -239,7 +239,7 @@ class NodesRoutesTest {
         createServer(nodeId, memoryMb = 2048)
         val client = jsonClient()
 
-        val body = client.get("/api/v1/nodes") { bearerAuth(tokenFor(userId)) }.body<List<JsonObject>>()
+        val body = client.get("/api/nodes") { bearerAuth(tokenFor(userId)) }.body<List<JsonObject>>()
 
         assertEquals(1, body.size)
         assertEquals(3072, body[0]["allocated_ram_mb"]!!.jsonPrimitive.content.toInt())
@@ -256,7 +256,7 @@ class NodesRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
 
-        val response = client.get("/api/v1/nodes/${UUID.randomUUID()}") { bearerAuth(tokenFor(userId)) }
+        val response = client.get("/api/nodes/${UUID.randomUUID()}") { bearerAuth(tokenFor(userId)) }
 
         assertEquals(HttpStatusCode.NotFound, response.status)
     }
@@ -267,7 +267,7 @@ class NodesRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
 
-        val response = client.get("/api/v1/nodes/not-a-uuid") { bearerAuth(tokenFor(userId)) }
+        val response = client.get("/api/nodes/not-a-uuid") { bearerAuth(tokenFor(userId)) }
 
         assertEquals(HttpStatusCode.BadRequest, response.status)
     }
@@ -280,7 +280,7 @@ class NodesRoutesTest {
         val nodeId = createNode(hostname = "beta", totalRamMb = 4096)
         val client = jsonClient()
 
-        val body = client.get("/api/v1/nodes/$nodeId") { bearerAuth(tokenFor(userId)) }.body<JsonObject>()
+        val body = client.get("/api/nodes/$nodeId") { bearerAuth(tokenFor(userId)) }.body<JsonObject>()
 
         assertEquals(nodeId.toString(), body["id"]!!.jsonPrimitive.content)
         assertEquals("beta", body["display_name"]!!.jsonPrimitive.content)
@@ -298,7 +298,7 @@ class NodesRoutesTest {
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode(status = "PENDING")
 
-        val response = client.post("/api/v1/nodes/$nodeId/trust") { bearerAuth(tokenFor(userId)) }
+        val response = client.post("/api/nodes/$nodeId/trust") { bearerAuth(tokenFor(userId)) }
 
         assertEquals(HttpStatusCode.NoContent, response.status)
         val status = transaction { Nodes.selectAll().where { Nodes.id eq nodeId.toKotlinUuid() }.first()[Nodes.status] }
@@ -311,7 +311,7 @@ class NodesRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.NotFound, client.post("/api/v1/nodes/${UUID.randomUUID()}/trust") { bearerAuth(tokenFor(userId)) }.status)
+        assertEquals(HttpStatusCode.NotFound, client.post("/api/nodes/${UUID.randomUUID()}/trust") { bearerAuth(tokenFor(userId)) }.status)
     }
 
     // -------------------------------------------------------------------------
@@ -325,7 +325,7 @@ class NodesRoutesTest {
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode(status = "PENDING")
 
-        val response = client.post("/api/v1/nodes/$nodeId/reject") { bearerAuth(tokenFor(userId)) }
+        val response = client.post("/api/nodes/$nodeId/reject") { bearerAuth(tokenFor(userId)) }
 
         assertEquals(HttpStatusCode.NoContent, response.status)
         val status = transaction { Nodes.selectAll().where { Nodes.id eq nodeId.toKotlinUuid() }.first()[Nodes.status] }
@@ -338,7 +338,7 @@ class NodesRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.NotFound, client.post("/api/v1/nodes/${UUID.randomUUID()}/reject") { bearerAuth(tokenFor(userId)) }.status)
+        assertEquals(HttpStatusCode.NotFound, client.post("/api/nodes/${UUID.randomUUID()}/reject") { bearerAuth(tokenFor(userId)) }.status)
     }
 
     // -------------------------------------------------------------------------
@@ -353,7 +353,7 @@ class NodesRoutesTest {
         val nodeId = createNode()
         val client = jsonClient()
 
-        val response = client.post("/api/v1/nodes/$nodeId/token/rotate") { bearerAuth(tokenFor(userId)) }
+        val response = client.post("/api/nodes/$nodeId/token/rotate") { bearerAuth(tokenFor(userId)) }
 
         assertEquals(HttpStatusCode.OK, response.status)
         val body = response.body<JsonObject>()
@@ -370,7 +370,7 @@ class NodesRoutesTest {
         val nodeId = createNode(tokenHash = tokenHash)
         val client = jsonClient()
 
-        client.post("/api/v1/nodes/$nodeId/token/rotate") { bearerAuth(tokenFor(userId)) }
+        client.post("/api/nodes/$nodeId/token/rotate") { bearerAuth(tokenFor(userId)) }
 
         val newHash = transaction { Nodes.selectAll().where { Nodes.id eq nodeId.toKotlinUuid() }.first()[Nodes.tokenHash] }
         assertNotEquals(tokenHash, newHash)
@@ -382,7 +382,7 @@ class NodesRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.NotFound, client.post("/api/v1/nodes/${UUID.randomUUID()}/token/rotate") { bearerAuth(tokenFor(userId)) }.status)
+        assertEquals(HttpStatusCode.NotFound, client.post("/api/nodes/${UUID.randomUUID()}/token/rotate") { bearerAuth(tokenFor(userId)) }.status)
     }
 
     // -------------------------------------------------------------------------
@@ -396,7 +396,7 @@ class NodesRoutesTest {
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode()
 
-        assertEquals(HttpStatusCode.BadGateway, client.post("/api/v1/nodes/$nodeId/shutdown") { bearerAuth(tokenFor(userId)) }.status)
+        assertEquals(HttpStatusCode.BadGateway, client.post("/api/nodes/$nodeId/shutdown") { bearerAuth(tokenFor(userId)) }.status)
     }
 
     @Test
@@ -406,7 +406,7 @@ class NodesRoutesTest {
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode()
 
-        assertEquals(HttpStatusCode.Accepted, client.post("/api/v1/nodes/$nodeId/shutdown") { bearerAuth(tokenFor(userId)) }.status)
+        assertEquals(HttpStatusCode.Accepted, client.post("/api/nodes/$nodeId/shutdown") { bearerAuth(tokenFor(userId)) }.status)
     }
 
     @Test
@@ -417,7 +417,7 @@ class NodesRoutesTest {
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode()
 
-        client.post("/api/v1/nodes/$nodeId/shutdown") { bearerAuth(tokenFor(userId)) }
+        client.post("/api/nodes/$nodeId/shutdown") { bearerAuth(tokenFor(userId)) }
 
         assertEquals(nodeId.toString(), sentTo)
     }
@@ -428,7 +428,7 @@ class NodesRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.NotFound, client.post("/api/v1/nodes/${UUID.randomUUID()}/shutdown") { bearerAuth(tokenFor(userId)) }.status)
+        assertEquals(HttpStatusCode.NotFound, client.post("/api/nodes/${UUID.randomUUID()}/shutdown") { bearerAuth(tokenFor(userId)) }.status)
     }
 
     // -------------------------------------------------------------------------
@@ -443,7 +443,7 @@ class NodesRoutesTest {
         val nodeId = createNode(hostname = "old-name")
         val client = jsonClient()
 
-        val response = client.patch("/api/v1/nodes/$nodeId") {
+        val response = client.patch("/api/nodes/$nodeId") {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
             setBody(PatchNodeRequest(displayName = "new-name"))
@@ -462,7 +462,7 @@ class NodesRoutesTest {
         val nodeId = createNode()
         val client = jsonClient()
 
-        val response = client.patch("/api/v1/nodes/$nodeId") {
+        val response = client.patch("/api/nodes/$nodeId") {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
             setBody(PatchNodeRequest(portRangeStart = 25600, portRangeEnd = 25565))
@@ -480,7 +480,7 @@ class NodesRoutesTest {
         val client = jsonClient()
 
         // setting start to 27000 would exceed the current end of 26070 — should fail
-        val response = client.patch("/api/v1/nodes/$nodeId") {
+        val response = client.patch("/api/nodes/$nodeId") {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
             setBody(PatchNodeRequest(portRangeStart = 27000))
@@ -496,7 +496,7 @@ class NodesRoutesTest {
         assignGlobalGroup(userId, "Super Admin")
         val client = jsonClient()
 
-        val response = client.patch("/api/v1/nodes/${UUID.randomUUID()}") {
+        val response = client.patch("/api/nodes/${UUID.randomUUID()}") {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
             setBody(PatchNodeRequest(displayName = "x"))
@@ -516,7 +516,7 @@ class NodesRoutesTest {
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode(status = "ACTIVE")
 
-        val response = client.delete("/api/v1/nodes/$nodeId") { bearerAuth(tokenFor(userId)) }
+        val response = client.delete("/api/nodes/$nodeId") { bearerAuth(tokenFor(userId)) }
 
         assertEquals(HttpStatusCode.NoContent, response.status)
         val status = transaction { Nodes.selectAll().where { Nodes.id eq nodeId.toKotlinUuid() }.first()[Nodes.status] }
@@ -529,7 +529,7 @@ class NodesRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.NotFound, client.delete("/api/v1/nodes/${UUID.randomUUID()}") { bearerAuth(tokenFor(userId)) }.status)
+        assertEquals(HttpStatusCode.NotFound, client.delete("/api/nodes/${UUID.randomUUID()}") { bearerAuth(tokenFor(userId)) }.status)
     }
 
     // -------------------------------------------------------------------------
@@ -542,7 +542,7 @@ class NodesRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.NotFound, client.get("/api/v1/nodes/${UUID.randomUUID()}/metrics") { bearerAuth(tokenFor(userId)) }.status)
+        assertEquals(HttpStatusCode.NotFound, client.get("/api/nodes/${UUID.randomUUID()}/metrics") { bearerAuth(tokenFor(userId)) }.status)
     }
 
     @Test
@@ -553,7 +553,7 @@ class NodesRoutesTest {
         val nodeId = createNode()
         val client = jsonClient()
 
-        val body = client.get("/api/v1/nodes/$nodeId/metrics") { bearerAuth(tokenFor(userId)) }.body<JsonObject>()
+        val body = client.get("/api/nodes/$nodeId/metrics") { bearerAuth(tokenFor(userId)) }.body<JsonObject>()
 
         assertTrue(body["timestamps"]!!.jsonArray.isEmpty())
         assertTrue(body["cpu_percent"]!!.jsonArray.isEmpty())
@@ -570,7 +570,7 @@ class NodesRoutesTest {
         createNodeMetric(nodeId, cpuPercent = 60.0, ramUsedMb = 3500)
         val client = jsonClient()
 
-        val body = client.get("/api/v1/nodes/$nodeId/metrics") { bearerAuth(tokenFor(userId)) }.body<JsonObject>()
+        val body = client.get("/api/nodes/$nodeId/metrics") { bearerAuth(tokenFor(userId)) }.body<JsonObject>()
 
         assertEquals(2, body["timestamps"]!!.jsonArray.size)
         assertEquals(2, body["cpu_percent"]!!.jsonArray.size)
@@ -588,7 +588,7 @@ class NodesRoutesTest {
         repeat(10) { createNodeMetric(nodeId) }
         val client = jsonClient()
 
-        val body = client.get("/api/v1/nodes/$nodeId/metrics?limit=5") { bearerAuth(tokenFor(userId)) }.body<JsonObject>()
+        val body = client.get("/api/nodes/$nodeId/metrics?limit=5") { bearerAuth(tokenFor(userId)) }.body<JsonObject>()
 
         assertEquals(5, body["timestamps"]!!.jsonArray.size)
     }

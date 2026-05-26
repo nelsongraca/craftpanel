@@ -1,6 +1,6 @@
 # Server Configuration
 
-Base path: `/api/v1/servers/{id}/config`
+Base path: `/api/servers/{id}/config`
 
 | Method | Path | Permission | Description |
 |---|---|---|---|

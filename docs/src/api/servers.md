@@ -1,6 +1,6 @@
 # Servers
 
-Base path: `/api/v1/servers`
+Base path: `/api/servers`
 
 | Method | Path | Permission | Description |
 |---|---|---|---|

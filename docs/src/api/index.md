@@ -1,6 +1,6 @@
 # API Reference
 
-The CraftPanel REST API is the exclusive interface between the browser and master. All endpoints are prefixed with `/api/v1`.
+The CraftPanel REST API is the exclusive interface between the browser and master. All endpoints are prefixed with `/api`.
 
 ## Authentication
 

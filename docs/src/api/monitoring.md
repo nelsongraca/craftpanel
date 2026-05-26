@@ -1,6 +1,6 @@
 # Monitoring & Alerts
 
-Base path: `/api/v1/alerts`
+Base path: `/api/alerts`
 
 | Method | Path | Permission | Description |
 |---|---|---|---|

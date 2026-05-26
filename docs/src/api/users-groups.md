@@ -1,6 +1,6 @@
 # Users & Groups
 
-Base path: `/api/v1`
+Base path: `/api`
 
 ---
 

@@ -100,7 +100,7 @@ data class UpgradeServerRequest(
 
 fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
     authenticate("auth-jwt") {
-        route("/api/v1/servers") {
+        route("/api/servers") {
 
             get("", {
                 operationId = "listServers"

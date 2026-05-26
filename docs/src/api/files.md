@@ -1,6 +1,6 @@
 # Files
 
-Base path: `/api/v1/servers/{id}/files`
+Base path: `/api/servers/{id}/files`
 
 All file paths are relative to the server's data directory and passed as a `path` query parameter unless noted otherwise.
 

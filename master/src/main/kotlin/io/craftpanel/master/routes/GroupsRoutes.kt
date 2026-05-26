@@ -17,7 +17,7 @@ data class GroupResponse(val id: String, val name: String, val isSystem: Boolean
 
 fun Route.groupsRoutes() {
     authenticate("auth-jwt") {
-        route("/api/v1/groups") {
+        route("/api/groups") {
             get("", {
                 operationId = "listGroups"
                 summary = "List groups"

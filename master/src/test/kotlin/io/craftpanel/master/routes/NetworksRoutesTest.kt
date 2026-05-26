@@ -123,7 +123,7 @@ class NetworksRoutesTest {
     @Test
     fun `GET networks returns 401 without token`() = testApplication {
         application { configureTest() }
-        val resp = client.get("/api/v1/networks")
+        val resp = client.get("/api/networks")
         assertEquals(HttpStatusCode.Unauthorized, resp.status)
     }
 
@@ -132,7 +132,7 @@ class NetworksRoutesTest {
         application { configureTest() }
         val client = jsonClient()
         val userId = createUser()
-        val resp = client.get("/api/v1/networks") {
+        val resp = client.get("/api/networks") {
             bearerAuth(tokenFor(userId))
         }
         assertEquals(HttpStatusCode.Forbidden, resp.status)
@@ -144,7 +144,7 @@ class NetworksRoutesTest {
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Viewer")
-        val resp = client.get("/api/v1/networks") { bearerAuth(tokenFor(userId)) }
+        val resp = client.get("/api/networks") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.OK, resp.status)
         assertEquals(0, resp.body<List<JsonObject>>().size)
     }
@@ -157,7 +157,7 @@ class NetworksRoutesTest {
         assignGlobalGroup(userId, "Viewer")
         createNetwork("net-a")
         createNetwork("net-b")
-        val resp = client.get("/api/v1/networks") { bearerAuth(tokenFor(userId)) }
+        val resp = client.get("/api/networks") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.OK, resp.status)
         val body = resp.body<List<JsonObject>>()
         assertEquals(2, body.size)
@@ -174,7 +174,7 @@ class NetworksRoutesTest {
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Viewer")
-        val resp = client.post("/api/v1/networks") {
+        val resp = client.post("/api/networks") {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
             setBody("""{"name":"n","type":"VANILLA"}""")
@@ -188,7 +188,7 @@ class NetworksRoutesTest {
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
-        val resp = client.post("/api/v1/networks") {
+        val resp = client.post("/api/networks") {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
             setBody("""{"name":"lobby","type":"PROXY","proxy_type":"VELOCITY","proxy_port":25577,"description":"main lobby"}""")
@@ -212,7 +212,7 @@ class NetworksRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         createNetwork("dup")
-        val resp = client.post("/api/v1/networks") {
+        val resp = client.post("/api/networks") {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
             setBody("""{"name":"dup","type":"VANILLA"}""")
@@ -228,7 +228,7 @@ class NetworksRoutesTest {
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Viewer")
-        val resp = client.get("/api/v1/networks/${UUID.randomUUID()}") { bearerAuth(tokenFor(userId)) }
+        val resp = client.get("/api/networks/${UUID.randomUUID()}") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.NotFound, resp.status)
     }
 
@@ -239,7 +239,7 @@ class NetworksRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Viewer")
         val netId = createNetwork("detail-net", "VANILLA")
-        val resp = client.get("/api/v1/networks/$netId") { bearerAuth(tokenFor(userId)) }
+        val resp = client.get("/api/networks/$netId") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.OK, resp.status)
         val body = resp.body<JsonObject>()
         assertEquals("detail-net", body["name"]!!.jsonPrimitive.content)
@@ -253,7 +253,7 @@ class NetworksRoutesTest {
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Viewer")
-        val resp = client.get("/api/v1/networks/not-a-uuid") { bearerAuth(tokenFor(userId)) }
+        val resp = client.get("/api/networks/not-a-uuid") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.BadRequest, resp.status)
     }
 
@@ -266,7 +266,7 @@ class NetworksRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Viewer")
         val netId = createNetwork("to-patch")
-        val resp = client.patch("/api/v1/networks/$netId") {
+        val resp = client.patch("/api/networks/$netId") {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
             setBody("""{"name":"new-name"}""")
@@ -281,7 +281,7 @@ class NetworksRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         val netId = createNetwork("old-name")
-        val resp = client.patch("/api/v1/networks/$netId") {
+        val resp = client.patch("/api/networks/$netId") {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
             setBody("""{"name":"new-name","description":"updated"}""")
@@ -301,7 +301,7 @@ class NetworksRoutesTest {
         val userId = createUser()
         val netId = createNetwork("net-scoped")
         assignNetworkGroup(userId, "Server Admin", netId)
-        val resp = client.patch("/api/v1/networks/$netId") {
+        val resp = client.patch("/api/networks/$netId") {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
             setBody("""{"name":"net-scoped-updated"}""")
@@ -317,7 +317,7 @@ class NetworksRoutesTest {
         assignGlobalGroup(userId, "Super Admin")
         createNetwork("existing")
         val netId = createNetwork("to-rename")
-        val resp = client.patch("/api/v1/networks/$netId") {
+        val resp = client.patch("/api/networks/$netId") {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
             setBody("""{"name":"existing"}""")
@@ -331,7 +331,7 @@ class NetworksRoutesTest {
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
-        val resp = client.patch("/api/v1/networks/${UUID.randomUUID()}") {
+        val resp = client.patch("/api/networks/${UUID.randomUUID()}") {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
             setBody("""{"name":"x"}""")
@@ -348,7 +348,7 @@ class NetworksRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Viewer")
         val netId = createNetwork("del-test")
-        val resp = client.delete("/api/v1/networks/$netId") { bearerAuth(tokenFor(userId)) }
+        val resp = client.delete("/api/networks/$netId") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.Forbidden, resp.status)
     }
 
@@ -359,7 +359,7 @@ class NetworksRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         val netId = createNetwork("del-me")
-        val resp = client.delete("/api/v1/networks/$netId") { bearerAuth(tokenFor(userId)) }
+        val resp = client.delete("/api/networks/$netId") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.NoContent, resp.status)
         val exists = transaction {
             ServerNetworks.selectAll().where { ServerNetworks.id eq netId.toKotlinUuid() }.firstOrNull() != null
@@ -373,7 +373,7 @@ class NetworksRoutesTest {
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
-        val resp = client.delete("/api/v1/networks/${UUID.randomUUID()}") { bearerAuth(tokenFor(userId)) }
+        val resp = client.delete("/api/networks/${UUID.randomUUID()}") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.NotFound, resp.status)
     }
 }

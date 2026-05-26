@@ -98,7 +98,7 @@ private fun lookupUserById(userId: UUID): Triple<String, String, List<String>>? 
 }
 
 fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenService) {
-    route("/api/v1/auth") {
+    route("/api/auth") {
         post("/login", {
             operationId = "authLogin"
             summary = "Login"
@@ -128,7 +128,7 @@ fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenSe
                 httpOnly = true,
                 secure = true,
                 extensions = mapOf("SameSite" to "Strict"),
-                path = "/api/v1/auth",
+                path = "/api/auth",
             )
             call.respond(LoginResponse(accessToken, jwtManager.expirySeconds))
         }
@@ -167,7 +167,7 @@ fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenSe
                 httpOnly = true,
                 secure = true,
                 extensions = mapOf("SameSite" to "Strict"),
-                path = "/api/v1/auth",
+                path = "/api/auth",
             )
             call.respond(LoginResponse(accessToken, jwtManager.expirySeconds))
         }
@@ -185,7 +185,7 @@ fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenSe
                 if (rawToken != null) refreshTokenService.revoke(rawToken)
                 call.response.cookies.append(
                     name = "refresh_token", value = "", httpOnly = true, secure = true,
-                    extensions = mapOf("SameSite" to "Strict"), path = "/api/v1/auth", maxAge = 0,
+                    extensions = mapOf("SameSite" to "Strict"), path = "/api/auth", maxAge = 0,
                 )
                 call.respond(HttpStatusCode.NoContent)
             }
@@ -203,7 +203,7 @@ fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenSe
                 refreshTokenService.revokeAll(userId)
                 call.response.cookies.append(
                     name = "refresh_token", value = "", httpOnly = true, secure = true,
-                    extensions = mapOf("SameSite" to "Strict"), path = "/api/v1/auth", maxAge = 0,
+                    extensions = mapOf("SameSite" to "Strict"), path = "/api/auth", maxAge = 0,
                 )
                 call.respond(HttpStatusCode.NoContent)
             }

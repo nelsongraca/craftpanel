@@ -84,7 +84,7 @@ private fun allocationsForNode(nodeKotlinId: kotlin.uuid.Uuid): NodeAllocations 
 
 fun Route.nodesRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
     authenticate("auth-jwt") {
-        route("/api/v1/nodes") {
+        route("/api/nodes") {
 
             get("", {
                 operationId = "listNodes"

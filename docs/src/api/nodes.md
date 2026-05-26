@@ -1,6 +1,6 @@
 # Nodes
 
-Base path: `/api/v1/nodes`
+Base path: `/api/nodes`
 
 | Method | Path | Permission | Description |
 |---|---|---|---|

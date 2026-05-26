@@ -23,7 +23,7 @@ data class UserResponse(val id: String, val username: String, val email: String,
 
 fun Route.usersRoutes() {
     authenticate("auth-jwt") {
-        route("/api/v1/users") {
+        route("/api/users") {
             get("", {
                 operationId = "listUsers"
                 summary = "List users"

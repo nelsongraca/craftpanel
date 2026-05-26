@@ -107,12 +107,9 @@ protobuf {
 // ---------------------------------------------------------------------------
 // Docker
 // ---------------------------------------------------------------------------
-val imageRegistry: String? = rootProject.findProperty("imageRegistry")?.toString()
+val imageRegistry: String = rootProject.findProperty("imageRegistry")?.toString() ?: "ghcr.io/nelsongraca/craftpanel"
 val imageVersion: String = rootProject.findProperty("imageVersion")?.toString() ?: "latest"
-val imageName = buildString {
-    if (imageRegistry != null) append("$imageRegistry/")
-    append("craftpanel-master:$imageVersion")
-}
+val imageName = "$imageRegistry/master:$imageVersion"
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
     compilerOptions {

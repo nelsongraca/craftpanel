@@ -34,7 +34,7 @@ All messages on both sockets share the same top-level envelope:
 
 ## Dashboard socket
 
-**Endpoint:** `wss://<host>/api/v1/ws`
+**Endpoint:** `wss://<host>/api/ws`
 
 Server-push only. Master filters all events to resources the authenticated user has at least `server.view` permission on. The client receives no events for servers or nodes it cannot access.
 
@@ -317,7 +317,7 @@ Fired when an active alert condition clears.
 
 ## Console socket
 
-**Endpoint:** `wss://<host>/api/v1/ws/console/{server_id}`
+**Endpoint:** `wss://<host>/api/ws/console/{server_id}`
 
 Opened when the user opens a server console. Bidirectional — master proxies input to the container stdin via the agent's gRPC data connection and streams container stdout/stderr back to the browser.
 

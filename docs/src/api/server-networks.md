@@ -1,6 +1,6 @@
 # Server Networks
 
-Base path: `/api/v1/networks`
+Base path: `/api/networks`
 
 | Method | Path | Permission | Description |
 |---|---|---|---|

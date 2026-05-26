@@ -1,6 +1,6 @@
 # Auth
 
-Base path: `/api/v1/auth`
+Base path: `/api/auth`
 
 | Method | Path | Permission | Description |
 |---|---|---|---|

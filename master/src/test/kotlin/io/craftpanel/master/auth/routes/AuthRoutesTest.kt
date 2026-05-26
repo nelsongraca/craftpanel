@@ -109,7 +109,7 @@ class AuthRoutesTest {
         email: String = "alice@example.com",
         password: String = "hunter2",
     ): Pair<String, String> {
-        val response = jsonClient().post("/api/v1/auth/login") {
+        val response = jsonClient().post("/api/auth/login") {
             contentType(ContentType.Application.Json)
             setBody(LoginRequest(email, password))
         }
@@ -126,7 +126,7 @@ class AuthRoutesTest {
         val client = jsonClient()
         createUser()
 
-        val response = client.post("/api/v1/auth/login") {
+        val response = client.post("/api/auth/login") {
             contentType(ContentType.Application.Json)
             setBody(LoginRequest("alice@example.com", "hunter2"))
         }
@@ -144,7 +144,7 @@ class AuthRoutesTest {
         val client = jsonClient()
         createUser()
 
-        val response = client.post("/api/v1/auth/login") {
+        val response = client.post("/api/auth/login") {
             contentType(ContentType.Application.Json)
             setBody(LoginRequest("alice@example.com", "wrongpassword"))
         }
@@ -157,7 +157,7 @@ class AuthRoutesTest {
         application { configureTest() }
         val client = jsonClient()
 
-        val response = client.post("/api/v1/auth/login") {
+        val response = client.post("/api/auth/login") {
             contentType(ContentType.Application.Json)
             setBody(LoginRequest("nobody@example.com", "password"))
         }
@@ -171,7 +171,7 @@ class AuthRoutesTest {
         val client = jsonClient()
         createUser(isActive = false)
 
-        val response = client.post("/api/v1/auth/login") {
+        val response = client.post("/api/auth/login") {
             contentType(ContentType.Application.Json)
             setBody(LoginRequest("alice@example.com", "hunter2"))
         }
@@ -191,7 +191,7 @@ class AuthRoutesTest {
 
         val (_, firstRefreshToken) = login()
 
-        val refreshResponse = client.post("/api/v1/auth/refresh") {
+        val refreshResponse = client.post("/api/auth/refresh") {
             cookie("refresh_token", firstRefreshToken)
         }
 
@@ -208,14 +208,14 @@ class AuthRoutesTest {
     fun `refresh without cookie returns 401`() = testApplication {
         application { configureTest() }
 
-        assertEquals(HttpStatusCode.Unauthorized, client.post("/api/v1/auth/refresh").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.post("/api/auth/refresh").status)
     }
 
     @Test
     fun `refresh with garbage token returns 401`() = testApplication {
         application { configureTest() }
 
-        val response = client.post("/api/v1/auth/refresh") {
+        val response = client.post("/api/auth/refresh") {
             cookie("refresh_token", "not-a-real-token")
         }
 
@@ -229,9 +229,9 @@ class AuthRoutesTest {
 
         val (_, token) = login()
 
-        client.post("/api/v1/auth/refresh") { cookie("refresh_token", token) }
+        client.post("/api/auth/refresh") { cookie("refresh_token", token) }
 
-        val replayResponse = client.post("/api/v1/auth/refresh") {
+        val replayResponse = client.post("/api/auth/refresh") {
             cookie("refresh_token", token)
         }
 
@@ -246,7 +246,7 @@ class AuthRoutesTest {
     fun `logout requires valid JWT`() = testApplication {
         application { configureTest() }
 
-        assertEquals(HttpStatusCode.Unauthorized, client.post("/api/v1/auth/logout").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.post("/api/auth/logout").status)
     }
 
     @Test
@@ -257,7 +257,7 @@ class AuthRoutesTest {
 
         val (accessToken, refreshToken) = login()
 
-        val logoutResponse = client.post("/api/v1/auth/logout") {
+        val logoutResponse = client.post("/api/auth/logout") {
             bearerAuth(accessToken)
             cookie("refresh_token", refreshToken)
         }
@@ -277,14 +277,14 @@ class AuthRoutesTest {
 
         val (accessToken, refreshToken) = login()
 
-        client.post("/api/v1/auth/logout") {
+        client.post("/api/auth/logout") {
             bearerAuth(accessToken)
             cookie("refresh_token", refreshToken)
         }
 
         assertEquals(
             HttpStatusCode.Unauthorized,
-            client.post("/api/v1/auth/refresh") { cookie("refresh_token", refreshToken) }.status,
+            client.post("/api/auth/refresh") { cookie("refresh_token", refreshToken) }.status,
         )
     }
 
@@ -298,7 +298,7 @@ class AuthRoutesTest {
 
         assertEquals(
             HttpStatusCode.NoContent,
-            client.post("/api/v1/auth/logout") { bearerAuth(accessToken) }.status,
+            client.post("/api/auth/logout") { bearerAuth(accessToken) }.status,
         )
     }
 
@@ -314,11 +314,11 @@ class AuthRoutesTest {
 
         val (accessToken, refreshToken) = login()
 
-        assertEquals(HttpStatusCode.NoContent, client.post("/api/v1/auth/logout-all") { bearerAuth(accessToken) }.status)
+        assertEquals(HttpStatusCode.NoContent, client.post("/api/auth/logout-all") { bearerAuth(accessToken) }.status)
 
         assertEquals(
             HttpStatusCode.Unauthorized,
-            client.post("/api/v1/auth/refresh") { cookie("refresh_token", refreshToken) }.status,
+            client.post("/api/auth/refresh") { cookie("refresh_token", refreshToken) }.status,
         )
     }
 
@@ -326,7 +326,7 @@ class AuthRoutesTest {
     fun `logout-all without JWT returns 401`() = testApplication {
         application { configureTest() }
 
-        assertEquals(HttpStatusCode.Unauthorized, client.post("/api/v1/auth/logout-all").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.post("/api/auth/logout-all").status)
     }
 
     // -------------------------------------------------------------------------
@@ -341,7 +341,7 @@ class AuthRoutesTest {
 
         val (accessToken, _) = login()
 
-        val meResponse = client.get("/api/v1/auth/me") { bearerAuth(accessToken) }
+        val meResponse = client.get("/api/auth/me") { bearerAuth(accessToken) }
 
         assertEquals(HttpStatusCode.OK, meResponse.status)
         val me = meResponse.body<MeResponse>()
@@ -359,7 +359,7 @@ class AuthRoutesTest {
 
         val (accessToken, _) = login()
 
-        val me = client.get("/api/v1/auth/me") { bearerAuth(accessToken) }.body<MeResponse>()
+        val me = client.get("/api/auth/me") { bearerAuth(accessToken) }.body<MeResponse>()
 
         assertEquals(listOf("server.view"), me.permissions)
         assertEquals(listOf("Viewer"), me.groups)
@@ -369,7 +369,7 @@ class AuthRoutesTest {
     fun `me without JWT returns 401`() = testApplication {
         application { configureTest() }
 
-        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/auth/me").status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/auth/me").status)
     }
 
     @Test
@@ -384,6 +384,6 @@ class AuthRoutesTest {
             Users.update({ Users.id eq userId.toKotlinUuid() }) { it[Users.isActive] = false }
         }
 
-        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/v1/auth/me") { bearerAuth(accessToken) }.status)
+        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/auth/me") { bearerAuth(accessToken) }.status)
     }
 }

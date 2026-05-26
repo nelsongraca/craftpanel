@@ -1,6 +1,6 @@
 # Migrations
 
-Base path: `/api/v1/servers/{id}/migrations`
+Base path: `/api/servers/{id}/migrations`
 
 | Method | Path | Permission | Description |
 |---|---|---|---|

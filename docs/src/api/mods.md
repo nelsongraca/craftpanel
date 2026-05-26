@@ -1,6 +1,6 @@
 # Mods
 
-Base path: `/api/v1/servers/{id}/mods`
+Base path: `/api/servers/{id}/mods`
 
 | Method | Path | Permission | Description |
 |---|---|---|---|
