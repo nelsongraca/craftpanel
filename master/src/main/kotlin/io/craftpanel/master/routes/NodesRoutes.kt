@@ -46,6 +46,7 @@ data class NodeResponse(
     @SerialName("agent_version") val agentVersion: String?,
     @SerialName("last_seen_at") val lastSeenAt: String?,
     @SerialName("created_at") val createdAt: String,
+    @SerialName("updated_at") val updatedAt: String,
 )
 
 @Serializable
@@ -122,6 +123,7 @@ fun Route.nodesRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                             agentVersion = row[Nodes.agentVersion],
                             lastSeenAt = row[Nodes.lastSeenAt]?.toString(),
                             createdAt = row[Nodes.createdAt].toString(),
+                            updatedAt = row[Nodes.updatedAt].toString(),
                         )
                     }
                 }
@@ -171,6 +173,7 @@ fun Route.nodesRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                             agentVersion = row[Nodes.agentVersion],
                             lastSeenAt = row[Nodes.lastSeenAt]?.toString(),
                             createdAt = row[Nodes.createdAt].toString(),
+                            updatedAt = row[Nodes.updatedAt].toString(),
                         )
                     }
                 } ?: run {

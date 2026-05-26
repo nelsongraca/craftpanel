@@ -145,7 +145,7 @@ class ServersRoutesTest {
             it[Servers.name] = name
             it[Servers.displayName] = name
             it[Servers.serverType] = "VANILLA"
-            it[Servers.gamePort] = port
+            it[Servers.hostPort] = port
             it[Servers.memoryMb] = memoryMb
             it[Servers.cpuShares] = 0
             it[Servers.status] = status
@@ -247,7 +247,7 @@ class ServersRoutesTest {
         assertEquals("new-server", body["name"]!!.jsonPrimitive.content)
         assertEquals("New Server", body["display_name"]!!.jsonPrimitive.content)
         assertEquals("PAPER", body["server_type"]!!.jsonPrimitive.content)
-        assertEquals(25565, body["game_port"]!!.jsonPrimitive.content.toInt())
+        assertEquals(25565, body["host_port"]!!.jsonPrimitive.content.toInt())
         assertEquals("false", body["is_migrating"]!!.jsonPrimitive.content)
         assertNotNull(body["id"])
 
@@ -271,7 +271,7 @@ class ServersRoutesTest {
                 setBody("""{"name":"srv-$i","node_id":"$nodeId","server_type":"VANILLA","memory_mb":512}""")
             }
             assertEquals(HttpStatusCode.Created, resp.status)
-            val port = resp.body<JsonObject>()["game_port"]!!.jsonPrimitive.content.toInt()
+            val port = resp.body<JsonObject>()["host_port"]!!.jsonPrimitive.content.toInt()
             assertEquals(25565 + i, port)
         }
     }
@@ -378,7 +378,7 @@ class ServersRoutesTest {
         val body = resp.body<JsonObject>()
         assertEquals("detail-srv", body["name"]!!.jsonPrimitive.content)
         assertNotNull(body["is_migrating"])
-        assertNotNull(body["game_port"])
+        assertNotNull(body["host_port"])
         assertNotNull(body["created_at"])
         assertNotNull(body["updated_at"])
     }
@@ -494,7 +494,7 @@ class ServersRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "RUNNING")
+        val serverId = createServer(nodeId, status = "HEALTHY")
         val resp = client.delete("/api/v1/servers/$serverId") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.Conflict, resp.status)
     }
@@ -697,13 +697,13 @@ class ServersRoutesTest {
     }
 
     @Test
-    fun `POST start returns 409 if server is RUNNING`() = testApplication {
+    fun `POST start returns 409 if server is HEALTHY`() = testApplication {
         application { configureTest() }
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "RUNNING")
+        val serverId = createServer(nodeId, status = "HEALTHY")
         val resp = client.post("/api/v1/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.Conflict, resp.status)
     }
@@ -790,7 +790,7 @@ class ServersRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Viewer")
         val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "RUNNING")
+        val serverId = createServer(nodeId, status = "HEALTHY")
         val resp = client.post("/api/v1/servers/$serverId/stop") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.Forbidden, resp.status)
     }
@@ -814,7 +814,7 @@ class ServersRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "RUNNING")
+        val serverId = createServer(nodeId, status = "HEALTHY")
         val resp = client.post("/api/v1/servers/$serverId/stop") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.BadGateway, resp.status)
     }
@@ -827,7 +827,7 @@ class ServersRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "RUNNING")
+        val serverId = createServer(nodeId, status = "HEALTHY")
         val resp = client.post("/api/v1/servers/$serverId/stop") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.Accepted, resp.status)
         assertEquals(1, sentCommands.size)
@@ -844,7 +844,7 @@ class ServersRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Viewer")
         val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "RUNNING")
+        val serverId = createServer(nodeId, status = "HEALTHY")
         val resp = client.post("/api/v1/servers/$serverId/restart") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.Forbidden, resp.status)
     }
@@ -856,7 +856,7 @@ class ServersRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "RUNNING")
+        val serverId = createServer(nodeId, status = "HEALTHY")
         val resp = client.post("/api/v1/servers/$serverId/restart") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.BadGateway, resp.status)
     }
@@ -869,7 +869,7 @@ class ServersRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "RUNNING")
+        val serverId = createServer(nodeId, status = "HEALTHY")
         val resp = client.post("/api/v1/servers/$serverId/restart") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.Accepted, resp.status)
         assertEquals(1, sentCommands.size)
@@ -902,7 +902,7 @@ class ServersRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "RUNNING")
+        val serverId = createServer(nodeId, status = "HEALTHY")
         val resp = client.post("/api/v1/servers/$serverId/upgrade") {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)

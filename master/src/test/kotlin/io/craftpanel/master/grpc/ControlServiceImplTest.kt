@@ -51,7 +51,7 @@ class ControlServiceImplTest {
         Servers.insert {
             it[Servers.nodeId] = nodeId.toKotlinUuid()
             it[Servers.name] = "srv-${UUID.randomUUID()}"
-            it[Servers.gamePort] = 25565
+            it[Servers.hostPort] = 25565
             it[Servers.memoryMb] = 1024
             it[Servers.status] = status
             it[Servers.containerId] = containerId
@@ -104,7 +104,7 @@ class ControlServiceImplTest {
     // -------------------------------------------------------------------------
 
     @Test
-    fun `reconcile RUNNING in snapshot against STOPPED in DB updates to RUNNING`() {
+    fun `reconcile RUNNING in snapshot against STOPPED in DB updates to HEALTHY`() {
         val nodeId = createNode()
         val serverId = createServer(nodeId, status = "STOPPED", containerId = "abc123")
 
@@ -117,13 +117,13 @@ class ControlServiceImplTest {
         }
         service.reconcileNodeState(nodeId.toString(), snapshot)
 
-        assertEquals("RUNNING", serverStatus(serverId))
+        assertEquals("HEALTHY", serverStatus(serverId))
     }
 
     @Test
-    fun `reconcile STOPPED in snapshot against RUNNING in DB updates to STOPPED`() {
+    fun `reconcile STOPPED in snapshot against HEALTHY in DB updates to STOPPED`() {
         val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "RUNNING")
+        val serverId = createServer(nodeId, status = "HEALTHY")
 
         val snapshot = nodeStateSnapshot {
             containers.add(containerState {
@@ -154,9 +154,9 @@ class ControlServiceImplTest {
     }
 
     @Test
-    fun `reconcile STOPPED in snapshot against ERROR in DB updates to STOPPED`() {
+    fun `reconcile STOPPED in snapshot against UNHEALTHY in DB updates to STOPPED`() {
         val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "ERROR")
+        val serverId = createServer(nodeId, status = "UNHEALTHY")
 
         val snapshot = nodeStateSnapshot {
             containers.add(containerState {
@@ -170,9 +170,9 @@ class ControlServiceImplTest {
     }
 
     @Test
-    fun `reconcile EXITED in snapshot updates to ERROR`() {
+    fun `reconcile EXITED in snapshot updates to UNHEALTHY`() {
         val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "RUNNING")
+        val serverId = createServer(nodeId, status = "HEALTHY")
 
         val snapshot = nodeStateSnapshot {
             containers.add(containerState {
@@ -182,13 +182,13 @@ class ControlServiceImplTest {
         }
         service.reconcileNodeState(nodeId.toString(), snapshot)
 
-        assertEquals("ERROR", serverStatus(serverId))
+        assertEquals("UNHEALTHY", serverStatus(serverId))
     }
 
     @Test
-    fun `reconcile server absent from snapshot with DB RUNNING updates to STOPPED`() {
+    fun `reconcile server absent from snapshot with DB HEALTHY updates to STOPPED`() {
         val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "RUNNING")
+        val serverId = createServer(nodeId, status = "HEALTHY")
 
         service.reconcileNodeState(nodeId.toString(), nodeStateSnapshot { })
 
@@ -216,9 +216,9 @@ class ControlServiceImplTest {
     }
 
     @Test
-    fun `reconcile RUNNING in snapshot against already RUNNING in DB leaves unchanged`() {
+    fun `reconcile RUNNING in snapshot against already HEALTHY in DB leaves unchanged`() {
         val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "RUNNING")
+        val serverId = createServer(nodeId, status = "HEALTHY")
 
         val snapshot = nodeStateSnapshot {
             containers.add(containerState {
@@ -228,7 +228,7 @@ class ControlServiceImplTest {
         }
         service.reconcileNodeState(nodeId.toString(), snapshot)
 
-        assertEquals("RUNNING", serverStatus(serverId))
+        assertEquals("HEALTHY", serverStatus(serverId))
     }
 
     @Test
@@ -276,23 +276,23 @@ class ControlServiceImplTest {
     }
 
     @Test
-    fun `markNodeDegraded sets RUNNING servers to ERROR`() {
+    fun `markNodeDegraded sets HEALTHY servers to UNHEALTHY`() {
         val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "RUNNING")
+        val serverId = createServer(nodeId, status = "HEALTHY")
 
         service.markNodeDegraded(nodeId.toString())
 
-        assertEquals("ERROR", serverStatus(serverId))
+        assertEquals("UNHEALTHY", serverStatus(serverId))
     }
 
     @Test
-    fun `markNodeDegraded sets STARTING servers to ERROR`() {
+    fun `markNodeDegraded sets STARTING servers to UNHEALTHY`() {
         val nodeId = createNode()
         val serverId = createServer(nodeId, status = "STARTING")
 
         service.markNodeDegraded(nodeId.toString())
 
-        assertEquals("ERROR", serverStatus(serverId))
+        assertEquals("UNHEALTHY", serverStatus(serverId))
     }
 
     @Test

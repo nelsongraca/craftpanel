@@ -10,17 +10,12 @@ import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/lib/permissions";
 import type { Server, Node, Network } from "@/lib/types";
 
-// Backend status → display status
 type DisplayStatus = "HEALTHY" | "UNHEALTHY" | "STARTING" | "STOPPING" | "STOPPED";
 
 function toDisplayStatus(status: string): DisplayStatus {
-  switch (status) {
-    case "RUNNING": return "HEALTHY";
-    case "ERROR":   return "UNHEALTHY";
-    case "STARTING": return "STARTING";
-    case "STOPPING": return "STOPPING";
-    default:         return "STOPPED";
-  }
+  return (["HEALTHY", "UNHEALTHY", "STARTING", "STOPPING", "STOPPED"].includes(status)
+    ? status
+    : "STOPPED") as DisplayStatus;
 }
 
 const DISPLAY_LABELS: Record<DisplayStatus, string> = {
@@ -41,8 +36,8 @@ const DISPLAY_CLASSES: Record<DisplayStatus, string> = {
 
 // Filter option → backend statuses that match
 const FILTER_MATCHES: Record<string, string[]> = {
-  HEALTHY:   ["RUNNING"],
-  UNHEALTHY: ["ERROR"],
+  HEALTHY:   ["HEALTHY"],
+  UNHEALTHY: ["UNHEALTHY"],
   STARTING:  ["STARTING", "STOPPING"],
   STOPPED:   ["STOPPED"],
 };

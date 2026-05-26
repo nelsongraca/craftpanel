@@ -26,13 +26,9 @@ import type { Server, Node, Network } from "@/lib/types";
 type DisplayStatus = "HEALTHY" | "UNHEALTHY" | "STARTING" | "STOPPING" | "STOPPED";
 
 function toDisplayStatus(status: string): DisplayStatus {
-  switch (status) {
-    case "RUNNING":  return "HEALTHY";
-    case "ERROR":    return "UNHEALTHY";
-    case "STARTING": return "STARTING";
-    case "STOPPING": return "STOPPING";
-    default:         return "STOPPED";
-  }
+  return (["HEALTHY", "UNHEALTHY", "STARTING", "STOPPING", "STOPPED"].includes(status)
+    ? status
+    : "STOPPED") as DisplayStatus;
 }
 
 const DISPLAY_LABELS: Record<DisplayStatus, string> = {
@@ -601,7 +597,7 @@ function OverviewTab({
           <InfoRow label="Config"  value={server.config_mode} />
           <InfoRow label="Node"    value={node?.display_name ?? server.node_id.slice(0, 8) + "…"} />
           <InfoRow label="Network" value={network?.name ?? "—"} />
-          <InfoRow label="Port"    value={server.game_port} />
+          <InfoRow label="Port"    value={server.host_port} />
           <InfoRow
             label="Hostname"
             value={

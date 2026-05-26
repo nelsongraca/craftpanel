@@ -32,6 +32,7 @@ Determines the server software and, implicitly, the itzg Docker image used.
 | `STARTING` | Container is running; itzg is still initialising or downloading |
 | `HEALTHY` | Server is accepting connections (itzg health check passing) |
 | `UNHEALTHY` | Container is running but health check is failing |
+| `STOPPING` | Stop command sent; container is shutting down |
 
 ### Migration state
 
@@ -61,23 +62,25 @@ The UI combines both — showing the server's live status alongside a migration 
 | Column | Type | Description |
 |---|---|---|
 | `id` | UUID | Primary key |
-| `display_name` | VARCHAR(64) | |
+| `name` | VARCHAR(100) | Unique machine-readable slug, e.g. `survival-1`; used for container naming and internal references |
+| `display_name` | VARCHAR(100) | Human-readable label shown in the UI |
 | `description` | TEXT | Optional |
 | `server_type` | `server_type` ENUM | Determines software and Docker image |
 | `mc_version` | VARCHAR(16) | Minecraft version string, e.g. `1.21.4`; maps to itzg `VERSION` env var |
-| `itzg_image_tag` | VARCHAR(64) | itzg image tag, e.g. `latest` or a pinned digest |
+| `itzg_image_tag` | VARCHAR(100) | itzg image tag, e.g. `latest` or a pinned digest |
 | `node_id` | UUID | FK → `nodes`, RESTRICT — server must be migrated before node decommission |
 | `network_id` | UUID | FK → `server_networks`, SET NULL — nullable |
 | `status` | `server_status` ENUM | Current runtime state |
 | `config_mode` | `config_mode` ENUM | `MANAGED` or `MANUAL` |
-| `ram_mb` | INT | RAM allocated to this container |
-| `cpu_shares` | INT | Docker CPU share value |
+| `memory_mb` | INT | RAM allocated to this container |
+| `cpu_shares` | INT | Docker CPU share value; `0` = unlimited |
 | `host_port` | INT | Port assigned from the node port registry; `NULL` for containers only reachable within a Docker bridge network |
 | `exposed_externally` | BOOLEAN | Whether a public DNS A record exists for this server |
-| `public_subdomain` | VARCHAR(64) | Chosen subdomain, e.g. `survival`; `NULL` if not exposed. Unique across all servers |
+| `public_subdomain` | VARCHAR(253) | Chosen subdomain, e.g. `survival`; `NULL` if not exposed. Unique across all servers |
 | `public_hostname` | VARCHAR(255) | Fully-qualified public hostname, e.g. `survival.mc.domain.tld` |
-| `dns_record_id` | TEXT | DNS provider record ID; used for updates and deletion on migration or exposure toggle |
-| `container_id` | TEXT | Docker container ID as last reported by agent; `NULL` when stopped |
+| `dns_record_id` | VARCHAR(100) | DNS provider record ID; used for updates and deletion on migration or exposure toggle |
+| `dns_record_name` | VARCHAR(255) | DNS provider record name as returned by the provider |
+| `container_id` | VARCHAR(64) | Docker container ID as last reported by agent; `NULL` when stopped |
 | `container_name` | TEXT | Stable container name; also used as the Docker bridge hostname for same-node routing |
 | `player_count` | INT | Last observed player count from Minecraft query protocol; refreshed every 30 s |
 | `player_list` | JSONB | Array of online player name strings |
@@ -87,6 +90,7 @@ The UI combines both — showing the server's live status alongside a migration 
 | `backup_max_count` | INT | Maximum number of backups to retain; default `10` |
 | `created_at` | TIMESTAMPTZ | |
 | `updated_at` | TIMESTAMPTZ | |
+
 
 ---
 

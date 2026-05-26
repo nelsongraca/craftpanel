@@ -58,7 +58,7 @@ data class ServerResponse(
     val status: String,
     @SerialName("node_id") val nodeId: String,
     @SerialName("network_id") val networkId: String?,
-    @SerialName("game_port") val gamePort: Int,
+    @SerialName("host_port") val hostPort: Int,
     @SerialName("memory_mb") val memoryMb: Int,
     @SerialName("cpu_shares") val cpuShares: Int,
     @SerialName("exposed_externally") val exposedExternally: Boolean,
@@ -233,7 +233,7 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                         it[nodeId] = nodeKotlinId
                         it[networkId] = networkKotlinId
                         it[serverType] = req.serverType
-                        it[gamePort] = port
+                        it[hostPort] = port
                         it[memoryMb] = req.memoryMb
                         it[cpuShares] = req.cpuShares
                     }[Servers.id]
@@ -542,7 +542,7 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                 }
 
                 val currentStatus = serverRow[Servers.status]
-                if (currentStatus == "RUNNING" || currentStatus == "STARTING") {
+                if (currentStatus == "HEALTHY" || currentStatus == "STARTING") {
                     call.respond(HttpStatusCode.Conflict, ErrorResponse("Server is already running"))
                     return@post
                 }
@@ -582,7 +582,7 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                             image = serverImage
                             ramMb = serverRow[Servers.memoryMb]
                             cpuShares = serverRow[Servers.cpuShares]
-                            hostPort = serverRow[Servers.gamePort]
+                            hostPort = serverRow[Servers.hostPort]
                             envVars.putAll(allVars)
                             this.mounts.add(volumeMount {
                                 hostPath = dataVolumePath
@@ -673,6 +673,13 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                 if (!sendToNode(nodeId, stopCmd)) {
                     call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent not connected"))
                     return@post
+                }
+
+                transaction {
+                    Servers.update({ Servers.id eq id }) {
+                        it[status] = "STOPPING"
+                        it[updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+                    }
                 }
 
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Server stop initiated"))
@@ -835,7 +842,7 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                         image = serverImage
                         ramMb = serverRow[Servers.memoryMb]
                         cpuShares = serverRow[Servers.cpuShares]
-                        hostPort = serverRow[Servers.gamePort]
+                        hostPort = serverRow[Servers.hostPort]
                         envVars.putAll(allVars)
                         this.mounts.add(volumeMount {
                             hostPath = dataVolumePath
@@ -981,7 +988,7 @@ private fun rowToServerResponse(row: ResultRow, isMigrating: Boolean) = ServerRe
     status = row[Servers.status],
     nodeId = row[Servers.nodeId].toString(),
     networkId = row[Servers.networkId]?.toString(),
-    gamePort = row[Servers.gamePort],
+    hostPort = row[Servers.hostPort],
     memoryMb = row[Servers.memoryMb],
     cpuShares = row[Servers.cpuShares],
     exposedExternally = row[Servers.exposedExternally],

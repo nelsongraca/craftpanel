@@ -182,11 +182,11 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
                 val newStatus: String? = when {
                     container == null ->
                         // Container absent from snapshot — no container exists for this server
-                        if (dbStatus in setOf("RUNNING", "STARTING", "STOPPING", "ERROR")) "STOPPED" else null
-                    container.runState == ContainerState.RunState.RUNNING && dbStatus != "RUNNING" -> "RUNNING"
+                        if (dbStatus in setOf("HEALTHY", "STARTING", "STOPPING", "UNHEALTHY")) "STOPPED" else null
+                    container.runState == ContainerState.RunState.RUNNING && dbStatus != "HEALTHY" -> "HEALTHY"
                     container.runState == ContainerState.RunState.STOPPED &&
-                            dbStatus in setOf("RUNNING", "STARTING", "ERROR") -> "STOPPED"
-                    container.runState == ContainerState.RunState.EXITED && dbStatus != "ERROR" -> "ERROR"
+                            dbStatus in setOf("HEALTHY", "STARTING", "UNHEALTHY") -> "STOPPED"
+                    container.runState == ContainerState.RunState.EXITED && dbStatus != "UNHEALTHY" -> "UNHEALTHY"
                     else -> null
                 }
 
@@ -221,9 +221,9 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
             // Only flip live servers — STOPPED servers are unaffected by a node going offline
             val serverCount = Servers.update({
                 (Servers.nodeId eq kotlinNodeId) and
-                        (Servers.status inList listOf("RUNNING", "STARTING", "STOPPING"))
+                        (Servers.status inList listOf("HEALTHY", "STARTING", "STOPPING"))
             }) {
-                it[Servers.status] = "ERROR"
+                it[Servers.status] = "UNHEALTHY"
                 it[Servers.lastSeenAt] = now
             }
 
@@ -275,9 +275,9 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
         val serverId = runCatching { UUID.fromString(update.serverId).toKotlinUuid() }.getOrNull() ?: return
         val dbStatus = when (update.status) {
             ServerStatusUpdate.ServerStatus.STARTING -> "STARTING"
-            ServerStatusUpdate.ServerStatus.HEALTHY -> "RUNNING"
+            ServerStatusUpdate.ServerStatus.HEALTHY -> "HEALTHY"
             ServerStatusUpdate.ServerStatus.STOPPED -> "STOPPED"
-            ServerStatusUpdate.ServerStatus.UNHEALTHY -> "ERROR"
+            ServerStatusUpdate.ServerStatus.UNHEALTHY -> "UNHEALTHY"
             else -> return
         }
         val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)

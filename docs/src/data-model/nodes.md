@@ -8,6 +8,7 @@
 |---|---|
 | `PENDING` | Node has registered via gRPC but has not yet been trusted by an admin |
 | `ACTIVE` | Node is trusted and agent is connected and reporting normally |
+| `REJECTED` | Admin explicitly rejected this node; agent cannot reconnect |
 | `DEGRADED` | Agent disconnected or missing heartbeat; servers on this node marked offline |
 | `DECOMMISSIONED` | Node intentionally removed; no servers should remain assigned |
 
@@ -34,11 +35,13 @@
 | `port_range_start` | INT | First port in the assignable range; default `25570` |
 | `port_range_end` | INT | Last port in the assignable range; default `26070` |
 | `data_path` | TEXT | Base filesystem path for server data on this node, e.g. `/data/craftpanel` |
+| `agent_version` | VARCHAR(50) | Agent version string as reported at registration; `NULL` if not provided |
+| `last_seen_at` | TIMESTAMPTZ | Timestamp of last gRPC message received from agent |
 | `created_at` | TIMESTAMPTZ | |
 | `updated_at` | TIMESTAMPTZ | |
 
-!!! note
-    `allocated_ram_mb` and `allocated_cpu_shares` are maintained by master on every server create, resize, migrate, or delete. Master checks available capacity (`total - allocated`) before allowing a new allocation.
+!!! note "Computed fields"
+    `allocated_ram_mb` and `allocated_cpu_shares` are not stored columns — they are computed at query time by summing `memory_mb` and `cpu_shares` across all servers currently assigned to the node. Master checks available capacity (`total - allocated`) before allowing a new allocation.
 
 ---
 

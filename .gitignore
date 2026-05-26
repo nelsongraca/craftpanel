@@ -1,5 +1,7 @@
 .gradle
 build
-.aider*
 /frontend/.node
 .frontend-gradle-plugin
+plans
+.remember
+openapi.json

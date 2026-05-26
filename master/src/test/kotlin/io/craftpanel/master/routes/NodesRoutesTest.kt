@@ -133,7 +133,7 @@ class NodesRoutesTest {
         Servers.insert {
             it[Servers.nodeId] = nodeId.toKotlinUuid()
             it[Servers.name] = "server-${UUID.randomUUID()}"
-            it[Servers.gamePort] = 25565
+            it[Servers.hostPort] = 25565
             it[Servers.memoryMb] = memoryMb
             it[Servers.cpuShares] = cpuShares
         }[Servers.id].let { UUID.fromString(it.toString()) }
@@ -476,14 +476,14 @@ class NodesRoutesTest {
         application { configureTest() }
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
-        val nodeId = createNode()  // defaults: start=25565, end=25600
+        val nodeId = createNode()  // defaults: start=25570, end=26070
         val client = jsonClient()
 
-        // setting start to 25700 would exceed the current end of 25600 — should fail
+        // setting start to 27000 would exceed the current end of 26070 — should fail
         val response = client.patch("/api/v1/nodes/$nodeId") {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
-            setBody(PatchNodeRequest(portRangeStart = 25700))
+            setBody(PatchNodeRequest(portRangeStart = 27000))
         }
 
         assertEquals(HttpStatusCode.UnprocessableEntity, response.status)

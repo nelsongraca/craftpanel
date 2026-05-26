@@ -12,14 +12,14 @@ object Servers : Table("servers") {
     val nodeId = uuid("node_id").references(Nodes.id)
     val networkId = uuid("network_id").references(ServerNetworks.id).nullable()
     val serverType = varchar("server_type", 20).default("VANILLA")
-    val status = varchar("status", 10).default("STOPPED")  // STOPPED|STARTING|RUNNING|STOPPING|ERROR
-    val gamePort = integer("game_port")
+    val status = varchar("status", 10).default("STOPPED")  // STOPPED|STARTING|HEALTHY|STOPPING|UNHEALTHY
+    val hostPort = integer("host_port")
     val memoryMb = integer("memory_mb")
     val cpuShares = integer("cpu_shares").default(0)        // 0 = unlimited
     val exposedExternally = bool("exposed_externally").default(false)
     val publicSubdomain = varchar("public_subdomain", 253).nullable().uniqueIndex()
-    val cfRecordId = varchar("cf_record_id", 100).nullable()
-    val cfRecordName = varchar("cf_record_name", 255).nullable()
+    val dnsRecordId = varchar("dns_record_id", 100).nullable()
+    val dnsRecordName = varchar("dns_record_name", 255).nullable()
     val configMode = varchar("config_mode", 10).default("MANAGED")  // MANAGED | MANUAL
     val stopCommand = varchar("stop_command", 50).default("stop")
     val itzgImageTag = varchar("itzg_image_tag", 100).default("latest")
