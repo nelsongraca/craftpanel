@@ -248,8 +248,26 @@ class ControlServiceImplTest {
     }
 
     @Test
-    fun `reconcile marks node ACTIVE on successful snapshot receipt`() {
+    fun `reconcile does not promote PENDING node to ACTIVE — admin trust required`() {
         val nodeId = createNode(status = "PENDING")
+
+        service.reconcileNodeState(nodeId.toString(), nodeStateSnapshot { })
+
+        assertEquals("PENDING", nodeStatus(nodeId))
+    }
+
+    @Test
+    fun `reconcile promotes DEGRADED node to ACTIVE on reconnect`() {
+        val nodeId = createNode(status = "DEGRADED")
+
+        service.reconcileNodeState(nodeId.toString(), nodeStateSnapshot { })
+
+        assertEquals("ACTIVE", nodeStatus(nodeId))
+    }
+
+    @Test
+    fun `reconcile leaves ACTIVE node status unchanged`() {
+        val nodeId = createNode(status = "ACTIVE")
 
         service.reconcileNodeState(nodeId.toString(), nodeStateSnapshot { })
 

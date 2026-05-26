@@ -6,23 +6,28 @@ import com.craftpanel.agent.v1.nodeMetadata
 import com.craftpanel.agent.v1.registerNodeRequest
 import io.craftpanel.agent.auth.NodeKeyStore
 import io.craftpanel.agent.config.AgentConfig
+import io.craftpanel.agent.docker.MetricsCollector
 import io.grpc.ManagedChannel
-import kotlinx.coroutines.delay
 import org.slf4j.LoggerFactory
-import kotlin.time.Duration.Companion.seconds
 
 data class NodeIdentity(val nodeId: String, val nodeKey: String)
 
-class NodeAuthenticator(private val config: AgentConfig) {
+class NodeAuthenticator(
+    private val config: AgentConfig,
+    private val metricsCollector: MetricsCollector,
+) {
     private val log = LoggerFactory.getLogger(NodeAuthenticator::class.java)
 
     suspend fun authenticate(channel: ManagedChannel): NodeIdentity {
         val stub = ControlServiceGrpcKt.ControlServiceCoroutineStub(channel)
+        val (totalRamMb, totalCpuShares) = metricsCollector.collectCapacity()
         val metadata = nodeMetadata {
             hostname = java.net.InetAddress.getLocalHost().hostName
             publicIp = resolvePublicIp()
             privateIp = resolvePrivateIp()
             agentVersion = config.agentVersion
+            this.totalRamMb = totalRamMb
+            this.totalCpuShares = totalCpuShares
         }
 
         val existingKey = NodeKeyStore.read(config.keyFilePath)
@@ -35,38 +40,25 @@ class NodeAuthenticator(private val config: AgentConfig) {
             })
             NodeKeyStore.write(config.keyFilePath, response.nodeKey)
             log.info("Registered as node ${response.nodeId} — status PENDING, awaiting admin approval")
-            return waitForApproval(stub, response.nodeKey, metadata)
+            return NodeIdentity(nodeId = response.nodeId, nodeKey = response.nodeKey)
         }
 
         log.info("Node key found — identifying with master")
-        return waitForApproval(stub, existingKey, metadata)
-    }
+        val response = stub.identifyNode(identifyNodeRequest {
+            nodeKey = existingKey
+            this.metadata = metadata
+        })
 
-    private suspend fun waitForApproval(
-        stub: ControlServiceGrpcKt.ControlServiceCoroutineStub,
-        nodeKey: String,
-        metadata: com.craftpanel.agent.v1.NodeMetadata,
-    ): NodeIdentity {
-        while (true) {
-            val response = stub.identifyNode(identifyNodeRequest {
-                this.nodeKey = nodeKey
-                this.metadata = metadata
-            })
-
-            when (response.status) {
-                com.craftpanel.agent.v1.IdentifyNodeResponse.IdentifyStatus.ACTIVE -> {
-                    log.info("Node ${response.nodeId} is ACTIVE")
-                    return NodeIdentity(nodeId = response.nodeId, nodeKey = nodeKey)
-                }
-                com.craftpanel.agent.v1.IdentifyNodeResponse.IdentifyStatus.PENDING -> {
-                    log.info("Node ${response.nodeId} is PENDING — retrying in 30s")
-                    delay(30.seconds)
-                }
-                else -> {
-                    log.error("Node was REJECTED by master — halting")
-                    throw IllegalStateException("Node rejected by master")
-                }
+        return when (response.status) {
+            com.craftpanel.agent.v1.IdentifyNodeResponse.IdentifyStatus.ACTIVE -> {
+                log.info("Node ${response.nodeId} is ACTIVE")
+                NodeIdentity(nodeId = response.nodeId, nodeKey = existingKey)
             }
+            com.craftpanel.agent.v1.IdentifyNodeResponse.IdentifyStatus.PENDING -> {
+                log.info("Node ${response.nodeId} is PENDING — awaiting admin approval")
+                NodeIdentity(nodeId = response.nodeId, nodeKey = existingKey)
+            }
+            else -> throw NodeRejectedException("Node ${response.nodeId} was REJECTED by master")
         }
     }
 

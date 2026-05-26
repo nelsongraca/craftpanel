@@ -179,21 +179,21 @@ plugins {
 }
 
 dependencies {
-    implementation("io.grpc:grpc-kotlin-stub:1.4.1")
-    implementation("io.grpc:grpc-protobuf:1.62.2")
-    implementation("com.google.protobuf:protobuf-kotlin:3.26.1")
+    implementation("io.grpc:grpc-kotlin-stub:1.4.3")
+    implementation("io.grpc:grpc-protobuf:1.75.0")
+    implementation("com.google.protobuf:protobuf-kotlin:4.32.0")
 }
 
 protobuf {
     protoc {
-        artifact = "com.google.protobuf:protoc:3.26.1"
+        artifact = "com.google.protobuf:protoc:4.32.0"
     }
     plugins {
         create("grpc") {
-            artifact = "io.grpc:protoc-gen-grpc-java:1.62.2"
+            artifact = "io.grpc:protoc-gen-grpc-java:1.75.0"
         }
         create("grpckt") {
-            artifact = "io.grpc:protoc-gen-grpc-kotlin:1.4.1:jdk8@jar"
+            artifact = "io.grpc:protoc-gen-grpc-kotlin:1.4.3:jdk8@jar"
         }
     }
     generateProtoTasks {

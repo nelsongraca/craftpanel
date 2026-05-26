@@ -2,6 +2,8 @@ package io.craftpanel.master.grpc
 
 import com.craftpanel.agent.v1.*
 import io.craftpanel.master.config.NodeConfig
+import io.grpc.Status
+import io.grpc.StatusException
 import io.craftpanel.master.database.schema.Backups
 import io.craftpanel.master.database.schema.NodeMetrics
 import io.craftpanel.master.database.schema.Nodes
@@ -133,8 +135,17 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
         try {
             requests.collect { msg ->
                 if (connectedNodeId == null) {
-                    connectedNodeId = msg.nodeId
-                    connectedAgents[msg.nodeId] = outChannel
+                    val nodeId = msg.nodeId
+                    val nodeStatus = transaction {
+                        Nodes.selectAll()
+                            .where { Nodes.id eq UUID.fromString(nodeId).toKotlinUuid() }
+                            .firstOrNull()?.get(Nodes.status)
+                    }
+                    if (nodeStatus == null || nodeStatus == "REJECTED" || nodeStatus == "DECOMMISSIONED") {
+                        throw StatusException(Status.PERMISSION_DENIED.withDescription("Node $nodeId is not authorized to connect"))
+                    }
+                    connectedNodeId = nodeId
+                    connectedAgents[nodeId] = outChannel
                 }
 
                 when {
@@ -172,6 +183,10 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
         val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
 
         transaction {
+            val currentStatus = Nodes.selectAll()
+                .where { Nodes.id eq kotlinNodeId }
+                .firstOrNull()?.get(Nodes.status)
+
             val byServerId = snapshot.containersList.associateBy { it.serverId }
 
             Servers.selectAll().where { Servers.nodeId eq kotlinNodeId }.forEach { server ->
@@ -202,9 +217,16 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
                 }
             }
 
-            Nodes.update({ Nodes.id eq kotlinNodeId }) {
-                it[Nodes.status] = "ACTIVE"
-                it[Nodes.lastSeenAt] = now
+            // DEGRADED → ACTIVE on reconnect; PENDING waits for admin trust via POST /nodes/{id}/trust
+            if (currentStatus == "DEGRADED") {
+                Nodes.update({ Nodes.id eq kotlinNodeId }) {
+                    it[Nodes.status] = "ACTIVE"
+                    it[Nodes.lastSeenAt] = now
+                }
+            } else {
+                Nodes.update({ Nodes.id eq kotlinNodeId }) {
+                    it[Nodes.lastSeenAt] = now
+                }
             }
         }
     }

@@ -56,6 +56,19 @@ class MetricsCollector(private val docker: DockerClient) {
         }
     }
 
+    fun collectCapacity(): Pair<Int, Int> {
+        val totalRamMb = runCatching {
+            val memInfo = File("/proc/meminfo").readLines()
+                .associate {
+                    val parts = it.split("\\s+".toRegex())
+                    parts[0].trimEnd(':') to (parts.getOrNull(1)?.toLongOrNull() ?: 0L)
+                }
+            ((memInfo["MemTotal"] ?: 0L) / 1024).toInt()
+        }.getOrElse { 0 }
+        val totalCpuShares = Runtime.getRuntime().availableProcessors() * 1024
+        return Pair(totalRamMb, totalCpuShares)
+    }
+
     private fun readDiskMetrics(): Pair<Long, Long> {
         return runCatching {
             val fs = File("/").toPath().fileSystem.getFileStores().first()
