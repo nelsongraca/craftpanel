@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Barlow, Barlow_Condensed, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import Shell from "./components/Shell";
+import { AuthProvider } from "@/lib/auth-context";
 
 const barlow = Barlow({
   variable: "--font-sans",
@@ -37,7 +37,7 @@ export default function RootLayout({
       className={`${barlow.variable} ${barlowCondensed.variable} ${jetbrainsMono.variable} dark h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-bg text-text-primary font-sans">
-        <Shell>{children}</Shell>
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

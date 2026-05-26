@@ -1,9 +1,9 @@
 "use client";
 
+import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  LayoutDashboard,
   Server,
   Network,
   Monitor,
@@ -11,8 +11,12 @@ import {
   Settings,
   Users,
   KeyRound,
+  LogOut,
+  ChevronDown,
   type LucideIcon,
 } from "lucide-react";
+import { useAuth } from "@/lib/auth-context";
+import { hasPermission } from "@/lib/permissions";
 
 const topNavItems = [
   { label: "Dashboard", href: "/" },
@@ -23,10 +27,19 @@ const topNavItems = [
   { label: "Settings", href: "/settings" },
 ];
 
-const sidebarSections: {
+interface SidebarItem {
+  label: string;
+  href: string;
+  icon: LucideIcon;
+  permission?: string;
+}
+
+interface SidebarSection {
   title: string;
-  items: { label: string; href: string; icon: LucideIcon }[];
-}[] = [
+  items: SidebarItem[];
+}
+
+const sidebarSections: SidebarSection[] = [
   {
     title: "Servers",
     items: [
@@ -36,30 +49,50 @@ const sidebarSections: {
   },
   {
     title: "Infrastructure",
-    items: [{ label: "Nodes", href: "/nodes", icon: Monitor }],
+    items: [
+      { label: "Nodes", href: "/nodes", icon: Monitor, permission: "system.nodes" },
+    ],
   },
   {
     title: "System",
     items: [
       { label: "Alerts", href: "/alerts", icon: Bell },
-      { label: "Users", href: "/users", icon: Users },
-      { label: "Groups", href: "/groups", icon: KeyRound },
-      { label: "Settings", href: "/settings", icon: Settings },
+      { label: "Users", href: "/users", icon: Users, permission: "system.users" },
+      { label: "Groups", href: "/groups", icon: KeyRound, permission: "system.users" },
+      { label: "Settings", href: "/settings", icon: Settings, permission: "system.settings" },
     ],
   },
 ];
 
 export default function Shell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { user, logout, logoutAll } = useAuth();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const permissions = user?.permissions ?? [];
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    if (menuOpen) document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuOpen]);
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Top Navigation */}
-      <header className="flex items-center justify-between bg-surface px-5 py-3 text-text-primary border-b border-border">
-        <span className="text-[17px] font-bold font-heading tracking-wide text-accent">
+    <div className="flex flex-col flex-1 min-h-0">
+      {/* Top bar — 3-column: logo | centred tabs | user menu */}
+      <header className="grid grid-cols-3 items-center bg-surface border-b border-border px-5 h-[48px] shrink-0">
+        {/* Logo */}
+        <span className="text-[15px] font-bold font-heading tracking-widest uppercase text-accent">
           ⛏ CraftPanel
         </span>
-        <nav className="flex gap-5 text-[13px] opacity-85">
+
+        {/* Centred nav tabs */}
+        <nav className="flex items-end justify-center gap-1 h-full">
           {topNavItems.map((item) => {
             const isActive =
               item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
@@ -67,51 +100,97 @@ export default function Shell({ children }: { children: React.ReactNode }) {
               <Link
                 key={item.label}
                 href={item.href}
-                className={
+                className={[
+                  "relative flex items-center px-3 h-full text-[12px] font-heading font-bold uppercase tracking-widest transition-colors",
                   isActive
-                    ? "opacity-100 font-bold border-b-2 border-accent pb-0.5"
-                    : "hover:opacity-100"
-                }
+                    ? "text-accent after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-accent"
+                    : "text-text-dim hover:text-text-primary",
+                ].join(" ")}
               >
                 {item.label}
               </Link>
             );
           })}
-          <span className="cursor-pointer">admin ▾</span>
         </nav>
+
+        {/* User menu */}
+        <div ref={menuRef} className="relative flex justify-end">
+          <button
+            onClick={() => setMenuOpen((o) => !o)}
+            className="flex items-center gap-1.5 text-[12px] font-heading font-bold uppercase tracking-widest text-text-dim hover:text-text-primary transition-colors"
+          >
+            <span>{user?.username ?? "User"}</span>
+            <ChevronDown size={12} strokeWidth={2.5} className={menuOpen ? "rotate-180 transition-transform" : "transition-transform"} />
+          </button>
+
+          {menuOpen && (
+            <div className="absolute right-0 top-full mt-2 bg-surface-higher border border-border rounded-md shadow-xl z-50 min-w-[180px] py-1 overflow-hidden">
+              <div className="px-3 py-2 border-b border-border">
+                <p className="text-[11px] font-heading font-bold uppercase tracking-widest text-text-muted truncate">
+                  {user?.email}
+                </p>
+              </div>
+              <button
+                onClick={() => { setMenuOpen(false); logout(); }}
+                className="flex items-center gap-2.5 w-full text-left px-3 py-2 text-[12px] hover:bg-surface-high text-text-primary transition-colors"
+              >
+                <LogOut size={13} strokeWidth={2} />
+                Sign out
+              </button>
+              <button
+                onClick={() => { setMenuOpen(false); logoutAll(); }}
+                className="flex items-center gap-2.5 w-full text-left px-3 py-2 text-[12px] hover:bg-surface-high text-text-dim transition-colors"
+              >
+                <LogOut size={13} strokeWidth={2} />
+                Sign out all sessions
+              </button>
+            </div>
+          )}
+        </div>
       </header>
 
-      {/* Shell: sidebar + content */}
-      <div className="flex flex-1">
+      {/* Body: sidebar + content */}
+      <div className="flex flex-1 min-h-0">
         {/* Sidebar */}
-        <aside className="w-[200px] flex-shrink-0 bg-surface border-r border-border flex flex-col py-4">
-          {sidebarSections.map((section) => (
-            <div key={section.title}>
-              <div className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-wider text-text-muted">
-                {section.title}
+        <aside className="w-[208px] shrink-0 bg-surface border-r border-border flex flex-col py-3 overflow-y-auto">
+          {sidebarSections.map((section) => {
+            const visibleItems = section.items.filter(
+              (item) => !item.permission || hasPermission(permissions, item.permission)
+            );
+            if (visibleItems.length === 0) return null;
+            return (
+              <div key={section.title} className="mb-2">
+                <p className="px-4 pt-4 pb-1.5 text-[10px] font-heading font-bold uppercase tracking-[0.12em] text-text-muted">
+                  {section.title}
+                </p>
+                {visibleItems.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = pathname.startsWith(item.href);
+                  return (
+                    <Link
+                      key={item.label}
+                      href={item.href}
+                      className={[
+                        "flex items-center gap-2.5 pl-[13px] pr-4 py-[6px] text-[12px] font-heading font-bold uppercase tracking-wider border-l-[3px] transition-colors",
+                        isActive
+                          ? "border-accent bg-[var(--accent-subtle)] text-accent"
+                          : "border-transparent text-text-dim hover:bg-surface-high hover:text-text-primary",
+                      ].join(" ")}
+                    >
+                      <Icon size={13} strokeWidth={2} />
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
               </div>
-              {section.items.map((item) => {
-                const Icon = item.icon;
-                const isActive = pathname.startsWith(item.href);
-                return (
-                  <Link
-                    key={item.label}
-                    href={item.href}
-                    className={`flex items-center gap-2 px-4 py-[7px] text-[13px] hover:bg-surface-high ${
-                      isActive ? "text-accent bg-surface-high" : "text-text-primary"
-                    }`}
-                  >
-                    <Icon size={14} />
-                    <span>{item.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          ))}
+            );
+          })}
         </aside>
 
         {/* Content area */}
-        <main className="flex-1 overflow-auto p-6 bg-bg">{children}</main>
+        <main className="flex-1 overflow-auto bg-bg">
+          {children}
+        </main>
       </div>
     </div>
   );
