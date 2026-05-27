@@ -138,6 +138,7 @@ class ServersRoutesTest {
         memoryMb: Int = 1024,
         port: Int = 25565,
         containerId: String? = null,
+        mcVersion: String = "1.21.4",
     ): UUID = transaction {
         Servers.insert {
             it[Servers.nodeId] = nodeId.toKotlinUuid()
@@ -145,6 +146,7 @@ class ServersRoutesTest {
             it[Servers.name] = name
             it[Servers.displayName] = name
             it[Servers.serverType] = "VANILLA"
+            it[Servers.mcVersion] = mcVersion
             it[Servers.hostPort] = port
             it[Servers.memoryMb] = memoryMb
             it[Servers.cpuShares] = 0
@@ -351,6 +353,42 @@ class ServersRoutesTest {
             setBody("""{"name":"srv","node_id":"$nodeId","network_id":"$fakeNetId","server_type":"VANILLA","memory_mb":512}""")
         }
         assertEquals(HttpStatusCode.UnprocessableEntity, resp.status)
+    }
+
+    @Test
+    fun `POST servers stores mc_version and itzg_image_tag`() = testApplication {
+        application { configureTest() }
+        val client = jsonClient()
+        val userId = createUser()
+        assignGlobalGroup(userId, "Super Admin")
+        val nodeId = createNode()
+        val resp = client.post("/api/servers") {
+            bearerAuth(tokenFor(userId))
+            contentType(ContentType.Application.Json)
+            setBody("""{"name":"versioned","node_id":"$nodeId","server_type":"PAPER","mc_version":"1.21.4","itzg_image_tag":"java21","memory_mb":1024}""")
+        }
+        assertEquals(HttpStatusCode.Created, resp.status)
+        val body = resp.body<JsonObject>()
+        assertEquals("1.21.4", body["mc_version"]!!.jsonPrimitive.content)
+        assertEquals("java21", body["itzg_image_tag"]!!.jsonPrimitive.content)
+    }
+
+    @Test
+    fun `POST servers derives stop_command for proxy types`() = testApplication {
+        application { configureTest() }
+        val client = jsonClient()
+        val userId = createUser()
+        assignGlobalGroup(userId, "Super Admin")
+        val nodeId = createNode()
+        val resp = client.post("/api/servers") {
+            bearerAuth(tokenFor(userId))
+            contentType(ContentType.Application.Json)
+            setBody("""{"name":"proxy-srv","node_id":"$nodeId","server_type":"VELOCITY","memory_mb":512}""")
+        }
+        assertEquals(HttpStatusCode.Created, resp.status)
+        val id = resp.body<JsonObject>()["id"]!!.jsonPrimitive.content
+        val row = transaction { Servers.selectAll().where { Servers.id eq id.toKotlinUuid() }.first() }
+        assertEquals("end", row[Servers.stopCommand])
     }
 
     // ── GET /servers/{id} ────────────────────────────────────────────────────

@@ -55,6 +55,8 @@ data class ServerResponse(
     @SerialName("display_name") val displayName: String,
     val description: String?,
     @SerialName("server_type") val serverType: String,
+    @SerialName("mc_version") val mcVersion: String,
+    @SerialName("itzg_image_tag") val itzgImageTag: String,
     val status: String,
     @SerialName("node_id") val nodeId: String,
     @SerialName("network_id") val networkId: String?,
@@ -77,6 +79,8 @@ data class CreateServerRequest(
     @SerialName("node_id") val nodeId: String,
     @SerialName("network_id") val networkId: String? = null,
     @SerialName("server_type") val serverType: String,
+    @SerialName("mc_version") val mcVersion: String = "LATEST",
+    @SerialName("itzg_image_tag") val itzgImageTag: String = "latest",
     @SerialName("memory_mb") val memoryMb: Int,
     @SerialName("cpu_shares") val cpuShares: Int = 0,
 )
@@ -85,6 +89,7 @@ data class CreateServerRequest(
 data class PatchResourcesRequest(
     @SerialName("memory_mb") val memoryMb: Int,
     @SerialName("cpu_shares") val cpuShares: Int,
+    @SerialName("itzg_image_tag") val itzgImageTag: String? = null,
 )
 
 @Serializable
@@ -226,6 +231,8 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                     val port = (portStart..portEnd).firstOrNull { it !in usedPorts }
                         ?: return@transaction CreateResult("no_ports")
 
+                    val derivedStopCommand = if (req.serverType in listOf("VELOCITY", "BUNGEECORD", "WATERFALL")) "end" else "stop"
+
                     val insertedId = Servers.insert {
                         it[name] = req.name
                         it[displayName] = req.displayName ?: req.name
@@ -233,6 +240,9 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                         it[nodeId] = nodeKotlinId
                         it[networkId] = networkKotlinId
                         it[serverType] = req.serverType
+                        it[mcVersion] = req.mcVersion
+                        it[itzgImageTag] = req.itzgImageTag
+                        it[stopCommand] = derivedStopCommand
                         it[hostPort] = port
                         it[memoryMb] = req.memoryMb
                         it[cpuShares] = req.cpuShares
@@ -344,6 +354,7 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                 val displayNameKey = "display_name" in body
                 val descriptionKey = "description" in body
                 val networkIdKey = "network_id" in body
+                val mcVersionKey = "mc_version" in body
 
                 val newDisplayName = if (displayNameKey && body["display_name"] !is JsonNull)
                     body["display_name"]!!.jsonPrimitive.content else null
@@ -356,6 +367,8 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                         return@patch
                     }
                 } else null
+                val newMcVersion = if (mcVersionKey && body["mc_version"] !is JsonNull)
+                    body["mc_version"]!!.jsonPrimitive.content else null
 
                 val result = transaction {
                     if (networkIdKey && newNetworkId != null) {
@@ -368,6 +381,7 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                         if (displayNameKey && newDisplayName != null) it[displayName] = newDisplayName
                         if (descriptionKey) it[description] = newDescription
                         if (networkIdKey) it[networkId] = newNetworkId
+                        if (mcVersionKey && newMcVersion != null) it[mcVersion] = newMcVersion
                         it[updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
                     }
                     "ok"
@@ -493,6 +507,7 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                     Servers.update({ Servers.id eq id }) {
                         it[memoryMb] = req.memoryMb
                         it[cpuShares] = req.cpuShares
+                        if (req.itzgImageTag != null) it[itzgImageTag] = req.itzgImageTag
                         it[updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
                     }
                     "ok"
@@ -566,6 +581,7 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                 val systemVars = mapOf(
                     "EULA" to "TRUE",
                     "TYPE" to serverType,
+                    "VERSION" to serverRow[Servers.mcVersion],
                     "MEMORY" to "${serverRow[Servers.memoryMb]}M",
                 )
                 val userVars = dbEnvVars.associate { it[ServerEnvVars.key] to it[ServerEnvVars.value] }
@@ -830,6 +846,7 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                 val systemVars = mapOf(
                     "EULA" to "TRUE",
                     "TYPE" to serverType,
+                    "VERSION" to serverRow[Servers.mcVersion],
                     "MEMORY" to "${serverRow[Servers.memoryMb]}M",
                 )
                 val userVars = dbEnvVars.associate { it[ServerEnvVars.key] to it[ServerEnvVars.value] }
@@ -985,6 +1002,8 @@ private fun rowToServerResponse(row: ResultRow, isMigrating: Boolean) = ServerRe
     displayName = row[Servers.displayName],
     description = row[Servers.description],
     serverType = row[Servers.serverType],
+    mcVersion = row[Servers.mcVersion],
+    itzgImageTag = row[Servers.itzgImageTag],
     status = row[Servers.status],
     nodeId = row[Servers.nodeId].toString(),
     networkId = row[Servers.networkId]?.toString(),

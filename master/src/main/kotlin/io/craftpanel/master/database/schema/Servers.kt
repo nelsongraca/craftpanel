@@ -12,6 +12,7 @@ object Servers : Table("servers") {
     val nodeId = uuid("node_id").references(Nodes.id)
     val networkId = uuid("network_id").references(ServerNetworks.id).nullable()
     val serverType = varchar("server_type", 20).default("VANILLA")
+    val mcVersion = varchar("mc_version", 16).default("LATEST")
     val status = varchar("status", 10).default("STOPPED")  // STOPPED|STARTING|HEALTHY|STOPPING|UNHEALTHY
     val hostPort = integer("host_port")
     val memoryMb = integer("memory_mb")

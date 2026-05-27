@@ -4,6 +4,7 @@ import com.craftpanel.agent.v1.ContainerState
 import com.craftpanel.agent.v1.CreateContainerCommand
 import com.craftpanel.agent.v1.containerState
 import com.github.dockerjava.api.DockerClient
+import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.command.PullImageResultCallback
 import com.github.dockerjava.api.model.AccessMode
 import com.github.dockerjava.api.model.Bind
@@ -69,6 +70,7 @@ class ContainerManager(private val docker: DockerClient) {
             .withExposedPorts(minecraftPort)
             .withHostConfig(hostConfig)
             .withLabels(mapOf("craftpanel.server.id" to cmd.serverId))
+            .withStdinOpen(true)
             .exec()
 
         log.info("Created container ${cmd.containerName} (server ${cmd.serverId})")
@@ -87,13 +89,22 @@ class ContainerManager(private val docker: DockerClient) {
 
     fun stopContainer(containerName: String, timeoutSeconds: Int, stopCommand: String) {
         if (stopCommand.isNotEmpty()) {
-            // TODO: attach to container stdin and send graceful stop command
-            log.debug("Graceful stop command '{}' for {} (stdin attach not yet implemented)", stopCommand, containerName)
+            runCatching {
+                val stdin = (stopCommand + "\n").toByteArray().inputStream()
+                docker.attachContainerCmd(containerName)
+                    .withStdIn(stdin)
+                    .withStdOut(false)
+                    .withStdErr(false)
+                    .exec(ResultCallback.Adapter())
+                    .awaitStarted()
+            }.onFailure {
+                log.warn("Failed to send stop command to stdin for {}", containerName, it)
+            }
         }
         docker.stopContainerCmd(containerName)
             .withTimeout(timeoutSeconds.takeIf { it > 0 } ?: 30)
             .exec()
-        log.info("Stopped container $containerName")
+        log.info("Stopped container {}", containerName)
     }
 
     fun removeContainer(containerName: String, force: Boolean) {

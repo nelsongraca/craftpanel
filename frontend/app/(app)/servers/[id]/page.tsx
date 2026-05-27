@@ -16,10 +16,24 @@ import {
   ArrowUpCircle,
   Shuffle,
 } from "lucide-react";
-import { deleteServer, getNetwork, getNode, getServer, restartServer, startServer, stopServer, upgradeServer } from "@/lib/generated/sdk.gen";
+import { deleteServer, getNetwork, getNode, getServer, listNetworks, restartServer, startServer, stopServer, updateServer, updateServerResources, upgradeServer } from "@/lib/generated/sdk.gen";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/lib/permissions";
 import type { Server, Node, Network } from "@/lib/types";
+
+// ── Mojang version manifest ───────────────────────────────────────────────────
+
+type MojangVersion = { id: string; type: string };
+
+async function fetchReleaseVersions(): Promise<string[]> {
+  try {
+    const res = await fetch("https://launchermeta.mojang.com/mc/game/version_manifest_v2.json");
+    const json = await res.json() as { versions: MojangVersion[] };
+    return json.versions.filter((v) => v.type === "release").map((v) => v.id);
+  } catch {
+    return [];
+  }
+}
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 
@@ -190,6 +204,26 @@ export default function ServerDetailPage() {
   const [pending, setPending]      = useState<string | null>(null);
   const [menuOpen, setMenuOpen]    = useState(false);
 
+  // ── Edit: general settings ─────────────────────────────────────────────────
+  const [editingGeneral, setEditingGeneral] = useState(false);
+  const [editDisplayName, setEditDisplayName] = useState("");
+  const [editDescription, setEditDescription]  = useState("");
+  const [editNetworkId, setEditNetworkId]       = useState("");
+  const [editMcVersion, setEditMcVersion]       = useState("");
+  const [savingGeneral, setSavingGeneral]       = useState(false);
+  const [generalError, setGeneralError]         = useState<string | null>(null);
+  const [restartBanner, setRestartBanner]       = useState(false);
+  const [networks, setNetworks]                 = useState<Network[]>([]);
+  const [mcVersions, setMcVersions]             = useState<string[]>([]);
+
+  // ── Edit: resources ────────────────────────────────────────────────────────
+  const [editingResources, setEditingResources] = useState(false);
+  const [editRamMb, setEditRamMb]               = useState(0);
+  const [editCpuShares, setEditCpuShares]       = useState(0);
+  const [editItzgTag, setEditItzgTag]           = useState("");
+  const [savingResources, setSavingResources]   = useState(false);
+  const [resourcesError, setResourcesError]     = useState<string | null>(null);
+
   // ── Data fetching ──────────────────────────────────────────────────────────
 
   const fetchServer = useCallback(async () => {
@@ -227,6 +261,85 @@ export default function ServerDetailPage() {
     document.addEventListener("click", close);
     return () => document.removeEventListener("click", close);
   }, []);
+
+  // ── Edit: general settings handlers ───────────────────────────────────────
+
+  function openEditGeneral() {
+    if (!server) return;
+    setEditDisplayName(server.display_name);
+    setEditDescription(server.description ?? "");
+    setEditNetworkId(server.network_id ?? "");
+    setEditMcVersion(server.mc_version);
+    setGeneralError(null);
+    setEditingGeneral(true);
+    if (networks.length === 0) {
+      listNetworks().then(({ data }) => { if (data) setNetworks(data); });
+    }
+    if (mcVersions.length === 0) {
+      fetchReleaseVersions().then(setMcVersions);
+    }
+  }
+
+  async function saveGeneral() {
+    if (!server) return;
+    setSavingGeneral(true);
+    setGeneralError(null);
+    try {
+      const mcVersionChanged = editMcVersion !== server.mc_version;
+      const body: Record<string, unknown> = {};
+      if (editDisplayName !== server.display_name) body.display_name = editDisplayName;
+      if (editDescription !== (server.description ?? "")) body.description = editDescription || null;
+      if (editNetworkId !== (server.network_id ?? "")) body.network_id = editNetworkId || null;
+      if (mcVersionChanged) body.mc_version = editMcVersion;
+
+      const { error } = await updateServer({ path: { id }, body: body as Parameters<typeof updateServer>[0]["body"] });
+      if (error) {
+        setGeneralError(error.message ?? "Failed to save");
+        return;
+      }
+      await fetchServer();
+      setEditingGeneral(false);
+      if (mcVersionChanged) setRestartBanner(true);
+    } catch {
+      setGeneralError("Failed to save");
+    } finally {
+      setSavingGeneral(false);
+    }
+  }
+
+  // ── Edit: resources handlers ───────────────────────────────────────────────
+
+  function openEditResources() {
+    if (!server) return;
+    setEditRamMb(server.memory_mb);
+    setEditCpuShares(server.cpu_shares);
+    setEditItzgTag(server.itzg_image_tag);
+    setResourcesError(null);
+    setEditingResources(true);
+  }
+
+  async function saveResources() {
+    if (!server) return;
+    setSavingResources(true);
+    setResourcesError(null);
+    try {
+      const { error } = await updateServerResources({
+        path: { id },
+        body: { memory_mb: editRamMb, cpu_shares: editCpuShares, itzg_image_tag: editItzgTag || null },
+      });
+      if (error) {
+        setResourcesError(error.message ?? "Failed to save");
+        return;
+      }
+      await fetchServer();
+      setEditingResources(false);
+      setRestartBanner(true);
+    } catch {
+      setResourcesError("Failed to save");
+    } finally {
+      setSavingResources(false);
+    }
+  }
 
   // ── Actions ────────────────────────────────────────────────────────────────
 
@@ -476,6 +589,26 @@ export default function ServerDetailPage() {
         </div>
       )}
 
+      {/* Restart required banner */}
+      {restartBanner && (
+        <div className="mx-6 mt-4 flex items-center justify-between bg-warning/10 border border-warning/30 text-warning rounded px-3 py-2 text-[12px]">
+          <span>Settings saved. Restart the server for changes to take effect.</span>
+          <div className="flex items-center gap-3 ml-4 shrink-0">
+            {(server.status === "HEALTHY") && hasPermission(permissions, "server.restart") && (
+              <button
+                onClick={() => { setRestartBanner(false); void doAction("restart"); }}
+                className="text-[11px] font-heading font-bold uppercase tracking-wider underline hover:no-underline"
+              >
+                Restart Now
+              </button>
+            )}
+            <button onClick={() => setRestartBanner(false)} className="hover:opacity-70">
+              <X size={13} />
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* ── Tab bar ── */}
       <div className="flex items-end px-6 border-b border-border bg-surface">
         {TABS.map((tab) => (
@@ -498,8 +631,108 @@ export default function ServerDetailPage() {
       {activeTab !== "Overview" ? (
         <ComingSoon tab={activeTab} />
       ) : (
-        <OverviewTab server={server} node={node} network={network} />
+        <OverviewTab
+          server={server}
+          node={node}
+          network={network}
+          permissions={permissions}
+          editingGeneral={editingGeneral}
+          editDisplayName={editDisplayName}
+          editDescription={editDescription}
+          editNetworkId={editNetworkId}
+          editMcVersion={editMcVersion}
+          savingGeneral={savingGeneral}
+          generalError={generalError}
+          networks={networks}
+          mcVersions={mcVersions}
+          onOpenEditGeneral={openEditGeneral}
+          onSaveGeneral={() => void saveGeneral()}
+          onCancelGeneral={() => setEditingGeneral(false)}
+          onChangeDisplayName={setEditDisplayName}
+          onChangeDescription={setEditDescription}
+          onChangeNetworkId={setEditNetworkId}
+          onChangeMcVersion={setEditMcVersion}
+          editingResources={editingResources}
+          editRamMb={editRamMb}
+          editCpuShares={editCpuShares}
+          editItzgTag={editItzgTag}
+          savingResources={savingResources}
+          resourcesError={resourcesError}
+          onOpenEditResources={openEditResources}
+          onSaveResources={() => void saveResources()}
+          onCancelResources={() => setEditingResources(false)}
+          onChangeRamMb={setEditRamMb}
+          onChangeCpuShares={setEditCpuShares}
+          onChangeItzgTag={setEditItzgTag}
+        />
       )}
+    </div>
+  );
+}
+
+// ── Shared field helpers (used by OverviewTab edit panels) ────────────────────
+
+function EditInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <input
+      {...props}
+      className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-[12px] font-mono text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent transition-colors disabled:opacity-50"
+    />
+  );
+}
+
+function EditSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select
+      {...props}
+      className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-[12px] font-mono text-text-primary focus:outline-none focus:border-accent transition-colors"
+    />
+  );
+}
+
+function EditTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+  return (
+    <textarea
+      {...props}
+      rows={2}
+      className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-[12px] font-mono text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent transition-colors resize-none"
+    />
+  );
+}
+
+function EditFieldRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-1">
+      <p className="text-[10px] font-heading font-bold uppercase tracking-wider text-text-muted">{label}</p>
+      {children}
+    </div>
+  );
+}
+
+function SaveCancelRow({
+  onSave,
+  onCancel,
+  saving,
+}: {
+  onSave: () => void;
+  onCancel: () => void;
+  saving: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-end gap-2 pt-1">
+      <button
+        onClick={onCancel}
+        className="px-3 py-1 text-[10px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-text-primary transition-colors"
+      >
+        Cancel
+      </button>
+      <button
+        onClick={onSave}
+        disabled={saving}
+        className="px-3 py-1 rounded bg-accent text-bg text-[10px] font-heading font-bold uppercase tracking-wider hover:bg-accent-bright transition-colors disabled:opacity-50"
+      >
+        {saving ? "Saving…" : "Save"}
+      </button>
     </div>
   );
 }
@@ -510,12 +743,73 @@ function OverviewTab({
   server,
   node,
   network,
+  permissions,
+  editingGeneral,
+  editDisplayName,
+  editDescription,
+  editNetworkId,
+  editMcVersion,
+  savingGeneral,
+  generalError,
+  networks,
+  mcVersions,
+  onOpenEditGeneral,
+  onSaveGeneral,
+  onCancelGeneral,
+  onChangeDisplayName,
+  onChangeDescription,
+  onChangeNetworkId,
+  onChangeMcVersion,
+  editingResources,
+  editRamMb,
+  editCpuShares,
+  editItzgTag,
+  savingResources,
+  resourcesError,
+  onOpenEditResources,
+  onSaveResources,
+  onCancelResources,
+  onChangeRamMb,
+  onChangeCpuShares,
+  onChangeItzgTag,
 }: {
   server: Server;
   node: Node | null;
   network: Network | null;
+  permissions: string[];
+  editingGeneral: boolean;
+  editDisplayName: string;
+  editDescription: string;
+  editNetworkId: string;
+  editMcVersion: string;
+  savingGeneral: boolean;
+  generalError: string | null;
+  networks: Network[];
+  mcVersions: string[];
+  onOpenEditGeneral: () => void;
+  onSaveGeneral: () => void;
+  onCancelGeneral: () => void;
+  onChangeDisplayName: (v: string) => void;
+  onChangeDescription: (v: string) => void;
+  onChangeNetworkId: (v: string) => void;
+  onChangeMcVersion: (v: string) => void;
+  editingResources: boolean;
+  editRamMb: number;
+  editCpuShares: number;
+  editItzgTag: string;
+  savingResources: boolean;
+  resourcesError: string | null;
+  onOpenEditResources: () => void;
+  onSaveResources: () => void;
+  onCancelResources: () => void;
+  onChangeRamMb: (v: number) => void;
+  onChangeCpuShares: (v: number) => void;
+  onChangeItzgTag: (v: string) => void;
 }) {
   const ds = toDisplayStatus(server.status);
+  const canConfigure = hasPermission(permissions, "server.configure");
+  const canResources = hasPermission(permissions, "server.resources");
+  const isProxy = ["VELOCITY", "BUNGEECORD", "WATERFALL"].includes(server.server_type);
 
   return (
     <div className="px-6 py-6 space-y-6">
@@ -570,10 +864,10 @@ function OverviewTab({
           </div>
           <div className="space-y-3">
             {[
-              { label: "CPU",     value: "—%"  },
-              { label: "RAM",     value: "—%"  },
-              { label: "Net ↓",   value: "— KB/s" },
-              { label: "Net ↑",   value: "— KB/s" },
+              { label: "CPU",   value: "—%"     },
+              { label: "RAM",   value: "—%"     },
+              { label: "Net ↓", value: "— KB/s" },
+              { label: "Net ↑", value: "— KB/s" },
             ].map(({ label, value }) => (
               <div key={label} className="flex items-center justify-between">
                 <span className="text-[11px] font-heading font-bold uppercase tracking-wider text-text-muted">
@@ -594,6 +888,7 @@ function OverviewTab({
             Server Info
           </p>
           <InfoRow label="Type"    value={server.server_type} />
+          <InfoRow label="Version" value={isProxy ? "—" : server.mc_version} />
           <InfoRow label="Config"  value={server.config_mode} />
           <InfoRow label="Node"    value={node?.display_name ?? server.node_id.slice(0, 8) + "…"} />
           <InfoRow label="Network" value={network?.name ?? "—"} />
@@ -613,6 +908,139 @@ function OverviewTab({
           <InfoRow label="Created" value={new Date(server.created_at).toLocaleDateString()} />
         </div>
       </div>
+
+      {/* ── General settings panel ── */}
+      {canConfigure && (
+        <div className="bg-surface border border-border rounded p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">
+              General Settings
+            </p>
+            {!editingGeneral && (
+              <button
+                onClick={onOpenEditGeneral}
+                className="text-[10px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
+              >
+                Edit
+              </button>
+            )}
+          </div>
+
+          {!editingGeneral ? (
+            <div>
+              <InfoRow label="Display Name" value={server.display_name} />
+              <InfoRow label="Description"  value={server.description ?? "—"} />
+              <InfoRow label="Network"      value={network?.name ?? "—"} />
+              {!isProxy && <InfoRow label="MC Version" value={server.mc_version} />}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {generalError && (
+                <p className="text-[11px] text-error">{generalError}</p>
+              )}
+              <EditFieldRow label="Display Name">
+                <EditInput
+                  value={editDisplayName}
+                  onChange={(e) => onChangeDisplayName(e.target.value)}
+                  placeholder={server.display_name}
+                />
+              </EditFieldRow>
+              <EditFieldRow label="Description">
+                <EditTextarea
+                  value={editDescription}
+                  onChange={(e) => onChangeDescription(e.target.value)}
+                  placeholder="Optional description"
+                />
+              </EditFieldRow>
+              <EditFieldRow label="Network">
+                <EditSelect value={editNetworkId} onChange={(e) => onChangeNetworkId(e.target.value)}>
+                  <option value="">None</option>
+                  {networks.map((n) => (
+                    <option key={n.id} value={n.id}>{n.name}</option>
+                  ))}
+                </EditSelect>
+              </EditFieldRow>
+              {!isProxy && (
+                <EditFieldRow label="Minecraft Version">
+                  {mcVersions.length > 0 ? (
+                    <EditSelect value={editMcVersion} onChange={(e) => onChangeMcVersion(e.target.value)}>
+                      {mcVersions.map((v) => <option key={v} value={v}>{v}</option>)}
+                    </EditSelect>
+                  ) : (
+                    <EditInput
+                      value={editMcVersion}
+                      onChange={(e) => onChangeMcVersion(e.target.value)}
+                      placeholder="1.21.4"
+                    />
+                  )}
+                  <p className="text-[10px] text-text-muted mt-1">Requires restart to take effect.</p>
+                </EditFieldRow>
+              )}
+              <SaveCancelRow onSave={onSaveGeneral} onCancel={onCancelGeneral} saving={savingGeneral} />
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Resources panel ── */}
+      {canResources && (
+        <div className="bg-surface border border-border rounded p-4">
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">
+              Resources
+            </p>
+            {!editingResources && (
+              <button
+                onClick={onOpenEditResources}
+                className="text-[10px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
+              >
+                Edit
+              </button>
+            )}
+          </div>
+
+          {!editingResources ? (
+            <div>
+              <InfoRow label="RAM"       value={`${server.memory_mb} MB`} />
+              <InfoRow label="CPU Shares" value={server.cpu_shares === 0 ? "Unlimited" : String(server.cpu_shares)} />
+              <InfoRow label="Image Tag" value={server.itzg_image_tag} />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {resourcesError && (
+                <p className="text-[11px] text-error">{resourcesError}</p>
+              )}
+              <EditFieldRow label="RAM (MB)">
+                <EditInput
+                  type="number"
+                  value={editRamMb}
+                  onChange={(e) => onChangeRamMb(Number(e.target.value))}
+                  min={512}
+                  step={256}
+                />
+              </EditFieldRow>
+              <EditFieldRow label="CPU Shares">
+                <EditInput
+                  type="number"
+                  value={editCpuShares}
+                  onChange={(e) => onChangeCpuShares(Number(e.target.value))}
+                  min={0}
+                />
+                <p className="text-[10px] text-text-muted mt-1">0 = unlimited</p>
+              </EditFieldRow>
+              <EditFieldRow label="itzg Image Tag">
+                <EditInput
+                  value={editItzgTag}
+                  onChange={(e) => onChangeItzgTag(e.target.value)}
+                  placeholder="latest"
+                />
+              </EditFieldRow>
+              <p className="text-[10px] text-text-muted">All changes require a restart to take effect.</p>
+              <SaveCancelRow onSave={onSaveResources} onCancel={onCancelResources} saving={savingResources} />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Players online panel — hidden when STOPPED or no player data (phase 3) */}
       {/* TODO (phase 3): show when player_count > 0, render player_list chips */}
