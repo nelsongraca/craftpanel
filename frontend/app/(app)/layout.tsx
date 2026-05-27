@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth-context";
 import Shell from "@/app/components/Shell";
+import { WsProvider } from "@/lib/ws-context";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
@@ -25,5 +26,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (!user) return null;
 
-  return <Shell>{children}</Shell>;
+  return (
+    <WsProvider>
+      <Shell>{children}</Shell>
+    </WsProvider>
+  );
 }

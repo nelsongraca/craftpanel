@@ -36,6 +36,7 @@ import {
 } from "@/lib/generated/sdk.gen";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/lib/permissions";
+import { useWs } from "@/lib/ws-context";
 import type { Node, NodeMetrics } from "@/lib/types";
 import type { IoCraftpanelMasterRoutesServerResponse as Server } from "@/lib/generated/types.gen";
 
@@ -458,41 +459,66 @@ function ServersTab({ servers }: { servers: Server[] }) {
 type TimeRange = "1h" | "6h" | "24h";
 const TIME_RANGE_HOURS: Record<TimeRange, number> = { "1h": 1, "6h": 6, "24h": 24 };
 
+type MetricsPoint = {
+  t: string; ts: number;
+  cpu: number; ramUsed: number; ramTotal: number;
+  diskUsed: number; diskTotal: number; netIn: number; netOut: number;
+};
+
+const BUFFER_MAX = 360;
+
 function MetricsTab({ nodeId }: { nodeId: string }) {
-  const [range, setRange]       = useState<TimeRange>("1h");
-  const [metrics, setMetrics]   = useState<NodeMetrics | null>(null);
-  const [loading, setLoading]   = useState(true);
+  const [range, setRange]    = useState<TimeRange>("1h");
+  const [loading, setLoading] = useState(true);
+  const [buffer, setBuffer]   = useState<MetricsPoint[]>([]);
+  const { subscribe } = useWs();
 
-  const fetchMetrics = useCallback(async () => {
-    const { data } = await getNodeMetrics({ path: { id: nodeId } });
-    if (data) setMetrics(data);
-    setLoading(false);
-  }, [nodeId]);
-
+  // Initial historical load
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    void fetchMetrics();
-  }, [fetchMetrics]);
-
-  const cutoff = TIME_RANGE_HOURS[range] * 3600 * 1000;
-
-  // Build chart data filtered by time range
-  const now = new Date().getTime();
-  const points = metrics
-    ? metrics.timestamps
-        .map((t, i) => ({
+    void (async () => {
+      const { data } = await getNodeMetrics({ path: { id: nodeId } });
+      if (data) {
+        const pts = data.timestamps.map((t, i) => ({
           t,
           ts: new Date(t).getTime(),
-          cpu:      metrics.cpu_percent[i] ?? 0,
-          ramUsed:  metrics.ram_used_mb[i] ?? 0,
-          ramTotal: metrics.ram_total_mb[i] ?? 0,
-          diskUsed: metrics.disk_used_bytes[i] ?? 0,
-          diskTotal: metrics.disk_total_bytes[i] ?? 0,
-          netIn:    metrics.net_in_bytes[i] ?? 0,
-          netOut:   metrics.net_out_bytes[i] ?? 0,
-        }))
-        .filter((p) => p.ts >= now - cutoff)
-    : [];
+          cpu:      data.cpu_percent[i] ?? 0,
+          ramUsed:  data.ram_used_mb[i] ?? 0,
+          ramTotal: data.ram_total_mb[i] ?? 0,
+          diskUsed: data.disk_used_bytes[i] ?? 0,
+          diskTotal: data.disk_total_bytes[i] ?? 0,
+          netIn:    data.net_in_bytes[i] ?? 0,
+          netOut:   data.net_out_bytes[i] ?? 0,
+        }));
+        setBuffer(pts.slice(-BUFFER_MAX));
+      }
+      setLoading(false);
+    })();
+  }, [nodeId]);
+
+  // Live WS updates
+  useEffect(() => {
+    return subscribe("node.metrics", (payload) => {
+      if ((payload as Record<string, unknown>).node_id !== nodeId) return;
+      const p = payload as Record<string, unknown>;
+      const t = (p.recorded_at as string) ?? new Date().toISOString();
+      const pt: MetricsPoint = {
+        t,
+        ts: new Date(t).getTime(),
+        cpu:      (p.cpu_percent as number) ?? 0,
+        ramUsed:  (p.ram_used_mb as number) ?? 0,
+        ramTotal: (p.ram_total_mb as number) ?? 0,
+        diskUsed: (p.disk_used_bytes as number) ?? 0,
+        diskTotal:(p.disk_total_bytes as number) ?? 0,
+        netIn:    (p.net_in_bytes as number) ?? 0,
+        netOut:   (p.net_out_bytes as number) ?? 0,
+      };
+      setBuffer((prev) => [...prev.slice(-(BUFFER_MAX - 1)), pt]);
+    });
+  }, [subscribe, nodeId]);
+
+  const cutoff = TIME_RANGE_HOURS[range] * 3600 * 1000;
+  const now = new Date().getTime();
+  const points = buffer.filter((p) => p.ts >= now - cutoff);
 
   function fmtAxisTime(t: string) {
     return new Date(t).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -515,7 +541,7 @@ function MetricsTab({ nodeId }: { nodeId: string }) {
     );
   }
 
-  if (!metrics || points.length === 0) {
+  if (points.length === 0) {
     return (
       <div className="px-6 py-10">
         <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-[13px]">

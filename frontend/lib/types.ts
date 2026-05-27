@@ -6,3 +6,5 @@ export type { IoCraftpanelMasterRoutesUserResponse as User } from "./generated/t
 export type { IoCraftpanelMasterRoutesGroupResponse as Group } from "./generated/types.gen"
 export type { IoCraftpanelMasterRoutesAssignmentResponse as Assignment } from "./generated/types.gen"
 export type { IoCraftpanelMasterRoutesSettingsMap as SettingsMap } from "./generated/types.gen"
+export type { IoCraftpanelMasterRoutesAlertThresholdResponse as AlertThreshold } from "./generated/types.gen"
+export type { IoCraftpanelMasterRoutesAlertEventResponse as AlertEvent } from "./generated/types.gen"
