@@ -21,6 +21,7 @@ craftpanel/
 ├── frontend/      # Next.js 16 frontend
 ├── proto/         # Shared protobuf definitions (consumed by master and agent)
 ├── docs/          # MkDocs documentation
+├── plans/         # Development roadmap and per-phase implementation plans
 └── CLAUDE.md
 ```
 
@@ -99,6 +100,8 @@ Two services:
 
 - **ControlService** — persistent bidirectional stream, agent-initiated, lives for the lifetime of the connection. Handles container lifecycle commands, backups, migration, metrics, player updates.
 - **DataService** — on-demand per-operation connections. Handles console streaming (bidirectional), file operations, file upload/download.
+
+> **DataService is not yet implemented.** Both `master/…/grpc/DataServiceImpl.kt` and `agent/…/grpc/DataServiceImpl.kt` are stub shells returning empty/false. Console and file operations are Phase 3 work — don't build on these assuming they function.
 
 Agent sends `NodeStateSnapshot` as the **first message** on every (re)connect so master can reconcile DB state before issuing commands.
 

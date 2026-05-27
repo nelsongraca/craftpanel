@@ -4,10 +4,12 @@ import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.RefreshTokenService
 import io.craftpanel.master.auth.routes.authRoutes
 import io.craftpanel.master.config.JwtConfig
+import io.craftpanel.master.routes.assignmentsRoutes
 import io.craftpanel.master.routes.groupsRoutes
 import io.craftpanel.master.routes.networksRoutes
 import io.craftpanel.master.routes.nodesRoutes
 import io.craftpanel.master.routes.serversRoutes
+import io.craftpanel.master.routes.systemRoutes
 import io.craftpanel.master.routes.usersRoutes
 import io.github.smiley4.ktoropenapi.OpenApi
 import io.github.smiley4.ktoropenapi.config.AuthScheme
@@ -85,6 +87,8 @@ OpenApiSpecTask {
                 serversRoutes { _, _ -> false }
                 usersRoutes()
                 groupsRoutes()
+                assignmentsRoutes()
+                systemRoutes()
             }
         }
 

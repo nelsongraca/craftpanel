@@ -7,10 +7,12 @@ import io.craftpanel.master.config.AppConfig
 import io.craftpanel.master.database.DatabaseFactory
 import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.GrpcServer
+import io.craftpanel.master.routes.assignmentsRoutes
 import io.craftpanel.master.routes.groupsRoutes
 import io.craftpanel.master.routes.networksRoutes
 import io.craftpanel.master.routes.nodesRoutes
 import io.craftpanel.master.routes.serversRoutes
+import io.craftpanel.master.routes.systemRoutes
 import io.craftpanel.master.routes.usersRoutes
 import io.github.smiley4.ktoropenapi.OpenApi
 import io.github.smiley4.ktoropenapi.config.AuthScheme
@@ -100,5 +102,7 @@ fun Application.module() {
         serversRoutes(controlService::sendToNode)
         usersRoutes()
         groupsRoutes()
+        assignmentsRoutes()
+        systemRoutes()
     }
 }

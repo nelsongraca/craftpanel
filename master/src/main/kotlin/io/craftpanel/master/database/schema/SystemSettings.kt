@@ -8,6 +8,7 @@ object SystemSettings : Table("system_settings") {
     val key = varchar("key", 100)
     val value = text("value")
     val updatedAt = datetime("updated_at").defaultExpression(CurrentDateTime)
+    val updatedBy = uuid("updated_by").references(Users.id).nullable()
 
     override val primaryKey = PrimaryKey(key)
 }

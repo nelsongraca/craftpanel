@@ -2,3 +2,7 @@ export type { IoCraftpanelMasterRoutesServerResponse as Server } from "./generat
 export type { IoCraftpanelMasterRoutesNodeResponse as Node } from "./generated/types.gen"
 export type { IoCraftpanelMasterRoutesNetworkResponse as Network } from "./generated/types.gen"
 export type { IoCraftpanelMasterRoutesNodeMetricsResponse as NodeMetrics } from "./generated/types.gen"
+export type { IoCraftpanelMasterRoutesUserResponse as User } from "./generated/types.gen"
+export type { IoCraftpanelMasterRoutesGroupResponse as Group } from "./generated/types.gen"
+export type { IoCraftpanelMasterRoutesAssignmentResponse as Assignment } from "./generated/types.gen"
+export type { IoCraftpanelMasterRoutesSettingsMap as SettingsMap } from "./generated/types.gen"

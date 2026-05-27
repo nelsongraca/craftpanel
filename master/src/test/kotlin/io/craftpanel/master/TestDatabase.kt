@@ -12,11 +12,15 @@ import io.craftpanel.master.database.schema.ServerEnvVars
 import io.craftpanel.master.database.schema.ServerMigrations
 import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.database.schema.SystemSettings
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
+import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.SchemaUtils
 import org.jetbrains.exposed.v1.jdbc.deleteAll
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
 object TestDatabase {
@@ -29,6 +33,7 @@ object TestDatabase {
             SchemaUtils.create(
                 Users, RefreshTokens, Groups, GroupPermissions, UserGroupAssignments,
                 ServerNetworks, Nodes, Servers, ServerEnvVars, NodeMetrics, PortRegistry, ServerMigrations, Backups,
+                SystemSettings,
             )
             seedSystemGroups()
         }
@@ -45,9 +50,17 @@ object TestDatabase {
             Servers.deleteAll()
             Nodes.deleteAll()
             ServerNetworks.deleteAll()
+            SystemSettings.deleteAll()
             RefreshTokens.deleteAll()
             UserGroupAssignments.deleteAll()
             Users.deleteAll()
+            val nonSystemGroupIds = Groups.selectAll()
+                .where { Groups.isSystem eq false }
+                .map { it[Groups.id] }
+            if (nonSystemGroupIds.isNotEmpty()) {
+                GroupPermissions.deleteWhere { GroupPermissions.groupId inList nonSystemGroupIds }
+                Groups.deleteWhere { Groups.isSystem eq false }
+            }
         }
     }
 }
