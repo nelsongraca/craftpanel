@@ -10,11 +10,13 @@ import com.craftpanel.agent.v1.startContainerCommand
 import com.craftpanel.agent.v1.stopContainerCommand
 import com.craftpanel.agent.v1.volumeMount
 import io.craftpanel.master.auth.PermissionResolver
+import io.craftpanel.master.database.schema.ContainerMetrics
 import io.craftpanel.master.database.schema.GroupPermissions
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.PortRegistry
 import io.craftpanel.master.database.schema.ServerEnvVars
 import io.craftpanel.master.database.schema.ServerMigrations
+import io.craftpanel.master.database.schema.ServerMods
 import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.database.schema.UserGroupAssignments
@@ -101,6 +103,26 @@ data class PatchExposureRequest(
 @Serializable
 data class UpgradeServerRequest(
     @SerialName("itzg_image_tag") val itzgImageTag: String,
+)
+
+@Serializable
+data class ContainerMetricsPoint(val t: String, val v: Double)
+
+@Serializable
+data class ContainerMetricsPointLong(val t: String, val v: Long)
+
+@Serializable
+data class ContainerMetricsSeriesResponse(
+    @SerialName("server_id") val serverId: String,
+    val series: ContainerMetricsSeries,
+)
+
+@Serializable
+data class ContainerMetricsSeries(
+    @SerialName("cpu_percent") val cpuPercent: List<ContainerMetricsPoint>,
+    @SerialName("ram_used_mb") val ramUsedMb: List<ContainerMetricsPoint>,
+    @SerialName("net_in_bytes") val netInBytes: List<ContainerMetricsPointLong>,
+    @SerialName("net_out_bytes") val netOutBytes: List<ContainerMetricsPointLong>,
 )
 
 fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
@@ -578,12 +600,18 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                 val serverImage = deriveImage(serverType, serverRow[Servers.itzgImageTag])
                 val dataVolumePath = "${nodeRow[Nodes.dataPath]}/servers/$id"
                 val netName = serverRow[Servers.networkId]?.let { "craftpanel-net-$it" } ?: ""
-                val systemVars = mapOf(
-                    "EULA" to "TRUE",
-                    "TYPE" to serverType,
-                    "VERSION" to serverRow[Servers.mcVersion],
-                    "MEMORY" to "${serverRow[Servers.memoryMb]}M",
-                )
+
+                val modrinthProjects = transaction {
+                    ServerMods.selectAll().where { ServerMods.serverId eq id }.toList()
+                }.let { modsRows -> modrinthProjectsEnvVar(modsRows) }
+
+                val systemVars = buildMap<String, String> {
+                    put("EULA", "TRUE")
+                    put("TYPE", serverType)
+                    put("VERSION", serverRow[Servers.mcVersion])
+                    put("MEMORY", "${serverRow[Servers.memoryMb]}M")
+                    if (modrinthProjects.isNotEmpty()) put("MODRINTH_PROJECTS", modrinthProjects)
+                }
                 val userVars = dbEnvVars.associate { it[ServerEnvVars.key] to it[ServerEnvVars.value] }
                 val allVars = systemVars + userVars
 
@@ -813,6 +841,10 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                 val serverType = serverRow[Servers.serverType]
                 val serverImage = deriveImage(serverType, req.itzgImageTag)
 
+                val upgradeModrinthProjects = transaction {
+                    ServerMods.selectAll().where { ServerMods.serverId eq id }.toList()
+                }.let { modsRows -> modrinthProjectsEnvVar(modsRows) }
+
                 // Remove old container if it exists
                 if (serverRow[Servers.containerId] != null) {
                     val removeCmd = masterMessage {
@@ -843,12 +875,13 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                 // Recreate container with new image
                 val dataVolumePath = "${nodeRow[Nodes.dataPath]}/servers/$id"
                 val netName = serverRow[Servers.networkId]?.let { "craftpanel-net-$it" } ?: ""
-                val systemVars = mapOf(
-                    "EULA" to "TRUE",
-                    "TYPE" to serverType,
-                    "VERSION" to serverRow[Servers.mcVersion],
-                    "MEMORY" to "${serverRow[Servers.memoryMb]}M",
-                )
+                val systemVars = buildMap<String, String> {
+                    put("EULA", "TRUE")
+                    put("TYPE", serverType)
+                    put("VERSION", serverRow[Servers.mcVersion])
+                    put("MEMORY", "${serverRow[Servers.memoryMb]}M")
+                    if (upgradeModrinthProjects.isNotEmpty()) put("MODRINTH_PROJECTS", upgradeModrinthProjects)
+                }
                 val userVars = dbEnvVars.associate { it[ServerEnvVars.key] to it[ServerEnvVars.value] }
                 val allVars = systemVars + userVars
 
@@ -886,6 +919,59 @@ fun Route.serversRoutes(sendToNode: (String, MasterMessage) -> Boolean) {
                 }
 
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Server upgrade initiated"))
+            }
+
+            get("/{id}/metrics", {
+                operationId = "getServerMetrics"
+                summary = "Get server container metrics"
+                request { pathParameter<String>("id") }
+                response {
+                    code(HttpStatusCode.OK) { body<ContainerMetricsSeriesResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                val principal = call.principal<JWTPrincipal>()!!
+                val userId = UUID.fromString(principal.payload.subject)
+
+                val id = parseServerId(call.parameters["id"]) ?: run {
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
+                    return@get
+                }
+
+                val serverRow = transaction { Servers.selectAll().where { Servers.id eq id }.firstOrNull() } ?: run {
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
+                    return@get
+                }
+
+                val serverIdJava = UUID.fromString(id.toString())
+                val netIdJava = serverRow[Servers.networkId]?.let { UUID.fromString(it.toString()) }
+                if (!PermissionResolver.hasPermission(userId, "server.view", serverId = serverIdJava, networkId = netIdJava)) {
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                    return@get
+                }
+
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 360) ?: 60
+
+                val rows = transaction {
+                    ContainerMetrics.selectAll()
+                        .where { ContainerMetrics.serverId eq id }
+                        .orderBy(ContainerMetrics.recordedAt, SortOrder.DESC)
+                        .limit(limit)
+                        .toList()
+                        .reversed()
+                }
+
+                call.respond(ContainerMetricsSeriesResponse(
+                    serverId = id.toString(),
+                    series = ContainerMetricsSeries(
+                        cpuPercent  = rows.map { ContainerMetricsPoint(it[ContainerMetrics.recordedAt].toString(), it[ContainerMetrics.cpuPercent]) },
+                        ramUsedMb   = rows.map { ContainerMetricsPoint(it[ContainerMetrics.recordedAt].toString(), it[ContainerMetrics.ramUsedMb].toDouble()) },
+                        netInBytes  = rows.map { ContainerMetricsPointLong(it[ContainerMetrics.recordedAt].toString(), it[ContainerMetrics.netInBytes]) },
+                        netOutBytes = rows.map { ContainerMetricsPointLong(it[ContainerMetrics.recordedAt].toString(), it[ContainerMetrics.netOutBytes]) },
+                    )
+                ))
             }
 
             patch("/{id}/exposure", {

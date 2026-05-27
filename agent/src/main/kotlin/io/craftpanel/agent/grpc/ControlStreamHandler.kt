@@ -11,6 +11,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
+import java.io.File
 import kotlin.time.Duration.Companion.seconds
 
 class ControlStreamHandler(
@@ -43,6 +44,16 @@ class ControlStreamHandler(
                     nodeId = identity.nodeId
                     nodeMetrics = metrics
                 })
+
+                // Per-container metrics
+                containerManager.listRunningContainerIds().forEach { (serverId, containerId) ->
+                    metricsCollector.collectContainerMetrics(serverId, containerId)?.let { cm ->
+                        outbound.emit(agentMessage {
+                            nodeId = identity.nodeId
+                            containerMetrics = cm
+                        })
+                    }
+                }
             }
         }
 
@@ -57,6 +68,8 @@ class ControlStreamHandler(
                 msg.hasRemoveContainer() -> handleRemove(msg.correlationId, msg.removeContainer)
                 msg.hasPullImage() -> handlePullImage(msg.correlationId, msg.pullImage)
                 msg.hasShutdown() -> handleShutdown(msg.shutdown, outbound)
+                msg.hasTriggerBackup() -> launch { handleTriggerBackup(msg.triggerBackup, outbound) }
+                msg.hasDeleteBackup() -> launch { handleDeleteBackup(msg.deleteBackup) }
                 else -> log.warn("Unhandled master message: ${msg.payloadCase}")
             }
         }
@@ -175,6 +188,107 @@ class ControlStreamHandler(
         log.info("Pulling image ${cmd.image} for server ${cmd.serverId}")
         runCatching { withContext(Dispatchers.IO) { containerManager.pullImage(cmd.image) } }
             .onFailure { log.error("Failed to pull image ${cmd.image}", it) }
+    }
+
+    private suspend fun handleTriggerBackup(cmd: TriggerBackupCommand, outbound: MutableSharedFlow<AgentMessage>) {
+        log.info("Backup ${cmd.backupId}: starting for server ${cmd.serverId} → ${cmd.destinationPath}")
+
+        val dataPath = containerManager.getContainerDataPath(cmd.containerName)
+        if (dataPath == null) {
+            log.error("Backup ${cmd.backupId}: cannot find /data mount for container ${cmd.containerName}")
+            outbound.emit(agentMessage {
+                nodeId = identity.nodeId
+                backupComplete = backupCompleteUpdate {
+                    backupId = cmd.backupId
+                    serverId = cmd.serverId
+                    success = false
+                    errorMessage = "Cannot find /data mount for container ${cmd.containerName}"
+                    completedAt = com.google.protobuf.timestamp {
+                        val now = java.time.Instant.now()
+                        seconds = now.epochSecond
+                        nanos = now.nano
+                    }
+                }
+            })
+            return
+        }
+
+        outbound.emit(agentMessage {
+            nodeId = identity.nodeId
+            backupProgress = backupProgressUpdate {
+                backupId = cmd.backupId
+                serverId = cmd.serverId
+                percentComplete = 0
+            }
+        })
+
+        runCatching {
+            withContext(Dispatchers.IO) {
+                val destFile = File(cmd.destinationPath)
+                destFile.parentFile?.mkdirs()
+
+                val process = ProcessBuilder("tar", "-czf", cmd.destinationPath, "-C", dataPath, ".")
+                    .redirectErrorStream(true)
+                    .start()
+
+                outbound.emit(agentMessage {
+                    nodeId = identity.nodeId
+                    backupProgress = backupProgressUpdate {
+                        backupId = cmd.backupId
+                        serverId = cmd.serverId
+                        percentComplete = 50
+                    }
+                })
+
+                val exitCode = process.waitFor()
+                if (exitCode != 0) {
+                    val output = process.inputStream.bufferedReader().readText()
+                    error("tar exited with $exitCode: $output")
+                }
+
+                File(cmd.destinationPath).length()
+            }
+        }.onSuccess { sizeBytes ->
+            log.info("Backup ${cmd.backupId}: completed, size=$sizeBytes bytes")
+            outbound.emit(agentMessage {
+                nodeId = identity.nodeId
+                backupComplete = backupCompleteUpdate {
+                    backupId = cmd.backupId
+                    serverId = cmd.serverId
+                    success = true
+                    filePath = cmd.destinationPath
+                    this.sizeBytes = sizeBytes
+                    completedAt = com.google.protobuf.timestamp {
+                        val now = java.time.Instant.now()
+                        seconds = now.epochSecond
+                        nanos = now.nano
+                    }
+                }
+            })
+        }.onFailure { ex ->
+            log.error("Backup ${cmd.backupId}: failed", ex)
+            outbound.emit(agentMessage {
+                nodeId = identity.nodeId
+                backupComplete = backupCompleteUpdate {
+                    backupId = cmd.backupId
+                    serverId = cmd.serverId
+                    success = false
+                    errorMessage = ex.message ?: "Unknown error"
+                    completedAt = com.google.protobuf.timestamp {
+                        val now = java.time.Instant.now()
+                        seconds = now.epochSecond
+                        nanos = now.nano
+                    }
+                }
+            })
+        }
+    }
+
+    private suspend fun handleDeleteBackup(cmd: DeleteBackupCommand) {
+        log.info("Deleting backup file ${cmd.filePath}")
+        runCatching {
+            withContext(Dispatchers.IO) { File(cmd.filePath).delete() }
+        }.onFailure { log.error("Failed to delete backup file ${cmd.filePath}", it) }
     }
 
     private suspend fun handleShutdown(cmd: ShutdownCommand, outbound: MutableSharedFlow<AgentMessage>) {

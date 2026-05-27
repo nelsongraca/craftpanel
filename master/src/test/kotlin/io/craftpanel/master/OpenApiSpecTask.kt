@@ -7,10 +7,13 @@ import io.craftpanel.master.auth.routes.authRoutes
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.grpc.DataServiceProxy
+import io.craftpanel.master.routes.alertsRoutes
 import io.craftpanel.master.routes.assignmentsRoutes
+import io.craftpanel.master.routes.backupsRoutes
 import io.craftpanel.master.routes.consoleRoutes
 import io.craftpanel.master.routes.filesRoutes
 import io.craftpanel.master.routes.groupsRoutes
+import io.craftpanel.master.routes.modsRoutes
 import io.craftpanel.master.routes.networksRoutes
 import io.craftpanel.master.routes.nodesRoutes
 import io.craftpanel.master.routes.serversRoutes
@@ -98,6 +101,9 @@ OpenApiSpecTask {
                 systemRoutes()
                 consoleRoutes(wsTicketService, proxy)
                 filesRoutes(proxy)
+                backupsRoutes({ _, _ -> false }, proxy)
+                modsRoutes()
+                alertsRoutes()
             }
         }
 

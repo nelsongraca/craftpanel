@@ -18,6 +18,17 @@ import org.slf4j.LoggerFactory
 class ContainerManager(private val docker: DockerClient) {
     private val log = LoggerFactory.getLogger(ContainerManager::class.java)
 
+    fun listRunningContainerIds(): List<Pair<String, String>> {
+        return docker.listContainersCmd()
+            .withShowAll(false)
+            .exec()
+            .filter { it.labels.containsKey("craftpanel.server.id") }
+            .mapNotNull { container ->
+                val serverId = container.labels["craftpanel.server.id"]?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
+                serverId to container.id
+            }
+    }
+
     fun listContainers(): List<ContainerState> {
         return docker.listContainersCmd()
             .withShowAll(true)
@@ -112,6 +123,15 @@ class ContainerManager(private val docker: DockerClient) {
             .withForce(force)
             .exec()
         log.info("Removed container $containerName")
+    }
+
+    fun getContainerDataPath(containerName: String): String? {
+        return runCatching {
+            docker.inspectContainerCmd(containerName).exec()
+                .hostConfig?.binds
+                ?.firstOrNull { it.volume.path == "/data" }
+                ?.path
+        }.getOrNull()
     }
 
     fun shutdownAll(timeoutSeconds: Int): Pair<Int, Int> {

@@ -7,12 +7,13 @@ import org.jetbrains.exposed.v1.datetime.datetime
 object ServerMods : Table("server_mods") {
     val id = uuid("id").autoGenerate()
     val serverId = uuid("server_id").references(Servers.id)
-    val modrinthProjectId = varchar("modrinth_project_id", 100)
-    val modrinthVersionId = varchar("modrinth_version_id", 100)
-    val filename = varchar("filename", 255)
-    val sha512 = varchar("sha512", 128)
-    val enabled = bool("enabled").default(true)
-    val installedAt = datetime("installed_at").defaultExpression(CurrentDateTime)
+    val modrinthProjectId = varchar("modrinth_project_id", 64)
+    val displayName = varchar("display_name", 128)
+    val pinStrategy = varchar("pin_strategy", 10)   // PINNED|LATEST|BETA|ALPHA
+    val pinnedVersionId = varchar("pinned_version_id", 64).nullable()
+    val installedVersionId = varchar("installed_version_id", 64).nullable()
+    val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
+    val updatedAt = datetime("updated_at").defaultExpression(CurrentDateTime)
 
     override val primaryKey = PrimaryKey(id)
 }

@@ -9,8 +9,12 @@ import io.craftpanel.master.database.DatabaseFactory
 import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.grpc.GrpcServer
+import io.craftpanel.master.routes.alertsRoutes
+import io.craftpanel.master.routes.backupsRoutes
+import io.craftpanel.master.routes.modsRoutes
 import io.craftpanel.master.routes.assignmentsRoutes
 import io.craftpanel.master.routes.consoleRoutes
+import io.craftpanel.master.routes.dashboardWsRoutes
 import io.craftpanel.master.routes.filesRoutes
 import io.craftpanel.master.routes.groupsRoutes
 import io.craftpanel.master.routes.networksRoutes
@@ -113,5 +117,9 @@ fun Application.module() {
         systemRoutes()
         consoleRoutes(wsTicketService, dataServiceProxy)
         filesRoutes(dataServiceProxy)
+        backupsRoutes(controlService::sendToNode, dataServiceProxy)
+        modsRoutes()
+        dashboardWsRoutes(wsTicketService, controlService)
+        alertsRoutes()
     }
 }

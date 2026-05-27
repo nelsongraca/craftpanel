@@ -1,8 +1,5 @@
 "use client";
 
-// TODO (phase 3): replace 30s polling with WebSocket subscription to live
-// agent metrics (ram_used_mb, cpu_percent, player_count, player_list).
-
 import { useState, useEffect, useCallback } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -20,8 +17,11 @@ import { deleteServer, getNetwork, getNode, getServer, listNetworks, restartServ
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/lib/permissions";
 import type { Server, Node, Network } from "@/lib/types";
+import { useWs } from "@/lib/ws-context";
 import { ConsoleTab } from "./console-tab";
 import { FilesTab } from "./files-tab";
+import { BackupsTab } from "./backups-tab";
+import { ModsTab } from "./mods-tab";
 
 // ── Mojang version manifest ───────────────────────────────────────────────────
 
@@ -77,6 +77,16 @@ function fmtMb(mb: number): string {
   if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
   return `${mb} MB`;
 }
+
+function fmtBytes(bytes: number): string {
+  if (bytes >= 1_073_741_824) return `${(bytes / 1_073_741_824).toFixed(1)} GB`;
+  if (bytes >= 1_048_576)     return `${(bytes / 1_048_576).toFixed(1)} MB`;
+  if (bytes >= 1024)          return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${bytes} B`;
+}
+
+type LiveMetrics = { cpuPercent: number; ramUsedMb: number; netInBytes: number; netOutBytes: number };
+type LivePlayers = { count: number; list: string[] };
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -195,6 +205,7 @@ export default function ServerDetailPage() {
   const router  = useRouter();
   const { user } = useAuth();
   const permissions = user?.permissions ?? [];
+  const { subscribe } = useWs();
 
   const [server, setServer]   = useState<Server  | null>(null);
   const [node,   setNode]     = useState<Node    | null>(null);
@@ -217,6 +228,10 @@ export default function ServerDetailPage() {
   const [restartBanner, setRestartBanner]       = useState(false);
   const [networks, setNetworks]                 = useState<Network[]>([]);
   const [mcVersions, setMcVersions]             = useState<string[]>([]);
+
+  // ── Live WS data ───────────────────────────────────────────────────────────
+  const [liveMetrics, setLiveMetrics] = useState<LiveMetrics | null>(null);
+  const [livePlayers, setLivePlayers] = useState<LivePlayers | null>(null);
 
   // ── Edit: resources ────────────────────────────────────────────────────────
   const [editingResources, setEditingResources] = useState(false);
@@ -263,6 +278,31 @@ export default function ServerDetailPage() {
     document.addEventListener("click", close);
     return () => document.removeEventListener("click", close);
   }, []);
+
+  // ── Live WS subscriptions ──────────────────────────────────────────────────
+  useEffect(() => {
+    const unsubMetrics = subscribe("server.metrics", (payload) => {
+      if (payload.server_id !== id) return;
+      setLiveMetrics({
+        cpuPercent:  payload.cpu_percent  as number,
+        ramUsedMb:   payload.ram_used_mb  as number,
+        netInBytes:  payload.net_in_bytes as number,
+        netOutBytes: payload.net_out_bytes as number,
+      });
+    });
+    const unsubStatus = subscribe("server.status", (payload) => {
+      if (payload.server_id !== id) return;
+      setServer((prev) => prev ? { ...prev, status: payload.status as string } : prev);
+    });
+    const unsubPlayers = subscribe("server.players", (payload) => {
+      if (payload.server_id !== id) return;
+      setLivePlayers({
+        count: payload.player_count as number,
+        list:  payload.player_list  as string[],
+      });
+    });
+    return () => { unsubMetrics(); unsubStatus(); unsubPlayers(); };
+  }, [subscribe, id]);
 
   // ── Edit: general settings handlers ───────────────────────────────────────
 
@@ -634,6 +674,10 @@ export default function ServerDetailPage() {
         <ConsoleTab serverId={server.id} serverStatus={server.status} />
       ) : activeTab === "Files" ? (
         <FilesTab serverId={server.id} />
+      ) : activeTab === "Backups" ? (
+        <BackupsTab serverId={server.id} />
+      ) : activeTab === "Mods" ? (
+        <ModsTab serverId={server.id} />
       ) : activeTab !== "Overview" ? (
         <ComingSoon tab={activeTab} />
       ) : (
@@ -642,6 +686,8 @@ export default function ServerDetailPage() {
           node={node}
           network={network}
           permissions={permissions}
+          liveMetrics={liveMetrics}
+          livePlayers={livePlayers}
           editingGeneral={editingGeneral}
           editDisplayName={editDisplayName}
           editDescription={editDescription}
@@ -750,6 +796,8 @@ function OverviewTab({
   node,
   network,
   permissions,
+  liveMetrics,
+  livePlayers,
   editingGeneral,
   editDisplayName,
   editDescription,
@@ -783,6 +831,8 @@ function OverviewTab({
   node: Node | null;
   network: Network | null;
   permissions: string[];
+  liveMetrics: LiveMetrics | null;
+  livePlayers: LivePlayers | null;
   editingGeneral: boolean;
   editDisplayName: string;
   editDescription: string;
@@ -817,27 +867,51 @@ function OverviewTab({
   const canResources = hasPermission(permissions, "server.resources");
   const isProxy = ["VELOCITY", "BUNGEECORD", "WATERFALL"].includes(server.server_type);
 
+  const cpuColor = liveMetrics && liveMetrics.cpuPercent > 85 ? "text-error"
+    : liveMetrics && liveMetrics.cpuPercent > 65 ? "text-warning"
+    : "text-text-primary";
+
   return (
     <div className="px-6 py-6 space-y-6">
 
       {/* Stat cards */}
       <div className="grid grid-cols-4 gap-4">
 
-        {/* PLAYERS ONLINE — TODO (phase 3): populate from WebSocket player_count */}
+        {/* PLAYERS ONLINE */}
         <StatCard label="Players Online">
-          <p className="font-mono text-[20px] text-text-muted leading-none">—/—</p>
-          <p className="text-[11px] text-text-muted">No live data yet</p>
+          {livePlayers ? (
+            <>
+              <p className="font-mono text-[20px] text-text-primary leading-none">{livePlayers.count}</p>
+              <p className="font-mono text-[11px] text-text-muted">online now</p>
+            </>
+          ) : (
+            <>
+              <p className="font-mono text-[20px] text-text-muted leading-none">—</p>
+              <p className="text-[11px] text-text-muted">awaiting data</p>
+            </>
+          )}
         </StatCard>
 
-        {/* RAM USAGE — TODO (phase 3): populate ram_used_mb from WebSocket */}
+        {/* RAM USAGE */}
         <StatCard label="RAM Usage">
-          <RamBarInline usedMb={null} totalMb={server.memory_mb} />
+          <RamBarInline usedMb={liveMetrics?.ramUsedMb ?? null} totalMb={server.memory_mb} />
         </StatCard>
 
-        {/* CPU USAGE — TODO (phase 3): populate cpu_percent from WebSocket */}
+        {/* CPU USAGE */}
         <StatCard label="CPU Usage">
-          <p className="font-mono text-[20px] text-text-muted leading-none">—%</p>
-          <p className="font-mono text-[11px] text-text-muted">{server.cpu_shares} shares alloc</p>
+          {liveMetrics ? (
+            <>
+              <p className={`font-mono text-[20px] leading-none ${cpuColor}`}>
+                {liveMetrics.cpuPercent.toFixed(1)}%
+              </p>
+              <p className="font-mono text-[11px] text-text-muted">{server.cpu_shares} shares alloc</p>
+            </>
+          ) : (
+            <>
+              <p className="font-mono text-[20px] text-text-muted leading-none">—%</p>
+              <p className="font-mono text-[11px] text-text-muted">{server.cpu_shares} shares alloc</p>
+            </>
+          )}
         </StatCard>
 
         {/* STATUS */}
@@ -858,34 +932,63 @@ function OverviewTab({
       {/* Panels row */}
       <div className="grid grid-cols-[1fr_1fr] gap-4">
 
-        {/* Live metrics — TODO (phase 3): hook up WebSocket agent metrics */}
+        {/* Live Metrics */}
         <div className="bg-surface border border-border rounded p-4">
           <div className="flex items-center justify-between mb-4">
             <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">
               Live Metrics
             </p>
-            <span className="text-[10px] font-heading text-text-muted italic">
-              Phase 3 — WebSocket
-            </span>
+            {!liveMetrics && (
+              <span className="text-[10px] font-heading text-text-muted italic">awaiting data…</span>
+            )}
           </div>
           <div className="space-y-3">
             {[
-              { label: "CPU",   value: "—%"     },
-              { label: "RAM",   value: "—%"     },
-              { label: "Net ↓", value: "— KB/s" },
-              { label: "Net ↑", value: "— KB/s" },
-            ].map(({ label, value }) => (
+              {
+                label: "CPU",
+                value: liveMetrics ? `${liveMetrics.cpuPercent.toFixed(1)}%` : "—%",
+                color: liveMetrics ? cpuColor : "text-text-muted",
+              },
+              {
+                label: "RAM",
+                value: liveMetrics
+                  ? `${fmtMb(liveMetrics.ramUsedMb)} / ${fmtMb(server.memory_mb)}`
+                  : "—",
+                color: "text-text-primary",
+              },
+              {
+                label: "Net ↓",
+                value: liveMetrics ? fmtBytes(liveMetrics.netInBytes) : "—",
+                color: "text-text-primary",
+              },
+              {
+                label: "Net ↑",
+                value: liveMetrics ? fmtBytes(liveMetrics.netOutBytes) : "—",
+                color: "text-text-primary",
+              },
+            ].map(({ label, value, color }) => (
               <div key={label} className="flex items-center justify-between">
                 <span className="text-[11px] font-heading font-bold uppercase tracking-wider text-text-muted">
                   {label}
                 </span>
-                <span className="font-mono text-[12px] text-text-muted">{value}</span>
+                <span className={`font-mono text-[12px] ${liveMetrics ? color : "text-text-muted"}`}>{value}</span>
               </div>
             ))}
           </div>
-          <button className="mt-4 text-[11px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors">
-            View history →
-          </button>
+          {livePlayers && livePlayers.list.length > 0 && (
+            <div className="mt-4 pt-4 border-t border-border">
+              <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted mb-2">
+                Online Players
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {livePlayers.list.map((name) => (
+                  <span key={name} className="font-mono text-[11px] text-text-dim border border-border bg-surface-high px-1.5 py-0.5 rounded">
+                    {name}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Server info */}

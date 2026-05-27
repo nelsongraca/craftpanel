@@ -71,6 +71,7 @@ class ControlServiceImplTest {
         Backups.insert {
             it[Backups.serverId] = serverId.toKotlinUuid()
             it[Backups.nodeId] = nodeId.toKotlinUuid()
+            it[Backups.trigger] = "MANUAL"
             it[Backups.status] = status
         }[Backups.id].let { UUID.fromString(it.toString()) }
     }
@@ -357,10 +358,10 @@ class ControlServiceImplTest {
     }
 
     @Test
-    fun `markNodeDegraded sets RUNNING backup to FAILED and sets completedAt`() {
+    fun `markNodeDegraded sets IN_PROGRESS backup to FAILED and sets completedAt`() {
         val nodeId = createNode()
         val serverId = createServer(nodeId)
-        val backupId = createBackup(nodeId, serverId, status = "RUNNING")
+        val backupId = createBackup(nodeId, serverId, status = "IN_PROGRESS")
 
         service.markNodeDegraded(nodeId.toString())
 
@@ -369,27 +370,26 @@ class ControlServiceImplTest {
     }
 
     @Test
-    fun `markNodeDegraded sets PENDING backup to FAILED and sets completedAt`() {
+    fun `markNodeDegraded leaves COMPLETED backup unchanged`() {
         val nodeId = createNode()
         val serverId = createServer(nodeId)
-        val backupId = createBackup(nodeId, serverId, status = "PENDING")
+        val backupId = createBackup(nodeId, serverId, status = "COMPLETED")
 
         service.markNodeDegraded(nodeId.toString())
 
-        assertEquals("FAILED", backupStatus(backupId))
-        assertNotNull(backupCompletedAt(backupId))
-    }
-
-    @Test
-    fun `markNodeDegraded leaves SUCCESS backup unchanged`() {
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
-        val backupId = createBackup(nodeId, serverId, status = "SUCCESS")
-
-        service.markNodeDegraded(nodeId.toString())
-
-        assertEquals("SUCCESS", backupStatus(backupId))
+        assertEquals("COMPLETED", backupStatus(backupId))
         assertNull(backupCompletedAt(backupId))
+    }
+
+    @Test
+    fun `markNodeDegraded leaves FAILED backup unchanged`() {
+        val nodeId = createNode()
+        val serverId = createServer(nodeId)
+        val backupId = createBackup(nodeId, serverId, status = "FAILED")
+
+        service.markNodeDegraded(nodeId.toString())
+
+        assertEquals("FAILED", backupStatus(backupId))
     }
 
     @Test

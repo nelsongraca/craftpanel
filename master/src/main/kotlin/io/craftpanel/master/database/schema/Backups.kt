@@ -8,12 +8,13 @@ object Backups : Table("backups") {
     val id = uuid("id").autoGenerate()
     val serverId = uuid("server_id").references(Servers.id)
     val nodeId = uuid("node_id").references(Nodes.id)
-    val status = varchar("status", 10)              // PENDING|RUNNING|SUCCESS|FAILED
+    val trigger = varchar("trigger", 10)            // MANUAL|SCHEDULED
+    val status = varchar("status", 15)              // IN_PROGRESS|COMPLETED|FAILED
+    val filePath = varchar("file_path", 500).nullable()
     val sizeBytes = long("size_bytes").nullable()
-    val storagePath = varchar("storage_path", 500).nullable()
-    val startedAt = datetime("started_at").defaultExpression(CurrentDateTime)
+    val errorMessage = text("error_message").nullable()
+    val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
     val completedAt = datetime("completed_at").nullable()
-    val retainUntil = datetime("retain_until").nullable()   // null = keep forever
 
     override val primaryKey = PrimaryKey(id)
 }
