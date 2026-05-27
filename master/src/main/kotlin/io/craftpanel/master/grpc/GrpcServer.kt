@@ -13,7 +13,6 @@ class GrpcServer(private val config: AppConfig, private val controlService: Cont
     fun start(): GrpcServer {
         val builder = NettyServerBuilder.forPort(config.grpc.port)
             .addService(controlService)
-            .addService(DataServiceImpl())
 
         if (config.grpc.tlsEnabled) {
             builder.useTransportSecurity(

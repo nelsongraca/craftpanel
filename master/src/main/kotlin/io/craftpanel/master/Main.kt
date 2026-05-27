@@ -2,12 +2,16 @@ package io.craftpanel.master
 
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.RefreshTokenService
+import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.auth.routes.authRoutes
 import io.craftpanel.master.config.AppConfig
 import io.craftpanel.master.database.DatabaseFactory
 import io.craftpanel.master.grpc.ControlServiceImpl
+import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.grpc.GrpcServer
 import io.craftpanel.master.routes.assignmentsRoutes
+import io.craftpanel.master.routes.consoleRoutes
+import io.craftpanel.master.routes.filesRoutes
 import io.craftpanel.master.routes.groupsRoutes
 import io.craftpanel.master.routes.networksRoutes
 import io.craftpanel.master.routes.nodesRoutes
@@ -51,6 +55,9 @@ fun Application.module() {
 
     val jwtManager = JwtManager(appConfig.jwt)
     val refreshTokenService = RefreshTokenService()
+    val wsTicketService = WsTicketService()
+    val dataServiceProxy = DataServiceProxy(appConfig.node)
+    environment.monitor.subscribe(ApplicationStopped) { dataServiceProxy.closeAll() }
 
     install(ContentNegotiation) {
         json(Json { ignoreUnknownKeys = true })
@@ -96,7 +103,7 @@ fun Application.module() {
         get("health") { call.respond(mapOf("status" to "ok")) }
         route("openapi.json") { openApi() }
         route("swagger") { swaggerUI("/openapi.json") }
-        authRoutes(jwtManager, refreshTokenService)
+        authRoutes(jwtManager, refreshTokenService, wsTicketService)
         nodesRoutes(controlService::sendToNode)
         networksRoutes()
         serversRoutes(controlService::sendToNode)
@@ -104,5 +111,7 @@ fun Application.module() {
         groupsRoutes()
         assignmentsRoutes()
         systemRoutes()
+        consoleRoutes(wsTicketService, dataServiceProxy)
+        filesRoutes(dataServiceProxy)
     }
 }

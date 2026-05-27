@@ -10,6 +10,8 @@ data class AgentConfig(
     val keyFilePath: String,
     val dockerSocketPath: String,
     val agentVersion: String,
+    val dataServicePort: Int,
+    val dataBasePath: String,
 ) {
     val tlsEnabled: Boolean get() = tlsCertPath.isNotBlank()
 
@@ -22,6 +24,8 @@ data class AgentConfig(
             keyFilePath = System.getenv("NODE_KEY_FILE") ?: "/etc/craftpanel/node.key",
             dockerSocketPath = System.getenv("DOCKER_SOCKET") ?: "unix:///var/run/docker.sock",
             agentVersion = System.getenv("AGENT_VERSION") ?: "dev",
+            dataServicePort = System.getenv("DATA_SERVICE_PORT")?.toIntOrNull() ?: 50052,
+            dataBasePath = System.getenv("DATA_PATH") ?: "/data",
         )
     }
 }

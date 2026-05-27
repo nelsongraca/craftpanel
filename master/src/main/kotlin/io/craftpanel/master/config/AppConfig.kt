@@ -26,6 +26,7 @@ data class GrpcConfig(
 
 data class NodeConfig(
     val bootstrapToken: String,
+    val agentDataPort: Int,
 )
 
 class AppConfig(config: ApplicationConfig) {
@@ -48,5 +49,6 @@ class AppConfig(config: ApplicationConfig) {
     )
     val node = NodeConfig(
         bootstrapToken = config.property("node.bootstrapToken").getString(),
+        agentDataPort = config.property("node.agentDataPort").getString().toIntOrNull() ?: 50052,
     )
 }

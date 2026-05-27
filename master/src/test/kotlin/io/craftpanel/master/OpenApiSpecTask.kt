@@ -2,9 +2,14 @@ package io.craftpanel.master
 
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.RefreshTokenService
+import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.auth.routes.authRoutes
 import io.craftpanel.master.config.JwtConfig
+import io.craftpanel.master.config.NodeConfig
+import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.routes.assignmentsRoutes
+import io.craftpanel.master.routes.consoleRoutes
+import io.craftpanel.master.routes.filesRoutes
 import io.craftpanel.master.routes.groupsRoutes
 import io.craftpanel.master.routes.networksRoutes
 import io.craftpanel.master.routes.nodesRoutes
@@ -81,7 +86,9 @@ OpenApiSpecTask {
             }
             routing {
                 route("openapi.json") { openApi() }
-                authRoutes(jwtManager, refreshTokenService)
+                val wsTicketService = WsTicketService()
+                val proxy = DataServiceProxy(NodeConfig(bootstrapToken = "test", agentDataPort = 50052))
+                authRoutes(jwtManager, refreshTokenService, wsTicketService)
                 nodesRoutes { _, _ -> false }
                 networksRoutes()
                 serversRoutes { _, _ -> false }
@@ -89,6 +96,8 @@ OpenApiSpecTask {
                 groupsRoutes()
                 assignmentsRoutes()
                 systemRoutes()
+                consoleRoutes(wsTicketService, proxy)
+                filesRoutes(proxy)
             }
         }
 

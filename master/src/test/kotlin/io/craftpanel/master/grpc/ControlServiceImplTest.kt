@@ -24,7 +24,7 @@ import kotlin.test.assertNull
 
 class ControlServiceImplTest {
 
-    private val service = ControlServiceImpl(NodeConfig(bootstrapToken = "test-token"))
+    private val service = ControlServiceImpl(NodeConfig(bootstrapToken = "test-token", agentDataPort = 50052))
 
     @BeforeTest
     fun setup() {

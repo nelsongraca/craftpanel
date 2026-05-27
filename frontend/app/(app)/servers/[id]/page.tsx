@@ -20,6 +20,8 @@ import { deleteServer, getNetwork, getNode, getServer, listNetworks, restartServ
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/lib/permissions";
 import type { Server, Node, Network } from "@/lib/types";
+import { ConsoleTab } from "./console-tab";
+import { FilesTab } from "./files-tab";
 
 // ── Mojang version manifest ───────────────────────────────────────────────────
 
@@ -628,7 +630,11 @@ export default function ServerDetailPage() {
       </div>
 
       {/* ── Tab content ── */}
-      {activeTab !== "Overview" ? (
+      {activeTab === "Console" ? (
+        <ConsoleTab serverId={server.id} serverStatus={server.status} />
+      ) : activeTab === "Files" ? (
+        <FilesTab serverId={server.id} />
+      ) : activeTab !== "Overview" ? (
         <ComingSoon tab={activeTab} />
       ) : (
         <OverviewTab

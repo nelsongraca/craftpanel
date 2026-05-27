@@ -4,6 +4,7 @@ import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.RefreshTokenService
+import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
@@ -68,7 +69,7 @@ class AuthRoutesTest {
                 }
             }
         }
-        routing { authRoutes(jwtManager, refreshTokenService) }
+        routing { authRoutes(jwtManager, refreshTokenService, WsTicketService()) }
     }
 
     private fun ApplicationTestBuilder.jsonClient() = createClient {

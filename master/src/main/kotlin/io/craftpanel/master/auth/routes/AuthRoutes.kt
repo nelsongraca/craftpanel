@@ -5,6 +5,7 @@ import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.auth.RefreshTokenService
 import io.craftpanel.master.auth.TokenClaims
+import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
@@ -35,6 +36,12 @@ data class LoginRequest(val email: String, val password: String)
 data class LoginResponse(
     @SerialName("access_token") val accessToken: String,
     @SerialName("expires_in") val expiresIn: Long,
+)
+
+@Serializable
+data class WsTicketResponse(
+    val ticket: String,
+    @SerialName("expires_in") val expiresIn: Int,
 )
 
 @Serializable
@@ -97,7 +104,7 @@ private fun lookupUserById(userId: UUID): Triple<String, String, List<String>>? 
     Triple(user[Users.username], user[Users.email], groups)
 }
 
-fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenService) {
+fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenService, wsTicketService: WsTicketService) {
     route("/api/auth") {
         post("/login", {
             operationId = "authLogin"
@@ -206,6 +213,20 @@ fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenSe
                     extensions = mapOf("SameSite" to "Strict"), path = "/api/auth", maxAge = 0,
                 )
                 call.respond(HttpStatusCode.NoContent)
+            }
+
+            post("/ws-ticket", {
+                operationId = "authWsTicket"
+                summary = "Issue WebSocket upgrade ticket"
+                response {
+                    code(HttpStatusCode.OK) { body<WsTicketResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                val principal = call.principal<JWTPrincipal>()!!
+                val userId = UUID.fromString(principal.payload.subject)
+                val (ticket, expiresIn) = wsTicketService.issue(userId)
+                call.respond(WsTicketResponse(ticket, expiresIn))
             }
 
             get("/me", {
