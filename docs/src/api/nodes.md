@@ -129,6 +129,7 @@ Returns raw 1-minute metric snapshots for the requested time range.
   "node_id": "<uuid>",
   "series": {
     "cpu_percent":      [{ "t": "2026-05-04T10:00:00Z", "v": 42.3 }],
+    "cpu_per_core":     [{ "t": "2026-05-04T10:00:00Z", "v": [38.1, 46.5, 40.2, 44.4] }],
     "ram_used_mb":      [{ "t": "2026-05-04T10:00:00Z", "v": 14200 }],
     "net_in_bytes":     [{ "t": "2026-05-04T10:00:00Z", "v": 1048576 }],
     "net_out_bytes":    [{ "t": "2026-05-04T10:00:00Z", "v": 524288 }],
@@ -139,3 +140,6 @@ Returns raw 1-minute metric snapshots for the requested time range.
 
 !!! note
     Metrics are returned as raw 1-minute snapshots. Downsampling and aggregation will be supported when metrics storage is migrated to a time-series database. See [Nodes data model](../data-model/nodes.md#node_metrics).
+
+!!! note "`cpu_per_core` array values"
+    `cpu_per_core` series entries use an array `v` value rather than a scalar — one element per logical core, in the same order as `/proc/stat`. Core count is consistent within a node's lifetime but may differ across nodes. Callers should not assume a fixed array length.

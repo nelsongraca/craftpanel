@@ -124,6 +124,8 @@ Per-container resource snapshots sourced from the Docker Stats API, collected by
 | `ram_used_mb` | INT | |
 | `net_in_bytes` | BIGINT | Bytes received since last snapshot |
 | `net_out_bytes` | BIGINT | Bytes sent since last snapshot |
+| `block_in_bytes` | BIGINT | Cumulative bytes read from block devices since container start |
+| `block_out_bytes` | BIGINT | Cumulative bytes written to block devices since container start |
 
 **Index:** `(server_id, recorded_at DESC)`
 

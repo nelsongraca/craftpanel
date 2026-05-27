@@ -129,6 +129,8 @@ Fired every 60 seconds with the latest container resource snapshot.
     "ram_used_mb": 3200,
     "net_in_bytes": 204800,
     "net_out_bytes": 102400,
+    "block_in_bytes": 10485760,
+    "block_out_bytes": 5242880,
     "recorded_at": "2026-05-04T10:00:00Z"
   }
 }

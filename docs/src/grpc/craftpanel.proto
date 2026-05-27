@@ -128,6 +128,9 @@ message MasterMessage {
 
     // Node lifecycle
     ShutdownCommand shutdown = 11;
+
+    // Image management
+    PullImageCommand pull_image = 12;
   }
 }
 
@@ -303,6 +306,12 @@ message ShutdownCommand {
   int32 timeout_seconds = 1;
 }
 
+message PullImageCommand {
+  string server_id = 1;
+  // Full image reference, e.g. "itzg/minecraft-server:1.21".
+  string image     = 2;
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // AGENT → MASTER OBSERVABILITY
 // ─────────────────────────────────────────────────────────────────────────────
@@ -326,6 +335,10 @@ message ContainerMetricsUpdate {
   int32  ram_used_mb                     = 4;
   int64  net_in_bytes                    = 5;
   int64  net_out_bytes                   = 6;
+  // Cumulative bytes read/written on block devices since container start.
+  // Counters reset when the container restarts — same reset-detection as net I/O.
+  int64  block_in_bytes                  = 7;
+  int64  block_out_bytes                 = 8;
 }
 
 message ServerStatusUpdate {

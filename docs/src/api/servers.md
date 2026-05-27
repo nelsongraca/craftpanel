@@ -261,10 +261,12 @@ Returns raw 1-minute container metric snapshots for the requested time range.
 {
   "server_id": "<uuid>",
   "series": {
-    "cpu_percent":   [{ "t": "2026-05-04T10:00:00Z", "v": 38.2 }],
-    "ram_used_mb":   [{ "t": "2026-05-04T10:00:00Z", "v": 3200 }],
-    "net_in_bytes":  [{ "t": "2026-05-04T10:00:00Z", "v": 204800 }],
-    "net_out_bytes": [{ "t": "2026-05-04T10:00:00Z", "v": 102400 }]
+    "cpu_percent":    [{ "t": "2026-05-04T10:00:00Z", "v": 38.2 }],
+    "ram_used_mb":    [{ "t": "2026-05-04T10:00:00Z", "v": 3200 }],
+    "net_in_bytes":   [{ "t": "2026-05-04T10:00:00Z", "v": 204800 }],
+    "net_out_bytes":  [{ "t": "2026-05-04T10:00:00Z", "v": 102400 }],
+    "block_in_bytes": [{ "t": "2026-05-04T10:00:00Z", "v": 10485760 }],
+    "block_out_bytes":[{ "t": "2026-05-04T10:00:00Z", "v": 5242880 }]
   }
 }
 ```

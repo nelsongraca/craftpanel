@@ -58,8 +58,8 @@ Stores point-in-time snapshots of node-level resource usage collected by the age
 | `cpu_per_core` | JSONB | Array of per-core utilisation percentages |
 | `ram_used_mb` | INT | |
 | `ram_total_mb` | INT | |
-| `net_in_bytes` | BIGINT | Bytes received across all interfaces since last snapshot |
-| `net_out_bytes` | BIGINT | Bytes sent across all interfaces since last snapshot |
+| `net_in_bytes` | BIGINT | Cumulative bytes received across physical interfaces since last counter reset. Docker bridge and loopback traffic excluded. |
+| `net_out_bytes` | BIGINT | Cumulative bytes sent across physical interfaces since last counter reset. Docker bridge and loopback traffic excluded. |
 | `disk_used_bytes` | BIGINT | Used bytes on the data partition |
 | `disk_total_bytes` | BIGINT | Total bytes on the data partition |
 

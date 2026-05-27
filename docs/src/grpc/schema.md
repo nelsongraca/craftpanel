@@ -22,8 +22,8 @@ One long-lived bidirectional streaming RPC per node, established by the agent on
 **Agent → Master (observability):**
 
 - Node state snapshot — sent as the first message on every (re)connect
-- Node metrics (CPU, RAM, disk, net) — every 60 seconds
-- Container metrics (per server, CPU, RAM, net) — every 60 seconds
+- Node metrics (CPU, RAM, disk, net) — every 60 seconds. Network I/O is summed across physical interfaces only (`/proc/net/dev`); loopback (`lo`) and Docker-managed virtual interfaces (`docker0`, `br-*`, `veth*`) are excluded.
+- Container metrics (per server, CPU, RAM, net, block I/O) — every 60 seconds. Block I/O (`blkio_stats` from Docker Stats) are cumulative read/write byte totals since container start; counters reset when the container restarts, applying the same reset-detection handling as network I/O.
 - Server health and status updates
 - Player count and player list updates
 - Rsync progress and completion during migration

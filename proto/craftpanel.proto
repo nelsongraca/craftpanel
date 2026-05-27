@@ -335,6 +335,10 @@ message ContainerMetricsUpdate {
   int32  ram_used_mb                     = 4;
   int64  net_in_bytes                    = 5;
   int64  net_out_bytes                   = 6;
+  // Cumulative bytes read/written on block devices since container start.
+  // Counters reset when the container restarts — same reset-detection as net I/O.
+  int64  block_in_bytes                  = 7;
+  int64  block_out_bytes                 = 8;
 }
 
 message ServerStatusUpdate {
