@@ -13,8 +13,10 @@ plugins {
 // ---------------------------------------------------------------------------
 // Project-wide properties
 // ---------------------------------------------------------------------------
+version = project.property("craftpanel_version") as String
+
 val imageVersion: String = findProperty("imageVersion")?.toString()
-    ?: findProperty("craftpanelVersion")?.toString()
+    ?: findProperty("craftpanel_version")?.toString()
     ?: "latest"
 
 // ---------------------------------------------------------------------------
