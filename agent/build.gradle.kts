@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.protobuf)
+    alias(libs.plugins.kover)
     id("com.bmuschko.docker-remote-api") version "10.0.0"
     application
 }
@@ -48,7 +49,16 @@ dependencies {
 
     // Logging
     implementation(libs.logback.classic)
+
+    testImplementation(kotlin("test"))
+    testImplementation(libs.mockk)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
+
+tasks.withType<Test> {
+    jvmArgs("-Dnet.bytebuddy.experimental=true")
+}
+
 
 // ---------------------------------------------------------------------------
 // Protobuf code generation
@@ -112,4 +122,23 @@ tasks.register<DockerPushImage>("dockerPushImage") {
     description = "Pushes the Docker image for agent"
     dependsOn("dockerBuildImage")
     images.add(imageName)
+}
+
+// ---------------------------------------------------------------------------
+// Coverage
+// ---------------------------------------------------------------------------
+kover {
+    reports {
+        filters {
+            excludes {
+                packages("com.craftpanel")
+                classes("*Grpc*", "*OuterClass")
+                classes("io.craftpanel.agent.MainKt")
+            }
+        }
+        total {
+            html { title = "CraftPanel Agent" }
+            xml { xmlFile = layout.buildDirectory.file("reports/kover/report.xml") }
+        }
+    }
 }

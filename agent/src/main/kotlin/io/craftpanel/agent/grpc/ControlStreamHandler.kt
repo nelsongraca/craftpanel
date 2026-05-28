@@ -75,7 +75,7 @@ class ControlStreamHandler(
         }
     }
 
-    private fun buildStateSnapshot(): NodeStateSnapshot {
+    internal fun buildStateSnapshot(): NodeStateSnapshot {
         val containers = containerManager.listContainers()
         return nodeStateSnapshot {
             this.containers.addAll(containers)
@@ -87,7 +87,7 @@ class ControlStreamHandler(
         }
     }
 
-    private suspend fun handleCreate(correlationId: String, cmd: CreateContainerCommand, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleCreate(correlationId: String, cmd: CreateContainerCommand, outbound: MutableSharedFlow<AgentMessage>) {
         log.info("Creating container ${cmd.containerName} for server ${cmd.serverId}")
         runCatching { containerManager.createContainer(cmd) }
             .onSuccess { dockerContainerId ->
@@ -103,7 +103,7 @@ class ControlStreamHandler(
             .onFailure { log.error("Failed to create container ${cmd.containerName}", it) }
     }
 
-    private suspend fun handleStart(correlationId: String, cmd: StartContainerCommand, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleStart(correlationId: String, cmd: StartContainerCommand, outbound: MutableSharedFlow<AgentMessage>) {
         log.info("Starting container ${cmd.containerName}")
         runCatching { containerManager.startContainer(cmd.containerName) }
             .onSuccess {
@@ -127,7 +127,7 @@ class ControlStreamHandler(
             }
     }
 
-    private suspend fun handleStop(correlationId: String, cmd: StopContainerCommand, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleStop(correlationId: String, cmd: StopContainerCommand, outbound: MutableSharedFlow<AgentMessage>) {
         log.info("Stopping container ${cmd.containerName}")
         runCatching { containerManager.stopContainer(cmd.containerName, cmd.timeoutSeconds, cmd.stopCommand) }
             .onSuccess {
@@ -151,7 +151,7 @@ class ControlStreamHandler(
             }
     }
 
-    private suspend fun handleRestart(correlationId: String, cmd: RestartContainerCommand, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleRestart(correlationId: String, cmd: RestartContainerCommand, outbound: MutableSharedFlow<AgentMessage>) {
         log.info("Restarting container ${cmd.containerName}")
         runCatching {
             containerManager.stopContainer(cmd.containerName, cmd.timeoutSeconds, cmd.stopCommand)
@@ -178,19 +178,19 @@ class ControlStreamHandler(
             }
     }
 
-    private suspend fun handleRemove(correlationId: String, cmd: RemoveContainerCommand) {
+    internal suspend fun handleRemove(correlationId: String, cmd: RemoveContainerCommand) {
         log.info("Removing container ${cmd.containerName} (force=${cmd.force})")
         runCatching { containerManager.removeContainer(cmd.containerName, cmd.force) }
             .onFailure { log.error("Failed to remove container ${cmd.containerName}", it) }
     }
 
-    private suspend fun handlePullImage(correlationId: String, cmd: PullImageCommand) {
+    internal suspend fun handlePullImage(correlationId: String, cmd: PullImageCommand) {
         log.info("Pulling image ${cmd.image} for server ${cmd.serverId}")
         runCatching { withContext(Dispatchers.IO) { containerManager.pullImage(cmd.image) } }
             .onFailure { log.error("Failed to pull image ${cmd.image}", it) }
     }
 
-    private suspend fun handleTriggerBackup(cmd: TriggerBackupCommand, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleTriggerBackup(cmd: TriggerBackupCommand, outbound: MutableSharedFlow<AgentMessage>) {
         log.info("Backup ${cmd.backupId}: starting for server ${cmd.serverId} → ${cmd.destinationPath}")
 
         val dataPath = containerManager.getContainerDataPath(cmd.containerName)
@@ -284,14 +284,14 @@ class ControlStreamHandler(
         }
     }
 
-    private suspend fun handleDeleteBackup(cmd: DeleteBackupCommand) {
+    internal suspend fun handleDeleteBackup(cmd: DeleteBackupCommand) {
         log.info("Deleting backup file ${cmd.filePath}")
         runCatching {
             withContext(Dispatchers.IO) { File(cmd.filePath).delete() }
         }.onFailure { log.error("Failed to delete backup file ${cmd.filePath}", it) }
     }
 
-    private suspend fun handleShutdown(cmd: ShutdownCommand, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleShutdown(cmd: ShutdownCommand, outbound: MutableSharedFlow<AgentMessage>) {
         log.info("Shutdown requested — stopping all containers gracefully")
         val (graceful, forced) = containerManager.shutdownAll(cmd.timeoutSeconds)
         outbound.emit(agentMessage {

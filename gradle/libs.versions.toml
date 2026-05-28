@@ -16,6 +16,7 @@ docker-java = "3.4.1"
 bouncycastle = "1.78.1"
 h2 = "2.3.232"
 kover = "0.9.8"
+mockk = "1.13.17"
 frontend-plugin = "10.0.0"
 bmuschko-docker = "10.0.0"
 ktor-openapi-tools = "5.7.0"
@@ -84,6 +85,8 @@ schema-kenerator-swagger        = { module = "io.github.smiley4:schema-kenerator
 # Test
 h2 = { module = "com.h2database:h2", version.ref = "h2" }
 ktor-server-test-host = { module = "io.ktor:ktor-server-test-host", version.ref = "ktor" }
+mockk = { module = "io.mockk:mockk", version.ref = "mockk" }
+kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-test", version.ref = "coroutines" }
 
 [bundles]
 ktor-server = [

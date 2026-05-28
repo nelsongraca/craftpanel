@@ -15,7 +15,7 @@ import java.time.Instant
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-class MetricsCollector(private val docker: DockerClient) {
+open class MetricsCollector(private val docker: DockerClient) {
     private val log = LoggerFactory.getLogger(MetricsCollector::class.java)
 
     private data class CpuSnapshot(val idle: Long, val total: Long)

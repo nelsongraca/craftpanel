@@ -15,7 +15,7 @@ import com.github.dockerjava.api.model.RestartPolicy
 import com.github.dockerjava.api.model.Volume
 import org.slf4j.LoggerFactory
 
-class ContainerManager(private val docker: DockerClient) {
+open class ContainerManager(private val docker: DockerClient) {
     private val log = LoggerFactory.getLogger(ContainerManager::class.java)
 
     fun listRunningContainerIds(): List<Pair<String, String>> {
