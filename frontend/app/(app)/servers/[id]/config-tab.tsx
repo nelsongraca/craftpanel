@@ -2,8 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ChevronDown, ChevronUp, Plus, Trash2, X } from "lucide-react";
-import { getProxyBackends, listServers, replaceProxyBackends } from "@/lib/generated/sdk.gen";
-import type { ProxyBackend, PutProxyBackendsRequest } from "@/lib/types";
+import {
+    getEnvVars,
+    getProxyBackends,
+    listServers,
+    replaceEnvVars,
+    replaceProxyBackends,
+    updateConfigMode,
+} from "@/lib/generated/sdk.gen";
+import type { EnvVarItem, ProxyBackend, PutEnvVarsRequest, PutProxyBackendsRequest } from "@/lib/types";
 import type { IoCraftpanelMasterServiceServerResponse as ServerResponse } from "@/lib/generated/types.gen";
 
 const PROXY_TYPES = new Set(["VELOCITY", "BUNGEECORD", "WATERFALL"]);
@@ -22,19 +29,233 @@ export function ConfigTab({
     serverId,
     serverType,
     networkId,
+    configMode,
 }: {
     serverId: string;
     serverType: string;
     networkId: string | null;
+    configMode: string;
 }) {
     if (PROXY_TYPES.has(serverType)) {
         return <ProxyBackendsSection serverId={serverId} networkId={networkId} />;
     }
+    return <GameServerConfigSection serverId={serverId} configMode={configMode} />;
+}
+
+function GameServerConfigSection({
+    serverId,
+    configMode: initialConfigMode,
+}: {
+    serverId: string;
+    configMode: string;
+}) {
+    const [configMode, setConfigMode] = useState(initialConfigMode);
+    const [rows, setRows] = useState<EnvVarItem[]>([]);
+    const [saved, setSaved] = useState<EnvVarItem[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [togglingMode, setTogglingMode] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        const res = await getEnvVars({ path: { id: serverId } });
+        if (res.error) {
+            setError((res.error as { message?: string }).message ?? "Failed to load env vars");
+            setLoading(false);
+            return;
+        }
+        const items = res.data?.env_vars ?? [];
+        setRows(items);
+        setSaved(items);
+        setLoading(false);
+    }, [serverId]);
+
+    useEffect(() => {
+        load();
+    }, [load]);
+
+    async function handleToggleMode() {
+        const next = configMode === "MANAGED" ? "MANUAL" : "MANAGED";
+        if (configMode === "MANAGED") {
+            if (!window.confirm("Disable managed env vars? Existing vars are preserved but won't be applied until you switch back."))
+                return;
+        }
+        setTogglingMode(true);
+        setError(null);
+        const res = await updateConfigMode({ path: { id: serverId }, body: { config_mode: next } });
+        if (res.error) {
+            setError((res.error as { message?: string }).message ?? "Failed to update config mode");
+        } else {
+            setConfigMode(next);
+        }
+        setTogglingMode(false);
+    }
+
+    function addRow() {
+        setRows((prev) => [...prev, { key: "", value: "" }]);
+    }
+
+    function updateRow(i: number, field: "key" | "value", val: string) {
+        setRows((prev) => prev.map((r, idx) => (idx === i ? { ...r, [field]: val } : r)));
+    }
+
+    function removeRow(i: number) {
+        setRows((prev) => prev.filter((_, idx) => idx !== i));
+    }
+
+    const isDirty = JSON.stringify(rows) !== JSON.stringify(saved);
+
+    async function handleSave() {
+        const keys = rows.map((r) => r.key.trim()).filter((k) => k.length > 0);
+        if (keys.length !== new Set(keys).size) {
+            setError("Duplicate env var keys");
+            return;
+        }
+        setSaving(true);
+        setError(null);
+        const body: PutEnvVarsRequest = {
+            env_vars: rows.filter((r) => r.key.trim().length > 0),
+        };
+        const res = await replaceEnvVars({ path: { id: serverId }, body });
+        if (res.error) {
+            setError((res.error as { message?: string }).message ?? "Save failed");
+        } else {
+            await load();
+        }
+        setSaving(false);
+    }
+
+    if (loading) {
+        return (
+            <div className="px-6 py-10 text-center text-text-muted text-[13px]">Loading…</div>
+        );
+    }
+
     return (
-        <div className="px-6 py-10">
-            <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-[13px]">
-                Configuration — coming soon
+        <div className="px-6 py-6 space-y-6">
+            <div className="flex items-center justify-between">
+                <div>
+                    <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted mb-1">
+                        Config Mode
+                    </p>
+                    <p className="text-[12px] text-text-dim">
+                        {configMode === "MANAGED"
+                            ? "Env vars below are applied to the container on next start."
+                            : "Manual mode — edit server.properties directly in the Files tab."}
+                    </p>
+                </div>
+                <button
+                    onClick={handleToggleMode}
+                    disabled={togglingMode}
+                    className="px-3 py-1.5 rounded text-[11px] font-heading font-bold uppercase tracking-widest border border-border text-text-dim hover:border-text-muted transition-colors disabled:opacity-40"
+                >
+                    {togglingMode
+                        ? "Switching…"
+                        : configMode === "MANAGED"
+                          ? "Switch to Manual"
+                          : "Switch to Managed"}
+                </button>
             </div>
+
+            {error && (
+                <div className="text-[12px] text-error bg-error/10 border border-error/30 rounded px-3 py-2">
+                    {error}
+                </div>
+            )}
+
+            {configMode === "MANUAL" ? (
+                <div className="text-[12px] text-warning bg-warning/10 border border-warning/30 rounded px-3 py-2">
+                    Manual mode active. Use the Files tab to edit server.properties directly.
+                </div>
+            ) : (
+                <>
+                    {rows.length === 0 ? (
+                        <div className="border border-dashed border-border rounded py-8 text-center text-text-muted text-[12px]">
+                            No env vars configured.
+                        </div>
+                    ) : (
+                        <div className="border border-border rounded overflow-hidden">
+                            <table className="w-full text-[12px]">
+                                <thead>
+                                    <tr className="border-b border-border bg-surface-high">
+                                        <th className="px-4 py-2.5 text-left text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted w-5/12">
+                                            Key
+                                        </th>
+                                        <th className="px-4 py-2.5 text-left text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">
+                                            Value
+                                        </th>
+                                        <th className="px-4 py-2.5 w-10"></th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {rows.map((r, i) => (
+                                        <tr
+                                            key={i}
+                                            className="border-b border-border last:border-0 hover:bg-surface-high/50 transition-colors"
+                                        >
+                                            <td className="px-4 py-2">
+                                                <input
+                                                    value={r.key}
+                                                    onChange={(e) => updateRow(i, "key", e.target.value)}
+                                                    placeholder="KEY"
+                                                    className="bg-surface-higher border border-border rounded px-2 py-1 text-[12px] font-mono text-text-primary w-full focus:border-accent/50 focus:outline-none"
+                                                />
+                                            </td>
+                                            <td className="px-4 py-2">
+                                                <input
+                                                    value={r.value}
+                                                    onChange={(e) => updateRow(i, "value", e.target.value)}
+                                                    placeholder="value"
+                                                    className="bg-surface-higher border border-border rounded px-2 py-1 text-[12px] font-mono text-text-primary w-full focus:border-accent/50 focus:outline-none"
+                                                />
+                                            </td>
+                                            <td className="px-4 py-2">
+                                                <button
+                                                    onClick={() => removeRow(i)}
+                                                    className="p-1 text-text-muted hover:text-error transition-colors"
+                                                >
+                                                    <Trash2 className="w-3.5 h-3.5" />
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+
+                    <button
+                        onClick={addRow}
+                        className="flex items-center gap-1.5 text-[11px] font-heading font-bold uppercase tracking-widest text-text-muted hover:text-text-primary transition-colors"
+                    >
+                        <Plus className="w-3.5 h-3.5" />
+                        Add Row
+                    </button>
+
+                    {isDirty && (
+                        <div className="flex items-center justify-between pt-2 border-t border-border">
+                            <span className="text-[11px] text-text-muted">Unsaved changes</span>
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setRows(saved)}
+                                    className="px-3 py-1.5 rounded text-[11px] font-heading font-bold uppercase tracking-widest text-text-dim border border-border hover:border-text-muted transition-colors"
+                                >
+                                    Discard
+                                </button>
+                                <button
+                                    onClick={handleSave}
+                                    disabled={saving}
+                                    className="px-3 py-1.5 rounded text-[11px] font-heading font-bold uppercase tracking-widest bg-accent text-bg hover:bg-accent-bright transition-colors disabled:opacity-60"
+                                >
+                                    {saving ? "Saving…" : "Save"}
+                                </button>
+                            </div>
+                        </div>
+                    )}
+                </>
+            )}
         </div>
     );
 }

@@ -68,6 +68,7 @@ fun Application.module() {
     val serverService = ServerService(controlService::sendToNode, modService, dnsProvider)
     val backupService = BackupService(controlService::sendToNode, dataServiceProxy)
     val proxyBackendService = ProxyBackendService()
+    val envVarsService = EnvVarsService()
 
     val scheduler = ServerScheduler(
         handlers = mapOf("BACKUP" to BackupJobHandler(backupService)),
@@ -152,7 +153,7 @@ fun Application.module() {
         consoleRoutes(wsTicketService, dataServiceProxy)
         filesRoutes(dataServiceProxy)
         backupsRoutes(backupService)
-        configRoutes(proxyBackendService)
+        configRoutes(proxyBackendService, envVarsService)
         modsRoutes(modService)
         dashboardWsRoutes(wsTicketService, controlService)
         alertsRoutes(alertService)

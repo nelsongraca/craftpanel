@@ -45,6 +45,32 @@ Whether or not a server is externally exposed, each server has an **internal hos
 - Same node as proxy → Docker container hostname (e.g. `craftpanel-abc123`)
 - Different node → `node-private-ip:port`
 
+## DNS Providers
+
+Master uses a pluggable `DnsProvider` interface. The active provider is selected at startup via the `DNS_PROVIDER` environment variable.
+
+| Value | Behaviour |
+|-------|-----------|
+| `none` (default) | DNS records are not created. Subdomains are still stored for mc-router label use. |
+| `cloudflare` | A records are managed via the Cloudflare API. Requires `CF_API_TOKEN`. |
+
+The zone ID and domain suffix are configured per Server Network (not globally), allowing each network to use a different zone.
+
+### DNS Provider Configuration (Cloudflare)
+
+```bash
+DNS_PROVIDER=cloudflare
+CF_API_TOKEN=<your-cloudflare-api-token>
+```
+
+The network must also have `dns_zone_id` and `dns_domain_suffix` set — configurable via `POST/PATCH /api/networks`. Master will return `422` if exposure is enabled on a server whose network has no DNS zone configured.
+
+### Planned DNS Enhancements
+
+- **Route53 and other providers** — the `DnsProvider` interface is ready; adding a provider requires implementing three methods (`createARecord`, `updateARecord`, `deleteARecord`) and registering it in the factory.
+- **Per-network credential sets** — currently all networks share global credentials. Independent credential sets per network require a secret storage strategy outside the database and are future work.
+- **Frontend UI for network DNS configuration** — zone ID and domain suffix are currently set via API only; a UI panel on the Network settings page is planned.
+
 ## DNS on Migration
 
 When a server is migrated to a different node, master updates the A record to point to the destination node's IP after the new container is running. With a 60-second TTL, players experience at most a

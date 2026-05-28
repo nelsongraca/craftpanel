@@ -1,0 +1,101 @@
+package io.craftpanel.master.service
+
+import io.craftpanel.master.database.schema.ServerEnvVars
+import io.craftpanel.master.database.schema.Servers
+import kotlinx.serialization.SerialName
+import kotlinx.serialization.Serializable
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
+import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
+import java.util.UUID
+import kotlin.uuid.Uuid
+
+@Serializable
+data class EnvVarItem(val key: String, val value: String)
+
+@Serializable
+data class EnvVarsResponse(@SerialName("env_vars") val envVars: List<EnvVarItem>)
+
+@Serializable
+data class PutEnvVarsRequest(@SerialName("env_vars") val envVars: List<EnvVarItem>)
+
+@Serializable
+data class PatchConfigModeRequest(@SerialName("config_mode") val configMode: String)
+
+class EnvVarsService {
+
+    data class ServerScope(val serverIdJava: UUID, val networkId: UUID?)
+
+    fun getServerScope(serverId: Uuid): ServerScope? =
+        transaction {
+            Servers.selectAll()
+                .where { Servers.id eq serverId }
+                .firstOrNull()
+                ?.let {
+                    ServerScope(
+                        serverIdJava = UUID.fromString(serverId.toString()),
+                        networkId = it[Servers.networkId]?.let { nid -> UUID.fromString(nid.toString()) },
+                    )
+                }
+        }
+
+    fun getEnvVars(serverId: Uuid): EnvVarsResponse {
+        transaction {
+            Servers.selectAll()
+                .where { Servers.id eq serverId }
+                .firstOrNull()
+        } ?: throw NotFoundException("Server not found")
+
+        val items = transaction {
+            ServerEnvVars.selectAll()
+                .where { ServerEnvVars.serverId eq serverId }
+                .orderBy(ServerEnvVars.key)
+                .map { EnvVarItem(it[ServerEnvVars.key], it[ServerEnvVars.value]) }
+        }
+        return EnvVarsResponse(items)
+    }
+
+    fun replaceEnvVars(serverId: Uuid, req: PutEnvVarsRequest): EnvVarsResponse {
+        transaction {
+            Servers.selectAll()
+                .where { Servers.id eq serverId }
+                .firstOrNull()
+        } ?: throw NotFoundException("Server not found")
+
+        val keys = req.envVars.map { it.key.trim() }
+        if (keys.size != keys.toSet().size) throw UnprocessableException("Duplicate env var keys")
+
+        transaction {
+            ServerEnvVars.deleteWhere { ServerEnvVars.serverId eq serverId }
+            for (item in req.envVars) {
+                ServerEnvVars.insert {
+                    it[ServerEnvVars.serverId] = serverId
+                    it[ServerEnvVars.key] = item.key.trim()
+                    it[ServerEnvVars.value] = item.value
+                }
+            }
+        }
+        return getEnvVars(serverId)
+    }
+
+    fun updateConfigMode(serverId: Uuid, req: PatchConfigModeRequest): EnvVarsResponse {
+        if (req.configMode !in setOf("MANAGED", "MANUAL"))
+            throw BadRequestException("config_mode must be MANAGED or MANUAL")
+
+        transaction {
+            Servers.selectAll()
+                .where { Servers.id eq serverId }
+                .firstOrNull()
+        } ?: throw NotFoundException("Server not found")
+
+        transaction {
+            Servers.update({ Servers.id eq serverId }) {
+                it[Servers.configMode] = req.configMode
+            }
+        }
+        return getEnvVars(serverId)
+    }
+}

@@ -54,7 +54,9 @@ class ProxyBackendService {
 
     fun listBackends(proxyServerId: Uuid): ProxyBackendListResponse {
         val serverRow = transaction {
-            Servers.selectAll().where { Servers.id eq proxyServerId }.firstOrNull()
+            Servers.selectAll()
+                .where { Servers.id eq proxyServerId }
+                .firstOrNull()
         } ?: throw NotFoundException("Server not found")
 
         if (serverRow[Servers.serverType] !in PROXY_SERVER_TYPES)
@@ -78,7 +80,9 @@ class ProxyBackendService {
 
     fun replaceBackends(proxyServerId: Uuid, req: PutProxyBackendsRequest): ProxyBackendListResponse {
         val serverRow = transaction {
-            Servers.selectAll().where { Servers.id eq proxyServerId }.firstOrNull()
+            Servers.selectAll()
+                .where { Servers.id eq proxyServerId }
+                .firstOrNull()
         } ?: throw NotFoundException("Server not found")
 
         if (serverRow[Servers.serverType] !in PROXY_SERVER_TYPES)
@@ -93,7 +97,9 @@ class ProxyBackendService {
                 val backendId = runCatching { Uuid.parse(b.backendServerId) }.getOrNull()
                     ?: throw UnprocessableException("Invalid backend_server_id: ${b.backendServerId}")
 
-                val backendRow = Servers.selectAll().where { Servers.id eq backendId }.firstOrNull()
+                val backendRow = Servers.selectAll()
+                    .where { Servers.id eq backendId }
+                    .firstOrNull()
                     ?: throw UnprocessableException("Backend server not found: ${b.backendServerId}")
 
                 if (backendRow[Servers.serverType] in PROXY_SERVER_TYPES)

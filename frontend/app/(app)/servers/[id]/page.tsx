@@ -563,11 +563,8 @@ export default function ServerDetailPage() {
                                 >
                                     {hasPermission(permissions, "server.migrate") && (
                                         <button
-                                            onClick={() => {
-                                                setMenuOpen(false);
-                                                window.alert("Migration UI coming in phase 3.");
-                                            }}
-                                            className="flex items-center gap-2 w-full text-left px-3 py-2 text-[12px] font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
+                                            disabled
+                                            className="flex items-center gap-2 w-full text-left px-3 py-2 text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted opacity-40 cursor-not-allowed"
                                         >
                                             <Shuffle size={12} strokeWidth={2}/>
                                             Migrate
@@ -704,6 +701,7 @@ export default function ServerDetailPage() {
                     serverId={server.id}
                     serverType={server.server_type}
                     networkId={server.network_id ?? null}
+                    configMode={server.config_mode ?? "MANAGED"}
                 />
             ) : activeTab !== "Overview" ? (
                 <ComingSoon tab={activeTab}/>

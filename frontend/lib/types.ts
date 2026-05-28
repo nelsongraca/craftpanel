@@ -11,3 +11,7 @@ export type {IoCraftpanelMasterServiceAlertEventResponse as AlertEvent} from "./
 export type {IoCraftpanelMasterServiceProxyBackendItem as ProxyBackend} from "./generated/types.gen"
 export type {IoCraftpanelMasterServiceProxyBackendListResponse as ProxyBackendList} from "./generated/types.gen"
 export type {IoCraftpanelMasterServicePutProxyBackendsRequest as PutProxyBackendsRequest} from "./generated/types.gen"
+export type {IoCraftpanelMasterServiceEnvVarItem as EnvVarItem} from "./generated/types.gen"
+export type {IoCraftpanelMasterServiceEnvVarsResponse as EnvVarsResponse} from "./generated/types.gen"
+export type {IoCraftpanelMasterServicePutEnvVarsRequest as PutEnvVarsRequest} from "./generated/types.gen"
+export type {IoCraftpanelMasterServicePatchConfigModeRequest as PatchConfigModeRequest} from "./generated/types.gen"

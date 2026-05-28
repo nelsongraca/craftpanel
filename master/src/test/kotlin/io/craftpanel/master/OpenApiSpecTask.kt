@@ -92,7 +92,7 @@ OpenApiSpecTask {
                 consoleRoutes(wsTicketService, proxy)
                 filesRoutes(proxy)
                 backupsRoutes(BackupService(noopSend, proxy))
-                configRoutes(ProxyBackendService())
+                configRoutes(ProxyBackendService(), EnvVarsService())
                 modsRoutes(modService)
                 alertsRoutes(AlertService())
             }
