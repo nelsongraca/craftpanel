@@ -1,37 +1,22 @@
 package io.craftpanel.master.routes
 
-import com.craftpanel.agent.v1.BackupCompleteUpdate
-import com.craftpanel.agent.v1.BackupProgressUpdate
-import com.craftpanel.agent.v1.ContainerMetricsUpdate
-import com.craftpanel.agent.v1.NodeMetricsUpdate
-import com.craftpanel.agent.v1.PlayerUpdate
 import com.craftpanel.agent.v1.ServerStatusUpdate
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
-import io.craftpanel.master.util.toKotlinUuid
-import org.jetbrains.exposed.v1.core.*
-import io.craftpanel.master.grpc.AlertEventNotification
 import io.craftpanel.master.grpc.ControlServiceImpl
-import io.ktor.server.routing.Route
-import io.ktor.server.websocket.webSocket
-import io.ktor.websocket.CloseReason
-import io.ktor.websocket.Frame
-import io.ktor.websocket.close
-import kotlinx.coroutines.flow.SharedFlow
+import io.craftpanel.master.util.toKotlinUuid
+import io.ktor.server.routing.*
+import io.ktor.server.websocket.*
+import io.ktor.websocket.*
 import kotlinx.coroutines.launch
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.buildJsonArray
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
+import kotlinx.serialization.json.*
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
-import java.util.UUID
+import java.util.*
 import kotlin.time.Duration.Companion.minutes
 
 private val wsJson = Json { ignoreUnknownKeys = true }
@@ -56,8 +41,11 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
 
         fun serverNetworkId(serverId: String): UUID? = transaction {
             val kId = runCatching { UUID.fromString(serverId) }.getOrNull() ?: return@transaction null
-            Servers.selectAll().where { Servers.id eq kId.toKotlinUuid() }.firstOrNull()
-                ?.get(Servers.networkId)?.let { UUID.fromString(it.toString()) }
+            Servers.selectAll()
+                .where { Servers.id eq kId.toKotlinUuid() }
+                .firstOrNull()
+                ?.get(Servers.networkId)
+                ?.let { UUID.fromString(it.toString()) }
         }
 
         fun send(obj: JsonObject) {
@@ -71,27 +59,30 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
 
         // ── Initial snapshot ──────────────────────────────────────────────────
         val snapshot = transaction {
-            val servers = Servers.selectAll().mapNotNull { row ->
-                val sid = UUID.fromString(row[Servers.id].toString())
-                val netId = row[Servers.networkId]?.let { UUID.fromString(it.toString()) }
-                if (!canViewServer(sid, netId)) return@mapNotNull null
-                buildJsonObject {
-                    put("id", sid.toString())
-                    put("display_name", row[Servers.displayName])
-                    put("status", row[Servers.status])
-                    put("node_id", row[Servers.nodeId].toString())
-                    row[Servers.networkId]?.let { put("network_id", it.toString()) }
-                }
-            }
-            val nodes = if (hasNodes()) {
-                Nodes.selectAll().map { row ->
+            val servers = Servers.selectAll()
+                .mapNotNull { row ->
+                    val sid = UUID.fromString(row[Servers.id].toString())
+                    val netId = row[Servers.networkId]?.let { UUID.fromString(it.toString()) }
+                    if (!canViewServer(sid, netId)) return@mapNotNull null
                     buildJsonObject {
-                        put("id", row[Nodes.id].toString())
-                        put("display_name", row[Nodes.displayName])
-                        put("status", row[Nodes.status])
+                        put("id", sid.toString())
+                        put("display_name", row[Servers.displayName])
+                        put("status", row[Servers.status])
+                        put("node_id", row[Servers.nodeId].toString())
+                        row[Servers.networkId]?.let { put("network_id", it.toString()) }
                     }
                 }
-            } else emptyList()
+            val nodes = if (hasNodes()) {
+                Nodes.selectAll()
+                    .map { row ->
+                        buildJsonObject {
+                            put("id", row[Nodes.id].toString())
+                            put("display_name", row[Nodes.displayName])
+                            put("status", row[Nodes.status])
+                        }
+                    }
+            }
+            else emptyList()
 
             buildJsonObject {
                 put("type", "snapshot")
@@ -117,9 +108,13 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                     put("net_out_bytes", metrics.netOutBytes)
                     put("disk_used_bytes", metrics.diskUsedBytes)
                     put("disk_total_bytes", metrics.diskTotalBytes)
-                    put("recorded_at", if (metrics.hasRecordedAt())
-                        kotlinx.datetime.Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong()).toString()
-                    else kotlinx.datetime.Clock.System.now().toString())
+                    put(
+                        "recorded_at", if (metrics.hasRecordedAt())
+                            kotlinx.datetime.Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong())
+                                .toString()
+                        else kotlinx.datetime.Clock.System.now()
+                            .toString()
+                    )
                 }))
             }
         }
@@ -130,7 +125,10 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                 send(envelope("node.status", buildJsonObject {
                     put("node_id", nodeId)
                     put("status", status)
-                    put("recorded_at", kotlinx.datetime.Clock.System.now().toString())
+                    put("recorded_at",
+                        kotlinx.datetime.Clock.System.now()
+                            .toString()
+                    )
                 }))
             }
         }
@@ -146,9 +144,13 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                     put("ram_used_mb", metrics.ramUsedMb)
                     put("net_in_bytes", metrics.netInBytes)
                     put("net_out_bytes", metrics.netOutBytes)
-                    put("recorded_at", if (metrics.hasRecordedAt())
-                        kotlinx.datetime.Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong()).toString()
-                    else kotlinx.datetime.Clock.System.now().toString())
+                    put(
+                        "recorded_at", if (metrics.hasRecordedAt())
+                            kotlinx.datetime.Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong())
+                                .toString()
+                        else kotlinx.datetime.Clock.System.now()
+                            .toString()
+                    )
                 }))
             }
         }
@@ -159,17 +161,20 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                 val netId = serverNetworkId(serverId)
                 if (!canViewServer(sid, netId)) return@collect
                 val statusStr = when (update.status) {
-                    ServerStatusUpdate.ServerStatus.HEALTHY -> "HEALTHY"
+                    ServerStatusUpdate.ServerStatus.HEALTHY   -> "HEALTHY"
                     ServerStatusUpdate.ServerStatus.UNHEALTHY -> "UNHEALTHY"
-                    ServerStatusUpdate.ServerStatus.STARTING -> "STARTING"
-                    ServerStatusUpdate.ServerStatus.STOPPED -> "STOPPED"
-                    else -> return@collect
+                    ServerStatusUpdate.ServerStatus.STARTING  -> "STARTING"
+                    ServerStatusUpdate.ServerStatus.STOPPED   -> "STOPPED"
+                    else                                      -> return@collect
                 }
                 send(envelope("server.status", buildJsonObject {
                     put("server_id", serverId)
                     put("status", statusStr)
                     put("container_id", update.containerId)
-                    put("recorded_at", kotlinx.datetime.Clock.System.now().toString())
+                    put("recorded_at",
+                        kotlinx.datetime.Clock.System.now()
+                            .toString()
+                    )
                 }))
             }
         }
@@ -183,9 +188,13 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                     put("server_id", serverId)
                     put("player_count", update.playerCount)
                     put("player_list", buildJsonArray { update.playerNamesList.forEach { add(JsonPrimitive(it)) } })
-                    put("recorded_at", if (update.hasRecordedAt())
-                        kotlinx.datetime.Instant.fromEpochSeconds(update.recordedAt.seconds, update.recordedAt.nanos.toLong()).toString()
-                    else kotlinx.datetime.Clock.System.now().toString())
+                    put(
+                        "recorded_at", if (update.hasRecordedAt())
+                            kotlinx.datetime.Instant.fromEpochSeconds(update.recordedAt.seconds, update.recordedAt.nanos.toLong())
+                                .toString()
+                        else kotlinx.datetime.Clock.System.now()
+                            .toString()
+                    )
                 }))
             }
         }
@@ -199,7 +208,10 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                     put("server_id", update.serverId)
                     put("backup_id", update.backupId)
                     put("percent_complete", update.percentComplete)
-                    put("recorded_at", kotlinx.datetime.Clock.System.now().toString())
+                    put("recorded_at",
+                        kotlinx.datetime.Clock.System.now()
+                            .toString()
+                    )
                 }))
             }
         }
@@ -216,9 +228,13 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                     put("status", status)
                     put("size_bytes", update.sizeBytes)
                     if (!update.success) put("error_message", update.errorMessage)
-                    put("completed_at", if (update.hasCompletedAt())
-                        kotlinx.datetime.Instant.fromEpochSeconds(update.completedAt.seconds, update.completedAt.nanos.toLong()).toString()
-                    else kotlinx.datetime.Clock.System.now().toString())
+                    put(
+                        "completed_at", if (update.hasCompletedAt())
+                            kotlinx.datetime.Instant.fromEpochSeconds(update.completedAt.seconds, update.completedAt.nanos.toLong())
+                                .toString()
+                        else kotlinx.datetime.Clock.System.now()
+                            .toString()
+                    )
                 }))
             }
         }
@@ -242,7 +258,8 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                     put("message", alert.message)
                     if (isResolved) {
                         put("resolved_at", alert.resolvedAt!!)
-                    } else {
+                    }
+                    else {
                         put("fired_at", alert.firedAt)
                     }
                 }))
@@ -259,8 +276,10 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
         }
 
         try {
-            for (frame in incoming) { /* server-push only — ignore client frames */ }
-        } finally {
+            for (frame in incoming) { /* server-push only — ignore client frames */
+            }
+        }
+        finally {
             nodeMetricsJob.cancel()
             nodeStatusJob.cancel()
             serverMetricsJob.cancel()

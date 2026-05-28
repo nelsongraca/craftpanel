@@ -2,21 +2,23 @@
 
 ## Communication Boundaries
 
-| Channel | Protocol | Authentication |
-|---|---|---|
-| Browser → Master | HTTPS + WSS (TLS) | JWT bearer token |
-| Master ↔ Agent | gRPC over TLS | Node key (256-bit, stored hashed in DB) |
-| Agent → Docker | Unix socket (local only) | Not exposed over network |
-| Players → mc-router | Plain Minecraft protocol TCP (port 25565) | n/a |
-| mc-router → Container | Docker bridge or host port | n/a |
+| Channel               | Protocol                                  | Authentication                          |
+|-----------------------|-------------------------------------------|-----------------------------------------|
+| Browser → Master      | HTTPS + WSS (TLS)                         | JWT bearer token                        |
+| Master ↔ Agent        | gRPC over TLS                             | Node key (256-bit, stored hashed in DB) |
+| Agent → Docker        | Unix socket (local only)                  | Not exposed over network                |
+| Players → mc-router   | Plain Minecraft protocol TCP (port 25565) | n/a                                     |
+| mc-router → Container | Docker bridge or host port                | n/a                                     |
 
 ---
 
 ## JWT Authentication
 
-Access tokens are short-lived JWTs (15 minutes) signed with HS256. The payload contains the user UUID, display name, email, and group names — but **no permission nodes**. Permissions are always resolved from the database on each request, scoped to the resource being accessed.
+Access tokens are short-lived JWTs (15 minutes) signed with HS256. The payload contains the user UUID, display name, email, and group names — but **no permission nodes**. Permissions are always
+resolved from the database on each request, scoped to the resource being accessed.
 
-Refresh tokens are long-lived, stored as SHA-256 hashes in the database, and rotated on every use. They are transmitted as `HttpOnly; Secure; SameSite=Strict` cookies and never appear in response bodies.
+Refresh tokens are long-lived, stored as SHA-256 hashes in the database, and rotated on every use. They are transmitted as `HttpOnly; Secure; SameSite=Strict` cookies and never appear in response
+bodies.
 
 See [Auth API](../api/auth.md) for the full JWT structure and endpoint reference.
 
@@ -27,7 +29,8 @@ See [Auth API](../api/auth.md) for the full JWT structure and endpoint reference
 Node registration is agent-initiated. Agents authenticate in two phases:
 
 **Bootstrap (first registration only):**
-A shared `node_bootstrap_token` is configured in the master config file. The agent presents this token once when calling `RegisterNode` over gRPC. Master validates the token, creates a `PENDING` node record, generates a unique 256-bit node key, and returns it to the agent. The agent persists the key to its local config file on the host.
+A shared `node_bootstrap_token` is configured in the master config file. The agent presents this token once when calling `RegisterNode` over gRPC. Master validates the token, creates a `PENDING` node
+record, generates a unique 256-bit node key, and returns it to the agent. The agent persists the key to its local config file on the host.
 
 **Ongoing authentication:**
 All subsequent connections use the node's unique key, presented via `IdentifyNode`. The bootstrap token is not used again after first registration.
@@ -45,13 +48,15 @@ All subsequent connections use the node's unique key, presented via `IdentifyNod
 All network communication between components uses TLS.
 
 - **Browser ↔ Master** — standard HTTPS certificate (Let's Encrypt or operator-provided)
-- **Master ↔ Agent** — TLS on the gRPC channel. The node key in `IdentifyNode` is the authentication mechanism; client certificates are not required. For nodes on a private network, self-signed certificates with the CA bundled into the agent config are acceptable. For nodes on the public internet, a wildcard or per-node certificate is recommended.
+- **Master ↔ Agent** — TLS on the gRPC channel. The node key in `IdentifyNode` is the authentication mechanism; client certificates are not required. For nodes on a private network, self-signed
+  certificates with the CA bundled into the agent config are acceptable. For nodes on the public internet, a wildcard or per-node certificate is recommended.
 
 ---
 
 ## Docker Socket Access
 
-The Docker socket (`/var/run/docker.sock`) is accessed only by the node agent process, on the local machine. It is never exposed over the network. The agent communicates with master via gRPC; master never has direct access to any Docker socket.
+The Docker socket (`/var/run/docker.sock`) is accessed only by the node agent process, on the local machine. It is never exposed over the network. The agent communicates with master via gRPC; master
+never has direct access to any Docker socket.
 
 ---
 

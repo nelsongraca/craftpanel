@@ -5,6 +5,7 @@ import org.jetbrains.exposed.v1.datetime.CurrentDateTime
 import org.jetbrains.exposed.v1.datetime.datetime
 
 object Users : Table("users") {
+
     val id = uuid("id").autoGenerate()
     val username = varchar("username", 100).uniqueIndex()
     val email = varchar("email", 255).uniqueIndex()

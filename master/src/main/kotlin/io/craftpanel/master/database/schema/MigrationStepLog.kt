@@ -4,6 +4,7 @@ import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.datetime.datetime
 
 object MigrationStepLog : Table("migration_step_log") {
+
     val id = uuid("id").autoGenerate()
     val migrationId = uuid("migration_id").references(ServerMigrations.id)
     val stepNumber = integer("step_number")

@@ -6,51 +6,32 @@ import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
-import io.craftpanel.master.database.schema.Groups
-import io.craftpanel.master.database.schema.Nodes
-import io.craftpanel.master.database.schema.PortRegistry
-import io.craftpanel.master.database.schema.ServerMigrations
-import io.craftpanel.master.database.schema.ServerNetworks
-import io.craftpanel.master.database.schema.Servers
-import io.craftpanel.master.database.schema.UserGroupAssignments
-import io.craftpanel.master.database.schema.Users
-import io.craftpanel.master.service.ModService
-import io.craftpanel.master.service.ServerService
+import io.craftpanel.master.database.schema.*
+import io.craftpanel.master.service.*
 import io.craftpanel.master.util.toKotlinUuid
 import io.ktor.client.call.*
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
-import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
+import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.response.*
-import io.ktor.server.plugins.statuspages.StatusPages
-import io.craftpanel.master.service.BadGatewayException
-import io.craftpanel.master.service.BadRequestException
-import io.craftpanel.master.service.ConflictException
-import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
-import io.craftpanel.master.service.NotFoundException
-import io.craftpanel.master.service.UnprocessableException
 import io.ktor.server.routing.*
 import io.ktor.server.testing.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.UUID
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
+import java.util.*
+import kotlin.test.*
+import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
+import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
 class ServersRoutesTest {
 
@@ -107,7 +88,9 @@ class ServersRoutesTest {
     }
 
     private fun assignGlobalGroup(userId: UUID, groupName: String) = transaction {
-        val groupId = Groups.selectAll().where { Groups.name eq groupName }.first()[Groups.id]
+        val groupId = Groups.selectAll()
+            .where { Groups.name eq groupName }
+            .first()[Groups.id]
         UserGroupAssignments.insert {
             it[UserGroupAssignments.userId] = userId.toKotlinUuid()
             it[UserGroupAssignments.groupId] = groupId
@@ -131,7 +114,11 @@ class ServersRoutesTest {
             it[Nodes.displayName] = hostname
             it[Nodes.publicIp] = "1.2.3.4"
             it[Nodes.privateIp] = "10.0.0.1"
-            it[Nodes.tokenHash] = "aa${hostname.hashCode().toString(16).padStart(62, '0')}".take(64)
+            it[Nodes.tokenHash] = "aa${
+                hostname.hashCode()
+                    .toString(16)
+                    .padStart(62, '0')
+            }".take(64)
             it[Nodes.status] = status
             it[Nodes.totalRamMb] = totalRamMb
             it[Nodes.totalCpuShares] = totalCpuShares
@@ -206,7 +193,8 @@ class ServersRoutesTest {
         assertEquals(HttpStatusCode.OK, resp.status)
         val body = resp.body<List<JsonObject>>()
         assertEquals(2, body.size)
-        val names = body.map { it["name"]!!.jsonPrimitive.content }.toSet()
+        val names = body.map { it["name"]!!.jsonPrimitive.content }
+            .toSet()
         assertEquals(setOf("s1", "s2"), names)
     }
 
@@ -228,7 +216,8 @@ class ServersRoutesTest {
         }
         val resp = client.get("/api/servers") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.OK, resp.status)
-        val server = resp.body<List<JsonObject>>().first { it["name"]!!.jsonPrimitive.content == "migrating-server" }
+        val server = resp.body<List<JsonObject>>()
+            .first { it["name"]!!.jsonPrimitive.content == "migrating-server" }
         assertEquals("true", server["is_migrating"]!!.jsonPrimitive.content)
     }
 
@@ -271,7 +260,9 @@ class ServersRoutesTest {
         assertNotNull(body["id"])
 
         val portCount = transaction {
-            PortRegistry.selectAll().where { PortRegistry.nodeId eq nodeId.toKotlinUuid() }.count()
+            PortRegistry.selectAll()
+                .where { PortRegistry.nodeId eq nodeId.toKotlinUuid() }
+                .count()
         }
         assertEquals(1L, portCount)
     }
@@ -404,7 +395,11 @@ class ServersRoutesTest {
         }
         assertEquals(HttpStatusCode.Created, resp.status)
         val id = resp.body<JsonObject>()["id"]!!.jsonPrimitive.content
-        val row = transaction { Servers.selectAll().where { Servers.id eq id.toKotlinUuid() }.first() }
+        val row = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq id.toKotlinUuid() }
+                .first()
+        }
         assertEquals("end", row[Servers.stopCommand])
     }
 
@@ -481,7 +476,11 @@ class ServersRoutesTest {
             setBody("""{"display_name":"Patched Name"}""")
         }
         assertEquals(HttpStatusCode.NoContent, resp.status)
-        val row = transaction { Servers.selectAll().where { Servers.id eq serverId.toKotlinUuid() }.first() }
+        val row = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq serverId.toKotlinUuid() }
+                .first()
+        }
         assertEquals("Patched Name", row[Servers.displayName])
     }
 
@@ -500,7 +499,11 @@ class ServersRoutesTest {
             setBody("""{"network_id":null}""")
         }
         assertEquals(HttpStatusCode.NoContent, resp.status)
-        val row = transaction { Servers.selectAll().where { Servers.id eq serverId.toKotlinUuid() }.first() }
+        val row = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq serverId.toKotlinUuid() }
+                .first()
+        }
         assertEquals(null, row[Servers.networkId])
     }
 
@@ -519,7 +522,11 @@ class ServersRoutesTest {
             setBody("""{"display_name":"No Network Change"}""")
         }
         assertEquals(HttpStatusCode.NoContent, resp.status)
-        val row = transaction { Servers.selectAll().where { Servers.id eq serverId.toKotlinUuid() }.first() }
+        val row = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq serverId.toKotlinUuid() }
+                .first()
+        }
         assertEquals(netId.toKotlinUuid(), row[Servers.networkId])
     }
 
@@ -573,9 +580,17 @@ class ServersRoutesTest {
         val resp = client.delete("/api/servers/$serverId") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.NoContent, resp.status)
 
-        val serverExists = transaction { Servers.selectAll().where { Servers.id eq serverId.toKotlinUuid() }.firstOrNull() != null }
+        val serverExists = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq serverId.toKotlinUuid() }
+                .firstOrNull() != null
+        }
         assertEquals(false, serverExists)
-        val portExists = transaction { PortRegistry.selectAll().where { PortRegistry.serverId eq serverId.toKotlinUuid() }.firstOrNull() != null }
+        val portExists = transaction {
+            PortRegistry.selectAll()
+                .where { PortRegistry.serverId eq serverId.toKotlinUuid() }
+                .firstOrNull() != null
+        }
         assertEquals(false, portExists)
     }
 
@@ -621,7 +636,11 @@ class ServersRoutesTest {
             setBody("""{"memory_mb":3000,"cpu_shares":512}""")
         }
         assertEquals(HttpStatusCode.NoContent, resp.status)
-        val row = transaction { Servers.selectAll().where { Servers.id eq serverId.toKotlinUuid() }.first() }
+        val row = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq serverId.toKotlinUuid() }
+                .first()
+        }
         assertEquals(3000, row[Servers.memoryMb])
         assertEquals(512, row[Servers.cpuShares])
     }
@@ -675,7 +694,11 @@ class ServersRoutesTest {
             setBody("""{"exposed_externally":true,"public_subdomain":"myserver"}""")
         }
         assertEquals(HttpStatusCode.NoContent, resp.status)
-        val row = transaction { Servers.selectAll().where { Servers.id eq serverId.toKotlinUuid() }.first() }
+        val row = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq serverId.toKotlinUuid() }
+                .first()
+        }
         assertEquals(true, row[Servers.exposedExternally])
         assertEquals("myserver", row[Servers.publicSubdomain])
     }
@@ -797,7 +820,11 @@ class ServersRoutesTest {
         val serverId = createServer(nodeId, status = "STOPPED")
         val resp = client.post("/api/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.Accepted, resp.status)
-        val row = transaction { Servers.selectAll().where { Servers.id eq serverId.toKotlinUuid() }.first() }
+        val row = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq serverId.toKotlinUuid() }
+                .first()
+        }
         assertEquals("STARTING", row[Servers.status])
     }
 
@@ -997,7 +1024,11 @@ class ServersRoutesTest {
             setBody("""{"itzg_image_tag":"1.21"}""")
         }
         assertEquals(HttpStatusCode.Accepted, resp.status)
-        val row = transaction { Servers.selectAll().where { Servers.id eq serverId.toKotlinUuid() }.first() }
+        val row = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq serverId.toKotlinUuid() }
+                .first()
+        }
         assertEquals("1.21", row[Servers.itzgImageTag])
         // Pull + Create (no Remove since no existing container)
         assertTrue(sentCommands.any { it.hasPullImage() })

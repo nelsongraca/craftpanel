@@ -7,33 +7,25 @@ import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.util.toKotlinUuid
-import io.ktor.server.routing.Route
-import io.ktor.server.websocket.webSocket
-import io.ktor.websocket.CloseReason
-import io.ktor.websocket.Frame
-import io.ktor.websocket.close
-import io.ktor.websocket.readText
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
+import io.ktor.server.routing.*
+import io.ktor.server.websocket.*
+import io.ktor.websocket.*
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
-import java.util.UUID
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration.Companion.minutes
 
@@ -46,14 +38,18 @@ private data class WsEnvelopeIn(val type: String, val payload: JsonObject = Json
 private val json = Json { ignoreUnknownKeys = true }
 
 private class ConsoleSession(val serverId: String) {
+
     val input = Channel<ByteArray>(Channel.BUFFERED)
-    val output = MutableSharedFlow<ByteArray>(replay = 2000, extraBufferCapacity = 512,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST)
+    val output = MutableSharedFlow<ByteArray>(
+        replay = 2000, extraBufferCapacity = 512,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST
+    )
     val closed = MutableStateFlow(false)
     var job: Job? = null
 }
 
 private class ConsoleSessionManager(private val proxy: DataServiceProxy, private val scope: CoroutineScope) {
+
     private val log = LoggerFactory.getLogger(ConsoleSessionManager::class.java)
     private val sessions = ConcurrentHashMap<String, ConsoleSession>()
 
@@ -62,15 +58,19 @@ private class ConsoleSessionManager(private val proxy: DataServiceProxy, private
             val session = ConsoleSession(serverId)
             session.job = scope.launch {
                 try {
-                    val inputFlow = session.input.receiveAsFlow().map { bytes ->
-                        consoleInput { this.serverId = serverId; data = ByteString.copyFrom(bytes) }
-                    }
-                    proxy.console(serverId, inputFlow).collect { output ->
-                        session.output.emit(output.data.toByteArray())
-                    }
-                } catch (e: Exception) {
+                    val inputFlow = session.input.receiveAsFlow()
+                        .map { bytes ->
+                            consoleInput { this.serverId = serverId; data = ByteString.copyFrom(bytes) }
+                        }
+                    proxy.console(serverId, inputFlow)
+                        .collect { output ->
+                            session.output.emit(output.data.toByteArray())
+                        }
+                }
+                catch (e: Exception) {
                     log.warn("Console stream for {} ended: {}", serverId, e.message)
-                } finally {
+                }
+                finally {
                     sessions.remove(serverId)
                     session.closed.value = true
                 }
@@ -79,18 +79,24 @@ private class ConsoleSessionManager(private val proxy: DataServiceProxy, private
         }
 
     fun close(serverId: String) {
-        sessions.remove(serverId)?.apply {
-            job?.cancel()
-            closed.value = true
-        }
+        sessions.remove(serverId)
+            ?.apply {
+                job?.cancel()
+                closed.value = true
+            }
     }
 }
 
 private data class ServerInfo(val serverId: UUID, val networkId: UUID?)
 
 private fun lookupServer(rawId: String): ServerInfo? = transaction {
-    val id = runCatching { UUID.fromString(rawId).toKotlinUuid() }.getOrNull() ?: return@transaction null
-    val row = Servers.selectAll().where { Servers.id eq id }.firstOrNull() ?: return@transaction null
+    val id = runCatching {
+        UUID.fromString(rawId)
+            .toKotlinUuid()
+    }.getOrNull() ?: return@transaction null
+    val row = Servers.selectAll()
+        .where { Servers.id eq id }
+        .firstOrNull() ?: return@transaction null
     ServerInfo(
         serverId = UUID.fromString(id.toString()),
         networkId = row[Servers.networkId]?.let { UUID.fromString(it.toString()) },
@@ -144,7 +150,9 @@ fun Route.consoleRoutes(wsTicketService: WsTicketService, proxy: DataServiceProx
                     val text = chunk.decodeToString()
                     sendJson("console.output", mapOf("data" to text))
                 }
-            } catch (_: Exception) {}
+            }
+            catch (_: Exception) {
+            }
         }
 
         val revalidationJob = launch {
@@ -182,7 +190,8 @@ fun Route.consoleRoutes(wsTicketService: WsTicketService, proxy: DataServiceProx
                     }.onFailure { log.warn("Malformed console input: {}", it.message) }
                 }
             }
-        } finally {
+        }
+        finally {
             outputJob.cancel()
             revalidationJob.cancel()
             closeWatcherJob.cancel()

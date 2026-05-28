@@ -4,17 +4,17 @@ Base path: `/api/servers/{id}/files`
 
 All file paths are relative to the server's data directory and passed as a `path` query parameter unless noted otherwise.
 
-| Method | Path | Permission | Description |
-|---|---|---|---|
-| GET | `/servers/{id}/files` | `server.files` | List directory contents |
-| GET | `/servers/{id}/files/content` | `server.files` | Read a file |
-| PUT | `/servers/{id}/files/content` | `server.files` | Write a file |
-| POST | `/servers/{id}/files/upload` | `server.files` | Upload a file (multipart) |
-| GET | `/servers/{id}/files/download` | `server.files` | Download a file |
-| DELETE | `/servers/{id}/files` | `server.files` | Delete a file or directory |
-| POST | `/servers/{id}/files/move` | `server.files` | Move or rename a file |
-| POST | `/servers/{id}/files/copy` | `server.files` | Copy a file or directory |
-| POST | `/servers/{id}/files/mkdir` | `server.files` | Create a directory |
+| Method | Path                           | Permission     | Description                |
+|--------|--------------------------------|----------------|----------------------------|
+| GET    | `/servers/{id}/files`          | `server.files` | List directory contents    |
+| GET    | `/servers/{id}/files/content`  | `server.files` | Read a file                |
+| PUT    | `/servers/{id}/files/content`  | `server.files` | Write a file               |
+| POST   | `/servers/{id}/files/upload`   | `server.files` | Upload a file (multipart)  |
+| GET    | `/servers/{id}/files/download` | `server.files` | Download a file            |
+| DELETE | `/servers/{id}/files`          | `server.files` | Delete a file or directory |
+| POST   | `/servers/{id}/files/move`     | `server.files` | Move or rename a file      |
+| POST   | `/servers/{id}/files/copy`     | `server.files` | Copy a file or directory   |
+| POST   | `/servers/{id}/files/mkdir`    | `server.files` | Create a directory         |
 
 ---
 
@@ -22,9 +22,9 @@ All file paths are relative to the server's data directory and passed as a `path
 
 **Query parameters:**
 
-| Param | Required | Description |
-|---|---|---|
-| `path` | No | Directory path; defaults to `/` (server root) |
+| Param  | Required | Description                                   |
+|--------|----------|-----------------------------------------------|
+| `path` | No       | Directory path; defaults to `/` (server root) |
 
 **Response `200`:**
 
@@ -56,9 +56,9 @@ All file paths are relative to the server's data directory and passed as a `path
 
 **Query parameters:**
 
-| Param | Required | Description |
-|---|---|---|
-| `path` | Yes | File path |
+| Param  | Required | Description |
+|--------|----------|-------------|
+| `path` | Yes      | File path   |
 
 **Response `200`:**
 
@@ -80,9 +80,9 @@ All file paths are relative to the server's data directory and passed as a `path
 
 **Query parameters:**
 
-| Param | Required | Description |
-|---|---|---|
-| `path` | Yes | File path — created if it does not exist |
+| Param  | Required | Description                              |
+|--------|----------|------------------------------------------|
+| `path` | Yes      | File path — created if it does not exist |
 
 **Request body:** raw file content (`Content-Type: text/plain` or `application/octet-stream`).
 
@@ -96,10 +96,10 @@ Multipart file upload.
 
 **Request:** `Content-Type: multipart/form-data`
 
-| Field | Description |
-|---|---|
+| Field  | Description                         |
+|--------|-------------------------------------|
 | `path` | Destination path including filename |
-| `file` | File binary |
+| `file` | File binary                         |
 
 **Response `201`:**
 
@@ -118,9 +118,9 @@ Streams the file as an attachment.
 
 **Query parameters:**
 
-| Param | Required | Description |
-|---|---|---|
-| `path` | Yes | File path |
+| Param  | Required | Description |
+|--------|----------|-------------|
+| `path` | Yes      | File path   |
 
 **Response `200`:** binary stream with `Content-Disposition: attachment`.
 
@@ -132,10 +132,10 @@ Streams the file as an attachment.
 
 **Query parameters:**
 
-| Param | Required | Description |
-|---|---|---|
-| `path` | Yes | File or directory path |
-| `recursive` | No | `true` to delete a directory and all contents; defaults to `false` |
+| Param       | Required | Description                                                        |
+|-------------|----------|--------------------------------------------------------------------|
+| `path`      | Yes      | File or directory path                                             |
+| `recursive` | No       | `true` to delete a directory and all contents; defaults to `false` |
 
 **Response `204`.**
 

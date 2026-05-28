@@ -16,6 +16,7 @@ class NodeAuthenticator(
     private val config: AgentConfig,
     private val metricsCollector: MetricsCollector,
 ) {
+
     private val log = LoggerFactory.getLogger(NodeAuthenticator::class.java)
 
     suspend fun authenticate(channel: ManagedChannel): NodeIdentity {
@@ -50,21 +51,25 @@ class NodeAuthenticator(
         })
 
         return when (response.status) {
-            com.craftpanel.agent.v1.IdentifyNodeResponse.IdentifyStatus.ACTIVE -> {
+            com.craftpanel.agent.v1.IdentifyNodeResponse.IdentifyStatus.ACTIVE  -> {
                 log.info("Node ${response.nodeId} is ACTIVE")
                 NodeIdentity(nodeId = response.nodeId, nodeKey = existingKey)
             }
+
             com.craftpanel.agent.v1.IdentifyNodeResponse.IdentifyStatus.PENDING -> {
                 log.info("Node ${response.nodeId} is PENDING — awaiting admin approval")
                 NodeIdentity(nodeId = response.nodeId, nodeKey = existingKey)
             }
-            else -> throw NodeRejectedException("Node ${response.nodeId} was REJECTED by master")
+
+            else                                                                -> throw NodeRejectedException("Node ${response.nodeId} was REJECTED by master")
         }
     }
 
     private fun resolvePublicIp(): String =
         runCatching {
-            java.net.URL("https://api.ipify.org").readText().trim()
+            java.net.URL("https://api.ipify.org")
+                .readText()
+                .trim()
         }.getOrElse { java.net.InetAddress.getLocalHost().hostAddress }
 
     private fun resolvePrivateIp(): String =

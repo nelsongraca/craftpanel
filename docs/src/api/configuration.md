@@ -2,16 +2,16 @@
 
 Base path: `/api/servers/{id}/config`
 
-| Method | Path | Permission | Description |
-|---|---|---|---|
-| GET | `/servers/{id}/config` | `server.configure` | Get config mode, stop command, and env vars |
-| PUT | `/servers/{id}/config/mode` | `server.configure` | Switch config mode |
-| PUT | `/servers/{id}/config/env` | `server.configure` | Replace full env var set |
-| PATCH | `/servers/{id}/config/env` | `server.configure` | Update individual env vars |
-| DELETE | `/servers/{id}/config/env/{key}` | `server.configure` | Delete a single env var |
-| PATCH | `/servers/{id}/config/stop-command` | `server.configure` | Update the stop command |
-| GET | `/servers/{id}/config/proxy` | `server.configure` | Get proxy backend list |
-| PUT | `/servers/{id}/config/proxy` | `server.configure` | Replace proxy backend list |
+| Method | Path                                | Permission         | Description                                 |
+|--------|-------------------------------------|--------------------|---------------------------------------------|
+| GET    | `/servers/{id}/config`              | `server.configure` | Get config mode, stop command, and env vars |
+| PUT    | `/servers/{id}/config/mode`         | `server.configure` | Switch config mode                          |
+| PUT    | `/servers/{id}/config/env`          | `server.configure` | Replace full env var set                    |
+| PATCH  | `/servers/{id}/config/env`          | `server.configure` | Update individual env vars                  |
+| DELETE | `/servers/{id}/config/env/{key}`    | `server.configure` | Delete a single env var                     |
+| PATCH  | `/servers/{id}/config/stop-command` | `server.configure` | Update the stop command                     |
+| GET    | `/servers/{id}/config/proxy`        | `server.configure` | Get proxy backend list                      |
+| PUT    | `/servers/{id}/config/proxy`        | `server.configure` | Replace proxy backend list                  |
 
 ---
 

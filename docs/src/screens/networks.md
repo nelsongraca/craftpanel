@@ -93,6 +93,7 @@ Network list and network detail views.
         <button class="cp-btn">···</button>
       </div>
     </div>
+
   </div>
 
   <!-- ── NETWORK DETAIL ────────────────── -->

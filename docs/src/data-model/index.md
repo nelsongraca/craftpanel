@@ -11,19 +11,20 @@ CraftPanel's persistent state lives entirely in PostgreSQL on the master node. T
 
 ## Sections
 
-| Section | Tables |
-|---|---|
-| [Users & Auth](users-auth.md) | `users`, `refresh_tokens` |
-| [Access Control](access-control.md) | `groups`, `group_permissions`, `user_group_assignments` |
-| [Nodes](nodes.md) | `nodes`, `node_metrics` |
-| [Servers](servers.md) | `servers`, `server_env_vars`, `server_container_metrics`, `port_registry`, `proxy_backends` |
-| [Server Networks](server-networks.md) | `server_networks` |
-| [Mods](mods.md) | `server_mods` |
-| [Backups](backups.md) | `backups` |
-| [Migrations](migrations.md) | `migrations`, `migration_step_log` |
-| [Alerts](alerts.md) | `alert_thresholds`, `alert_events` |
-| [System Settings](system-settings.md) | `system_settings` |
+| Section                               | Tables                                                                                      |
+|---------------------------------------|---------------------------------------------------------------------------------------------|
+| [Users & Auth](users-auth.md)         | `users`, `refresh_tokens`                                                                   |
+| [Access Control](access-control.md)   | `groups`, `group_permissions`, `user_group_assignments`                                     |
+| [Nodes](nodes.md)                     | `nodes`, `node_metrics`                                                                     |
+| [Servers](servers.md)                 | `servers`, `server_env_vars`, `server_container_metrics`, `port_registry`, `proxy_backends` |
+| [Server Networks](server-networks.md) | `server_networks`                                                                           |
+| [Mods](mods.md)                       | `server_mods`                                                                               |
+| [Backups](backups.md)                 | `backups`                                                                                   |
+| [Migrations](migrations.md)           | `migrations`, `migration_step_log`                                                          |
+| [Alerts](alerts.md)                   | `alert_thresholds`, `alert_events`                                                          |
+| [System Settings](system-settings.md) | `system_settings`                                                                           |
 
 ## What Lives Outside the Database
 
-Deployment-time configuration is **not** stored in the database. This includes database credentials, JWT signing keys, DNS provider API keys, TLS certificate paths, and bind addresses. These are provided via config file, environment variables, or mounted secrets. See [Configuration & Secrets](../tech-stack/configuration.md) for the full breakdown.
+Deployment-time configuration is **not** stored in the database. This includes database credentials, JWT signing keys, DNS provider API keys, TLS certificate paths, and bind addresses. These are
+provided via config file, environment variables, or mounted secrets. See [Configuration & Secrets](../tech-stack/configuration.md) for the full breakdown.

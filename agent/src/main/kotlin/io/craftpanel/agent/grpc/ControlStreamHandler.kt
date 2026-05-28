@@ -4,12 +4,8 @@ import com.craftpanel.agent.v1.*
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.MetricsCollector
 import io.grpc.ManagedChannel
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
 import kotlin.time.Duration.Companion.seconds
@@ -19,6 +15,7 @@ class ControlStreamHandler(
     private val containerManager: ContainerManager,
     private val metricsCollector: MetricsCollector,
 ) {
+
     private val log = LoggerFactory.getLogger(ControlStreamHandler::class.java)
 
     suspend fun run(channel: ManagedChannel): Unit = coroutineScope {
@@ -46,14 +43,16 @@ class ControlStreamHandler(
                 })
 
                 // Per-container metrics
-                containerManager.listRunningContainerIds().forEach { (serverId, containerId) ->
-                    metricsCollector.collectContainerMetrics(serverId, containerId)?.let { cm ->
-                        outbound.emit(agentMessage {
-                            nodeId = identity.nodeId
-                            containerMetrics = cm
-                        })
+                containerManager.listRunningContainerIds()
+                    .forEach { (serverId, containerId) ->
+                        metricsCollector.collectContainerMetrics(serverId, containerId)
+                            ?.let { cm ->
+                                outbound.emit(agentMessage {
+                                    nodeId = identity.nodeId
+                                    containerMetrics = cm
+                                })
+                            }
                     }
-                }
             }
         }
 
@@ -61,16 +60,16 @@ class ControlStreamHandler(
         stream.collect { msg ->
             log.debug("Received master command: ${msg.payloadCase}")
             when {
-                msg.hasCreateContainer() -> handleCreate(msg.correlationId, msg.createContainer, outbound)
-                msg.hasStartContainer() -> handleStart(msg.correlationId, msg.startContainer, outbound)
-                msg.hasStopContainer() -> handleStop(msg.correlationId, msg.stopContainer, outbound)
+                msg.hasCreateContainer()  -> handleCreate(msg.correlationId, msg.createContainer, outbound)
+                msg.hasStartContainer()   -> handleStart(msg.correlationId, msg.startContainer, outbound)
+                msg.hasStopContainer()    -> handleStop(msg.correlationId, msg.stopContainer, outbound)
                 msg.hasRestartContainer() -> handleRestart(msg.correlationId, msg.restartContainer, outbound)
-                msg.hasRemoveContainer() -> handleRemove(msg.correlationId, msg.removeContainer)
-                msg.hasPullImage() -> handlePullImage(msg.correlationId, msg.pullImage)
-                msg.hasShutdown() -> handleShutdown(msg.shutdown, outbound)
-                msg.hasTriggerBackup() -> launch { handleTriggerBackup(msg.triggerBackup, outbound) }
-                msg.hasDeleteBackup() -> launch { handleDeleteBackup(msg.deleteBackup) }
-                else -> log.warn("Unhandled master message: ${msg.payloadCase}")
+                msg.hasRemoveContainer()  -> handleRemove(msg.correlationId, msg.removeContainer)
+                msg.hasPullImage()        -> handlePullImage(msg.correlationId, msg.pullImage)
+                msg.hasShutdown()         -> handleShutdown(msg.shutdown, outbound)
+                msg.hasTriggerBackup()    -> launch { handleTriggerBackup(msg.triggerBackup, outbound) }
+                msg.hasDeleteBackup()     -> launch { handleDeleteBackup(msg.deleteBackup) }
+                else                      -> log.warn("Unhandled master message: ${msg.payloadCase}")
             }
         }
     }
@@ -242,7 +241,8 @@ class ControlStreamHandler(
 
                 val exitCode = process.waitFor()
                 if (exitCode != 0) {
-                    val output = process.inputStream.bufferedReader().readText()
+                    val output = process.inputStream.bufferedReader()
+                        .readText()
                     error("tar exited with $exitCode: $output")
                 }
 
@@ -265,23 +265,24 @@ class ControlStreamHandler(
                     }
                 }
             })
-        }.onFailure { ex ->
-            log.error("Backup ${cmd.backupId}: failed", ex)
-            outbound.emit(agentMessage {
-                nodeId = identity.nodeId
-                backupComplete = backupCompleteUpdate {
-                    backupId = cmd.backupId
-                    serverId = cmd.serverId
-                    success = false
-                    errorMessage = ex.message ?: "Unknown error"
-                    completedAt = com.google.protobuf.timestamp {
-                        val now = java.time.Instant.now()
-                        seconds = now.epochSecond
-                        nanos = now.nano
-                    }
-                }
-            })
         }
+            .onFailure { ex ->
+                log.error("Backup ${cmd.backupId}: failed", ex)
+                outbound.emit(agentMessage {
+                    nodeId = identity.nodeId
+                    backupComplete = backupCompleteUpdate {
+                        backupId = cmd.backupId
+                        serverId = cmd.serverId
+                        success = false
+                        errorMessage = ex.message ?: "Unknown error"
+                        completedAt = com.google.protobuf.timestamp {
+                            val now = java.time.Instant.now()
+                            seconds = now.epochSecond
+                            nanos = now.nano
+                        }
+                    }
+                })
+            }
     }
 
     internal suspend fun handleDeleteBackup(cmd: DeleteBackupCommand) {

@@ -6,20 +6,20 @@ Base path: `/api`
 
 ## Users
 
-| Method | Path | Permission | Description |
-|---|---|---|---|
-| GET | `/users` | `system.users` | List all users |
-| POST | `/users` | `system.users` | Create a user |
-| GET | `/users/{id}` | `system.users` | Get a user |
-| PATCH | `/users/{id}` | `system.users` | Update username, email, or active state |
-| DELETE | `/users/{id}` | `system.users` | Delete a user |
-| POST | `/users/{id}/password` | `system.users` | Reset another user's password |
-| POST | `/users/me/password` | authenticated | Change own password |
-| GET | `/users/{id}/sessions` | `system.users` | List active sessions |
-| DELETE | `/users/{id}/sessions` | `system.users` | Revoke all sessions for a user |
-| GET | `/users/{id}/assignments` | `system.users` | List group assignments |
-| POST | `/users/{id}/assignments` | `system.users` | Add a group assignment |
-| DELETE | `/users/{id}/assignments/{assignmentId}` | `system.users` | Remove a group assignment |
+| Method | Path                                     | Permission     | Description                             |
+|--------|------------------------------------------|----------------|-----------------------------------------|
+| GET    | `/users`                                 | `system.users` | List all users                          |
+| POST   | `/users`                                 | `system.users` | Create a user                           |
+| GET    | `/users/{id}`                            | `system.users` | Get a user                              |
+| PATCH  | `/users/{id}`                            | `system.users` | Update username, email, or active state |
+| DELETE | `/users/{id}`                            | `system.users` | Delete a user                           |
+| POST   | `/users/{id}/password`                   | `system.users` | Reset another user's password           |
+| POST   | `/users/me/password`                     | authenticated  | Change own password                     |
+| GET    | `/users/{id}/sessions`                   | `system.users` | List active sessions                    |
+| DELETE | `/users/{id}/sessions`                   | `system.users` | Revoke all sessions for a user          |
+| GET    | `/users/{id}/assignments`                | `system.users` | List group assignments                  |
+| POST   | `/users/{id}/assignments`                | `system.users` | Add a group assignment                  |
+| DELETE | `/users/{id}/assignments/{assignmentId}` | `system.users` | Remove a group assignment               |
 
 ---
 
@@ -180,14 +180,14 @@ Resets another user's password. Does not require the current password.
 
 ## Groups
 
-| Method | Path | Permission | Description |
-|---|---|---|---|
-| GET | `/groups` | `system.users` | List all groups |
-| POST | `/groups` | `system.users` | Create a group |
-| GET | `/groups/{id}` | `system.users` | Get group and its permissions |
-| PATCH | `/groups/{id}` | `system.users` | Update group name |
-| DELETE | `/groups/{id}` | `system.users` | Delete group (non-system groups only) |
-| PUT | `/groups/{id}/permissions` | `system.users` | Replace full permission set |
+| Method | Path                       | Permission     | Description                           |
+|--------|----------------------------|----------------|---------------------------------------|
+| GET    | `/groups`                  | `system.users` | List all groups                       |
+| POST   | `/groups`                  | `system.users` | Create a group                        |
+| GET    | `/groups/{id}`             | `system.users` | Get group and its permissions         |
+| PATCH  | `/groups/{id}`             | `system.users` | Update group name                     |
+| DELETE | `/groups/{id}`             | `system.users` | Delete group (non-system groups only) |
+| PUT    | `/groups/{id}/permissions` | `system.users` | Replace full permission set           |
 
 ---
 

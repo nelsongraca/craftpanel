@@ -6,56 +6,36 @@ import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
-import io.craftpanel.master.database.schema.GroupPermissions
-import io.craftpanel.master.database.schema.Groups
-import io.craftpanel.master.database.schema.NodeMetrics
-import io.craftpanel.master.database.schema.Nodes
-import io.craftpanel.master.database.schema.Servers
-import io.craftpanel.master.database.schema.ServerNetworks
-import io.craftpanel.master.database.schema.UserGroupAssignments
-import io.craftpanel.master.database.schema.Users
-import io.craftpanel.master.service.NodeService
-import io.craftpanel.master.service.PatchNodeRequest
+import io.craftpanel.master.database.schema.*
+import io.craftpanel.master.service.*
 import io.craftpanel.master.util.toKotlinUuid
 import io.ktor.client.call.*
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
-import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
+import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.response.*
-import io.ktor.server.plugins.statuspages.StatusPages
-import io.craftpanel.master.service.BadGatewayException
-import io.craftpanel.master.service.BadRequestException
-import io.craftpanel.master.service.ConflictException
-import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
-import io.craftpanel.master.service.NotFoundException
-import io.craftpanel.master.service.UnprocessableException
 import io.ktor.server.routing.*
 import io.ktor.server.testing.*
-import kotlin.time.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.UUID
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertNotEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
+import java.util.*
+import kotlin.test.*
+import kotlin.time.Clock
+import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
+import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
 class NodesRoutesTest {
 
@@ -116,7 +96,9 @@ class NodesRoutesTest {
     }
 
     private fun assignGlobalGroup(userId: UUID, groupName: String) = transaction {
-        val groupId = Groups.selectAll().where { Groups.name eq groupName }.first()[Groups.id]
+        val groupId = Groups.selectAll()
+            .where { Groups.name eq groupName }
+            .first()[Groups.id]
         UserGroupAssignments.insert {
             it[UserGroupAssignments.userId] = userId.toKotlinUuid()
             it[UserGroupAssignments.groupId] = groupId
@@ -132,14 +114,19 @@ class NodesRoutesTest {
         status: String = "PENDING",
         totalRamMb: Int = 8192,
         totalCpuShares: Int = 1024,
-        tokenHash: String = "aabbcc${hostname.hashCode().toString(16).padStart(58, '0')}",
+        tokenHash: String = "aabbcc${
+            hostname.hashCode()
+                .toString(16)
+                .padStart(58, '0')
+        }",
     ): UUID = transaction {
         Nodes.insert {
             it[Nodes.hostname] = hostname
             it[Nodes.displayName] = hostname
             it[Nodes.publicIp] = "1.2.3.4"
             it[Nodes.privateIp] = "10.0.0.1"
-            it[Nodes.tokenHash] = tokenHash.take(64).padEnd(64, '0')
+            it[Nodes.tokenHash] = tokenHash.take(64)
+                .padEnd(64, '0')
             it[Nodes.status] = status
             it[Nodes.totalRamMb] = totalRamMb
             it[Nodes.totalCpuShares] = totalCpuShares
@@ -157,7 +144,8 @@ class NodesRoutesTest {
     }
 
     private fun createNodeMetric(nodeId: UUID, cpuPercent: Double = 42.0, ramUsedMb: Int = 2048) = transaction {
-        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        val now = Clock.System.now()
+            .toLocalDateTime(TimeZone.UTC)
         NodeMetrics.insert {
             it[NodeMetrics.nodeId] = nodeId.toKotlinUuid()
             it[NodeMetrics.recordedAt] = now
@@ -213,7 +201,8 @@ class NodesRoutesTest {
         assignGlobalGroup(userId, "Super Admin")
         val client = jsonClient()
 
-        val body = client.get("/api/nodes") { bearerAuth(tokenFor(userId)) }.body<List<JsonObject>>()
+        val body = client.get("/api/nodes") { bearerAuth(tokenFor(userId)) }
+            .body<List<JsonObject>>()
 
         assertTrue(body.isEmpty())
     }
@@ -226,7 +215,8 @@ class NodesRoutesTest {
         createNode(hostname = "alpha")
         val client = jsonClient()
 
-        val body = client.get("/api/nodes") { bearerAuth(tokenFor(userId)) }.body<List<JsonObject>>()
+        val body = client.get("/api/nodes") { bearerAuth(tokenFor(userId)) }
+            .body<List<JsonObject>>()
 
         assertEquals(1, body.size)
         val node = body[0]
@@ -256,7 +246,8 @@ class NodesRoutesTest {
         createServer(nodeId, memoryMb = 2048)
         val client = jsonClient()
 
-        val body = client.get("/api/nodes") { bearerAuth(tokenFor(userId)) }.body<List<JsonObject>>()
+        val body = client.get("/api/nodes") { bearerAuth(tokenFor(userId)) }
+            .body<List<JsonObject>>()
 
         assertEquals(1, body.size)
         assertEquals(3072, body[0]["allocated_ram_mb"]!!.jsonPrimitive.content.toInt())
@@ -297,7 +288,8 @@ class NodesRoutesTest {
         val nodeId = createNode(hostname = "beta", totalRamMb = 4096)
         val client = jsonClient()
 
-        val body = client.get("/api/nodes/$nodeId") { bearerAuth(tokenFor(userId)) }.body<JsonObject>()
+        val body = client.get("/api/nodes/$nodeId") { bearerAuth(tokenFor(userId)) }
+            .body<JsonObject>()
 
         assertEquals(nodeId.toString(), body["id"]!!.jsonPrimitive.content)
         assertEquals("beta", body["display_name"]!!.jsonPrimitive.content)
@@ -318,7 +310,11 @@ class NodesRoutesTest {
         val response = client.post("/api/nodes/$nodeId/trust") { bearerAuth(tokenFor(userId)) }
 
         assertEquals(HttpStatusCode.NoContent, response.status)
-        val status = transaction { Nodes.selectAll().where { Nodes.id eq nodeId.toKotlinUuid() }.first()[Nodes.status] }
+        val status = transaction {
+            Nodes.selectAll()
+                .where { Nodes.id eq nodeId.toKotlinUuid() }
+                .first()[Nodes.status]
+        }
         assertEquals("ACTIVE", status)
     }
 
@@ -345,7 +341,11 @@ class NodesRoutesTest {
         val response = client.post("/api/nodes/$nodeId/reject") { bearerAuth(tokenFor(userId)) }
 
         assertEquals(HttpStatusCode.NoContent, response.status)
-        val status = transaction { Nodes.selectAll().where { Nodes.id eq nodeId.toKotlinUuid() }.first()[Nodes.status] }
+        val status = transaction {
+            Nodes.selectAll()
+                .where { Nodes.id eq nodeId.toKotlinUuid() }
+                .first()[Nodes.status]
+        }
         assertEquals("REJECTED", status)
     }
 
@@ -389,7 +389,11 @@ class NodesRoutesTest {
 
         client.post("/api/nodes/$nodeId/token/rotate") { bearerAuth(tokenFor(userId)) }
 
-        val newHash = transaction { Nodes.selectAll().where { Nodes.id eq nodeId.toKotlinUuid() }.first()[Nodes.tokenHash] }
+        val newHash = transaction {
+            Nodes.selectAll()
+                .where { Nodes.id eq nodeId.toKotlinUuid() }
+                .first()[Nodes.tokenHash]
+        }
         assertNotEquals(tokenHash, newHash)
     }
 
@@ -467,7 +471,11 @@ class NodesRoutesTest {
         }
 
         assertEquals(HttpStatusCode.NoContent, response.status)
-        val name = transaction { Nodes.selectAll().where { Nodes.id eq nodeId.toKotlinUuid() }.first()[Nodes.displayName] }
+        val name = transaction {
+            Nodes.selectAll()
+                .where { Nodes.id eq nodeId.toKotlinUuid() }
+                .first()[Nodes.displayName]
+        }
         assertEquals("new-name", name)
     }
 
@@ -536,7 +544,11 @@ class NodesRoutesTest {
         val response = client.delete("/api/nodes/$nodeId") { bearerAuth(tokenFor(userId)) }
 
         assertEquals(HttpStatusCode.NoContent, response.status)
-        val status = transaction { Nodes.selectAll().where { Nodes.id eq nodeId.toKotlinUuid() }.first()[Nodes.status] }
+        val status = transaction {
+            Nodes.selectAll()
+                .where { Nodes.id eq nodeId.toKotlinUuid() }
+                .first()[Nodes.status]
+        }
         assertEquals("DECOMMISSIONED", status)
     }
 
@@ -570,7 +582,8 @@ class NodesRoutesTest {
         val nodeId = createNode()
         val client = jsonClient()
 
-        val body = client.get("/api/nodes/$nodeId/metrics") { bearerAuth(tokenFor(userId)) }.body<JsonObject>()
+        val body = client.get("/api/nodes/$nodeId/metrics") { bearerAuth(tokenFor(userId)) }
+            .body<JsonObject>()
 
         assertTrue(body["timestamps"]!!.jsonArray.isEmpty())
         assertTrue(body["cpu_percent"]!!.jsonArray.isEmpty())
@@ -587,7 +600,8 @@ class NodesRoutesTest {
         createNodeMetric(nodeId, cpuPercent = 60.0, ramUsedMb = 3500)
         val client = jsonClient()
 
-        val body = client.get("/api/nodes/$nodeId/metrics") { bearerAuth(tokenFor(userId)) }.body<JsonObject>()
+        val body = client.get("/api/nodes/$nodeId/metrics") { bearerAuth(tokenFor(userId)) }
+            .body<JsonObject>()
 
         assertEquals(2, body["timestamps"]!!.jsonArray.size)
         assertEquals(2, body["cpu_percent"]!!.jsonArray.size)
@@ -605,7 +619,8 @@ class NodesRoutesTest {
         repeat(10) { createNodeMetric(nodeId) }
         val client = jsonClient()
 
-        val body = client.get("/api/nodes/$nodeId/metrics?limit=5") { bearerAuth(tokenFor(userId)) }.body<JsonObject>()
+        val body = client.get("/api/nodes/$nodeId/metrics?limit=5") { bearerAuth(tokenFor(userId)) }
+            .body<JsonObject>()
 
         assertEquals(5, body["timestamps"]!!.jsonArray.size)
     }

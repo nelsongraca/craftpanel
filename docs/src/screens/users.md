@@ -106,6 +106,7 @@ User list, user detail, and group assignment views.
         <button class="cp-btn">···</button>
       </div>
     </div>
+
   </div>
 
   <!-- ── USER DETAIL ───────────────────── -->
@@ -206,6 +207,7 @@ User list, user detail, and group assignment views.
         <button class="cp-btn" style="font-size:12px;color:#721c24;border-color:#f5c6cb;">Revoke</button>
       </div>
     </div>
+
   </div>
 
 </div>

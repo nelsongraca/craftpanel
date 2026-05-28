@@ -9,14 +9,16 @@ The browser maintains up to two WebSocket connections to master:
 
 ## Authentication
 
-WebSocket connections are authenticated via a **one-time ticket** obtained from `POST /api/auth/ws-ticket`. This is necessary because browsers cannot set `Authorization` headers on WebSocket upgrade requests.
+WebSocket connections are authenticated via a **one-time ticket** obtained from `POST /api/auth/ws-ticket`. This is necessary because browsers cannot set `Authorization` headers on WebSocket upgrade
+requests.
 
 ### Upgrade flow
 
 1. Client calls `POST /api/auth/ws-ticket` with a valid `Authorization: Bearer <access_token>` header.
 2. Master returns a ticket (opaque token, 30-second TTL, single-use).
 3. Client opens the WebSocket with `?ticket=<ticket>` in the URL.
-4. Master validates the ticket, resolves the user, and checks the required permission. If any step fails the upgrade is rejected: `401` for an invalid/expired ticket, `403` for insufficient permission.
+4. Master validates the ticket, resolves the user, and checks the required permission. If any step fails the upgrade is rejected: `401` for an invalid/expired ticket, `403` for insufficient
+   permission.
 
 ```
 POST /api/auth/ws-ticket
@@ -28,7 +30,9 @@ GET wss://<host>/api/ws/console/{server_id}?ticket=abc123...
 
 Tickets are consumed on first use and cannot be reused.
 
-**Session revalidation:** master revalidates the user's permissions every 5 minutes on each open connection. If the underlying user account has been deactivated or permissions have changed the connection is closed immediately on the next revalidation tick. This gives a maximum 5-minute window between a permission change and connection termination — consistent with the 15-minute JWT access token TTL on the REST API.
+**Session revalidation:** master revalidates the user's permissions every 5 minutes on each open connection. If the underlying user account has been deactivated or permissions have changed the
+connection is closed immediately on the next revalidation tick. This gives a maximum 5-minute window between a permission change and connection termination — consistent with the 15-minute JWT access
+token TTL on the REST API.
 
 ---
 
@@ -63,8 +67,8 @@ On connect master immediately pushes a snapshot of current state so the UI can r
 {
   "type": "snapshot",
   "payload": {
-    "servers": [ ],
-    "nodes": [ ]
+    "servers": [],
+    "nodes": []
   }
 }
 ```
@@ -108,7 +112,10 @@ Fired when the player count or player list changes. Refreshed every 30 seconds b
   "payload": {
     "server_id": "<uuid>",
     "player_count": 14,
-    "player_list": ["Notch", "jeb_"],
+    "player_list": [
+      "Notch",
+      "jeb_"
+    ],
     "recorded_at": "2026-05-04T10:00:00Z"
   }
 }
@@ -275,7 +282,12 @@ Fired every 60 seconds with the latest node resource snapshot. Only pushed to us
   "payload": {
     "node_id": "<uuid>",
     "cpu_percent": 42.3,
-    "cpu_per_core": [38.1, 46.5, 40.2, 44.4],
+    "cpu_per_core": [
+      38.1,
+      46.5,
+      40.2,
+      44.4
+    ],
     "ram_used_mb": 14200,
     "ram_total_mb": 32768,
     "net_in_bytes": 1048576,
@@ -340,7 +352,8 @@ Opened when the user opens a server console. Bidirectional — master proxies in
 
 Requires `server.console` permission on the specified server. Upgrade is rejected with `403` if the user lacks this permission.
 
-Multiple clients may have the console open simultaneously for the same server. All connected clients receive the same output stream. On connect, master replays the last 2000 lines of buffered output before forwarding live output.
+Multiple clients may have the console open simultaneously for the same server. All connected clients receive the same output stream. On connect, master replays the last 2000 lines of buffered output
+before forwarding live output.
 
 ### Client → server (input)
 

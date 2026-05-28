@@ -128,6 +128,7 @@ Node list and node detail views.
         <button class="cp-btn">···</button>
       </div>
     </div>
+
   </div>
 
   <!-- ── NODE DETAIL ────────────────────────────── -->

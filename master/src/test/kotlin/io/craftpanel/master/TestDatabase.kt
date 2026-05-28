@@ -1,33 +1,14 @@
 package io.craftpanel.master
 
 import io.craftpanel.master.database.migrations.seedSystemGroups
-import io.craftpanel.master.database.schema.AlertEvents
-import io.craftpanel.master.database.schema.AlertThresholds
-import io.craftpanel.master.database.schema.Backups
-import io.craftpanel.master.database.schema.ContainerMetrics
-import io.craftpanel.master.database.schema.GroupPermissions
-import io.craftpanel.master.database.schema.Groups
-import io.craftpanel.master.database.schema.NodeMetrics
-import io.craftpanel.master.database.schema.Nodes
-import io.craftpanel.master.database.schema.PortRegistry
-import io.craftpanel.master.database.schema.RefreshTokens
-import io.craftpanel.master.database.schema.ServerEnvVars
-import io.craftpanel.master.database.schema.ServerMigrations
-import io.craftpanel.master.database.schema.ServerMods
-import io.craftpanel.master.database.schema.ServerNetworks
-import io.craftpanel.master.database.schema.Servers
-import io.craftpanel.master.database.schema.SystemSettings
-import io.craftpanel.master.database.schema.UserGroupAssignments
-import io.craftpanel.master.database.schema.Users
-import org.jetbrains.exposed.v1.core.*
-import org.jetbrains.exposed.v1.jdbc.Database
-import org.jetbrains.exposed.v1.jdbc.SchemaUtils
-import org.jetbrains.exposed.v1.jdbc.deleteAll
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.selectAll
+import io.craftpanel.master.database.schema.*
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
 object TestDatabase {
+
     private var initialized = false
 
     fun initIfNeeded() {

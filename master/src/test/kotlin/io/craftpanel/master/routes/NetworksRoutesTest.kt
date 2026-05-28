@@ -7,44 +7,37 @@ import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.ServerNetworks
-import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
-import io.craftpanel.master.service.NetworkService
+import io.craftpanel.master.service.*
 import io.craftpanel.master.util.toKotlinUuid
 import io.ktor.client.call.*
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
-import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
+import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.response.*
-import io.ktor.server.plugins.statuspages.StatusPages
-import io.craftpanel.master.service.BadGatewayException
-import io.craftpanel.master.service.BadRequestException
-import io.craftpanel.master.service.ConflictException
-import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
-import io.craftpanel.master.service.NotFoundException
-import io.craftpanel.master.service.UnprocessableException
 import io.ktor.server.routing.*
 import io.ktor.server.testing.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.UUID
+import java.util.*
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
+import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
 class NetworksRoutesTest {
 
@@ -101,7 +94,9 @@ class NetworksRoutesTest {
     }
 
     private fun assignGlobalGroup(userId: UUID, groupName: String) = transaction {
-        val groupId = Groups.selectAll().where { Groups.name eq groupName }.first()[Groups.id]
+        val groupId = Groups.selectAll()
+            .where { Groups.name eq groupName }
+            .first()[Groups.id]
         UserGroupAssignments.insert {
             it[UserGroupAssignments.userId] = userId.toKotlinUuid()
             it[UserGroupAssignments.groupId] = groupId
@@ -110,7 +105,9 @@ class NetworksRoutesTest {
     }
 
     private fun assignNetworkGroup(userId: UUID, groupName: String, networkId: UUID) = transaction {
-        val groupId = Groups.selectAll().where { Groups.name eq groupName }.first()[Groups.id]
+        val groupId = Groups.selectAll()
+            .where { Groups.name eq groupName }
+            .first()[Groups.id]
         UserGroupAssignments.insert {
             it[UserGroupAssignments.userId] = userId.toKotlinUuid()
             it[UserGroupAssignments.groupId] = groupId
@@ -177,7 +174,8 @@ class NetworksRoutesTest {
         assertEquals(HttpStatusCode.OK, resp.status)
         val body = resp.body<List<JsonObject>>()
         assertEquals(2, body.size)
-        val names = body.map { it["name"]!!.jsonPrimitive.content }.toSet()
+        val names = body.map { it["name"]!!.jsonPrimitive.content }
+            .toSet()
         assertEquals(setOf("net-a", "net-b"), names)
         body.forEach { assertEquals(0, it["server_count"]!!.jsonPrimitive.content.toInt()) }
     }
@@ -304,7 +302,9 @@ class NetworksRoutesTest {
         }
         assertEquals(HttpStatusCode.NoContent, resp.status)
         val updated = transaction {
-            ServerNetworks.selectAll().where { ServerNetworks.id eq netId.toKotlinUuid() }.first()
+            ServerNetworks.selectAll()
+                .where { ServerNetworks.id eq netId.toKotlinUuid() }
+                .first()
         }
         assertEquals("new-name", updated[ServerNetworks.name])
         assertEquals("updated", updated[ServerNetworks.description])
@@ -378,7 +378,9 @@ class NetworksRoutesTest {
         val resp = client.delete("/api/networks/$netId") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.NoContent, resp.status)
         val exists = transaction {
-            ServerNetworks.selectAll().where { ServerNetworks.id eq netId.toKotlinUuid() }.firstOrNull() != null
+            ServerNetworks.selectAll()
+                .where { ServerNetworks.id eq netId.toKotlinUuid() }
+                .firstOrNull() != null
         }
         assertEquals(false, exists)
     }

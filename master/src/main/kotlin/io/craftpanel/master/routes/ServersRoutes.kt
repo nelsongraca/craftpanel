@@ -1,26 +1,19 @@
 package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.PermissionResolver
-import io.craftpanel.master.service.ContainerMetricsSeriesResponse
-import io.craftpanel.master.service.CreateServerRequest
-import io.craftpanel.master.service.PatchExposureRequest
-import io.craftpanel.master.service.PatchResourcesRequest
-import io.craftpanel.master.service.ServerResponse
-import io.craftpanel.master.service.ServerService
-import io.craftpanel.master.service.UpgradeServerRequest
+import io.craftpanel.master.service.*
 import io.craftpanel.master.util.toKotlinUuid
 import io.github.smiley4.ktoropenapi.delete
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.patch
 import io.github.smiley4.ktoropenapi.post
-import io.ktor.http.HttpStatusCode
-import io.ktor.server.auth.authenticate
-import io.ktor.server.request.receive
-import io.ktor.server.response.respond
-import io.ktor.server.routing.Route
-import io.ktor.server.routing.route
+import io.ktor.http.*
+import io.ktor.server.auth.*
+import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
 import kotlinx.serialization.json.JsonObject
-import java.util.UUID
+import java.util.*
 
 fun Route.serversRoutes(serverService: ServerService) {
     authenticate("auth-jwt") {
@@ -264,7 +257,8 @@ fun Route.serversRoutes(serverService: ServerService) {
                     ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
                 if (!PermissionResolver.hasPermission(userId, "server.view", serverId = UUID.fromString(id.toString()), networkId = info.networkId))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 360) ?: 60
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull()
+                    ?.coerceIn(1, 360) ?: 60
                 call.respond(serverService.getMetrics(id, limit))
             }
 
@@ -296,4 +290,9 @@ fun Route.serversRoutes(serverService: ServerService) {
 }
 
 private fun parseServerId(raw: String?): kotlin.uuid.Uuid? =
-    raw?.let { runCatching { UUID.fromString(it).toKotlinUuid() }.getOrNull() }
+    raw?.let {
+        runCatching {
+            UUID.fromString(it)
+                .toKotlinUuid()
+        }.getOrNull()
+    }

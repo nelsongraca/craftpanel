@@ -2,13 +2,13 @@
 
 Base path: `/api/servers/{id}/mods`
 
-| Method | Path | Permission | Description |
-|---|---|---|---|
-| GET | `/servers/{id}/mods` | `server.mods` | List installed mods |
-| POST | `/servers/{id}/mods` | `server.mods` | Add a mod |
-| PATCH | `/servers/{id}/mods/{modId}` | `server.mods` | Update pin strategy or pinned version |
-| DELETE | `/servers/{id}/mods/{modId}` | `server.mods` | Remove a mod |
-| GET | `/servers/{id}/mods/search` | `server.mods` | Search Modrinth filtered by server loader and version |
+| Method | Path                         | Permission    | Description                                           |
+|--------|------------------------------|---------------|-------------------------------------------------------|
+| GET    | `/servers/{id}/mods`         | `server.mods` | List installed mods                                   |
+| POST   | `/servers/{id}/mods`         | `server.mods` | Add a mod                                             |
+| PATCH  | `/servers/{id}/mods/{modId}` | `server.mods` | Update pin strategy or pinned version                 |
+| DELETE | `/servers/{id}/mods/{modId}` | `server.mods` | Remove a mod                                          |
+| GET    | `/servers/{id}/mods/search`  | `server.mods` | Search Modrinth filtered by server loader and version |
 
 ---
 
@@ -32,7 +32,8 @@ Base path: `/api/servers/{id}/mods`
 }
 ```
 
-`installed_version_id` reflects the last version downloaded by itzg. A difference between `pinned_version_id` and `installed_version_id` indicates the server has not been restarted since the pin was changed.
+`installed_version_id` reflects the last version downloaded by itzg. A difference between `pinned_version_id` and `installed_version_id` indicates the server has not been restarted since the pin was
+changed.
 
 ---
 
@@ -105,9 +106,9 @@ Proxied Modrinth search filtered to the server's loader type and Minecraft versi
 
 **Query parameters:**
 
-| Param | Required | Description |
-|---|---|---|
-| `query` | Yes | Search string |
+| Param   | Required | Description   |
+|---------|----------|---------------|
+| `query` | Yes      | Search string |
 
 **Response `200`:**
 

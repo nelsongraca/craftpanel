@@ -141,6 +141,7 @@ Mods tab on the server detail page.
         <button class="cp-btn" style="padding:3px 8px;">🗑</button>
       </div>
     </div>
+
   </div>
 
   <!-- Add mod -->

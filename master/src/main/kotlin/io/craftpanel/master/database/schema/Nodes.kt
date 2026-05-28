@@ -5,6 +5,7 @@ import org.jetbrains.exposed.v1.datetime.CurrentDateTime
 import org.jetbrains.exposed.v1.datetime.datetime
 
 object Nodes : Table("nodes") {
+
     val id = uuid("id").autoGenerate()
     val displayName = varchar("display_name", 100)
     val hostname = varchar("hostname", 255)

@@ -7,6 +7,7 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 class GrpcServer(private val config: AppConfig, private val controlService: ControlServiceImpl) {
+
     private val log = LoggerFactory.getLogger(GrpcServer::class.java)
     private lateinit var server: Server
 
@@ -20,11 +21,13 @@ class GrpcServer(private val config: AppConfig, private val controlService: Cont
                 File(config.grpc.tlsKeyPath),
             )
             log.info("gRPC TLS enabled (cert: ${config.grpc.tlsCertPath})")
-        } else {
+        }
+        else {
             log.warn("gRPC TLS disabled — plaintext only, not suitable for production")
         }
 
-        server = builder.build().start()
+        server = builder.build()
+            .start()
         log.info("gRPC server started on port ${config.grpc.port}")
         return this
     }

@@ -9,11 +9,9 @@ import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerManager
 import io.grpc.Status
 import io.grpc.StatusException
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
-import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
@@ -42,15 +40,22 @@ class DataServiceImpl(
 
         val callback = object : ResultCallback.Adapter<Frame>() {
             override fun onNext(frame: Frame) {
-                frame.payload?.takeIf { it.isNotEmpty() }?.let { payload ->
-                    trySend(consoleOutput {
-                        this.serverId = serverId
-                        data = ByteString.copyFrom(payload)
-                    })
-                }
+                frame.payload?.takeIf { it.isNotEmpty() }
+                    ?.let { payload ->
+                        trySend(consoleOutput {
+                            this.serverId = serverId
+                            data = ByteString.copyFrom(payload)
+                        })
+                    }
             }
-            override fun onComplete() { close() }
-            override fun onError(t: Throwable) { close(t) }
+
+            override fun onComplete() {
+                close()
+            }
+
+            override fun onError(t: Throwable) {
+                close(t)
+            }
         }
 
         val inputJob = launch {
@@ -80,7 +85,8 @@ class DataServiceImpl(
                         }
                     }
                 }
-            } finally {
+            }
+            finally {
                 runCatching { inputPipe.close() }
             }
         }
@@ -100,22 +106,27 @@ class DataServiceImpl(
         if (!Files.exists(target)) throw StatusException(Status.NOT_FOUND.withDescription("Path not found"))
         if (!Files.isDirectory(target)) throw StatusException(Status.INVALID_ARGUMENT.withDescription("Path is not a directory"))
 
-        val entries = Files.list(target).use { stream ->
-            stream.map { path ->
-                val attrs = runCatching { Files.readAttributes(path, java.nio.file.attribute.BasicFileAttributes::class.java) }.getOrNull()
-                fileEntry {
-                    name = path.fileName.toString()
-                    isDirectory = Files.isDirectory(path)
-                    sizeBytes = attrs?.size() ?: 0L
-                    if (attrs != null) {
-                        modifiedAt = com.google.protobuf.Timestamp.newBuilder()
-                            .setSeconds(attrs.lastModifiedTime().toInstant().epochSecond)
-                            .build()
+        val entries = Files.list(target)
+            .use { stream ->
+                stream.map { path ->
+                    val attrs = runCatching { Files.readAttributes(path, java.nio.file.attribute.BasicFileAttributes::class.java) }.getOrNull()
+                    fileEntry {
+                        name = path.fileName.toString()
+                        isDirectory = Files.isDirectory(path)
+                        sizeBytes = attrs?.size() ?: 0L
+                        if (attrs != null) {
+                            modifiedAt = com.google.protobuf.Timestamp.newBuilder()
+                                .setSeconds(
+                                    attrs.lastModifiedTime()
+                                        .toInstant().epochSecond
+                                )
+                                .build()
+                        }
+                        permissions = posixPermissions(path)
                     }
-                    permissions = posixPermissions(path)
                 }
-            }.toList()
-        }
+                    .toList()
+            }
 
         return listFilesResponse { this.entries.addAll(entries) }
     }
@@ -149,13 +160,16 @@ class DataServiceImpl(
 
         if (Files.isDirectory(target)) {
             if (!request.recursive) {
-                val isEmpty = Files.list(target).use { it.findFirst().isEmpty }
+                val isEmpty = Files.list(target)
+                    .use { it.findFirst().isEmpty }
                 if (!isEmpty) throw StatusException(Status.FAILED_PRECONDITION.withDescription("Directory is not empty; use recursive=true"))
                 Files.delete(target)
-            } else {
+            }
+            else {
                 deleteRecursively(target)
             }
-        } else {
+        }
+        else {
             Files.delete(target)
         }
         return deleteFileResponse { success = true }
@@ -188,7 +202,8 @@ class DataServiceImpl(
         Files.createDirectories(dst.parent)
         if (request.recursive && Files.isDirectory(src)) {
             copyRecursively(src, dst)
-        } else {
+        }
+        else {
             Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING)
         }
         return copyFileResponse { success = true }
@@ -209,11 +224,12 @@ class DataServiceImpl(
                 tempFile = Files.createTempFile("craftpanel-upload-", ".tmp")
             }
             val file = tempFile ?: throw StatusException(Status.INTERNAL.withDescription("Upload stream error"))
-            Files.newOutputStream(file, java.nio.file.StandardOpenOption.APPEND).use { out ->
-                val bytes = chunk.data.toByteArray()
-                out.write(bytes)
-                totalSize += bytes.size
-            }
+            Files.newOutputStream(file, java.nio.file.StandardOpenOption.APPEND)
+                .use { out ->
+                    val bytes = chunk.data.toByteArray()
+                    out.write(bytes)
+                    totalSize += bytes.size
+                }
             if (chunk.isLast) {
                 val root = serverDataRoot(serverId)
                 val dest = safeResolve(root, destPath)
@@ -233,32 +249,37 @@ class DataServiceImpl(
         if (Files.isDirectory(target)) throw StatusException(Status.INVALID_ARGUMENT.withDescription("Path is a directory"))
 
         val buffer = ByteArray(65536)
-        Files.newInputStream(target).use { stream ->
-            var read: Int
-            var first = true
-            while (stream.read(buffer).also { read = it } != -1) {
-                val chunk = buffer.copyOf(read)
-                val isLast = stream.available() == 0
-                emit(downloadFileChunk {
-                    data = ByteString.copyFrom(chunk)
-                    this.isLast = isLast
-                })
-                first = false
+        Files.newInputStream(target)
+            .use { stream ->
+                var read: Int
+                var first = true
+                while (stream.read(buffer)
+                        .also { read = it } != -1
+                ) {
+                    val chunk = buffer.copyOf(read)
+                    val isLast = stream.available() == 0
+                    emit(downloadFileChunk {
+                        data = ByteString.copyFrom(chunk)
+                        this.isLast = isLast
+                    })
+                    first = false
+                }
+                if (first) {
+                    emit(downloadFileChunk { data = ByteString.EMPTY; isLast = true })
+                }
             }
-            if (first) {
-                emit(downloadFileChunk { data = ByteString.EMPTY; isLast = true })
-            }
-        }
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     private fun serverDataRoot(serverId: String): Path =
-        Paths.get(config.dataBasePath, "servers", serverId).normalize()
+        Paths.get(config.dataBasePath, "servers", serverId)
+            .normalize()
 
     private fun safeResolve(root: Path, relativePath: String): Path {
         val clean = relativePath.trimStart('/')
-        val resolved = root.resolve(clean).normalize()
+        val resolved = root.resolve(clean)
+            .normalize()
         if (!resolved.startsWith(root)) {
             throw StatusException(Status.PERMISSION_DENIED.withDescription("Path traversal detected"))
         }
@@ -267,7 +288,8 @@ class DataServiceImpl(
 
     private fun deleteRecursively(path: Path) {
         if (Files.isDirectory(path)) {
-            Files.list(path).use { stream -> stream.forEach { deleteRecursively(it) } }
+            Files.list(path)
+                .use { stream -> stream.forEach { deleteRecursively(it) } }
         }
         Files.delete(path)
     }
@@ -275,10 +297,12 @@ class DataServiceImpl(
     private fun copyRecursively(src: Path, dst: Path) {
         if (Files.isDirectory(src)) {
             Files.createDirectories(dst)
-            Files.list(src).use { stream ->
-                stream.forEach { child -> copyRecursively(child, dst.resolve(child.fileName)) }
-            }
-        } else {
+            Files.list(src)
+                .use { stream ->
+                    stream.forEach { child -> copyRecursively(child, dst.resolve(child.fileName)) }
+                }
+        }
+        else {
             Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING)
         }
     }

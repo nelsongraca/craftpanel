@@ -6,13 +6,13 @@ import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.util.toKotlinUuid
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import java.util.UUID
+import java.util.*
 
 @Serializable
 data class GroupResponse(
@@ -45,7 +45,11 @@ class GroupService {
     fun listGroups(): List<GroupResponse> = transaction { fetchAllGroups() }
 
     fun createGroup(req: CreateGroupRequest): GroupResponse {
-        val exists = transaction { Groups.selectAll().where { Groups.name eq req.name }.firstOrNull() != null }
+        val exists = transaction {
+            Groups.selectAll()
+                .where { Groups.name eq req.name }
+                .firstOrNull() != null
+        }
         if (exists) throw UnprocessableException("Group name already taken")
         val createdId = transaction { Groups.insert { it[Groups.name] = req.name }[Groups.id] }
         return transaction { fetchGroup(UUID.fromString(createdId.toString()))!! }
@@ -55,7 +59,11 @@ class GroupService {
         transaction { fetchGroup(targetId) } ?: throw NotFoundException("Group not found")
 
     fun updateGroup(targetId: UUID, req: PatchGroupRequest): GroupResponse {
-        val existing = transaction { Groups.selectAll().where { Groups.id eq targetId.toKotlinUuid() }.firstOrNull() }
+        val existing = transaction {
+            Groups.selectAll()
+                .where { Groups.id eq targetId.toKotlinUuid() }
+                .firstOrNull()
+        }
             ?: throw NotFoundException("Group not found")
         if (existing[Groups.isSystem]) throw ConflictException("Cannot modify a system group")
         transaction { Groups.update({ Groups.id eq targetId.toKotlinUuid() }) { it[Groups.name] = req.name } }
@@ -63,7 +71,11 @@ class GroupService {
     }
 
     fun deleteGroup(targetId: UUID) {
-        val existing = transaction { Groups.selectAll().where { Groups.id eq targetId.toKotlinUuid() }.firstOrNull() }
+        val existing = transaction {
+            Groups.selectAll()
+                .where { Groups.id eq targetId.toKotlinUuid() }
+                .firstOrNull()
+        }
             ?: throw NotFoundException("Group not found")
         if (existing[Groups.isSystem]) throw ConflictException("Cannot delete a system group")
         transaction {
@@ -74,26 +86,33 @@ class GroupService {
     }
 
     fun setGroupPermissions(targetId: UUID, req: PutGroupPermissionsRequest): GroupResponse {
-        val existing = transaction { Groups.selectAll().where { Groups.id eq targetId.toKotlinUuid() }.firstOrNull() }
+        val existing = transaction {
+            Groups.selectAll()
+                .where { Groups.id eq targetId.toKotlinUuid() }
+                .firstOrNull()
+        }
             ?: throw NotFoundException("Group not found")
         if (existing[Groups.isSystem]) throw ConflictException("Cannot modify a system group")
         val invalid = req.permissions.filter { it !in VALID_PERMISSIONS }
         if (invalid.isNotEmpty()) throw BadRequestException("Invalid permission nodes: ${invalid.joinToString()}")
         transaction {
             GroupPermissions.deleteWhere { GroupPermissions.groupId eq targetId.toKotlinUuid() }
-            req.permissions.distinct().forEach { perm ->
-                GroupPermissions.insert {
-                    it[GroupPermissions.groupId] = targetId.toKotlinUuid()
-                    it[GroupPermissions.permission] = perm
+            req.permissions.distinct()
+                .forEach { perm ->
+                    GroupPermissions.insert {
+                        it[GroupPermissions.groupId] = targetId.toKotlinUuid()
+                        it[GroupPermissions.permission] = perm
+                    }
                 }
-            }
         }
         return transaction { fetchGroup(targetId)!! }
     }
 }
 
 private fun fetchGroup(id: UUID): GroupResponse? {
-    val row = Groups.selectAll().where { Groups.id eq id.toKotlinUuid() }.firstOrNull() ?: return null
+    val row = Groups.selectAll()
+        .where { Groups.id eq id.toKotlinUuid() }
+        .firstOrNull() ?: return null
     val perms = GroupPermissions.selectAll()
         .where { GroupPermissions.groupId eq id.toKotlinUuid() }
         .map { it[GroupPermissions.permission] }
@@ -110,14 +129,15 @@ private fun fetchAllGroups(): List<GroupResponse> {
     val allPerms = GroupPermissions.selectAll()
         .groupBy { it[GroupPermissions.groupId] }
         .mapValues { (_, rows) -> rows.map { it[GroupPermissions.permission] } }
-    return Groups.selectAll().map { row ->
-        val groupId = row[Groups.id]
-        GroupResponse(
-            id = groupId.toString(),
-            name = row[Groups.name],
-            isSystem = row[Groups.isSystem],
-            permissions = allPerms[groupId] ?: emptyList(),
-            createdAt = row[Groups.createdAt].toString(),
-        )
-    }
+    return Groups.selectAll()
+        .map { row ->
+            val groupId = row[Groups.id]
+            GroupResponse(
+                id = groupId.toString(),
+                name = row[Groups.name],
+                isSystem = row[Groups.isSystem],
+                permissions = allPerms[groupId] ?: emptyList(),
+                createdAt = row[Groups.createdAt].toString(),
+            )
+        }
 }

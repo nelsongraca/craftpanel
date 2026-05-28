@@ -4,8 +4,7 @@ import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.auth0.jwt.interfaces.DecodedJWT
 import io.craftpanel.master.config.JwtConfig
-import java.util.Date
-import java.util.UUID
+import java.util.*
 
 data class TokenClaims(
     val userId: UUID,
@@ -15,6 +14,7 @@ data class TokenClaims(
 )
 
 class JwtManager(private val config: JwtConfig) {
+
     val expirySeconds: Long get() = config.expirySeconds
 
     private val algorithm = Algorithm.HMAC256(config.secret)

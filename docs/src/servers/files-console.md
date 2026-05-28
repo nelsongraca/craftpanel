@@ -14,7 +14,7 @@ The file explorer is rooted at the server's data directory bind mount. Users can
 - Download individual files
 
 !!! warning
-    Changes saved via the file editor take effect immediately on disk. For config files read only at startup (like `server.properties` in manual mode), a restart is required for changes to apply in-game.
+Changes saved via the file editor take effect immediately on disk. For config files read only at startup (like `server.properties` in manual mode), a restart is required for changes to apply in-game.
 
 ## Live Console
 
@@ -30,4 +30,4 @@ The console panel provides a real-time view of the container's stdout/stderr out
 - Commands are sent to the container via RCON (game servers) or stdin (proxies), depending on server type
 
 !!! note
-    The console shows raw container output, including itzg startup logs, not just in-game chat and events.
+The console shows raw container output, including itzg startup logs, not just in-game chat and events.

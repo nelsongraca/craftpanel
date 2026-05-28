@@ -40,6 +40,7 @@ No server state is stored solely in agent memory. Master can reconstruct the ful
 
 Because all live data is in bind mounts and all metadata is in PostgreSQL:
 
-- **Node failure** — master detects the node as unreachable; servers are marked offline. Data is on the node's disk. Once the node recovers (or data is copied to a new node via the migration flow), servers can be restarted.
+- **Node failure** — master detects the node as unreachable; servers are marked offline. Data is on the node's disk. Once the node recovers (or data is copied to a new node via the migration flow),
+  servers can be restarted.
 - **Master failure** — running containers continue running unaffected; players stay connected. Once master restarts and reconnects to agents, the dashboard reflects current state again.
 - **Full restore from backup** — export any backup archive, create a new server, and import the archive. Master handles the container setup; the archive provides the world data.

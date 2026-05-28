@@ -5,6 +5,7 @@ import org.jetbrains.exposed.v1.datetime.CurrentDateTime
 import org.jetbrains.exposed.v1.datetime.datetime
 
 object ServerMods : Table("server_mods") {
+
     val id = uuid("id").autoGenerate()
     val serverId = uuid("server_id").references(Servers.id)
     val modrinthProjectId = varchar("modrinth_project_id", 64)

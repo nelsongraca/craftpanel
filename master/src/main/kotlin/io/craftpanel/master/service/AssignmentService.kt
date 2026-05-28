@@ -1,19 +1,17 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.database.schema.Groups
-import io.craftpanel.master.database.schema.ServerNetworks
-import io.craftpanel.master.database.schema.Servers
-import io.craftpanel.master.database.schema.UserGroupAssignments
-import io.craftpanel.master.database.schema.Users
+import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.util.toKotlinUuid
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.UUID
+import java.util.*
 
 @Serializable
 data class AssignmentResponse(
@@ -36,7 +34,11 @@ data class CreateAssignmentRequest(
 class AssignmentService {
 
     fun listAssignments(targetId: UUID): AssignmentsListResponse {
-        val exists = transaction { Users.selectAll().where { Users.id eq targetId.toKotlinUuid() }.firstOrNull() != null }
+        val exists = transaction {
+            Users.selectAll()
+                .where { Users.id eq targetId.toKotlinUuid() }
+                .firstOrNull() != null
+        }
         if (!exists) throw NotFoundException("User not found")
         val assignments = transaction {
             UserGroupAssignments.selectAll()
@@ -60,20 +62,32 @@ class AssignmentService {
         }
 
         val validation = transaction {
-            val userExists = Users.selectAll().where { Users.id eq targetId.toKotlinUuid() }.firstOrNull() != null
-            val groupExists = Groups.selectAll().where { Groups.id eq groupId.toKotlinUuid() }.firstOrNull() != null
+            val userExists = Users.selectAll()
+                .where { Users.id eq targetId.toKotlinUuid() }
+                .firstOrNull() != null
+            val groupExists = Groups.selectAll()
+                .where { Groups.id eq groupId.toKotlinUuid() }
+                .firstOrNull() != null
             val scopeExists = when {
-                scopeId == null -> true
-                req.scopeType == "SERVER" -> Servers.selectAll().where { Servers.id eq scopeId.toKotlinUuid() }.firstOrNull() != null
-                req.scopeType == "NETWORK" -> ServerNetworks.selectAll().where { ServerNetworks.id eq scopeId.toKotlinUuid() }.firstOrNull() != null
-                else -> true
+                scopeId == null            -> true
+                req.scopeType == "SERVER"  -> Servers.selectAll()
+                    .where { Servers.id eq scopeId.toKotlinUuid() }
+                    .firstOrNull() != null
+
+                req.scopeType == "NETWORK" -> ServerNetworks.selectAll()
+                    .where { ServerNetworks.id eq scopeId.toKotlinUuid() }
+                    .firstOrNull() != null
+
+                else                       -> true
             }
-            val alreadyExists = UserGroupAssignments.selectAll().where {
-                (UserGroupAssignments.userId eq targetId.toKotlinUuid()) and
-                (UserGroupAssignments.groupId eq groupId.toKotlinUuid()) and
-                (UserGroupAssignments.scopeType eq req.scopeType) and
-                if (scopeId != null) (UserGroupAssignments.scopeId eq scopeId.toKotlinUuid()) else (UserGroupAssignments.scopeId.isNull())
-            }.firstOrNull() != null
+            val alreadyExists = UserGroupAssignments.selectAll()
+                .where {
+                    (UserGroupAssignments.userId eq targetId.toKotlinUuid()) and
+                            (UserGroupAssignments.groupId eq groupId.toKotlinUuid()) and
+                            (UserGroupAssignments.scopeType eq req.scopeType) and
+                            if (scopeId != null) (UserGroupAssignments.scopeId eq scopeId.toKotlinUuid()) else (UserGroupAssignments.scopeId.isNull())
+                }
+                .firstOrNull() != null
             Triple(userExists && groupExists && scopeExists, alreadyExists, userExists && groupExists)
         }
 
@@ -92,20 +106,23 @@ class AssignmentService {
         return transaction {
             UserGroupAssignments.selectAll()
                 .where { UserGroupAssignments.id eq createdId }
-                .first().toAssignmentResponse()
+                .first()
+                .toAssignmentResponse()
         }
     }
 
     fun deleteAssignment(targetId: UUID, assignmentId: UUID) {
         val deleted = transaction {
-            val exists = UserGroupAssignments.selectAll().where {
-                (UserGroupAssignments.id eq assignmentId.toKotlinUuid()) and
-                (UserGroupAssignments.userId eq targetId.toKotlinUuid())
-            }.firstOrNull() != null
+            val exists = UserGroupAssignments.selectAll()
+                .where {
+                    (UserGroupAssignments.id eq assignmentId.toKotlinUuid()) and
+                            (UserGroupAssignments.userId eq targetId.toKotlinUuid())
+                }
+                .firstOrNull() != null
             if (!exists) return@transaction false
             UserGroupAssignments.deleteWhere {
                 (UserGroupAssignments.id eq assignmentId.toKotlinUuid()) and
-                (UserGroupAssignments.userId eq targetId.toKotlinUuid())
+                        (UserGroupAssignments.userId eq targetId.toKotlinUuid())
             }
             true
         }

@@ -5,45 +5,38 @@ import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
-import io.craftpanel.master.database.schema.GroupPermissions
 import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
-import io.craftpanel.master.service.GroupService
+import io.craftpanel.master.service.*
 import io.craftpanel.master.util.toKotlinUuid
 import io.ktor.client.call.*
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
-import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
+import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.response.*
-import io.ktor.server.plugins.statuspages.StatusPages
-import io.craftpanel.master.service.BadGatewayException
-import io.craftpanel.master.service.BadRequestException
-import io.craftpanel.master.service.ConflictException
-import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
-import io.craftpanel.master.service.NotFoundException
-import io.craftpanel.master.service.UnprocessableException
 import io.ktor.server.routing.*
 import io.ktor.server.testing.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
-import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.UUID
+import java.util.*
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
+import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
 class GroupsRoutesTest {
 
@@ -99,7 +92,9 @@ class GroupsRoutesTest {
     }
 
     private fun assignGlobalGroup(userId: UUID, groupName: String) = transaction {
-        val groupId = Groups.selectAll().where { Groups.name eq groupName }.first()[Groups.id]
+        val groupId = Groups.selectAll()
+            .where { Groups.name eq groupName }
+            .first()[Groups.id]
         UserGroupAssignments.insert {
             it[UserGroupAssignments.userId] = userId.toKotlinUuid()
             it[UserGroupAssignments.groupId] = groupId
@@ -130,7 +125,8 @@ class GroupsRoutesTest {
         assignGlobalGroup(userId, "Super Admin")
         val client = jsonClient()
 
-        val body = client.get("/api/groups") { bearerAuth(tokenFor(userId)) }.body<List<JsonObject>>()
+        val body = client.get("/api/groups") { bearerAuth(tokenFor(userId)) }
+            .body<List<JsonObject>>()
         val superAdmin = body.first { it["name"]!!.jsonPrimitive.content == "Super Admin" }
         assertEquals(true, superAdmin["is_system"]!!.jsonPrimitive.content.toBoolean())
         assertNotNull(superAdmin["created_at"])
@@ -161,7 +157,8 @@ class GroupsRoutesTest {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
             setBody("""{"name":"Moderators"}""")
-        }.body<JsonObject>()
+        }
+            .body<JsonObject>()
 
         assertEquals("Moderators", body["name"]!!.jsonPrimitive.content)
         assertEquals(false, body["is_system"]!!.jsonPrimitive.content.toBoolean())
@@ -192,7 +189,9 @@ class GroupsRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         val superAdminId = transaction {
-            Groups.selectAll().where { Groups.name eq "Super Admin" }.first()[Groups.id].let { UUID.fromString(it.toString()) }
+            Groups.selectAll()
+                .where { Groups.name eq "Super Admin" }
+                .first()[Groups.id].let { UUID.fromString(it.toString()) }
         }
 
         val response = client.patch("/api/groups/$superAdminId") {
@@ -215,7 +214,8 @@ class GroupsRoutesTest {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
             setBody("""{"name":"NewName"}""")
-        }.body<JsonObject>()
+        }
+            .body<JsonObject>()
 
         assertEquals("NewName", body["name"]!!.jsonPrimitive.content)
     }
@@ -242,7 +242,9 @@ class GroupsRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         val superAdminId = transaction {
-            Groups.selectAll().where { Groups.name eq "Super Admin" }.first()[Groups.id].let { UUID.fromString(it.toString()) }
+            Groups.selectAll()
+                .where { Groups.name eq "Super Admin" }
+                .first()[Groups.id].let { UUID.fromString(it.toString()) }
         }
 
         assertEquals(HttpStatusCode.Conflict, client.delete("/api/groups/$superAdminId") { bearerAuth(tokenFor(userId)) }.status)
@@ -258,7 +260,9 @@ class GroupsRoutesTest {
         assertEquals(HttpStatusCode.NoContent, client.delete("/api/groups/$groupId") { bearerAuth(tokenFor(userId)) }.status)
 
         val exists = transaction {
-            Groups.selectAll().where { Groups.id eq groupId.toKotlinUuid() }.firstOrNull() != null
+            Groups.selectAll()
+                .where { Groups.id eq groupId.toKotlinUuid() }
+                .firstOrNull() != null
         }
         assertEquals(false, exists)
     }
@@ -286,7 +290,8 @@ class GroupsRoutesTest {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
             setBody("""{"permissions":["server.view","server.console"]}""")
-        }.body<JsonObject>()
+        }
+            .body<JsonObject>()
 
         val perms = body["permissions"]!!.jsonArray.map { it.jsonPrimitive.content }
         assertEquals(setOf("server.view", "server.console"), perms.toSet())
@@ -313,7 +318,9 @@ class GroupsRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         val viewerId = transaction {
-            Groups.selectAll().where { Groups.name eq "Viewer" }.first()[Groups.id].let { UUID.fromString(it.toString()) }
+            Groups.selectAll()
+                .where { Groups.name eq "Viewer" }
+                .first()[Groups.id].let { UUID.fromString(it.toString()) }
         }
 
         val response = client.put("/api/groups/$viewerId/permissions") {

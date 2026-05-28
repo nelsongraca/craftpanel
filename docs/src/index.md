@@ -1,6 +1,8 @@
 # CraftPanel
 
-CraftPanel is a web-based Minecraft server management platform that wraps [`itzg/minecraft-server`](https://github.com/itzg/docker-minecraft-server) and [`itzg/mc-proxy`](https://github.com/itzg/docker-minecraft-bedrock-server) Docker containers. It provides a multi-user interface for creating, configuring, monitoring, and operating Minecraft server instances across one or more physical or virtual nodes, with role-based access control and a UI suitable for non-technical users.
+CraftPanel is a web-based Minecraft server management platform that wraps [`itzg/minecraft-server`](https://github.com/itzg/docker-minecraft-server) and [
+`itzg/mc-proxy`](https://github.com/itzg/docker-minecraft-bedrock-server) Docker containers. It provides a multi-user interface for creating, configuring, monitoring, and operating Minecraft server
+instances across one or more physical or virtual nodes, with role-based access control and a UI suitable for non-technical users.
 
 ## Design Goals
 
@@ -13,14 +15,14 @@ CraftPanel is a web-based Minecraft server management platform that wraps [`itzg
 
 ## Key Terminology
 
-| Term | Description |
-|---|---|
-| **Master** | Central backend service; source of truth for all nodes, users, and server state |
-| **Node** | A machine running the CraftPanel agent and Docker; hosts server containers |
-| **Agent** | Lightweight service on each node; executes instructions from master, streams metrics |
-| **Server** | A single itzg container instance (game server or proxy) |
+| Term               | Description                                                                            |
+|--------------------|----------------------------------------------------------------------------------------|
+| **Master**         | Central backend service; source of truth for all nodes, users, and server state        |
+| **Node**           | A machine running the CraftPanel agent and Docker; hosts server containers             |
+| **Agent**          | Lightweight service on each node; executes instructions from master, streams metrics   |
+| **Server**         | A single itzg container instance (game server or proxy)                                |
 | **Server Network** | A group of servers (backends + optional proxy) that form one logical Minecraft network |
-| **mc-router** | itzg's purpose-built Minecraft TCP router; one instance per node for player ingress |
+| **mc-router**      | itzg's purpose-built Minecraft TCP router; one instance per node for player ingress    |
 
 ## High-Level Architecture
 

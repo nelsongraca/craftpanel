@@ -1,6 +1,6 @@
 package io.craftpanel.master.config
 
-import io.ktor.server.config.ApplicationConfig
+import io.ktor.server.config.*
 
 data class DatabaseConfig(
     val url: String,
@@ -21,6 +21,7 @@ data class GrpcConfig(
     val tlsCertPath: String,
     val tlsKeyPath: String,
 ) {
+
     val tlsEnabled: Boolean get() = tlsCertPath.isNotBlank() && tlsKeyPath.isNotBlank()
 }
 
@@ -30,25 +31,43 @@ data class NodeConfig(
 )
 
 class AppConfig(config: ApplicationConfig) {
+
     val database = DatabaseConfig(
-        url = config.property("database.url").getString(),
-        username = config.property("database.username").getString(),
-        password = config.property("database.password").getString(),
-        maximumPoolSize = config.property("database.maximumPoolSize").getString().toInt(),
+        url = config.property("database.url")
+            .getString(),
+        username = config.property("database.username")
+            .getString(),
+        password = config.property("database.password")
+            .getString(),
+        maximumPoolSize = config.property("database.maximumPoolSize")
+            .getString()
+            .toInt(),
     )
     val jwt = JwtConfig(
-        secret = config.property("jwt.secret").getString(),
-        issuer = config.property("jwt.issuer").getString(),
-        audience = config.property("jwt.audience").getString(),
-        expirySeconds = config.property("jwt.expirySeconds").getString().toLong(),
+        secret = config.property("jwt.secret")
+            .getString(),
+        issuer = config.property("jwt.issuer")
+            .getString(),
+        audience = config.property("jwt.audience")
+            .getString(),
+        expirySeconds = config.property("jwt.expirySeconds")
+            .getString()
+            .toLong(),
     )
     val grpc = GrpcConfig(
-        port = config.property("grpc.port").getString().toInt(),
-        tlsCertPath = config.property("grpc.tlsCertPath").getString(),
-        tlsKeyPath = config.property("grpc.tlsKeyPath").getString(),
+        port = config.property("grpc.port")
+            .getString()
+            .toInt(),
+        tlsCertPath = config.property("grpc.tlsCertPath")
+            .getString(),
+        tlsKeyPath = config.property("grpc.tlsKeyPath")
+            .getString(),
     )
     val node = NodeConfig(
-        bootstrapToken = config.property("node.bootstrapToken").getString(),
-        agentDataPort = config.property("node.agentDataPort").getString().toIntOrNull() ?: 50052,
+        bootstrapToken = config.property("node.bootstrapToken")
+            .getString(),
+        agentDataPort = config.property("node.agentDataPort")
+            .getString()
+            .toIntOrNull() ?: 50052,
     )
 }

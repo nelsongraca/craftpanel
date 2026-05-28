@@ -2,14 +2,14 @@
 
 Base path: `/api/servers/{id}`
 
-| Method | Path | Permission | Description |
-|---|---|---|---|
-| GET | `/servers/{id}/backups` | `server.backup` | List backups |
-| POST | `/servers/{id}/backups` | `server.backup` | Trigger a manual backup |
-| DELETE | `/servers/{id}/backups/{backupId}` | `server.backup` | Delete a backup |
-| GET | `/servers/{id}/backups/{backupId}/download` | `server.export` | Download backup archive |
-| GET | `/servers/{id}/backup-schedule` | `server.backup` | Get backup schedule and retention config |
-| PUT | `/servers/{id}/backup-schedule` | `server.backup` | Set backup schedule and retention |
+| Method | Path                                        | Permission      | Description                              |
+|--------|---------------------------------------------|-----------------|------------------------------------------|
+| GET    | `/servers/{id}/backups`                     | `server.backup` | List backups                             |
+| POST   | `/servers/{id}/backups`                     | `server.backup` | Trigger a manual backup                  |
+| DELETE | `/servers/{id}/backups/{backupId}`          | `server.backup` | Delete a backup                          |
+| GET    | `/servers/{id}/backups/{backupId}/download` | `server.export` | Download backup archive                  |
+| GET    | `/servers/{id}/backup-schedule`             | `server.backup` | Get backup schedule and retention config |
+| PUT    | `/servers/{id}/backup-schedule`             | `server.backup` | Set backup schedule and retention        |
 
 ---
 

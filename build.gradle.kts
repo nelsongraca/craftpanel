@@ -1,6 +1,3 @@
-import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
-import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
-
 plugins {
     alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.kotlin.serialization) apply false
@@ -35,7 +32,9 @@ val dockerPushAll by tasks.registering {
 // Wire subproject docker tasks into the root aggregators once subprojects configure
 subprojects {
     afterEvaluate {
-        tasks.findByName("dockerBuildImage")?.let { dockerBuildAll.configure { dependsOn(it) } }
-        tasks.findByName("dockerPushImage")?.let { dockerPushAll.configure { dependsOn(it) } }
+        tasks.findByName("dockerBuildImage")
+            ?.let { dockerBuildAll.configure { dependsOn(it) } }
+        tasks.findByName("dockerPushImage")
+            ?.let { dockerPushAll.configure { dependsOn(it) } }
     }
 }

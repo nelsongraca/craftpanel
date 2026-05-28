@@ -6,12 +6,11 @@ import io.craftpanel.master.service.SystemService
 import io.craftpanel.master.service.SystemSettingsResponse
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.patch
-import io.ktor.http.HttpStatusCode
-import io.ktor.server.auth.authenticate
-import io.ktor.server.request.receive
-import io.ktor.server.response.respond
-import io.ktor.server.routing.Route
-import io.ktor.server.routing.route
+import io.ktor.http.*
+import io.ktor.server.auth.*
+import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
 
 fun Route.systemRoutes(systemService: SystemService) {
     authenticate("auth-jwt") {

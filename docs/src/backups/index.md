@@ -20,15 +20,16 @@ Automated backup schedules are configured per server using a **cron expression**
 
 Example expressions:
 
-| Expression | Schedule |
-|---|---|
-| `0 4 * * *` | Daily at 04:00 |
-| `0 */6 * * *` | Every 6 hours |
-| `0 3 * * 0` | Weekly, Sunday at 03:00 |
+| Expression    | Schedule                |
+|---------------|-------------------------|
+| `0 4 * * *`   | Daily at 04:00          |
+| `0 */6 * * *` | Every 6 hours           |
+| `0 3 * * 0`   | Weekly, Sunday at 03:00 |
 
 ## Retention Policy
 
-Each server has a **maximum backup count** limit (configurable per user or group, default 10). Before creating a new backup, master checks the current count. If the limit is reached, the oldest backup is deleted — the agent removes the file and master removes the metadata record.
+Each server has a **maximum backup count** limit (configurable per user or group, default 10). Before creating a new backup, master checks the current count. If the limit is reached, the oldest backup
+is deleted — the agent removes the file and master removes the metadata record.
 
 A hard disk-usage limit may additionally be configured at the node level as a secondary safeguard.
 
@@ -44,4 +45,5 @@ The architecture includes a defined interface for offloading completed backups t
 
 ## Export
 
-Users with `server.export` permission may download the most recent backup (or trigger a fresh one) as a file download streamed via master. The resulting archive is a complete, portable snapshot of the server instance suitable for restoration elsewhere or offline storage.
+Users with `server.export` permission may download the most recent backup (or trigger a fresh one) as a file download streamed via master. The resulting archive is a complete, portable snapshot of the
+server instance suitable for restoration elsewhere or offline storage.

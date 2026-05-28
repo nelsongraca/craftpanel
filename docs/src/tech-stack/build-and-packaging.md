@@ -26,7 +26,8 @@ craftpanel/
 └── settings.gradle.kts
 ```
 
-The `proto/` directory sits at the repo root and is consumed by both `master` and `agent` as a shared source set. Generated Kotlin stubs land in `build/generated/source/proto/` in each module and are never committed. See [gRPC](../grpc/schema.md) for the Protobuf Gradle plugin configuration.
+The `proto/` directory sits at the repo root and is consumed by both `master` and `agent` as a shared source set. Generated Kotlin stubs land in `build/generated/source/proto/` in each module and are
+never committed. See [gRPC](../grpc/schema.md) for the Protobuf Gradle plugin configuration.
 
 ---
 
@@ -36,7 +37,8 @@ The principle applied consistently across all three components:
 
 > **Gradle builds the artifact. Docker only copies the result into a minimal runtime image.**
 
-Single-stage Dockerfiles contain no build tooling. They `COPY` the output of a prior Gradle task and set an entrypoint. This keeps images small, keeps the build environment consistent with the developer's IDE, and avoids the complexity of multi-stage builds that re-invoke Gradle inside Docker.
+Single-stage Dockerfiles contain no build tooling. They `COPY` the output of a prior Gradle task and set an entrypoint. This keeps images small, keeps the build environment consistent with the
+developer's IDE, and avoids the complexity of multi-stage builds that re-invoke Gradle inside Docker.
 
 ---
 
@@ -86,13 +88,15 @@ ENTRYPOINT ["bin/agent"]
 
 ### Docker GID
 
-The agent process needs access to the Docker socket on the host node (`/var/run/docker.sock`). The GID of the `docker` group varies between host distributions. At container startup the agent image detects the GID dynamically:
+The agent process needs access to the Docker socket on the host node (`/var/run/docker.sock`). The GID of the `docker` group varies between host distributions. At container startup the agent image
+detects the GID dynamically:
 
 ```bash
 DOCKER_GID=$(getent group docker | cut -d: -f3)
 ```
 
-This value is passed as a runtime environment variable when running the agent container so the process can be added to the correct group. It can be overridden explicitly if the host uses a non-standard GID.
+This value is passed as a runtime environment variable when running the agent container so the process can be added to the correct group. It can be overridden explicitly if the host uses a
+non-standard GID.
 
 ---
 
@@ -116,7 +120,8 @@ frontend/public/
 
 Next.js is configured with `output: 'standalone'` in `next.config.js`, which produces a self-contained Node.js server with all dependencies inlined.
 
-pnpm is configured with `node-linker=hoisted` in `.npmrc` so that dependencies are installed in a flat `node_modules` layout. This ensures Next.js can trace all required packages into the standalone output; without it, pnpm's content-addressable store causes missing modules at runtime.
+pnpm is configured with `node-linker=hoisted` in `.npmrc` so that dependencies are installed in a flat `node_modules` layout. This ensures Next.js can trace all required packages into the standalone
+output; without it, pnpm's content-addressable store causes missing modules at runtime.
 
 ### Dockerfile
 
@@ -137,7 +142,8 @@ Static assets are copied separately because `standalone/` does not include them 
 
 ## Image build & push
 
-Docker image build and push are handled within Gradle using the `com.bmuschko.docker-remote-api` plugin (v10.0.0). Each module defines its own `dockerBuild` and `dockerPush` tasks. The root build defines aggregation tasks:
+Docker image build and push are handled within Gradle using the `com.bmuschko.docker-remote-api` plugin (v10.0.0). Each module defines its own `dockerBuild` and `dockerPush` tasks. The root build
+defines aggregation tasks:
 
 ```bash
 ./gradlew dockerBuildAll    # builds master, agent, and frontend images
@@ -148,10 +154,10 @@ Docker image build and push are handled within Gradle using the `com.bmuschko.do
 
 Image names are driven by project properties — no hardcoded values:
 
-| Property | Description | Example |
-|---|---|---|
+| Property        | Description     | Example            |
+|-----------------|-----------------|--------------------|
 | `imageRegistry` | Registry prefix | `ghcr.io/your-org` |
-| `imageVersion` | Image tag | `1.0.0`, `latest` |
+| `imageVersion`  | Image tag       | `1.0.0`, `latest`  |
 
 Pass them at invocation time:
 
@@ -173,7 +179,8 @@ If `imageRegistry` is omitted the images are built locally without a registry pr
 
 ### Task dependencies
 
-The `dockerBuild*` tasks declare `installDist` (master, agent) and `assembleFrontend` (frontend) as dependencies, so a plain `./gradlew dockerBuildAll` runs the full build pipeline end to end without manual sequencing.
+The `dockerBuild*` tasks declare `installDist` (master, agent) and `assembleFrontend` (frontend) as dependencies, so a plain `./gradlew dockerBuildAll` runs the full build pipeline end to end without
+manual sequencing.
 
 ---
 

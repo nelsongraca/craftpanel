@@ -57,8 +57,10 @@ tasks.named("assemble") {
 // ---------------------------------------------------------------------------
 // Docker
 // ---------------------------------------------------------------------------
-val imageRegistry: String = rootProject.findProperty("imageRegistry")?.toString() ?: "ghcr.io/nelsongraca/craftpanel"
-val imageVersion: String = rootProject.findProperty("imageVersion")?.toString() ?: "latest"
+val imageRegistry: String = rootProject.findProperty("imageRegistry")
+    ?.toString() ?: "ghcr.io/nelsongraca/craftpanel"
+val imageVersion: String = rootProject.findProperty("imageVersion")
+    ?.toString() ?: "latest"
 val imageName = "$imageRegistry/frontend:$imageVersion"
 
 tasks.register<DockerBuildImage>("dockerBuildImage") {

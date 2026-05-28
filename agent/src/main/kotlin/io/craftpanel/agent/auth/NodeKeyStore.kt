@@ -4,12 +4,15 @@ import org.slf4j.LoggerFactory
 import java.io.File
 
 object NodeKeyStore {
+
     private val log = LoggerFactory.getLogger(NodeKeyStore::class.java)
 
     fun read(keyFilePath: String): String? {
         val file = File(keyFilePath)
         if (!file.exists()) return null
-        return file.readText().trim().takeIf { it.isNotEmpty() }
+        return file.readText()
+            .trim()
+            .takeIf { it.isNotEmpty() }
     }
 
     fun write(keyFilePath: String, key: String) {

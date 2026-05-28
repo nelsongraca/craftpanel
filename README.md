@@ -1,6 +1,7 @@
 # CraftPanel
 
-Self-hosted Minecraft server management platform. Manage servers across multiple nodes from a single web UI, with role-based access control, live console streaming, backups, migration, and Modrinth mod integration.
+Self-hosted Minecraft server management platform. Manage servers across multiple nodes from a single web UI, with role-based access control, live console streaming, backups, migration, and Modrinth
+mod integration.
 
 ## Overview
 
@@ -36,14 +37,14 @@ Game traffic never passes through master. Agents initiate outbound gRPC connecti
 
 ## Stack
 
-| Layer | Technology |
-|---|---|
-| Frontend | Next.js 16, Tailwind CSS v4, shadcn/ui |
-| Backend | Kotlin 2.3, Ktor 3.4, PostgreSQL, Exposed ORM 1.2 |
-| Auth | JWT (HS256, 15 min) + HttpOnly refresh tokens |
-| Agent ↔ Master | gRPC 1.75 over TLS, bidirectional streaming |
-| Containers | Docker via `itzg/minecraft-server`, `itzg/mc-proxy`, `itzg/mc-router` |
-| Build | Gradle (no Makefile, no multi-stage Dockerfiles) |
+| Layer          | Technology                                                            |
+|----------------|-----------------------------------------------------------------------|
+| Frontend       | Next.js 16, Tailwind CSS v4, shadcn/ui                                |
+| Backend        | Kotlin 2.3, Ktor 3.4, PostgreSQL, Exposed ORM 1.2                     |
+| Auth           | JWT (HS256, 15 min) + HttpOnly refresh tokens                         |
+| Agent ↔ Master | gRPC 1.75 over TLS, bidirectional streaming                           |
+| Containers     | Docker via `itzg/minecraft-server`, `itzg/mc-proxy`, `itzg/mc-router` |
+| Build          | Gradle (no Makefile, no multi-stage Dockerfiles)                      |
 
 ## Project Structure
 
@@ -172,28 +173,28 @@ On first start the agent registers itself with master using the bootstrap token.
 
 **Master**
 
-| Variable | Default | Description |
-|---|---|---|
-| `DATABASE_URL` | `jdbc:postgresql://localhost:5432/craftpanel` | PostgreSQL JDBC URL |
-| `DATABASE_USERNAME` | `craftpanel` | Database user |
-| `DATABASE_PASSWORD` | _(empty)_ | Database password |
-| `JWT_SECRET` | `changeme-at-least-32-characters-long` | HMAC secret for JWT signing |
-| `NODE_BOOTSTRAP_TOKEN` | `changeme` | Shared secret for initial node registration |
-| `HTTP_PORT` | `8080` | REST/WebSocket listen port |
-| `GRPC_PORT` | `50051` | gRPC listen port |
-| `GRPC_TLS_CERT` | _(empty)_ | Path to TLS certificate (disables TLS if unset) |
-| `GRPC_TLS_KEY` | _(empty)_ | Path to TLS private key |
+| Variable               | Default                                       | Description                                     |
+|------------------------|-----------------------------------------------|-------------------------------------------------|
+| `DATABASE_URL`         | `jdbc:postgresql://localhost:5432/craftpanel` | PostgreSQL JDBC URL                             |
+| `DATABASE_USERNAME`    | `craftpanel`                                  | Database user                                   |
+| `DATABASE_PASSWORD`    | _(empty)_                                     | Database password                               |
+| `JWT_SECRET`           | `changeme-at-least-32-characters-long`        | HMAC secret for JWT signing                     |
+| `NODE_BOOTSTRAP_TOKEN` | `changeme`                                    | Shared secret for initial node registration     |
+| `HTTP_PORT`            | `8080`                                        | REST/WebSocket listen port                      |
+| `GRPC_PORT`            | `50051`                                       | gRPC listen port                                |
+| `GRPC_TLS_CERT`        | _(empty)_                                     | Path to TLS certificate (disables TLS if unset) |
+| `GRPC_TLS_KEY`         | _(empty)_                                     | Path to TLS private key                         |
 
 **Agent**
 
-| Variable | Default | Description |
-|---|---|---|
-| `MASTER_HOST` | `localhost` | Master hostname or IP |
-| `MASTER_GRPC_PORT` | `50051` | Master gRPC port |
-| `NODE_BOOTSTRAP_TOKEN` | `changeme` | Must match master's `NODE_BOOTSTRAP_TOKEN` |
-| `NODE_KEY_FILE` | `/etc/craftpanel/node.key` | Where the node key is persisted after registration |
-| `GRPC_TLS_CERT` | _(empty)_ | Path to master's TLS cert for verification (leave blank for plaintext) |
-| `DOCKER_SOCKET` | `unix:///var/run/docker.sock` | Docker socket path |
+| Variable               | Default                       | Description                                                            |
+|------------------------|-------------------------------|------------------------------------------------------------------------|
+| `MASTER_HOST`          | `localhost`                   | Master hostname or IP                                                  |
+| `MASTER_GRPC_PORT`     | `50051`                       | Master gRPC port                                                       |
+| `NODE_BOOTSTRAP_TOKEN` | `changeme`                    | Must match master's `NODE_BOOTSTRAP_TOKEN`                             |
+| `NODE_KEY_FILE`        | `/etc/craftpanel/node.key`    | Where the node key is persisted after registration                     |
+| `GRPC_TLS_CERT`        | _(empty)_                     | Path to master's TLS cert for verification (leave blank for plaintext) |
+| `DOCKER_SOCKET`        | `unix:///var/run/docker.sock` | Docker socket path                                                     |
 
 ## Running Tests
 

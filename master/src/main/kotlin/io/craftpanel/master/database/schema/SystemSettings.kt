@@ -5,10 +5,12 @@ import org.jetbrains.exposed.v1.datetime.CurrentDateTime
 import org.jetbrains.exposed.v1.datetime.datetime
 
 object SystemSettings : Table("system_settings") {
+
     val key = varchar("key", 100)
     val value = text("value")
     val updatedAt = datetime("updated_at").defaultExpression(CurrentDateTime)
-    val updatedBy = uuid("updated_by").references(Users.id).nullable()
+    val updatedBy = uuid("updated_by").references(Users.id)
+        .nullable()
 
     override val primaryKey = PrimaryKey(key)
 }

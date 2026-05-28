@@ -5,45 +5,35 @@ import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
-import io.craftpanel.master.database.schema.GroupPermissions
 import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
-import io.craftpanel.master.service.UserService
+import io.craftpanel.master.service.*
 import io.craftpanel.master.util.toKotlinUuid
 import io.ktor.client.call.*
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
-import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
+import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.response.*
-import io.ktor.server.plugins.statuspages.StatusPages
-import io.craftpanel.master.service.BadGatewayException
-import io.craftpanel.master.service.BadRequestException
-import io.craftpanel.master.service.ConflictException
-import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
-import io.craftpanel.master.service.NotFoundException
-import io.craftpanel.master.service.UnprocessableException
 import io.ktor.server.routing.*
 import io.ktor.server.testing.*
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
-import org.jetbrains.exposed.v1.core.*
+import kotlinx.serialization.json.*
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.UUID
+import java.util.*
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
+import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
+import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
 class UsersRoutesTest {
 
@@ -105,7 +95,9 @@ class UsersRoutesTest {
     }
 
     private fun assignGlobalGroup(userId: UUID, groupName: String) = transaction {
-        val groupId = Groups.selectAll().where { Groups.name eq groupName }.first()[Groups.id]
+        val groupId = Groups.selectAll()
+            .where { Groups.name eq groupName }
+            .first()[Groups.id]
         UserGroupAssignments.insert {
             it[UserGroupAssignments.userId] = userId.toKotlinUuid()
             it[UserGroupAssignments.groupId] = groupId
@@ -134,7 +126,8 @@ class UsersRoutesTest {
         createUser(username = "other", email = "other@example.com")
         val client = jsonClient()
 
-        val body = client.get("/api/users") { bearerAuth(tokenFor(userId)) }.body<JsonObject>()
+        val body = client.get("/api/users") { bearerAuth(tokenFor(userId)) }
+            .body<JsonObject>()
         val users = body["users"]!!.jsonArray
         assertEquals(2, users.size)
         assertNotNull(users[0].jsonObject["created_at"])
@@ -166,7 +159,8 @@ class UsersRoutesTest {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
             setBody("""{"username":"newuser","email":"newuser@example.com","password":"secret"}""")
-        }.body<JsonObject>()
+        }
+            .body<JsonObject>()
 
         assertEquals("newuser", body["username"]!!.jsonPrimitive.content)
         assertNotNull(body["id"])
@@ -206,7 +200,8 @@ class UsersRoutesTest {
         assignGlobalGroup(userId, "Super Admin")
         val client = jsonClient()
 
-        val body = client.get("/api/users/$userId") { bearerAuth(tokenFor(userId)) }.body<JsonObject>()
+        val body = client.get("/api/users/$userId") { bearerAuth(tokenFor(userId)) }
+            .body<JsonObject>()
         assertEquals(userId.toString(), body["id"]!!.jsonPrimitive.content)
         assertNotNull(body["created_at"])
     }
@@ -237,7 +232,8 @@ class UsersRoutesTest {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
             setBody("""{"email":"updated@example.com","is_active":false}""")
-        }.body<JsonObject>()
+        }
+            .body<JsonObject>()
 
         assertEquals("updated@example.com", body["email"]!!.jsonPrimitive.content)
         assertEquals(false, body["is_active"]!!.jsonPrimitive.content.toBoolean())
@@ -292,7 +288,9 @@ class UsersRoutesTest {
         assertEquals(HttpStatusCode.NoContent, client.delete("/api/users/$targetId") { bearerAuth(tokenFor(userId)) }.status)
 
         val exists = transaction {
-            Users.selectAll().where { Users.id eq targetId.toKotlinUuid() }.firstOrNull() != null
+            Users.selectAll()
+                .where { Users.id eq targetId.toKotlinUuid() }
+                .firstOrNull() != null
         }
         assertEquals(false, exists)
     }

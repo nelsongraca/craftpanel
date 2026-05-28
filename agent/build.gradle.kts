@@ -29,7 +29,10 @@ val dockerGid: String = (findProperty("dockerGid")?.toString())
             commandLine("getent", "group", "docker")
         }
         // getent output: "docker:x:GID:..."
-        result.standardOutput.asText.get().trim().split(":").getOrNull(2) ?: "999"
+        result.standardOutput.asText.get()
+            .trim()
+            .split(":")
+            .getOrNull(2) ?: "999"
     }
 
 dependencies {
@@ -63,10 +66,14 @@ tasks.withType<Test> {
 // ---------------------------------------------------------------------------
 // Protobuf code generation
 // ---------------------------------------------------------------------------
-val catalog = extensions.getByType<VersionCatalogsExtension>().named("libs")
-val protocVersion = catalog.findVersion("protobuf").get().requiredVersion
-val grpcVersion = catalog.findVersion("grpc").get().requiredVersion
-val grpcKotlinVersion = catalog.findVersion("grpc-kotlin").get().requiredVersion
+val catalog = extensions.getByType<VersionCatalogsExtension>()
+    .named("libs")
+val protocVersion = catalog.findVersion("protobuf")
+    .get().requiredVersion
+val grpcVersion = catalog.findVersion("grpc")
+    .get().requiredVersion
+val grpcKotlinVersion = catalog.findVersion("grpc-kotlin")
+    .get().requiredVersion
 
 protobuf {
     protoc {
@@ -103,8 +110,10 @@ protobuf {
 // ---------------------------------------------------------------------------
 // Docker
 // ---------------------------------------------------------------------------
-val imageRegistry: String = rootProject.findProperty("imageRegistry")?.toString() ?: "ghcr.io/nelsongraca/craftpanel"
-val imageVersion: String = rootProject.findProperty("imageVersion")?.toString() ?: "latest"
+val imageRegistry: String = rootProject.findProperty("imageRegistry")
+    ?.toString() ?: "ghcr.io/nelsongraca/craftpanel"
+val imageVersion: String = rootProject.findProperty("imageVersion")
+    ?.toString() ?: "latest"
 val imageName = "$imageRegistry/agent:$imageVersion"
 
 tasks.register<DockerBuildImage>("dockerBuildImage") {

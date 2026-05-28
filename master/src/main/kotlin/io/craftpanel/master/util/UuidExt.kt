@@ -1,6 +1,6 @@
 package io.craftpanel.master.util
 
-import java.util.UUID
+import java.util.*
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
 

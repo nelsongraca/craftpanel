@@ -5,12 +5,14 @@ import io.craftpanel.master.database.schema.AlertThresholds
 import io.craftpanel.master.util.toKotlinUuid
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.UUID
+import java.util.*
 
 @Serializable
 data class AlertThresholdResponse(
@@ -45,20 +47,22 @@ class AlertService {
 
     fun listThresholds(scopeType: String?, scopeId: kotlin.uuid.Uuid?): List<AlertThresholdResponse> =
         transaction {
-            AlertThresholds.selectAll().apply {
-                if (scopeType != null) where { AlertThresholds.scopeType eq scopeType }
-                if (scopeId != null) where { AlertThresholds.scopeId eq scopeId }
-            }.map { row ->
-                AlertThresholdResponse(
-                    id = row[AlertThresholds.id].toString(),
-                    scopeType = row[AlertThresholds.scopeType],
-                    scopeId = row[AlertThresholds.scopeId].toString(),
-                    metric = row[AlertThresholds.metric],
-                    thresholdValue = row[AlertThresholds.thresholdValue],
-                    thresholdState = row[AlertThresholds.thresholdState],
-                    createdAt = row[AlertThresholds.createdAt].toString(),
-                )
-            }
+            AlertThresholds.selectAll()
+                .apply {
+                    if (scopeType != null) where { AlertThresholds.scopeType eq scopeType }
+                    if (scopeId != null) where { AlertThresholds.scopeId eq scopeId }
+                }
+                .map { row ->
+                    AlertThresholdResponse(
+                        id = row[AlertThresholds.id].toString(),
+                        scopeType = row[AlertThresholds.scopeType],
+                        scopeId = row[AlertThresholds.scopeId].toString(),
+                        metric = row[AlertThresholds.metric],
+                        thresholdValue = row[AlertThresholds.thresholdValue],
+                        thresholdState = row[AlertThresholds.thresholdState],
+                        createdAt = row[AlertThresholds.createdAt].toString(),
+                    )
+                }
         }
 
     fun createThreshold(req: CreateAlertThresholdRequest): AlertThresholdResponse {
@@ -66,7 +70,10 @@ class AlertService {
             throw UnprocessableException("Exactly one of threshold_value or threshold_state must be provided")
         if (req.scopeType !in setOf("NODE", "SERVER"))
             throw UnprocessableException("scope_type must be NODE or SERVER")
-        val scopeKotlinId = runCatching { UUID.fromString(req.scopeId).toKotlinUuid() }.getOrNull()
+        val scopeKotlinId = runCatching {
+            UUID.fromString(req.scopeId)
+                .toKotlinUuid()
+        }.getOrNull()
             ?: throw UnprocessableException("Invalid scope_id")
         return transaction {
             val id = AlertThresholds.insert {
@@ -76,17 +83,20 @@ class AlertService {
                 it[AlertThresholds.thresholdValue] = req.thresholdValue
                 it[AlertThresholds.thresholdState] = req.thresholdState
             }[AlertThresholds.id]
-            AlertThresholds.selectAll().where { AlertThresholds.id eq id }.first().let { row ->
-                AlertThresholdResponse(
-                    id = row[AlertThresholds.id].toString(),
-                    scopeType = row[AlertThresholds.scopeType],
-                    scopeId = row[AlertThresholds.scopeId].toString(),
-                    metric = row[AlertThresholds.metric],
-                    thresholdValue = row[AlertThresholds.thresholdValue],
-                    thresholdState = row[AlertThresholds.thresholdState],
-                    createdAt = row[AlertThresholds.createdAt].toString(),
-                )
-            }
+            AlertThresholds.selectAll()
+                .where { AlertThresholds.id eq id }
+                .first()
+                .let { row ->
+                    AlertThresholdResponse(
+                        id = row[AlertThresholds.id].toString(),
+                        scopeType = row[AlertThresholds.scopeType],
+                        scopeId = row[AlertThresholds.scopeId].toString(),
+                        metric = row[AlertThresholds.metric],
+                        thresholdValue = row[AlertThresholds.thresholdValue],
+                        thresholdState = row[AlertThresholds.thresholdState],
+                        createdAt = row[AlertThresholds.createdAt].toString(),
+                    )
+                }
         }
     }
 

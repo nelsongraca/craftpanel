@@ -4,7 +4,9 @@ import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.Servers
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -65,24 +67,27 @@ class NetworkService {
         val counts = Servers.selectAll()
             .groupBy({ it[Servers.networkId] }, { 1 })
             .mapValues { (_, v) -> v.size }
-        ServerNetworks.selectAll().map { row ->
-            val netId = row[ServerNetworks.id]
-            NetworkResponse(
-                id = netId.toString(),
-                name = row[ServerNetworks.name],
-                type = row[ServerNetworks.type],
-                proxyType = row[ServerNetworks.proxyType],
-                proxyPort = row[ServerNetworks.proxyPort],
-                description = row[ServerNetworks.description],
-                serverCount = counts[netId] ?: 0,
-                createdAt = row[ServerNetworks.createdAt].toString(),
-            )
-        }
+        ServerNetworks.selectAll()
+            .map { row ->
+                val netId = row[ServerNetworks.id]
+                NetworkResponse(
+                    id = netId.toString(),
+                    name = row[ServerNetworks.name],
+                    type = row[ServerNetworks.type],
+                    proxyType = row[ServerNetworks.proxyType],
+                    proxyPort = row[ServerNetworks.proxyPort],
+                    description = row[ServerNetworks.description],
+                    serverCount = counts[netId] ?: 0,
+                    createdAt = row[ServerNetworks.createdAt].toString(),
+                )
+            }
     }
 
     fun createNetwork(req: CreateNetworkRequest): NetworkResponse {
         val nameTaken = transaction {
-            ServerNetworks.selectAll().where { ServerNetworks.name eq req.name }.firstOrNull() != null
+            ServerNetworks.selectAll()
+                .where { ServerNetworks.name eq req.name }
+                .firstOrNull() != null
         }
         if (nameTaken) throw ConflictException("Network name already taken")
         return transaction {
@@ -93,7 +98,9 @@ class NetworkService {
                 it[proxyPort] = req.proxyPort
                 it[description] = req.description
             }[ServerNetworks.id]
-            val row = ServerNetworks.selectAll().where { ServerNetworks.id eq insertedId }.first()
+            val row = ServerNetworks.selectAll()
+                .where { ServerNetworks.id eq insertedId }
+                .first()
             NetworkResponse(
                 id = insertedId.toString(),
                 name = row[ServerNetworks.name],
@@ -109,16 +116,20 @@ class NetworkService {
 
     fun getNetwork(id: kotlin.uuid.Uuid): NetworkDetailResponse =
         transaction {
-            val row = ServerNetworks.selectAll().where { ServerNetworks.id eq id }.firstOrNull()
+            val row = ServerNetworks.selectAll()
+                .where { ServerNetworks.id eq id }
+                .firstOrNull()
                 ?: return@transaction null
-            val members = Servers.selectAll().where { Servers.networkId eq id }.map { s ->
-                NetworkServerItem(
-                    id = s[Servers.id].toString(),
-                    displayName = s[Servers.displayName],
-                    serverType = s[Servers.serverType],
-                    status = s[Servers.status],
-                )
-            }
+            val members = Servers.selectAll()
+                .where { Servers.networkId eq id }
+                .map { s ->
+                    NetworkServerItem(
+                        id = s[Servers.id].toString(),
+                        displayName = s[Servers.displayName],
+                        serverType = s[Servers.serverType],
+                        status = s[Servers.status],
+                    )
+                }
             NetworkDetailResponse(
                 id = row[ServerNetworks.id].toString(),
                 name = row[ServerNetworks.name],
@@ -134,7 +145,9 @@ class NetworkService {
 
     fun updateNetwork(id: kotlin.uuid.Uuid, req: PatchNetworkRequest) {
         val result: Boolean? = transaction {
-            val exists = ServerNetworks.selectAll().where { ServerNetworks.id eq id }.firstOrNull() != null
+            val exists = ServerNetworks.selectAll()
+                .where { ServerNetworks.id eq id }
+                .firstOrNull() != null
             if (!exists) return@transaction false
             if (req.name != null) {
                 val nameTaken = ServerNetworks.selectAll()
@@ -149,15 +162,17 @@ class NetworkService {
             true
         }
         when (result) {
-            null -> throw ConflictException("Network name already taken")
+            null  -> throw ConflictException("Network name already taken")
             false -> throw NotFoundException("Network not found")
-            else -> Unit
+            else  -> Unit
         }
     }
 
     fun deleteNetwork(id: kotlin.uuid.Uuid) {
         val deleted = transaction {
-            val exists = ServerNetworks.selectAll().where { ServerNetworks.id eq id }.firstOrNull() != null
+            val exists = ServerNetworks.selectAll()
+                .where { ServerNetworks.id eq id }
+                .firstOrNull() != null
             if (!exists) return@transaction false
             Servers.update({ Servers.networkId eq id }) { it[networkId] = null }
             ServerNetworks.deleteWhere { ServerNetworks.id eq id }

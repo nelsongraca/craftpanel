@@ -10,13 +10,12 @@ import io.github.smiley4.ktoropenapi.delete
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.patch
 import io.github.smiley4.ktoropenapi.post
-import io.ktor.http.HttpStatusCode
-import io.ktor.server.auth.authenticate
-import io.ktor.server.request.receive
-import io.ktor.server.response.respond
-import io.ktor.server.routing.Route
-import io.ktor.server.routing.route
-import java.util.UUID
+import io.ktor.http.*
+import io.ktor.server.auth.*
+import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
+import java.util.*
 
 fun Route.modsRoutes(modService: ModService) {
     authenticate("auth-jwt") {
@@ -84,7 +83,12 @@ fun Route.modsRoutes(modService: ModService) {
                 val userId = call.userId()
                 val id = parseModServerId(call.parameters["id"])
                     ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
-                val modId = call.parameters["modId"]?.let { runCatching { UUID.fromString(it).toKotlinUuid() }.getOrNull() }
+                val modId = call.parameters["modId"]?.let {
+                    runCatching {
+                        UUID.fromString(it)
+                            .toKotlinUuid()
+                    }.getOrNull()
+                }
                     ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid mod ID"))
                 val scope = modService.getServerScope(id)
                     ?: return@patch call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
@@ -109,7 +113,12 @@ fun Route.modsRoutes(modService: ModService) {
                 val userId = call.userId()
                 val id = parseModServerId(call.parameters["id"])
                     ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
-                val modId = call.parameters["modId"]?.let { runCatching { UUID.fromString(it).toKotlinUuid() }.getOrNull() }
+                val modId = call.parameters["modId"]?.let {
+                    runCatching {
+                        UUID.fromString(it)
+                            .toKotlinUuid()
+                    }.getOrNull()
+                }
                     ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid mod ID"))
                 val scope = modService.getServerScope(id)
                     ?: return@delete call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
@@ -140,7 +149,8 @@ fun Route.modsRoutes(modService: ModService) {
                 if (!PermissionResolver.hasPermission(userId, "server.mods", serverId = serverIdJava, networkId = scope.networkId))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val query = call.request.queryParameters["query"]?.takeIf { it.isNotBlank() } ?: ""
-                val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 20) ?: 10
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull()
+                    ?.coerceIn(1, 20) ?: 10
                 val result = modService.searchModrinth(query, limit)
                 call.response.headers.append("Content-Type", "application/json")
                 call.respond(HttpStatusCode.fromValue(result.statusCode), result.body)
@@ -150,4 +160,9 @@ fun Route.modsRoutes(modService: ModService) {
 }
 
 private fun parseModServerId(raw: String?): kotlin.uuid.Uuid? =
-    raw?.let { runCatching { UUID.fromString(it).toKotlinUuid() }.getOrNull() }
+    raw?.let {
+        runCatching {
+            UUID.fromString(it)
+                .toKotlinUuid()
+        }.getOrNull()
+    }

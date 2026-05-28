@@ -43,17 +43,17 @@ Text uses warm off-white rather than pure white, which complements the warm surf
 
 ### Semantic — status
 
-| Token              | Hex                      |   | Usage                                     |
-|--------------------|--------------------------|:--|-------------------------------------------|
-| `--healthy`        | `#4ade80`                | <swat-ch hex="#4ade80"></swat-ch>  | HEALTHY badge, active node dot            |
+| Token              | Hex                      |                                                  | Usage                                     |
+|--------------------|--------------------------|:-------------------------------------------------|-------------------------------------------|
+| `--healthy`        | `#4ade80`                | <swat-ch hex="#4ade80"></swat-ch>                | HEALTHY badge, active node dot            |
 | `--healthy-bg`     | `rgba(74,222,128,0.08)`  | <swat-ch hex="rgba(74,222,128,0.08)"></swat-ch>  | HEALTHY badge background                  |
 | `--healthy-border` | `rgba(74,222,128,0.18)`  | <swat-ch hex="rgba(74,222,128,0.18)"></swat-ch>  | HEALTHY badge border                      |
-| `--error`          | `#f87171`                | <swat-ch hex="#f87171"></swat-ch>  | UNHEALTHY badge, alert bar, critical chip |
-| `--error-bg`       | `rgba(248,113,113,0.08)` | <swat-ch hex="rgba(248,113,113,0.08)"></swat-ch>  | UNHEALTHY badge background                |
+| `--error`          | `#f87171`                | <swat-ch hex="#f87171"></swat-ch>                | UNHEALTHY badge, alert bar, critical chip |
+| `--error-bg`       | `rgba(248,113,113,0.08)` | <swat-ch hex="rgba(248,113,113,0.08)"></swat-ch> | UNHEALTHY badge background                |
 | `--error-border`   | `rgba(248,113,113,0.2)`  | <swat-ch hex="rgba(248,113,113,0.2)"></swat-ch>  | UNHEALTHY badge border                    |
-| `--warning`        | `#fbbf24`                | <swat-ch hex="#fbbf24"></swat-ch>  | Warning alerts, metric bars above 65%     |
+| `--warning`        | `#fbbf24`                | <swat-ch hex="#fbbf24"></swat-ch>                | Warning alerts, metric bars above 65%     |
 | `--warning-bg`     | `rgba(251,191,36,0.08)`  | <swat-ch hex="rgba(251,191,36,0.08)"></swat-ch>  | Warning badge background                  |
-| `--warning-border` | `rgba(251,191,36,0.2)`   | <swat-ch hex="rgba(251,191,36,0.2)"></swat-ch>  | Warning badge border                      |
+| `--warning-border` | `rgba(251,191,36,0.2)`   | <swat-ch hex="rgba(251,191,36,0.2)"></swat-ch>   | Warning badge border                      |
 
 Semantic colours intentionally diverge from the amber accent — amber is brand, yellow/green/red are status. They must never be confused.
 

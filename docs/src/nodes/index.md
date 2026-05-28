@@ -17,23 +17,25 @@ Node registration is fully agent-initiated over gRPC. There is no UI step to cre
 On subsequent agent restarts the agent reads its stored node key and calls `IdentifyNode` instead of `RegisterNode`. No bootstrap token is needed after first registration.
 
 !!! note "Security"
-    A leaked bootstrap token can only produce `PENDING` node records. These are harmless — they have no effect on the system until an admin explicitly trusts them. Rotate the bootstrap token in master config and restart master if it is compromised.
+A leaked bootstrap token can only produce `PENDING` node records. These are harmless — they have no effect on the system until an admin explicitly trusts them. Rotate the bootstrap token in master
+config and restart master if it is compromised.
 
 ## Key Rotation
 
-A node key can be rotated from the UI at any time. Master immediately invalidates the old key — the agent will be rejected on its next connection and must re-register using the bootstrap token (clear the local key file and restart the agent).
+A node key can be rotated from the UI at any time. Master immediately invalidates the old key — the agent will be rejected on its next connection and must re-register using the bootstrap token (clear
+the local key file and restart the agent).
 
 ## Metrics Collection
 
 The agent collects and streams the following to master continuously, reading from the Linux `/proc` filesystem. No additional monitoring software is required on nodes.
 
-| Metric | Source |
-|---|---|
-| CPU utilisation (per-core and aggregate) | `/proc/stat` |
-| RAM usage (total, used, available) | `/proc/meminfo` |
-| Network I/O (bytes in/out per interface) | `/proc/net/dev` |
-| Disk usage (total, used, free) | `/proc/mounts` + `statfs` |
-| Per-container CPU, RAM, network, block I/O | Docker Stats API |
+| Metric                                     | Source                    |
+|--------------------------------------------|---------------------------|
+| CPU utilisation (per-core and aggregate)   | `/proc/stat`              |
+| RAM usage (total, used, available)         | `/proc/meminfo`           |
+| Network I/O (bytes in/out per interface)   | `/proc/net/dev`           |
+| Disk usage (total, used, free)             | `/proc/mounts` + `statfs` |
+| Per-container CPU, RAM, network, block I/O | Docker Stats API          |
 
 Master stores metric snapshots at **1-minute intervals** in PostgreSQL. Historical data is retained for a configurable period (default 30 days).
 
@@ -43,4 +45,5 @@ Each node has a configured resource envelope (total allocatable RAM, CPU shares)
 
 ## Colocation with Master
 
-The master backend, PostgreSQL, and frontend may share hardware with a node agent. In this configuration the master node also hosts server containers alongside the management stack. Resource allocated to server containers is tracked and subtracted from the node's available capacity the same as any other node.
+The master backend, PostgreSQL, and frontend may share hardware with a node agent. In this configuration the master node also hosts server containers alongside the management stack. Resource allocated
+to server containers is tracked and subtracted from the node's available capacity the same as any other node.

@@ -7,13 +7,16 @@ import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.util.toKotlinUuid
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.neq
+import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import java.util.UUID
+import java.util.*
 
 @Serializable
 data class CreateUserRequest(val username: String, val email: String, val password: String)
@@ -40,7 +43,10 @@ data class UsersListResponse(val users: List<UserResponse>)
 class UserService {
 
     fun listUsers(): UsersListResponse =
-        UsersListResponse(transaction { Users.selectAll().map { it.toUserResponse() } })
+        UsersListResponse(transaction {
+            Users.selectAll()
+                .map { it.toUserResponse() }
+        })
 
     fun createUser(req: CreateUserRequest): UserResponse {
         val hash = Argon2Hasher.hash(req.password)
@@ -57,16 +63,28 @@ class UserService {
                 it[Users.passwordHash] = hash
             }[Users.id]
         }
-        return transaction { Users.selectAll().where { Users.id eq createdId }.first().toUserResponse() }
+        return transaction {
+            Users.selectAll()
+                .where { Users.id eq createdId }
+                .first()
+                .toUserResponse()
+        }
     }
 
     fun getUser(targetId: UUID): UserResponse =
         transaction {
-            Users.selectAll().where { Users.id eq targetId.toKotlinUuid() }.firstOrNull()?.toUserResponse()
+            Users.selectAll()
+                .where { Users.id eq targetId.toKotlinUuid() }
+                .firstOrNull()
+                ?.toUserResponse()
         } ?: throw NotFoundException("User not found")
 
     fun updateUser(targetId: UUID, req: PatchUserRequest): UserResponse {
-        transaction { Users.selectAll().where { Users.id eq targetId.toKotlinUuid() }.firstOrNull() }
+        transaction {
+            Users.selectAll()
+                .where { Users.id eq targetId.toKotlinUuid() }
+                .firstOrNull()
+        }
             ?: throw NotFoundException("User not found")
 
         if (req.username != null || req.email != null) {
@@ -89,12 +107,19 @@ class UserService {
                 if (req.isActive != null) it[Users.isActive] = req.isActive
             }
         }
-        return transaction { Users.selectAll().where { Users.id eq targetId.toKotlinUuid() }.first().toUserResponse() }
+        return transaction {
+            Users.selectAll()
+                .where { Users.id eq targetId.toKotlinUuid() }
+                .first()
+                .toUserResponse()
+        }
     }
 
     fun deleteUser(targetId: UUID) {
         val deleted = transaction {
-            val exists = Users.selectAll().where { Users.id eq targetId.toKotlinUuid() }.firstOrNull() != null
+            val exists = Users.selectAll()
+                .where { Users.id eq targetId.toKotlinUuid() }
+                .firstOrNull() != null
             if (!exists) return@transaction false
             UserGroupAssignments.deleteWhere { UserGroupAssignments.userId eq targetId.toKotlinUuid() }
             RefreshTokens.deleteWhere { RefreshTokens.userId eq targetId.toKotlinUuid() }

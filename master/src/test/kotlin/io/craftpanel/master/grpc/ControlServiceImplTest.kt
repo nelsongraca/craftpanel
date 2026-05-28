@@ -10,17 +10,12 @@ import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.ServerMigrations
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.util.toKotlinUuid
-import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
-import java.util.UUID
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
+import java.util.*
+import kotlin.test.*
 
 class ControlServiceImplTest {
 
@@ -42,7 +37,10 @@ class ControlServiceImplTest {
             it[Nodes.displayName] = "Test Node"
             it[Nodes.publicIp] = "1.2.3.4"
             it[Nodes.privateIp] = "10.0.0.1"
-            it[Nodes.tokenHash] = UUID.randomUUID().toString().replace("-", "").padEnd(64, '0')
+            it[Nodes.tokenHash] = UUID.randomUUID()
+                .toString()
+                .replace("-", "")
+                .padEnd(64, '0')
             it[Nodes.status] = status
         }[Nodes.id].let { UUID.fromString(it.toString()) }
     }
@@ -77,27 +75,39 @@ class ControlServiceImplTest {
     }
 
     private fun serverStatus(serverId: UUID): String = transaction {
-        Servers.selectAll().where { Servers.id eq serverId.toKotlinUuid() }.first()[Servers.status]
+        Servers.selectAll()
+            .where { Servers.id eq serverId.toKotlinUuid() }
+            .first()[Servers.status]
     }
 
     private fun nodeStatus(nodeId: UUID): String = transaction {
-        Nodes.selectAll().where { Nodes.id eq nodeId.toKotlinUuid() }.first()[Nodes.status]
+        Nodes.selectAll()
+            .where { Nodes.id eq nodeId.toKotlinUuid() }
+            .first()[Nodes.status]
     }
 
     private fun migrationStatus(migrationId: UUID): String = transaction {
-        ServerMigrations.selectAll().where { ServerMigrations.id eq migrationId.toKotlinUuid() }.first()[ServerMigrations.status]
+        ServerMigrations.selectAll()
+            .where { ServerMigrations.id eq migrationId.toKotlinUuid() }
+            .first()[ServerMigrations.status]
     }
 
     private fun migrationCompletedAt(migrationId: UUID) = transaction {
-        ServerMigrations.selectAll().where { ServerMigrations.id eq migrationId.toKotlinUuid() }.first()[ServerMigrations.completedAt]
+        ServerMigrations.selectAll()
+            .where { ServerMigrations.id eq migrationId.toKotlinUuid() }
+            .first()[ServerMigrations.completedAt]
     }
 
     private fun backupStatus(backupId: UUID): String = transaction {
-        Backups.selectAll().where { Backups.id eq backupId.toKotlinUuid() }.first()[Backups.status]
+        Backups.selectAll()
+            .where { Backups.id eq backupId.toKotlinUuid() }
+            .first()[Backups.status]
     }
 
     private fun backupCompletedAt(backupId: UUID) = transaction {
-        Backups.selectAll().where { Backups.id eq backupId.toKotlinUuid() }.first()[Backups.completedAt]
+        Backups.selectAll()
+            .where { Backups.id eq backupId.toKotlinUuid() }
+            .first()[Backups.completedAt]
     }
 
     // -------------------------------------------------------------------------

@@ -1,23 +1,18 @@
 package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.PermissionResolver
-import io.craftpanel.master.service.CreateNetworkRequest
-import io.craftpanel.master.service.NetworkDetailResponse
-import io.craftpanel.master.service.NetworkResponse
-import io.craftpanel.master.service.NetworkService
-import io.craftpanel.master.service.PatchNetworkRequest
+import io.craftpanel.master.service.*
 import io.craftpanel.master.util.toKotlinUuid
 import io.github.smiley4.ktoropenapi.delete
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.patch
 import io.github.smiley4.ktoropenapi.post
-import io.ktor.http.HttpStatusCode
-import io.ktor.server.auth.authenticate
-import io.ktor.server.request.receive
-import io.ktor.server.response.respond
-import io.ktor.server.routing.Route
-import io.ktor.server.routing.route
-import java.util.UUID
+import io.ktor.http.*
+import io.ktor.server.auth.*
+import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
+import java.util.*
 
 fun Route.networksRoutes(networkService: NetworkService) {
     authenticate("auth-jwt") {
@@ -123,4 +118,9 @@ fun Route.networksRoutes(networkService: NetworkService) {
 }
 
 private fun parseNetworkId(raw: String?): kotlin.uuid.Uuid? =
-    raw?.let { runCatching { UUID.fromString(it).toKotlinUuid() }.getOrNull() }
+    raw?.let {
+        runCatching {
+            UUID.fromString(it)
+                .toKotlinUuid()
+        }.getOrNull()
+    }

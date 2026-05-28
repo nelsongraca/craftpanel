@@ -67,10 +67,14 @@ dependencies {
 // ---------------------------------------------------------------------------
 // Protobuf code generation
 // ---------------------------------------------------------------------------
-val catalog = extensions.getByType<VersionCatalogsExtension>().named("libs")
-val protocVersion = catalog.findVersion("protobuf").get().requiredVersion
-val grpcVersion = catalog.findVersion("grpc").get().requiredVersion
-val grpcKotlinVersion = catalog.findVersion("grpc-kotlin").get().requiredVersion
+val catalog = extensions.getByType<VersionCatalogsExtension>()
+    .named("libs")
+val protocVersion = catalog.findVersion("protobuf")
+    .get().requiredVersion
+val grpcVersion = catalog.findVersion("grpc")
+    .get().requiredVersion
+val grpcKotlinVersion = catalog.findVersion("grpc-kotlin")
+    .get().requiredVersion
 
 protobuf {
     protoc {
@@ -107,15 +111,18 @@ protobuf {
 // ---------------------------------------------------------------------------
 // Docker
 // ---------------------------------------------------------------------------
-val imageRegistry: String = rootProject.findProperty("imageRegistry")?.toString() ?: "ghcr.io/nelsongraca/craftpanel"
-val imageVersion: String = rootProject.findProperty("imageVersion")?.toString() ?: "latest"
+val imageRegistry: String = rootProject.findProperty("imageRegistry")
+    ?.toString() ?: "ghcr.io/nelsongraca/craftpanel"
+val imageVersion: String = rootProject.findProperty("imageVersion")
+    ?.toString() ?: "latest"
 val imageName = "$imageRegistry/master:$imageVersion"
 
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-    compilerOptions {
-        freeCompilerArgs.add("-opt-in=kotlin.uuid.ExperimentalUuidApi")
+tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>()
+    .configureEach {
+        compilerOptions {
+            freeCompilerArgs.add("-opt-in=kotlin.uuid.ExperimentalUuidApi")
+        }
     }
-}
 
 tasks.register<DockerBuildImage>("dockerBuildImage") {
     group = "docker"

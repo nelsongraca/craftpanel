@@ -10,11 +10,11 @@ import io.grpc.netty.NettyChannelBuilder
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
 import kotlinx.coroutines.flow.flow
-import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
-import java.util.UUID
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
 class DataServiceProxy(private val nodeConfig: NodeConfig) {
@@ -31,7 +31,8 @@ class DataServiceProxy(private val nodeConfig: NodeConfig) {
         }
 
     fun closeChannel(nodeId: String) {
-        channels.remove(nodeId)?.shutdown()
+        channels.remove(nodeId)
+            ?.shutdown()
     }
 
     fun closeAll() {
@@ -42,10 +43,17 @@ class DataServiceProxy(private val nodeConfig: NodeConfig) {
     private data class ServerNode(val nodeId: String, val privateIp: String, val networkId: UUID?)
 
     private fun lookupServerNode(serverId: String): ServerNode? = transaction {
-        val id = runCatching { UUID.fromString(serverId).toKotlinUuid() }.getOrNull() ?: return@transaction null
-        val server = Servers.selectAll().where { Servers.id eq id }.firstOrNull() ?: return@transaction null
+        val id = runCatching {
+            UUID.fromString(serverId)
+                .toKotlinUuid()
+        }.getOrNull() ?: return@transaction null
+        val server = Servers.selectAll()
+            .where { Servers.id eq id }
+            .firstOrNull() ?: return@transaction null
         val nodeKotlinId = server[Servers.nodeId]
-        val node = Nodes.selectAll().where { Nodes.id eq nodeKotlinId }.firstOrNull() ?: return@transaction null
+        val node = Nodes.selectAll()
+            .where { Nodes.id eq nodeKotlinId }
+            .firstOrNull() ?: return@transaction null
         ServerNode(
             nodeId = nodeKotlinId.toString(),
             privateIp = node[Nodes.privateIp],

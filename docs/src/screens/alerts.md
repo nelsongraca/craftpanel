@@ -98,6 +98,7 @@ Alert thresholds configuration and event log.
       <span style="font-size:12px;" class="cp-muted">numeric</span>
       <button class="cp-btn" style="padding:3px 8px;color:#721c24;border-color:#f5c6cb;">🗑</button>
     </div>
+
   </div>
 
   <!-- New threshold form -->

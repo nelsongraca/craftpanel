@@ -2,13 +2,15 @@
 
 ## Concept
 
-A **Server Network** is a logical grouping of servers — typically one proxy and one or more backend game servers — that form a single player-facing Minecraft network. Networks are created and managed by administrators; they are not self-service for end users.
+A **Server Network** is a logical grouping of servers — typically one proxy and one or more backend game servers — that form a single player-facing Minecraft network. Networks are created and managed
+by administrators; they are not self-service for end users.
 
 ## Docker Networking
 
 Servers within a network that **share the same node** are placed on a dedicated Docker bridge network. The proxy reaches backends by container hostname without any ports exposed on the host.
 
-Servers in the same network on **different nodes** communicate over the private network between nodes, using the host IP and the backend's assigned port from the port registry. Backend ports are bound on the host interface but firewalled from public access.
+Servers in the same network on **different nodes** communicate over the private network between nodes, using the host IP and the backend's assigned port from the port registry. Backend ports are bound
+on the host interface but firewalled from public access.
 
 ```
 Same node                         Cross-node
@@ -21,7 +23,8 @@ Docker bridge: net_<id>           Node 1              Node 2
 
 ## Port Registry
 
-Master maintains a port registry per node. Each server requiring a host-mapped port (proxies, standalone servers, cross-node backends) is assigned a port from a configurable range (default `25570–26070`) at creation time.
+Master maintains a port registry per node. Each server requiring a host-mapped port (proxies, standalone servers, cross-node backends) is assigned a port from a configurable range (default
+`25570–26070`) at creation time.
 
 These ports are internal implementation details — end users only ever see the public hostname. Ports are reclaimed when a server is deleted.
 

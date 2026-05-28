@@ -7,47 +7,25 @@ import io.craftpanel.master.auth.routes.authRoutes
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.grpc.DataServiceProxy
-import io.craftpanel.master.routes.alertsRoutes
-import io.craftpanel.master.routes.assignmentsRoutes
-import io.craftpanel.master.routes.backupsRoutes
-import io.craftpanel.master.routes.consoleRoutes
-import io.craftpanel.master.routes.filesRoutes
-import io.craftpanel.master.routes.groupsRoutes
-import io.craftpanel.master.routes.modsRoutes
-import io.craftpanel.master.routes.networksRoutes
-import io.craftpanel.master.routes.nodesRoutes
-import io.craftpanel.master.routes.serversRoutes
-import io.craftpanel.master.routes.systemRoutes
-import io.craftpanel.master.routes.usersRoutes
-import io.craftpanel.master.service.AlertService
-import io.craftpanel.master.service.AssignmentService
-import io.craftpanel.master.service.BackupService
-import io.craftpanel.master.service.GroupService
-import io.craftpanel.master.service.ModService
-import io.craftpanel.master.service.NetworkService
-import io.craftpanel.master.service.NodeService
-import io.craftpanel.master.service.ServerService
-import io.craftpanel.master.service.SystemService
-import io.craftpanel.master.service.UserService
+import io.craftpanel.master.routes.*
+import io.craftpanel.master.service.*
 import io.github.smiley4.ktoropenapi.OpenApi
 import io.github.smiley4.ktoropenapi.config.AuthScheme
 import io.github.smiley4.ktoropenapi.config.AuthType
 import io.github.smiley4.ktoropenapi.config.SchemaGenerator
 import io.github.smiley4.ktoropenapi.openApi
-import io.ktor.client.request.get
-import io.ktor.client.statement.bodyAsText
-import io.ktor.http.HttpStatusCode
-import io.ktor.serialization.kotlinx.json.json
-import io.ktor.server.application.install
-import io.ktor.server.auth.Authentication
-import io.ktor.server.auth.jwt.JWTPrincipal
-import io.ktor.server.auth.jwt.jwt
-import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.server.response.respond
-import io.ktor.server.routing.route
-import io.ktor.server.routing.routing
-import io.ktor.server.testing.testApplication
-import io.ktor.server.websocket.WebSockets
+import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.http.*
+import io.ktor.serialization.kotlinx.json.*
+import io.ktor.server.application.*
+import io.ktor.server.auth.*
+import io.ktor.server.auth.jwt.*
+import io.ktor.server.plugins.contentnegotiation.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
+import io.ktor.server.testing.*
+import io.ktor.server.websocket.*
 import kotlinx.serialization.json.Json
 import java.io.File
 import kotlin.test.Test
@@ -119,7 +97,8 @@ OpenApiSpecTask {
             }
         }
 
-        val spec = client.get("/openapi.json").bodyAsText()
+        val spec = client.get("/openapi.json")
+            .bodyAsText()
         val output = System.getProperty("openapi.output")
             ?: error("System property 'openapi.output' not set — run via :master:generateOpenApiSpec")
         File(output).writeText(spec)

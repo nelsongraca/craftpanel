@@ -1,8 +1,6 @@
 package io.craftpanel.master.routes
 
-import com.craftpanel.agent.v1.MasterMessage
 import io.craftpanel.master.auth.PermissionResolver
-import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.service.BackupResponse
 import io.craftpanel.master.service.BackupScheduleResponse
 import io.craftpanel.master.service.BackupService
@@ -12,15 +10,12 @@ import io.github.smiley4.ktoropenapi.delete
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.post
 import io.github.smiley4.ktoropenapi.put
-import io.ktor.http.ContentType
-import io.ktor.http.HttpStatusCode
-import io.ktor.server.auth.authenticate
-import io.ktor.server.request.receive
-import io.ktor.server.response.respond
-import io.ktor.server.response.respondOutputStream
-import io.ktor.server.routing.Route
-import io.ktor.server.routing.route
-import java.util.UUID
+import io.ktor.http.*
+import io.ktor.server.auth.*
+import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
+import java.util.*
 
 fun Route.backupsRoutes(backupService: BackupService) {
     authenticate("auth-jwt") {
@@ -86,7 +81,12 @@ fun Route.backupsRoutes(backupService: BackupService) {
                 val userId = call.userId()
                 val id = parseBackupServerId(call.parameters["id"])
                     ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
-                val backupId = call.parameters["backupId"]?.let { runCatching { UUID.fromString(it).toKotlinUuid() }.getOrNull() }
+                val backupId = call.parameters["backupId"]?.let {
+                    runCatching {
+                        UUID.fromString(it)
+                            .toKotlinUuid()
+                    }.getOrNull()
+                }
                     ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid backup ID"))
                 val scope = backupService.getServerScope(id)
                     ?: return@delete call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
@@ -112,7 +112,12 @@ fun Route.backupsRoutes(backupService: BackupService) {
                 val userId = call.userId()
                 val id = parseBackupServerId(call.parameters["id"])
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
-                val backupId = call.parameters["backupId"]?.let { runCatching { UUID.fromString(it).toKotlinUuid() }.getOrNull() }
+                val backupId = call.parameters["backupId"]?.let {
+                    runCatching {
+                        UUID.fromString(it)
+                            .toKotlinUuid()
+                    }.getOrNull()
+                }
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid backup ID"))
                 val scope = backupService.getServerScope(id)
                     ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
@@ -121,10 +126,11 @@ fun Route.backupsRoutes(backupService: BackupService) {
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val info = backupService.resolveDownload(id, backupId)
                 call.respondOutputStream(ContentType.Application.OctetStream) {
-                    backupService.downloadStream(info).collect { chunk ->
-                        write(chunk.data.toByteArray())
-                        flush()
-                    }
+                    backupService.downloadStream(info)
+                        .collect { chunk ->
+                            write(chunk.data.toByteArray())
+                            flush()
+                        }
                 }
             }
         }
@@ -182,4 +188,9 @@ fun Route.backupsRoutes(backupService: BackupService) {
 }
 
 private fun parseBackupServerId(raw: String?): kotlin.uuid.Uuid? =
-    raw?.let { runCatching { UUID.fromString(it).toKotlinUuid() }.getOrNull() }
+    raw?.let {
+        runCatching {
+            UUID.fromString(it)
+                .toKotlinUuid()
+        }.getOrNull()
+    }

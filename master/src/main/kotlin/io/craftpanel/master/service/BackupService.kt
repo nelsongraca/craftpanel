@@ -8,18 +8,20 @@ import io.craftpanel.master.database.schema.Backups
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.grpc.DataServiceProxy
-import kotlin.time.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import java.util.UUID
+import java.util.*
+import kotlin.time.Clock
 
 private val CRON_REGEX = Regex("""^(\*|[0-9,\-*/]+)\s+(\*|[0-9,\-*/]+)\s+(\*|[0-9,\-*/]+)\s+(\*|[0-9,\-*/]+)\s+(\*|[0-9,\-*/]+)$""")
 
@@ -60,7 +62,9 @@ class BackupService(
 
     fun getServerScope(serverId: kotlin.uuid.Uuid): ServerScope? =
         transaction {
-            Servers.selectAll().where { Servers.id eq serverId }.firstOrNull()
+            Servers.selectAll()
+                .where { Servers.id eq serverId }
+                .firstOrNull()
                 ?.let { ServerScope(it[Servers.networkId]?.let { nid -> UUID.fromString(nid.toString()) }) }
         }
 
@@ -73,13 +77,22 @@ class BackupService(
         }
 
     fun triggerBackup(serverId: kotlin.uuid.Uuid): BackupResponse {
-        val serverRow = transaction { Servers.selectAll().where { Servers.id eq serverId }.firstOrNull() }
+        val serverRow = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq serverId }
+                .firstOrNull()
+        }
             ?: throw NotFoundException("Server not found")
         val nodeKotlinId = serverRow[Servers.nodeId]
-        val nodeRow = transaction { Nodes.selectAll().where { Nodes.id eq nodeKotlinId }.firstOrNull() }
+        val nodeRow = transaction {
+            Nodes.selectAll()
+                .where { Nodes.id eq nodeKotlinId }
+                .firstOrNull()
+        }
             ?: throw UnprocessableException("Node not found")
         val nodeId = nodeKotlinId.toString()
-        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        val now = Clock.System.now()
+            .toLocalDateTime(TimeZone.UTC)
 
         val backupResponse = transaction {
             val maxCount = serverRow[Servers.backupMaxCount]
@@ -112,7 +125,9 @@ class BackupService(
                 it[Backups.status] = "IN_PROGRESS"
             }[Backups.id]
 
-            val row = Backups.selectAll().where { Backups.id eq backupId }.first()
+            val row = Backups.selectAll()
+                .where { Backups.id eq backupId }
+                .first()
 
             val sent = sendToNode(nodeId, masterMessage {
                 triggerBackup = triggerBackupCommand {
@@ -176,7 +191,11 @@ class BackupService(
     fun downloadStream(info: BackupDownloadInfo) = dataServiceProxy.downloadFile(info.serverId, info.filePath)
 
     fun getSchedule(serverId: kotlin.uuid.Uuid): BackupScheduleResponse {
-        val serverRow = transaction { Servers.selectAll().where { Servers.id eq serverId }.firstOrNull() }
+        val serverRow = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq serverId }
+                .firstOrNull()
+        }
             ?: throw NotFoundException("Server not found")
         return BackupScheduleResponse(
             backupSchedule = serverRow[Servers.backupSchedule],
@@ -193,7 +212,8 @@ class BackupService(
             Servers.update({ Servers.id eq serverId }) {
                 it[Servers.backupSchedule] = req.backupSchedule
                 if (req.backupMaxCount != null) it[Servers.backupMaxCount] = req.backupMaxCount
-                it[Servers.updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+                it[Servers.updatedAt] = Clock.System.now()
+                    .toLocalDateTime(TimeZone.UTC)
             }
         }
     }

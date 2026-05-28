@@ -2,12 +2,13 @@
 
 Base path: `/api/system`
 
-| Method | Path | Permission | Description |
-|---|---|---|---|
-| GET | `/system/settings` | `system.settings` | Get all settings |
-| PATCH | `/system/settings` | `system.settings` | Update one or more settings |
+| Method | Path               | Permission        | Description                 |
+|--------|--------------------|-------------------|-----------------------------|
+| GET    | `/system/settings` | `system.settings` | Get all settings            |
+| PATCH  | `/system/settings` | `system.settings` | Update one or more settings |
 
-These are runtime-configurable operational settings adjustable through the UI. Deployment-time configuration (database credentials, secrets, DNS API keys) is not managed here — see [Configuration & Secrets](../tech-stack/configuration.md).
+These are runtime-configurable operational settings adjustable through the UI. Deployment-time configuration (database credentials, secrets, DNS API keys) is not managed here —
+see [Configuration & Secrets](../tech-stack/configuration.md).
 
 ---
 
@@ -51,9 +52,9 @@ Partial update — only provided keys are changed. Omitted keys are unchanged.
 
 ### Available settings
 
-| Key | Type | Default | Description |
-|---|---|---|---|
-| `metric_retention_days` | integer | `30` | Days of node and container metric snapshots to retain |
-| `default_backup_max_count` | integer | `10` | Default backup retention limit for newly created servers |
+| Key                        | Type    | Default | Description                                               |
+|----------------------------|---------|---------|-----------------------------------------------------------|
+| `metric_retention_days`    | integer | `30`    | Days of node and container metric snapshots to retain     |
+| `default_backup_max_count` | integer | `10`    | Default backup retention limit for newly created servers  |
 | `default_port_range_start` | integer | `25570` | Default start of the host port range applied to new nodes |
-| `default_port_range_end` | integer | `26070` | Default end of the host port range applied to new nodes |
+| `default_port_range_end`   | integer | `26070` | Default end of the host port range applied to new nodes   |

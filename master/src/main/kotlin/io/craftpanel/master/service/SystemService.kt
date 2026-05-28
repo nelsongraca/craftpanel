@@ -2,16 +2,15 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.database.schema.SystemSettings
 import io.craftpanel.master.util.toKotlinUuid
-import kotlin.time.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.upsert
-import java.util.UUID
+import java.util.*
+import kotlin.time.Clock
 
 @Serializable
 data class SettingsMap(
@@ -62,7 +61,8 @@ class SystemService {
                 SystemSettings.upsert {
                     it[SystemSettings.key] = k
                     it[SystemSettings.value] = v
-                    it[SystemSettings.updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+                    it[SystemSettings.updatedAt] = Clock.System.now()
+                        .toLocalDateTime(TimeZone.UTC)
                     it[SystemSettings.updatedBy] = updatedByKotlin
                 }
             }
@@ -78,7 +78,8 @@ class SystemService {
 }
 
 private fun loadSettings(): SystemSettingsResponse {
-    val rows = SystemSettings.selectAll().toList()
+    val rows = SystemSettings.selectAll()
+        .toList()
     val map = rows.associate { it[SystemSettings.key] to it[SystemSettings.value] }
     val latest = rows.maxByOrNull { it[SystemSettings.updatedAt] }
     return SystemSettingsResponse(
@@ -88,7 +89,9 @@ private fun loadSettings(): SystemSettingsResponse {
             defaultPortRangeStart = map["default_port_range_start"]?.toIntOrNull() ?: 25570,
             defaultPortRangeEnd = map["default_port_range_end"]?.toIntOrNull() ?: 26070,
         ),
-        updatedAt = latest?.get(SystemSettings.updatedAt)?.toString(),
-        updatedBy = latest?.get(SystemSettings.updatedBy)?.toString(),
+        updatedAt = latest?.get(SystemSettings.updatedAt)
+            ?.toString(),
+        updatedBy = latest?.get(SystemSettings.updatedBy)
+            ?.toString(),
     )
 }

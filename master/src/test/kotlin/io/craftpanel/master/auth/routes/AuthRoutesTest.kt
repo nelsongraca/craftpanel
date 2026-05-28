@@ -12,7 +12,6 @@ import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.util.toJavaUuid
 import io.craftpanel.master.util.toKotlinUuid
 import io.ktor.client.call.*
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
 import io.ktor.http.*
@@ -20,23 +19,19 @@ import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
-import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.testing.*
 import kotlinx.serialization.json.Json
-import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import java.util.UUID
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
+import java.util.*
+import kotlin.test.*
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
+import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
 class AuthRoutesTest {
 
@@ -91,7 +86,9 @@ class AuthRoutesTest {
     }
 
     private fun assignGlobalGroup(userId: UUID, groupName: String) = transaction {
-        val groupId = Groups.selectAll().where { Groups.name eq groupName }.first()[Groups.id]
+        val groupId = Groups.selectAll()
+            .where { Groups.name eq groupName }
+            .first()[Groups.id]
         UserGroupAssignments.insert {
             it[UserGroupAssignments.userId] = userId.toKotlinUuid()
             it[UserGroupAssignments.groupId] = groupId
@@ -102,7 +99,9 @@ class AuthRoutesTest {
     private fun HttpResponse.refreshTokenCookie(): String? =
         headers.getAll(HttpHeaders.SetCookie)
             ?.find { it.startsWith("refresh_token=") }
-            ?.split(";")?.first()?.removePrefix("refresh_token=")
+            ?.split(";")
+            ?.first()
+            ?.removePrefix("refresh_token=")
             ?.takeIf { it.isNotEmpty() }
 
     // Performs a full login and returns (accessToken, refreshTokenCookie).
@@ -360,7 +359,8 @@ class AuthRoutesTest {
 
         val (accessToken, _) = login()
 
-        val me = client.get("/api/auth/me") { bearerAuth(accessToken) }.body<MeResponse>()
+        val me = client.get("/api/auth/me") { bearerAuth(accessToken) }
+            .body<MeResponse>()
 
         assertEquals(listOf("server.view"), me.permissions)
         assertEquals(listOf("Viewer"), me.groups)

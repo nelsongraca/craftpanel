@@ -22,8 +22,10 @@ One long-lived bidirectional streaming RPC per node, established by the agent on
 **Agent → Master (observability):**
 
 - Node state snapshot — sent as the first message on every (re)connect
-- Node metrics (CPU, RAM, disk, net) — every 60 seconds. Network I/O is summed across physical interfaces only (`/proc/net/dev`); loopback (`lo`) and Docker-managed virtual interfaces (`docker0`, `br-*`, `veth*`) are excluded.
-- Container metrics (per server, CPU, RAM, net, block I/O) — every 60 seconds. Block I/O (`blkio_stats` from Docker Stats) are cumulative read/write byte totals since container start; counters reset when the container restarts, applying the same reset-detection handling as network I/O.
+- Node metrics (CPU, RAM, disk, net) — every 60 seconds. Network I/O is summed across physical interfaces only (`/proc/net/dev`); loopback (`lo`) and Docker-managed virtual interfaces (`docker0`,
+  `br-*`, `veth*`) are excluded.
+- Container metrics (per server, CPU, RAM, net, block I/O) — every 60 seconds. Block I/O (`blkio_stats` from Docker Stats) are cumulative read/write byte totals since container start; counters reset
+  when the container restarts, applying the same reset-detection handling as network I/O.
 - Server health and status updates
 - Player count and player list updates
 - Rsync progress and completion during migration
@@ -32,11 +34,13 @@ One long-lived bidirectional streaming RPC per node, established by the agent on
 
 **Command acknowledgement:**
 
-Commands are fire-and-forget at the application layer. gRPC transport-level delivery is sufficient confirmation the agent received the command. Outcomes surface through the observability stream — a failed container start appears as `UNHEALTHY` in a `ServerStatusUpdate`, not as a command error.
+Commands are fire-and-forget at the application layer. gRPC transport-level delivery is sufficient confirmation the agent received the command. Outcomes surface through the observability stream — a
+failed container start appears as `UNHEALTHY` in a `ServerStatusUpdate`, not as a command error.
 
 ### Data connection (on-demand)
 
-A separate connection per operation for large or interactive data. Torn down when the operation completes. Failure isolation — a stalled file download or console session cannot affect node liveness detection or metric streaming.
+A separate connection per operation for large or interactive data. Torn down when the operation completes. Failure isolation — a stalled file download or console session cannot affect node liveness
+detection or metric streaming.
 
 **Operations:**
 
@@ -69,11 +73,13 @@ A separate connection per operation for large or interactive data. Torn down whe
 
 ### Bootstrap token
 
-A single shared secret in the master config (`node_bootstrap_token`). Reusable — any number of agents can register with it. A leaked token can only produce harmless `PENDING` records. Rotate in config and restart master if compromised.
+A single shared secret in the master config (`node_bootstrap_token`). Reusable — any number of agents can register with it. A leaked token can only produce harmless `PENDING` records. Rotate in config
+and restart master if compromised.
 
 ### Node key rotation
 
-Admin calls `POST /nodes/{id}/token/rotate`. Master immediately invalidates the key. On next connect the agent receives `REJECTED` and halts. Re-provision by handing the agent a fresh registration (clear the local key file and restart — agent falls back to `RegisterNode` with the bootstrap token).
+Admin calls `POST /nodes/{id}/token/rotate`. Master immediately invalidates the key. On next connect the agent receives `REJECTED` and halts. Re-provision by handing the agent a fresh registration (
+clear the local key file and restart — agent falls back to `RegisterNode` with the bootstrap token).
 
 ---
 
@@ -83,28 +89,30 @@ The first `AgentMessage` on every `Control` stream after connect must be a `Node
 
 Container run states:
 
-| State | Meaning |
-|---|---|
-| `RUNNING` | Container is running normally |
-| `STOPPED` | Container was stopped cleanly via CraftPanel |
-| `EXITED` | Container exited unexpectedly — Docker restart policy did not recover it (e.g. restart limit hit, or manually stopped outside CraftPanel). Surfaced distinctly in the UI. |
+| State     | Meaning                                                                                                                                                                   |
+|-----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `RUNNING` | Container is running normally                                                                                                                                             |
+| `STOPPED` | Container was stopped cleanly via CraftPanel                                                                                                                              |
+| `EXITED`  | Container exited unexpectedly — Docker restart policy did not recover it (e.g. restart limit hit, or manually stopped outside CraftPanel). Surfaced distinctly in the UI. |
 
 ---
 
 ## Container lifecycle
 
-All containers are created with `restart_policy = unless-stopped`. Docker restarts containers automatically after agent restarts or node reboots — the agent does not need to restart containers on reconnect, only report their current state via `NodeStateSnapshot`.
+All containers are created with `restart_policy = unless-stopped`. Docker restarts containers automatically after agent restarts or node reboots — the agent does not need to restart containers on
+reconnect, only report their current state via `NodeStateSnapshot`.
 
 ### Graceful stop
 
-Rather than RCON, CraftPanel uses container stdin for graceful shutdown. The `stop_command` field on `StopContainerCommand` and `RestartContainerCommand` carries the command string to write to stdin before Docker stop.
+Rather than RCON, CraftPanel uses container stdin for graceful shutdown. The `stop_command` field on `StopContainerCommand` and `RestartContainerCommand` carries the command string to write to stdin
+before Docker stop.
 
 Default stop commands by server type (configurable per server in the UI):
 
-| Server type | Default stop command |
-|---|---|
-| `VANILLA`, `PAPER`, `FABRIC`, `FOLIA`, `FORGE`, `NEOFORGE`, `QUILT`, `SPIGOT`, `LIMBO` | `stop` |
-| `VELOCITY`, `BUNGEECORD`, `WATERFALL` | `end` |
+| Server type                                                                            | Default stop command |
+|----------------------------------------------------------------------------------------|----------------------|
+| `VANILLA`, `PAPER`, `FABRIC`, `FOLIA`, `FORGE`, `NEOFORGE`, `QUILT`, `SPIGOT`, `LIMBO` | `stop`               |
+| `VELOCITY`, `BUNGEECORD`, `WATERFALL`                                                  | `end`                |
 
 Stop sequence:
 
@@ -119,7 +127,8 @@ Restart follows the same stop sequence then starts the container again. Docker r
 
 ## Migration and rsync
 
-Server data is transferred between nodes using a purpose-built `craftpanel-rsync` Docker container — an Alpine-based image containing only `rsync` and `rsyncd`. The same image serves both roles (sender and receiver) depending on the command passed at runtime.
+Server data is transferred between nodes using a purpose-built `craftpanel-rsync` Docker container — an Alpine-based image containing only `rsync` and `rsyncd`. The same image serves both roles (
+sender and receiver) depending on the command passed at runtime.
 
 ### Migration flow
 
@@ -135,7 +144,9 @@ Server data is transferred between nodes using a purpose-built `craftpanel-rsync
 Server status during migration is derived from the active `migrations` record — no separate flag on the server. See [Migrations data model](../data-model/migrations.md).
 
 !!! note "Future consideration: distributed filesystem"
-    The rsync approach keeps nodes fully independent with local disk I/O — optimal for Minecraft world saves. If migration frequency or data volume increases significantly, a distributed filesystem would eliminate rsync entirely by decoupling data from the node running the container. Candidates to evaluate: **SeaweedFS** (lightweight, S3-compatible, volume servers could run on nodes themselves), **GlusterFS** (simpler than Ceph, FUSE mount), **Ceph** (full-featured but operationally heavy — likely overkill). Local disk + rsync is the right starting point.
+The rsync approach keeps nodes fully independent with local disk I/O — optimal for Minecraft world saves. If migration frequency or data volume increases significantly, a distributed filesystem would
+eliminate rsync entirely by decoupling data from the node running the container. Candidates to evaluate: **SeaweedFS** (lightweight, S3-compatible, volume servers could run on nodes themselves), *
+*GlusterFS** (simpler than Ceph, FUSE mount), **Ceph** (full-featured but operationally heavy — likely overkill). Local disk + rsync is the right starting point.
 
 ---
 
@@ -223,4 +234,5 @@ craftpanel/
     └── src/main/kotlin/...     ← consumes generated stubs
 ```
 
-The `proto/` directory sits at the monorepo root, shared between master and agent modules. Generated code lands in `build/generated/source/proto/` and is treated as a source set automatically by the Protobuf Gradle plugin.
+The `proto/` directory sits at the monorepo root, shared between master and agent modules. Generated code lands in `build/generated/source/proto/` and is treated as a source set automatically by the
+Protobuf Gradle plugin.

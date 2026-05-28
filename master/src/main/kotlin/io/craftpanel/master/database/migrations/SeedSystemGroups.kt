@@ -2,7 +2,7 @@ package io.craftpanel.master.database.migrations
 
 import io.craftpanel.master.database.schema.GroupPermissions
 import io.craftpanel.master.database.schema.Groups
-import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 
@@ -22,7 +22,9 @@ private val systemGroups = mapOf(
 
 fun seedSystemGroups() {
     for ((name, permissions) in systemGroups) {
-        val exists = Groups.selectAll().where { Groups.name eq name }.firstOrNull() != null
+        val exists = Groups.selectAll()
+            .where { Groups.name eq name }
+            .firstOrNull() != null
         if (exists) continue
 
         val groupId = Groups.insert {

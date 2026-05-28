@@ -2,20 +2,20 @@
 
 Base path: `/api/servers`
 
-| Method | Path | Permission | Description |
-|---|---|---|---|
-| GET | `/servers` | authenticated | List servers the caller has `server.view` on |
-| POST | `/servers` | `server.create` | Create a server |
-| GET | `/servers/{id}` | `server.view` | Get server details |
-| PATCH | `/servers/{id}` | `server.configure` | Update display name, description, network, or Minecraft version |
-| DELETE | `/servers/{id}` | `server.delete` | Delete server and its data |
-| POST | `/servers/{id}/start` | `server.start` | Start the server |
-| POST | `/servers/{id}/stop` | `server.stop` | Stop the server |
-| POST | `/servers/{id}/restart` | `server.restart` | Restart the server |
-| POST | `/servers/{id}/upgrade` | `server.upgrade` | Pull new image tag and recreate container |
-| PATCH | `/servers/{id}/resources` | `server.resources` | Update RAM, CPU, and image tag (requires Super Admin) |
-| PATCH | `/servers/{id}/exposure` | `server.configure` | Toggle external exposure and subdomain |
-| GET | `/servers/{id}/metrics` | `server.view` | Query historical container metrics |
+| Method | Path                      | Permission         | Description                                                     |
+|--------|---------------------------|--------------------|-----------------------------------------------------------------|
+| GET    | `/servers`                | authenticated      | List servers the caller has `server.view` on                    |
+| POST   | `/servers`                | `server.create`    | Create a server                                                 |
+| GET    | `/servers/{id}`           | `server.view`      | Get server details                                              |
+| PATCH  | `/servers/{id}`           | `server.configure` | Update display name, description, network, or Minecraft version |
+| DELETE | `/servers/{id}`           | `server.delete`    | Delete server and its data                                      |
+| POST   | `/servers/{id}/start`     | `server.start`     | Start the server                                                |
+| POST   | `/servers/{id}/stop`      | `server.stop`      | Stop the server                                                 |
+| POST   | `/servers/{id}/restart`   | `server.restart`   | Restart the server                                              |
+| POST   | `/servers/{id}/upgrade`   | `server.upgrade`   | Pull new image tag and recreate container                       |
+| PATCH  | `/servers/{id}/resources` | `server.resources` | Update RAM, CPU, and image tag (requires Super Admin)           |
+| PATCH  | `/servers/{id}/exposure`  | `server.configure` | Toggle external exposure and subdomain                          |
+| GET    | `/servers/{id}/metrics`   | `server.view`      | Query historical container metrics                              |
 
 ---
 
@@ -73,8 +73,8 @@ Returns only servers the caller has at least `server.view` permission on.
 **Errors:** `409` if the node has insufficient RAM or CPU capacity. `422` if `node_id` refers to a non-active node.
 
 !!! note "Minecraft version list"
-    The UI populates the `mc_version` picker from the Mojang version manifest:
-    `GET https://launchermeta.mojang.com/mc/game/version_manifest_v2.json`
+The UI populates the `mc_version` picker from the Mojang version manifest:
+`GET https://launchermeta.mojang.com/mc/game/version_manifest_v2.json`
 
     Filter to entries where `type == "release"` and present them sorted newest-first. The `id` field (e.g. `"1.21.4"`) is the value stored in the database and passed to itzg as the `VERSION` environment variable.
 
@@ -102,7 +102,10 @@ Returns only servers the caller has at least `server.view` permission on.
   "exposed_externally": true,
   "public_hostname": "survival.mc.example.com",
   "player_count": 14,
-  "player_list": ["Notch", "jeb_"],
+  "player_list": [
+    "Notch",
+    "jeb_"
+  ],
   "is_migrating": false,
   "stop_command": "stop",
   "backup_schedule": "0 4 * * *",
@@ -134,7 +137,8 @@ All fields optional. Requires `server.configure`.
 
 Set `network_id` to `null` to remove the server from its network.
 
-`display_name`, `description`, and `network_id` take effect immediately. `mc_version` is persisted but takes effect on the **next container start** — the UI shows a "Restart required" banner after saving this field, with an option to restart immediately or defer.
+`display_name`, `description`, and `network_id` take effect immediately. `mc_version` is persisted but takes effect on the **next container start** — the UI shows a "Restart required" banner after
+saving this field, with an option to restart immediately or defer.
 
 The `mc_version` picker uses the same Mojang release list as `POST /servers` — see the note there.
 
@@ -202,7 +206,8 @@ Pulls a new itzg image tag and recreates the container. Server must be stopped f
 
 ## `PATCH /servers/{id}/resources`
 
-Updates RAM, CPU allocation, and itzg image tag. Requires `server.resources`, which is held only by Super Admins — Server Admins cannot call this endpoint. All fields are optional; send only the fields you want to change.
+Updates RAM, CPU allocation, and itzg image tag. Requires `server.resources`, which is held only by Super Admins — Server Admins cannot call this endpoint. All fields are optional; send only the
+fields you want to change.
 
 **Request:**
 
@@ -219,7 +224,8 @@ Updates RAM, CPU allocation, and itzg image tag. Requires `server.resources`, wh
 **Errors:** `409` if the node has insufficient remaining capacity for the new allocation.
 
 !!! note "Changes require a restart"
-    All three fields take effect on the **next container start** — master writes them into the container spec when building the `CreateContainerCommand`. The API returns `200` immediately. The UI displays a "Restart required" banner after saving, giving the user the option to restart now or defer until a convenient time.
+All three fields take effect on the **next container start** — master writes them into the container spec when building the `CreateContainerCommand`. The API returns `200` immediately. The UI displays
+a "Restart required" banner after saving, giving the user the option to restart now or defer until a convenient time.
 
 ---
 
@@ -250,10 +256,10 @@ Returns raw 1-minute container metric snapshots for the requested time range.
 
 **Query parameters:**
 
-| Param | Required | Description |
-|---|---|---|
-| `from` | Yes | ISO 8601 start timestamp |
-| `to` | Yes | ISO 8601 end timestamp |
+| Param  | Required | Description              |
+|--------|----------|--------------------------|
+| `from` | Yes      | ISO 8601 start timestamp |
+| `to`   | Yes      | ISO 8601 end timestamp   |
 
 **Response `200`:**
 
@@ -261,12 +267,42 @@ Returns raw 1-minute container metric snapshots for the requested time range.
 {
   "server_id": "<uuid>",
   "series": {
-    "cpu_percent":    [{ "t": "2026-05-04T10:00:00Z", "v": 38.2 }],
-    "ram_used_mb":    [{ "t": "2026-05-04T10:00:00Z", "v": 3200 }],
-    "net_in_bytes":   [{ "t": "2026-05-04T10:00:00Z", "v": 204800 }],
-    "net_out_bytes":  [{ "t": "2026-05-04T10:00:00Z", "v": 102400 }],
-    "block_in_bytes": [{ "t": "2026-05-04T10:00:00Z", "v": 10485760 }],
-    "block_out_bytes":[{ "t": "2026-05-04T10:00:00Z", "v": 5242880 }]
+    "cpu_percent": [
+      {
+        "t": "2026-05-04T10:00:00Z",
+        "v": 38.2
+      }
+    ],
+    "ram_used_mb": [
+      {
+        "t": "2026-05-04T10:00:00Z",
+        "v": 3200
+      }
+    ],
+    "net_in_bytes": [
+      {
+        "t": "2026-05-04T10:00:00Z",
+        "v": 204800
+      }
+    ],
+    "net_out_bytes": [
+      {
+        "t": "2026-05-04T10:00:00Z",
+        "v": 102400
+      }
+    ],
+    "block_in_bytes": [
+      {
+        "t": "2026-05-04T10:00:00Z",
+        "v": 10485760
+      }
+    ],
+    "block_out_bytes": [
+      {
+        "t": "2026-05-04T10:00:00Z",
+        "v": 5242880
+      }
+    ]
   }
 }
 ```

@@ -21,7 +21,10 @@ class MetricsCollectorTest {
     @Test
     fun `collectCapacity cpu shares equal availableProcessors times 1024`() {
         val (_, cpuShares) = collector.collectCapacity()
-        assertEquals(Runtime.getRuntime().availableProcessors() * 1024, cpuShares)
+        assertEquals(
+            Runtime.getRuntime()
+                .availableProcessors() * 1024, cpuShares
+        )
     }
 
     @Test

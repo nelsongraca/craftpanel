@@ -1,17 +1,6 @@
 package io.craftpanel.agent.grpc
 
-import com.craftpanel.agent.v1.AgentMessage
-import com.craftpanel.agent.v1.ContainerState
-import com.craftpanel.agent.v1.ServerStatusUpdate
-import com.craftpanel.agent.v1.containerState
-import com.craftpanel.agent.v1.createContainerCommand
-import com.craftpanel.agent.v1.deleteBackupCommand
-import com.craftpanel.agent.v1.removeContainerCommand
-import com.craftpanel.agent.v1.restartContainerCommand
-import com.craftpanel.agent.v1.shutdownCommand
-import com.craftpanel.agent.v1.startContainerCommand
-import com.craftpanel.agent.v1.stopContainerCommand
-import com.craftpanel.agent.v1.triggerBackupCommand
+import com.craftpanel.agent.v1.*
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.MetricsCollector
 import io.mockk.*
@@ -19,12 +8,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.runBlocking
 import java.io.File
 import java.nio.file.Files
-import kotlin.test.AfterTest
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertTrue
+import kotlin.test.*
 
 class ControlStreamHandlerTest {
 
@@ -37,7 +21,8 @@ class ControlStreamHandlerTest {
 
     @BeforeTest
     fun setup() {
-        tempDir = Files.createTempDirectory("handler-test").toFile()
+        tempDir = Files.createTempDirectory("handler-test")
+            .toFile()
     }
 
     @AfterTest

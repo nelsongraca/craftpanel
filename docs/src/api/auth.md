@@ -2,13 +2,13 @@
 
 Base path: `/api/auth`
 
-| Method | Path | Permission | Description |
-|---|---|---|---|
-| POST | `/auth/login` | — | Authenticate with username and password |
-| POST | `/auth/refresh` | — | Rotate refresh token, get new access token |
-| POST | `/auth/logout` | authenticated | Revoke current session |
-| POST | `/auth/logout-all` | authenticated | Revoke all sessions for the current user |
-| POST | `/auth/ws-ticket` | authenticated | Issue a one-time WebSocket upgrade ticket |
+| Method | Path               | Permission    | Description                                |
+|--------|--------------------|---------------|--------------------------------------------|
+| POST   | `/auth/login`      | —             | Authenticate with username and password    |
+| POST   | `/auth/refresh`    | —             | Rotate refresh token, get new access token |
+| POST   | `/auth/logout`     | authenticated | Revoke current session                     |
+| POST   | `/auth/logout-all` | authenticated | Revoke all sessions for the current user   |
+| POST   | `/auth/ws-ticket`  | authenticated | Issue a one-time WebSocket upgrade ticket  |
 
 ---
 
@@ -21,23 +21,27 @@ Access tokens are signed JWTs (HS256) with the following payload:
   "sub": "<user-uuid>",
   "name": "John Doe",
   "email": "john@example.com",
-  "groups": ["Server Admin", "Operator"],
+  "groups": [
+    "Server Admin",
+    "Operator"
+  ],
   "iat": 1234567890,
   "exp": 1234568790
 }
 ```
 
-| Claim | Description |
-|---|---|
-| `sub` | User UUID — primary key in `users` table |
-| `name` | Display username |
-| `email` | User email |
+| Claim    | Description                                                 |
+|----------|-------------------------------------------------------------|
+| `sub`    | User UUID — primary key in `users` table                    |
+| `name`   | Display username                                            |
+| `email`  | User email                                                  |
 | `groups` | Names of groups the user belongs to (informational/UI only) |
-| `iat` | Issued-at timestamp |
-| `exp` | Expiry timestamp — 15 minutes after issue |
+| `iat`    | Issued-at timestamp                                         |
+| `exp`    | Expiry timestamp — 15 minutes after issue                   |
 
 !!! note
-    Permission nodes are **not** embedded in the JWT. Effective permissions are resolved from the database on every request using the `sub` claim, scoped to the resource being accessed. This ensures permission changes take effect within 15 minutes (next token refresh) without requiring DB lookups on every request for the token itself.
+Permission nodes are **not** embedded in the JWT. Effective permissions are resolved from the database on every request using the `sub` claim, scoped to the resource being accessed. This ensures
+permission changes take effect within 15 minutes (next token refresh) without requiring DB lookups on every request for the token itself.
 
     `is_active` is checked as part of every permission resolution query — inactive users are rejected even with a valid token.
 
@@ -106,7 +110,8 @@ No request body. Revokes all refresh tokens for the authenticated user, ending a
 
 ## `POST /auth/ws-ticket`
 
-Issues a single-use, short-lived ticket that can be exchanged for a WebSocket upgrade. Required because browsers cannot set `Authorization` headers on WebSocket connections, and the `refresh_token` cookie is scoped to `Path=/api/auth` and is not sent on upgrade requests to other paths.
+Issues a single-use, short-lived ticket that can be exchanged for a WebSocket upgrade. Required because browsers cannot set `Authorization` headers on WebSocket connections, and the `refresh_token`
+cookie is scoped to `Path=/api/auth` and is not sent on upgrade requests to other paths.
 
 No request body. Requires a valid `Authorization: Bearer <access_token>` header.
 
@@ -134,4 +139,5 @@ Authorization: Bearer <access_token>
 GET wss://<host>/api/ws/console/{server_id}?ticket=abc123...
 ```
 
-The ticket is passed as the `ticket` query parameter on the WebSocket upgrade URL. Master validates the ticket, resolves the user from it, and then proceeds with normal permission checks before accepting the upgrade.
+The ticket is passed as the `ticket` query parameter on the WebSocket upgrade URL. Master validates the ticket, resolves the user from it, and then proceeds with normal permission checks before
+accepting the upgrade.

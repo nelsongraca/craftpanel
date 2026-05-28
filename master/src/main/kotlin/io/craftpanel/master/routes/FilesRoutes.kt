@@ -1,7 +1,8 @@
 package io.craftpanel.master.routes
 
+import com.craftpanel.agent.v1.uploadFileChunk
+import com.google.protobuf.ByteString
 import io.craftpanel.master.auth.PermissionResolver
-import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.util.toKotlinUuid
@@ -9,34 +10,20 @@ import io.github.smiley4.ktoropenapi.delete
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.post
 import io.github.smiley4.ktoropenapi.put
-import io.ktor.http.ContentDisposition
-import io.ktor.http.ContentType
-import io.ktor.http.HttpHeaders
-import io.ktor.http.HttpStatusCode
-import io.ktor.server.auth.authenticate
-import io.ktor.server.auth.jwt.JWTPrincipal
-import io.ktor.server.auth.principal
-import io.ktor.server.request.receive
-import io.ktor.server.request.receiveMultipart
-import io.ktor.server.request.receiveStream
-import io.ktor.server.response.header
-import io.ktor.server.response.respond
-import io.ktor.server.response.respondOutputStream
-import io.ktor.server.routing.Route
-import io.ktor.server.routing.route
-import io.ktor.utils.io.streams.asInput
+import io.ktor.http.*
+import io.ktor.http.content.*
+import io.ktor.server.auth.*
+import io.ktor.server.auth.jwt.*
+import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
 import kotlinx.coroutines.flow.flow
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import io.ktor.http.content.PartData
-import io.ktor.http.content.forEachPart
-import io.ktor.http.content.streamProvider
-import com.craftpanel.agent.v1.uploadFileChunk
-import com.google.protobuf.ByteString
-import java.util.UUID
+import java.util.*
 
 // ── Response types ────────────────────────────────────────────────────────────
 
@@ -105,19 +92,23 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                 val path = call.request.queryParameters["path"] ?: "/"
                 try {
                     val result = proxy.listFiles(serverId, path)
-                    call.respond(ListFilesResponse(
+                    call.respond(
+                        ListFilesResponse(
                         path = path,
                         entries = result.entriesList.map { e ->
                             FileEntryResponse(
                                 name = e.name,
                                 isDirectory = e.isDirectory,
                                 sizeBytes = e.sizeBytes,
-                                modifiedAt = if (e.hasModifiedAt()) java.time.Instant.ofEpochSecond(e.modifiedAt.seconds).toString() else null,
+                                modifiedAt = if (e.hasModifiedAt()) java.time.Instant.ofEpochSecond(e.modifiedAt.seconds)
+                                    .toString()
+                                else null,
                                 permissions = e.permissions,
                             )
                         }
                     ))
-                } catch (e: Exception) {
+                }
+                catch (e: Exception) {
                     call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
                 }
             }
@@ -146,11 +137,12 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                         return@get
                     }
                     call.respond(ReadFileResponse(path = path, content = result.content.toStringUtf8(), encoding = result.encoding))
-                } catch (e: io.grpc.StatusException) {
+                }
+                catch (e: io.grpc.StatusException) {
                     when (e.status.code) {
-                        io.grpc.Status.Code.NOT_FOUND -> call.respond(HttpStatusCode.NotFound, ErrorResponse("File not found"))
+                        io.grpc.Status.Code.NOT_FOUND        -> call.respond(HttpStatusCode.NotFound, ErrorResponse("File not found"))
                         io.grpc.Status.Code.INVALID_ARGUMENT -> call.respond(HttpStatusCode.Conflict, ErrorResponse("Path is a directory"))
-                        else -> call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
+                        else                                 -> call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
                     }
                 }
             }
@@ -171,11 +163,13 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     call.respond(HttpStatusCode.BadRequest, ErrorResponse("path is required"))
                     return@put
                 }
-                val content = call.receiveStream().readBytes()
+                val content = call.receiveStream()
+                    .readBytes()
                 try {
                     proxy.writeFile(serverId, path, content)
                     call.respond(HttpStatusCode.NoContent)
-                } catch (e: Exception) {
+                }
+                catch (e: Exception) {
                     call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
                 }
             }
@@ -195,13 +189,15 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                 var uploadPath = ""
                 var fileBytes = byteArrayOf()
 
-                call.receiveMultipart().forEachPart { part ->
-                    when {
-                        part is PartData.FormItem && part.name == "path" -> uploadPath = part.value
-                        part is PartData.FileItem && part.name == "file" -> fileBytes = part.streamProvider().readBytes()
+                call.receiveMultipart()
+                    .forEachPart { part ->
+                        when {
+                            part is PartData.FormItem && part.name == "path" -> uploadPath = part.value
+                            part is PartData.FileItem && part.name == "file" -> fileBytes = part.streamProvider()
+                                .readBytes()
+                        }
+                        part.dispose()
                     }
-                    part.dispose()
-                }
 
                 if (uploadPath.isEmpty()) {
                     call.respond(HttpStatusCode.BadRequest, ErrorResponse("path field is required"))
@@ -211,7 +207,8 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                 try {
                     val chunkSize = 65536
                     val chunks = flow {
-                        val chunks = fileBytes.toList().chunked(chunkSize)
+                        val chunks = fileBytes.toList()
+                            .chunked(chunkSize)
                         chunks.forEachIndexed { idx, chunk ->
                             emit(uploadFileChunk {
                                 this.serverId = serverId
@@ -231,7 +228,8 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     }
                     val result = proxy.uploadFile(serverId, uploadPath, chunks)
                     call.respond(HttpStatusCode.Created, UploadResponse(path = uploadPath, sizeBytes = result.sizeBytes))
-                } catch (e: Exception) {
+                }
+                catch (e: Exception) {
                     call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
                 }
             }
@@ -254,20 +252,25 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     return@get
                 }
                 val filename = path.substringAfterLast('/')
-                call.response.header(HttpHeaders.ContentDisposition,
-                    ContentDisposition.Attachment.withParameter(ContentDisposition.Parameters.FileName, filename).toString())
+                call.response.header(
+                    HttpHeaders.ContentDisposition,
+                    ContentDisposition.Attachment.withParameter(ContentDisposition.Parameters.FileName, filename)
+                        .toString()
+                )
                 try {
                     call.respondOutputStream(ContentType.Application.OctetStream) {
-                        proxy.downloadFile(serverId, path).collect { chunk ->
-                            write(chunk.data.toByteArray())
-                            flush()
-                        }
+                        proxy.downloadFile(serverId, path)
+                            .collect { chunk ->
+                                write(chunk.data.toByteArray())
+                                flush()
+                            }
                     }
-                } catch (e: io.grpc.StatusException) {
+                }
+                catch (e: io.grpc.StatusException) {
                     when (e.status.code) {
-                        io.grpc.Status.Code.NOT_FOUND -> call.respond(HttpStatusCode.NotFound, ErrorResponse("File not found"))
+                        io.grpc.Status.Code.NOT_FOUND        -> call.respond(HttpStatusCode.NotFound, ErrorResponse("File not found"))
                         io.grpc.Status.Code.INVALID_ARGUMENT -> call.respond(HttpStatusCode.Conflict, ErrorResponse("Path is a directory"))
-                        else -> call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
+                        else                                 -> call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
                     }
                 }
             }
@@ -297,11 +300,12 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                 try {
                     proxy.deleteFile(serverId, path, recursive)
                     call.respond(HttpStatusCode.NoContent)
-                } catch (e: io.grpc.StatusException) {
+                }
+                catch (e: io.grpc.StatusException) {
                     when (e.status.code) {
-                        io.grpc.Status.Code.NOT_FOUND -> call.respond(HttpStatusCode.NotFound, ErrorResponse("Path not found"))
+                        io.grpc.Status.Code.NOT_FOUND           -> call.respond(HttpStatusCode.NotFound, ErrorResponse("Path not found"))
                         io.grpc.Status.Code.FAILED_PRECONDITION -> call.respond(HttpStatusCode.Conflict, ErrorResponse("Directory is not empty; use recursive=true"))
-                        else -> call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
+                        else                                    -> call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
                     }
                 }
             }
@@ -323,11 +327,12 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                 try {
                     proxy.moveFile(serverId, req.sourcePath, req.destinationPath)
                     call.respond(HttpStatusCode.NoContent)
-                } catch (e: io.grpc.StatusException) {
+                }
+                catch (e: io.grpc.StatusException) {
                     when (e.status.code) {
-                        io.grpc.Status.Code.NOT_FOUND -> call.respond(HttpStatusCode.NotFound, ErrorResponse("Source not found"))
+                        io.grpc.Status.Code.NOT_FOUND      -> call.respond(HttpStatusCode.NotFound, ErrorResponse("Source not found"))
                         io.grpc.Status.Code.ALREADY_EXISTS -> call.respond(HttpStatusCode.Conflict, ErrorResponse("Destination already exists"))
-                        else -> call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
+                        else                               -> call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
                     }
                 }
             }
@@ -349,11 +354,12 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                 try {
                     proxy.copyFile(serverId, req.sourcePath, req.destinationPath, req.recursive)
                     call.respond(HttpStatusCode.NoContent)
-                } catch (e: io.grpc.StatusException) {
+                }
+                catch (e: io.grpc.StatusException) {
                     when (e.status.code) {
-                        io.grpc.Status.Code.NOT_FOUND -> call.respond(HttpStatusCode.NotFound, ErrorResponse("Source not found"))
+                        io.grpc.Status.Code.NOT_FOUND      -> call.respond(HttpStatusCode.NotFound, ErrorResponse("Source not found"))
                         io.grpc.Status.Code.ALREADY_EXISTS -> call.respond(HttpStatusCode.Conflict, ErrorResponse("Destination already exists"))
-                        else -> call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
+                        else                               -> call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
                     }
                 }
             }
@@ -374,7 +380,8 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                 try {
                     proxy.makeDirectory(serverId, req.path)
                     call.respond(HttpStatusCode.NoContent)
-                } catch (e: Exception) {
+                }
+                catch (e: Exception) {
                     call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
                 }
             }
@@ -397,8 +404,13 @@ private suspend fun extractAndAuthorize(
     }
 
     val info = transaction {
-        val kotlinId = runCatching { UUID.fromString(rawId).toKotlinUuid() }.getOrNull() ?: return@transaction null
-        val row = Servers.selectAll().where { Servers.id eq kotlinId }.firstOrNull() ?: return@transaction null
+        val kotlinId = runCatching {
+            UUID.fromString(rawId)
+                .toKotlinUuid()
+        }.getOrNull() ?: return@transaction null
+        val row = Servers.selectAll()
+            .where { Servers.id eq kotlinId }
+            .firstOrNull() ?: return@transaction null
         val serverId = UUID.fromString(kotlinId.toString())
         val networkId = row[Servers.networkId]?.let { UUID.fromString(it.toString()) }
         Triple(serverId, networkId, kotlinId)

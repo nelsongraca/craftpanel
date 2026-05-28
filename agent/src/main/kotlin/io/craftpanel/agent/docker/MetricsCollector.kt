@@ -16,6 +16,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 open class MetricsCollector(private val docker: DockerClient) {
+
     private val log = LoggerFactory.getLogger(MetricsCollector::class.java)
 
     private data class CpuSnapshot(val idle: Long, val total: Long)
@@ -53,13 +54,21 @@ open class MetricsCollector(private val docker: DockerClient) {
 
             val callback = object : ResultCallback<Statistics> {
                 override fun onStart(c: Closeable?) {}
-                override fun onNext(s: Statistics) { captured = s; latch.countDown() }
-                override fun onError(t: Throwable) { log.warn("Stats error for $containerId: ${t.message}"); latch.countDown() }
+                override fun onNext(s: Statistics) {
+                    captured = s; latch.countDown()
+                }
+
+                override fun onError(t: Throwable) {
+                    log.warn("Stats error for $containerId: ${t.message}"); latch.countDown()
+                }
+
                 override fun onComplete() {}
                 override fun close() {}
             }
 
-            docker.statsCmd(containerId).withNoStream(true).exec(callback)
+            docker.statsCmd(containerId)
+                .withNoStream(true)
+                .exec(callback)
             if (!latch.await(5, TimeUnit.SECONDS)) return null
 
             val s = captured ?: return null
@@ -69,7 +78,8 @@ open class MetricsCollector(private val docker: DockerClient) {
 
             val cpuDelta = (cpu.cpuUsage?.totalUsage ?: 0L) - (preCpu.cpuUsage?.totalUsage ?: 0L)
             val systemDelta = (cpu.systemCpuUsage ?: 0L) - (preCpu.systemCpuUsage ?: 0L)
-            val numCpus = (cpu.onlineCpus?.toInt()?.takeIf { it > 0 }
+            val numCpus = (cpu.onlineCpus?.toInt()
+                ?.takeIf { it > 0 }
                 ?: cpu.cpuUsage?.percpuUsage?.size?.takeIf { it > 0 } ?: 1)
             val cpuPct = if (systemDelta > 0) (cpuDelta.toDouble() / systemDelta) * numCpus * 100.0 else 0.0
 
@@ -96,7 +106,8 @@ open class MetricsCollector(private val docker: DockerClient) {
         val totalRamMb = runCatching {
             ((parseMemInfo()["MemTotal"] ?: 0L) / 1024).toInt()
         }.getOrElse { 0 }
-        val totalCpuShares = Runtime.getRuntime().availableProcessors() * 1024
+        val totalCpuShares = Runtime.getRuntime()
+            .availableProcessors() * 1024
         return Pair(totalRamMb, totalCpuShares)
     }
 
@@ -131,7 +142,10 @@ open class MetricsCollector(private val docker: DockerClient) {
         val coreLines = lines.filter { it.matches(Regex("cpu[0-9]+.*")) }
 
         fun parseLine(line: String): Pair<Long, Long> {
-            val parts = line.trim().split("\\s+".toRegex()).drop(1).map { it.toLongOrNull() ?: 0L }
+            val parts = line.trim()
+                .split("\\s+".toRegex())
+                .drop(1)
+                .map { it.toLongOrNull() ?: 0L }
             val idle = parts.getOrElse(3) { 0L } + parts.getOrElse(4) { 0L }
             return idle to parts.sum()
         }
@@ -162,16 +176,23 @@ open class MetricsCollector(private val docker: DockerClient) {
         return runCatching {
             var rxTotal = 0L
             var txTotal = 0L
-            File("/proc/net/dev").readLines().drop(2).forEach { line ->
-                val trimmed = line.trim()
-                val colon = trimmed.indexOf(':')
-                if (colon < 0) return@forEach
-                val iface = trimmed.substring(0, colon).trim()
-                if (iface == "lo") return@forEach
-                val parts = trimmed.substring(colon + 1).trim().split("\\s+".toRegex())
-                rxTotal += parts.getOrElse(0) { "0" }.toLongOrNull() ?: 0L
-                txTotal += parts.getOrElse(8) { "0" }.toLongOrNull() ?: 0L
-            }
+            File("/proc/net/dev").readLines()
+                .drop(2)
+                .forEach { line ->
+                    val trimmed = line.trim()
+                    val colon = trimmed.indexOf(':')
+                    if (colon < 0) return@forEach
+                    val iface = trimmed.substring(0, colon)
+                        .trim()
+                    if (iface == "lo") return@forEach
+                    val parts = trimmed.substring(colon + 1)
+                        .trim()
+                        .split("\\s+".toRegex())
+                    rxTotal += parts.getOrElse(0) { "0" }
+                        .toLongOrNull() ?: 0L
+                    txTotal += parts.getOrElse(8) { "0" }
+                        .toLongOrNull() ?: 0L
+                }
             rxTotal to txTotal
         }.getOrElse {
             log.warn("Failed to read /proc/net/dev", it)
@@ -181,14 +202,17 @@ open class MetricsCollector(private val docker: DockerClient) {
 
     private fun readDiskMetrics(): Pair<Long, Long> {
         return runCatching {
-            val fs = File("/").toPath().fileSystem.getFileStores().first()
+            val fs = File("/").toPath().fileSystem.getFileStores()
+                .first()
             Pair(fs.totalSpace - fs.usableSpace, fs.totalSpace)
         }.getOrElse { Pair(0L, 0L) }
     }
 
     private fun parseMemInfo(): Map<String, Long> =
-        File("/proc/meminfo").readLines().associate {
-            val parts = it.split("\\s+".toRegex())
-            parts[0].trimEnd(':') to (parts.getOrNull(1)?.toLongOrNull() ?: 0L)
-        }
+        File("/proc/meminfo").readLines()
+            .associate {
+                val parts = it.split("\\s+".toRegex())
+                parts[0].trimEnd(':') to (parts.getOrNull(1)
+                    ?.toLongOrNull() ?: 0L)
+            }
 }

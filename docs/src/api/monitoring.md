@@ -2,12 +2,12 @@
 
 Base path: `/api/alerts`
 
-| Method | Path | Permission | Description |
-|---|---|---|---|
-| GET | `/alerts/thresholds` | `system.settings` | List all alert thresholds |
-| POST | `/alerts/thresholds` | `system.settings` | Create an alert threshold |
-| DELETE | `/alerts/thresholds/{id}` | `system.settings` | Delete a threshold |
-| GET | `/alerts/events` | `system.settings` | List alert events |
+| Method | Path                      | Permission        | Description               |
+|--------|---------------------------|-------------------|---------------------------|
+| GET    | `/alerts/thresholds`      | `system.settings` | List all alert thresholds |
+| POST   | `/alerts/thresholds`      | `system.settings` | Create an alert threshold |
+| DELETE | `/alerts/thresholds/{id}` | `system.settings` | Delete a threshold        |
+| GET    | `/alerts/events`          | `system.settings` | List alert events         |
 
 Node and server metrics are available via their respective endpoints — see [Nodes](nodes.md#get-nodesidmetrics) and [Servers](servers.md#get-serversidmetrics).
 
@@ -92,11 +92,11 @@ Also deletes all `alert_events` associated with this threshold.
 
 **Query parameters:**
 
-| Param | Required | Description |
-|---|---|---|
-| `scope_type` | No | Filter by `NODE` or `SERVER` |
-| `scope_id` | No | Filter to a specific node or server UUID |
-| `active_only` | No | `true` to return only unresolved events (no `resolved_at`) |
+| Param         | Required | Description                                                |
+|---------------|----------|------------------------------------------------------------|
+| `scope_type`  | No       | Filter by `NODE` or `SERVER`                               |
+| `scope_id`    | No       | Filter to a specific node or server UUID                   |
+| `active_only` | No       | `true` to return only unresolved events (no `resolved_at`) |
 
 **Response `200`:**
 

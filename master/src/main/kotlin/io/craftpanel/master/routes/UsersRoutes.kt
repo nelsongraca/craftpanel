@@ -1,22 +1,17 @@
 package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.PermissionResolver
-import io.craftpanel.master.service.CreateUserRequest
-import io.craftpanel.master.service.PatchUserRequest
-import io.craftpanel.master.service.UserService
-import io.craftpanel.master.service.UsersListResponse
-import io.craftpanel.master.service.UserResponse
+import io.craftpanel.master.service.*
 import io.github.smiley4.ktoropenapi.delete
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.patch
 import io.github.smiley4.ktoropenapi.post
-import io.ktor.http.HttpStatusCode
-import io.ktor.server.auth.authenticate
-import io.ktor.server.request.receive
-import io.ktor.server.response.respond
-import io.ktor.server.routing.Route
-import io.ktor.server.routing.route
-import java.util.UUID
+import io.ktor.http.*
+import io.ktor.server.auth.*
+import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
+import java.util.*
 
 fun Route.usersRoutes(userService: UserService) {
     authenticate("auth-jwt") {

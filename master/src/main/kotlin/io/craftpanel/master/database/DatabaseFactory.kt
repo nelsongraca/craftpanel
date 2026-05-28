@@ -5,7 +5,6 @@ import com.zaxxer.hikari.HikariDataSource
 import io.craftpanel.master.config.DatabaseConfig
 import io.craftpanel.master.database.migrations.seedSystemGroups
 import io.craftpanel.master.database.schema.*
-import io.craftpanel.master.database.schema.ContainerMetrics
 import org.jetbrains.exposed.v1.jdbc.Database
 import org.jetbrains.exposed.v1.jdbc.SchemaUtils
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction

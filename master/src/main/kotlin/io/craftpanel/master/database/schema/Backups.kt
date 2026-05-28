@@ -5,6 +5,7 @@ import org.jetbrains.exposed.v1.datetime.CurrentDateTime
 import org.jetbrains.exposed.v1.datetime.datetime
 
 object Backups : Table("backups") {
+
     val id = uuid("id").autoGenerate()
     val serverId = uuid("server_id").references(Servers.id)
     val nodeId = uuid("node_id").references(Nodes.id)

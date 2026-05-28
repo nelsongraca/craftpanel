@@ -10,13 +10,12 @@ import io.github.smiley4.ktoropenapi.delete
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.patch
 import io.github.smiley4.ktoropenapi.post
-import io.ktor.http.HttpStatusCode
-import io.ktor.server.auth.authenticate
-import io.ktor.server.request.receive
-import io.ktor.server.response.respond
-import io.ktor.server.routing.Route
-import io.ktor.server.routing.route
-import java.util.UUID
+import io.ktor.http.*
+import io.ktor.server.auth.*
+import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
+import java.util.*
 
 fun Route.nodesRoutes(nodeService: NodeService) {
     authenticate("auth-jwt") {
@@ -194,7 +193,8 @@ fun Route.nodesRoutes(nodeService: NodeService) {
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val id = parseNodeId(call.parameters["id"])
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid node ID"))
-                val limit = call.request.queryParameters["limit"]?.toIntOrNull()?.coerceIn(1, 360) ?: 60
+                val limit = call.request.queryParameters["limit"]?.toIntOrNull()
+                    ?.coerceIn(1, 360) ?: 60
                 call.respond(nodeService.getNodeMetrics(id, limit))
             }
         }
@@ -202,4 +202,9 @@ fun Route.nodesRoutes(nodeService: NodeService) {
 }
 
 private fun parseNodeId(raw: String?): kotlin.uuid.Uuid? =
-    raw?.let { runCatching { UUID.fromString(it).toKotlinUuid() }.getOrNull() }
+    raw?.let {
+        runCatching {
+            UUID.fromString(it)
+                .toKotlinUuid()
+        }.getOrNull()
+    }

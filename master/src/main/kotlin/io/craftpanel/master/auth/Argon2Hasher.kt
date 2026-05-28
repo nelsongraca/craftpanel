@@ -3,9 +3,10 @@ package io.craftpanel.master.auth
 import org.bouncycastle.crypto.generators.Argon2BytesGenerator
 import org.bouncycastle.crypto.params.Argon2Parameters
 import java.security.SecureRandom
-import java.util.Base64
+import java.util.*
 
 object Argon2Hasher {
+
     private const val HASH_LENGTH = 32
     private const val SALT_LENGTH = 16
     private const val ITERATIONS = 3
@@ -23,7 +24,8 @@ object Argon2Hasher {
 
     fun verify(password: String, encoded: String): Boolean {
         return runCatching {
-            val parts = encoded.split("$").filter { it.isNotEmpty() }
+            val parts = encoded.split("$")
+                .filter { it.isNotEmpty() }
             // parts: [argon2id, v=19, m=...,t=...,p=..., saltB64, hashB64]
             val paramPart = parts[2]
             val saltB64 = parts[3]

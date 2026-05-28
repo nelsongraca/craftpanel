@@ -9,13 +9,12 @@ import io.craftpanel.master.util.toKotlinUuid
 import io.github.smiley4.ktoropenapi.delete
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.post
-import io.ktor.http.HttpStatusCode
-import io.ktor.server.auth.authenticate
-import io.ktor.server.request.receive
-import io.ktor.server.response.respond
-import io.ktor.server.routing.Route
-import io.ktor.server.routing.route
-import java.util.UUID
+import io.ktor.http.*
+import io.ktor.server.auth.*
+import io.ktor.server.request.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
+import java.util.*
 
 fun Route.alertsRoutes(alertService: AlertService) {
     authenticate("auth-jwt") {
@@ -34,7 +33,12 @@ fun Route.alertsRoutes(alertService: AlertService) {
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val scopeType = call.request.queryParameters["scope_type"]
                 val scopeId = call.request.queryParameters["scope_id"]
-                    ?.let { runCatching { UUID.fromString(it).toKotlinUuid() }.getOrNull() }
+                    ?.let {
+                        runCatching {
+                            UUID.fromString(it)
+                                .toKotlinUuid()
+                        }.getOrNull()
+                    }
                 call.respond(mapOf("thresholds" to alertService.listThresholds(scopeType, scopeId)))
             }
 
@@ -69,7 +73,12 @@ fun Route.alertsRoutes(alertService: AlertService) {
                 if (!PermissionResolver.hasPermission(userId, "system.settings"))
                     return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val id = call.parameters["id"]
-                    ?.let { runCatching { UUID.fromString(it).toKotlinUuid() }.getOrNull() }
+                    ?.let {
+                        runCatching {
+                            UUID.fromString(it)
+                                .toKotlinUuid()
+                        }.getOrNull()
+                    }
                     ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid threshold ID"))
                 alertService.deleteThreshold(id)
                 call.respond(HttpStatusCode.NoContent)
@@ -88,7 +97,12 @@ fun Route.alertsRoutes(alertService: AlertService) {
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val scopeType = call.request.queryParameters["scope_type"]
                 val scopeId = call.request.queryParameters["scope_id"]
-                    ?.let { runCatching { UUID.fromString(it).toKotlinUuid() }.getOrNull() }
+                    ?.let {
+                        runCatching {
+                            UUID.fromString(it)
+                                .toKotlinUuid()
+                        }.getOrNull()
+                    }
                 val activeOnly = call.request.queryParameters["active_only"] == "true"
                 call.respond(mapOf("events" to alertService.listEvents(scopeType, scopeId, activeOnly)))
             }

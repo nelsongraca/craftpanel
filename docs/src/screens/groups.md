@@ -116,6 +116,7 @@ Group list and permission editor.
         <button class="cp-btn">···</button>
       </div>
     </div>
+
   </div>
 
   <!-- ── GROUP DETAIL / PERMISSION EDITOR ── -->

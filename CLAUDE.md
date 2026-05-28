@@ -3,10 +3,14 @@
 Self-hosted multi-user multi-node Minecraft server management platform.
 
 ## Base Instructions
+
 Always use Context7 when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
-If an idea MCP tool is adequate consider using it most relevant ones, reading files, searching, and running code analysis.
+When finishing a task always run get_file_problems from intellij/idea to find possible issues and fix them before submitting the code. If there are any warnings or errors that cannot be fixed, list them explicitly in the final answer.
+Before commiting any code always use reformat_c~~~~ode from intellij/idea to reformst the files.
+If a method or class is deprecated avoid using it.
 
 Before starting any task, assess complexity:
+
 - Straightforward implementation (schema, CRUD endpoints, mechanical wiring):
   proceed directly with Sonnet
 - Ambiguous architecture, cross-module coordination, new proto changes,
@@ -55,34 +59,42 @@ All versions are pinned in `gradle/libs.versions.toml`. Never hardcode dependenc
 ## Build & Docker
 
 ### JVM modules (master, agent)
+
 ```bash
 ./gradlew :master:installDist      # builds distribution
 ./gradlew :master:dockerBuildImage # packages into Docker image
 ```
+
 Dockerfile COPYs `installDist` output into `eclipse-temurin:25-jdk-alpine`.
 
 ### Frontend
+
 ```bash
 ./gradlew :frontend:assembleFrontend  # runs pnpm build via frontend-gradle-plugin
 ./gradlew :frontend:dockerBuildImage  # packages into Docker image
 ```
+
 Dockerfile COPYs `.next/standalone`, `.next/static`, and `public/` into `node:22-alpine`.
 
 ### API codegen
+
 ```bash
 ./gradlew :master:generateOpenApiSpec   # boots testApplication, writes openapi.json at repo root
 ./gradlew :frontend:generateApiTypes    # runs @hey-api/openapi-ts → frontend/lib/generated/
 ```
+
 Both run automatically as part of `:frontend:assembleFrontend`. `lib/generated/` is gitignored.
 The spec task is in `master/src/test/kotlin/.../OpenApiSpecTask.kt` and excluded from `:master:test`.
 
 ### Aggregation tasks
+
 ```bash
 ./gradlew dockerBuildAll   # builds all three images
 ./gradlew dockerPushAll    # pushes all three images
 ```
 
 ### Image naming
+
 ```bash
 ./gradlew dockerBuildAll -PimageRegistry=ghcr.io/nelsongraca -PimageVersion=1.0.0
 ```
@@ -101,17 +113,20 @@ Two services:
 - **ControlService** — persistent bidirectional stream, agent-initiated, lives for the lifetime of the connection. Handles container lifecycle commands, backups, migration, metrics, player updates.
 - **DataService** — on-demand per-operation connections. Handles console streaming (bidirectional), file operations, file upload/download.
 
-> **DataService is not yet implemented.** Both `master/…/grpc/DataServiceImpl.kt` and `agent/…/grpc/DataServiceImpl.kt` are stub shells returning empty/false. Console and file operations are Phase 3 work — don't build on these assuming they function.
+> **DataService is not yet implemented.** Both `master/…/grpc/DataServiceImpl.kt` and `agent/…/grpc/DataServiceImpl.kt` are stub shells returning empty/false. Console and file operations are Phase 3
+> work — don't build on these assuming they function.
 
 Agent sends `NodeStateSnapshot` as the **first message** on every (re)connect so master can reconcile DB state before issuing commands.
 
 Node authentication over gRPC:
+
 - **First registration**: agent calls `RegisterNode` with bootstrap token → master returns 256-bit node key
 - **Subsequent connections**: agent calls `IdentifyNode` with node key → master returns `ACTIVE`, `PENDING`, or `REJECTED`
 - Node keys stored as SHA-256 hashes in DB, never raw
 - TLS on gRPC channel; node key is the auth mechanism (not mTLS client certs)
 
 ### Agent registry (`ControlServiceImpl`)
+
 `ConcurrentHashMap<String, SendChannel<MasterMessage>>` tracks connected agents by nodeId.
 Registered on first message inside `channelFlow`, deregistered in `finally` using `remove(nodeId, channel)` (atomic — safe against reconnect races).
 `sendToNode(nodeId, msg)` uses `trySend` — returns `false` if agent disconnected.
@@ -127,7 +142,9 @@ Short-lived access tokens, HS256 signed, **15 minute lifetime**.
   "sub": "<user-uuid>",
   "name": "John Doe",
   "email": "john@example.com",
-  "groups": ["Server Admin"],
+  "groups": [
+    "Server Admin"
+  ],
   "iat": 1234567890,
   "exp": 1234568790
 }
@@ -166,6 +183,7 @@ Permissions are **additive only** — no deny rules.
 ### Assignment scopes
 
 Permissions are granted via group assignments, scoped to:
+
 - `GLOBAL` — all servers and networks
 - `SERVER` — one specific server
 - `NETWORK` — all servers in one network
@@ -175,6 +193,7 @@ A user can have multiple assignments simultaneously (e.g. Server Admin on Networ
 ### Permission resolution
 
 For a given user + resource:
+
 1. Fetch all GLOBAL group assignments for the user
 2. Fetch SERVER-scoped assignments matching the server ID
 3. Fetch NETWORK-scoped assignments matching the server's network ID
@@ -185,12 +204,12 @@ Always hits DB. Cache may be added later.
 
 ### System groups (is_system = true, cannot be deleted or renamed)
 
-| Group | Permissions |
-|---|---|
-| Super Admin | `*` (all) |
+| Group        | Permissions                                                                                        |
+|--------------|----------------------------------------------------------------------------------------------------|
+| Super Admin  | `*` (all)                                                                                          |
 | Server Admin | All except `system.settings`, `system.users`, `system.nodes`, `server.resources`, `server.migrate` |
-| Operator | `server.restart`, `server.console`, `server.view`, `server.backup` |
-| Viewer | `server.view` |
+| Operator     | `server.restart`, `server.console`, `server.view`, `server.backup`                                 |
+| Viewer       | `server.view`                                                                                      |
 
 ## Frontend Conventions
 
@@ -202,22 +221,23 @@ Always hits DB. Cache may be added later.
 ### API client
 
 - Codegen: `@hey-api/openapi-ts` (devDep). Config in `frontend/openapi-ts.config.ts`. Generates `lib/generated/`:
-  - `sdk.gen.ts` — one named function per endpoint: `listServers()`, `startServer({ path: { id } })`, `authLogin({ body: { email, password } })`, …
-  - `types.gen.ts` — TypeScript types (named `IoCraftpanelMaster…`, re-exported with friendly aliases from `lib/types.ts`)
-  - `client.gen.ts` + `client/` — the bundled fetch client
-- `lib/client.ts` — configures the generated client singleton: sets `baseUrl: ""` and `credentials: "include"`, registers request interceptor (Bearer token), and response interceptor (401 → refresh + retry). The bare `fetch` inside `refreshToken()` is intentional — using the SDK client there would cause infinite recursion.
+    - `sdk.gen.ts` — one named function per endpoint: `listServers()`, `startServer({ path: { id } })`, `authLogin({ body: { email, password } })`, …
+    - `types.gen.ts` — TypeScript types (named `IoCraftpanelMaster…`, re-exported with friendly aliases from `lib/types.ts`)
+    - `client.gen.ts` + `client/` — the bundled fetch client
+- `lib/client.ts` — configures the generated client singleton: sets `baseUrl: ""` and `credentials: "include"`, registers request interceptor (Bearer token), and response interceptor (401 → refresh +
+  retry). The bare `fetch` inside `refreshToken()` is intentional — using the SDK client there would cause infinite recursion.
 - All routes must have `operationId` set in their ktor-openapi doc block — it controls the generated function name.
 - Response shape: `{ data?, error?, response? }`. `data` is populated on success; `error` on API error (has `.message`); `response` may be undefined on network failure — always use `response?.status`.
 
 ## CraftPanel Colour Tokens
 
 ```css
---bg: #0e0d0c          /* page background */
---surface: #1c1917     /* card/sidebar background */
+--bg: #0e0d0c /* page background */
+--surface: #1c1917 /* card/sidebar background */
 --surface-high: #27241f
 --surface-higher: #312d27
 --border: #2e2a24
---accent: #d97706      /* amber — primary action colour */
+--accent: #d97706 /* amber — primary action colour */
 --accent-bright: #f59e0b
 --text-primary: #f5f0e8
 --text-dim: #a89880
@@ -245,12 +265,15 @@ Use `bg-accent`, `text-accent`, `border-accent` for amber. Use `bg-surface`, `bg
 Tests live in `master/src/test/kotlin/`. Run with `./gradlew :master:test`. Coverage via Kover: `./gradlew :master:koverHtmlReport`.
 
 ### TestDatabase (`io.craftpanel.master.TestDatabase`)
+
 Singleton H2 in-memory DB shared across all tests. Call `initIfNeeded()` once and `reset()` in `@BeforeTest`.
+
 - Creates: `Users`, `RefreshTokens`, `Groups`, `GroupPermissions`, `UserGroupAssignments`, `ServerNetworks`, `Nodes`, `Servers`, `ServerEnvVars`, `NodeMetrics`, `PortRegistry`, `ServerMigrations`
 - Seeds system groups on first init
 - `reset()` deletes in FK-safe order: `ServerMigrations → PortRegistry → NodeMetrics → ServerEnvVars → Servers → Nodes → ServerNetworks → RefreshTokens → UserGroupAssignments → Users`
 
 ### Route test conventions
+
 - `configureTest()` is an `Application.()` extension (not `ApplicationTestBuilder.()`), called via `application { configureTest() }` — avoids implicit receiver ambiguity with `install()`
 - Server/client `ContentNegotiation` are disambiguated with `as` import aliases
 - Generate JWTs directly with `jwtManager.generate(TokenClaims(...))` — no need to go through the login endpoint
@@ -270,7 +293,8 @@ Schema migrations via `exposed-migration-jdbc`.
 - Don't hardcode image registry or version values
 - Don't use `org.jetbrains.exposed.*` imports — use `org.jetbrains.exposed.v1.*`
 - Don't add a light theme
-- Don't use raw hex codes or `rgba(...)` literals in component `style` props or Tailwind arbitrary value brackets — use the corresponding CSS variable token (`var(--token)`) or Tailwind token class instead. Raw values are only permitted in `globals.css` and `tailwind.config.js` where the tokens are defined
+- Don't use raw hex codes or `rgba(...)` literals in component `style` props or Tailwind arbitrary value brackets — use the corresponding CSS variable token (`var(--token)`) or Tailwind token class
+  instead. Raw values are only permitted in `globals.css` and `tailwind.config.js` where the tokens are defined
 - Don't put permission nodes in the JWT
 - Don't skip DB lookup for permission checks — no shortcut based on JWT claims alone
 - Don't login via email **and** username — login is email-only (`LoginRequest.email`)
@@ -283,3 +307,5 @@ Schema migrations via `exposed-migration-jdbc`.
 - Don't use `openapi-fetch` or `openapi-typescript` — replaced by `@hey-api/openapi-ts`
 - Don't call API endpoints with inline URL strings (e.g. `api.GET("/api/servers")`) — use the generated named functions from `lib/generated/sdk.gen`
 - Don't add new Ktor routes without an `operationId` in the doc block — it's required for the codegen to produce a usable function name
+- Don't use fully qualified names on code, always use imports.
+- Don't use static imports for Enum constants.

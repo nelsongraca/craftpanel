@@ -4,16 +4,12 @@ import com.craftpanel.agent.v1.ContainerState
 import com.craftpanel.agent.v1.createContainerCommand
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.github.dockerjava.api.DockerClient
-import com.github.dockerjava.api.command.CreateContainerCmd
-import com.github.dockerjava.api.command.CreateContainerResponse
-import com.github.dockerjava.api.command.KillContainerCmd
-import com.github.dockerjava.api.command.ListContainersCmd
-import com.github.dockerjava.api.command.RemoveContainerCmd
-import com.github.dockerjava.api.command.StartContainerCmd
-import com.github.dockerjava.api.command.StopContainerCmd
+import com.github.dockerjava.api.command.*
 import com.github.dockerjava.api.model.Container
 import com.github.dockerjava.api.model.ExposedPort
-import io.mockk.*
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -52,10 +48,12 @@ class ContainerManagerTest {
 
     @Test
     fun `listContainers filters out containers without craftpanel- prefix`() {
-        stubListAll(listOf(
-            fakeContainer(name = "/craftpanel-web", state = "running", status = "Up"),
-            fakeContainer(name = "/nginx", state = "running", status = "Up"),
-        ))
+        stubListAll(
+            listOf(
+                fakeContainer(name = "/craftpanel-web", state = "running", status = "Up"),
+                fakeContainer(name = "/nginx", state = "running", status = "Up"),
+            )
+        )
 
         val result = manager.listContainers()
 
@@ -83,10 +81,12 @@ class ContainerManagerTest {
 
     @Test
     fun `listRunningContainerIds returns only containers with craftpanel server id label`() {
-        stubListRunning(listOf(
-            fakeContainer(name = "/craftpanel-mc", state = "running", status = "Up", serverId = "srv-1"),
-            fakeContainer(name = "/craftpanel-other", state = "running", status = "Up", serverId = null),
-        ))
+        stubListRunning(
+            listOf(
+                fakeContainer(name = "/craftpanel-mc", state = "running", status = "Up", serverId = "srv-1"),
+                fakeContainer(name = "/craftpanel-other", state = "running", status = "Up", serverId = null),
+            )
+        )
 
         val result = manager.listRunningContainerIds()
 
@@ -194,10 +194,12 @@ class ContainerManagerTest {
 
     @Test
     fun `shutdownAll counts graceful stops`() {
-        stubListRunning(listOf(
-            fakeContainer(name = "/craftpanel-a", state = "running", status = "Up", id = "c1"),
-            fakeContainer(name = "/craftpanel-b", state = "running", status = "Up", id = "c2"),
-        ))
+        stubListRunning(
+            listOf(
+                fakeContainer(name = "/craftpanel-a", state = "running", status = "Up", id = "c1"),
+                fakeContainer(name = "/craftpanel-b", state = "running", status = "Up", id = "c2"),
+            )
+        )
         stubStop("c1")
         stubStop("c2")
 

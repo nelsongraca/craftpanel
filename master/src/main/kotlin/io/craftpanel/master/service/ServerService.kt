@@ -1,27 +1,8 @@
 package io.craftpanel.master.service
 
-import com.craftpanel.agent.v1.MasterMessage
-import com.craftpanel.agent.v1.createContainerCommand
-import com.craftpanel.agent.v1.masterMessage
-import com.craftpanel.agent.v1.pullImageCommand
-import com.craftpanel.agent.v1.removeContainerCommand
-import com.craftpanel.agent.v1.restartContainerCommand
-import com.craftpanel.agent.v1.startContainerCommand
-import com.craftpanel.agent.v1.stopContainerCommand
-import com.craftpanel.agent.v1.volumeMount
-import io.craftpanel.master.database.schema.ContainerMetrics
-import io.craftpanel.master.database.schema.GroupPermissions
-import io.craftpanel.master.database.schema.Nodes
-import io.craftpanel.master.database.schema.PortRegistry
-import io.craftpanel.master.database.schema.ServerEnvVars
-import io.craftpanel.master.database.schema.ServerMigrations
-import io.craftpanel.master.database.schema.ServerMods
-import io.craftpanel.master.database.schema.ServerNetworks
-import io.craftpanel.master.database.schema.Servers
-import io.craftpanel.master.database.schema.UserGroupAssignments
-import io.craftpanel.master.database.schema.Users
+import com.craftpanel.agent.v1.*
+import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.util.toKotlinUuid
-import kotlin.time.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerialName
@@ -35,7 +16,8 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import java.util.UUID
+import java.util.*
+import kotlin.time.Clock
 
 @Serializable
 data class ServerResponse(
@@ -120,7 +102,9 @@ class ServerService(
 ) {
 
     fun authInfo(id: kotlin.uuid.Uuid): ServerAuthInfo? = transaction {
-        Servers.selectAll().where { Servers.id eq id }.firstOrNull()
+        Servers.selectAll()
+            .where { Servers.id eq id }
+            .firstOrNull()
             ?.let { ServerAuthInfo(it[Servers.networkId]?.let { nid -> UUID.fromString(nid.toString()) }) }
     }
 
@@ -130,22 +114,27 @@ class ServerService(
             val netIds = visibility.networkIds.toList()
             val srvIds = visibility.serverIds.toList()
             val rows = when {
-                visibility.isGlobal -> Servers.selectAll().toList()
+                visibility.isGlobal                  -> Servers.selectAll()
+                    .toList()
+
                 netIds.isEmpty() && srvIds.isEmpty() -> return@transaction emptyList()
-                else -> Servers.selectAll().where {
-                    val conds = buildList<Op<Boolean>> {
-                        if (netIds.isNotEmpty()) add(Servers.networkId inList netIds)
-                        if (srvIds.isNotEmpty()) add(Servers.id inList srvIds)
+                else                                 -> Servers.selectAll()
+                    .where {
+                        val conds = buildList<Op<Boolean>> {
+                            if (netIds.isNotEmpty()) add(Servers.networkId inList netIds)
+                            if (srvIds.isNotEmpty()) add(Servers.id inList srvIds)
+                        }
+                        conds.reduce { a, b -> a or b }
                     }
-                    conds.reduce { a, b -> a or b }
-                }.toList()
+                    .toList()
             }
             val ids = rows.map { it[Servers.id] }
-            val migratingIds = if (ids.isEmpty()) emptySet() else {
+            val migratingIds = if (ids.isEmpty()) emptySet()
+            else {
                 ServerMigrations.selectAll()
                     .where {
                         (ServerMigrations.serverId inList ids) and
-                        (ServerMigrations.status inList listOf("PENDING", "RUNNING"))
+                                (ServerMigrations.status inList listOf("PENDING", "RUNNING"))
                     }
                     .map { it[ServerMigrations.serverId] }
                     .toSet()
@@ -164,19 +153,27 @@ class ServerService(
         data class CreateResult(val status: String, val server: ServerResponse? = null)
 
         val result = transaction {
-            val node = Nodes.selectAll().where { Nodes.id eq nodeKotlinId }.firstOrNull()
+            val node = Nodes.selectAll()
+                .where { Nodes.id eq nodeKotlinId }
+                .firstOrNull()
                 ?: return@transaction CreateResult("node_not_found")
             if (node[Nodes.status] != "ACTIVE") return@transaction CreateResult("node_not_active")
             if (networkKotlinId != null) {
-                val netExists = ServerNetworks.selectAll().where { ServerNetworks.id eq networkKotlinId }.firstOrNull() != null
+                val netExists = ServerNetworks.selectAll()
+                    .where { ServerNetworks.id eq networkKotlinId }
+                    .firstOrNull() != null
                 if (!netExists) return@transaction CreateResult("network_not_found")
             }
-            val nameTaken = Servers.selectAll().where { Servers.name eq req.name }.firstOrNull() != null
+            val nameTaken = Servers.selectAll()
+                .where { Servers.name eq req.name }
+                .firstOrNull() != null
             if (nameTaken) return@transaction CreateResult("name_taken")
 
             val totalRam = node[Nodes.totalRamMb]
             val totalCpu = node[Nodes.totalCpuShares]
-            val existing = Servers.selectAll().where { Servers.nodeId eq nodeKotlinId }.toList()
+            val existing = Servers.selectAll()
+                .where { Servers.nodeId eq nodeKotlinId }
+                .toList()
             val usedRam = existing.sumOf { it[Servers.memoryMb] }
             val usedCpu = existing.sumOf { it[Servers.cpuShares] }
             if (usedRam + req.memoryMb > totalRam) return@transaction CreateResult("insufficient_ram")
@@ -184,7 +181,8 @@ class ServerService(
 
             val usedPorts = PortRegistry.selectAll()
                 .where { (PortRegistry.nodeId eq nodeKotlinId) and (PortRegistry.protocol eq "TCP") }
-                .map { it[PortRegistry.port] }.toSet()
+                .map { it[PortRegistry.port] }
+                .toSet()
             val port = (node[Nodes.portRangeStart]..node[Nodes.portRangeEnd]).firstOrNull { it !in usedPorts }
                 ?: return@transaction CreateResult("no_ports")
 
@@ -209,25 +207,29 @@ class ServerService(
                 it[PortRegistry.protocol] = "TCP"
                 it[PortRegistry.serverId] = insertedId
             }
-            val row = Servers.selectAll().where { Servers.id eq insertedId }.first()
+            val row = Servers.selectAll()
+                .where { Servers.id eq insertedId }
+                .first()
             CreateResult("ok", rowToServerResponse(row, false))
         }
 
         return when (result.status) {
-            "ok" -> result.server!!
-            "node_not_found" -> throw UnprocessableException("Node not found")
-            "node_not_active" -> throw UnprocessableException("Node is not active")
+            "ok"                -> result.server!!
+            "node_not_found"    -> throw UnprocessableException("Node not found")
+            "node_not_active"   -> throw UnprocessableException("Node is not active")
             "network_not_found" -> throw UnprocessableException("Network not found")
-            "name_taken" -> throw ConflictException("Server name already taken")
-            "insufficient_ram" -> throw ConflictException("Insufficient RAM capacity on node")
-            "insufficient_cpu" -> throw ConflictException("Insufficient CPU capacity on node")
-            else -> throw ConflictException("No free ports available on node")
+            "name_taken"        -> throw ConflictException("Server name already taken")
+            "insufficient_ram"  -> throw ConflictException("Insufficient RAM capacity on node")
+            "insufficient_cpu"  -> throw ConflictException("Insufficient CPU capacity on node")
+            else                -> throw ConflictException("No free ports available on node")
         }
     }
 
     fun getServer(id: kotlin.uuid.Uuid): ServerResponse {
         val (row, isMigrating) = transaction {
-            val r = Servers.selectAll().where { Servers.id eq id }.firstOrNull() ?: return@transaction null
+            val r = Servers.selectAll()
+                .where { Servers.id eq id }
+                .firstOrNull() ?: return@transaction null
             val migrating = ServerMigrations.selectAll()
                 .where { (ServerMigrations.serverId eq id) and (ServerMigrations.status inList listOf("PENDING", "RUNNING")) }
                 .firstOrNull() != null
@@ -246,14 +248,19 @@ class ServerService(
         val newDescription = if (descriptionKey && body["description"] !is JsonNull) body["description"]!!.jsonPrimitive.content else null
         val newNetworkId: kotlin.uuid.Uuid? = if (networkIdKey && body["network_id"] !is JsonNull) {
             parseUuid(body["network_id"]!!.jsonPrimitive.content) ?: throw UnprocessableException("Invalid network_id")
-        } else null
+        }
+        else null
         val newMcVersion = if (mcVersionKey && body["mc_version"] !is JsonNull) body["mc_version"]!!.jsonPrimitive.content else null
 
         val result = transaction {
-            Servers.selectAll().where { Servers.id eq id }.firstOrNull()
+            Servers.selectAll()
+                .where { Servers.id eq id }
+                .firstOrNull()
                 ?: return@transaction "not_found"
             if (networkIdKey && newNetworkId != null) {
-                val netExists = ServerNetworks.selectAll().where { ServerNetworks.id eq newNetworkId }.firstOrNull() != null
+                val netExists = ServerNetworks.selectAll()
+                    .where { ServerNetworks.id eq newNetworkId }
+                    .firstOrNull() != null
                 if (!netExists) return@transaction "network_not_found"
             }
             Servers.update({ Servers.id eq id }) {
@@ -261,18 +268,23 @@ class ServerService(
                 if (descriptionKey) it[description] = newDescription
                 if (networkIdKey) it[networkId] = newNetworkId
                 if (mcVersionKey && newMcVersion != null) it[mcVersion] = newMcVersion
-                it[updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+                it[updatedAt] = Clock.System.now()
+                    .toLocalDateTime(TimeZone.UTC)
             }
             "ok"
         }
         when (result) {
-            "not_found" -> throw NotFoundException("Server not found")
+            "not_found"         -> throw NotFoundException("Server not found")
             "network_not_found" -> throw UnprocessableException("Network not found")
         }
     }
 
     fun deleteServer(id: kotlin.uuid.Uuid) {
-        val existing = transaction { Servers.selectAll().where { Servers.id eq id }.firstOrNull() }
+        val existing = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq id }
+                .firstOrNull()
+        }
             ?: throw NotFoundException("Server not found")
         if (existing[Servers.status] != "STOPPED") throw ConflictException("Server must be STOPPED before deletion")
         transaction {
@@ -284,13 +296,21 @@ class ServerService(
     fun updateResources(id: kotlin.uuid.Uuid, req: PatchResourcesRequest) {
         if (req.memoryMb <= 0) throw UnprocessableException("memory_mb must be positive")
         if (req.cpuShares < 0) throw UnprocessableException("cpu_shares must be non-negative")
-        val existing = transaction { Servers.selectAll().where { Servers.id eq id }.firstOrNull() }
+        val existing = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq id }
+                .firstOrNull()
+        }
             ?: throw NotFoundException("Server not found")
         val nodeKotlinId = existing[Servers.nodeId]
         val result = transaction {
-            val node = Nodes.selectAll().where { Nodes.id eq nodeKotlinId }.firstOrNull()
+            val node = Nodes.selectAll()
+                .where { Nodes.id eq nodeKotlinId }
+                .firstOrNull()
                 ?: return@transaction "node_not_found"
-            val others = Servers.selectAll().where { (Servers.nodeId eq nodeKotlinId) and (Servers.id neq id) }.toList()
+            val others = Servers.selectAll()
+                .where { (Servers.nodeId eq nodeKotlinId) and (Servers.id neq id) }
+                .toList()
             val usedRam = others.sumOf { it[Servers.memoryMb] }
             val usedCpu = others.sumOf { it[Servers.cpuShares] }
             if (usedRam + req.memoryMb > node[Nodes.totalRamMb]) return@transaction "insufficient_ram"
@@ -299,27 +319,40 @@ class ServerService(
                 it[memoryMb] = req.memoryMb
                 it[cpuShares] = req.cpuShares
                 if (req.itzgImageTag != null) it[itzgImageTag] = req.itzgImageTag
-                it[updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+                it[updatedAt] = Clock.System.now()
+                    .toLocalDateTime(TimeZone.UTC)
             }
             "ok"
         }
         when (result) {
-            "node_not_found" -> throw UnprocessableException("Node not found")
+            "node_not_found"   -> throw UnprocessableException("Node not found")
             "insufficient_ram" -> throw ConflictException("Insufficient RAM capacity on node")
             "insufficient_cpu" -> throw ConflictException("Insufficient CPU capacity on node")
         }
     }
 
     fun startServer(id: kotlin.uuid.Uuid) {
-        val serverRow = transaction { Servers.selectAll().where { Servers.id eq id }.firstOrNull() }
+        val serverRow = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq id }
+                .firstOrNull()
+        }
             ?: throw NotFoundException("Server not found")
         val currentStatus = serverRow[Servers.status]
         if (currentStatus == "HEALTHY" || currentStatus == "STARTING")
             throw ConflictException("Server is already running")
         val nodeKotlinId = serverRow[Servers.nodeId]
-        val nodeRow = transaction { Nodes.selectAll().where { Nodes.id eq nodeKotlinId }.firstOrNull() }
+        val nodeRow = transaction {
+            Nodes.selectAll()
+                .where { Nodes.id eq nodeKotlinId }
+                .firstOrNull()
+        }
             ?: throw UnprocessableException("Node not found")
-        val dbEnvVars = transaction { ServerEnvVars.selectAll().where { ServerEnvVars.serverId eq id }.toList() }
+        val dbEnvVars = transaction {
+            ServerEnvVars.selectAll()
+                .where { ServerEnvVars.serverId eq id }
+                .toList()
+        }
         val serverType = serverRow[Servers.serverType]
         val serverImage = deriveImage(serverType, serverRow[Servers.itzgImageTag])
         val dataVolumePath = "${nodeRow[Nodes.dataPath]}/servers/$id"
@@ -351,13 +384,18 @@ class ServerService(
 
         transaction {
             Servers.update({ Servers.id eq id }) {
-                it[status] = "STARTING"; it[updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+                it[status] = "STARTING"; it[updatedAt] = Clock.System.now()
+                .toLocalDateTime(TimeZone.UTC)
             }
         }
     }
 
     fun stopServer(id: kotlin.uuid.Uuid) {
-        val serverRow = transaction { Servers.selectAll().where { Servers.id eq id }.firstOrNull() }
+        val serverRow = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq id }
+                .firstOrNull()
+        }
             ?: throw NotFoundException("Server not found")
         if (serverRow[Servers.status] == "STOPPED") throw ConflictException("Server is already stopped")
         val nodeId = serverRow[Servers.nodeId].toString()
@@ -368,11 +406,20 @@ class ServerService(
             }
         }
         if (!sendToNode(nodeId, stopCmd)) throw BadGatewayException("Agent not connected")
-        transaction { Servers.update({ Servers.id eq id }) { it[status] = "STOPPING"; it[updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC) } }
+        transaction {
+            Servers.update({ Servers.id eq id }) {
+                it[status] = "STOPPING"; it[updatedAt] = Clock.System.now()
+                .toLocalDateTime(TimeZone.UTC)
+            }
+        }
     }
 
     fun restartServer(id: kotlin.uuid.Uuid) {
-        val serverRow = transaction { Servers.selectAll().where { Servers.id eq id }.firstOrNull() }
+        val serverRow = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq id }
+                .firstOrNull()
+        }
             ?: throw NotFoundException("Server not found")
         val nodeId = serverRow[Servers.nodeId].toString()
         val restartCmd = masterMessage {
@@ -386,12 +433,24 @@ class ServerService(
 
     fun upgradeServer(id: kotlin.uuid.Uuid, req: UpgradeServerRequest) {
         if (req.itzgImageTag.isBlank()) throw UnprocessableException("itzg_image_tag must not be blank")
-        val serverRow = transaction { Servers.selectAll().where { Servers.id eq id }.firstOrNull() }
+        val serverRow = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq id }
+                .firstOrNull()
+        }
             ?: throw NotFoundException("Server not found")
         if (serverRow[Servers.status] != "STOPPED") throw ConflictException("Server must be STOPPED before upgrade")
-        val nodeRow = transaction { Nodes.selectAll().where { Nodes.id eq serverRow[Servers.nodeId] }.firstOrNull() }
+        val nodeRow = transaction {
+            Nodes.selectAll()
+                .where { Nodes.id eq serverRow[Servers.nodeId] }
+                .firstOrNull()
+        }
             ?: throw UnprocessableException("Node not found")
-        val dbEnvVars = transaction { ServerEnvVars.selectAll().where { ServerEnvVars.serverId eq id }.toList() }
+        val dbEnvVars = transaction {
+            ServerEnvVars.selectAll()
+                .where { ServerEnvVars.serverId eq id }
+                .toList()
+        }
         val nodeId = serverRow[Servers.nodeId].toString()
         val serverType = serverRow[Servers.serverType]
         val serverImage = deriveImage(serverType, req.itzgImageTag)
@@ -425,19 +484,26 @@ class ServerService(
             Servers.update({ Servers.id eq id }) {
                 it[Servers.itzgImageTag] = req.itzgImageTag
                 it[Servers.containerId] = null
-                it[updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+                it[updatedAt] = Clock.System.now()
+                    .toLocalDateTime(TimeZone.UTC)
             }
         }
     }
 
     fun getMetrics(id: kotlin.uuid.Uuid, limit: Int): ContainerMetricsSeriesResponse {
-        val exists = transaction { Servers.selectAll().where { Servers.id eq id }.firstOrNull() != null }
+        val exists = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq id }
+                .firstOrNull() != null
+        }
         if (!exists) throw NotFoundException("Server not found")
         val rows = transaction {
             ContainerMetrics.selectAll()
                 .where { ContainerMetrics.serverId eq id }
                 .orderBy(ContainerMetrics.recordedAt, SortOrder.DESC)
-                .limit(limit).toList().reversed()
+                .limit(limit)
+                .toList()
+                .reversed()
         }
         return ContainerMetricsSeriesResponse(
             serverId = id.toString(),
@@ -451,7 +517,11 @@ class ServerService(
     }
 
     fun updateExposure(id: kotlin.uuid.Uuid, req: PatchExposureRequest) {
-        val exists = transaction { Servers.selectAll().where { Servers.id eq id }.firstOrNull() != null }
+        val exists = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq id }
+                .firstOrNull() != null
+        }
         if (!exists) throw NotFoundException("Server not found")
         val result = transaction {
             if (req.publicSubdomain != null) {
@@ -463,7 +533,8 @@ class ServerService(
             Servers.update({ Servers.id eq id }) {
                 it[exposedExternally] = req.exposedExternally
                 it[publicSubdomain] = req.publicSubdomain
-                it[updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+                it[updatedAt] = Clock.System.now()
+                    .toLocalDateTime(TimeZone.UTC)
             }
             "ok"
         }
@@ -479,10 +550,15 @@ private data class ServerVisibility(
 
 private fun resolveServerVisibility(userId: UUID): ServerVisibility = transaction {
     val kotlinUserId = userId.toKotlinUuid()
-    val user = Users.selectAll().where { Users.id eq kotlinUserId }.firstOrNull()
+    val user = Users.selectAll()
+        .where { Users.id eq kotlinUserId }
+        .firstOrNull()
     if (user == null || !user[Users.isActive]) return@transaction ServerVisibility(false, emptySet(), emptySet())
-    val assignments = UserGroupAssignments.selectAll().where { UserGroupAssignments.userId eq kotlinUserId }.toList()
-    val groupIds = assignments.map { it[UserGroupAssignments.groupId] }.toSet()
+    val assignments = UserGroupAssignments.selectAll()
+        .where { UserGroupAssignments.userId eq kotlinUserId }
+        .toList()
+    val groupIds = assignments.map { it[UserGroupAssignments.groupId] }
+        .toSet()
     if (groupIds.isEmpty()) return@transaction ServerVisibility(false, emptySet(), emptySet())
     val viewGroups = GroupPermissions.selectAll()
         .where { GroupPermissions.groupId inList groupIds }
@@ -495,9 +571,9 @@ private fun resolveServerVisibility(userId: UUID): ServerVisibility = transactio
     val serverIds = mutableSetOf<kotlin.uuid.Uuid>()
     for (a in assignments.filter { it[UserGroupAssignments.groupId] in viewGroups }) {
         when (a[UserGroupAssignments.scopeType]) {
-            "GLOBAL" -> isGlobal = true
+            "GLOBAL"  -> isGlobal = true
             "NETWORK" -> a[UserGroupAssignments.scopeId]?.let { networkIds += it }
-            "SERVER" -> a[UserGroupAssignments.scopeId]?.let { serverIds += it }
+            "SERVER"  -> a[UserGroupAssignments.scopeId]?.let { serverIds += it }
         }
     }
     ServerVisibility(isGlobal, networkIds, serverIds)
@@ -530,8 +606,11 @@ internal fun rowToServerResponse(row: ResultRow, isMigrating: Boolean) = ServerR
 
 internal fun deriveImage(serverType: String, tag: String): String = when (serverType) {
     "BUNGEECORD", "VELOCITY", "WATERFALL" -> "itzg/mc-proxy:$tag"
-    else -> "itzg/minecraft-server:$tag"
+    else                                  -> "itzg/minecraft-server:$tag"
 }
 
 private fun parseUuid(raw: String): kotlin.uuid.Uuid? =
-    runCatching { UUID.fromString(raw).toKotlinUuid() }.getOrNull()
+    runCatching {
+        UUID.fromString(raw)
+            .toKotlinUuid()
+    }.getOrNull()

@@ -5,6 +5,7 @@ import org.jetbrains.exposed.v1.datetime.CurrentDateTime
 import org.jetbrains.exposed.v1.datetime.datetime
 
 object ServerNetworks : Table("server_networks") {
+
     val id = uuid("id").autoGenerate()
     val name = varchar("name", 100).uniqueIndex()
     val type = varchar("type", 10)              // PROXY | VANILLA

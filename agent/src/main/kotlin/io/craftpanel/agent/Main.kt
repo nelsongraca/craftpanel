@@ -29,10 +29,11 @@ fun main(): Unit = runBlocking {
         .start()
     log.info("DataService gRPC server started on port ${config.dataServicePort}")
 
-    Runtime.getRuntime().addShutdownHook(Thread {
-        dataServer.shutdown()
-        log.info("DataService gRPC server stopped")
-    })
+    Runtime.getRuntime()
+        .addShutdownHook(Thread {
+            dataServer.shutdown()
+            log.info("DataService gRPC server stopped")
+        })
 
     ConnectionManager(config, containerManager, metricsCollector).run()
 }

@@ -8,7 +8,8 @@ import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -57,14 +58,17 @@ data class NodeMetricsResponse(
 class NodeService(private val sendToNode: (String, MasterMessage) -> Boolean) {
 
     fun listNodes(): List<NodeResponse> = transaction {
-        Nodes.selectAll().map { row ->
-            row.toNodeResponse(allocationsForNode(row[Nodes.id]))
-        }
+        Nodes.selectAll()
+            .map { row ->
+                row.toNodeResponse(allocationsForNode(row[Nodes.id]))
+            }
     }
 
     fun getNode(id: kotlin.uuid.Uuid): NodeResponse =
         transaction {
-            Nodes.selectAll().where { Nodes.id eq id }.firstOrNull()
+            Nodes.selectAll()
+                .where { Nodes.id eq id }
+                .firstOrNull()
                 ?.let { it.toNodeResponse(allocationsForNode(id)) }
         } ?: throw NotFoundException("Node not found")
 
@@ -80,7 +84,9 @@ class NodeService(private val sendToNode: (String, MasterMessage) -> Boolean) {
 
     fun rotateToken(id: kotlin.uuid.Uuid): String {
         val (rawKey, updated) = transaction {
-            val exists = Nodes.selectAll().where { Nodes.id eq id }.firstOrNull() != null
+            val exists = Nodes.selectAll()
+                .where { Nodes.id eq id }
+                .firstOrNull() != null
             if (!exists) return@transaction null to 0
             val raw = generateNodeKey()
             val hash = sha256Hex(raw)
@@ -92,7 +98,11 @@ class NodeService(private val sendToNode: (String, MasterMessage) -> Boolean) {
     }
 
     fun shutdownNode(id: kotlin.uuid.Uuid) {
-        val exists = transaction { Nodes.selectAll().where { Nodes.id eq id }.firstOrNull() != null }
+        val exists = transaction {
+            Nodes.selectAll()
+                .where { Nodes.id eq id }
+                .firstOrNull() != null
+        }
         if (!exists) throw NotFoundException("Node not found")
         val msg = masterMessage { shutdown = shutdownCommand { timeoutSeconds = 30 } }
         if (!sendToNode(id.toString(), msg)) throw BadGatewayException("Agent not connected")
@@ -100,7 +110,9 @@ class NodeService(private val sendToNode: (String, MasterMessage) -> Boolean) {
 
     fun updateNode(id: kotlin.uuid.Uuid, req: PatchNodeRequest) {
         val result = transaction {
-            val current = Nodes.selectAll().where { Nodes.id eq id }.firstOrNull()
+            val current = Nodes.selectAll()
+                .where { Nodes.id eq id }
+                .firstOrNull()
                 ?: return@transaction null
             val newStart = req.portRangeStart ?: current[Nodes.portRangeStart]
             val newEnd = req.portRangeEnd ?: current[Nodes.portRangeEnd]
@@ -126,7 +138,11 @@ class NodeService(private val sendToNode: (String, MasterMessage) -> Boolean) {
     }
 
     fun getNodeMetrics(id: kotlin.uuid.Uuid, limit: Int): NodeMetricsResponse {
-        val exists = transaction { Nodes.selectAll().where { Nodes.id eq id }.firstOrNull() != null }
+        val exists = transaction {
+            Nodes.selectAll()
+                .where { Nodes.id eq id }
+                .firstOrNull() != null
+        }
         if (!exists) throw NotFoundException("Node not found")
         val metrics = transaction {
             NodeMetrics.selectAll()
@@ -152,9 +168,13 @@ class NodeService(private val sendToNode: (String, MasterMessage) -> Boolean) {
 private data class NodeAllocations(val ramMb: Int, val cpuShares: Int)
 
 private fun allocationsForNode(nodeKotlinId: kotlin.uuid.Uuid): NodeAllocations {
-    val rows = Servers.selectAll().where { Servers.nodeId eq nodeKotlinId }
-    var ram = 0; var cpu = 0
-    for (row in rows) { ram += row[Servers.memoryMb]; cpu += row[Servers.cpuShares] }
+    val rows = Servers.selectAll()
+        .where { Servers.nodeId eq nodeKotlinId }
+    var ram = 0;
+    var cpu = 0
+    for (row in rows) {
+        ram += row[Servers.memoryMb]; cpu += row[Servers.cpuShares]
+    }
     return NodeAllocations(ram, cpu)
 }
 
@@ -179,11 +199,17 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toNodeResponse(alloc: NodeAl
 )
 
 private fun generateNodeKey(): String {
-    val bytes = ByteArray(32).also { java.security.SecureRandom().nextBytes(it) }
-    return java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+    val bytes = ByteArray(32).also {
+        java.security.SecureRandom()
+            .nextBytes(it)
+    }
+    return java.util.Base64.getUrlEncoder()
+        .withoutPadding()
+        .encodeToString(bytes)
 }
 
 private fun sha256Hex(input: String): String {
     val digest = java.security.MessageDigest.getInstance("SHA-256")
-    return digest.digest(input.toByteArray()).joinToString("") { "%02x".format(it) }
+    return digest.digest(input.toByteArray())
+        .joinToString("") { "%02x".format(it) }
 }

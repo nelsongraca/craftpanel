@@ -1,82 +1,91 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
-import { authWsTicket } from "@/lib/generated/sdk.gen";
-import { getAccessToken } from "@/lib/client";
+import {useCallback, useEffect, useRef} from "react";
+import {authWsTicket} from "@/lib/generated/sdk.gen";
+import {getAccessToken} from "@/lib/client";
 
 export type WsEventType =
-  | "snapshot"
-  | "node.metrics"
-  | "node.status"
-  | "server.metrics"
-  | "server.status"
-  | "server.players"
-  | "alert.fired"
-  | "alert.resolved";
+    | "snapshot"
+    | "node.metrics"
+    | "node.status"
+    | "server.metrics"
+    | "server.status"
+    | "server.players"
+    | "alert.fired"
+    | "alert.resolved";
 
 type Listener = (payload: Record<string, unknown>) => void;
 
 interface UseDashboardSocketOptions {
-  enabled?: boolean;
+    enabled?: boolean;
 }
 
 export function useDashboardSocket(
-  onEvent: (type: WsEventType, payload: Record<string, unknown>) => void,
-  options: UseDashboardSocketOptions = {},
+    onEvent: (type: WsEventType, payload: Record<string, unknown>) => void,
+    options: UseDashboardSocketOptions = {},
 ) {
-  const { enabled = true } = options;
-  const wsRef = useRef<WebSocket | null>(null);
-  const onEventRef = useRef(onEvent);
-  const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const retryCount = useRef(0);
-  const mountedRef = useRef(true);
+    const {enabled = true} = options;
+    const wsRef = useRef<WebSocket | null>(null);
+    const onEventRef = useRef(onEvent);
+    const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const retryCount = useRef(0);
+    const mountedRef = useRef(true);
 
-  useEffect(() => { onEventRef.current = onEvent; }, [onEvent]);
+    useEffect(() => {
+        onEventRef.current = onEvent;
+    }, [onEvent]);
 
-  const connect = useCallback(async () => {
-    if (!mountedRef.current || !enabled) return;
-    if (!getAccessToken()) return;
+    const connect = useCallback(async () => {
+        if (!mountedRef.current || !enabled) return;
+        if (!getAccessToken()) return;
 
-    try {
-      const { data } = await authWsTicket();
-      if (!data?.ticket || !mountedRef.current) return;
-
-      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-      const url = `${protocol}//${window.location.host}/api/ws?ticket=${data.ticket}`;
-      const ws = new WebSocket(url);
-      wsRef.current = ws;
-
-      ws.onmessage = (ev) => {
         try {
-          const msg = JSON.parse(ev.data as string) as { type: string; payload: Record<string, unknown> };
-          onEventRef.current(msg.type as WsEventType, msg.payload);
-        } catch {}
-      };
+            const {data} = await authWsTicket();
+            if (!data?.ticket || !mountedRef.current) return;
 
-      ws.onclose = () => {
-        if (!mountedRef.current) return;
-        const delay = Math.min(1000 * 2 ** retryCount.current, 30000);
-        retryCount.current = Math.min(retryCount.current + 1, 5);
-        retryRef.current = setTimeout(() => { void connect(); }, delay);
-      };
+            const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+            const url = `${protocol}//${window.location.host}/api/ws?ticket=${data.ticket}`;
+            const ws = new WebSocket(url);
+            wsRef.current = ws;
 
-      ws.onopen = () => { retryCount.current = 0; };
-    } catch {
-      if (!mountedRef.current) return;
-      const delay = Math.min(1000 * 2 ** retryCount.current, 30000);
-      retryCount.current = Math.min(retryCount.current + 1, 5);
-      retryRef.current = setTimeout(() => { void connect(); }, delay);
-    }
-  }, [enabled]);
+            ws.onmessage = (ev) => {
+                try {
+                    const msg = JSON.parse(ev.data as string) as { type: string; payload: Record<string, unknown> };
+                    onEventRef.current(msg.type as WsEventType, msg.payload);
+                } catch {
+                }
+            };
 
-  useEffect(() => {
-    mountedRef.current = true;
-    void connect();
-    return () => {
-      mountedRef.current = false;
-      if (retryRef.current) clearTimeout(retryRef.current);
-      wsRef.current?.close();
-      wsRef.current = null;
-    };
-  }, [connect]);
+            ws.onclose = () => {
+                if (!mountedRef.current) return;
+                const delay = Math.min(1000 * 2 ** retryCount.current, 30000);
+                retryCount.current = Math.min(retryCount.current + 1, 5);
+                retryRef.current = setTimeout(() => {
+                    void connect();
+                }, delay);
+            };
+
+            ws.onopen = () => {
+                retryCount.current = 0;
+            };
+        } catch {
+            if (!mountedRef.current) return;
+            const delay = Math.min(1000 * 2 ** retryCount.current, 30000);
+            retryCount.current = Math.min(retryCount.current + 1, 5);
+            retryRef.current = setTimeout(() => {
+                void connect();
+            }, delay);
+        }
+    }, [enabled]);
+
+    useEffect(() => {
+        mountedRef.current = true;
+        void connect();
+        return () => {
+            mountedRef.current = false;
+            if (retryRef.current) clearTimeout(retryRef.current);
+            wsRef.current?.close();
+            wsRef.current = null;
+        };
+    }, [connect]);
 }

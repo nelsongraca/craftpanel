@@ -73,6 +73,7 @@ Migration flow initiated from the server detail page (··· menu → Migrate).
         <button class="cp-btn cp-btn-primary">Start Migration</button>
       </div>
     </div>
+
   </div>
 
   <!-- === SCREEN 2: Migration in progress === -->
@@ -170,6 +171,7 @@ Migration flow initiated from the server detail page (··· menu → Migrate).
 
       </div>
     </div>
+
   </div>
 
 </div>

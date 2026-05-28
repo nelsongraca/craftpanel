@@ -4,6 +4,7 @@ import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.datetime.datetime
 
 object NodeMetrics : Table("node_metrics") {
+
     val id = uuid("id").autoGenerate()
     val nodeId = uuid("node_id").references(Nodes.id)
     val recordedAt = datetime("recorded_at")

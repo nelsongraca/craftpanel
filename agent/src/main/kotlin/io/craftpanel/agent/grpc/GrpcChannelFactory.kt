@@ -16,7 +16,8 @@ object GrpcChannelFactory {
                 .trustManager(File(config.tlsCertPath))
                 .build()
             builder.sslContext(sslContext)
-        } else {
+        }
+        else {
             builder.usePlaintext()
         }
 

@@ -6,10 +6,10 @@
     </appender>
 
     <root level="INFO">
-        <appender-ref ref="STDOUT" />
+        <appender-ref ref="STDOUT"/>
     </root>
 
-    <logger name="io.craftpanel" level="DEBUG" />
-    <logger name="io.ktor" level="INFO" />
-    <logger name="org.jetbrains.exposed" level="INFO" />
+    <logger name="io.craftpanel" level="DEBUG"/>
+    <logger name="io.ktor" level="INFO"/>
+    <logger name="org.jetbrains.exposed" level="INFO"/>
 </configuration>

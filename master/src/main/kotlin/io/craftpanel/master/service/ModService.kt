@@ -2,12 +2,12 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.database.schema.ServerMods
 import io.craftpanel.master.database.schema.Servers
-import kotlin.time.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -17,7 +17,8 @@ import java.net.URI
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
-import java.util.UUID
+import java.util.*
+import kotlin.time.Clock
 
 private val VALID_PIN_STRATEGIES = setOf("PINNED", "LATEST", "BETA", "ALPHA")
 
@@ -56,12 +57,18 @@ class ModService {
 
     fun getServerScope(serverId: kotlin.uuid.Uuid): ServerScope? =
         transaction {
-            Servers.selectAll().where { Servers.id eq serverId }.firstOrNull()
+            Servers.selectAll()
+                .where { Servers.id eq serverId }
+                .firstOrNull()
                 ?.let { ServerScope(it[Servers.networkId]?.let { nid -> UUID.fromString(nid.toString()) }) }
         }
 
     fun listMods(serverId: kotlin.uuid.Uuid): List<ModResponse> =
-        transaction { ServerMods.selectAll().where { ServerMods.serverId eq serverId }.map { it.toModResponse() } }
+        transaction {
+            ServerMods.selectAll()
+                .where { ServerMods.serverId eq serverId }
+                .map { it.toModResponse() }
+        }
 
     fun addMod(serverId: kotlin.uuid.Uuid, req: CreateModRequest): ModResponse {
         if (req.pinStrategy !in VALID_PIN_STRATEGIES)
@@ -80,25 +87,36 @@ class ModService {
                 it[ServerMods.pinStrategy] = req.pinStrategy
                 it[ServerMods.pinnedVersionId] = req.pinnedVersionId
             }[ServerMods.id]
-            ServerMods.selectAll().where { ServerMods.id eq modId }.first().toModResponse()
+            ServerMods.selectAll()
+                .where { ServerMods.id eq modId }
+                .first()
+                .toModResponse()
         }
     }
 
     fun updateMod(serverId: kotlin.uuid.Uuid, modId: kotlin.uuid.Uuid, req: PatchModRequest): ModResponse {
-        transaction { ServerMods.selectAll().where { (ServerMods.id eq modId) and (ServerMods.serverId eq serverId) }.firstOrNull() }
+        transaction {
+            ServerMods.selectAll()
+                .where { (ServerMods.id eq modId) and (ServerMods.serverId eq serverId) }
+                .firstOrNull()
+        }
             ?: throw NotFoundException("Mod not found")
         if (req.pinStrategy != null && req.pinStrategy !in VALID_PIN_STRATEGIES)
             throw UnprocessableException("pin_strategy must be one of: ${VALID_PIN_STRATEGIES.joinToString()}")
         if (req.pinStrategy == "PINNED" && req.pinnedVersionId.isNullOrEmpty())
             throw UnprocessableException("pinned_version_id is required when pin_strategy is PINNED")
-        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        val now = Clock.System.now()
+            .toLocalDateTime(TimeZone.UTC)
         return transaction {
             ServerMods.update({ (ServerMods.id eq modId) and (ServerMods.serverId eq serverId) }) {
                 if (req.pinStrategy != null) it[ServerMods.pinStrategy] = req.pinStrategy
                 if (req.pinnedVersionId != null) it[ServerMods.pinnedVersionId] = req.pinnedVersionId
                 it[ServerMods.updatedAt] = now
             }
-            ServerMods.selectAll().where { ServerMods.id eq modId }.first().toModResponse()
+            ServerMods.selectAll()
+                .where { ServerMods.id eq modId }
+                .first()
+                .toModResponse()
         }
     }
 
@@ -125,14 +143,18 @@ class ModService {
     }
 
     fun buildModrinthEnvVar(serverId: kotlin.uuid.Uuid): String =
-        transaction { ServerMods.selectAll().where { ServerMods.serverId eq serverId }.toList() }
+        transaction {
+            ServerMods.selectAll()
+                .where { ServerMods.serverId eq serverId }
+                .toList()
+        }
             .joinToString(",") { row ->
                 val projectId = row[ServerMods.modrinthProjectId]
                 when (row[ServerMods.pinStrategy]) {
                     "PINNED" -> "${projectId}:${row[ServerMods.pinnedVersionId]}"
-                    "BETA" -> "$projectId:beta"
-                    "ALPHA" -> "$projectId:alpha"
-                    else -> projectId
+                    "BETA"   -> "$projectId:beta"
+                    "ALPHA"  -> "$projectId:alpha"
+                    else     -> projectId
                 }
             }
 }

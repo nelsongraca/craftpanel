@@ -2,11 +2,11 @@
 
 Base path: `/api/servers/{id}/migrations`
 
-| Method | Path | Permission | Description |
-|---|---|---|---|
-| GET | `/servers/{id}/migrations` | `server.migrate` | List migrations for a server |
-| POST | `/servers/{id}/migrations` | `server.migrate` | Initiate a migration |
-| GET | `/servers/{id}/migrations/{migrationId}` | `server.migrate` | Get migration status and step log |
+| Method | Path                                     | Permission       | Description                       |
+|--------|------------------------------------------|------------------|-----------------------------------|
+| GET    | `/servers/{id}/migrations`               | `server.migrate` | List migrations for a server      |
+| POST   | `/servers/{id}/migrations`               | `server.migrate` | Initiate a migration              |
+| GET    | `/servers/{id}/migrations/{migrationId}` | `server.migrate` | Get migration status and step log |
 
 ---
 
@@ -98,18 +98,18 @@ Initiates a live migration to a destination node. The server does not need to be
 
 ### Migration steps reference
 
-| Step | Description |
-|---|---|
-| 1 | Migration initiated; nodes selected |
-| 2 | Initial rsync started (server still running) |
-| 3 | Initial rsync complete |
-| 4 | In-game warning broadcast via stdin |
-| 5 | `save-all` + `save-off` sent to server via stdin |
-| 6 | Final incremental rsync started |
-| 7 | Final rsync complete; new container created and started on destination |
-| 8 | DNS A record updated to destination node IP |
-| 9 | mc-router label applied; ingress live on destination |
-| 10 | Old container stopped and removed from source node |
-| 11 | Server node assignment updated in database — migration complete |
+| Step | Description                                                            |
+|------|------------------------------------------------------------------------|
+| 1    | Migration initiated; nodes selected                                    |
+| 2    | Initial rsync started (server still running)                           |
+| 3    | Initial rsync complete                                                 |
+| 4    | In-game warning broadcast via stdin                                    |
+| 5    | `save-all` + `save-off` sent to server via stdin                       |
+| 6    | Final incremental rsync started                                        |
+| 7    | Final rsync complete; new container created and started on destination |
+| 8    | DNS A record updated to destination node IP                            |
+| 9    | mc-router label applied; ingress live on destination                   |
+| 10   | Old container stopped and removed from source node                     |
+| 11   | Server node assignment updated in database — migration complete        |
 
 Live progress during steps 2 and 6 (rsync) is streamed via WebSocket as `rsync_progress` events.

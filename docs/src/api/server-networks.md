@@ -2,13 +2,13 @@
 
 Base path: `/api/networks`
 
-| Method | Path | Permission | Description |
-|---|---|---|---|
-| GET | `/networks` | authenticated | List all networks |
-| POST | `/networks` | `server.create` | Create a network |
-| GET | `/networks/{id}` | authenticated | Get network and member servers |
-| PATCH | `/networks/{id}` | `server.configure` (scoped to network) | Update name or description |
-| DELETE | `/networks/{id}` | `server.delete` (scoped to network) | Delete network |
+| Method | Path             | Permission                             | Description                    |
+|--------|------------------|----------------------------------------|--------------------------------|
+| GET    | `/networks`      | authenticated                          | List all networks              |
+| POST   | `/networks`      | `server.create`                        | Create a network               |
+| GET    | `/networks/{id}` | authenticated                          | Get network and member servers |
+| PATCH  | `/networks/{id}` | `server.configure` (scoped to network) | Update name or description     |
+| DELETE | `/networks/{id}` | `server.delete` (scoped to network)    | Delete network                 |
 
 ---
 

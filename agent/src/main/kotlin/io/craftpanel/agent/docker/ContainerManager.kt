@@ -6,16 +6,11 @@ import com.craftpanel.agent.v1.containerState
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.command.PullImageResultCallback
-import com.github.dockerjava.api.model.AccessMode
-import com.github.dockerjava.api.model.Bind
-import com.github.dockerjava.api.model.ExposedPort
-import com.github.dockerjava.api.model.HostConfig
-import com.github.dockerjava.api.model.Ports
-import com.github.dockerjava.api.model.RestartPolicy
-import com.github.dockerjava.api.model.Volume
+import com.github.dockerjava.api.model.*
 import org.slf4j.LoggerFactory
 
 open class ContainerManager(private val docker: DockerClient) {
+
     private val log = LoggerFactory.getLogger(ContainerManager::class.java)
 
     fun listRunningContainerIds(): List<Pair<String, String>> {
@@ -37,7 +32,8 @@ open class ContainerManager(private val docker: DockerClient) {
             .map { container ->
                 containerState {
                     containerId = container.id
-                    containerName = container.names.firstOrNull()?.trimStart('/') ?: container.id
+                    containerName = container.names.firstOrNull()
+                        ?.trimStart('/') ?: container.id
                     serverId = container.labels["craftpanel.server.id"] ?: ""
                     runState = when {
                         container.state == "running" -> ContainerState.RunState.RUNNING
@@ -89,19 +85,23 @@ open class ContainerManager(private val docker: DockerClient) {
     }
 
     fun pullImage(image: String) {
-        docker.pullImageCmd(image).exec(PullImageResultCallback()).awaitCompletion()
+        docker.pullImageCmd(image)
+            .exec(PullImageResultCallback())
+            .awaitCompletion()
         log.info("Pulled image $image")
     }
 
     fun startContainer(containerName: String) {
-        docker.startContainerCmd(containerName).exec()
+        docker.startContainerCmd(containerName)
+            .exec()
         log.info("Started container $containerName")
     }
 
     fun stopContainer(containerName: String, timeoutSeconds: Int, stopCommand: String) {
         if (stopCommand.isNotEmpty()) {
             runCatching {
-                val stdin = (stopCommand + "\n").toByteArray().inputStream()
+                val stdin = (stopCommand + "\n").toByteArray()
+                    .inputStream()
                 docker.attachContainerCmd(containerName)
                     .withStdIn(stdin)
                     .withStdOut(false)
@@ -127,7 +127,8 @@ open class ContainerManager(private val docker: DockerClient) {
 
     fun getContainerDataPath(containerName: String): String? {
         return runCatching {
-            docker.inspectContainerCmd(containerName).exec()
+            docker.inspectContainerCmd(containerName)
+                .exec()
                 .hostConfig?.binds
                 ?.firstOrNull { it.volume.path == "/data" }
                 ?.path
@@ -144,7 +145,8 @@ open class ContainerManager(private val docker: DockerClient) {
         var forced = 0
 
         for (container in containers) {
-            val name = container.names.firstOrNull()?.trimStart('/') ?: container.id
+            val name = container.names.firstOrNull()
+                ?.trimStart('/') ?: container.id
             runCatching {
                 docker.stopContainerCmd(container.id)
                     .withTimeout(timeoutSeconds.takeIf { it > 0 } ?: 30)
@@ -152,7 +154,10 @@ open class ContainerManager(private val docker: DockerClient) {
                 graceful++
             }.onFailure {
                 log.warn("Graceful stop failed for $name — force stopping", it)
-                runCatching { docker.killContainerCmd(container.id).exec() }
+                runCatching {
+                    docker.killContainerCmd(container.id)
+                        .exec()
+                }
                 forced++
             }
         }
