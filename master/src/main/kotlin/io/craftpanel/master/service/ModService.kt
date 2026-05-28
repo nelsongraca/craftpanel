@@ -2,7 +2,7 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.database.schema.ServerMods
 import io.craftpanel.master.database.schema.Servers
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerialName

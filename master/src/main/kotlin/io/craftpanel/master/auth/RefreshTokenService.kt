@@ -4,7 +4,7 @@ import io.craftpanel.master.database.schema.RefreshTokens
 import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.util.toJavaUuid
 import io.craftpanel.master.util.toKotlinUuid
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime

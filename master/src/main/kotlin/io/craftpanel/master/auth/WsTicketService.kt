@@ -1,6 +1,6 @@
 package io.craftpanel.master.auth
 
-import kotlinx.datetime.Clock
+import kotlin.time.Clock
 import kotlinx.datetime.Instant
 import java.security.SecureRandom
 import java.util.Base64
