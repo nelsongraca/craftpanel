@@ -22,6 +22,9 @@ data class NetworkResponse(
     @SerialName("proxy_port") val proxyPort: Int?,
     val description: String?,
     @SerialName("domain_suffix") val domainSuffix: String?,
+    @SerialName("dns_zone_id") val dnsZoneId: String?,
+    @SerialName("dns_domain_suffix") val dnsDomainSuffix: String?,
+    @SerialName("dns_provider_type") val dnsProviderType: String?,
     @SerialName("server_count") val serverCount: Int,
     @SerialName("created_at") val createdAt: String,
 )
@@ -43,6 +46,9 @@ data class NetworkDetailResponse(
     @SerialName("proxy_port") val proxyPort: Int?,
     val description: String?,
     @SerialName("domain_suffix") val domainSuffix: String?,
+    @SerialName("dns_zone_id") val dnsZoneId: String?,
+    @SerialName("dns_domain_suffix") val dnsDomainSuffix: String?,
+    @SerialName("dns_provider_type") val dnsProviderType: String?,
     @SerialName("server_count") val serverCount: Int,
     val servers: List<NetworkServerItem>,
     @SerialName("created_at") val createdAt: String,
@@ -56,6 +62,9 @@ data class CreateNetworkRequest(
     @SerialName("proxy_port") val proxyPort: Int? = null,
     val description: String? = null,
     @SerialName("domain_suffix") val domainSuffix: String? = null,
+    @SerialName("dns_zone_id") val dnsZoneId: String? = null,
+    @SerialName("dns_domain_suffix") val dnsDomainSuffix: String? = null,
+    @SerialName("dns_provider_type") val dnsProviderType: String? = null,
 )
 
 @Serializable
@@ -63,6 +72,9 @@ data class PatchNetworkRequest(
     val name: String? = null,
     val description: String? = null,
     @SerialName("domain_suffix") val domainSuffix: String? = null,
+    @SerialName("dns_zone_id") val dnsZoneId: String? = null,
+    @SerialName("dns_domain_suffix") val dnsDomainSuffix: String? = null,
+    @SerialName("dns_provider_type") val dnsProviderType: String? = null,
 )
 
 class NetworkService {
@@ -82,6 +94,9 @@ class NetworkService {
                     proxyPort = row[ServerNetworks.proxyPort],
                     description = row[ServerNetworks.description],
                     domainSuffix = row[ServerNetworks.cfDomainSuffix],
+                    dnsZoneId = row[ServerNetworks.cfZoneId],
+                    dnsDomainSuffix = row[ServerNetworks.cfDomainSuffix],
+                    dnsProviderType = row[ServerNetworks.dnsProviderType],
                     serverCount = counts[netId] ?: 0,
                     createdAt = row[ServerNetworks.createdAt].toString(),
                 )
@@ -102,7 +117,9 @@ class NetworkService {
                 it[proxyType] = req.proxyType
                 it[proxyPort] = req.proxyPort
                 it[description] = req.description
-                it[cfDomainSuffix] = req.domainSuffix
+                it[cfDomainSuffix] = req.domainSuffix ?: req.dnsDomainSuffix
+                it[cfZoneId] = req.dnsZoneId
+                it[dnsProviderType] = req.dnsProviderType
             }[ServerNetworks.id]
             val row = ServerNetworks.selectAll()
                 .where { ServerNetworks.id eq insertedId }
@@ -115,6 +132,9 @@ class NetworkService {
                 proxyPort = row[ServerNetworks.proxyPort],
                 description = row[ServerNetworks.description],
                 domainSuffix = row[ServerNetworks.cfDomainSuffix],
+                dnsZoneId = row[ServerNetworks.cfZoneId],
+                dnsDomainSuffix = row[ServerNetworks.cfDomainSuffix],
+                dnsProviderType = row[ServerNetworks.dnsProviderType],
                 serverCount = 0,
                 createdAt = row[ServerNetworks.createdAt].toString(),
             )
@@ -145,6 +165,9 @@ class NetworkService {
                 proxyPort = row[ServerNetworks.proxyPort],
                 description = row[ServerNetworks.description],
                 domainSuffix = row[ServerNetworks.cfDomainSuffix],
+                dnsZoneId = row[ServerNetworks.cfZoneId],
+                dnsDomainSuffix = row[ServerNetworks.cfDomainSuffix],
+                dnsProviderType = row[ServerNetworks.dnsProviderType],
                 serverCount = members.size,
                 servers = members,
                 createdAt = row[ServerNetworks.createdAt].toString(),
@@ -167,6 +190,9 @@ class NetworkService {
                 if (req.name != null) it[name] = req.name
                 if (req.description != null) it[description] = req.description
                 if (req.domainSuffix != null) it[cfDomainSuffix] = req.domainSuffix
+                if (req.dnsZoneId != null) it[cfZoneId] = req.dnsZoneId
+                if (req.dnsDomainSuffix != null) it[cfDomainSuffix] = req.dnsDomainSuffix
+                if (req.dnsProviderType != null) it[dnsProviderType] = req.dnsProviderType
             }
             true
         }

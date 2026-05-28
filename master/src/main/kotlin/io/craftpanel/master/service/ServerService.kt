@@ -2,8 +2,10 @@ package io.craftpanel.master.service
 
 import com.craftpanel.agent.v1.*
 import io.craftpanel.master.database.schema.*
+import io.craftpanel.master.dns.DnsProvider
 import org.jetbrains.exposed.v1.core.ResultRow
 import io.craftpanel.master.util.toKotlinUuid
+import org.slf4j.LoggerFactory
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerialName
@@ -100,7 +102,10 @@ data class ServerAuthInfo(val networkId: UUID?)
 class ServerService(
     private val sendToNode: (String, MasterMessage) -> Boolean,
     private val modService: ModService,
+    private val dnsProvider: DnsProvider? = null,
 ) {
+
+    private val log = LoggerFactory.getLogger(ServerService::class.java)
 
     fun authInfo(id: kotlin.uuid.Uuid): ServerAuthInfo? = transaction {
         Servers.selectAll()
@@ -288,6 +293,17 @@ class ServerService(
         }
             ?: throw NotFoundException("Server not found")
         if (existing[Servers.status] != "STOPPED") throw ConflictException("Server must be STOPPED before deletion")
+
+        val recordId = existing[Servers.dnsRecordId]
+        val provider = dnsProvider
+        if (recordId != null && provider != null) {
+            val dns = resolveNetworkDns(existing[Servers.networkId])
+            if (dns != null) {
+                runCatching { provider.deleteARecord(dns.zoneId, recordId) }
+                    .onFailure { log.warn("Failed to delete DNS record $recordId during server delete", it) }
+            }
+        }
+
         transaction {
             PortRegistry.deleteWhere { PortRegistry.serverId eq id }
             Servers.deleteWhere { Servers.id eq id }
@@ -486,59 +502,103 @@ class ServerService(
                 .firstOrNull()
         } ?: throw NotFoundException("Server not found")
 
-        val result = transaction {
-            if (req.publicSubdomain != null) {
-                val taken = Servers.selectAll()
+        if (req.exposedExternally && req.publicSubdomain != null) {
+            val taken = transaction {
+                Servers.selectAll()
                     .where { (Servers.publicSubdomain eq req.publicSubdomain) and (Servers.id neq id) }
                     .firstOrNull() != null
-                if (taken) return@transaction "subdomain_taken"
             }
-            "ok"
+            if (taken) throw UnprocessableException("Public subdomain already taken")
         }
-        if (result == "subdomain_taken") throw UnprocessableException("Public subdomain already taken")
 
-        val fullHostname = if (req.exposedExternally && req.publicSubdomain != null) {
-            resolvePublicHostname(req.publicSubdomain, serverRow[Servers.networkId])
-        } else null
+        val existingRecordId = serverRow[Servers.dnsRecordId]
 
-        transaction {
-            Servers.update({ Servers.id eq id }) {
-                it[exposedExternally] = req.exposedExternally
-                it[publicSubdomain] = req.publicSubdomain
-                it[dnsRecordName] = fullHostname
-                it[updatedAt] = Clock.System.now()
-                    .toLocalDateTime(TimeZone.UTC)
+        if (req.exposedExternally && req.publicSubdomain != null) {
+            val provider = dnsProvider
+            val dns = resolveNetworkDns(serverRow[Servers.networkId])
+
+            if (provider != null && dns == null) {
+                throw UnprocessableException(
+                    "Server's network has no DNS zone configured (set dns_zone_id and dns_domain_suffix on the network)"
+                )
+            }
+
+            val fullHostname = if (dns != null) {
+                "${req.publicSubdomain}.${dns.domainSuffix}"
+            } else {
+                resolvePublicHostname(req.publicSubdomain, serverRow[Servers.networkId])
+            }
+
+            val recordId = if (provider != null && dns != null) {
+                val nodeIp = transaction {
+                    Nodes.selectAll().where { Nodes.id eq serverRow[Servers.nodeId] }.first()
+                }[Nodes.publicIp]
+                runCatching {
+                    if (existingRecordId != null) {
+                        provider.updateARecord(dns.zoneId, existingRecordId, nodeIp)
+                        existingRecordId
+                    } else {
+                        provider.createARecord(dns.zoneId, fullHostname ?: req.publicSubdomain, nodeIp)
+                    }
+                }.getOrElse { ex -> throw BadGatewayException("DNS provider error: ${ex.message}") }
+            } else null
+
+            transaction {
+                Servers.update({ Servers.id eq id }) {
+                    it[exposedExternally] = true
+                    it[publicSubdomain] = req.publicSubdomain
+                    it[dnsRecordName] = fullHostname
+                    it[dnsRecordId] = recordId
+                    it[updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+                }
+            }
+
+            val isRunning = serverRow[Servers.status] in listOf("HEALTHY", "STARTING", "UNHEALTHY")
+            if (isRunning) {
+                val nodeId = serverRow[Servers.nodeId].toString()
+                val nodeRow = transaction {
+                    Nodes.selectAll().where { Nodes.id eq serverRow[Servers.nodeId] }.firstOrNull()
+                } ?: return
+                val allVars = buildAllVars(id, serverRow)
+                val serverImage = deriveImage(serverRow[Servers.serverType], serverRow[Servers.itzgImageTag])
+                sendToNode(nodeId, masterMessage { stopContainer = stopContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand] } })
+                sendToNode(nodeId, masterMessage { removeContainer = removeContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; force = false } })
+                sendToNode(nodeId, buildCreateContainerCommand(id, serverRow, nodeRow, serverImage, allVars, fullHostname))
+                sendToNode(nodeId, masterMessage { startContainer = startContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id" } })
+            }
+        } else {
+            val provider = dnsProvider
+            if (existingRecordId != null && provider != null) {
+                val dns = resolveNetworkDns(serverRow[Servers.networkId])
+                if (dns != null) {
+                    runCatching { provider.deleteARecord(dns.zoneId, existingRecordId) }
+                        .onFailure { log.warn("Failed to delete DNS record $existingRecordId — continuing", it) }
+                }
+            }
+            transaction {
+                Servers.update({ Servers.id eq id }) {
+                    it[exposedExternally] = false
+                    it[publicSubdomain] = null
+                    it[dnsRecordName] = null
+                    it[dnsRecordId] = null
+                    it[updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+                }
             }
         }
+    }
 
-        val isRunning = serverRow[Servers.status] in listOf("HEALTHY", "STARTING", "UNHEALTHY")
-        if (isRunning) {
-            val nodeId = serverRow[Servers.nodeId].toString()
-            val nodeRow = transaction {
-                Nodes.selectAll()
-                    .where { Nodes.id eq serverRow[Servers.nodeId] }
-                    .firstOrNull()
-            } ?: return
-            val allVars = buildAllVars(id, serverRow)
-            val serverImage = deriveImage(serverRow[Servers.serverType], serverRow[Servers.itzgImageTag])
-            sendToNode(nodeId, masterMessage {
-                stopContainer = stopContainerCommand {
-                    serverId = id.toString(); containerName = "craftpanel-$id"
-                    timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand]
-                }
-            })
-            sendToNode(nodeId, masterMessage {
-                removeContainer = removeContainerCommand {
-                    serverId = id.toString(); containerName = "craftpanel-$id"; force = false
-                }
-            })
-            sendToNode(nodeId, buildCreateContainerCommand(id, serverRow, nodeRow, serverImage, allVars, fullHostname))
-            sendToNode(nodeId, masterMessage {
-                startContainer = startContainerCommand {
-                    serverId = id.toString(); containerName = "craftpanel-$id"
-                }
-            })
-        }
+    private data class NetworkDns(val zoneId: String, val domainSuffix: String)
+
+    private fun resolveNetworkDns(networkId: kotlin.uuid.Uuid?): NetworkDns? = transaction {
+        networkId ?: return@transaction null
+        ServerNetworks.selectAll()
+            .where { ServerNetworks.id eq networkId }
+            .firstOrNull()
+            ?.let { row ->
+                val zoneId = row[ServerNetworks.cfZoneId] ?: return@let null
+                val suffix = row[ServerNetworks.cfDomainSuffix] ?: return@let null
+                NetworkDns(zoneId, suffix)
+            }
     }
 
     private fun buildAllVars(id: kotlin.uuid.Uuid, serverRow: ResultRow): Map<String, String> {

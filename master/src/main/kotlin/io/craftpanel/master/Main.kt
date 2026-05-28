@@ -9,6 +9,7 @@ import io.craftpanel.master.database.DatabaseFactory
 import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.grpc.GrpcServer
+import io.craftpanel.master.dns.DnsProviderFactory
 import io.craftpanel.master.routes.*
 import io.craftpanel.master.scheduler.BackupJobHandler
 import io.craftpanel.master.scheduler.ServerScheduler
@@ -32,8 +33,11 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import kotlinx.serialization.json.Json
+import org.slf4j.LoggerFactory
 
 fun main(args: Array<String>): Unit = EngineMain.main(args)
+
+private val log = LoggerFactory.getLogger("io.craftpanel.master.Main")
 
 fun Application.module() {
     val appConfig = AppConfig(environment.config)
@@ -50,6 +54,9 @@ fun Application.module() {
     val dataServiceProxy = DataServiceProxy(appConfig.node)
     environment.monitor.subscribe(ApplicationStopped) { dataServiceProxy.closeAll() }
 
+    val dnsProvider = DnsProviderFactory.create(appConfig.dns)
+    if (dnsProvider != null) log.info("DNS provider: ${dnsProvider.type}")
+
     val userService = UserService()
     val nodeService = NodeService(controlService::sendToNode)
     val networkService = NetworkService()
@@ -58,7 +65,7 @@ fun Application.module() {
     val systemService = SystemService()
     val alertService = AlertService()
     val modService = ModService()
-    val serverService = ServerService(controlService::sendToNode, modService)
+    val serverService = ServerService(controlService::sendToNode, modService, dnsProvider)
     val backupService = BackupService(controlService::sendToNode, dataServiceProxy)
     val proxyBackendService = ProxyBackendService()
 

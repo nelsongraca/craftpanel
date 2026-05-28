@@ -14,6 +14,7 @@ object ServerNetworks : Table("server_networks") {
     val description = varchar("description", 500).nullable()
     val cfZoneId = varchar("cf_zone_id", 100).nullable()
     val cfDomainSuffix = varchar("cf_domain_suffix", 255).nullable()
+    val dnsProviderType = varchar("dns_provider_type", 20).nullable()
     val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
 
     override val primaryKey = PrimaryKey(id)

@@ -30,6 +30,11 @@ data class NodeConfig(
     val agentDataPort: Int,
 )
 
+data class DnsConfig(
+    val provider: String,
+    val cloudflareApiToken: String,
+)
+
 class AppConfig(config: ApplicationConfig) {
 
     val database = DatabaseConfig(
@@ -69,5 +74,11 @@ class AppConfig(config: ApplicationConfig) {
         agentDataPort = config.property("node.agentDataPort")
             .getString()
             .toIntOrNull() ?: 50052,
+    )
+    val dns = DnsConfig(
+        provider = config.propertyOrNull("dns.provider")
+            ?.getString() ?: "none",
+        cloudflareApiToken = config.propertyOrNull("dns.cloudflare.apiToken")
+            ?.getString() ?: "",
     )
 }

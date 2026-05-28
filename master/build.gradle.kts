@@ -51,6 +51,11 @@ dependencies {
     implementation(libs.schema.kenerator.serialization)
     implementation(libs.schema.kenerator.swagger)
 
+    // Ktor HTTP client (Cloudflare DNS API)
+    implementation(libs.ktor.client.core)
+    implementation(libs.ktor.client.cio)
+    implementation(libs.ktor.client.content.negotiation)
+
     // Cron expression parsing
     implementation(libs.cron.utils)
 
