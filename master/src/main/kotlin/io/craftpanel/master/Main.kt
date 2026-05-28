@@ -10,6 +10,8 @@ import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.grpc.GrpcServer
 import io.craftpanel.master.routes.*
+import io.craftpanel.master.scheduler.BackupJobHandler
+import io.craftpanel.master.scheduler.ServerScheduler
 import io.craftpanel.master.service.*
 import io.github.smiley4.ktoropenapi.OpenApi
 import io.github.smiley4.ktoropenapi.config.AuthScheme
@@ -58,6 +60,13 @@ fun Application.module() {
     val modService = ModService()
     val serverService = ServerService(controlService::sendToNode, modService)
     val backupService = BackupService(controlService::sendToNode, dataServiceProxy)
+
+    val scheduler = ServerScheduler(
+        handlers = mapOf("BACKUP" to BackupJobHandler(backupService)),
+        scope = this,
+    )
+    scheduler.start()
+    environment.monitor.subscribe(ApplicationStopped) { scheduler.stop() }
 
     install(ContentNegotiation) {
         json(Json { ignoreUnknownKeys = true })

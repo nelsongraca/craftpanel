@@ -20,6 +20,7 @@ mockk = "1.13.17"
 frontend-plugin = "10.0.0"
 ktor-openapi-tools = "5.7.0"
 schema-kenerator = "2.7.2"
+cron-utils = "9.2.1"
 
 [libraries]
 # Ktor server
@@ -79,6 +80,7 @@ ktor-swagger-ui = { module = "io.github.smiley4:ktor-swagger-ui", version.ref = 
 schema-kenerator-core = { module = "io.github.smiley4:schema-kenerator-core", version.ref = "schema-kenerator" }
 schema-kenerator-serialization = { module = "io.github.smiley4:schema-kenerator-serialization", version.ref = "schema-kenerator" }
 schema-kenerator-swagger = { module = "io.github.smiley4:schema-kenerator-swagger", version.ref = "schema-kenerator" }
+cron-utils = { module = "com.cronutils:cron-utils", version.ref = "cron-utils" }
 
 # Test
 h2 = { module = "com.h2database:h2", version.ref = "h2" }

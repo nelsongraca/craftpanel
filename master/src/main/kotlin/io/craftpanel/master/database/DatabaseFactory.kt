@@ -47,6 +47,7 @@ object DatabaseFactory {
                 AlertEvents,
                 ContainerMetrics,
                 SystemSettings,
+                ServerJobs,
             )
             seedSystemGroups()
         }

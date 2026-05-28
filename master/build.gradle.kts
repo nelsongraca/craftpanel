@@ -51,6 +51,9 @@ dependencies {
     implementation(libs.schema.kenerator.serialization)
     implementation(libs.schema.kenerator.swagger)
 
+    // Cron expression parsing
+    implementation(libs.cron.utils)
+
     // Argon2id password hashing
     implementation(libs.bcprov.jdk18on)
 

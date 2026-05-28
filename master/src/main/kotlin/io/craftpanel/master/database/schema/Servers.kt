@@ -30,6 +30,7 @@ object Servers : Table("servers") {
     val containerId = varchar("container_id", 64).nullable()
     val backupSchedule = varchar("backup_schedule", 64).nullable()
     val backupMaxCount = integer("backup_max_count").default(10)
+    val backupScheduleLastFired = datetime("backup_schedule_last_fired").nullable()
     val lastSeenAt = datetime("last_seen_at").nullable()
     val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
     val updatedAt = datetime("updated_at").defaultExpression(CurrentDateTime)

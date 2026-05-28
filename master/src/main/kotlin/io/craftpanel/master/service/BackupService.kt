@@ -76,7 +76,7 @@ class BackupService(
                 .map { it.toBackupResponse() }
         }
 
-    fun triggerBackup(serverId: kotlin.uuid.Uuid): BackupResponse {
+    fun triggerBackup(serverId: kotlin.uuid.Uuid, trigger: String = "MANUAL"): BackupResponse {
         val serverRow = transaction {
             Servers.selectAll()
                 .where { Servers.id eq serverId }
@@ -121,7 +121,7 @@ class BackupService(
             val backupId = Backups.insert {
                 it[Backups.serverId] = serverId
                 it[Backups.nodeId] = nodeKotlinId
-                it[Backups.trigger] = "MANUAL"
+                it[Backups.trigger] = trigger
                 it[Backups.status] = "IN_PROGRESS"
             }[Backups.id]
 
