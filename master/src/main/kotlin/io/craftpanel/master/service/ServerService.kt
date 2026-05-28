@@ -665,6 +665,8 @@ internal fun rowToServerResponse(row: ResultRow, isMigrating: Boolean) = ServerR
     updatedAt = row[Servers.updatedAt].toString(),
 )
 
+internal val PROXY_SERVER_TYPES = setOf("VELOCITY", "BUNGEECORD", "WATERFALL")
+
 internal fun deriveImage(serverType: String, tag: String): String = when (serverType) {
     "BUNGEECORD", "VELOCITY", "WATERFALL" -> "itzg/mc-proxy:$tag"
     else                                  -> "itzg/minecraft-server:$tag"

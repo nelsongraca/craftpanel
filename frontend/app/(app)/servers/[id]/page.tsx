@@ -13,6 +13,7 @@ import {ConsoleTab} from "./console-tab";
 import {FilesTab} from "./files-tab";
 import {BackupsTab} from "./backups-tab";
 import {ModsTab} from "./mods-tab";
+import {ConfigTab} from "./config-tab";
 
 // ── Mojang version manifest ───────────────────────────────────────────────────
 
@@ -698,6 +699,12 @@ export default function ServerDetailPage() {
                 <BackupsTab serverId={server.id}/>
             ) : activeTab === "Mods" ? (
                 <ModsTab serverId={server.id}/>
+            ) : activeTab === "Configuration" ? (
+                <ConfigTab
+                    serverId={server.id}
+                    serverType={server.server_type}
+                    networkId={server.network_id ?? null}
+                />
             ) : activeTab !== "Overview" ? (
                 <ComingSoon tab={activeTab}/>
             ) : (

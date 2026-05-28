@@ -8,3 +8,6 @@ export type {IoCraftpanelMasterServiceAssignmentResponse as Assignment} from "./
 export type {IoCraftpanelMasterServiceSettingsMap as SettingsMap} from "./generated/types.gen"
 export type {IoCraftpanelMasterServiceAlertThresholdResponse as AlertThreshold} from "./generated/types.gen"
 export type {IoCraftpanelMasterServiceAlertEventResponse as AlertEvent} from "./generated/types.gen"
+export type {IoCraftpanelMasterServiceProxyBackendItem as ProxyBackend} from "./generated/types.gen"
+export type {IoCraftpanelMasterServiceProxyBackendListResponse as ProxyBackendList} from "./generated/types.gen"
+export type {IoCraftpanelMasterServicePutProxyBackendsRequest as PutProxyBackendsRequest} from "./generated/types.gen"
