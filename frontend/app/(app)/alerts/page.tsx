@@ -8,7 +8,7 @@ import {
   listAlertEvents,
   listAlertThresholds,
 } from "@/lib/generated/sdk.gen";
-import type { IoCraftpanelMasterRoutesCreateAlertThresholdRequest as CreateRequest } from "@/lib/generated/types.gen";
+import type { IoCraftpanelMasterServiceCreateAlertThresholdRequest as CreateRequest } from "@/lib/generated/types.gen";
 import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/lib/permissions";
 import type { AlertThreshold, AlertEvent } from "@/lib/types";

@@ -19,6 +19,16 @@ import io.craftpanel.master.routes.nodesRoutes
 import io.craftpanel.master.routes.serversRoutes
 import io.craftpanel.master.routes.systemRoutes
 import io.craftpanel.master.routes.usersRoutes
+import io.craftpanel.master.service.AlertService
+import io.craftpanel.master.service.AssignmentService
+import io.craftpanel.master.service.BackupService
+import io.craftpanel.master.service.GroupService
+import io.craftpanel.master.service.ModService
+import io.craftpanel.master.service.NetworkService
+import io.craftpanel.master.service.NodeService
+import io.craftpanel.master.service.ServerService
+import io.craftpanel.master.service.SystemService
+import io.craftpanel.master.service.UserService
 import io.github.smiley4.ktoropenapi.OpenApi
 import io.github.smiley4.ktoropenapi.config.AuthScheme
 import io.github.smiley4.ktoropenapi.config.AuthType
@@ -91,19 +101,21 @@ OpenApiSpecTask {
                 route("openapi.json") { openApi() }
                 val wsTicketService = WsTicketService()
                 val proxy = DataServiceProxy(NodeConfig(bootstrapToken = "test", agentDataPort = 50052))
+                val noopSend: (String, com.craftpanel.agent.v1.MasterMessage) -> Boolean = { _, _ -> false }
+                val modService = ModService()
                 authRoutes(jwtManager, refreshTokenService, wsTicketService)
-                nodesRoutes { _, _ -> false }
-                networksRoutes()
-                serversRoutes { _, _ -> false }
-                usersRoutes()
-                groupsRoutes()
-                assignmentsRoutes()
-                systemRoutes()
+                nodesRoutes(NodeService(noopSend))
+                networksRoutes(NetworkService())
+                serversRoutes(ServerService(noopSend, modService))
+                usersRoutes(UserService())
+                groupsRoutes(GroupService())
+                assignmentsRoutes(AssignmentService())
+                systemRoutes(SystemService())
                 consoleRoutes(wsTicketService, proxy)
                 filesRoutes(proxy)
-                backupsRoutes({ _, _ -> false }, proxy)
-                modsRoutes()
-                alertsRoutes()
+                backupsRoutes(BackupService(noopSend, proxy))
+                modsRoutes(modService)
+                alertsRoutes(AlertService())
             }
         }
 

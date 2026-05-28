@@ -11,6 +11,7 @@ import io.craftpanel.master.database.schema.ServerMods
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
+import io.craftpanel.master.service.ModService
 import io.craftpanel.master.util.toKotlinUuid
 import io.ktor.client.call.*
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
@@ -22,6 +23,13 @@ import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 import io.ktor.server.response.*
+import io.ktor.server.plugins.statuspages.StatusPages
+import io.craftpanel.master.service.BadGatewayException
+import io.craftpanel.master.service.BadRequestException
+import io.craftpanel.master.service.ConflictException
+import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
+import io.craftpanel.master.service.NotFoundException
+import io.craftpanel.master.service.UnprocessableException
 import io.ktor.server.routing.*
 import io.ktor.server.testing.*
 import kotlinx.serialization.json.Json
@@ -55,6 +63,14 @@ class ModsRoutesTest {
 
     private fun Application.configureTest() {
         install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+        install(StatusPages) {
+            exception<NotFoundException> { call, ex -> call.respond(HttpStatusCode.NotFound, mapOf("error" to (ex.message ?: "Not found"))) }
+            exception<ServiceForbiddenException> { call, ex -> call.respond(HttpStatusCode.Forbidden, mapOf("error" to (ex.message ?: "Forbidden"))) }
+            exception<ConflictException> { call, ex -> call.respond(HttpStatusCode.Conflict, mapOf("error" to (ex.message ?: "Conflict"))) }
+            exception<UnprocessableException> { call, ex -> call.respond(HttpStatusCode.UnprocessableEntity, mapOf("error" to (ex.message ?: "Unprocessable"))) }
+            exception<BadGatewayException> { call, ex -> call.respond(HttpStatusCode.BadGateway, mapOf("error" to (ex.message ?: "Bad gateway"))) }
+            exception<BadRequestException> { call, ex -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to (ex.message ?: "Bad request"))) }
+        }
         install(Authentication) {
             jwt("auth-jwt") {
                 realm = "CraftPanel"
@@ -67,7 +83,7 @@ class ModsRoutesTest {
                 }
             }
         }
-        routing { modsRoutes() }
+        routing { modsRoutes(ModService()) }
     }
 
     private fun ApplicationTestBuilder.jsonClient() = createClient {
@@ -380,8 +396,7 @@ class ModsRoutesTest {
                 it[ServerMods.pinStrategy] = "LATEST"
             }
         }
-        val mods = transaction { ServerMods.selectAll().where { ServerMods.serverId eq serverId.toKotlinUuid() }.toList() }
-        assertEquals("fabric-api", modrinthProjectsEnvVar(mods))
+        assertEquals("fabric-api", ModService().buildModrinthEnvVar(serverId.toKotlinUuid()))
     }
 
     @Test
@@ -397,8 +412,7 @@ class ModsRoutesTest {
                 it[ServerMods.pinnedVersionId] = "Oa9ZDzZq"
             }
         }
-        val mods = transaction { ServerMods.selectAll().where { ServerMods.serverId eq serverId.toKotlinUuid() }.toList() }
-        assertEquals("fabric-api:Oa9ZDzZq", modrinthProjectsEnvVar(mods))
+        assertEquals("fabric-api:Oa9ZDzZq", ModService().buildModrinthEnvVar(serverId.toKotlinUuid()))
     }
 
     @Test
@@ -413,8 +427,7 @@ class ModsRoutesTest {
                 it[ServerMods.pinStrategy] = "BETA"
             }
         }
-        val mods = transaction { ServerMods.selectAll().where { ServerMods.serverId eq serverId.toKotlinUuid() }.toList() }
-        assertEquals("some-mod:beta", modrinthProjectsEnvVar(mods))
+        assertEquals("some-mod:beta", ModService().buildModrinthEnvVar(serverId.toKotlinUuid()))
     }
 
     @Test
@@ -429,8 +442,7 @@ class ModsRoutesTest {
                 it[ServerMods.pinStrategy] = "ALPHA"
             }
         }
-        val mods = transaction { ServerMods.selectAll().where { ServerMods.serverId eq serverId.toKotlinUuid() }.toList() }
-        assertEquals("some-mod:alpha", modrinthProjectsEnvVar(mods))
+        assertEquals("some-mod:alpha", ModService().buildModrinthEnvVar(serverId.toKotlinUuid()))
     }
 
     @Test
@@ -452,8 +464,7 @@ class ModsRoutesTest {
                 it[ServerMods.pinnedVersionId] = "abc123"
             }
         }
-        val mods = transaction { ServerMods.selectAll().where { ServerMods.serverId eq serverId.toKotlinUuid() }.toList() }
-        val result = modrinthProjectsEnvVar(mods)
+        val result = ModService().buildModrinthEnvVar(serverId.toKotlinUuid())
         assert(result.contains("fabric-api")) { "Expected fabric-api in $result" }
         assert(result.contains("sodium:abc123")) { "Expected sodium:abc123 in $result" }
         assert(result.contains(",")) { "Expected comma separator in $result" }

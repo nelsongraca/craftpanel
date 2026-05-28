@@ -10,8 +10,8 @@ import {
   updateBackupSchedule,
 } from "@/lib/generated/sdk.gen";
 import type {
-  IoCraftpanelMasterRoutesBackupResponse as Backup,
-  IoCraftpanelMasterRoutesBackupScheduleResponse as Schedule,
+  IoCraftpanelMasterServiceBackupResponse as Backup,
+  IoCraftpanelMasterServiceBackupScheduleResponse as Schedule,
 } from "@/lib/generated/types.gen";
 
 function fmtBytes(bytes: number): string {

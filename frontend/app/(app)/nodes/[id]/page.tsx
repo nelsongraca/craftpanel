@@ -38,7 +38,7 @@ import { useAuth } from "@/lib/auth-context";
 import { hasPermission } from "@/lib/permissions";
 import { useWs } from "@/lib/ws-context";
 import type { Node, NodeMetrics } from "@/lib/types";
-import type { IoCraftpanelMasterRoutesServerResponse as Server } from "@/lib/generated/types.gen";
+import type { IoCraftpanelMasterServiceServerResponse as Server } from "@/lib/generated/types.gen";
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 

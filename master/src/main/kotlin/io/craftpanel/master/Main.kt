@@ -9,19 +9,36 @@ import io.craftpanel.master.database.DatabaseFactory
 import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.grpc.GrpcServer
+import io.craftpanel.master.routes.ErrorResponse
 import io.craftpanel.master.routes.alertsRoutes
-import io.craftpanel.master.routes.backupsRoutes
-import io.craftpanel.master.routes.modsRoutes
 import io.craftpanel.master.routes.assignmentsRoutes
+import io.craftpanel.master.routes.backupsRoutes
 import io.craftpanel.master.routes.consoleRoutes
 import io.craftpanel.master.routes.dashboardWsRoutes
 import io.craftpanel.master.routes.filesRoutes
 import io.craftpanel.master.routes.groupsRoutes
+import io.craftpanel.master.routes.modsRoutes
 import io.craftpanel.master.routes.networksRoutes
 import io.craftpanel.master.routes.nodesRoutes
 import io.craftpanel.master.routes.serversRoutes
 import io.craftpanel.master.routes.systemRoutes
 import io.craftpanel.master.routes.usersRoutes
+import io.craftpanel.master.service.AlertService
+import io.craftpanel.master.service.AssignmentService
+import io.craftpanel.master.service.BackupService
+import io.craftpanel.master.service.BadGatewayException
+import io.craftpanel.master.service.BadRequestException
+import io.craftpanel.master.service.ConflictException
+import io.craftpanel.master.service.ForbiddenException
+import io.craftpanel.master.service.GroupService
+import io.craftpanel.master.service.ModService
+import io.craftpanel.master.service.NetworkService
+import io.craftpanel.master.service.NodeService
+import io.craftpanel.master.service.NotFoundException
+import io.craftpanel.master.service.ServerService
+import io.craftpanel.master.service.SystemService
+import io.craftpanel.master.service.UnprocessableException
+import io.craftpanel.master.service.UserService
 import io.github.smiley4.ktoropenapi.OpenApi
 import io.github.smiley4.ktoropenapi.config.AuthScheme
 import io.github.smiley4.ktoropenapi.config.AuthType
@@ -39,6 +56,7 @@ import io.ktor.server.auth.jwt.jwt
 import io.ktor.server.netty.EngineMain
 import io.ktor.server.plugins.calllogging.CallLogging
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.response.respond
 import io.ktor.server.routing.get
 import io.ktor.server.routing.route
@@ -63,6 +81,17 @@ fun Application.module() {
     val dataServiceProxy = DataServiceProxy(appConfig.node)
     environment.monitor.subscribe(ApplicationStopped) { dataServiceProxy.closeAll() }
 
+    val userService = UserService()
+    val nodeService = NodeService(controlService::sendToNode)
+    val networkService = NetworkService()
+    val groupService = GroupService()
+    val assignmentService = AssignmentService()
+    val systemService = SystemService()
+    val alertService = AlertService()
+    val modService = ModService()
+    val serverService = ServerService(controlService::sendToNode, modService)
+    val backupService = BackupService(controlService::sendToNode, dataServiceProxy)
+
     install(ContentNegotiation) {
         json(Json { ignoreUnknownKeys = true })
     }
@@ -70,6 +99,27 @@ fun Application.module() {
     install(WebSockets)
 
     install(CallLogging)
+
+    install(StatusPages) {
+        exception<NotFoundException> { call, ex ->
+            call.respond(HttpStatusCode.NotFound, ErrorResponse(ex.message ?: "Not found"))
+        }
+        exception<ForbiddenException> { call, ex ->
+            call.respond(HttpStatusCode.Forbidden, ErrorResponse(ex.message ?: "Forbidden"))
+        }
+        exception<ConflictException> { call, ex ->
+            call.respond(HttpStatusCode.Conflict, ErrorResponse(ex.message ?: "Conflict"))
+        }
+        exception<UnprocessableException> { call, ex ->
+            call.respond(HttpStatusCode.UnprocessableEntity, ErrorResponse(ex.message ?: "Unprocessable"))
+        }
+        exception<BadGatewayException> { call, ex ->
+            call.respond(HttpStatusCode.BadGateway, ErrorResponse(ex.message ?: "Bad gateway"))
+        }
+        exception<BadRequestException> { call, ex ->
+            call.respond(HttpStatusCode.BadRequest, ErrorResponse(ex.message ?: "Bad request"))
+        }
+    }
 
     install(OpenApi) {
         info {
@@ -108,18 +158,18 @@ fun Application.module() {
         route("openapi.json") { openApi() }
         route("swagger") { swaggerUI("/openapi.json") }
         authRoutes(jwtManager, refreshTokenService, wsTicketService)
-        nodesRoutes(controlService::sendToNode)
-        networksRoutes()
-        serversRoutes(controlService::sendToNode)
-        usersRoutes()
-        groupsRoutes()
-        assignmentsRoutes()
-        systemRoutes()
+        nodesRoutes(nodeService)
+        networksRoutes(networkService)
+        serversRoutes(serverService)
+        usersRoutes(userService)
+        groupsRoutes(groupService)
+        assignmentsRoutes(assignmentService)
+        systemRoutes(systemService)
         consoleRoutes(wsTicketService, dataServiceProxy)
         filesRoutes(dataServiceProxy)
-        backupsRoutes(controlService::sendToNode, dataServiceProxy)
-        modsRoutes()
+        backupsRoutes(backupService)
+        modsRoutes(modService)
         dashboardWsRoutes(wsTicketService, controlService)
-        alertsRoutes()
+        alertsRoutes(alertService)
     }
 }

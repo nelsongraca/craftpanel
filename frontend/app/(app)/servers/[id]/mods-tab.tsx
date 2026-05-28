@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Plus, Trash2, RefreshCw, Search, Pin, ChevronDown } from "lucide-react";
 import { listMods, addMod, deleteMod, updateMod } from "@/lib/generated/sdk.gen";
-import type { IoCraftpanelMasterRoutesModResponse as Mod } from "@/lib/generated/types.gen";
+import type { IoCraftpanelMasterServiceModResponse as Mod } from "@/lib/generated/types.gen";
 
 type PinStrategy = "LATEST" | "PINNED" | "BETA" | "ALPHA";
 
