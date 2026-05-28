@@ -1,6 +1,7 @@
 package io.craftpanel.agent.grpc
 
 import com.craftpanel.agent.v1.*
+import com.google.protobuf.timestamp
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.MetricsCollector
 import io.grpc.ManagedChannel
@@ -8,6 +9,7 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableSharedFlow
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.time.Instant
 import kotlin.time.Duration.Companion.seconds
 
 class ControlStreamHandler(
@@ -60,12 +62,12 @@ class ControlStreamHandler(
         stream.collect { msg ->
             log.debug("Received master command: ${msg.payloadCase}")
             when {
-                msg.hasCreateContainer()  -> handleCreate(msg.correlationId, msg.createContainer, outbound)
-                msg.hasStartContainer()   -> handleStart(msg.correlationId, msg.startContainer, outbound)
-                msg.hasStopContainer()    -> handleStop(msg.correlationId, msg.stopContainer, outbound)
-                msg.hasRestartContainer() -> handleRestart(msg.correlationId, msg.restartContainer, outbound)
-                msg.hasRemoveContainer()  -> handleRemove(msg.correlationId, msg.removeContainer)
-                msg.hasPullImage()        -> handlePullImage(msg.correlationId, msg.pullImage)
+                msg.hasCreateContainer()  -> handleCreate(msg.createContainer, outbound)
+                msg.hasStartContainer()   -> handleStart(msg.startContainer, outbound)
+                msg.hasStopContainer()    -> handleStop(msg.stopContainer, outbound)
+                msg.hasRestartContainer() -> handleRestart(msg.restartContainer, outbound)
+                msg.hasRemoveContainer()  -> handleRemove(msg.removeContainer)
+                msg.hasPullImage()        -> handlePullImage(msg.pullImage)
                 msg.hasShutdown()         -> handleShutdown(msg.shutdown, outbound)
                 msg.hasTriggerBackup()    -> launch { handleTriggerBackup(msg.triggerBackup, outbound) }
                 msg.hasDeleteBackup()     -> launch { handleDeleteBackup(msg.deleteBackup) }
@@ -78,15 +80,15 @@ class ControlStreamHandler(
         val containers = containerManager.listContainers()
         return nodeStateSnapshot {
             this.containers.addAll(containers)
-            recordedAt = com.google.protobuf.timestamp {
-                val now = java.time.Instant.now()
+            recordedAt = timestamp {
+                val now = Instant.now()
                 seconds = now.epochSecond
                 nanos = now.nano
             }
         }
     }
 
-    internal suspend fun handleCreate(correlationId: String, cmd: CreateContainerCommand, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleCreate(cmd: CreateContainerCommand, outbound: MutableSharedFlow<AgentMessage>) {
         log.info("Creating container ${cmd.containerName} for server ${cmd.serverId}")
         runCatching { containerManager.createContainer(cmd) }
             .onSuccess { dockerContainerId ->
@@ -102,7 +104,7 @@ class ControlStreamHandler(
             .onFailure { log.error("Failed to create container ${cmd.containerName}", it) }
     }
 
-    internal suspend fun handleStart(correlationId: String, cmd: StartContainerCommand, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleStart(cmd: StartContainerCommand, outbound: MutableSharedFlow<AgentMessage>) {
         log.info("Starting container ${cmd.containerName}")
         runCatching { containerManager.startContainer(cmd.containerName) }
             .onSuccess {
@@ -126,7 +128,7 @@ class ControlStreamHandler(
             }
     }
 
-    internal suspend fun handleStop(correlationId: String, cmd: StopContainerCommand, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleStop(cmd: StopContainerCommand, outbound: MutableSharedFlow<AgentMessage>) {
         log.info("Stopping container ${cmd.containerName}")
         runCatching { containerManager.stopContainer(cmd.containerName, cmd.timeoutSeconds, cmd.stopCommand) }
             .onSuccess {
@@ -150,7 +152,7 @@ class ControlStreamHandler(
             }
     }
 
-    internal suspend fun handleRestart(correlationId: String, cmd: RestartContainerCommand, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleRestart(cmd: RestartContainerCommand, outbound: MutableSharedFlow<AgentMessage>) {
         log.info("Restarting container ${cmd.containerName}")
         runCatching {
             containerManager.stopContainer(cmd.containerName, cmd.timeoutSeconds, cmd.stopCommand)
@@ -177,13 +179,13 @@ class ControlStreamHandler(
             }
     }
 
-    internal suspend fun handleRemove(correlationId: String, cmd: RemoveContainerCommand) {
+    internal fun handleRemove(cmd: RemoveContainerCommand) {
         log.info("Removing container ${cmd.containerName} (force=${cmd.force})")
         runCatching { containerManager.removeContainer(cmd.containerName, cmd.force) }
             .onFailure { log.error("Failed to remove container ${cmd.containerName}", it) }
     }
 
-    internal suspend fun handlePullImage(correlationId: String, cmd: PullImageCommand) {
+    internal suspend fun handlePullImage(cmd: PullImageCommand) {
         log.info("Pulling image ${cmd.image} for server ${cmd.serverId}")
         runCatching { withContext(Dispatchers.IO) { containerManager.pullImage(cmd.image) } }
             .onFailure { log.error("Failed to pull image ${cmd.image}", it) }

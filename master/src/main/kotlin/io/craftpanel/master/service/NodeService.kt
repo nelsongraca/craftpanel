@@ -13,6 +13,9 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
+import java.security.MessageDigest
+import java.security.SecureRandom
+import java.util.Base64
 
 @Serializable
 data class NodeResponse(
@@ -200,16 +203,16 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toNodeResponse(alloc: NodeAl
 
 private fun generateNodeKey(): String {
     val bytes = ByteArray(32).also {
-        java.security.SecureRandom()
+        SecureRandom()
             .nextBytes(it)
     }
-    return java.util.Base64.getUrlEncoder()
+    return Base64.getUrlEncoder()
         .withoutPadding()
         .encodeToString(bytes)
 }
 
 private fun sha256Hex(input: String): String {
-    val digest = java.security.MessageDigest.getInstance("SHA-256")
+    val digest = MessageDigest.getInstance("SHA-256")
     return digest.digest(input.toByteArray())
         .joinToString("") { "%02x".format(it) }
 }

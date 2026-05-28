@@ -21,7 +21,9 @@ import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.Paths
 import java.nio.file.StandardCopyOption
+import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.PosixFilePermission
+import com.google.protobuf.timestamp
 
 class DataServiceImpl(
     private val config: AgentConfig,
@@ -109,18 +111,16 @@ class DataServiceImpl(
         val entries = Files.list(target)
             .use { stream ->
                 stream.map { path ->
-                    val attrs = runCatching { Files.readAttributes(path, java.nio.file.attribute.BasicFileAttributes::class.java) }.getOrNull()
+                    val attrs = runCatching { Files.readAttributes(path, BasicFileAttributes::class.java) }.getOrNull()
                     fileEntry {
                         name = path.fileName.toString()
                         isDirectory = Files.isDirectory(path)
                         sizeBytes = attrs?.size() ?: 0L
                         if (attrs != null) {
-                            modifiedAt = com.google.protobuf.Timestamp.newBuilder()
-                                .setSeconds(
-                                    attrs.lastModifiedTime()
-                                        .toInstant().epochSecond
-                                )
-                                .build()
+                            modifiedAt = timestamp {
+                                seconds = attrs.lastModifiedTime()
+                                    .toInstant().epochSecond
+                            }
                         }
                         permissions = posixPermissions(path)
                     }

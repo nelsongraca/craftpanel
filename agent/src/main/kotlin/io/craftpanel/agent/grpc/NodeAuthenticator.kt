@@ -1,6 +1,7 @@
 package io.craftpanel.agent.grpc
 
 import com.craftpanel.agent.v1.ControlServiceGrpcKt
+import com.craftpanel.agent.v1.IdentifyNodeResponse
 import com.craftpanel.agent.v1.identifyNodeRequest
 import com.craftpanel.agent.v1.nodeMetadata
 import com.craftpanel.agent.v1.registerNodeRequest
@@ -9,6 +10,8 @@ import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.MetricsCollector
 import io.grpc.ManagedChannel
 import org.slf4j.LoggerFactory
+import java.net.InetAddress
+import java.net.URI
 
 data class NodeIdentity(val nodeId: String, val nodeKey: String)
 
@@ -23,7 +26,7 @@ class NodeAuthenticator(
         val stub = ControlServiceGrpcKt.ControlServiceCoroutineStub(channel)
         val (totalRamMb, totalCpuShares) = metricsCollector.collectCapacity()
         val metadata = nodeMetadata {
-            hostname = java.net.InetAddress.getLocalHost().hostName
+            hostname = InetAddress.getLocalHost().hostName
             publicIp = resolvePublicIp()
             privateIp = resolvePrivateIp()
             agentVersion = config.agentVersion
@@ -51,27 +54,27 @@ class NodeAuthenticator(
         })
 
         return when (response.status) {
-            com.craftpanel.agent.v1.IdentifyNodeResponse.IdentifyStatus.ACTIVE  -> {
+            IdentifyNodeResponse.IdentifyStatus.ACTIVE  -> {
                 log.info("Node ${response.nodeId} is ACTIVE")
                 NodeIdentity(nodeId = response.nodeId, nodeKey = existingKey)
             }
 
-            com.craftpanel.agent.v1.IdentifyNodeResponse.IdentifyStatus.PENDING -> {
+            IdentifyNodeResponse.IdentifyStatus.PENDING -> {
                 log.info("Node ${response.nodeId} is PENDING — awaiting admin approval")
                 NodeIdentity(nodeId = response.nodeId, nodeKey = existingKey)
             }
 
-            else                                                                -> throw NodeRejectedException("Node ${response.nodeId} was REJECTED by master")
+            else                                        -> throw NodeRejectedException("Node ${response.nodeId} was REJECTED by master")
         }
     }
 
     private fun resolvePublicIp(): String =
         runCatching {
-            java.net.URL("https://api.ipify.org")
+            URI("https://api.ipify.org").toURL()
                 .readText()
                 .trim()
-        }.getOrElse { java.net.InetAddress.getLocalHost().hostAddress }
+        }.getOrElse { InetAddress.getLocalHost().hostAddress }
 
     private fun resolvePrivateIp(): String =
-        runCatching { java.net.InetAddress.getLocalHost().hostAddress }.getOrElse { "unknown" }
+        runCatching { InetAddress.getLocalHost().hostAddress }.getOrElse { "unknown" }
 }

@@ -4,7 +4,8 @@ import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import com.auth0.jwt.interfaces.DecodedJWT
 import io.craftpanel.master.config.JwtConfig
-import java.util.*
+import java.time.Instant
+import java.util.UUID
 
 data class TokenClaims(
     val userId: UUID,
@@ -25,7 +26,7 @@ class JwtManager(private val config: JwtConfig) {
         .build()
 
     fun generate(claims: TokenClaims): String {
-        val now = System.currentTimeMillis()
+        val now = Instant.now()
         return JWT.create()
             .withIssuer(config.issuer)
             .withAudience(config.audience)
@@ -33,8 +34,8 @@ class JwtManager(private val config: JwtConfig) {
             .withClaim("name", claims.name)
             .withClaim("email", claims.email)
             .withClaim("groups", claims.groups)
-            .withIssuedAt(Date(now))
-            .withExpiresAt(Date(now + config.expirySeconds * 1000))
+            .withIssuedAt(now)
+            .withExpiresAt(now.plusSeconds(config.expirySeconds))
             .sign(algorithm)
     }
 

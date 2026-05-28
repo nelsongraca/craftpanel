@@ -23,6 +23,7 @@ import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.time.Instant
 import java.util.*
 
 // ── Response types ────────────────────────────────────────────────────────────
@@ -94,19 +95,19 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     val result = proxy.listFiles(serverId, path)
                     call.respond(
                         ListFilesResponse(
-                        path = path,
-                        entries = result.entriesList.map { e ->
-                            FileEntryResponse(
-                                name = e.name,
-                                isDirectory = e.isDirectory,
-                                sizeBytes = e.sizeBytes,
-                                modifiedAt = if (e.hasModifiedAt()) java.time.Instant.ofEpochSecond(e.modifiedAt.seconds)
-                                    .toString()
-                                else null,
-                                permissions = e.permissions,
-                            )
-                        }
-                    ))
+                            path = path,
+                            entries = result.entriesList.map { e ->
+                                FileEntryResponse(
+                                    name = e.name,
+                                    isDirectory = e.isDirectory,
+                                    sizeBytes = e.sizeBytes,
+                                    modifiedAt = if (e.hasModifiedAt()) Instant.ofEpochSecond(e.modifiedAt.seconds)
+                                        .toString()
+                                    else null,
+                                    permissions = e.permissions,
+                                )
+                            }
+                        ))
                 }
                 catch (e: Exception) {
                     call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))

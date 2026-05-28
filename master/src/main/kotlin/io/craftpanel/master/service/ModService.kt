@@ -14,6 +14,7 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.net.URI
+import java.net.URLEncoder
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
@@ -128,7 +129,7 @@ class ModService {
     fun searchModrinth(query: String, limit: Int): ModrinthSearchResult {
         val url = buildString {
             append("https://api.modrinth.com/v2/search?query=")
-            append(java.net.URLEncoder.encode(query, "UTF-8"))
+            append(URLEncoder.encode(query, "UTF-8"))
             append("&facets=[[%22project_type:mod%22]]&limit=")
             append(limit)
         }

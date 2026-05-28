@@ -66,7 +66,7 @@ class ControlStreamHandlerTest {
         every { containerManager.createContainer(any()) } returns "new-container-id"
         val outbound = flow()
 
-        handler.handleCreate("corr-1", createContainerCommand {
+        handler.handleCreate(createContainerCommand {
             serverId = "srv-create"
             containerName = "craftpanel-create"
             image = "itzg/minecraft-server:latest"
@@ -84,7 +84,7 @@ class ControlStreamHandlerTest {
         every { containerManager.createContainer(any()) } throws RuntimeException("docker error")
         val outbound = flow()
 
-        handler.handleCreate("corr-1", createContainerCommand {
+        handler.handleCreate(createContainerCommand {
             serverId = "srv-fail"
             containerName = "craftpanel-fail"
             image = "itzg/minecraft-server:latest"
@@ -102,7 +102,7 @@ class ControlStreamHandlerTest {
         every { containerManager.startContainer(any()) } just Runs
         val outbound = flow()
 
-        handler.handleStart("corr-1", startContainerCommand {
+        handler.handleStart(startContainerCommand {
             serverId = "srv-start"
             containerName = "craftpanel-start"
         }, outbound)
@@ -117,7 +117,7 @@ class ControlStreamHandlerTest {
         every { containerManager.startContainer(any()) } throws RuntimeException("start failed")
         val outbound = flow()
 
-        handler.handleStart("corr-1", startContainerCommand {
+        handler.handleStart(startContainerCommand {
             serverId = "srv-start-fail"
             containerName = "craftpanel-start-fail"
         }, outbound)
@@ -134,7 +134,7 @@ class ControlStreamHandlerTest {
         every { containerManager.stopContainer(any(), any(), any()) } just Runs
         val outbound = flow()
 
-        handler.handleStop("corr-1", stopContainerCommand {
+        handler.handleStop(stopContainerCommand {
             serverId = "srv-stop"
             containerName = "craftpanel-stop"
             timeoutSeconds = 10
@@ -150,7 +150,7 @@ class ControlStreamHandlerTest {
         every { containerManager.stopContainer(any(), any(), any()) } throws RuntimeException("stop failed")
         val outbound = flow()
 
-        handler.handleStop("corr-1", stopContainerCommand {
+        handler.handleStop(stopContainerCommand {
             serverId = "srv-stop-fail"
             containerName = "craftpanel-stop-fail"
         }, outbound)
@@ -168,7 +168,7 @@ class ControlStreamHandlerTest {
         every { containerManager.startContainer(any()) } just Runs
         val outbound = flow()
 
-        handler.handleRestart("corr-1", restartContainerCommand {
+        handler.handleRestart(restartContainerCommand {
             serverId = "srv-restart"
             containerName = "craftpanel-restart"
             timeoutSeconds = 10
@@ -184,7 +184,7 @@ class ControlStreamHandlerTest {
         every { containerManager.stopContainer(any(), any(), any()) } throws RuntimeException("stop failed")
         val outbound = flow()
 
-        handler.handleRestart("corr-1", restartContainerCommand {
+        handler.handleRestart(restartContainerCommand {
             serverId = "srv-restart-fail"
             containerName = "craftpanel-restart-fail"
         }, outbound)
@@ -200,7 +200,7 @@ class ControlStreamHandlerTest {
     fun `handleRemove calls containerManager removeContainer`() = runBlocking {
         every { containerManager.removeContainer(any(), any()) } just Runs
 
-        handler.handleRemove("corr-1", removeContainerCommand {
+        handler.handleRemove(removeContainerCommand {
             containerName = "craftpanel-remove"
             force = true
         })
@@ -212,7 +212,7 @@ class ControlStreamHandlerTest {
     fun `handleRemove does not throw on docker error`() = runBlocking {
         every { containerManager.removeContainer(any(), any()) } throws RuntimeException("rm failed")
 
-        handler.handleRemove("corr-1", removeContainerCommand {
+        handler.handleRemove(removeContainerCommand {
             containerName = "craftpanel-rm-fail"
             force = false
         })

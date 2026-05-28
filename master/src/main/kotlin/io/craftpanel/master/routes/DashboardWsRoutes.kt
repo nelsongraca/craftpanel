@@ -10,6 +10,7 @@ import io.craftpanel.master.util.toKotlinUuid
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
 import org.jetbrains.exposed.v1.core.eq
@@ -17,7 +18,9 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
 import java.util.*
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Instant
 
 private val wsJson = Json { ignoreUnknownKeys = true }
 
@@ -110,9 +113,9 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                     put("disk_total_bytes", metrics.diskTotalBytes)
                     put(
                         "recorded_at", if (metrics.hasRecordedAt())
-                            kotlinx.datetime.Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong())
+                            Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong())
                                 .toString()
-                        else kotlinx.datetime.Clock.System.now()
+                        else Clock.System.now()
                             .toString()
                     )
                 }))
@@ -125,8 +128,9 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                 send(envelope("node.status", buildJsonObject {
                     put("node_id", nodeId)
                     put("status", status)
-                    put("recorded_at",
-                        kotlinx.datetime.Clock.System.now()
+                    put(
+                        "recorded_at",
+                        Clock.System.now()
                             .toString()
                     )
                 }))
@@ -146,9 +150,9 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                     put("net_out_bytes", metrics.netOutBytes)
                     put(
                         "recorded_at", if (metrics.hasRecordedAt())
-                            kotlinx.datetime.Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong())
+                            Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong())
                                 .toString()
-                        else kotlinx.datetime.Clock.System.now()
+                        else Clock.System.now()
                             .toString()
                     )
                 }))
@@ -171,8 +175,9 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                     put("server_id", serverId)
                     put("status", statusStr)
                     put("container_id", update.containerId)
-                    put("recorded_at",
-                        kotlinx.datetime.Clock.System.now()
+                    put(
+                        "recorded_at",
+                        Clock.System.now()
                             .toString()
                     )
                 }))
@@ -190,9 +195,9 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                     put("player_list", buildJsonArray { update.playerNamesList.forEach { add(JsonPrimitive(it)) } })
                     put(
                         "recorded_at", if (update.hasRecordedAt())
-                            kotlinx.datetime.Instant.fromEpochSeconds(update.recordedAt.seconds, update.recordedAt.nanos.toLong())
+                            Instant.fromEpochSeconds(update.recordedAt.seconds, update.recordedAt.nanos.toLong())
                                 .toString()
-                        else kotlinx.datetime.Clock.System.now()
+                        else Clock.System.now()
                             .toString()
                     )
                 }))
@@ -208,8 +213,9 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                     put("server_id", update.serverId)
                     put("backup_id", update.backupId)
                     put("percent_complete", update.percentComplete)
-                    put("recorded_at",
-                        kotlinx.datetime.Clock.System.now()
+                    put(
+                        "recorded_at",
+                        Clock.System.now()
                             .toString()
                     )
                 }))
@@ -230,9 +236,9 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                     if (!update.success) put("error_message", update.errorMessage)
                     put(
                         "completed_at", if (update.hasCompletedAt())
-                            kotlinx.datetime.Instant.fromEpochSeconds(update.completedAt.seconds, update.completedAt.nanos.toLong())
+                            Instant.fromEpochSeconds(update.completedAt.seconds, update.completedAt.nanos.toLong())
                                 .toString()
-                        else kotlinx.datetime.Clock.System.now()
+                        else Clock.System.now()
                             .toString()
                     )
                 }))
@@ -269,7 +275,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
         // ── 5-min permission revalidation ─────────────────────────────────────
         val revalidationJob = launch {
             while (true) {
-                kotlinx.coroutines.delay(5.minutes)
+                delay(5.minutes)
                 // Touch permission store — connections are pruned if user deactivated
                 runCatching { PermissionResolver.hasPermission(userId, "server.view") }
             }

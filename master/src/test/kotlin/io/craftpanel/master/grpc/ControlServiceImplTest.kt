@@ -259,7 +259,7 @@ class ControlServiceImplTest {
     }
 
     @Test
-    fun `reconcile does not promote PENDING node to ACTIVE — admin trust required`() {
+    fun `reconcile does not promote PENDING node to ACTIVE - admin trust required`() {
         val nodeId = createNode(status = "PENDING")
 
         service.reconcileNodeState(nodeId.toString(), nodeStateSnapshot { })

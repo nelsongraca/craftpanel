@@ -1,6 +1,7 @@
 package io.craftpanel.master.grpc
 
 import com.craftpanel.agent.v1.*
+import com.google.protobuf.ByteString
 import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
@@ -92,7 +93,7 @@ class DataServiceProxy(private val nodeConfig: NodeConfig) {
         val sn = lookupServerNode(serverId) ?: error("Server $serverId not found")
         return stubFor(sn.nodeId, sn.privateIp).writeFile(writeFileRequest {
             this.serverId = serverId; this.path = path
-            this.content = com.google.protobuf.ByteString.copyFrom(content)
+            this.content = ByteString.copyFrom(content)
         })
     }
 

@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -136,7 +137,7 @@ fun Route.consoleRoutes(wsTicketService: WsTicketService, proxy: DataServiceProx
         val session = sessionManager.getOrCreate(serverId)
 
         fun sendJson(type: String, payload: Map<String, String>) {
-            val obj = JsonObject(payload.mapValues { (_, v) -> kotlinx.serialization.json.JsonPrimitive(v) })
+            val obj = JsonObject(payload.mapValues { (_, v) -> JsonPrimitive(v) })
             val frame = json.encodeToString(WsEnvelope(type, obj))
             outgoing.trySend(Frame.Text(frame))
         }
@@ -157,7 +158,7 @@ fun Route.consoleRoutes(wsTicketService: WsTicketService, proxy: DataServiceProx
 
         val revalidationJob = launch {
             while (true) {
-                kotlinx.coroutines.delay(5.minutes)
+                delay(5.minutes)
                 if (!PermissionResolver.hasPermission(userId, "server.console", serverInfo.serverId, serverInfo.networkId)) {
                     sendJson("console.disconnected", mapOf("server_id" to serverId, "reason" to "Session revoked"))
                     close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Session revoked"))
