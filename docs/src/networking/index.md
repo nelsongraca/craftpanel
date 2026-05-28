@@ -7,6 +7,15 @@ Each node runs one instance of [`itzg/mc-router`](https://github.com/itzg/mc-rou
 
 Game traffic flows directly from players to mc-router to containers. It never passes through the master backend.
 
+### Lifecycle management
+
+The **agent** provisions and manages the mc-router container automatically — no manual setup is required on the node. On every startup the agent:
+
+1. Pulls the configured mc-router image (controlled by `MCROUTER_IMAGE`, default `itzg/mc-router:latest`)
+2. Starts the container if it is not already running, or leaves it in place if it is
+
+The pull step runs by default so nodes always run the latest mc-router release. It can be disabled by setting `MCROUTER_UPDATE_ON_START=false`, which causes the agent to use whatever image is already cached locally — useful when the image is pinned to a specific digest or when image pulls are restricted. See [Agent Configuration](../nodes/index.md#agent-configuration) for the full list of env vars.
+
 ## DNS Structure
 
 | Record                  | Type | Value            | Managed by                           |

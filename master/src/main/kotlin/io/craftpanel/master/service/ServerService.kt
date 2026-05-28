@@ -2,6 +2,7 @@ package io.craftpanel.master.service
 
 import com.craftpanel.agent.v1.*
 import io.craftpanel.master.database.schema.*
+import org.jetbrains.exposed.v1.core.ResultRow
 import io.craftpanel.master.util.toKotlinUuid
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -348,34 +349,17 @@ class ServerService(
                 .firstOrNull()
         }
             ?: throw UnprocessableException("Node not found")
-        val dbEnvVars = transaction {
-            ServerEnvVars.selectAll()
-                .where { ServerEnvVars.serverId eq id }
-                .toList()
-        }
         val serverType = serverRow[Servers.serverType]
         val serverImage = deriveImage(serverType, serverRow[Servers.itzgImageTag])
-        val dataVolumePath = "${nodeRow[Nodes.dataPath]}/servers/$id"
-        val netName = serverRow[Servers.networkId]?.let { "craftpanel-net-$it" } ?: ""
-        val modrinthProjects = modService.buildModrinthEnvVar(id)
-        val systemVars = buildMap<String, String> {
-            put("EULA", "TRUE"); put("TYPE", serverType)
-            put("VERSION", serverRow[Servers.mcVersion]); put("MEMORY", "${serverRow[Servers.memoryMb]}M")
-            if (modrinthProjects.isNotEmpty()) put("MODRINTH_PROJECTS", modrinthProjects)
-        }
-        val allVars = systemVars + dbEnvVars.associate { it[ServerEnvVars.key] to it[ServerEnvVars.value] }
+        val allVars = buildAllVars(id, serverRow)
         val nodeId = nodeKotlinId.toString()
+        val publicHostname = serverRow[Servers.dnsRecordName]
+            ?: if (serverRow[Servers.exposedExternally] && serverRow[Servers.publicSubdomain] != null) {
+                resolvePublicHostname(serverRow[Servers.publicSubdomain]!!, serverRow[Servers.networkId])
+            } else null
 
         if (serverRow[Servers.containerId] == null) {
-            val createCmd = masterMessage {
-                createContainer = createContainerCommand {
-                    serverId = id.toString(); containerName = "craftpanel-$id"
-                    image = serverImage; ramMb = serverRow[Servers.memoryMb]; cpuShares = serverRow[Servers.cpuShares]
-                    hostPort = serverRow[Servers.hostPort]; envVars.putAll(allVars)
-                    this.mounts.add(volumeMount { hostPath = dataVolumePath; containerPath = "/data"; readOnly = false })
-                    dockerNetwork = netName; restartPolicy = "unless-stopped"; stopCommand = serverRow[Servers.stopCommand]
-                }
-            }
+            val createCmd = buildCreateContainerCommand(id, serverRow, nodeRow, serverImage, allVars, publicHostname)
             if (!sendToNode(nodeId, createCmd)) throw BadGatewayException("Agent not connected")
         }
 
@@ -385,7 +369,7 @@ class ServerService(
         transaction {
             Servers.update({ Servers.id eq id }) {
                 it[status] = "STARTING"; it[updatedAt] = Clock.System.now()
-                .toLocalDateTime(TimeZone.UTC)
+                    .toLocalDateTime(TimeZone.UTC)
             }
         }
     }
@@ -446,23 +430,10 @@ class ServerService(
                 .firstOrNull()
         }
             ?: throw UnprocessableException("Node not found")
-        val dbEnvVars = transaction {
-            ServerEnvVars.selectAll()
-                .where { ServerEnvVars.serverId eq id }
-                .toList()
-        }
         val nodeId = serverRow[Servers.nodeId].toString()
-        val serverType = serverRow[Servers.serverType]
-        val serverImage = deriveImage(serverType, req.itzgImageTag)
-        val modrinthProjects = modService.buildModrinthEnvVar(id)
-        val dataVolumePath = "${nodeRow[Nodes.dataPath]}/servers/$id"
-        val netName = serverRow[Servers.networkId]?.let { "craftpanel-net-$it" } ?: ""
-        val systemVars = buildMap<String, String> {
-            put("EULA", "TRUE"); put("TYPE", serverType)
-            put("VERSION", serverRow[Servers.mcVersion]); put("MEMORY", "${serverRow[Servers.memoryMb]}M")
-            if (modrinthProjects.isNotEmpty()) put("MODRINTH_PROJECTS", modrinthProjects)
-        }
-        val allVars = systemVars + dbEnvVars.associate { it[ServerEnvVars.key] to it[ServerEnvVars.value] }
+        val serverImage = deriveImage(serverRow[Servers.serverType], req.itzgImageTag)
+        val allVars = buildAllVars(id, serverRow)
+        val publicHostname = serverRow[Servers.dnsRecordName]
 
         if (serverRow[Servers.containerId] != null) {
             val removeCmd = masterMessage { removeContainer = removeContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; force = false } }
@@ -470,15 +441,7 @@ class ServerService(
         }
         val pullCmd = masterMessage { pullImage = pullImageCommand { serverId = id.toString(); image = serverImage } }
         if (!sendToNode(nodeId, pullCmd)) throw BadGatewayException("Agent not connected")
-        val createCmd = masterMessage {
-            createContainer = createContainerCommand {
-                serverId = id.toString(); containerName = "craftpanel-$id"
-                image = serverImage; ramMb = serverRow[Servers.memoryMb]; cpuShares = serverRow[Servers.cpuShares]
-                hostPort = serverRow[Servers.hostPort]; envVars.putAll(allVars)
-                this.mounts.add(volumeMount { hostPath = dataVolumePath; containerPath = "/data"; readOnly = false })
-                dockerNetwork = netName; restartPolicy = "unless-stopped"; stopCommand = serverRow[Servers.stopCommand]
-            }
-        }
+        val createCmd = buildCreateContainerCommand(id, serverRow, nodeRow, serverImage, allVars, publicHostname)
         if (!sendToNode(nodeId, createCmd)) throw BadGatewayException("Agent not connected")
         transaction {
             Servers.update({ Servers.id eq id }) {
@@ -517,12 +480,12 @@ class ServerService(
     }
 
     fun updateExposure(id: kotlin.uuid.Uuid, req: PatchExposureRequest) {
-        val exists = transaction {
+        val serverRow = transaction {
             Servers.selectAll()
                 .where { Servers.id eq id }
-                .firstOrNull() != null
-        }
-        if (!exists) throw NotFoundException("Server not found")
+                .firstOrNull()
+        } ?: throw NotFoundException("Server not found")
+
         val result = transaction {
             if (req.publicSubdomain != null) {
                 val taken = Servers.selectAll()
@@ -530,15 +493,113 @@ class ServerService(
                     .firstOrNull() != null
                 if (taken) return@transaction "subdomain_taken"
             }
-            Servers.update({ Servers.id eq id }) {
-                it[exposedExternally] = req.exposedExternally
-                it[publicSubdomain] = req.publicSubdomain
-                it[updatedAt] = Clock.System.now()
-                    .toLocalDateTime(TimeZone.UTC)
-            }
             "ok"
         }
         if (result == "subdomain_taken") throw UnprocessableException("Public subdomain already taken")
+
+        val fullHostname = if (req.exposedExternally && req.publicSubdomain != null) {
+            resolvePublicHostname(req.publicSubdomain, serverRow[Servers.networkId])
+        } else null
+
+        transaction {
+            Servers.update({ Servers.id eq id }) {
+                it[exposedExternally] = req.exposedExternally
+                it[publicSubdomain] = req.publicSubdomain
+                it[dnsRecordName] = fullHostname
+                it[updatedAt] = Clock.System.now()
+                    .toLocalDateTime(TimeZone.UTC)
+            }
+        }
+
+        val isRunning = serverRow[Servers.status] in listOf("HEALTHY", "STARTING", "UNHEALTHY")
+        if (isRunning) {
+            val nodeId = serverRow[Servers.nodeId].toString()
+            val nodeRow = transaction {
+                Nodes.selectAll()
+                    .where { Nodes.id eq serverRow[Servers.nodeId] }
+                    .firstOrNull()
+            } ?: return
+            val allVars = buildAllVars(id, serverRow)
+            val serverImage = deriveImage(serverRow[Servers.serverType], serverRow[Servers.itzgImageTag])
+            sendToNode(nodeId, masterMessage {
+                stopContainer = stopContainerCommand {
+                    serverId = id.toString(); containerName = "craftpanel-$id"
+                    timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand]
+                }
+            })
+            sendToNode(nodeId, masterMessage {
+                removeContainer = removeContainerCommand {
+                    serverId = id.toString(); containerName = "craftpanel-$id"; force = false
+                }
+            })
+            sendToNode(nodeId, buildCreateContainerCommand(id, serverRow, nodeRow, serverImage, allVars, fullHostname))
+            sendToNode(nodeId, masterMessage {
+                startContainer = startContainerCommand {
+                    serverId = id.toString(); containerName = "craftpanel-$id"
+                }
+            })
+        }
+    }
+
+    private fun buildAllVars(id: kotlin.uuid.Uuid, serverRow: ResultRow): Map<String, String> {
+        val serverType = serverRow[Servers.serverType]
+        val modrinthProjects = modService.buildModrinthEnvVar(id)
+        val dbEnvVars = transaction {
+            ServerEnvVars.selectAll()
+                .where { ServerEnvVars.serverId eq id }
+                .associate { it[ServerEnvVars.key] to it[ServerEnvVars.value] }
+        }
+        val systemVars = buildMap {
+            put("EULA", "TRUE"); put("TYPE", serverType)
+            put("VERSION", serverRow[Servers.mcVersion]); put("MEMORY", "${serverRow[Servers.memoryMb]}M")
+            if (modrinthProjects.isNotEmpty()) put("MODRINTH_PROJECTS", modrinthProjects)
+        }
+        return systemVars + dbEnvVars
+    }
+
+    private fun buildCreateContainerCommand(
+        serverId: kotlin.uuid.Uuid,
+        serverRow: ResultRow,
+        nodeRow: ResultRow,
+        image: String,
+        allVars: Map<String, String>,
+        publicHostname: String?,
+    ): MasterMessage = masterMessage {
+        createContainer = createContainerCommand {
+            this.serverId = serverId.toString()
+            containerName = "craftpanel-$serverId"
+            this.image = image
+            ramMb = serverRow[Servers.memoryMb]
+            cpuShares = serverRow[Servers.cpuShares]
+            hostPort = serverRow[Servers.hostPort]
+            envVars.putAll(allVars)
+            mounts.add(volumeMount {
+                hostPath = "${nodeRow[Nodes.dataPath]}/servers/$serverId"
+                containerPath = "/data"
+                readOnly = false
+            })
+            dockerNetwork = serverRow[Servers.networkId]?.let { "craftpanel-net-$it" } ?: ""
+            restartPolicy = "unless-stopped"
+            stopCommand = serverRow[Servers.stopCommand]
+            mcRouterHostname = publicHostname ?: ""
+        }
+    }
+
+    private fun resolvePublicHostname(subdomain: String, networkId: kotlin.uuid.Uuid?): String? {
+        val suffix = transaction {
+            if (networkId != null) {
+                ServerNetworks.selectAll()
+                    .where { ServerNetworks.id eq networkId }
+                    .firstOrNull()
+                    ?.get(ServerNetworks.cfDomainSuffix)
+            } else null
+        } ?: transaction {
+            SystemSettings.selectAll()
+                .where { SystemSettings.key eq "dns_domain_suffix" }
+                .firstOrNull()
+                ?.get(SystemSettings.value)
+        }
+        return suffix?.let { "$subdomain.$it" }
     }
 }
 

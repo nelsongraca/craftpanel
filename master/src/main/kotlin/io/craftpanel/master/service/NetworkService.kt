@@ -21,6 +21,7 @@ data class NetworkResponse(
     @SerialName("proxy_type") val proxyType: String?,
     @SerialName("proxy_port") val proxyPort: Int?,
     val description: String?,
+    @SerialName("domain_suffix") val domainSuffix: String?,
     @SerialName("server_count") val serverCount: Int,
     @SerialName("created_at") val createdAt: String,
 )
@@ -41,6 +42,7 @@ data class NetworkDetailResponse(
     @SerialName("proxy_type") val proxyType: String?,
     @SerialName("proxy_port") val proxyPort: Int?,
     val description: String?,
+    @SerialName("domain_suffix") val domainSuffix: String?,
     @SerialName("server_count") val serverCount: Int,
     val servers: List<NetworkServerItem>,
     @SerialName("created_at") val createdAt: String,
@@ -53,12 +55,14 @@ data class CreateNetworkRequest(
     @SerialName("proxy_type") val proxyType: String? = null,
     @SerialName("proxy_port") val proxyPort: Int? = null,
     val description: String? = null,
+    @SerialName("domain_suffix") val domainSuffix: String? = null,
 )
 
 @Serializable
 data class PatchNetworkRequest(
     val name: String? = null,
     val description: String? = null,
+    @SerialName("domain_suffix") val domainSuffix: String? = null,
 )
 
 class NetworkService {
@@ -77,6 +81,7 @@ class NetworkService {
                     proxyType = row[ServerNetworks.proxyType],
                     proxyPort = row[ServerNetworks.proxyPort],
                     description = row[ServerNetworks.description],
+                    domainSuffix = row[ServerNetworks.cfDomainSuffix],
                     serverCount = counts[netId] ?: 0,
                     createdAt = row[ServerNetworks.createdAt].toString(),
                 )
@@ -97,6 +102,7 @@ class NetworkService {
                 it[proxyType] = req.proxyType
                 it[proxyPort] = req.proxyPort
                 it[description] = req.description
+                it[cfDomainSuffix] = req.domainSuffix
             }[ServerNetworks.id]
             val row = ServerNetworks.selectAll()
                 .where { ServerNetworks.id eq insertedId }
@@ -108,6 +114,7 @@ class NetworkService {
                 proxyType = row[ServerNetworks.proxyType],
                 proxyPort = row[ServerNetworks.proxyPort],
                 description = row[ServerNetworks.description],
+                domainSuffix = row[ServerNetworks.cfDomainSuffix],
                 serverCount = 0,
                 createdAt = row[ServerNetworks.createdAt].toString(),
             )
@@ -137,6 +144,7 @@ class NetworkService {
                 proxyType = row[ServerNetworks.proxyType],
                 proxyPort = row[ServerNetworks.proxyPort],
                 description = row[ServerNetworks.description],
+                domainSuffix = row[ServerNetworks.cfDomainSuffix],
                 serverCount = members.size,
                 servers = members,
                 createdAt = row[ServerNetworks.createdAt].toString(),
@@ -158,6 +166,7 @@ class NetworkService {
             ServerNetworks.update({ ServerNetworks.id eq id }) {
                 if (req.name != null) it[name] = req.name
                 if (req.description != null) it[description] = req.description
+                if (req.domainSuffix != null) it[cfDomainSuffix] = req.domainSuffix
             }
             true
         }

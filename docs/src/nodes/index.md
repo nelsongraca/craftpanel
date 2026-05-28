@@ -43,6 +43,32 @@ Master stores metric snapshots at **1-minute intervals** in PostgreSQL. Historic
 
 Each node has a configured resource envelope (total allocatable RAM, CPU shares). Master tracks allocated vs. available capacity and prevents over-provisioning when creating or resizing servers.
 
+## Agent Configuration
+
+The agent is configured entirely through environment variables.
+
+| Variable              | Default                   | Description                                                                                     |
+|-----------------------|---------------------------|-------------------------------------------------------------------------------------------------|
+| `MASTER_HOST`         | `localhost`               | Hostname or IP of the master gRPC server                                                        |
+| `MASTER_GRPC_PORT`    | `50051`                   | Port of the master gRPC server                                                                  |
+| `GRPC_TLS_CERT`       | *(empty — TLS disabled)*  | Path to the TLS CA certificate used to verify the master. Leave empty to disable TLS.           |
+| `NODE_BOOTSTRAP_TOKEN`| `changeme`                | Shared secret used for first-time node registration. Not needed after the node key is persisted |
+| `NODE_KEY_FILE`       | `/etc/craftpanel/node.key`| Path where the agent persists its node key after registration                                   |
+| `DOCKER_SOCKET`       | `unix:///var/run/docker.sock` | Docker socket path                                                                          |
+| `AGENT_VERSION`       | `dev`                     | Version string reported to master during registration                                           |
+| `DATA_SERVICE_PORT`   | `50052`                   | Port the agent's DataService gRPC server listens on (console, file ops)                         |
+| `DATA_PATH`           | `/data`                   | Base directory on the node host where server data volumes are stored                            |
+| `MCROUTER_IMAGE`      | `itzg/mc-router:latest`   | Docker image used when provisioning the mc-router container on startup                          |
+| `MCROUTER_UPDATE_ON_START` | `true`             | Pull the mc-router image on every agent startup to keep it up to date. Set to `false` to skip the pull and use whatever image is already cached locally |
+
+### mc-router provisioning
+
+On startup the agent automatically provisions a single `craftpanel-mc-router` container on the local Docker daemon. This container routes incoming Minecraft TCP connections to the correct game server container using Docker label-based hostname matching (label `mc-router.hostname=<hostname>`).
+
+When `MCROUTER_UPDATE_ON_START=true` (default) the agent pulls the configured image before creating the container, so the node always runs the latest version of mc-router. Set to `false` in environments where image pulls are restricted or where a pinned digest is baked into `MCROUTER_IMAGE`.
+
+If the mc-router container is already running, the pull (if enabled) still executes so the local image cache is updated, but the running container is not restarted — the update takes effect on the next agent restart.
+
 ## Colocation with Master
 
 The master backend, PostgreSQL, and frontend may share hardware with a node agent. In this configuration the master node also hosts server containers alongside the management stack. Resource allocated

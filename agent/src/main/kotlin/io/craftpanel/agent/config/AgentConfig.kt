@@ -10,6 +10,8 @@ data class AgentConfig(
     val agentVersion: String,
     val dataServicePort: Int,
     val dataBasePath: String,
+    val mcRouterImage: String,
+    val mcRouterUpdateOnStart: Boolean,
 ) {
 
     val tlsEnabled: Boolean get() = tlsCertPath.isNotBlank()
@@ -28,6 +30,8 @@ data class AgentConfig(
             dataServicePort = System.getenv("DATA_SERVICE_PORT")
                 ?.toIntOrNull() ?: 50052,
             dataBasePath = System.getenv("DATA_PATH") ?: "/data",
+            mcRouterImage = System.getenv("MCROUTER_IMAGE") ?: "itzg/mc-router:latest",
+            mcRouterUpdateOnStart = System.getenv("MCROUTER_UPDATE_ON_START")?.lowercase() != "false",
         )
     }
 }

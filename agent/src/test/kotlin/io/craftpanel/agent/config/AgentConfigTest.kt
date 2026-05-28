@@ -59,6 +59,8 @@ class AgentConfigTest {
         agentVersion: String = "1.0",
         dataServicePort: Int = 50052,
         dataBasePath: String = "/data",
+        mcRouterImage: String = "itzg/mc-router:latest",
+        mcRouterUpdateOnStart: Boolean = true,
     ) = AgentConfig(
         masterAddress = masterAddress,
         masterPort = masterPort,
@@ -69,5 +71,7 @@ class AgentConfigTest {
         agentVersion = agentVersion,
         dataServicePort = dataServicePort,
         dataBasePath = dataBasePath,
+        mcRouterImage = mcRouterImage,
+        mcRouterUpdateOnStart = mcRouterUpdateOnStart,
     )
 }

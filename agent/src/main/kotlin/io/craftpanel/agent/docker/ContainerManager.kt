@@ -36,9 +36,9 @@ open class ContainerManager(private val docker: DockerClient) {
                         ?.trimStart('/') ?: container.id
                     serverId = container.labels["craftpanel.server.id"] ?: ""
                     runState = when {
-                        container.state == "running" -> ContainerState.RunState.RUNNING
+                        container.state == "running"                                    -> ContainerState.RunState.RUNNING
                         container.state == "exited" && container.status.contains("(0)") -> ContainerState.RunState.STOPPED
-                        else -> ContainerState.RunState.EXITED
+                        else                                                            -> ContainerState.RunState.EXITED
                     }
                 }
             }
@@ -76,7 +76,12 @@ open class ContainerManager(private val docker: DockerClient) {
             .withEnv(envList)
             .withExposedPorts(minecraftPort)
             .withHostConfig(hostConfig)
-            .withLabels(mapOf("craftpanel.server.id" to cmd.serverId))
+            .withLabels(buildMap {
+                put("craftpanel.server.id", cmd.serverId)
+                if (cmd.mcRouterHostname.isNotEmpty()) {
+                    put("mc-router.hostname", cmd.mcRouterHostname)
+                }
+            })
             .withStdinOpen(true)
             .exec()
 

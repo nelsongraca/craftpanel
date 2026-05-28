@@ -221,6 +221,9 @@ message CreateContainerCommand {
   // Derived from server_type default unless overridden in UI.
   // e.g. "stop" for game servers, "end" for some proxies. Empty = skip.
   string stop_command = 11;
+  // If non-empty, sets the mc-router.hostname Docker label so mc-router routes
+  // the given public hostname to this container. Empty = no label set.
+  string mc_router_hostname = 12;
 }
 
 message VolumeMount {

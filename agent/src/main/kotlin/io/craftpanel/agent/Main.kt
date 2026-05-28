@@ -3,6 +3,7 @@ package io.craftpanel.agent
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.DockerClientFactory
+import io.craftpanel.agent.docker.McRouterProvisioner
 import io.craftpanel.agent.docker.MetricsCollector
 import io.craftpanel.agent.grpc.ConnectionManager
 import io.craftpanel.agent.grpc.DataServiceImpl
@@ -21,6 +22,8 @@ fun main(): Unit = runBlocking {
     val docker = DockerClientFactory.create(config.dockerSocketPath)
     val containerManager = ContainerManager(docker)
     val metricsCollector = MetricsCollector(docker)
+
+    McRouterProvisioner(docker, config.mcRouterImage, config.mcRouterUpdateOnStart).ensureRunning()
 
     val dataService = DataServiceImpl(config, containerManager, docker)
     val dataServer: Server = NettyServerBuilder.forPort(config.dataServicePort)
