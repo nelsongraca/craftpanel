@@ -76,9 +76,12 @@ class ControlStreamHandler(
                 msg.hasRemoveContainer()  -> handleRemove(msg.removeContainer)
                 msg.hasPullImage()        -> handlePullImage(msg.pullImage)
                 msg.hasShutdown()         -> handleShutdown(msg.shutdown, outbound)
-                msg.hasTriggerBackup()    -> launch { handleTriggerBackup(msg.triggerBackup, outbound) }
-                msg.hasDeleteBackup()     -> launch { handleDeleteBackup(msg.deleteBackup) }
-                else                      -> log.warn("Unhandled master message: ${msg.payloadCase}")
+                msg.hasTriggerBackup()         -> launch { handleTriggerBackup(msg.triggerBackup, outbound) }
+                msg.hasDeleteBackup()          -> launch { handleDeleteBackup(msg.deleteBackup) }
+                msg.hasPrepareRsyncReceive()   -> launch { handlePrepareRsyncReceive(msg.prepareRsyncReceive, outbound) }
+                msg.hasStartRsync()            -> launch { handleStartRsync(msg.startRsync, outbound) }
+                msg.hasSendRcon()              -> launch { handleSendRcon(msg.sendRcon) }
+                else                           -> log.warn("Unhandled master message: ${msg.payloadCase}")
             }
         }
     }
@@ -211,8 +214,8 @@ class ControlStreamHandler(
                     serverId = cmd.serverId
                     success = false
                     errorMessage = "Cannot find /data mount for container ${cmd.containerName}"
-                    completedAt = com.google.protobuf.timestamp {
-                        val now = java.time.Instant.now()
+                    completedAt = timestamp {
+                        val now = Instant.now()
                         seconds = now.epochSecond
                         nanos = now.nano
                     }
@@ -267,8 +270,8 @@ class ControlStreamHandler(
                     success = true
                     filePath = cmd.destinationPath
                     this.sizeBytes = sizeBytes
-                    completedAt = com.google.protobuf.timestamp {
-                        val now = java.time.Instant.now()
+                    completedAt = timestamp {
+                        val now = Instant.now()
                         seconds = now.epochSecond
                         nanos = now.nano
                     }
@@ -284,8 +287,8 @@ class ControlStreamHandler(
                         serverId = cmd.serverId
                         success = false
                         errorMessage = ex.message ?: "Unknown error"
-                        completedAt = com.google.protobuf.timestamp {
-                            val now = java.time.Instant.now()
+                        completedAt = timestamp {
+                            val now = Instant.now()
                             seconds = now.epochSecond
                             nanos = now.nano
                         }
@@ -299,6 +302,118 @@ class ControlStreamHandler(
         runCatching {
             withContext(Dispatchers.IO) { File(cmd.filePath).delete() }
         }.onFailure { log.error("Failed to delete backup file ${cmd.filePath}", it) }
+    }
+
+    internal suspend fun handlePrepareRsyncReceive(
+        cmd: PrepareRsyncReceiveCommand,
+        outbound: MutableSharedFlow<AgentMessage>,
+    ) {
+        log.info("Migration ${cmd.migrationId}: preparing rsync receiver on port ${cmd.port} → ${cmd.destinationPath}")
+        runCatching {
+            withContext(Dispatchers.IO) {
+                val password = generateRsyncPassword()
+                containerManager.startRsyncdContainer(
+                    migrationId = cmd.migrationId,
+                    port = cmd.port,
+                    destPath = cmd.destinationPath,
+                    password = password,
+                    rsyncImage = cmd.rsyncImage.ifEmpty { "alpine" },
+                )
+                password
+            }
+        }.onSuccess { password ->
+            outbound.emit(agentMessage {
+                nodeId = identity.nodeId
+                rsyncReady = rsyncReadyUpdate {
+                    migrationId = cmd.migrationId
+                    rsyncPassword = password
+                }
+            })
+            log.info("Migration ${cmd.migrationId}: rsyncd ready")
+        }.onFailure { ex ->
+            log.error("Migration ${cmd.migrationId}: failed to start rsyncd", ex)
+        }
+    }
+
+    internal suspend fun handleStartRsync(
+        cmd: StartRsyncCommand,
+        outbound: MutableSharedFlow<AgentMessage>,
+    ) {
+        log.info("Migration ${cmd.migrationId}: starting rsync transfer (final=${cmd.isFinalPass})")
+        runCatching {
+            withContext(Dispatchers.IO) {
+                containerManager.runRsyncTransfer(
+                    migrationId = cmd.migrationId,
+                    sourcePath = cmd.sourcePath,
+                    destIp = cmd.destinationIp,
+                    destPort = cmd.destinationPort,
+                    password = cmd.rsyncPassword,
+                    isFinalPass = cmd.isFinalPass,
+                    rsyncImage = cmd.rsyncImage.ifEmpty { "alpine" },
+                    onProgress = { bytes, total, pct, phase ->
+                        outbound.tryEmit(agentMessage {
+                            nodeId = identity.nodeId
+                            rsyncProgress = rsyncProgressUpdate {
+                                migrationId = cmd.migrationId
+                                isFinalPass = cmd.isFinalPass
+                                bytesTransferred = bytes
+                                totalBytes = total
+                                percentComplete = pct
+                                this.phase = phase
+                                recordedAt = timestamp {
+                                    val now = Instant.now()
+                                    seconds = now.epochSecond
+                                    nanos = now.nano
+                                }
+                            }
+                        })
+                    },
+                )
+            }
+        }.onSuccess { success ->
+            outbound.emit(agentMessage {
+                nodeId = identity.nodeId
+                rsyncComplete = rsyncCompleteUpdate {
+                    migrationId = cmd.migrationId
+                    isFinalPass = cmd.isFinalPass
+                    this.success = success
+                    if (!success) errorMessage = "rsync exited with non-zero code"
+                    completedAt = timestamp {
+                        val now = Instant.now()
+                        seconds = now.epochSecond
+                        nanos = now.nano
+                    }
+                }
+            })
+            log.info("Migration ${cmd.migrationId}: rsync transfer complete (success=$success)")
+        }.onFailure { ex ->
+            log.error("Migration ${cmd.migrationId}: rsync transfer error", ex)
+            outbound.emit(agentMessage {
+                nodeId = identity.nodeId
+                rsyncComplete = rsyncCompleteUpdate {
+                    migrationId = cmd.migrationId
+                    isFinalPass = cmd.isFinalPass
+                    success = false
+                    errorMessage = ex.message ?: "Unknown error"
+                    completedAt = timestamp {
+                        val now = Instant.now()
+                        seconds = now.epochSecond
+                        nanos = now.nano
+                    }
+                }
+            })
+        }
+    }
+
+    internal fun handleSendRcon(cmd: SendRconCommand) {
+        log.debug("RCON exec on server ${cmd.serverId}: ${cmd.command}")
+        containerManager.execRconCommand(cmd.serverId, cmd.command)
+    }
+
+    private fun generateRsyncPassword(): String {
+        val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
+        val random = java.security.SecureRandom()
+        return (1..32).map { chars[random.nextInt(chars.length)] }.joinToString("")
     }
 
     internal suspend fun handleShutdown(cmd: ShutdownCommand, outbound: MutableSharedFlow<AgentMessage>) {

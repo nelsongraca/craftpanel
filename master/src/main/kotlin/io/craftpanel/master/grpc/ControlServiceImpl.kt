@@ -56,6 +56,9 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
     private val _alertEventFlow = MutableSharedFlow<AlertEventNotification>(extraBufferCapacity = 64)
     private val _backupProgressFlow = MutableSharedFlow<BackupProgressUpdate>(extraBufferCapacity = 128)
     private val _backupCompleteFlow = MutableSharedFlow<BackupCompleteUpdate>(extraBufferCapacity = 64)
+    private val _rsyncReadyFlow = MutableSharedFlow<RsyncReadyUpdate>(extraBufferCapacity = 64)
+    private val _rsyncProgressFlow = MutableSharedFlow<RsyncProgressUpdate>(extraBufferCapacity = 256)
+    private val _rsyncCompleteFlow = MutableSharedFlow<RsyncCompleteUpdate>(extraBufferCapacity = 64)
 
     val nodeMetricsFlow = _nodeMetricsFlow.asSharedFlow()
     val containerMetricsFlow = _containerMetricsFlow.asSharedFlow()
@@ -65,6 +68,9 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
     val alertEventFlow = _alertEventFlow.asSharedFlow()
     val backupProgressFlow = _backupProgressFlow.asSharedFlow()
     val backupCompleteFlow = _backupCompleteFlow.asSharedFlow()
+    val rsyncReadyFlow = _rsyncReadyFlow.asSharedFlow()
+    val rsyncProgressFlow = _rsyncProgressFlow.asSharedFlow()
+    val rsyncCompleteFlow = _rsyncCompleteFlow.asSharedFlow()
 
     fun sendToNode(nodeId: String, msg: MasterMessage): Boolean {
         val channel = connectedAgents[nodeId] ?: return false
@@ -221,6 +227,12 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
                         _backupCompleteFlow.emit(msg.backupComplete)
                     }
 
+                    msg.hasRsyncReady()       -> _rsyncReadyFlow.emit(msg.rsyncReady)
+
+                    msg.hasRsyncProgress()    -> _rsyncProgressFlow.emit(msg.rsyncProgress)
+
+                    msg.hasRsyncComplete()    -> _rsyncCompleteFlow.emit(msg.rsyncComplete)
+
                     else                      -> log.debug("Node ${msg.nodeId} sent unhandled message type")
                 }
             }
@@ -322,7 +334,7 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
 
             val migrationCount = ServerMigrations.update({
                 ((ServerMigrations.sourceNodeId eq kotlinNodeId) or (ServerMigrations.targetNodeId eq kotlinNodeId)) and
-                        (ServerMigrations.status inList listOf("PENDING", "RUNNING"))
+                        (ServerMigrations.status inList listOf("PENDING", "SYNCING", "CUTTING_OVER"))
             }) {
                 it[ServerMigrations.status] = "FAILED"
                 it[ServerMigrations.completedAt] = now

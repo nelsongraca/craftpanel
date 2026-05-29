@@ -11,6 +11,7 @@ import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.grpc.GrpcServer
 import io.craftpanel.master.dns.DnsProviderFactory
 import io.craftpanel.master.routes.*
+import io.craftpanel.master.service.MigrationService
 import io.craftpanel.master.scheduler.BackupJobHandler
 import io.craftpanel.master.scheduler.ServerScheduler
 import io.craftpanel.master.service.*
@@ -69,6 +70,15 @@ fun Application.module() {
     val backupService = BackupService(controlService::sendToNode, dataServiceProxy)
     val proxyBackendService = ProxyBackendService()
     val envVarsService = EnvVarsService()
+    val migrationService = MigrationService(
+        sendToNode = controlService::sendToNode,
+        rsyncReadyFlow = controlService.rsyncReadyFlow,
+        rsyncProgressFlow = controlService.rsyncProgressFlow,
+        rsyncCompleteFlow = controlService.rsyncCompleteFlow,
+        serverStatusFlow = controlService.serverStatusFlow,
+        dnsProvider = dnsProvider,
+        scope = this,
+    )
 
     val scheduler = ServerScheduler(
         handlers = mapOf("BACKUP" to BackupJobHandler(backupService)),
@@ -157,5 +167,6 @@ fun Application.module() {
         modsRoutes(modService)
         dashboardWsRoutes(wsTicketService, controlService)
         alertsRoutes(alertService)
+        migrationsRoutes(migrationService)
     }
 }

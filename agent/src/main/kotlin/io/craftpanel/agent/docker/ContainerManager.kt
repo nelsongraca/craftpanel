@@ -8,6 +8,9 @@ import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.command.PullImageResultCallback
 import com.github.dockerjava.api.model.*
 import org.slf4j.LoggerFactory
+import java.io.File
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 open class ContainerManager(private val docker: DockerClient) {
 
@@ -138,6 +141,127 @@ open class ContainerManager(private val docker: DockerClient) {
                 ?.firstOrNull { it.volume.path == "/data" }
                 ?.path
         }.getOrNull()
+    }
+
+    fun execRconCommand(serverId: String, command: String) {
+        val containerName = "craftpanel-$serverId"
+        runCatching {
+            val exec = docker.execCreateCmd(containerName)
+                .withCmd("rcon-cli", command)
+                .withAttachStdout(false)
+                .withAttachStderr(false)
+                .exec()
+            docker.execStartCmd(exec.id)
+                .withDetach(true)
+                .exec(ResultCallback.Adapter<Frame>())
+        }.onFailure { log.warn("RCON exec failed for server $serverId: command='$command'", it) }
+    }
+
+    fun startRsyncdContainer(migrationId: String, port: Int, destPath: String, password: String, rsyncImage: String): String {
+        File(destPath).mkdirs()
+        val containerName = "craftpanel-rsync-recv-$migrationId"
+        val portBinding = ExposedPort.tcp(port)
+        val portBindings = Ports()
+        portBindings.bind(portBinding, Ports.Binding.bindPort(port))
+
+        val script = """
+            set -e
+            apk add rsync --quiet --no-progress
+            mkdir -p /etc/rsyncd
+            cat > /etc/rsyncd.conf << 'CONF'
+[data]
+path = /data
+read only = no
+auth users = craftpanel
+secrets file = /etc/rsyncd/secrets
+CONF
+            echo "craftpanel:${password}" > /etc/rsyncd/secrets
+            chmod 600 /etc/rsyncd/secrets
+            rsync --daemon --no-detach --port $port --config /etc/rsyncd.conf
+        """.trimIndent()
+
+        val hostConfig = HostConfig.newHostConfig()
+            .withPortBindings(portBindings)
+            .withBinds(Bind(destPath, Volume("/data"), AccessMode.rw))
+            .withRestartPolicy(RestartPolicy.noRestart())
+
+        docker.createContainerCmd(rsyncImage)
+            .withName(containerName)
+            .withCmd("sh", "-c", script)
+            .withExposedPorts(portBinding)
+            .withHostConfig(hostConfig)
+            .exec()
+        docker.startContainerCmd(containerName).exec()
+        log.info("Started rsyncd container $containerName on port $port")
+        return containerName
+    }
+
+    fun runRsyncTransfer(
+        migrationId: String,
+        sourcePath: String,
+        destIp: String,
+        destPort: Int,
+        password: String,
+        isFinalPass: Boolean,
+        rsyncImage: String,
+        onProgress: (bytesTransferred: Long, totalBytes: Long, percent: Int, phase: String) -> Unit,
+    ): Boolean {
+        val containerName = "craftpanel-rsync-send-${migrationId}${if (isFinalPass) "-final" else ""}"
+        val script = """
+            set -e
+            apk add rsync --quiet --no-progress
+            rsync -az --progress --stats /source/ rsync://craftpanel@${destIp}:${destPort}/data/
+        """.trimIndent()
+
+        val hostConfig = HostConfig.newHostConfig()
+            .withBinds(Bind(sourcePath, Volume("/source"), AccessMode.ro))
+            .withRestartPolicy(RestartPolicy.noRestart())
+
+        docker.createContainerCmd(rsyncImage)
+            .withName(containerName)
+            .withCmd("sh", "-c", script)
+            .withEnv("RSYNC_PASSWORD=$password")
+            .withHostConfig(hostConfig)
+            .exec()
+        docker.startContainerCmd(containerName).exec()
+
+        val latch = CountDownLatch(1)
+        val outputBuf = StringBuilder()
+        docker.logContainerCmd(containerName)
+            .withStdOut(true)
+            .withStdErr(true)
+            .withFollowStream(true)
+            .exec(object : ResultCallback.Adapter<Frame>() {
+                override fun onNext(frame: Frame) {
+                    val line = String(frame.payload).trim()
+                    outputBuf.appendLine(line)
+                    parseRsyncProgress(line)?.let { p ->
+                        onProgress(p.bytes, p.total, p.percent, p.phase)
+                    }
+                }
+
+                override fun onComplete() = latch.countDown()
+                override fun onError(t: Throwable) = latch.countDown()
+            })
+
+        latch.await(4, TimeUnit.HOURS)
+
+        val exitCode = runCatching {
+            docker.inspectContainerCmd(containerName).exec().state?.exitCodeLong ?: 1
+        }.getOrDefault(1L)
+
+        runCatching { docker.removeContainerCmd(containerName).withForce(true).exec() }
+        return exitCode == 0L
+    }
+
+    private data class RsyncProgress(val bytes: Long, val total: Long, val percent: Int, val phase: String)
+
+    private fun parseRsyncProgress(line: String): RsyncProgress? {
+        val progressRegex = Regex("""^\s*([\d,]+)\s+(\d+)%""")
+        val match = progressRegex.find(line) ?: return null
+        val bytes = match.groupValues[1].replace(",", "").toLongOrNull() ?: return null
+        val pct = match.groupValues[2].toIntOrNull() ?: return null
+        return RsyncProgress(bytes, 0L, pct, "transferring")
     }
 
     fun shutdownAll(timeoutSeconds: Int): Pair<Int, Int> {

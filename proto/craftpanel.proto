@@ -131,6 +131,9 @@ message MasterMessage {
 
     // Image management
     PullImageCommand pull_image = 12;
+
+    // RCON
+    SendRconCommand send_rcon = 13;
   }
 }
 
@@ -302,6 +305,13 @@ message StartRsyncCommand {
   // False = initial pass (server still running).
   // True  = final delta pass (server stopped, minimise downtime window).
   bool   is_final_pass = 8;
+}
+
+message SendRconCommand {
+  string server_id = 1;
+  // RCON command string, e.g. "say Server restarting in 60 seconds" or "save-all".
+  // Fire-and-forget — no response message is emitted by the agent.
+  string command = 2;
 }
 
 message ShutdownCommand {

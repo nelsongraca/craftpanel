@@ -346,9 +346,9 @@ class ControlServiceImplTest {
     }
 
     @Test
-    fun `markNodeDegraded sets RUNNING migration to FAILED and sets completedAt`() {
+    fun `markNodeDegraded sets SYNCING migration to FAILED and sets completedAt`() {
         val nodeId = createNode()
-        val migrationId = createMigration(nodeId, status = "RUNNING")
+        val migrationId = createMigration(nodeId, status = "SYNCING")
 
         service.markNodeDegraded(nodeId.toString())
 
@@ -357,13 +357,13 @@ class ControlServiceImplTest {
     }
 
     @Test
-    fun `markNodeDegraded leaves SUCCESS migration unchanged`() {
+    fun `markNodeDegraded leaves COMPLETED migration unchanged`() {
         val nodeId = createNode()
-        val migrationId = createMigration(nodeId, status = "SUCCESS")
+        val migrationId = createMigration(nodeId, status = "COMPLETED")
 
         service.markNodeDegraded(nodeId.toString())
 
-        assertEquals("SUCCESS", migrationStatus(migrationId))
+        assertEquals("COMPLETED", migrationStatus(migrationId))
         assertNull(migrationCompletedAt(migrationId))
     }
 

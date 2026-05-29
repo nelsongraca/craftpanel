@@ -17,8 +17,8 @@ object TestDatabase {
         transaction {
             SchemaUtils.create(
                 Users, RefreshTokens, Groups, GroupPermissions, UserGroupAssignments,
-                ServerNetworks, Nodes, Servers, ServerEnvVars, NodeMetrics, PortRegistry, ServerMigrations, Backups,
-                AlertThresholds, AlertEvents, ContainerMetrics, ServerMods,
+                ServerNetworks, Nodes, Servers, ServerEnvVars, NodeMetrics, PortRegistry, ServerMigrations,
+                MigrationStepLog, Backups, AlertThresholds, AlertEvents, ContainerMetrics, ServerMods,
                 SystemSettings,
             )
             seedSystemGroups()
@@ -32,6 +32,7 @@ object TestDatabase {
             AlertThresholds.deleteAll()
             Backups.deleteAll()
             ServerMods.deleteAll()
+            MigrationStepLog.deleteAll()
             ServerMigrations.deleteAll()
             PortRegistry.deleteAll()
             ContainerMetrics.deleteAll()

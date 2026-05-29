@@ -10,7 +10,7 @@ object ServerMigrations : Table("server_migrations") {
     val serverId = uuid("server_id").references(Servers.id)
     val sourceNodeId = uuid("source_node_id").references(Nodes.id)
     val targetNodeId = uuid("target_node_id").references(Nodes.id)
-    val status = varchar("status", 10)  // PENDING|RUNNING|SUCCESS|FAILED|CANCELLED
+    val status = varchar("status", 15)  // PENDING|SYNCING|CUTTING_OVER|COMPLETED|FAILED|CANCELLED
     val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
     val completedAt = datetime("completed_at").nullable()
 
