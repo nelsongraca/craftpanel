@@ -12,6 +12,7 @@ import io.github.smiley4.ktoropenapi.post
 import io.github.smiley4.ktoropenapi.put
 import io.ktor.http.*
 import io.ktor.http.content.*
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.request.*
@@ -140,11 +141,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     call.respond(ReadFileResponse(path = path, content = result.content.toStringUtf8(), encoding = result.encoding))
                 }
                 catch (e: io.grpc.StatusException) {
-                    when (e.status.code) {
-                        io.grpc.Status.Code.NOT_FOUND        -> call.respond(HttpStatusCode.NotFound, ErrorResponse("File not found"))
-                        io.grpc.Status.Code.INVALID_ARGUMENT -> call.respond(HttpStatusCode.Conflict, ErrorResponse("Path is a directory"))
-                        else                                 -> call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
-                    }
+                    call.respondGrpcFileError(e)
                 }
             }
 
@@ -268,11 +265,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     }
                 }
                 catch (e: io.grpc.StatusException) {
-                    when (e.status.code) {
-                        io.grpc.Status.Code.NOT_FOUND        -> call.respond(HttpStatusCode.NotFound, ErrorResponse("File not found"))
-                        io.grpc.Status.Code.INVALID_ARGUMENT -> call.respond(HttpStatusCode.Conflict, ErrorResponse("Path is a directory"))
-                        else                                 -> call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
-                    }
+                    call.respondGrpcFileError(e)
                 }
             }
 
@@ -330,11 +323,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     call.respond(HttpStatusCode.NoContent)
                 }
                 catch (e: io.grpc.StatusException) {
-                    when (e.status.code) {
-                        io.grpc.Status.Code.NOT_FOUND      -> call.respond(HttpStatusCode.NotFound, ErrorResponse("Source not found"))
-                        io.grpc.Status.Code.ALREADY_EXISTS -> call.respond(HttpStatusCode.Conflict, ErrorResponse("Destination already exists"))
-                        else                               -> call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
-                    }
+                    call.respondGrpcMoveError(e)
                 }
             }
 
@@ -357,11 +346,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     call.respond(HttpStatusCode.NoContent)
                 }
                 catch (e: io.grpc.StatusException) {
-                    when (e.status.code) {
-                        io.grpc.Status.Code.NOT_FOUND      -> call.respond(HttpStatusCode.NotFound, ErrorResponse("Source not found"))
-                        io.grpc.Status.Code.ALREADY_EXISTS -> call.respond(HttpStatusCode.Conflict, ErrorResponse("Destination already exists"))
-                        else                               -> call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
-                    }
+                    call.respondGrpcMoveError(e)
                 }
             }
 
@@ -392,8 +377,24 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
 
 private data class AuthContext(val userId: UUID, val serverId: String, val networkId: UUID?)
 
+private suspend fun ApplicationCall.respondGrpcFileError(e: io.grpc.StatusException) {
+    when (e.status.code) {
+        io.grpc.Status.Code.NOT_FOUND        -> respond(HttpStatusCode.NotFound, ErrorResponse("File not found"))
+        io.grpc.Status.Code.INVALID_ARGUMENT -> respond(HttpStatusCode.Conflict, ErrorResponse("Path is a directory"))
+        else                                 -> respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
+    }
+}
+
+private suspend fun ApplicationCall.respondGrpcMoveError(e: io.grpc.StatusException) {
+    when (e.status.code) {
+        io.grpc.Status.Code.NOT_FOUND      -> respond(HttpStatusCode.NotFound, ErrorResponse("Source not found"))
+        io.grpc.Status.Code.ALREADY_EXISTS -> respond(HttpStatusCode.Conflict, ErrorResponse("Destination already exists"))
+        else                               -> respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
+    }
+}
+
 private suspend fun extractAndAuthorize(
-    call: io.ktor.server.application.ApplicationCall,
+    call: ApplicationCall,
     permission: String,
 ): AuthContext? {
     val principal = call.principal<JWTPrincipal>()!!

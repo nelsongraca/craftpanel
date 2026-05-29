@@ -8,6 +8,7 @@ import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import type {AlertEvent, AlertThreshold} from "@/lib/types";
 import {useWs} from "@/lib/ws-context";
+import {timeAgo} from "@/lib/utils/format";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -18,14 +19,6 @@ const METRICS = [
     "net_out_bytes",
     "disk_used_percent",
 ];
-
-function timeAgo(iso: string): string {
-    const secs = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-    if (secs < 60) return `${secs}s ago`;
-    if (secs < 3600) return `${Math.floor(secs / 60)}m ago`;
-    if (secs < 86400) return `${Math.floor(secs / 3600)}h ago`;
-    return `${Math.floor(secs / 86400)}d ago`;
-}
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
