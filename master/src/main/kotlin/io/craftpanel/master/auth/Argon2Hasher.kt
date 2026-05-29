@@ -19,7 +19,7 @@ object Argon2Hasher {
         val salt = ByteArray(SALT_LENGTH).also { random.nextBytes(it) }
         val hash = argon2Hash(password.toCharArray(), salt)
         val encoder = Base64.getEncoder()
-        return "\$argon2id\$v=19\$m=$MEMORY_KB,t=$ITERATIONS,p=$PARALLELISM\$${encoder.encodeToString(salt)}\$${encoder.encodeToString(hash)}"
+        return $$"$argon2id$v=19$m=$$MEMORY_KB,t=$$ITERATIONS,p=$$PARALLELISM$$${encoder.encodeToString(salt)}$$${encoder.encodeToString(hash)}"
     }
 
     fun verify(password: String, encoded: String): Boolean {
@@ -27,7 +27,6 @@ object Argon2Hasher {
             val parts = encoded.split("$")
                 .filter { it.isNotEmpty() }
             // parts: [argon2id, v=19, m=...,t=...,p=..., saltB64, hashB64]
-            val paramPart = parts[2]
             val saltB64 = parts[3]
             val hashB64 = parts[4]
 

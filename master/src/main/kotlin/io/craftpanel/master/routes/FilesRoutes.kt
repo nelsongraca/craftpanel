@@ -18,7 +18,10 @@ import io.ktor.server.auth.jwt.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.utils.io.readTo
+import io.ktor.utils.io.writeFully
 import kotlinx.coroutines.flow.flow
+import kotlinx.io.asSink
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.eq
@@ -90,7 +93,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val (userId, serverId, networkId) = extractAndAuthorize(call, "server.files") ?: return@get
+                val (_, serverId, _) = extractAndAuthorize(call) ?: return@get
                 val path = call.request.queryParameters["path"] ?: "/"
                 try {
                     val result = proxy.listFiles(serverId, path)
@@ -127,7 +130,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val (_, serverId, _) = extractAndAuthorize(call, "server.files") ?: return@get
+                val (_, serverId, _) = extractAndAuthorize(call) ?: return@get
                 val path = call.request.queryParameters["path"] ?: run {
                     call.respond(HttpStatusCode.BadRequest, ErrorResponse("path is required"))
                     return@get
@@ -156,7 +159,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val (_, serverId, _) = extractAndAuthorize(call, "server.files") ?: return@put
+                val (_, serverId, _) = extractAndAuthorize(call) ?: return@put
                 val path = call.request.queryParameters["path"] ?: run {
                     call.respond(HttpStatusCode.BadRequest, ErrorResponse("path is required"))
                     return@put
@@ -183,7 +186,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val (_, serverId, _) = extractAndAuthorize(call, "server.files") ?: return@post
+                val (_, serverId, _) = extractAndAuthorize(call) ?: return@post
                 var uploadPath = ""
                 var fileBytes = byteArrayOf()
 
@@ -191,8 +194,11 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     .forEachPart { part ->
                         when {
                             part is PartData.FormItem && part.name == "path" -> uploadPath = part.value
-                            part is PartData.FileItem && part.name == "file" -> fileBytes = part.streamProvider()
-                                .readBytes()
+                            part is PartData.FileItem && part.name == "file" -> {
+                                val baos = java.io.ByteArrayOutputStream()
+                                part.provider().readTo(baos.asSink())
+                                fileBytes = baos.toByteArray()
+                            }
                         }
                         part.dispose()
                     }
@@ -224,7 +230,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                             })
                         }
                     }
-                    val result = proxy.uploadFile(serverId, uploadPath, chunks)
+                    val result = proxy.uploadFile(serverId, chunks)
                     call.respond(HttpStatusCode.Created, UploadResponse(path = uploadPath, sizeBytes = result.sizeBytes))
                 }
                 catch (e: Exception) {
@@ -244,7 +250,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val (_, serverId, _) = extractAndAuthorize(call, "server.files") ?: return@get
+                val (_, serverId, _) = extractAndAuthorize(call) ?: return@get
                 val path = call.request.queryParameters["path"] ?: run {
                     call.respond(HttpStatusCode.BadRequest, ErrorResponse("path is required"))
                     return@get
@@ -256,11 +262,10 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                         .toString()
                 )
                 try {
-                    call.respondOutputStream(ContentType.Application.OctetStream) {
+                    call.respondBytesWriter(contentType = ContentType.Application.OctetStream) {
                         proxy.downloadFile(serverId, path)
                             .collect { chunk ->
-                                write(chunk.data.toByteArray())
-                                flush()
+                                writeFully(chunk.data.toByteArray())
                             }
                     }
                 }
@@ -285,7 +290,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val (_, serverId, _) = extractAndAuthorize(call, "server.files") ?: return@delete
+                val (_, serverId, _) = extractAndAuthorize(call) ?: return@delete
                 val path = call.request.queryParameters["path"] ?: run {
                     call.respond(HttpStatusCode.BadRequest, ErrorResponse("path is required"))
                     return@delete
@@ -316,7 +321,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val (_, serverId, _) = extractAndAuthorize(call, "server.files") ?: return@post
+                val (_, serverId, _) = extractAndAuthorize(call) ?: return@post
                 val req = call.receive<MoveRequest>()
                 try {
                     proxy.moveFile(serverId, req.sourcePath, req.destinationPath)
@@ -339,7 +344,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val (_, serverId, _) = extractAndAuthorize(call, "server.files") ?: return@post
+                val (_, serverId, _) = extractAndAuthorize(call) ?: return@post
                 val req = call.receive<CopyRequest>()
                 try {
                     proxy.copyFile(serverId, req.sourcePath, req.destinationPath, req.recursive)
@@ -361,7 +366,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val (_, serverId, _) = extractAndAuthorize(call, "server.files") ?: return@post
+                val (_, serverId, _) = extractAndAuthorize(call) ?: return@post
                 val req = call.receive<MkdirRequest>()
                 try {
                     proxy.makeDirectory(serverId, req.path)
@@ -395,7 +400,6 @@ private suspend fun ApplicationCall.respondGrpcMoveError(e: io.grpc.StatusExcept
 
 private suspend fun extractAndAuthorize(
     call: ApplicationCall,
-    permission: String,
 ): AuthContext? {
     val principal = call.principal<JWTPrincipal>()!!
     val userId = UUID.fromString(principal.payload.subject)
@@ -423,7 +427,7 @@ private suspend fun extractAndAuthorize(
 
     val (serverId, networkId, _) = info
 
-    if (!PermissionResolver.hasPermission(userId, permission, serverId, networkId)) {
+    if (!PermissionResolver.hasPermission(userId, "server.files", serverId, networkId)) {
         call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
         return null
     }

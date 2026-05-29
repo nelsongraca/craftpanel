@@ -15,6 +15,7 @@ import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.ktor.utils.io.writeFully
 import java.util.*
 
 fun Route.backupsRoutes(backupService: BackupService) {
@@ -125,11 +126,10 @@ fun Route.backupsRoutes(backupService: BackupService) {
                 if (!PermissionResolver.hasPermission(userId, "server.export", serverId = serverIdJava, networkId = scope.networkId))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val info = backupService.resolveDownload(id, backupId)
-                call.respondOutputStream(ContentType.Application.OctetStream) {
+                call.respondBytesWriter(contentType = ContentType.Application.OctetStream) {
                     backupService.downloadStream(info)
                         .collect { chunk ->
-                            write(chunk.data.toByteArray())
-                            flush()
+                            writeFully(chunk.data.toByteArray())
                         }
                 }
             }

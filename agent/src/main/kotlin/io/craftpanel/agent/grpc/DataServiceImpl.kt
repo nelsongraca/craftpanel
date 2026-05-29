@@ -9,11 +9,14 @@ import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerManager
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.PipedInputStream
 import java.io.PipedOutputStream
@@ -37,6 +40,8 @@ class DataServiceImpl(
 
     override fun console(requests: Flow<ConsoleInput>): Flow<ConsoleOutput> = callbackFlow {
         val inputPipe = PipedOutputStream()
+
+        @Suppress("BlockingMethodInNonBlockingContext")
         val inputStream = PipedInputStream(inputPipe)
         var serverId = ""
 
@@ -102,7 +107,7 @@ class DataServiceImpl(
 
     // ── File operations ───────────────────────────────────────────────────────
 
-    override suspend fun listFiles(request: ListFilesRequest): ListFilesResponse {
+    override suspend fun listFiles(request: ListFilesRequest): ListFilesResponse = withContext(Dispatchers.IO) {
         val root = serverDataRoot(request.serverId)
         val target = safeResolve(root, request.path.ifEmpty { "/" })
         if (!Files.exists(target)) throw StatusException(Status.NOT_FOUND.withDescription("Path not found"))
@@ -128,10 +133,10 @@ class DataServiceImpl(
                     .toList()
             }
 
-        return listFilesResponse { this.entries.addAll(entries) }
+        listFilesResponse { this.entries.addAll(entries) }
     }
 
-    override suspend fun readFile(request: ReadFileRequest): ReadFileResponse {
+    override suspend fun readFile(request: ReadFileRequest): ReadFileResponse = withContext(Dispatchers.IO) {
         val root = serverDataRoot(request.serverId)
         val target = safeResolve(root, request.path)
         if (!Files.exists(target)) throw StatusException(Status.NOT_FOUND.withDescription("File not found"))
@@ -139,21 +144,21 @@ class DataServiceImpl(
 
         val bytes = Files.readAllBytes(target)
         val encoding = if (isTextContent(bytes)) "utf-8" else "binary"
-        return readFileResponse {
+        readFileResponse {
             content = ByteString.copyFrom(bytes)
             this.encoding = encoding
         }
     }
 
-    override suspend fun writeFile(request: WriteFileRequest): WriteFileResponse {
+    override suspend fun writeFile(request: WriteFileRequest): WriteFileResponse = withContext(Dispatchers.IO) {
         val root = serverDataRoot(request.serverId)
         val target = safeResolve(root, request.path)
         Files.createDirectories(target.parent)
         Files.write(target, request.content.toByteArray())
-        return writeFileResponse { success = true }
+        writeFileResponse { success = true }
     }
 
-    override suspend fun deleteFile(request: DeleteFileRequest): DeleteFileResponse {
+    override suspend fun deleteFile(request: DeleteFileRequest): DeleteFileResponse = withContext(Dispatchers.IO) {
         val root = serverDataRoot(request.serverId)
         val target = safeResolve(root, request.path)
         if (!Files.exists(target)) throw StatusException(Status.NOT_FOUND.withDescription("Path not found"))
@@ -172,17 +177,17 @@ class DataServiceImpl(
         else {
             Files.delete(target)
         }
-        return deleteFileResponse { success = true }
+        deleteFileResponse { success = true }
     }
 
-    override suspend fun makeDirectory(request: MakeDirectoryRequest): MakeDirectoryResponse {
+    override suspend fun makeDirectory(request: MakeDirectoryRequest): MakeDirectoryResponse = withContext(Dispatchers.IO) {
         val root = serverDataRoot(request.serverId)
         val target = safeResolve(root, request.path)
         Files.createDirectories(target)
-        return makeDirectoryResponse { success = true }
+        makeDirectoryResponse { success = true }
     }
 
-    override suspend fun moveFile(request: MoveFileRequest): MoveFileResponse {
+    override suspend fun moveFile(request: MoveFileRequest): MoveFileResponse = withContext(Dispatchers.IO) {
         val root = serverDataRoot(request.serverId)
         val src = safeResolve(root, request.sourcePath)
         val dst = safeResolve(root, request.destinationPath)
@@ -190,10 +195,10 @@ class DataServiceImpl(
         if (Files.exists(dst)) throw StatusException(Status.ALREADY_EXISTS.withDescription("Destination already exists"))
         Files.createDirectories(dst.parent)
         Files.move(src, dst, StandardCopyOption.ATOMIC_MOVE)
-        return moveFileResponse { success = true }
+        moveFileResponse { success = true }
     }
 
-    override suspend fun copyFile(request: CopyFileRequest): CopyFileResponse {
+    override suspend fun copyFile(request: CopyFileRequest): CopyFileResponse = withContext(Dispatchers.IO) {
         val root = serverDataRoot(request.serverId)
         val src = safeResolve(root, request.sourcePath)
         val dst = safeResolve(root, request.destinationPath)
@@ -206,17 +211,18 @@ class DataServiceImpl(
         else {
             Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING)
         }
-        return copyFileResponse { success = true }
+        copyFileResponse { success = true }
     }
 
     // ── Streaming file transfer ──────────────────────────────────────────────
 
-    override suspend fun uploadFile(requests: Flow<UploadFileChunk>): UploadFileResponse {
+    override suspend fun uploadFile(requests: Flow<UploadFileChunk>): UploadFileResponse = withContext(Dispatchers.IO) {
         var serverId = ""
         var destPath = ""
         var tempFile: Path? = null
         var totalSize = 0L
 
+        @Suppress("BlockingMethodInNonBlockingContext")
         requests.collect { chunk ->
             if (serverId.isEmpty()) {
                 serverId = chunk.serverId
@@ -239,7 +245,7 @@ class DataServiceImpl(
             }
         }
         tempFile?.let { runCatching { Files.deleteIfExists(it) } }
-        return uploadFileResponse { success = true; sizeBytes = totalSize }
+        uploadFileResponse { success = true; sizeBytes = totalSize }
     }
 
     override fun downloadFile(request: DownloadFileRequest): Flow<DownloadFileChunk> = flow {
@@ -268,7 +274,7 @@ class DataServiceImpl(
                     emit(downloadFileChunk { data = ByteString.EMPTY; isLast = true })
                 }
             }
-    }
+    }.flowOn(Dispatchers.IO)
 
     // ── Helpers ──────────────────────────────────────────────────────────────
 

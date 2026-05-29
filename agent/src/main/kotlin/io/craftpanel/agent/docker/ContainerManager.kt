@@ -39,9 +39,9 @@ open class ContainerManager(private val docker: DockerClient) {
                         ?.trimStart('/') ?: container.id
                     serverId = container.labels["craftpanel.server.id"] ?: ""
                     runState = when {
-                        container.state == "running"                                    -> ContainerState.RunState.RUNNING
+                        container.state == "running" -> ContainerState.RunState.RUNNING
                         container.state == "exited" && container.status.contains("(0)") -> ContainerState.RunState.STOPPED
-                        else                                                            -> ContainerState.RunState.EXITED
+                        else -> ContainerState.RunState.EXITED
                     }
                 }
             }
@@ -191,7 +191,8 @@ CONF
             .withExposedPorts(portBinding)
             .withHostConfig(hostConfig)
             .exec()
-        docker.startContainerCmd(containerName).exec()
+        docker.startContainerCmd(containerName)
+            .exec()
         log.info("Started rsyncd container $containerName on port $port")
         return containerName
     }
@@ -223,7 +224,8 @@ CONF
             .withEnv("RSYNC_PASSWORD=$password")
             .withHostConfig(hostConfig)
             .exec()
-        docker.startContainerCmd(containerName).exec()
+        docker.startContainerCmd(containerName)
+            .exec()
 
         val latch = CountDownLatch(1)
         val outputBuf = StringBuilder()
@@ -247,10 +249,15 @@ CONF
         latch.await(4, TimeUnit.HOURS)
 
         val exitCode = runCatching {
-            docker.inspectContainerCmd(containerName).exec().state?.exitCodeLong ?: 1
+            docker.inspectContainerCmd(containerName)
+                .exec().state?.exitCodeLong ?: 1
         }.getOrDefault(1L)
 
-        runCatching { docker.removeContainerCmd(containerName).withForce(true).exec() }
+        runCatching {
+            docker.removeContainerCmd(containerName)
+                .withForce(true)
+                .exec()
+        }
         return exitCode == 0L
     }
 
@@ -259,7 +266,8 @@ CONF
     private fun parseRsyncProgress(line: String): RsyncProgress? {
         val progressRegex = Regex("""^\s*([\d,]+)\s+(\d+)%""")
         val match = progressRegex.find(line) ?: return null
-        val bytes = match.groupValues[1].replace(",", "").toLongOrNull() ?: return null
+        val bytes = match.groupValues[1].replace(",", "")
+            .toLongOrNull() ?: return null
         val pct = match.groupValues[2].toIntOrNull() ?: return null
         return RsyncProgress(bytes, 0L, pct, "transferring")
     }

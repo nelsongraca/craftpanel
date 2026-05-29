@@ -51,7 +51,7 @@ class SystemService {
 
         val updatedByKotlin = updatedBy.toKotlinUuid()
         transaction {
-            val updates = buildMap<String, String> {
+            val updates = buildMap {
                 if (req.metricRetentionDays != null) put("metric_retention_days", req.metricRetentionDays.toString())
                 if (req.defaultBackupMaxCount != null) put("default_backup_max_count", req.defaultBackupMaxCount.toString())
                 if (req.defaultPortRangeStart != null) put("default_port_range_start", req.defaultPortRangeStart.toString())

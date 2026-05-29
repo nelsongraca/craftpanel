@@ -67,21 +67,21 @@ class ControlStreamHandler(
 
         // Process inbound commands from master
         stream.collect { msg ->
-            log.debug("Received master command: ${msg.payloadCase}")
+            log.debug("Received master command: {}", msg.payloadCase)
             when {
-                msg.hasCreateContainer()  -> handleCreate(msg.createContainer, outbound)
-                msg.hasStartContainer()   -> handleStart(msg.startContainer, outbound)
-                msg.hasStopContainer()    -> handleStop(msg.stopContainer, outbound)
-                msg.hasRestartContainer() -> handleRestart(msg.restartContainer, outbound)
-                msg.hasRemoveContainer()  -> handleRemove(msg.removeContainer)
-                msg.hasPullImage()        -> handlePullImage(msg.pullImage)
-                msg.hasShutdown()         -> handleShutdown(msg.shutdown, outbound)
-                msg.hasTriggerBackup()         -> launch { handleTriggerBackup(msg.triggerBackup, outbound) }
-                msg.hasDeleteBackup()          -> launch { handleDeleteBackup(msg.deleteBackup) }
-                msg.hasPrepareRsyncReceive()   -> launch { handlePrepareRsyncReceive(msg.prepareRsyncReceive, outbound) }
-                msg.hasStartRsync()            -> launch { handleStartRsync(msg.startRsync, outbound) }
-                msg.hasSendRcon()              -> launch { handleSendRcon(msg.sendRcon) }
-                else                           -> log.warn("Unhandled master message: ${msg.payloadCase}")
+                msg.hasCreateContainer()     -> handleCreate(msg.createContainer, outbound)
+                msg.hasStartContainer()      -> handleStart(msg.startContainer, outbound)
+                msg.hasStopContainer()       -> handleStop(msg.stopContainer, outbound)
+                msg.hasRestartContainer()    -> handleRestart(msg.restartContainer, outbound)
+                msg.hasRemoveContainer()     -> handleRemove(msg.removeContainer)
+                msg.hasPullImage()           -> handlePullImage(msg.pullImage)
+                msg.hasShutdown()            -> handleShutdown(msg.shutdown, outbound)
+                msg.hasTriggerBackup()       -> launch { handleTriggerBackup(msg.triggerBackup, outbound) }
+                msg.hasDeleteBackup()        -> launch { handleDeleteBackup(msg.deleteBackup) }
+                msg.hasPrepareRsyncReceive() -> launch { handlePrepareRsyncReceive(msg.prepareRsyncReceive, outbound) }
+                msg.hasStartRsync()          -> launch { handleStartRsync(msg.startRsync, outbound) }
+                msg.hasSendRcon()            -> launch { handleSendRcon(msg.sendRcon) }
+                else                         -> log.warn("Unhandled master message: ${msg.payloadCase}")
             }
         }
     }
@@ -330,9 +330,10 @@ class ControlStreamHandler(
                 }
             })
             log.info("Migration ${cmd.migrationId}: rsyncd ready")
-        }.onFailure { ex ->
-            log.error("Migration ${cmd.migrationId}: failed to start rsyncd", ex)
         }
+            .onFailure { ex ->
+                log.error("Migration ${cmd.migrationId}: failed to start rsyncd", ex)
+            }
     }
 
     internal suspend fun handleStartRsync(
@@ -386,23 +387,24 @@ class ControlStreamHandler(
                 }
             })
             log.info("Migration ${cmd.migrationId}: rsync transfer complete (success=$success)")
-        }.onFailure { ex ->
-            log.error("Migration ${cmd.migrationId}: rsync transfer error", ex)
-            outbound.emit(agentMessage {
-                nodeId = identity.nodeId
-                rsyncComplete = rsyncCompleteUpdate {
-                    migrationId = cmd.migrationId
-                    isFinalPass = cmd.isFinalPass
-                    success = false
-                    errorMessage = ex.message ?: "Unknown error"
-                    completedAt = timestamp {
-                        val now = Instant.now()
-                        seconds = now.epochSecond
-                        nanos = now.nano
-                    }
-                }
-            })
         }
+            .onFailure { ex ->
+                log.error("Migration ${cmd.migrationId}: rsync transfer error", ex)
+                outbound.emit(agentMessage {
+                    nodeId = identity.nodeId
+                    rsyncComplete = rsyncCompleteUpdate {
+                        migrationId = cmd.migrationId
+                        isFinalPass = cmd.isFinalPass
+                        success = false
+                        errorMessage = ex.message ?: "Unknown error"
+                        completedAt = timestamp {
+                            val now = Instant.now()
+                            seconds = now.epochSecond
+                            nanos = now.nano
+                        }
+                    }
+                })
+            }
     }
 
     internal fun handleSendRcon(cmd: SendRconCommand) {
@@ -413,7 +415,8 @@ class ControlStreamHandler(
     private fun generateRsyncPassword(): String {
         val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
         val random = java.security.SecureRandom()
-        return (1..32).map { chars[random.nextInt(chars.length)] }.joinToString("")
+        return (1..32).map { chars[random.nextInt(chars.length)] }
+            .joinToString("")
     }
 
     internal suspend fun handleShutdown(cmd: ShutdownCommand, outbound: MutableSharedFlow<AgentMessage>) {

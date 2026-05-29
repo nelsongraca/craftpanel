@@ -72,7 +72,7 @@ class NodeService(private val sendToNode: (String, MasterMessage) -> Boolean) {
             Nodes.selectAll()
                 .where { Nodes.id eq id }
                 .firstOrNull()
-                ?.let { it.toNodeResponse(allocationsForNode(id)) }
+                ?.toNodeResponse(allocationsForNode(id))
         } ?: throw NotFoundException("Node not found")
 
     fun trustNode(id: kotlin.uuid.Uuid) {
@@ -173,7 +173,7 @@ private data class NodeAllocations(val ramMb: Int, val cpuShares: Int)
 private fun allocationsForNode(nodeKotlinId: kotlin.uuid.Uuid): NodeAllocations {
     val rows = Servers.selectAll()
         .where { Servers.nodeId eq nodeKotlinId }
-    var ram = 0;
+    var ram = 0
     var cpu = 0
     for (row in rows) {
         ram += row[Servers.memoryMb]; cpu += row[Servers.cpuShares]

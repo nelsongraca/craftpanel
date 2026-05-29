@@ -11,7 +11,6 @@ object PortRegistry : Table("port_registry") {
     val protocol = varchar("protocol", 3)           // TCP | UDP
     val serverId = uuid("server_id").references(Servers.id)
         .nullable()
-    val allocatedAt = datetime("allocated_at").defaultExpression(CurrentDateTime)
 
     override val primaryKey = PrimaryKey(nodeId, port, protocol)
 }

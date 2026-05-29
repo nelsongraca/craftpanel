@@ -14,6 +14,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
+import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.launch
 import java.util.*
 
@@ -83,7 +84,12 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
             }) {
                 call.userId()
                 val migrationId = call.parameters["migrationId"]
-                    ?.let { runCatching { UUID.fromString(it).toKotlinUuid() }.getOrNull() }
+                    ?.let {
+                        runCatching {
+                            UUID.fromString(it)
+                                .toKotlinUuid()
+                        }.getOrNull()
+                    }
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid migration ID"))
                 call.respond(migrationService.getMigration(migrationId))
             }
@@ -103,15 +109,17 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
         val job = launch {
             flow.collect { event ->
                 outgoing.trySend(Frame.Text(event.toString()))
-                val type = event["type"]?.toString()?.trim('"')
+                val type = event["type"]?.toString()
+                    ?.trim('"')
                 if (type == "completed" || type == "failed") {
                     close(CloseReason(CloseReason.Codes.NORMAL, "Migration finished"))
                 }
             }
         }
         try {
-            for (_frame in incoming) { /* server-push only */ }
-        } finally {
+            incoming.consumeEach { }
+        }
+        finally {
             job.cancel()
         }
     }
@@ -119,5 +127,8 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
 
 private fun parseMigrationServerId(raw: String?): kotlin.uuid.Uuid? =
     raw?.let {
-        runCatching { UUID.fromString(it).toKotlinUuid() }.getOrNull()
+        runCatching {
+            UUID.fromString(it)
+                .toKotlinUuid()
+        }.getOrNull()
     }

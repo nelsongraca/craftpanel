@@ -31,11 +31,6 @@ class DataServiceProxy(private val nodeConfig: NodeConfig) {
                 .build()
         }
 
-    fun closeChannel(nodeId: String) {
-        channels.remove(nodeId)
-            ?.shutdown()
-    }
-
     fun closeAll() {
         channels.values.forEach { it.shutdown() }
         channels.clear()
@@ -126,7 +121,7 @@ class DataServiceProxy(private val nodeConfig: NodeConfig) {
         })
     }
 
-    suspend fun uploadFile(serverId: String, path: String, chunks: Flow<UploadFileChunk>): UploadFileResponse {
+    suspend fun uploadFile(serverId: String, chunks: Flow<UploadFileChunk>): UploadFileResponse {
         val sn = lookupServerNode(serverId) ?: error("Server $serverId not found")
         return stubFor(sn.nodeId, sn.privateIp).uploadFile(chunks)
     }

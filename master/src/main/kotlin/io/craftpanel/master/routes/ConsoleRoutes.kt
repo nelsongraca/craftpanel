@@ -38,7 +38,7 @@ private data class WsEnvelopeIn(val type: String, val payload: JsonObject = Json
 
 private val json = Json { ignoreUnknownKeys = true }
 
-private class ConsoleSession(val serverId: String) {
+private class ConsoleSession {
 
     val input = Channel<ByteArray>(Channel.BUFFERED)
     val output = MutableSharedFlow<ByteArray>(
@@ -56,7 +56,7 @@ private class ConsoleSessionManager(private val proxy: DataServiceProxy, private
 
     fun getOrCreate(serverId: String): ConsoleSession =
         sessions.getOrPut(serverId) {
-            val session = ConsoleSession(serverId)
+            val session = ConsoleSession()
             session.job = scope.launch {
                 try {
                     val inputFlow = session.input.receiveAsFlow()
@@ -79,13 +79,6 @@ private class ConsoleSessionManager(private val proxy: DataServiceProxy, private
             session
         }
 
-    fun close(serverId: String) {
-        sessions.remove(serverId)
-            ?.apply {
-                job?.cancel()
-                closed.value = true
-            }
-    }
 }
 
 private data class ServerInfo(val serverId: UUID, val networkId: UUID?)

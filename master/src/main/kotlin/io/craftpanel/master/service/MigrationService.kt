@@ -65,6 +65,7 @@ class MigrationService(
     private val dnsProvider: DnsProvider?,
     private val scope: CoroutineScope,
 ) {
+
     private val eventFlows = ConcurrentHashMap<String, MutableSharedFlow<JsonObject>>()
 
     data class ServerScope(val networkId: UUID?)
@@ -79,7 +80,9 @@ class MigrationService(
 
     fun startMigration(serverId: Uuid, req: MigrateRequest): MigrationResponse {
         val serverRow = transaction {
-            Servers.selectAll().where { Servers.id eq serverId }.firstOrNull()
+            Servers.selectAll()
+                .where { Servers.id eq serverId }
+                .firstOrNull()
         } ?: throw NotFoundException("Server not found")
 
         val targetNodeId = runCatching { Uuid.parse(req.targetNodeId) }.getOrNull()
@@ -90,7 +93,9 @@ class MigrationService(
             throw ConflictException("Source and target node are the same")
 
         val targetNodeRow = transaction {
-            Nodes.selectAll().where { Nodes.id eq targetNodeId }.firstOrNull()
+            Nodes.selectAll()
+                .where { Nodes.id eq targetNodeId }
+                .firstOrNull()
         } ?: throw NotFoundException("Target node not found")
 
         if (targetNodeRow[Nodes.status] != "ACTIVE")
@@ -134,7 +139,9 @@ class MigrationService(
 
     fun getMigration(migrationId: Uuid): MigrationResponse {
         val row = transaction {
-            ServerMigrations.selectAll().where { ServerMigrations.id eq migrationId }.firstOrNull()
+            ServerMigrations.selectAll()
+                .where { ServerMigrations.id eq migrationId }
+                .firstOrNull()
         } ?: throw NotFoundException("Migration not found")
         val steps = transaction {
             MigrationStepLog.selectAll()
@@ -192,7 +199,8 @@ class MigrationService(
         val migrationIdStr = migrationId.toString()
         val serverIdStr = serverId.toString()
         val eventFlow = eventFlows[migrationIdStr]
-        fun now() = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        fun now() = Clock.System.now()
+            .toLocalDateTime(TimeZone.UTC)
 
         suspend fun emit(obj: JsonObject) = eventFlow?.emit(obj)
 
@@ -242,9 +250,21 @@ class MigrationService(
         }
 
         // ── Collect source/target node data ──────────────────────────────────
-        val serverRow = transaction { Servers.selectAll().where { Servers.id eq serverId }.single() }
-        val sourceNodeRow = transaction { Nodes.selectAll().where { Nodes.id eq sourceNodeId }.single() }
-        val targetNodeRow = transaction { Nodes.selectAll().where { Nodes.id eq targetNodeId }.single() }
+        val serverRow = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq serverId }
+                .single()
+        }
+        val sourceNodeRow = transaction {
+            Nodes.selectAll()
+                .where { Nodes.id eq sourceNodeId }
+                .single()
+        }
+        val targetNodeRow = transaction {
+            Nodes.selectAll()
+                .where { Nodes.id eq targetNodeId }
+                .single()
+        }
 
         val sourceNodeIdStr = sourceNodeId.toString()
         val targetNodeIdStr = targetNodeId.toString()
@@ -259,7 +279,8 @@ class MigrationService(
             try {
                 rsyncPort = allocateRsyncPort(targetNodeId)
                 completeStep(stepId, true)
-            } catch (e: Exception) {
+            }
+            catch (e: Exception) {
                 completeStep(stepId, false, e.message)
                 failMigration("Port allocation failed: ${e.message}")
                 return
@@ -297,7 +318,8 @@ class MigrationService(
                 }
                 rsyncPassword = ready.rsyncPassword
                 completeStep(stepId, true)
-            } finally {
+            }
+            finally {
                 job.cancel()
                 readyChannel.close()
             }
@@ -351,7 +373,8 @@ class MigrationService(
                     return
                 }
                 completeStep(stepId, true)
-            } finally {
+            }
+            finally {
                 progressJob.cancel()
                 completeJob.cancel()
                 completeChannel.close()
@@ -436,7 +459,8 @@ class MigrationService(
                     return
                 }
                 completeStep(stepId, true)
-            } finally {
+            }
+            finally {
                 progressJob.cancel()
                 completeJob.cancel()
                 completeChannel.close()
@@ -484,7 +508,8 @@ class MigrationService(
                     return
                 }
                 completeStep(stepId, true)
-            } finally {
+            }
+            finally {
                 statusJob.cancel()
                 readyChannel.close()
             }
@@ -582,7 +607,9 @@ class MigrationService(
             .where { (PortRegistry.nodeId eq targetNodeId) and (PortRegistry.protocol eq "TCP") }
             .map { it[PortRegistry.port] }
             .toSet()
-        val node = Nodes.selectAll().where { Nodes.id eq targetNodeId }.single()
+        val node = Nodes.selectAll()
+            .where { Nodes.id eq targetNodeId }
+            .single()
         val start = node[Nodes.portRangeStart]
         val end = node[Nodes.portRangeEnd]
         val port = (start..end).firstOrNull { it !in usedPorts }
@@ -660,7 +687,10 @@ class MigrationService(
 
     private fun updateProxyBackendsAfterMigration(serverId: Uuid, targetIp: String, port: Int) {
         val networkId = transaction {
-            Servers.selectAll().where { Servers.id eq serverId }.firstOrNull()?.get(Servers.networkId)
+            Servers.selectAll()
+                .where { Servers.id eq serverId }
+                .firstOrNull()
+                ?.get(Servers.networkId)
         } ?: return
         log.warn("Server $serverId migrated to network $networkId on $targetIp:$port — proxy backends on a different node may need manual update")
     }

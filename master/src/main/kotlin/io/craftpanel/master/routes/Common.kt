@@ -16,7 +16,4 @@ data class MessageResponse(val message: String)
 @Serializable
 data class NodeKeyResponse(@SerialName("node_key") val nodeKey: String)
 
-@Serializable
-data class IdResponse(val id: String)
-
 fun ApplicationCall.userId(): UUID = UUID.fromString(principal<JWTPrincipal>()!!.payload.subject)

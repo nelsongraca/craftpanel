@@ -10,13 +10,13 @@ import io.craftpanel.master.util.toKotlinUuid
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
+import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.*
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.slf4j.LoggerFactory
 import java.util.*
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
@@ -25,8 +25,6 @@ import kotlin.time.Instant
 private val wsJson = Json { ignoreUnknownKeys = true }
 
 fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: ControlServiceImpl) {
-    val log = LoggerFactory.getLogger("io.craftpanel.master.routes.DashboardWsRoutes")
-
     webSocket("/api/ws") {
         val ticket = call.request.queryParameters["ticket"] ?: run {
             close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Missing ticket"))
@@ -263,7 +261,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                     put("metric", alert.metric)
                     put("message", alert.message)
                     if (isResolved) {
-                        put("resolved_at", alert.resolvedAt!!)
+                        put("resolved_at", alert.resolvedAt)
                     }
                     else {
                         put("fired_at", alert.firedAt)
@@ -282,8 +280,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
         }
 
         try {
-            for (frame in incoming) { /* server-push only — ignore client frames */
-            }
+            incoming.consumeEach { }
         }
         finally {
             nodeMetricsJob.cancel()

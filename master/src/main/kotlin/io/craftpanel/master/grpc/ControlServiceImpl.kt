@@ -149,7 +149,7 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
     override fun control(requests: Flow<AgentMessage>): Flow<MasterMessage> = channelFlow {
         var connectedNodeId: String? = null
         val outChannel = this.channel
-        val lastMetricsAt = AtomicReference<Instant>(Clock.System.now())
+        val lastMetricsAt = AtomicReference(Clock.System.now())
         var watchdogFired = false
 
         launch {
@@ -207,7 +207,7 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
                     }
 
                     msg.hasServerStatus()     -> {
-                        log.debug("Node ${msg.nodeId} server status: ${msg.serverStatus.serverId} → ${msg.serverStatus.status}")
+                        log.debug("Node {} server status: {} → {}", msg.nodeId, msg.serverStatus.serverId, msg.serverStatus.status)
                         persistServerStatus(msg.serverStatus)
                         _serverStatusFlow.emit(msg.serverStatus.serverId to msg.serverStatus)
                     }
