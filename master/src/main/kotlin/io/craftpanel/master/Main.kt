@@ -1,5 +1,6 @@
 package io.craftpanel.master
 
+import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.RefreshTokenService
 import io.craftpanel.master.auth.WsTicketService
@@ -133,7 +134,7 @@ fun Application.module() {
     }
 
     install(Authentication) {
-        jwt("auth-jwt") {
+        jwt(JWT_AUTH) {
             realm = "CraftPanel"
             verifier(jwtManager.verifier!!)
             validate { credential ->

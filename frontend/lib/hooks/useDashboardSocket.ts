@@ -14,8 +14,6 @@ export type WsEventType =
     | "alert.fired"
     | "alert.resolved";
 
-type Listener = (payload: Record<string, unknown>) => void;
-
 interface UseDashboardSocketOptions {
     enabled?: boolean;
 }
@@ -30,6 +28,7 @@ export function useDashboardSocket(
     const retryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const retryCount = useRef(0);
     const mountedRef = useRef(true);
+    const connectRef = useRef<(() => Promise<void>) | null>(null);
 
     useEffect(() => {
         onEventRef.current = onEvent;
@@ -61,7 +60,7 @@ export function useDashboardSocket(
                 const delay = Math.min(1000 * 2 ** retryCount.current, 30000);
                 retryCount.current = Math.min(retryCount.current + 1, 5);
                 retryRef.current = setTimeout(() => {
-                    void connect();
+                    void connectRef.current?.();
                 }, delay);
             };
 
@@ -73,10 +72,14 @@ export function useDashboardSocket(
             const delay = Math.min(1000 * 2 ** retryCount.current, 30000);
             retryCount.current = Math.min(retryCount.current + 1, 5);
             retryRef.current = setTimeout(() => {
-                void connect();
+                void connectRef.current?.();
             }, delay);
         }
     }, [enabled]);
+
+    useEffect(() => {
+        connectRef.current = connect;
+    }, [connect]);
 
     useEffect(() => {
         mountedRef.current = true;

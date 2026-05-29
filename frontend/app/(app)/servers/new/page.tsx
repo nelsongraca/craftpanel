@@ -32,8 +32,6 @@ const GAME_SERVER_TYPES = [
 
 const PROXY_TYPES = ["VELOCITY", "BUNGEECORD", "WATERFALL"] as const;
 
-const ALL_SERVER_TYPES = [...GAME_SERVER_TYPES, ...PROXY_TYPES];
-
 // ── Field component helpers ───────────────────────────────────────────────────
 
 function Label({children, required}: { children: React.ReactNode; required?: boolean }) {

@@ -1,5 +1,7 @@
 package io.craftpanel.master.routes
 
+import io.craftpanel.master.auth.Permission
+import io.craftpanel.master.auth.JWT_AUTH
 import com.craftpanel.agent.v1.uploadFileChunk
 import com.google.protobuf.ByteString
 import io.craftpanel.master.auth.PermissionResolver
@@ -79,7 +81,7 @@ data class MkdirRequest(val path: String)
 // ── Route setup ───────────────────────────────────────────────────────────────
 
 fun Route.filesRoutes(proxy: DataServiceProxy) {
-    authenticate("auth-jwt") {
+    authenticate(JWT_AUTH) {
         route("/api/servers/{id}/files") {
 
             get("", {
@@ -196,7 +198,8 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                             part is PartData.FormItem && part.name == "path" -> uploadPath = part.value
                             part is PartData.FileItem && part.name == "file" -> {
                                 val baos = java.io.ByteArrayOutputStream()
-                                part.provider().readTo(baos.asSink())
+                                part.provider()
+                                    .readTo(baos.asSink())
                                 fileBytes = baos.toByteArray()
                             }
                         }
@@ -427,7 +430,7 @@ private suspend fun extractAndAuthorize(
 
     val (serverId, networkId, _) = info
 
-    if (!PermissionResolver.hasPermission(userId, "server.files", serverId, networkId)) {
+    if (!PermissionResolver.hasPermission(userId, Permission.SERVER_FILES, serverId, networkId)) {
         call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
         return null
     }

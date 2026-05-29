@@ -1,6 +1,8 @@
 package io.craftpanel.master.service
 
 import com.craftpanel.agent.v1.*
+import io.craftpanel.master.auth.Permission
+import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.dns.DnsProvider
 import org.jetbrains.exposed.v1.core.ResultRow
@@ -729,16 +731,16 @@ private fun resolveServerVisibility(userId: UUID): ServerVisibility = transactio
     val serverIds = mutableSetOf<kotlin.uuid.Uuid>()
     for (a in assignments.filter { it[UserGroupAssignments.groupId] in viewGroups }) {
         when (a[UserGroupAssignments.scopeType]) {
-            "GLOBAL"  -> isGlobal = true
-            "NETWORK" -> a[UserGroupAssignments.scopeId]?.let { networkIds += it }
-            "SERVER"  -> a[UserGroupAssignments.scopeId]?.let { serverIds += it }
+            ScopeType.GLOBAL.name  -> isGlobal = true
+            ScopeType.NETWORK.name -> a[UserGroupAssignments.scopeId]?.let { networkIds += it }
+            ScopeType.SERVER.name  -> a[UserGroupAssignments.scopeId]?.let { serverIds += it }
         }
     }
     ServerVisibility(isGlobal, networkIds, serverIds)
 }
 
 private fun permGrantsServerView(granted: String) =
-    granted == "*" || granted == "server.*" || granted == "server.view"
+    granted == "*" || granted == "server.*" || granted == Permission.SERVER_VIEW.node
 
 internal fun rowToServerResponse(row: ResultRow, isMigrating: Boolean) = ServerResponse(
     id = row[Servers.id].toString(),

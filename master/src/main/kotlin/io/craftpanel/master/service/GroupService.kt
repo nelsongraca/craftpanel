@@ -1,5 +1,6 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.database.schema.GroupPermissions
 import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
@@ -32,13 +33,8 @@ data class PatchGroupRequest(val name: String)
 @Serializable
 data class PutGroupPermissionsRequest(val permissions: List<String>)
 
-private val VALID_PERMISSIONS = setOf(
-    "system.settings", "system.users", "system.nodes",
-    "server.create", "server.delete", "server.start", "server.stop",
-    "server.restart", "server.configure", "server.resources", "server.files",
-    "server.mods", "server.console", "server.export", "server.backup",
-    "server.upgrade", "server.migrate", "server.view",
-)
+private val VALID_PERMISSIONS = Permission.entries.map { it.node }
+    .toSet()
 
 class GroupService {
 

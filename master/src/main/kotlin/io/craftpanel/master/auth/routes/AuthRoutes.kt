@@ -1,5 +1,8 @@
 package io.craftpanel.master.auth.routes
 
+import io.craftpanel.master.auth.ScopeType
+import io.craftpanel.master.auth.Permission
+import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.*
 import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
@@ -67,7 +70,7 @@ private fun lookupUser(email: String): UserRecord? = transaction {
         .selectAll()
         .where {
             (UserGroupAssignments.userId eq kotlinId) and
-                    (UserGroupAssignments.scopeType eq "GLOBAL")
+                    (UserGroupAssignments.scopeType eq ScopeType.GLOBAL.name)
         }
         .map { it[Groups.name] }
 
@@ -91,7 +94,7 @@ private fun lookupUserById(userId: UUID): Triple<String, String, List<String>>? 
         .selectAll()
         .where {
             (UserGroupAssignments.userId eq kotlinId) and
-                    (UserGroupAssignments.scopeType eq "GLOBAL")
+                    (UserGroupAssignments.scopeType eq ScopeType.GLOBAL.name)
         }
         .map { it[Groups.name] }
 
@@ -173,7 +176,7 @@ fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenSe
             call.respond(LoginResponse(accessToken, jwtManager.expirySeconds))
         }
 
-        authenticate("auth-jwt") {
+        authenticate(JWT_AUTH) {
             post("/logout", {
                 operationId = "authLogout"
                 summary = "Logout"

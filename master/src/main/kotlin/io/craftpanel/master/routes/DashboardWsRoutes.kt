@@ -1,5 +1,8 @@
 package io.craftpanel.master.routes
 
+import io.craftpanel.master.auth.JWT_AUTH
+import io.craftpanel.master.auth.Permission
+import io.craftpanel.master.auth.ScopeType
 import com.craftpanel.agent.v1.ServerStatusUpdate
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.auth.WsTicketService
@@ -35,10 +38,10 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
             return@webSocket
         }
 
-        fun hasNodes() = PermissionResolver.hasPermission(userId, "system.nodes")
+        fun hasNodes() = PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES)
 
         fun canViewServer(serverId: UUID, networkId: UUID?): Boolean =
-            PermissionResolver.hasPermission(userId, "server.view", serverId, networkId)
+            PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW, serverId, networkId)
 
         fun serverNetworkId(serverId: String): UUID? = transaction {
             val kId = runCatching { UUID.fromString(serverId) }.getOrNull() ?: return@transaction null
@@ -53,8 +56,8 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
             outgoing.trySend(Frame.Text(wsJson.encodeToString(obj)))
         }
 
-        fun envelope(type: String, payload: JsonObject): JsonObject = buildJsonObject {
-            put("type", type)
+        fun envelope(type: WsEventType, payload: JsonObject): JsonObject = buildJsonObject {
+            put("type", type.event)
             put("payload", payload)
         }
 
@@ -86,7 +89,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
             else emptyList()
 
             buildJsonObject {
-                put("type", "snapshot")
+                put("type", WsEventType.SNAPSHOT.event)
                 put("payload", buildJsonObject {
                     put("servers", buildJsonArray { servers.forEach { add(it) } })
                     put("nodes", buildJsonArray { nodes.forEach { add(it) } })
@@ -100,7 +103,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
         val nodeMetricsJob = launch {
             controlService.nodeMetricsFlow.collect { (nodeId, metrics) ->
                 if (!hasNodes()) return@collect
-                send(envelope("node.metrics", buildJsonObject {
+                send(envelope(WsEventType.NODE_METRICS, buildJsonObject {
                     put("node_id", nodeId)
                     put("cpu_percent", metrics.cpuPercent)
                     put("ram_used_mb", metrics.ramUsedMb)
@@ -123,7 +126,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
         val nodeStatusJob = launch {
             controlService.nodeStatusFlow.collect { (nodeId, status) ->
                 if (!hasNodes()) return@collect
-                send(envelope("node.status", buildJsonObject {
+                send(envelope(WsEventType.NODE_STATUS, buildJsonObject {
                     put("node_id", nodeId)
                     put("status", status)
                     put(
@@ -140,7 +143,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                 val sid = runCatching { UUID.fromString(serverId) }.getOrNull() ?: return@collect
                 val netId = serverNetworkId(serverId)
                 if (!canViewServer(sid, netId)) return@collect
-                send(envelope("server.metrics", buildJsonObject {
+                send(envelope(WsEventType.SERVER_METRICS, buildJsonObject {
                     put("server_id", serverId)
                     put("cpu_percent", metrics.cpuPercent)
                     put("ram_used_mb", metrics.ramUsedMb)
@@ -169,7 +172,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                     ServerStatusUpdate.ServerStatus.STOPPED   -> "STOPPED"
                     else                                      -> return@collect
                 }
-                send(envelope("server.status", buildJsonObject {
+                send(envelope(WsEventType.SERVER_STATUS, buildJsonObject {
                     put("server_id", serverId)
                     put("status", statusStr)
                     put("container_id", update.containerId)
@@ -187,7 +190,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                 val sid = runCatching { UUID.fromString(serverId) }.getOrNull() ?: return@collect
                 val netId = serverNetworkId(serverId)
                 if (!canViewServer(sid, netId)) return@collect
-                send(envelope("server.players", buildJsonObject {
+                send(envelope(WsEventType.SERVER_PLAYERS, buildJsonObject {
                     put("server_id", serverId)
                     put("player_count", update.playerCount)
                     put("player_list", buildJsonArray { update.playerNamesList.forEach { add(JsonPrimitive(it)) } })
@@ -207,7 +210,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                 val sid = runCatching { UUID.fromString(update.serverId) }.getOrNull() ?: return@collect
                 val netId = serverNetworkId(update.serverId)
                 if (!canViewServer(sid, netId)) return@collect
-                send(envelope("server.backup.progress", buildJsonObject {
+                send(envelope(WsEventType.SERVER_BACKUP_PROGRESS, buildJsonObject {
                     put("server_id", update.serverId)
                     put("backup_id", update.backupId)
                     put("percent_complete", update.percentComplete)
@@ -226,7 +229,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                 val netId = serverNetworkId(update.serverId)
                 if (!canViewServer(sid, netId)) return@collect
                 val status = if (update.success) "COMPLETED" else "FAILED"
-                send(envelope("server.backup.complete", buildJsonObject {
+                send(envelope(WsEventType.SERVER_BACKUP_COMPLETE, buildJsonObject {
                     put("server_id", update.serverId)
                     put("backup_id", update.backupId)
                     put("status", status)
@@ -246,13 +249,13 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
         val alertJob = launch {
             controlService.alertEventFlow.collect { alert ->
                 val isResolved = alert.resolvedAt != null
-                if (alert.scopeType == "NODE" && !hasNodes()) return@collect
-                if (alert.scopeType == "SERVER") {
+                if (alert.scopeType == ScopeType.NODE.name && !hasNodes()) return@collect
+                if (alert.scopeType == ScopeType.SERVER.name) {
                     val sid = runCatching { UUID.fromString(alert.scopeId) }.getOrNull() ?: return@collect
                     val netId = serverNetworkId(alert.scopeId)
                     if (!canViewServer(sid, netId)) return@collect
                 }
-                val type = if (isResolved) "alert.resolved" else "alert.fired"
+                val type = if (isResolved) WsEventType.ALERT_RESOLVED else WsEventType.ALERT_FIRED
                 send(envelope(type, buildJsonObject {
                     put("event_id", alert.eventId)
                     put("threshold_id", alert.thresholdId)
@@ -275,7 +278,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
             while (true) {
                 delay(5.minutes)
                 // Touch permission store — connections are pruned if user deactivated
-                runCatching { PermissionResolver.hasPermission(userId, "server.view") }
+                runCatching { PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW) }
             }
         }
 

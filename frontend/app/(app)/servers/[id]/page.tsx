@@ -234,7 +234,6 @@ export default function ServerDetailPage() {
     }, [id]);
 
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
         void fetchServer();
     }, [fetchServer]);
 

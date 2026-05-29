@@ -1,5 +1,7 @@
 package io.craftpanel.master.routes
 
+import io.craftpanel.master.auth.Permission
+import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.service.AlertEventResponse
 import io.craftpanel.master.service.AlertService
@@ -17,7 +19,7 @@ import io.ktor.server.routing.*
 import java.util.*
 
 fun Route.alertsRoutes(alertService: AlertService) {
-    authenticate("auth-jwt") {
+    authenticate(JWT_AUTH) {
         route("/api/alerts") {
 
             get("/thresholds", {
@@ -29,7 +31,7 @@ fun Route.alertsRoutes(alertService: AlertService) {
                 }
             }) {
                 val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, "system.settings"))
+                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_SETTINGS))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val scopeType = call.request.queryParameters["scope_type"]
                 val scopeId = call.request.queryParameters["scope_id"]
@@ -53,7 +55,7 @@ fun Route.alertsRoutes(alertService: AlertService) {
                 }
             }) {
                 val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, "system.settings"))
+                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_SETTINGS))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val req = call.receive<CreateAlertThresholdRequest>()
                 call.respond(HttpStatusCode.Created, alertService.createThreshold(req))
@@ -70,7 +72,7 @@ fun Route.alertsRoutes(alertService: AlertService) {
                 }
             }) {
                 val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, "system.settings"))
+                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_SETTINGS))
                     return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val id = call.parameters["id"]
                     ?.let {
@@ -93,7 +95,7 @@ fun Route.alertsRoutes(alertService: AlertService) {
                 }
             }) {
                 val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, "system.settings"))
+                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_SETTINGS))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val scopeType = call.request.queryParameters["scope_type"]
                 val scopeId = call.request.queryParameters["scope_id"]

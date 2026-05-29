@@ -25,9 +25,9 @@ object PermissionResolver {
             if (!user[Users.isActive]) return@transaction emptySet()
 
             val groupIds = buildList {
-                addAll(groupIdsForScope(kotlinUserId, "GLOBAL", null))
-                if (serverId != null) addAll(groupIdsForScope(kotlinUserId, "SERVER", serverId.toKotlinUuid()))
-                if (networkId != null) addAll(groupIdsForScope(kotlinUserId, "NETWORK", networkId.toKotlinUuid()))
+                addAll(groupIdsForScope(kotlinUserId, ScopeType.GLOBAL.name, null))
+                if (serverId != null) addAll(groupIdsForScope(kotlinUserId, ScopeType.SERVER.name, serverId.toKotlinUuid()))
+                if (networkId != null) addAll(groupIdsForScope(kotlinUserId, ScopeType.NETWORK.name, networkId.toKotlinUuid()))
             }.toSet()
 
             if (groupIds.isEmpty()) return@transaction emptySet()
@@ -40,12 +40,12 @@ object PermissionResolver {
 
     fun hasPermission(
         userId: UUID,
-        permission: String,
+        permission: Permission,
         serverId: UUID? = null,
         networkId: UUID? = null,
     ): Boolean {
         val granted = resolve(userId, serverId, networkId)
-        return granted.any { matches(it, permission) }
+        return granted.any { matches(it, permission.node) }
     }
 
     private fun groupIdsForScope(userId: Uuid, scopeType: String, scopeId: Uuid?): List<Uuid> =

@@ -15,6 +15,12 @@ const eslintConfig = defineConfig([
         // Generated API client — do not lint
         "lib/generated/**",
     ]),
+    {
+        rules: {
+            // React Compiler rule flags valid async data-fetching patterns (useCallback + useEffect).
+            "react-hooks/set-state-in-effect": "off",
+        },
+    },
 ]);
 
 export default eslintConfig;

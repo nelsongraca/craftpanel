@@ -1,5 +1,7 @@
 package io.craftpanel.master.routes
 
+import io.craftpanel.master.auth.Permission
+import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.service.NodeMetricsResponse
 import io.craftpanel.master.service.NodeResponse
@@ -18,7 +20,7 @@ import io.ktor.server.routing.*
 import java.util.*
 
 fun Route.nodesRoutes(nodeService: NodeService) {
-    authenticate("auth-jwt") {
+    authenticate(JWT_AUTH) {
         route("/api/nodes") {
 
             get("", {
@@ -31,7 +33,7 @@ fun Route.nodesRoutes(nodeService: NodeService) {
                 }
             }) {
                 val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, "system.nodes"))
+                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 call.respond(nodeService.listNodes())
             }
@@ -48,7 +50,7 @@ fun Route.nodesRoutes(nodeService: NodeService) {
                 }
             }) {
                 val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, "system.nodes"))
+                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val id = parseNodeId(call.parameters["id"])
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid node ID"))
@@ -67,7 +69,7 @@ fun Route.nodesRoutes(nodeService: NodeService) {
                 }
             }) {
                 val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, "system.nodes"))
+                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val id = parseNodeId(call.parameters["id"])
                     ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid node ID"))
@@ -87,7 +89,7 @@ fun Route.nodesRoutes(nodeService: NodeService) {
                 }
             }) {
                 val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, "system.nodes"))
+                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val id = parseNodeId(call.parameters["id"])
                     ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid node ID"))
@@ -107,7 +109,7 @@ fun Route.nodesRoutes(nodeService: NodeService) {
                 }
             }) {
                 val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, "system.nodes"))
+                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val id = parseNodeId(call.parameters["id"])
                     ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid node ID"))
@@ -127,7 +129,7 @@ fun Route.nodesRoutes(nodeService: NodeService) {
                 }
             }) {
                 val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, "system.nodes"))
+                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val id = parseNodeId(call.parameters["id"])
                     ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid node ID"))
@@ -148,7 +150,7 @@ fun Route.nodesRoutes(nodeService: NodeService) {
                 }
             }) {
                 val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, "system.nodes"))
+                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES))
                     return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val id = parseNodeId(call.parameters["id"])
                     ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid node ID"))
@@ -169,7 +171,7 @@ fun Route.nodesRoutes(nodeService: NodeService) {
                 }
             }) {
                 val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, "system.nodes"))
+                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES))
                     return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val id = parseNodeId(call.parameters["id"])
                     ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid node ID"))
@@ -189,7 +191,7 @@ fun Route.nodesRoutes(nodeService: NodeService) {
                 }
             }) {
                 val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, "system.nodes"))
+                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val id = parseNodeId(call.parameters["id"])
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid node ID"))

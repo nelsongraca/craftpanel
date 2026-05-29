@@ -1,5 +1,6 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.database.schema.AlertEvents
 import io.craftpanel.master.database.schema.AlertThresholds
 import io.craftpanel.master.util.toKotlinUuid
@@ -68,7 +69,7 @@ class AlertService {
     fun createThreshold(req: CreateAlertThresholdRequest): AlertThresholdResponse {
         if ((req.thresholdValue == null) == (req.thresholdState == null))
             throw UnprocessableException("Exactly one of threshold_value or threshold_state must be provided")
-        if (req.scopeType !in setOf("NODE", "SERVER"))
+        if (req.scopeType !in setOf(ScopeType.NODE.name, ScopeType.SERVER.name))
             throw UnprocessableException("scope_type must be NODE or SERVER")
         val scopeKotlinId = runCatching {
             UUID.fromString(req.scopeId)

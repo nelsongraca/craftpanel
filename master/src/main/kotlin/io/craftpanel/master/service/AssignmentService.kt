@@ -1,5 +1,6 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.util.toKotlinUuid
 import kotlinx.serialization.SerialName
@@ -49,9 +50,9 @@ class AssignmentService {
     }
 
     fun createAssignment(targetId: UUID, req: CreateAssignmentRequest): AssignmentResponse {
-        if (req.scopeType !in setOf("GLOBAL", "SERVER", "NETWORK"))
+        if (req.scopeType !in setOf(ScopeType.GLOBAL.name, ScopeType.SERVER.name, ScopeType.NETWORK.name))
             throw UnprocessableException("scope_type must be GLOBAL, SERVER, or NETWORK")
-        if (req.scopeType != "GLOBAL" && req.scopeId == null)
+        if (req.scopeType != ScopeType.GLOBAL.name && req.scopeId == null)
             throw UnprocessableException("scope_id required for ${req.scopeType} scope")
 
         val groupId = runCatching { UUID.fromString(req.groupId) }.getOrNull()
@@ -69,16 +70,16 @@ class AssignmentService {
                 .where { Groups.id eq groupId.toKotlinUuid() }
                 .firstOrNull() != null
             val scopeExists = when {
-                scopeId == null            -> true
-                req.scopeType == "SERVER"  -> Servers.selectAll()
+                scopeId == null                         -> true
+                req.scopeType == ScopeType.SERVER.name  -> Servers.selectAll()
                     .where { Servers.id eq scopeId.toKotlinUuid() }
                     .firstOrNull() != null
 
-                req.scopeType == "NETWORK" -> ServerNetworks.selectAll()
+                req.scopeType == ScopeType.NETWORK.name -> ServerNetworks.selectAll()
                     .where { ServerNetworks.id eq scopeId.toKotlinUuid() }
                     .firstOrNull() != null
 
-                else                       -> true
+                else                                    -> true
             }
             val alreadyExists = UserGroupAssignments.selectAll()
                 .where {

@@ -7,6 +7,8 @@ import io.craftpanel.master.config.JwtConfig
 import java.time.Instant
 import java.util.UUID
 
+const val JWT_AUTH = "auth-jwt"
+
 data class TokenClaims(
     val userId: UUID,
     val name: String,
@@ -20,7 +22,7 @@ class JwtManager(private val config: JwtConfig) {
 
     private val algorithm = Algorithm.HMAC256(config.secret)
 
-    val verifier: JWTVerifier? = JWT.require(algorithm)
+    val verifier: JWTVerifier = JWT.require(algorithm)
         .withIssuer(config.issuer)
         .withAudience(config.audience)
         .build()

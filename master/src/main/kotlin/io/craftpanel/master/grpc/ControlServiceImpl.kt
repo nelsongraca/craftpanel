@@ -1,5 +1,6 @@
 package io.craftpanel.master.grpc
 
+import io.craftpanel.master.auth.ScopeType
 import com.craftpanel.agent.v1.*
 import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.database.schema.*
@@ -496,7 +497,7 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
         val notifications = transaction {
             val result = mutableListOf<AlertEventNotification>()
             val thresholds = AlertThresholds.selectAll()
-                .where { (AlertThresholds.scopeType eq "NODE") and (AlertThresholds.scopeId eq kotlinNodeId) and AlertThresholds.thresholdValue.isNotNull() }
+                .where { (AlertThresholds.scopeType eq ScopeType.NODE.name) and (AlertThresholds.scopeId eq kotlinNodeId) and AlertThresholds.thresholdValue.isNotNull() }
                 .toList()
 
             for (threshold in thresholds) {
@@ -516,13 +517,13 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
                         it[AlertEvents.firedAt] = now
                         it[AlertEvents.message] = msg
                     }[AlertEvents.id]
-                    result += AlertEventNotification(eventId.toString(), thresholdId.toString(), "NODE", nodeId, metric, msg, now.toString())
+                    result += AlertEventNotification(eventId.toString(), thresholdId.toString(), ScopeType.NODE.name, nodeId, metric, msg, now.toString())
                 }
                 else if (!triggered && openEvent != null) {
                     val eventId = openEvent[AlertEvents.id]
                     AlertEvents.update({ AlertEvents.id eq eventId }) { it[AlertEvents.resolvedAt] = now }
                     val msg = "Node $nodeId: $metric normalised"
-                    result += AlertEventNotification(eventId.toString(), thresholdId.toString(), "NODE", nodeId, metric, msg, openEvent[AlertEvents.firedAt].toString(), now.toString())
+                    result += AlertEventNotification(eventId.toString(), thresholdId.toString(), ScopeType.NODE.name, nodeId, metric, msg, openEvent[AlertEvents.firedAt].toString(), now.toString())
                 }
             }
             result
@@ -555,7 +556,7 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
         val notifications = transaction {
             val result = mutableListOf<AlertEventNotification>()
             val thresholds = AlertThresholds.selectAll()
-                .where { (AlertThresholds.scopeType eq "SERVER") and (AlertThresholds.scopeId eq kotlinServerId) and AlertThresholds.thresholdValue.isNotNull() }
+                .where { (AlertThresholds.scopeType eq ScopeType.SERVER.name) and (AlertThresholds.scopeId eq kotlinServerId) and AlertThresholds.thresholdValue.isNotNull() }
                 .toList()
 
             for (threshold in thresholds) {
@@ -575,13 +576,22 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
                         it[AlertEvents.firedAt] = now
                         it[AlertEvents.message] = msg
                     }[AlertEvents.id]
-                    result += AlertEventNotification(eventId.toString(), thresholdId.toString(), "SERVER", metrics.serverId, metric, msg, now.toString())
+                    result += AlertEventNotification(eventId.toString(), thresholdId.toString(), ScopeType.SERVER.name, metrics.serverId, metric, msg, now.toString())
                 }
                 else if (!triggered && openEvent != null) {
                     val eventId = openEvent[AlertEvents.id]
                     AlertEvents.update({ AlertEvents.id eq eventId }) { it[AlertEvents.resolvedAt] = now }
                     val msg = "Server ${metrics.serverId}: $metric normalised"
-                    result += AlertEventNotification(eventId.toString(), thresholdId.toString(), "SERVER", metrics.serverId, metric, msg, openEvent[AlertEvents.firedAt].toString(), now.toString())
+                    result += AlertEventNotification(
+                        eventId.toString(),
+                        thresholdId.toString(),
+                        ScopeType.SERVER.name,
+                        metrics.serverId,
+                        metric,
+                        msg,
+                        openEvent[AlertEvents.firedAt].toString(),
+                        now.toString()
+                    )
                 }
             }
             result

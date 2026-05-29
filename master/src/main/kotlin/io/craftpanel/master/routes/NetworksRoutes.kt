@@ -1,5 +1,7 @@
 package io.craftpanel.master.routes
 
+import io.craftpanel.master.auth.Permission
+import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.service.*
 import io.craftpanel.master.util.toKotlinUuid
@@ -15,7 +17,7 @@ import io.ktor.server.routing.*
 import java.util.*
 
 fun Route.networksRoutes(networkService: NetworkService) {
-    authenticate("auth-jwt") {
+    authenticate(JWT_AUTH) {
         route("/api/networks") {
 
             get("", {
@@ -28,7 +30,7 @@ fun Route.networksRoutes(networkService: NetworkService) {
                 }
             }) {
                 val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, "server.view"))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 call.respond(networkService.listNetworks())
             }
@@ -45,7 +47,7 @@ fun Route.networksRoutes(networkService: NetworkService) {
                 }
             }) {
                 val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, "server.create"))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CREATE))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val req = call.receive<CreateNetworkRequest>()
                 call.respond(HttpStatusCode.Created, networkService.createNetwork(req))
@@ -63,7 +65,7 @@ fun Route.networksRoutes(networkService: NetworkService) {
                 }
             }) {
                 val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, "server.view"))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val id = parseNetworkId(call.parameters["id"])
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid network ID"))
@@ -86,7 +88,7 @@ fun Route.networksRoutes(networkService: NetworkService) {
                 val id = parseNetworkId(call.parameters["id"])
                     ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid network ID"))
                 val networkIdJava = UUID.fromString(id.toString())
-                if (!PermissionResolver.hasPermission(userId, "server.configure", networkId = networkIdJava))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, networkId = networkIdJava))
                     return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val req = call.receive<PatchNetworkRequest>()
                 networkService.updateNetwork(id, req)
@@ -108,7 +110,7 @@ fun Route.networksRoutes(networkService: NetworkService) {
                 val id = parseNetworkId(call.parameters["id"])
                     ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid network ID"))
                 val networkIdJava = UUID.fromString(id.toString())
-                if (!PermissionResolver.hasPermission(userId, "server.delete", networkId = networkIdJava))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_DELETE, networkId = networkIdJava))
                     return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 networkService.deleteNetwork(id)
                 call.respond(HttpStatusCode.NoContent)

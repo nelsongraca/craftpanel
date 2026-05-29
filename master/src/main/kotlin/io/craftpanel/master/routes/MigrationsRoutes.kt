@@ -1,5 +1,7 @@
 package io.craftpanel.master.routes
 
+import io.craftpanel.master.auth.Permission
+import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.service.MigrateRequest
 import io.craftpanel.master.service.MigrationResponse
@@ -19,7 +21,7 @@ import kotlinx.coroutines.launch
 import java.util.*
 
 fun Route.migrationsRoutes(migrationService: MigrationService) {
-    authenticate("auth-jwt") {
+    authenticate(JWT_AUTH) {
         route("/api/servers/{id}/migrations") {
 
             get("", {
@@ -39,7 +41,7 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
                 val scope = migrationService.getServerScope(id)
                     ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
                 val serverIdJava = UUID.fromString(id.toString())
-                if (!PermissionResolver.hasPermission(userId, "server.migrate", serverId = serverIdJava, networkId = scope.networkId))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_MIGRATE, serverId = serverIdJava, networkId = scope.networkId))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 call.respond(mapOf("migrations" to migrationService.listMigrations(id)))
             }
@@ -63,7 +65,7 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
                 val scope = migrationService.getServerScope(id)
                     ?: return@post call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
                 val serverIdJava = UUID.fromString(id.toString())
-                if (!PermissionResolver.hasPermission(userId, "server.migrate", serverId = serverIdJava, networkId = scope.networkId))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_MIGRATE, serverId = serverIdJava, networkId = scope.networkId))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val req = call.receive<MigrateRequest>()
                 call.respond(HttpStatusCode.Accepted, migrationService.startMigration(id, req))

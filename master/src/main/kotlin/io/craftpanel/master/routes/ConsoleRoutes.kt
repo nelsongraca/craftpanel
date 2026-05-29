@@ -1,5 +1,7 @@
 package io.craftpanel.master.routes
 
+import io.craftpanel.master.auth.Permission
+import io.craftpanel.master.auth.JWT_AUTH
 import com.craftpanel.agent.v1.consoleInput
 import com.google.protobuf.ByteString
 import io.craftpanel.master.auth.PermissionResolver
@@ -121,7 +123,7 @@ fun Route.consoleRoutes(wsTicketService: WsTicketService, proxy: DataServiceProx
             return@webSocket
         }
 
-        if (!PermissionResolver.hasPermission(userId, "server.console", serverInfo.serverId, serverInfo.networkId)) {
+        if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONSOLE, serverInfo.serverId, serverInfo.networkId)) {
             close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Insufficient permissions"))
             return@webSocket
         }
@@ -152,7 +154,7 @@ fun Route.consoleRoutes(wsTicketService: WsTicketService, proxy: DataServiceProx
         val revalidationJob = launch {
             while (true) {
                 delay(5.minutes)
-                if (!PermissionResolver.hasPermission(userId, "server.console", serverInfo.serverId, serverInfo.networkId)) {
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONSOLE, serverInfo.serverId, serverInfo.networkId)) {
                     sendJson("console.disconnected", mapOf("server_id" to serverId, "reason" to "Session revoked"))
                     close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Session revoked"))
                     return@launch

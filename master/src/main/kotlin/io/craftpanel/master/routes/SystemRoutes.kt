@@ -1,5 +1,7 @@
 package io.craftpanel.master.routes
 
+import io.craftpanel.master.auth.Permission
+import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.service.PatchSettingsRequest
 import io.craftpanel.master.service.SystemService
@@ -13,7 +15,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 
 fun Route.systemRoutes(systemService: SystemService) {
-    authenticate("auth-jwt") {
+    authenticate(JWT_AUTH) {
         route("/api/system/settings") {
 
             get("", {
@@ -26,7 +28,7 @@ fun Route.systemRoutes(systemService: SystemService) {
                 }
             }) {
                 val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, "system.settings"))
+                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_SETTINGS))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 call.respond(systemService.getSettings())
             }
@@ -43,7 +45,7 @@ fun Route.systemRoutes(systemService: SystemService) {
                 }
             }) {
                 val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, "system.settings"))
+                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_SETTINGS))
                     return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val req = call.receive<PatchSettingsRequest>()
                 call.respond(systemService.updateSettings(userId, req))
