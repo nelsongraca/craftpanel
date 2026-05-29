@@ -1,3 +1,5 @@
+@file:OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+
 package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.JWT_AUTH
@@ -13,10 +15,14 @@ import io.craftpanel.master.util.toKotlinUuid
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
+import io.ktor.websocket.DefaultWebSocketSession
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.serialization.json.*
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNamingStrategy
+import kotlinx.serialization.json.encodeToJsonElement
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -25,7 +31,15 @@ import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
 
-private val wsJson = Json { ignoreUnknownKeys = true }
+private val wsJson = Json { ignoreUnknownKeys = true; namingStrategy = JsonNamingStrategy.SnakeCase }
+
+private inline fun <reified T> DefaultWebSocketSession.sendWs(type: WsEventType, payload: T) {
+    outgoing.trySend(Frame.Text(wsJson.encodeToString(WsEnvelope(type.event, wsJson.encodeToJsonElement(payload)))))
+}
+
+private fun DefaultWebSocketSession.sendWsRaw(envelope: WsEnvelope) {
+    outgoing.trySend(Frame.Text(wsJson.encodeToString(envelope)))
+}
 
 fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: ControlServiceImpl) {
     webSocket("/api/ws") {
@@ -52,15 +66,6 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                 ?.let { UUID.fromString(it.toString()) }
         }
 
-        fun send(obj: JsonObject) {
-            outgoing.trySend(Frame.Text(wsJson.encodeToString(obj)))
-        }
-
-        fun envelope(type: WsEventType, payload: JsonObject): JsonObject = buildJsonObject {
-            put("type", type.event)
-            put("payload", payload)
-        }
-
         // ── Initial snapshot ──────────────────────────────────────────────────
         val snapshot = transaction {
             val servers = Servers.selectAll()
@@ -68,73 +73,52 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                     val sid = UUID.fromString(row[Servers.id].toString())
                     val netId = row[Servers.networkId]?.let { UUID.fromString(it.toString()) }
                     if (!canViewServer(sid, netId)) return@mapNotNull null
-                    buildJsonObject {
-                        put("id", sid.toString())
-                        put("display_name", row[Servers.displayName])
-                        put("status", row[Servers.status])
-                        put("node_id", row[Servers.nodeId].toString())
-                        row[Servers.networkId]?.let { put("network_id", it.toString()) }
-                    }
+                    ServerSnapshot(
+                        sid.toString(),
+                        row[Servers.displayName],
+                        row[Servers.status],
+                        row[Servers.nodeId].toString(),
+                        row[Servers.networkId]?.toString(),
+                    )
                 }
             val nodes = if (hasNodes()) {
                 Nodes.selectAll()
                     .map { row ->
-                        buildJsonObject {
-                            put("id", row[Nodes.id].toString())
-                            put("display_name", row[Nodes.displayName])
-                            put("status", row[Nodes.status])
-                        }
+                        NodeSnapshot(row[Nodes.id].toString(), row[Nodes.displayName], row[Nodes.status])
                     }
-            }
-            else emptyList()
+            } else emptyList()
 
-            buildJsonObject {
-                put("type", WsEventType.SNAPSHOT.event)
-                put("payload", buildJsonObject {
-                    put("servers", buildJsonArray { servers.forEach { add(it) } })
-                    put("nodes", buildJsonArray { nodes.forEach { add(it) } })
-                })
-            }
+            WsEnvelope(WsEventType.SNAPSHOT.event, wsJson.encodeToJsonElement(SnapshotPayload(servers, nodes)))
         }
-        send(snapshot)
+        sendWsRaw(snapshot)
 
         // ── Subscriptions ─────────────────────────────────────────────────────
 
         val nodeMetricsJob = launch {
             controlService.nodeMetricsFlow.collect { (nodeId, metrics) ->
                 if (!hasNodes()) return@collect
-                send(envelope(WsEventType.NODE_METRICS, buildJsonObject {
-                    put("node_id", nodeId)
-                    put("cpu_percent", metrics.cpuPercent)
-                    put("ram_used_mb", metrics.ramUsedMb)
-                    put("ram_total_mb", metrics.ramTotalMb)
-                    put("net_in_bytes", metrics.netInBytes)
-                    put("net_out_bytes", metrics.netOutBytes)
-                    put("disk_used_bytes", metrics.diskUsedBytes)
-                    put("disk_total_bytes", metrics.diskTotalBytes)
-                    put(
-                        "recorded_at", if (metrics.hasRecordedAt())
-                            Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong())
-                                .toString()
-                        else Clock.System.now()
-                            .toString()
+                sendWs(
+                    WsEventType.NODE_METRICS, NodeMetricsPayload(
+                        nodeId,
+                        metrics.cpuPercent,
+                        metrics.ramUsedMb,
+                        metrics.ramTotalMb,
+                        metrics.netInBytes,
+                        metrics.netOutBytes,
+                        metrics.diskUsedBytes,
+                        metrics.diskTotalBytes,
+                        if (metrics.hasRecordedAt())
+                            Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong()).toString()
+                        else Clock.System.now().toString(),
                     )
-                }))
+                )
             }
         }
 
         val nodeStatusJob = launch {
             controlService.nodeStatusFlow.collect { (nodeId, status) ->
                 if (!hasNodes()) return@collect
-                send(envelope(WsEventType.NODE_STATUS, buildJsonObject {
-                    put("node_id", nodeId)
-                    put("status", status)
-                    put(
-                        "recorded_at",
-                        Clock.System.now()
-                            .toString()
-                    )
-                }))
+                sendWs(WsEventType.NODE_STATUS, NodeStatusPayload(nodeId, status, Clock.System.now().toString()))
             }
         }
 
@@ -143,20 +127,18 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                 val sid = runCatching { UUID.fromString(serverId) }.getOrNull() ?: return@collect
                 val netId = serverNetworkId(serverId)
                 if (!canViewServer(sid, netId)) return@collect
-                send(envelope(WsEventType.SERVER_METRICS, buildJsonObject {
-                    put("server_id", serverId)
-                    put("cpu_percent", metrics.cpuPercent)
-                    put("ram_used_mb", metrics.ramUsedMb)
-                    put("net_in_bytes", metrics.netInBytes)
-                    put("net_out_bytes", metrics.netOutBytes)
-                    put(
-                        "recorded_at", if (metrics.hasRecordedAt())
-                            Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong())
-                                .toString()
-                        else Clock.System.now()
-                            .toString()
+                sendWs(
+                    WsEventType.SERVER_METRICS, ServerMetricsPayload(
+                        serverId,
+                        metrics.cpuPercent,
+                        metrics.ramUsedMb,
+                        metrics.netInBytes,
+                        metrics.netOutBytes,
+                        if (metrics.hasRecordedAt())
+                            Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong()).toString()
+                        else Clock.System.now().toString(),
                     )
-                }))
+                )
             }
         }
 
@@ -172,16 +154,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                     ServerStatusUpdate.ServerStatus.STOPPED   -> "STOPPED"
                     else                                      -> return@collect
                 }
-                send(envelope(WsEventType.SERVER_STATUS, buildJsonObject {
-                    put("server_id", serverId)
-                    put("status", statusStr)
-                    put("container_id", update.containerId)
-                    put(
-                        "recorded_at",
-                        Clock.System.now()
-                            .toString()
-                    )
-                }))
+                sendWs(WsEventType.SERVER_STATUS, ServerStatusPayload(serverId, statusStr, update.containerId, Clock.System.now().toString()))
             }
         }
 
@@ -190,18 +163,16 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                 val sid = runCatching { UUID.fromString(serverId) }.getOrNull() ?: return@collect
                 val netId = serverNetworkId(serverId)
                 if (!canViewServer(sid, netId)) return@collect
-                send(envelope(WsEventType.SERVER_PLAYERS, buildJsonObject {
-                    put("server_id", serverId)
-                    put("player_count", update.playerCount)
-                    put("player_list", buildJsonArray { update.playerNamesList.forEach { add(JsonPrimitive(it)) } })
-                    put(
-                        "recorded_at", if (update.hasRecordedAt())
-                            Instant.fromEpochSeconds(update.recordedAt.seconds, update.recordedAt.nanos.toLong())
-                                .toString()
-                        else Clock.System.now()
-                            .toString()
+                sendWs(
+                    WsEventType.SERVER_PLAYERS, ServerPlayersPayload(
+                        serverId,
+                        update.playerCount,
+                        update.playerNamesList,
+                        if (update.hasRecordedAt())
+                            Instant.fromEpochSeconds(update.recordedAt.seconds, update.recordedAt.nanos.toLong()).toString()
+                        else Clock.System.now().toString(),
                     )
-                }))
+                )
             }
         }
 
@@ -210,16 +181,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                 val sid = runCatching { UUID.fromString(update.serverId) }.getOrNull() ?: return@collect
                 val netId = serverNetworkId(update.serverId)
                 if (!canViewServer(sid, netId)) return@collect
-                send(envelope(WsEventType.SERVER_BACKUP_PROGRESS, buildJsonObject {
-                    put("server_id", update.serverId)
-                    put("backup_id", update.backupId)
-                    put("percent_complete", update.percentComplete)
-                    put(
-                        "recorded_at",
-                        Clock.System.now()
-                            .toString()
-                    )
-                }))
+                sendWs(WsEventType.SERVER_BACKUP_PROGRESS, BackupProgressPayload(update.serverId, update.backupId, update.percentComplete, Clock.System.now().toString()))
             }
         }
 
@@ -229,20 +191,18 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                 val netId = serverNetworkId(update.serverId)
                 if (!canViewServer(sid, netId)) return@collect
                 val status = if (update.success) "COMPLETED" else "FAILED"
-                send(envelope(WsEventType.SERVER_BACKUP_COMPLETE, buildJsonObject {
-                    put("server_id", update.serverId)
-                    put("backup_id", update.backupId)
-                    put("status", status)
-                    put("size_bytes", update.sizeBytes)
-                    if (!update.success) put("error_message", update.errorMessage)
-                    put(
-                        "completed_at", if (update.hasCompletedAt())
-                            Instant.fromEpochSeconds(update.completedAt.seconds, update.completedAt.nanos.toLong())
-                                .toString()
-                        else Clock.System.now()
-                            .toString()
+                sendWs(
+                    WsEventType.SERVER_BACKUP_COMPLETE, BackupCompletePayload(
+                        update.serverId,
+                        update.backupId,
+                        status,
+                        update.sizeBytes,
+                        if (!update.success) update.errorMessage else null,
+                        if (update.hasCompletedAt())
+                            Instant.fromEpochSeconds(update.completedAt.seconds, update.completedAt.nanos.toLong()).toString()
+                        else Clock.System.now().toString(),
                     )
-                }))
+                )
             }
         }
 
@@ -256,20 +216,18 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                     if (!canViewServer(sid, netId)) return@collect
                 }
                 val type = if (isResolved) WsEventType.ALERT_RESOLVED else WsEventType.ALERT_FIRED
-                send(envelope(type, buildJsonObject {
-                    put("event_id", alert.eventId)
-                    put("threshold_id", alert.thresholdId)
-                    put("scope_type", alert.scopeType)
-                    put("scope_id", alert.scopeId)
-                    put("metric", alert.metric)
-                    put("message", alert.message)
-                    if (isResolved) {
-                        put("resolved_at", alert.resolvedAt)
-                    }
-                    else {
-                        put("fired_at", alert.firedAt)
-                    }
-                }))
+                sendWs(
+                    type, AlertPayload(
+                        alert.eventId,
+                        alert.thresholdId,
+                        alert.scopeType,
+                        alert.scopeId,
+                        alert.metric,
+                        alert.message,
+                        if (!isResolved) alert.firedAt else null,
+                        if (isResolved) alert.resolvedAt else null,
+                    )
+                )
             }
         }
 
@@ -284,8 +242,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
 
         try {
             incoming.consumeEach { }
-        }
-        finally {
+        } finally {
             nodeMetricsJob.cancel()
             nodeStatusJob.cancel()
             serverMetricsJob.cancel()

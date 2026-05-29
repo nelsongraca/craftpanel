@@ -13,7 +13,6 @@ import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.*
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -66,7 +65,7 @@ class MigrationService(
     private val scope: CoroutineScope,
 ) {
 
-    private val eventFlows = ConcurrentHashMap<String, MutableSharedFlow<JsonObject>>()
+    private val eventFlows = ConcurrentHashMap<String, MutableSharedFlow<MigrationEvent>>()
 
     data class ServerScope(val networkId: UUID?)
 
@@ -185,7 +184,7 @@ class MigrationService(
                 }
         }
 
-    fun getEventFlow(migrationId: String): SharedFlow<JsonObject>? =
+    fun getEventFlow(migrationId: String): SharedFlow<MigrationEvent>? =
         eventFlows[migrationId]?.asSharedFlow()
 
     private suspend fun runMigration(
@@ -202,7 +201,7 @@ class MigrationService(
         fun now() = Clock.System.now()
             .toLocalDateTime(TimeZone.UTC)
 
-        suspend fun emit(obj: JsonObject) = eventFlow?.emit(obj)
+        suspend fun emit(event: MigrationEvent) = eventFlow?.emit(event)
 
         fun updateStatus(status: String) {
             transaction {
@@ -211,7 +210,7 @@ class MigrationService(
                     if (status == "COMPLETED" || status == "FAILED") it[ServerMigrations.completedAt] = now()
                 }
             }
-            scope.launch { emit(buildJsonObject { put("type", "status"); put("status", status) }) }
+            scope.launch { emit(MigrationEvent.Status(status)) }
         }
 
         fun startStep(stepNum: Int, description: String): Uuid {
@@ -224,13 +223,7 @@ class MigrationService(
                     it[MigrationStepLog.startedAt] = now()
                 }[MigrationStepLog.id]
             }
-            scope.launch {
-                emit(buildJsonObject {
-                    put("type", "step.started")
-                    put("step", stepNum)
-                    put("description", description)
-                })
-            }
+            scope.launch { emit(MigrationEvent.StepStarted(stepNum, description)) }
             return stepId
         }
 
@@ -246,7 +239,7 @@ class MigrationService(
 
         suspend fun failMigration(error: String) {
             updateStatus("FAILED")
-            emit(buildJsonObject { put("type", "failed"); put("error", error) })
+            emit(MigrationEvent.Failed(error))
         }
 
         // ── Collect source/target node data ──────────────────────────────────
@@ -332,13 +325,7 @@ class MigrationService(
             val progressJob = scope.launch {
                 rsyncProgressFlow.collect { u ->
                     if (u.migrationId == migrationIdStr && !u.isFinalPass) {
-                        emit(buildJsonObject {
-                            put("type", "rsync.progress")
-                            put("is_final_pass", false)
-                            put("percent", u.percentComplete)
-                            put("bytes", u.bytesTransferred)
-                            put("phase", u.phase)
-                        })
+                        emit(MigrationEvent.RsyncProgress(false, u.percentComplete, u.bytesTransferred, u.phase))
                     }
                 }
             }
@@ -423,13 +410,7 @@ class MigrationService(
             val progressJob = scope.launch {
                 rsyncProgressFlow.collect { u ->
                     if (u.migrationId == migrationIdStr && u.isFinalPass) {
-                        emit(buildJsonObject {
-                            put("type", "rsync.progress")
-                            put("is_final_pass", true)
-                            put("percent", u.percentComplete)
-                            put("bytes", u.bytesTransferred)
-                            put("phase", u.phase)
-                        })
+                        emit(MigrationEvent.RsyncProgress(true, u.percentComplete, u.bytesTransferred, u.phase))
                     }
                 }
             }
@@ -599,7 +580,7 @@ class MigrationService(
         }
 
         updateStatus("COMPLETED")
-        emit(buildJsonObject { put("type", "completed") })
+        emit(MigrationEvent.Completed)
     }
 
     private fun allocateRsyncPort(targetNodeId: Uuid): Int = transaction {

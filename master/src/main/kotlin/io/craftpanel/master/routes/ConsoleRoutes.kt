@@ -1,3 +1,5 @@
+@file:OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+
 package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.Permission
@@ -19,11 +21,9 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.serialization.Serializable
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.JsonPrimitive
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.JsonNamingStrategy
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -32,13 +32,11 @@ import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration.Companion.minutes
 
-@Serializable
-private data class WsEnvelope(val type: String, val payload: JsonObject)
+private val json = Json { ignoreUnknownKeys = true; classDiscriminator = "type"; namingStrategy = JsonNamingStrategy.SnakeCase }
 
-@Serializable
-private data class WsEnvelopeIn(val type: String, val payload: JsonObject = JsonObject(emptyMap()))
-
-private val json = Json { ignoreUnknownKeys = true }
+private fun DefaultWebSocketSession.sendConsole(event: ConsoleEvent) {
+    outgoing.trySend(Frame.Text(json.encodeToString(ConsoleEvent.serializer(), event)))
+}
 
 private class ConsoleSession {
 
@@ -131,20 +129,14 @@ fun Route.consoleRoutes(wsTicketService: WsTicketService, proxy: DataServiceProx
         // ── Session ───────────────────────────────────────────────────────
         val session = sessionManager.getOrCreate(serverId)
 
-        fun sendJson(type: String, payload: Map<String, String>) {
-            val obj = JsonObject(payload.mapValues { (_, v) -> JsonPrimitive(v) })
-            val frame = json.encodeToString(WsEnvelope(type, obj))
-            outgoing.trySend(Frame.Text(frame))
-        }
-
-        sendJson("console.ready", mapOf("server_id" to serverId))
+        sendConsole(ConsoleEvent.Ready(serverId))
 
         // ── Background jobs ───────────────────────────────────────────────
         val outputJob = launch {
             try {
                 session.output.collect { chunk ->
                     val text = chunk.decodeToString()
-                    sendJson("console.output", mapOf("data" to text))
+                    sendConsole(ConsoleEvent.Output(text))
                 }
             }
             catch (_: Exception) {
@@ -155,7 +147,7 @@ fun Route.consoleRoutes(wsTicketService: WsTicketService, proxy: DataServiceProx
             while (true) {
                 delay(5.minutes)
                 if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONSOLE, serverInfo.serverId, serverInfo.networkId)) {
-                    sendJson("console.disconnected", mapOf("server_id" to serverId, "reason" to "Session revoked"))
+                    sendConsole(ConsoleEvent.Disconnected(serverId, "Session revoked"))
                     close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Session revoked"))
                     return@launch
                 }
@@ -166,7 +158,7 @@ fun Route.consoleRoutes(wsTicketService: WsTicketService, proxy: DataServiceProx
             session.closed.collect { isClosed ->
                 if (isClosed) {
                     runCatching {
-                        sendJson("console.disconnected", mapOf("server_id" to serverId, "reason" to "Server stopped"))
+                        sendConsole(ConsoleEvent.Disconnected(serverId, "Server stopped"))
                         close(CloseReason(CloseReason.Codes.NORMAL, "Server stopped"))
                     }
                 }
@@ -178,10 +170,9 @@ fun Route.consoleRoutes(wsTicketService: WsTicketService, proxy: DataServiceProx
             for (frame in incoming) {
                 if (frame is Frame.Text) {
                     runCatching {
-                        val envelope = json.decodeFromString<WsEnvelopeIn>(frame.readText())
-                        if (envelope.type == "console.input") {
-                            val data = envelope.payload["data"]?.jsonPrimitive?.content ?: ""
-                            session.input.trySend(data.toByteArray())
+                        val event = json.decodeFromString(ConsoleInEvent.serializer(), frame.readText())
+                        if (event is ConsoleInEvent.Input) {
+                            session.input.trySend(event.data.toByteArray())
                         }
                     }.onFailure { log.warn("Malformed console input: {}", it.message) }
                 }

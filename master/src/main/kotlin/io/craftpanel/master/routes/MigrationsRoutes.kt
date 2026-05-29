@@ -1,11 +1,17 @@
+@file:OptIn(kotlinx.serialization.ExperimentalSerializationApi::class)
+
 package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.service.MigrateRequest
+import io.craftpanel.master.service.MigrationEvent
 import io.craftpanel.master.service.MigrationResponse
 import io.craftpanel.master.service.MigrationService
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNamingStrategy
 import io.craftpanel.master.util.toKotlinUuid
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.post
@@ -19,6 +25,8 @@ import io.ktor.websocket.*
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.launch
 import java.util.*
+
+private val migrationJson = Json { classDiscriminator = "type"; namingStrategy = JsonNamingStrategy.SnakeCase }
 
 fun Route.migrationsRoutes(migrationService: MigrationService) {
     authenticate(JWT_AUTH) {
@@ -110,10 +118,8 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
 
         val job = launch {
             flow.collect { event ->
-                outgoing.trySend(Frame.Text(event.toString()))
-                val type = event["type"]?.toString()
-                    ?.trim('"')
-                if (type == "completed" || type == "failed") {
+                outgoing.trySend(Frame.Text(migrationJson.encodeToString(MigrationEvent.serializer(), event)))
+                if (event is MigrationEvent.Completed || event is MigrationEvent.Failed) {
                     close(CloseReason(CloseReason.Codes.NORMAL, "Migration finished"))
                 }
             }

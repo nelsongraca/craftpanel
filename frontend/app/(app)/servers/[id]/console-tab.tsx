@@ -60,13 +60,13 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
 
             ws.onmessage = (evt) => {
                 try {
-                    const msg = JSON.parse(evt.data as string) as { type: string; payload: Record<string, string> };
+                    const msg = JSON.parse(evt.data as string) as { type: string; data?: string; reason?: string };
                     if (msg.type === "console.ready") {
                         setStatusMsg("");
                     } else if (msg.type === "console.output") {
-                        term?.write(msg.payload.data ?? "");
+                        term?.write(msg.data ?? "");
                     } else if (msg.type === "console.disconnected") {
-                        const reason = msg.payload.reason ?? "Disconnected";
+                        const reason = msg.reason ?? "Disconnected";
                         term?.write(`\r\n\x1b[33m[${reason}]\x1b[0m\r\n`);
                         setStatusMsg(reason);
                     }
@@ -80,7 +80,7 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
 
             term.onData((data) => {
                 if (ws?.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({type: "console.input", payload: {data}}));
+                    ws.send(JSON.stringify({type: "console.input", data}));
                 }
             });
 
