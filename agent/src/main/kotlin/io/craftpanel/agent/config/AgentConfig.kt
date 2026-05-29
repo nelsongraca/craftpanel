@@ -31,7 +31,8 @@ data class AgentConfig(
                 ?.toIntOrNull() ?: 50052,
             dataBasePath = System.getenv("DATA_PATH") ?: "/data",
             mcRouterImage = System.getenv("MCROUTER_IMAGE") ?: "itzg/mc-router:latest",
-            mcRouterUpdateOnStart = System.getenv("MCROUTER_UPDATE_ON_START")?.lowercase() != "false",
+            mcRouterUpdateOnStart = System.getenv("MCROUTER_UPDATE_ON_START")
+                ?.lowercase() != "false",
         )
     }
 }

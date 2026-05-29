@@ -1,11 +1,9 @@
 package io.craftpanel.agent.docker
 
-import com.craftpanel.agent.v1.ContainerMetricsUpdate
-import com.craftpanel.agent.v1.NodeMetricsUpdate
-import com.craftpanel.agent.v1.containerMetricsUpdate
-import com.craftpanel.agent.v1.nodeMetricsUpdate
+import com.craftpanel.agent.v1.*
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
+import com.github.dockerjava.api.model.Frame
 import com.github.dockerjava.api.model.Statistics
 import com.google.protobuf.timestamp
 import org.slf4j.LoggerFactory
@@ -99,6 +97,60 @@ open class MetricsCollector(private val docker: DockerClient) {
         }.getOrElse {
             log.warn("Failed to collect container metrics for $containerId", it)
             null
+        }
+    }
+
+    fun collectPlayerCount(serverId: String, containerId: String): PlayerUpdate? {
+        return runCatching {
+            val exec = docker.execCreateCmd(containerId)
+                .withCmd("rcon-cli", "list")
+                .withAttachStdout(true)
+                .withAttachStderr(false)
+                .exec()
+            val output = StringBuilder()
+            val latch = CountDownLatch(1)
+            docker.execStartCmd(exec.id)
+                .withDetach(false)
+                .exec(object : ResultCallback.Adapter<Frame>() {
+                    override fun onNext(frame: Frame) {
+                        frame.payload?.let { output.append(String(it)) }
+                    }
+
+                    override fun onComplete() {
+                        latch.countDown()
+                    }
+
+                    override fun onError(t: Throwable) {
+                        latch.countDown()
+                    }
+                })
+            if (!latch.await(5, TimeUnit.SECONDS)) return null
+            parsePlayerList(serverId,
+                output.toString()
+                    .trim()
+            )
+        }.getOrElse {
+            log.warn("Failed to collect player count for $containerId: ${it.message}")
+            null
+        }
+    }
+
+    private fun parsePlayerList(serverId: String, output: String): PlayerUpdate? {
+        val countMatch = Regex("""There are (\d+)""").find(output) ?: return null
+        val count = countMatch.groupValues[1].toInt()
+        val names = if (count > 0 && output.contains(": ")) {
+            output.substringAfter(": ")
+                .trim()
+                .split(", ")
+                .filter { it.isNotBlank() }
+        }
+        else emptyList()
+        val now = Instant.now()
+        return playerUpdate {
+            this.serverId = serverId
+            playerCount = count
+            playerNames.addAll(names)
+            recordedAt = timestamp { seconds = now.epochSecond; nanos = now.nano }
         }
     }
 

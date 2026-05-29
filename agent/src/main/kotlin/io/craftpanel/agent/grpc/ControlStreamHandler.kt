@@ -54,6 +54,13 @@ class ControlStreamHandler(
                                     containerMetrics = cm
                                 })
                             }
+                        metricsCollector.collectPlayerCount(serverId, containerId)
+                            ?.let { pu ->
+                                outbound.emit(agentMessage {
+                                    nodeId = identity.nodeId
+                                    playerUpdate = pu
+                                })
+                            }
                     }
             }
         }

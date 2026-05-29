@@ -1162,8 +1162,21 @@ function OverviewTab({
                 </div>
             )}
 
-            {/* Players online panel — hidden when STOPPED or no player data (phase 3) */}
-            {/* TODO (phase 3): show when player_count > 0, render player_list chips */}
+            {livePlayers && livePlayers.count > 0 && (
+                <div className="bg-surface border border-border rounded p-4">
+                    <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted mb-3">
+                        Online Players ({livePlayers.count})
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                        {livePlayers.list.map((name) => (
+                            <span key={name}
+                                  className="px-2 py-1 bg-surface-high border border-border rounded text-xs font-mono text-text-primary">
+                                {name}
+                            </span>
+                        ))}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

@@ -41,6 +41,8 @@ data class ServerResponse(
     @SerialName("public_subdomain") val publicSubdomain: String?,
     @SerialName("is_migrating") val isMigrating: Boolean,
     @SerialName("config_mode") val configMode: String,
+    @SerialName("last_player_count") val lastPlayerCount: Int?,
+    @SerialName("last_player_names") val lastPlayerNames: List<String>?,
     @SerialName("created_at") val createdAt: String,
     @SerialName("updated_at") val updatedAt: String,
 )
@@ -372,7 +374,8 @@ class ServerService(
         val publicHostname = serverRow[Servers.dnsRecordName]
             ?: if (serverRow[Servers.exposedExternally] && serverRow[Servers.publicSubdomain] != null) {
                 resolvePublicHostname(serverRow[Servers.publicSubdomain]!!, serverRow[Servers.networkId])
-            } else null
+            }
+            else null
 
         if (serverRow[Servers.containerId] == null) {
             val createCmd = buildCreateContainerCommand(id, serverRow, nodeRow, serverImage, allVars, publicHostname)
@@ -385,7 +388,7 @@ class ServerService(
         transaction {
             Servers.update({ Servers.id eq id }) {
                 it[status] = "STARTING"; it[updatedAt] = Clock.System.now()
-                    .toLocalDateTime(TimeZone.UTC)
+                .toLocalDateTime(TimeZone.UTC)
             }
         }
     }
@@ -525,23 +528,28 @@ class ServerService(
 
             val fullHostname = if (dns != null) {
                 "${req.publicSubdomain}.${dns.domainSuffix}"
-            } else {
+            }
+            else {
                 resolvePublicHostname(req.publicSubdomain, serverRow[Servers.networkId])
             }
 
             val recordId = if (provider != null && dns != null) {
                 val nodeIp = transaction {
-                    Nodes.selectAll().where { Nodes.id eq serverRow[Servers.nodeId] }.first()
+                    Nodes.selectAll()
+                        .where { Nodes.id eq serverRow[Servers.nodeId] }
+                        .first()
                 }[Nodes.publicIp]
                 runCatching {
                     if (existingRecordId != null) {
                         provider.updateARecord(dns.zoneId, existingRecordId, nodeIp)
                         existingRecordId
-                    } else {
+                    }
+                    else {
                         provider.createARecord(dns.zoneId, fullHostname ?: req.publicSubdomain, nodeIp)
                     }
                 }.getOrElse { ex -> throw BadGatewayException("DNS provider error: ${ex.message}") }
-            } else null
+            }
+            else null
 
             transaction {
                 Servers.update({ Servers.id eq id }) {
@@ -549,7 +557,8 @@ class ServerService(
                     it[publicSubdomain] = req.publicSubdomain
                     it[dnsRecordName] = fullHostname
                     it[dnsRecordId] = recordId
-                    it[updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+                    it[updatedAt] = Clock.System.now()
+                        .toLocalDateTime(TimeZone.UTC)
                 }
             }
 
@@ -557,16 +566,23 @@ class ServerService(
             if (isRunning) {
                 val nodeId = serverRow[Servers.nodeId].toString()
                 val nodeRow = transaction {
-                    Nodes.selectAll().where { Nodes.id eq serverRow[Servers.nodeId] }.firstOrNull()
+                    Nodes.selectAll()
+                        .where { Nodes.id eq serverRow[Servers.nodeId] }
+                        .firstOrNull()
                 } ?: return
                 val allVars = buildAllVars(id, serverRow)
                 val serverImage = deriveImage(serverRow[Servers.serverType], serverRow[Servers.itzgImageTag])
-                sendToNode(nodeId, masterMessage { stopContainer = stopContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand] } })
+                sendToNode(
+                    nodeId,
+                    masterMessage {
+                        stopContainer = stopContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand] }
+                    })
                 sendToNode(nodeId, masterMessage { removeContainer = removeContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; force = false } })
                 sendToNode(nodeId, buildCreateContainerCommand(id, serverRow, nodeRow, serverImage, allVars, fullHostname))
                 sendToNode(nodeId, masterMessage { startContainer = startContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id" } })
             }
-        } else {
+        }
+        else {
             val provider = dnsProvider
             if (existingRecordId != null && provider != null) {
                 val dns = resolveNetworkDns(serverRow[Servers.networkId])
@@ -581,8 +597,28 @@ class ServerService(
                     it[publicSubdomain] = null
                     it[dnsRecordName] = null
                     it[dnsRecordId] = null
-                    it[updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+                    it[updatedAt] = Clock.System.now()
+                        .toLocalDateTime(TimeZone.UTC)
                 }
+            }
+            val isRunning = serverRow[Servers.status] in listOf("HEALTHY", "STARTING", "UNHEALTHY")
+            if (isRunning) {
+                val nodeId = serverRow[Servers.nodeId].toString()
+                val nodeRow = transaction {
+                    Nodes.selectAll()
+                        .where { Nodes.id eq serverRow[Servers.nodeId] }
+                        .firstOrNull()
+                } ?: return
+                val allVars = buildAllVars(id, serverRow)
+                val serverImage = deriveImage(serverRow[Servers.serverType], serverRow[Servers.itzgImageTag])
+                sendToNode(
+                    nodeId,
+                    masterMessage {
+                        stopContainer = stopContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand] }
+                    })
+                sendToNode(nodeId, masterMessage { removeContainer = removeContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; force = false } })
+                sendToNode(nodeId, buildCreateContainerCommand(id, serverRow, nodeRow, serverImage, allVars, null))
+                sendToNode(nodeId, masterMessage { startContainer = startContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id" } })
             }
         }
     }
@@ -652,7 +688,8 @@ class ServerService(
                     .where { ServerNetworks.id eq networkId }
                     .firstOrNull()
                     ?.get(ServerNetworks.cfDomainSuffix)
-            } else null
+            }
+            else null
         } ?: transaction {
             SystemSettings.selectAll()
                 .where { SystemSettings.key eq "dns_domain_suffix" }
@@ -721,6 +758,9 @@ internal fun rowToServerResponse(row: ResultRow, isMigrating: Boolean) = ServerR
     publicSubdomain = row[Servers.publicSubdomain],
     isMigrating = isMigrating,
     configMode = row[Servers.configMode],
+    lastPlayerCount = row[Servers.lastPlayerCount],
+    lastPlayerNames = row[Servers.lastPlayerNames]?.split(",")
+        ?.filter { it.isNotBlank() },
     createdAt = row[Servers.createdAt].toString(),
     updatedAt = row[Servers.updatedAt].toString(),
 )

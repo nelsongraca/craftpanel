@@ -208,6 +208,7 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
 
                     msg.hasPlayerUpdate()     -> {
                         log.debug("Node ${msg.nodeId} player update: ${msg.playerUpdate.serverId} — ${msg.playerUpdate.playerCount} players")
+                        persistPlayerUpdate(msg.playerUpdate)
                         _playerUpdateFlow.emit(msg.playerUpdate.serverId to msg.playerUpdate)
                     }
 
@@ -413,6 +414,23 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
                 it[Servers.status] = dbStatus
                 it[Servers.containerId] = update.containerId.takeIf { s -> s.isNotEmpty() }
                 it[Servers.lastSeenAt] = now
+            }
+        }
+    }
+
+    private fun persistPlayerUpdate(update: PlayerUpdate) {
+        val serverId = runCatching {
+            UUID.fromString(update.serverId)
+                .toKotlinUuid()
+        }.getOrNull() ?: return
+        val now = Clock.System.now()
+            .toLocalDateTime(TimeZone.UTC)
+        transaction {
+            Servers.update({ Servers.id eq serverId }) {
+                it[Servers.lastPlayerCount] = update.playerCount
+                it[Servers.lastPlayerNames] = update.playerNamesList.joinToString(",")
+                    .takeIf { s -> s.isNotBlank() }
+                it[Servers.lastPlayerUpdate] = now
             }
         }
     }
