@@ -15,6 +15,7 @@ import {FilesTab} from "./files-tab";
 import {BackupsTab} from "./backups-tab";
 import {ModsTab} from "./mods-tab";
 import {ConfigTab} from "./config-tab";
+import {MigrationTab} from "./migration-tab";
 
 // ── Mojang version manifest ───────────────────────────────────────────────────
 
@@ -149,7 +150,7 @@ function HeaderActionButton({
 
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
-const TABS = ["Overview", "Console", "Files", "Mods", "Backups", "Configuration"] as const;
+const TABS = ["Overview", "Console", "Files", "Mods", "Backups", "Configuration", "Migration"] as const;
 type Tab = (typeof TABS)[number];
 
 function ComingSoon({tab}: { tab: string }) {
@@ -549,8 +550,11 @@ export default function ServerDetailPage() {
                                 >
                                     {hasPermission(permissions, "server.migrate") && (
                                         <button
-                                            disabled
-                                            className="flex items-center gap-2 w-full text-left px-3 py-2 text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted opacity-40 cursor-not-allowed"
+                                            onClick={() => {
+                                                setMenuOpen(false);
+                                                setActiveTab("Migration");
+                                            }}
+                                            className="flex items-center gap-2 w-full text-left px-3 py-2 text-[12px] font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
                                         >
                                             <Shuffle size={12} strokeWidth={2}/>
                                             Migrate
@@ -689,6 +693,14 @@ export default function ServerDetailPage() {
                     networkId={server.network_id ?? null}
                     configMode={server.config_mode ?? "MANAGED"}
                 />
+            ) : activeTab === "Migration" ? (
+                <div className="px-6 py-4">
+                    <MigrationTab
+                        serverId={server.id}
+                        nodeId={server.node_id}
+                        canMigrate={hasPermission(permissions, "server.migrate")}
+                    />
+                </div>
             ) : activeTab !== "Overview" ? (
                 <ComingSoon tab={activeTab}/>
             ) : (

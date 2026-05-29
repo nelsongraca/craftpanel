@@ -9,6 +9,9 @@ import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.routes.*
 import io.craftpanel.master.service.*
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.flow.MutableSharedFlow
 import io.github.smiley4.ktoropenapi.OpenApi
 import io.github.smiley4.ktoropenapi.config.AuthScheme
 import io.github.smiley4.ktoropenapi.config.AuthType
@@ -30,8 +33,8 @@ import kotlinx.serialization.json.Json
 import java.io.File
 import kotlin.test.Test
 
-class
-OpenApiSpecTask {
+@OptIn(DelicateCoroutinesApi::class)
+class OpenApiSpecTask {
 
     @Test
     fun generate() = testApplication {
@@ -95,6 +98,15 @@ OpenApiSpecTask {
                 configRoutes(ProxyBackendService(), EnvVarsService())
                 modsRoutes(modService)
                 alertsRoutes(AlertService())
+                migrationsRoutes(MigrationService(
+                    sendToNode = { _, _ -> false },
+                    rsyncReadyFlow = MutableSharedFlow(),
+                    rsyncProgressFlow = MutableSharedFlow(),
+                    rsyncCompleteFlow = MutableSharedFlow(),
+                    serverStatusFlow = MutableSharedFlow(),
+                    dnsProvider = null,
+                    scope = GlobalScope,
+                ))
             }
         }
 

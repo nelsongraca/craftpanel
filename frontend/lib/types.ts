@@ -15,3 +15,6 @@ export type {IoCraftpanelMasterServiceEnvVarItem as EnvVarItem} from "./generate
 export type {IoCraftpanelMasterServiceEnvVarsResponse as EnvVarsResponse} from "./generated/types.gen"
 export type {IoCraftpanelMasterServicePutEnvVarsRequest as PutEnvVarsRequest} from "./generated/types.gen"
 export type {IoCraftpanelMasterServicePatchConfigModeRequest as PatchConfigModeRequest} from "./generated/types.gen"
+export type {IoCraftpanelMasterServiceMigrationResponse as MigrationResponse} from "./generated/types.gen"
+export type {IoCraftpanelMasterServiceMigrationStepData as MigrationStepData} from "./generated/types.gen"
+export type {IoCraftpanelMasterServiceMigrateRequest as MigrateRequest} from "./generated/types.gen"
