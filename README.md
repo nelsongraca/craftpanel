@@ -142,6 +142,19 @@ docker compose up -d
 
 Open `http://localhost:3000`.
 
+### First-time admin user
+
+On a fresh database, set these env vars on `master` to seed the initial Super Admin account at startup:
+
+```yaml
+environment:
+  CRAFTPANEL_ADMIN_EMAIL: admin@example.com
+  CRAFTPANEL_ADMIN_PASSWORD: "change-me-immediately"
+  CRAFTPANEL_ADMIN_USERNAME: admin   # optional, defaults to "admin"
+```
+
+The seed runs **only when the users table is empty**. Once any user exists, these variables are ignored — safe to leave set across restarts. Remove them from the compose file after first login.
+
 ### TLS setup — distributing the CA certificate
 
 Master generates a self-signed CA and server certificate on first boot. Before connecting agents you need to copy the CA certificate to each agent node:
@@ -191,19 +204,22 @@ On first start the agent registers itself with master using the bootstrap token.
 
 **Master**
 
-| Variable               | Default                                       | Description                                                                      |
-|------------------------|-----------------------------------------------|----------------------------------------------------------------------------------|
-| `DATABASE_URL`         | `jdbc:postgresql://localhost:5432/craftpanel` | PostgreSQL JDBC URL                                                              |
-| `DATABASE_USERNAME`    | `craftpanel`                                  | Database user                                                                    |
-| `DATABASE_PASSWORD`    | _(empty)_                                     | Database password                                                                |
-| `JWT_SECRET`           | `changeme-at-least-32-characters-long`        | HMAC secret for JWT signing                                                      |
-| `NODE_BOOTSTRAP_TOKEN` | `changeme`                                    | Shared secret for initial node registration                                      |
-| `HTTP_PORT`            | `8080`                                        | REST/WebSocket listen port                                                       |
-| `GRPC_PORT`            | `50051`                                       | gRPC listen port                                                                 |
-| `GRPC_CERT_STORE_PATH` | `/etc/craftpanel/certs`                       | Directory for auto-generated CA + server certs (mount a volume here)            |
-| `GRPC_TLS_SANS`        | _(empty)_                                     | Comma-separated extra SANs for auto-generated cert (add your server hostname/IP) |
-| `GRPC_TLS_CERT`        | _(empty)_                                     | Path to TLS server cert — overrides auto-gen when set (BYOC mode)               |
-| `GRPC_TLS_KEY`         | _(empty)_                                     | Path to TLS private key — required when `GRPC_TLS_CERT` is set                  |
+| Variable                     | Default                                       | Description                                                                       |
+|------------------------------|-----------------------------------------------|-----------------------------------------------------------------------------------|
+| `DATABASE_URL`               | `jdbc:postgresql://localhost:5432/craftpanel` | PostgreSQL JDBC URL                                                               |
+| `DATABASE_USERNAME`          | `craftpanel`                                  | Database user                                                                     |
+| `DATABASE_PASSWORD`          | _(empty)_                                     | Database password                                                                 |
+| `JWT_SECRET`                 | `changeme-at-least-32-characters-long`        | HMAC secret for JWT signing                                                       |
+| `NODE_BOOTSTRAP_TOKEN`       | `changeme`                                    | Shared secret for initial node registration                                       |
+| `HTTP_PORT`                  | `8080`                                        | REST/WebSocket listen port                                                        |
+| `GRPC_PORT`                  | `50051`                                       | gRPC listen port                                                                  |
+| `GRPC_CERT_STORE_PATH`       | `/etc/craftpanel/certs`                       | Directory for auto-generated CA + server certs (mount a volume here)             |
+| `GRPC_TLS_SANS`              | _(empty)_                                     | Comma-separated extra SANs for auto-generated cert (add your server hostname/IP) |
+| `GRPC_TLS_CERT`              | _(empty)_                                     | Path to TLS server cert — overrides auto-gen when set (BYOC mode)                |
+| `GRPC_TLS_KEY`               | _(empty)_                                     | Path to TLS private key — required when `GRPC_TLS_CERT` is set                   |
+| `CRAFTPANEL_ADMIN_EMAIL`     | _(empty)_                                     | Seed initial Super Admin email — only used when users table is empty              |
+| `CRAFTPANEL_ADMIN_PASSWORD`  | _(empty)_                                     | Seed initial Super Admin password (Argon2id-hashed at startup)                   |
+| `CRAFTPANEL_ADMIN_USERNAME`  | `admin`                                       | Seed initial Super Admin username                                                 |
 
 **Agent**
 

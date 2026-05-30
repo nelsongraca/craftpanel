@@ -103,3 +103,18 @@ Supported `_FILE` variables:
 
 !!! warning
 Never store secrets in the config file in production. Use environment variables or the `_FILE` secret pattern instead.
+
+## Initial admin user
+
+On a fresh database (empty users table), master will seed a Super Admin account if these variables are set:
+
+| Variable                    | Default    | Description                          |
+|-----------------------------|------------|--------------------------------------|
+| `CRAFTPANEL_ADMIN_EMAIL`    | _(empty)_  | Email address for the initial admin  |
+| `CRAFTPANEL_ADMIN_PASSWORD` | _(empty)_  | Password — stored as Argon2id hash   |
+| `CRAFTPANEL_ADMIN_USERNAME` | `admin`    | Username for the initial admin       |
+
+The seed runs **once only**: if any user already exists, these variables are ignored and master starts normally. It is safe to leave them set across container restarts.
+
+!!! tip
+    Remove `CRAFTPANEL_ADMIN_EMAIL` and `CRAFTPANEL_ADMIN_PASSWORD` from your compose file after the first successful login.

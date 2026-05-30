@@ -54,6 +54,15 @@ data class RateLimitConfig(
     val refreshPerMinute: Int,
 )
 
+data class AdminSeedConfig(
+    val email: String,
+    val password: String,
+    val username: String,
+) {
+
+    val enabled: Boolean get() = email.isNotBlank() && password.isNotBlank()
+}
+
 class AppConfig(config: ApplicationConfig) {
 
     val profile: String = config.propertyOrNull("app.profile")
@@ -131,6 +140,14 @@ class AppConfig(config: ApplicationConfig) {
         refreshPerMinute = config.propertyOrNull("rateLimit.refreshPerMinute")
             ?.getString()
             ?.toIntOrNull() ?: 30,
+    )
+    val adminSeed = AdminSeedConfig(
+        email = config.propertyOrNull("adminSeed.email")
+            ?.getString() ?: "",
+        password = config.propertyOrNull("adminSeed.password")
+            ?.getString() ?: "",
+        username = config.propertyOrNull("adminSeed.username")
+            ?.getString() ?: "admin",
     )
 
     fun validate() {

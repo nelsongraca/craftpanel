@@ -7,6 +7,8 @@ import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.auth.routes.authRoutes
 import io.craftpanel.master.config.AppConfig
 import io.craftpanel.master.database.DatabaseFactory
+import io.craftpanel.master.database.migrations.seedAdminUser
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.grpc.GrpcServer
@@ -55,6 +57,9 @@ fun Application.module() {
     appConfig.validate()
 
     DatabaseFactory.init(appConfig.database)
+    if (appConfig.adminSeed.enabled) {
+        transaction { seedAdminUser(appConfig.adminSeed.email, appConfig.adminSeed.password, appConfig.adminSeed.username) }
+    }
 
     val dataServiceProxy = DataServiceProxy(appConfig.node, appConfig.profile)
     monitor.subscribe(ApplicationStopped) { dataServiceProxy.closeAll() }
