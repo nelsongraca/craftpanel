@@ -7,6 +7,7 @@ import io.craftpanel.master.service.AlertEventResponse
 import io.craftpanel.master.service.AlertService
 import io.craftpanel.master.service.AlertThresholdResponse
 import io.craftpanel.master.service.CreateAlertThresholdRequest
+import kotlinx.serialization.Serializable
 import io.craftpanel.master.util.toKotlinUuid
 import io.github.smiley4.ktoropenapi.delete
 import io.github.smiley4.ktoropenapi.get
@@ -18,6 +19,9 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import java.util.*
 
+@Serializable
+data class AlertThresholdsResponse(val thresholds: List<AlertThresholdResponse>)
+
 fun Route.alertsRoutes(alertService: AlertService) {
     authenticate(JWT_AUTH) {
         route("/api/alerts") {
@@ -26,7 +30,7 @@ fun Route.alertsRoutes(alertService: AlertService) {
                 operationId = "listAlertThresholds"
                 summary = "List alert thresholds"
                 response {
-                    code(HttpStatusCode.OK) { body<Map<String, List<AlertThresholdResponse>>>() }
+                    code(HttpStatusCode.OK) { body<AlertThresholdsResponse>() }
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
                 }
             }) {
@@ -41,7 +45,7 @@ fun Route.alertsRoutes(alertService: AlertService) {
                                 .toKotlinUuid()
                         }.getOrNull()
                     }
-                call.respond(mapOf("thresholds" to alertService.listThresholds(scopeType, scopeId)))
+                call.respond(AlertThresholdsResponse(alertService.listThresholds(scopeType, scopeId)))
             }
 
             post("/thresholds", {

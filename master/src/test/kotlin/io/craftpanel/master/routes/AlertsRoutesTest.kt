@@ -180,7 +180,7 @@ class AlertsRoutesTest {
         val res = client.post("/api/alerts/thresholds") {
             header("Authorization", "Bearer $token")
             contentType(ContentType.Application.Json)
-            setBody("""{"scope_type":"SERVER","scope_id":"$nodeId","metric":"server_health","threshold_state":"UNHEALTHY"}""")
+            setBody("""{"scope_type":"NODE","scope_id":"$nodeId","metric":"server_health","threshold_state":"UNHEALTHY"}""")
         }
         assertEquals(HttpStatusCode.Created, res.status)
         val body = res.body<JsonObject>()

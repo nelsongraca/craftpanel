@@ -101,6 +101,7 @@ class RefreshTokenService {
 
     private fun sha256Hex(input: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
+        // Result is used only as a DB lookup key (SQL WHERE) — never compared in Kotlin code.
         return digest.digest(input.toByteArray())
             .joinToString("") { "%02x".format(it) }
     }

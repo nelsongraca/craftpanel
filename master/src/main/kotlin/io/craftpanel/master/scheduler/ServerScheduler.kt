@@ -23,6 +23,7 @@ import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
 class ServerScheduler(
@@ -37,10 +38,21 @@ class ServerScheduler(
     fun start() {
         job = scope.launch {
             log.info("Scheduler started")
+            var consecutiveFailures = 0
             while (isActive) {
                 val tickStart = Clock.System.now()
                 runCatching { tick(tickStart) }
-                    .onFailure { log.error("Scheduler tick error", it) }
+                    .onSuccess { consecutiveFailures = 0 }
+                    .onFailure {
+                        consecutiveFailures++
+                        log.error("Scheduler tick error (failure $consecutiveFailures)", it)
+                        if (consecutiveFailures >= 3) {
+                            val backoff = minOf(consecutiveFailures.minutes, 5.minutes)
+                            log.warn("Scheduler backing off for $backoff after $consecutiveFailures consecutive failures")
+                            delay(backoff)
+                            return@onFailure
+                        }
+                    }
                 val elapsed = Clock.System.now() - tickStart
                 val remaining = 60.seconds - elapsed
                 if (remaining.isPositive()) delay(remaining)

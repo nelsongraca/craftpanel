@@ -8,6 +8,9 @@ object AlertThresholds : Table("alert_thresholds") {
 
     val id = uuid("id").autoGenerate()
     val scopeType = varchar("scope_type", 6)          // NODE | SERVER
+
+    // scopeId is polymorphic: references Nodes.id when scopeType=NODE, Servers.id when scopeType=SERVER.
+    // No DB-level FK — validated in application layer (AlertService).
     val scopeId = uuid("scope_id")
     val metric = varchar("metric", 64)             // cpu_percent | ram_percent | disk_percent | server_health
     val thresholdValue = double("threshold_value").nullable()

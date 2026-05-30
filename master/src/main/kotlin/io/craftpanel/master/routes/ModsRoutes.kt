@@ -137,6 +137,7 @@ fun Route.modsRoutes(modService: ModService) {
                 request { pathParameter<String>("id") }
                 response {
                     code(HttpStatusCode.OK) { }
+                    code(HttpStatusCode.BadGateway) { body<ErrorResponse>() }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
@@ -154,8 +155,12 @@ fun Route.modsRoutes(modService: ModService) {
                 val limit = call.request.queryParameters["limit"]?.toIntOrNull()
                     ?.coerceIn(1, 20) ?: 10
                 val result = modService.searchModrinth(query, limit)
+                if (result.statusCode !in 200..299) {
+                    call.respond(HttpStatusCode.BadGateway, ErrorResponse("Mod search upstream unavailable"))
+                    return@get
+                }
                 call.response.headers.append("Content-Type", "application/json")
-                call.respond(HttpStatusCode.fromValue(result.statusCode), result.body)
+                call.respond(HttpStatusCode.OK, result.body)
             }
         }
     }

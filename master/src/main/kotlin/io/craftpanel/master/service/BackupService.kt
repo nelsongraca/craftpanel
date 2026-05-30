@@ -58,6 +58,8 @@ class BackupService(
     private val dataServiceProxy: DataServiceProxy,
 ) {
 
+    private val log = org.slf4j.LoggerFactory.getLogger(BackupService::class.java)
+
     data class ServerScope(val networkId: UUID?)
 
     fun getServerScope(serverId: kotlin.uuid.Uuid): ServerScope? =
@@ -106,12 +108,18 @@ class BackupService(
                     val filePath = old[Backups.filePath]
                     val backupNodeId = old[Backups.nodeId].toString()
                     if (!filePath.isNullOrEmpty()) {
-                        sendToNode(backupNodeId, masterMessage {
+                        val sent = sendToNode(backupNodeId, masterMessage {
                             deleteBackup = deleteBackupCommand {
                                 backupId = old[Backups.id].toString()
                                 this.filePath = filePath
                             }
                         })
+                        if (!sent) {
+                            // Agent unreachable — skip deletion to avoid orphaned files.
+                            // Row will be retried next time rotation runs.
+                            log.warn("Could not send deleteBackup to node $backupNodeId for backup ${old[Backups.id]} — skipping row deletion")
+                            continue
+                        }
                     }
                     Backups.deleteWhere { Backups.id eq old[Backups.id] }
                 }

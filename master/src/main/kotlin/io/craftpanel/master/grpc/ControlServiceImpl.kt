@@ -42,8 +42,10 @@ data class AlertEventNotification(
     val resolvedAt: String? = null,
 )
 
-class ControlServiceImpl(private val nodeConfig: NodeConfig) :
-    ControlServiceGrpcKt.ControlServiceCoroutineImplBase() {
+class ControlServiceImpl(
+    private val nodeConfig: NodeConfig,
+    private val onNodeDisconnect: (String) -> Unit = {},
+) : ControlServiceGrpcKt.ControlServiceCoroutineImplBase() {
 
     private val log = LoggerFactory.getLogger(ControlServiceImpl::class.java)
     private val random = SecureRandom()
@@ -79,9 +81,12 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
     }
 
     override suspend fun registerNode(request: RegisterNodeRequest): RegisterNodeResponse {
-        require(request.bootstrapToken == nodeConfig.bootstrapToken) {
-            "Invalid bootstrap token"
-        }
+        require(
+            MessageDigest.isEqual(
+                request.bootstrapToken.toByteArray(Charsets.UTF_8),
+                nodeConfig.bootstrapToken.toByteArray(Charsets.UTF_8),
+            )
+        ) { "Invalid bootstrap token" }
 
         val rawKey = generateNodeKey()
         val keyHash = sha256Hex(rawKey)
@@ -241,6 +246,7 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
         finally {
             connectedNodeId?.let { nodeId ->
                 connectedAgents.remove(nodeId, outChannel)
+                onNodeDisconnect(nodeId)
                 if (!watchdogFired) {
                     log.warn("Node $nodeId: control stream disconnected — marking degraded")
                     markNodeDegraded(nodeId)
@@ -316,7 +322,10 @@ class ControlServiceImpl(private val nodeConfig: NodeConfig) :
         val kotlinNodeId = runCatching {
             UUID.fromString(nodeId)
                 .toKotlinUuid()
-        }.getOrNull() ?: return
+        }.getOrElse {
+            log.warn("markNodeDegraded: invalid nodeId format: $nodeId")
+            return
+        }
         val now = Clock.System.now()
             .toLocalDateTime(TimeZone.UTC)
 

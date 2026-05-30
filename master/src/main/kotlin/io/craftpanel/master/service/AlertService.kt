@@ -3,6 +3,8 @@ package io.craftpanel.master.service
 import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.database.schema.AlertEvents
 import io.craftpanel.master.database.schema.AlertThresholds
+import io.craftpanel.master.database.schema.Nodes
+import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.util.toKotlinUuid
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -84,6 +86,21 @@ class AlertService {
                 .toKotlinUuid()
         }.getOrNull()
             ?: throw UnprocessableException("Invalid scope_id")
+        // Validate scopeId references an existing entity of the given scope type
+        val scopeExists = transaction {
+            when (req.scopeType) {
+                ScopeType.NODE.name   -> Nodes.selectAll()
+                    .where { Nodes.id eq scopeKotlinId }
+                    .firstOrNull() != null
+
+                ScopeType.SERVER.name -> Servers.selectAll()
+                    .where { Servers.id eq scopeKotlinId }
+                    .firstOrNull() != null
+
+                else                  -> false
+            }
+        }
+        if (!scopeExists) throw UnprocessableException("scope_id does not reference an existing ${req.scopeType.lowercase()}")
         return transaction {
             val id = AlertThresholds.insert {
                 it[AlertThresholds.scopeType] = req.scopeType

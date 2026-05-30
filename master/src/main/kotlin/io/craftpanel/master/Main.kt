@@ -32,7 +32,6 @@ import io.ktor.server.plugins.calllogging.*
 import io.ktor.server.plugins.contentnegotiation.*
 import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.plugins.defaultheaders.*
-import io.ktor.server.plugins.hsts.*
 import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.response.*
@@ -57,15 +56,16 @@ fun Application.module() {
 
     DatabaseFactory.init(appConfig.database)
 
-    val controlService = ControlServiceImpl(appConfig.node)
+    val dataServiceProxy = DataServiceProxy(appConfig.node, appConfig.profile)
+    monitor.subscribe(ApplicationStopped) { dataServiceProxy.closeAll() }
+
+    val controlService = ControlServiceImpl(appConfig.node, onNodeDisconnect = dataServiceProxy::closeNode)
     val grpcServer = GrpcServer(appConfig, controlService).start()
     monitor.subscribe(ApplicationStopped) { grpcServer.stop() }
 
     val jwtManager = JwtManager(appConfig.jwt)
     val refreshTokenService = RefreshTokenService()
     val wsTicketService = WsTicketService()
-    val dataServiceProxy = DataServiceProxy(appConfig.node, appConfig.profile)
-    monitor.subscribe(ApplicationStopped) { dataServiceProxy.closeAll() }
 
     val dnsProvider = DnsProviderFactory.create(appConfig.dns)
     if (dnsProvider != null) log.info("DNS provider: ${dnsProvider.type}")
@@ -91,6 +91,8 @@ fun Application.module() {
         dnsProvider = dnsProvider,
         scope = this,
     )
+
+    migrationService.failStuckMigrations()
 
     val scheduler = ServerScheduler(
         handlers = mapOf("BACKUP" to BackupJobHandler(backupService)),
@@ -195,7 +197,7 @@ fun Application.module() {
     install(Authentication) {
         jwt(JWT_AUTH) {
             realm = "CraftPanel"
-            verifier(jwtManager.verifier!!)
+            verifier(jwtManager.verifier)
             validate { credential ->
                 if (credential.payload.subject != null) JWTPrincipal(credential.payload) else null
             }

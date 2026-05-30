@@ -15,6 +15,10 @@ object Argon2Hasher {
 
     private val random = SecureRandom()
 
+    // Pre-computed hash used when user is not found — ensures verify() always runs
+    // to prevent timing-based user enumeration.
+    val DUMMY_HASH: String by lazy { hash("craftpanel-dummy-verify-constant") }
+
     fun hash(password: String): String {
         val salt = ByteArray(SALT_LENGTH).also { random.nextBytes(it) }
         val hash = argon2Hash(password.toCharArray(), salt)

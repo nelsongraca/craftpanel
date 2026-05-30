@@ -259,6 +259,8 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     return@get
                 }
                 val filename = path.substringAfterLast('/')
+                    .replace(Regex("[^a-zA-Z0-9._-]"), "_")
+                    .ifEmpty { "download" }
                 call.response.header(
                     HttpHeaders.ContentDisposition,
                     ContentDisposition.Attachment.withParameter(ContentDisposition.Parameters.FileName, filename)

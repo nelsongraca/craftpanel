@@ -45,6 +45,11 @@ class DataServiceProxy(private val nodeConfig: NodeConfig, private val profile: 
             builder.build()
         }
 
+    fun closeNode(nodeId: String) {
+        channels.remove(nodeId)
+            ?.shutdown()
+    }
+
     fun closeAll() {
         channels.values.forEach { it.shutdown() }
         channels.clear()

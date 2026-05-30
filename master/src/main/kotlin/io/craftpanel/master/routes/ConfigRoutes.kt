@@ -12,7 +12,6 @@ import io.craftpanel.master.service.PutEnvVarsRequest
 import io.craftpanel.master.service.PutProxyBackendsRequest
 import io.craftpanel.master.util.toKotlinUuid
 import io.github.smiley4.ktoropenapi.get
-import io.github.smiley4.ktoropenapi.patch
 import io.github.smiley4.ktoropenapi.put
 import io.ktor.http.*
 import io.ktor.server.auth.*
@@ -121,7 +120,7 @@ fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService:
                 call.respond(envVarsService.replaceEnvVars(id, req))
             }
 
-            patch("/mode", {
+            put("/mode", {
                 operationId = "updateConfigMode"
                 summary = "Update server config mode"
                 request {
@@ -138,11 +137,11 @@ fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService:
             }) {
                 val userId = call.userId()
                 val id = parseConfigServerId(call.parameters["id"])
-                    ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
+                    ?: return@put call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                 val scope = envVarsService.getServerScope(id)
-                    ?: return@patch call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
+                    ?: return@put call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
                 if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, serverId = scope.serverIdJava, networkId = scope.networkId))
-                    return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                    return@put call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val req = call.receive<PatchConfigModeRequest>()
                 call.respond(envVarsService.updateConfigMode(id, req))
             }

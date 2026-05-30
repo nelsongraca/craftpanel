@@ -6,12 +6,14 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.neq
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
+import java.util.UUID
 
 @Serializable
 data class NetworkResponse(
@@ -79,12 +81,19 @@ data class PatchNetworkRequest(
 
 class NetworkService {
 
-    fun listNetworks(): List<NetworkResponse> = transaction {
-        val counts = Servers.selectAll()
-            .groupBy({ it[Servers.networkId] }, { 1 })
-            .mapValues { (_, v) -> v.size }
-        ServerNetworks.selectAll()
-            .map { row ->
+    fun listNetworks(userId: UUID): List<NetworkResponse> {
+        val visibility = resolveServerVisibility(userId)
+        return transaction {
+            val counts = Servers.selectAll()
+                .groupBy({ it[Servers.networkId] }, { 1 })
+                .mapValues { (_, v) -> v.size }
+            val query = when {
+                visibility.isGlobal             -> ServerNetworks.selectAll()
+                visibility.networkIds.isEmpty() -> return@transaction emptyList()
+                else                            -> ServerNetworks.selectAll()
+                    .where { ServerNetworks.id inList visibility.networkIds.toList() }
+            }
+            query.map { row ->
                 val netId = row[ServerNetworks.id]
                 NetworkResponse(
                     id = netId.toString(),
@@ -101,6 +110,7 @@ class NetworkService {
                     createdAt = row[ServerNetworks.createdAt].toString(),
                 )
             }
+        }
     }
 
     fun createNetwork(req: CreateNetworkRequest): NetworkResponse {

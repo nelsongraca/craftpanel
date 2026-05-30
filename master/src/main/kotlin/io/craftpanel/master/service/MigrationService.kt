@@ -68,6 +68,16 @@ class MigrationService(
 
     private val eventFlows = ConcurrentHashMap<String, MutableSharedFlow<MigrationEvent>>()
 
+    fun failStuckMigrations() = transaction {
+        ServerMigrations.update({
+            ServerMigrations.status inList listOf("PENDING", "SYNCING", "CUTTING_OVER", "RUNNING")
+        }) {
+            it[ServerMigrations.status] = "FAILED"
+            it[ServerMigrations.completedAt] = Clock.System.now()
+                .toLocalDateTime(TimeZone.UTC)
+        }
+    }
+
     data class ServerScope(val networkId: UUID?)
 
     fun getServerScope(serverId: Uuid): ServerScope? =
@@ -389,10 +399,15 @@ class MigrationService(
         // ── Step 4: Player warning via RCON ──────────────────────────────────
         run {
             val stepId = startStep(4, "Broadcast player warning via RCON")
+            val safeMsg = playerWarningMessage
+                .replace('\n', ' ')
+                .replace('\r', ' ')
+                .replace("\"", "")
+                .take(255)
             sendToNode(sourceNodeIdStr, masterMessage {
                 sendRcon = sendRconCommand {
                     this.serverId = serverIdStr
-                    command = "say $playerWarningMessage"
+                    command = "say $safeMsg"
                 }
             })
             completeStep(stepId, true)
@@ -403,19 +418,29 @@ class MigrationService(
         // ── Step 5: save-all then save-off via RCON ──────────────────────────
         run {
             val stepId = startStep(5, "Flush and disable auto-save via RCON")
-            sendToNode(sourceNodeIdStr, masterMessage {
+            val saveAllSent = sendToNode(sourceNodeIdStr, masterMessage {
                 sendRcon = sendRconCommand {
                     this.serverId = serverIdStr
                     command = "save-all"
                 }
             })
+            if (!saveAllSent) {
+                completeStep(stepId, false, "Agent disconnected before save-all")
+                failMigration("Failed to send save-all RCON: agent disconnected")
+                return
+            }
             delay(500.milliseconds)
-            sendToNode(sourceNodeIdStr, masterMessage {
+            val saveOffSent = sendToNode(sourceNodeIdStr, masterMessage {
                 sendRcon = sendRconCommand {
                     this.serverId = serverIdStr
                     command = "save-off"
                 }
             })
+            if (!saveOffSent) {
+                completeStep(stepId, false, "Agent disconnected before save-off")
+                failMigration("Failed to send save-off RCON: agent disconnected")
+                return
+            }
             completeStep(stepId, true)
         }
 
@@ -686,13 +711,32 @@ class MigrationService(
     private data class NetworkDns(val zoneId: String, val domainSuffix: String)
 
     private fun updateProxyBackendsAfterMigration(serverId: Uuid, targetIp: String, port: Int) {
-        val networkId = transaction {
-            Servers.selectAll()
-                .where { Servers.id eq serverId }
-                .firstOrNull()
-                ?.get(Servers.networkId)
-        } ?: return
-        log.warn("Server $serverId migrated to network $networkId on $targetIp:$port — proxy backends on a different node may need manual update")
+        // Find proxy servers in the same network that have this server as a backend.
+        // Send each proxy a restart-container command so it re-discovers the new node IP.
+        val proxyServerIds = transaction {
+            ProxyBackends.selectAll()
+                .where { ProxyBackends.backendServerId eq serverId }
+                .map { it[ProxyBackends.proxyServerId] }
+        }
+        if (proxyServerIds.isEmpty()) return
+        for (proxyServerId in proxyServerIds) {
+            val nodeIdStr = transaction {
+                Servers.selectAll()
+                    .where { Servers.id eq proxyServerId }
+                    .firstOrNull()
+                    ?.get(Servers.nodeId)
+                    ?.toString()
+            } ?: continue
+            val sent = sendToNode(nodeIdStr, masterMessage {
+                restartContainer = restartContainerCommand { this.serverId = proxyServerId.toString() }
+            })
+            if (sent) {
+                log.info("Triggered proxy restart for server $proxyServerId on node $nodeIdStr after migration of $serverId to $targetIp:$port")
+            }
+            else {
+                log.warn("Could not reach node $nodeIdStr to restart proxy $proxyServerId after migration of $serverId — manual restart may be required")
+            }
+        }
     }
 
     private val log = org.slf4j.LoggerFactory.getLogger(MigrationService::class.java)

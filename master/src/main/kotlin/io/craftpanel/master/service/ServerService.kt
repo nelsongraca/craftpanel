@@ -10,6 +10,7 @@ import io.craftpanel.master.util.toKotlinUuid
 import org.slf4j.LoggerFactory
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.JsonNull
@@ -299,13 +300,13 @@ class ServerService(
         if (existing[Servers.status] != "STOPPED") throw ConflictException("Server must be STOPPED before deletion")
 
         val recordId = existing[Servers.dnsRecordId]
-        val provider = dnsProvider
-        if (recordId != null && provider != null) {
+        if (recordId != null) {
+            val provider = dnsProvider
+                ?: throw ConflictException("Cannot delete server with DNS record: DNS provider not configured")
             val dns = resolveNetworkDns(existing[Servers.networkId])
-            if (dns != null) {
-                runCatching { provider.deleteARecord(dns.zoneId, recordId) }
-                    .onFailure { log.warn("Failed to delete DNS record $recordId during server delete", it) }
-            }
+                ?: throw ConflictException("Cannot delete server with DNS record: network has no DNS config")
+            runCatching { provider.deleteARecord(dns.zoneId, recordId) }
+                .onFailure { log.warn("Failed to delete DNS record $recordId during server delete", it) }
         }
 
         transaction {
@@ -474,20 +475,24 @@ class ServerService(
         }
     }
 
-    fun getMetrics(id: kotlin.uuid.Uuid, limit: Int): ContainerMetricsSeriesResponse {
+    fun getMetrics(id: kotlin.uuid.Uuid, from: Instant, to: Instant): ContainerMetricsSeriesResponse {
         val exists = transaction {
             Servers.selectAll()
                 .where { Servers.id eq id }
                 .firstOrNull() != null
         }
         if (!exists) throw NotFoundException("Server not found")
+        val fromLdt = from.toLocalDateTime(TimeZone.UTC)
+        val toLdt = to.toLocalDateTime(TimeZone.UTC)
         val rows = transaction {
             ContainerMetrics.selectAll()
-                .where { ContainerMetrics.serverId eq id }
-                .orderBy(ContainerMetrics.recordedAt, SortOrder.DESC)
-                .limit(limit)
+                .where {
+                    (ContainerMetrics.serverId eq id) and
+                            (ContainerMetrics.recordedAt greaterEq fromLdt) and
+                            (ContainerMetrics.recordedAt lessEq toLdt)
+                }
+                .orderBy(ContainerMetrics.recordedAt, SortOrder.ASC)
                 .toList()
-                .reversed()
         }
         return ContainerMetricsSeriesResponse(
             serverId = id.toString(),
@@ -702,13 +707,13 @@ class ServerService(
     }
 }
 
-private data class ServerVisibility(
+internal data class ServerVisibility(
     val isGlobal: Boolean,
     val networkIds: Set<kotlin.uuid.Uuid>,
     val serverIds: Set<kotlin.uuid.Uuid>,
 )
 
-private fun resolveServerVisibility(userId: UUID): ServerVisibility = transaction {
+internal fun resolveServerVisibility(userId: UUID): ServerVisibility = transaction {
     val kotlinUserId = userId.toKotlinUuid()
     val user = Users.selectAll()
         .where { Users.id eq kotlinUserId }

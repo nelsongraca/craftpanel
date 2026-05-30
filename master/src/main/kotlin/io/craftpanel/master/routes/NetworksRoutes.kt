@@ -32,7 +32,7 @@ fun Route.networksRoutes(networkService: NetworkService) {
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                call.respond(networkService.listNetworks())
+                call.respond(networkService.listNetworks(userId))
             }
 
             post("", {

@@ -352,7 +352,7 @@ class BackupsRoutesTest {
             contentType(ContentType.Application.Json)
             setBody("""{"backup_schedule":"0 2 * * *","backup_max_count":5}""")
         }
-        assertEquals(HttpStatusCode.NoContent, res.status)
+        assertEquals(HttpStatusCode.OK, res.status)
 
         val row = transaction {
             Servers.selectAll()
@@ -396,6 +396,6 @@ class BackupsRoutesTest {
             contentType(ContentType.Application.Json)
             setBody("""{"backup_schedule":null}""")
         }
-        assertEquals(HttpStatusCode.NoContent, res.status)
+        assertEquals(HttpStatusCode.OK, res.status)
     }
 }

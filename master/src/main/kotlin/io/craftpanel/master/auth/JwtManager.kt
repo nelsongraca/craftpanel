@@ -25,6 +25,7 @@ class JwtManager(private val config: JwtConfig) {
     val verifier: JWTVerifier = JWT.require(algorithm)
         .withIssuer(config.issuer)
         .withAudience(config.audience)
+        .withClaimPresence("sub")
         .build()
 
     fun generate(claims: TokenClaims): String {

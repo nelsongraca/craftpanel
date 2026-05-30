@@ -1,7 +1,6 @@
 package io.craftpanel.master.auth.routes
 
 import io.craftpanel.master.auth.ScopeType
-import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.*
 import io.craftpanel.master.config.RateLimitConfig
@@ -123,8 +122,10 @@ fun Route.authRoutes(
             }) {
                 val req = call.receive<LoginRequest>()
                 val record = lookupUser(req.email)
+                val hashToVerify = record?.passwordHash ?: Argon2Hasher.DUMMY_HASH
+                val passwordOk = Argon2Hasher.verify(req.password, hashToVerify)
 
-                if (record == null || !record.isActive || !Argon2Hasher.verify(req.password, record.passwordHash)) {
+                if (record == null || !record.isActive || !passwordOk) {
                     call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid credentials"))
                     return@post
                 }

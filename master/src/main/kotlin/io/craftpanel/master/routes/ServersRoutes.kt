@@ -14,6 +14,7 @@ import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import kotlin.time.Instant
 import kotlinx.serialization.json.JsonObject
 import java.util.*
 
@@ -247,6 +248,7 @@ fun Route.serversRoutes(serverService: ServerService) {
                 request { pathParameter<String>("id") }
                 response {
                     code(HttpStatusCode.OK) { body<ContainerMetricsSeriesResponse>() }
+                    code(HttpStatusCode.BadRequest) { body<ErrorResponse>() }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
@@ -259,9 +261,13 @@ fun Route.serversRoutes(serverService: ServerService) {
                     ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
                 if (!PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW, serverId = UUID.fromString(id.toString()), networkId = info.networkId))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                val limit = call.request.queryParameters["limit"]?.toIntOrNull()
-                    ?.coerceIn(1, 360) ?: 60
-                call.respond(serverService.getMetrics(id, limit))
+                val from = call.request.queryParameters["from"]?.let {
+                    runCatching { Instant.parse(it) }.getOrNull()
+                } ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("from required (ISO8601)"))
+                val to = call.request.queryParameters["to"]?.let {
+                    runCatching { Instant.parse(it) }.getOrNull()
+                } ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("to required (ISO8601)"))
+                call.respond(serverService.getMetrics(id, from, to))
             }
 
             patch("/{id}/exposure", {

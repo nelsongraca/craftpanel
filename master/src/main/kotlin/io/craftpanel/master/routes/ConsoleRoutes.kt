@@ -3,7 +3,6 @@
 package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.Permission
-import io.craftpanel.master.auth.JWT_AUTH
 import com.craftpanel.agent.v1.consoleInput
 import com.google.protobuf.ByteString
 import io.craftpanel.master.auth.PermissionResolver
@@ -21,7 +20,6 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
 import org.jetbrains.exposed.v1.core.eq
@@ -101,6 +99,9 @@ fun Route.consoleRoutes(wsTicketService: WsTicketService, proxy: DataServiceProx
     val log = LoggerFactory.getLogger("io.craftpanel.master.routes.ConsoleRoutes")
     val sessionManager = ConsoleSessionManager(proxy, CoroutineScope(SupervisorJob().plus(Dispatchers.IO)))
 
+    // operationId: consoleWebSocket
+    // Requires: ?ticket=<ws-ticket> (from POST /api/auth/ws-ticket)
+    // Bidirectional: client sends console input, server streams console output.
     webSocket("/api/ws/console/{id}") {
         // ── Auth ──────────────────────────────────────────────────────────
         val ticket = call.request.queryParameters["ticket"] ?: run {

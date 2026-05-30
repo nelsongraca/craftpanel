@@ -166,7 +166,7 @@ fun Route.backupsRoutes(backupService: BackupService) {
                 summary = "Update server backup schedule"
                 request { pathParameter<String>("id"); body<PutBackupScheduleRequest>() }
                 response {
-                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.OK) { body<BackupScheduleResponse>() }
                     code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
@@ -183,7 +183,7 @@ fun Route.backupsRoutes(backupService: BackupService) {
                     return@put call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val req = call.receive<PutBackupScheduleRequest>()
                 backupService.updateSchedule(id, req)
-                call.respond(HttpStatusCode.NoContent)
+                call.respond(HttpStatusCode.OK, backupService.getSchedule(id))
             }
         }
     }

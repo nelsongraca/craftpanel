@@ -2,7 +2,6 @@
 
 package io.craftpanel.master.routes
 
-import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.ScopeType
 import com.craftpanel.agent.v1.ServerStatusUpdate
@@ -19,7 +18,6 @@ import io.ktor.websocket.DefaultWebSocketSession
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
 import kotlinx.serialization.json.encodeToJsonElement
@@ -42,6 +40,9 @@ private fun DefaultWebSocketSession.sendWsRaw(envelope: WsEnvelope) {
 }
 
 fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: ControlServiceImpl) {
+    // operationId: dashboardWebSocket
+    // Requires: ?ticket=<ws-ticket> (from POST /api/auth/ws-ticket)
+    // Emits server/node status, metrics, alerts, and player updates as JSON envelopes.
     webSocket("/api/ws") {
         val ticket = call.request.queryParameters["ticket"] ?: run {
             close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Missing ticket"))
