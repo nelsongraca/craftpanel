@@ -4,10 +4,11 @@ Base path: `/api/auth`
 
 | Method | Path               | Permission    | Description                                |
 |--------|--------------------|---------------|--------------------------------------------|
-| POST   | `/auth/login`      | —             | Authenticate with username and password    |
+| POST   | `/auth/login`      | —             | Authenticate with email and password       |
 | POST   | `/auth/refresh`    | —             | Rotate refresh token, get new access token |
 | POST   | `/auth/logout`     | authenticated | Revoke current session                     |
 | POST   | `/auth/logout-all` | authenticated | Revoke all sessions for the current user   |
+| GET    | `/auth/me`         | authenticated | Return current user profile and groups     |
 | POST   | `/auth/ws-ticket`  | authenticated | Issue a one-time WebSocket upgrade ticket  |
 
 ---
@@ -53,7 +54,7 @@ permission changes take effect within 15 minutes (next token refresh) without re
 
 ```json
 {
-  "username": "admin",
+  "email": "admin@example.com",
   "password": "secret"
 }
 ```
@@ -89,6 +90,29 @@ No request body. Reads the refresh token from the cookie.
 Issues a new refresh token cookie and revokes the old one (rotation on every use).
 
 **Errors:** `401` if the cookie is missing, expired, or revoked.
+
+---
+
+## `GET /auth/me`
+
+Requires a valid `Authorization: Bearer <access_token>` header.
+
+**Response `200`:**
+
+```json
+{
+  "id": "<user-uuid>",
+  "username": "admin",
+  "email": "admin@example.com",
+  "groups": ["Super Admin"],
+  "permissions": ["*"]
+}
+```
+
+Returns the current user's profile, global group memberships, and effective permission nodes
+(union of all GLOBAL-scoped group permissions).
+
+**Errors:** `401` if the access token is missing or invalid.
 
 ---
 

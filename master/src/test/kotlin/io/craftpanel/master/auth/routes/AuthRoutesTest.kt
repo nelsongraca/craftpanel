@@ -30,6 +30,8 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.util.*
 import kotlin.test.*
+import io.ktor.server.plugins.ratelimit.*
+import kotlin.time.Duration
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
@@ -52,6 +54,10 @@ class AuthRoutesTest {
 
     private fun Application.configureTest() {
         install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+        install(RateLimit) {
+            register(RateLimitName("auth-login")) { rateLimiter(limit = 1000, refillPeriod = Duration.INFINITE) }
+            register(RateLimitName("auth-refresh")) { rateLimiter(limit = 1000, refillPeriod = Duration.INFINITE) }
+        }
         install(Authentication) {
             jwt("auth-jwt") {
                 realm = "CraftPanel"

@@ -25,6 +25,7 @@ import io.ktor.server.application.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.plugins.contentnegotiation.*
+import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.testing.*
@@ -50,6 +51,10 @@ class OpenApiSpecTask {
         application {
             install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
             install(WebSockets)
+            install(RateLimit) {
+                register(RateLimitName("auth-login")) { rateLimiter(limit = 100, refillPeriod = kotlin.time.Duration.INFINITE) }
+                register(RateLimitName("auth-refresh")) { rateLimiter(limit = 100, refillPeriod = kotlin.time.Duration.INFINITE) }
+            }
             install(OpenApi) {
                 info {
                     title = "CraftPanel API"
@@ -98,15 +103,17 @@ class OpenApiSpecTask {
                 configRoutes(ProxyBackendService(), EnvVarsService())
                 modsRoutes(modService)
                 alertsRoutes(AlertService())
-                migrationsRoutes(MigrationService(
-                    sendToNode = { _, _ -> false },
-                    rsyncReadyFlow = MutableSharedFlow(),
-                    rsyncProgressFlow = MutableSharedFlow(),
-                    rsyncCompleteFlow = MutableSharedFlow(),
-                    serverStatusFlow = MutableSharedFlow(),
-                    dnsProvider = null,
-                    scope = GlobalScope,
-                ))
+                migrationsRoutes(
+                    MigrationService(
+                        sendToNode = { _, _ -> false },
+                        rsyncReadyFlow = MutableSharedFlow(),
+                        rsyncProgressFlow = MutableSharedFlow(),
+                        rsyncCompleteFlow = MutableSharedFlow(),
+                        serverStatusFlow = MutableSharedFlow(),
+                        dnsProvider = null,
+                        scope = GlobalScope,
+                    )
+                )
             }
         }
 

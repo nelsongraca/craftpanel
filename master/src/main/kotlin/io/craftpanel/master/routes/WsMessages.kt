@@ -96,6 +96,7 @@ data class AlertPayload(
 
 @Serializable
 sealed class ConsoleEvent {
+
     @Serializable
     @SerialName("console.ready")
     data class Ready(val serverId: String) : ConsoleEvent()
@@ -111,6 +112,7 @@ sealed class ConsoleEvent {
 
 @Serializable
 sealed class ConsoleInEvent {
+
     @Serializable
     @SerialName("console.input")
     data class Input(val data: String = "") : ConsoleInEvent()

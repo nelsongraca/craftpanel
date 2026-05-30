@@ -4,6 +4,7 @@ import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.*
+import io.craftpanel.master.config.RateLimitConfig
 import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
@@ -15,6 +16,7 @@ import io.github.smiley4.ktoropenapi.post
 import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
+import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
@@ -101,80 +103,89 @@ private fun lookupUserById(userId: UUID): Triple<String, String, List<String>>? 
     Triple(user[Users.username], user[Users.email], groups)
 }
 
-fun Route.authRoutes(jwtManager: JwtManager, refreshTokenService: RefreshTokenService, wsTicketService: WsTicketService) {
+fun Route.authRoutes(
+    jwtManager: JwtManager,
+    refreshTokenService: RefreshTokenService,
+    wsTicketService: WsTicketService,
+    @Suppress("UNUSED_PARAMETER") rateLimitConfig: RateLimitConfig = RateLimitConfig(10, 30),
+) {
     route("/api/auth") {
-        post("/login", {
-            operationId = "authLogin"
-            summary = "Login"
-            securitySchemeNames = emptyList()
-            request { body<LoginRequest>() }
-            response {
-                code(HttpStatusCode.OK) { body<LoginResponse>() }
-                code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
-            }
-        }) {
-            val req = call.receive<LoginRequest>()
-            val record = lookupUser(req.email)
+        rateLimit(RateLimitName("auth-login")) {
+            post("/login", {
+                operationId = "authLogin"
+                summary = "Login"
+                securitySchemeNames = emptyList()
+                request { body<LoginRequest>() }
+                response {
+                    code(HttpStatusCode.OK) { body<LoginResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                val req = call.receive<LoginRequest>()
+                val record = lookupUser(req.email)
 
-            if (record == null || !record.isActive || !Argon2Hasher.verify(req.password, record.passwordHash)) {
-                call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid credentials"))
-                return@post
-            }
-
-            val accessToken = jwtManager.generate(
-                TokenClaims(userId = record.userId, name = record.username, email = record.email, groups = record.groupNames)
-            )
-            val refreshResult = refreshTokenService.issue(record.userId)
-
-            call.response.cookies.append(
-                name = "refresh_token",
-                value = refreshResult.rawToken,
-                httpOnly = true,
-                secure = true,
-                extensions = mapOf("SameSite" to "Strict"),
-                path = "/api/auth",
-            )
-            call.respond(LoginResponse(accessToken, jwtManager.expirySeconds))
-        }
-
-        post("/refresh", {
-            operationId = "authRefresh"
-            summary = "Refresh access token"
-            securitySchemeNames = emptyList()
-            response {
-                code(HttpStatusCode.OK) { body<LoginResponse>() }
-                code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
-            }
-        }) {
-            val rawToken = call.request.cookies["refresh_token"]
-                ?: run {
-                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("No refresh token"))
+                if (record == null || !record.isActive || !Argon2Hasher.verify(req.password, record.passwordHash)) {
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid credentials"))
                     return@post
                 }
 
-            val (userId, newToken) = refreshTokenService.rotate(rawToken)
-                ?: run {
-                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid or expired refresh token"))
-                    return@post
+                val accessToken = jwtManager.generate(
+                    TokenClaims(userId = record.userId, name = record.username, email = record.email, groups = record.groupNames)
+                )
+                val refreshResult = refreshTokenService.issue(record.userId)
+
+                call.response.cookies.append(
+                    name = "refresh_token",
+                    value = refreshResult.rawToken,
+                    httpOnly = true,
+                    secure = true,
+                    extensions = mapOf("SameSite" to "Strict"),
+                    path = "/api/auth",
+                )
+                call.respond(LoginResponse(accessToken, jwtManager.expirySeconds))
+            }
+        } // rateLimit auth-login
+
+        rateLimit(RateLimitName("auth-refresh")) {
+            post("/refresh", {
+                operationId = "authRefresh"
+                summary = "Refresh access token"
+                securitySchemeNames = emptyList()
+                response {
+                    code(HttpStatusCode.OK) { body<LoginResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
+            }) {
+                val rawToken = call.request.cookies["refresh_token"]
+                    ?: run {
+                        call.respond(HttpStatusCode.Unauthorized, ErrorResponse("No refresh token"))
+                        return@post
+                    }
 
-            val (name, email, groupNames) = lookupUserById(userId)
-                ?: run { call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found or inactive")); return@post }
+                val (userId, newToken) = refreshTokenService.rotate(rawToken)
+                    ?: run {
+                        call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid or expired refresh token"))
+                        return@post
+                    }
 
-            val accessToken = jwtManager.generate(
-                TokenClaims(userId = userId, name = name, email = email, groups = groupNames)
-            )
+                val (name, email, groupNames) = lookupUserById(userId)
+                    ?: run { call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found or inactive")); return@post }
 
-            call.response.cookies.append(
-                name = "refresh_token",
-                value = newToken.rawToken,
-                httpOnly = true,
-                secure = true,
-                extensions = mapOf("SameSite" to "Strict"),
-                path = "/api/auth",
-            )
-            call.respond(LoginResponse(accessToken, jwtManager.expirySeconds))
-        }
+                val accessToken = jwtManager.generate(
+                    TokenClaims(userId = userId, name = name, email = email, groups = groupNames)
+                )
+
+                call.response.cookies.append(
+                    name = "refresh_token",
+                    value = newToken.rawToken,
+                    httpOnly = true,
+                    secure = true,
+                    extensions = mapOf("SameSite" to "Strict"),
+                    path = "/api/auth",
+                )
+                call.respond(LoginResponse(accessToken, jwtManager.expirySeconds))
+            }
+        } // rateLimit auth-refresh
 
         authenticate(JWT_AUTH) {
             post("/logout", {

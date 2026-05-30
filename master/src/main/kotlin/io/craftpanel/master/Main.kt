@@ -30,16 +30,30 @@ import io.ktor.server.auth.jwt.*
 import io.ktor.server.netty.*
 import io.ktor.server.plugins.calllogging.*
 import io.ktor.server.plugins.contentnegotiation.*
+import io.ktor.server.plugins.cors.routing.*
+import io.ktor.server.plugins.defaultheaders.*
+import io.ktor.server.plugins.hsts.*
+import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.plugins.statuspages.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import kotlinx.serialization.json.Json
+import kotlin.time.Duration.Companion.minutes
+
+private object SecurityHeaderNames {
+
+    const val X_CONTENT_TYPE_OPTIONS = "X-Content-Type-Options"
+    const val X_FRAME_OPTIONS = "X-Frame-Options"
+    const val REFERRER_POLICY = "Referrer-Policy"
+    const val CONTENT_SECURITY_POLICY = "Content-Security-Policy"
+}
 
 fun main(args: Array<String>): Unit = EngineMain.main(args)
 
 fun Application.module() {
     val appConfig = AppConfig(environment.config)
+    appConfig.validate()
 
     DatabaseFactory.init(appConfig.database)
 
@@ -50,7 +64,7 @@ fun Application.module() {
     val jwtManager = JwtManager(appConfig.jwt)
     val refreshTokenService = RefreshTokenService()
     val wsTicketService = WsTicketService()
-    val dataServiceProxy = DataServiceProxy(appConfig.node)
+    val dataServiceProxy = DataServiceProxy(appConfig.node, appConfig.profile)
     monitor.subscribe(ApplicationStopped) { dataServiceProxy.closeAll() }
 
     val dnsProvider = DnsProviderFactory.create(appConfig.dns)
@@ -93,6 +107,48 @@ fun Application.module() {
 
     install(CallLogging)
 
+    install(CORS) {
+        allowCredentials = true
+        allowHeader(HttpHeaders.Authorization)
+        allowHeader(HttpHeaders.ContentType)
+        allowMethod(HttpMethod.Put)
+        allowMethod(HttpMethod.Patch)
+        allowMethod(HttpMethod.Delete)
+        if (appConfig.cors.allowedHosts.isEmpty()) {
+            if (appConfig.profile == "dev") {
+                this@module.log.warn("CORS: no allowedHosts configured — allowing all origins (dev mode)")
+                anyHost()
+            }
+        }
+        else {
+            for (host in appConfig.cors.allowedHosts) {
+                allowHost(host, schemes = appConfig.cors.allowedSchemes)
+            }
+        }
+    }
+
+    install(DefaultHeaders) {
+        header(SecurityHeaderNames.X_CONTENT_TYPE_OPTIONS, "nosniff")
+        header(SecurityHeaderNames.X_FRAME_OPTIONS, "DENY")
+        header(SecurityHeaderNames.REFERRER_POLICY, "no-referrer")
+        header(
+            SecurityHeaderNames.CONTENT_SECURITY_POLICY,
+            "default-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+        )
+        if (appConfig.profile != "dev") {
+            header(HttpHeaders.StrictTransportSecurity, "max-age=63072000; includeSubDomains")
+        }
+    }
+
+    install(RateLimit) {
+        register(RateLimitName("auth-login")) {
+            rateLimiter(limit = appConfig.rateLimit.loginPerMinute, refillPeriod = 1.minutes)
+        }
+        register(RateLimitName("auth-refresh")) {
+            rateLimiter(limit = appConfig.rateLimit.refreshPerMinute, refillPeriod = 1.minutes)
+        }
+    }
+
     install(StatusPages) {
         exception<NotFoundException> { call, ex ->
             call.respond(HttpStatusCode.NotFound, ErrorResponse(ex.message ?: "Not found"))
@@ -111,6 +167,9 @@ fun Application.module() {
         }
         exception<BadRequestException> { call, ex ->
             call.respond(HttpStatusCode.BadRequest, ErrorResponse(ex.message ?: "Bad request"))
+        }
+        exception<PortExhaustedException> { call, ex ->
+            call.respond(HttpStatusCode.Conflict, ErrorResponse(ex.message ?: "No free ports available"))
         }
     }
 
@@ -150,7 +209,7 @@ fun Application.module() {
         get("health") { call.respond(mapOf("status" to "ok")) }
         route("openapi.json") { openApi() }
         route("swagger") { swaggerUI("/openapi.json") }
-        authRoutes(jwtManager, refreshTokenService, wsTicketService)
+        authRoutes(jwtManager, refreshTokenService, wsTicketService, appConfig.rateLimit)
         nodesRoutes(nodeService)
         networksRoutes(networkService)
         serversRoutes(serverService)

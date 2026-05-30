@@ -86,7 +86,8 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                     .map { row ->
                         NodeSnapshot(row[Nodes.id].toString(), row[Nodes.displayName], row[Nodes.status])
                     }
-            } else emptyList()
+            }
+            else emptyList()
 
             WsEnvelope(WsEventType.SNAPSHOT.event, wsJson.encodeToJsonElement(SnapshotPayload(servers, nodes)))
         }
@@ -108,8 +109,10 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                         metrics.diskUsedBytes,
                         metrics.diskTotalBytes,
                         if (metrics.hasRecordedAt())
-                            Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong()).toString()
-                        else Clock.System.now().toString(),
+                            Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong())
+                                .toString()
+                        else Clock.System.now()
+                            .toString(),
                     )
                 )
             }
@@ -118,7 +121,15 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
         val nodeStatusJob = launch {
             controlService.nodeStatusFlow.collect { (nodeId, status) ->
                 if (!hasNodes()) return@collect
-                sendWs(WsEventType.NODE_STATUS, NodeStatusPayload(nodeId, status, Clock.System.now().toString()))
+                sendWs(
+                    WsEventType.NODE_STATUS,
+                    NodeStatusPayload(
+                        nodeId,
+                        status,
+                        Clock.System.now()
+                            .toString()
+                    )
+                )
             }
         }
 
@@ -135,8 +146,10 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                         metrics.netInBytes,
                         metrics.netOutBytes,
                         if (metrics.hasRecordedAt())
-                            Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong()).toString()
-                        else Clock.System.now().toString(),
+                            Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong())
+                                .toString()
+                        else Clock.System.now()
+                            .toString(),
                     )
                 )
             }
@@ -148,13 +161,22 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                 val netId = serverNetworkId(serverId)
                 if (!canViewServer(sid, netId)) return@collect
                 val statusStr = when (update.status) {
-                    ServerStatusUpdate.ServerStatus.HEALTHY   -> "HEALTHY"
+                    ServerStatusUpdate.ServerStatus.HEALTHY -> "HEALTHY"
                     ServerStatusUpdate.ServerStatus.UNHEALTHY -> "UNHEALTHY"
-                    ServerStatusUpdate.ServerStatus.STARTING  -> "STARTING"
-                    ServerStatusUpdate.ServerStatus.STOPPED   -> "STOPPED"
-                    else                                      -> return@collect
+                    ServerStatusUpdate.ServerStatus.STARTING -> "STARTING"
+                    ServerStatusUpdate.ServerStatus.STOPPED -> "STOPPED"
+                    else -> return@collect
                 }
-                sendWs(WsEventType.SERVER_STATUS, ServerStatusPayload(serverId, statusStr, update.containerId, Clock.System.now().toString()))
+                sendWs(
+                    WsEventType.SERVER_STATUS,
+                    ServerStatusPayload(
+                        serverId,
+                        statusStr,
+                        update.containerId,
+                        Clock.System.now()
+                            .toString()
+                    )
+                )
             }
         }
 
@@ -169,8 +191,10 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                         update.playerCount,
                         update.playerNamesList,
                         if (update.hasRecordedAt())
-                            Instant.fromEpochSeconds(update.recordedAt.seconds, update.recordedAt.nanos.toLong()).toString()
-                        else Clock.System.now().toString(),
+                            Instant.fromEpochSeconds(update.recordedAt.seconds, update.recordedAt.nanos.toLong())
+                                .toString()
+                        else Clock.System.now()
+                            .toString(),
                     )
                 )
             }
@@ -181,7 +205,16 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                 val sid = runCatching { UUID.fromString(update.serverId) }.getOrNull() ?: return@collect
                 val netId = serverNetworkId(update.serverId)
                 if (!canViewServer(sid, netId)) return@collect
-                sendWs(WsEventType.SERVER_BACKUP_PROGRESS, BackupProgressPayload(update.serverId, update.backupId, update.percentComplete, Clock.System.now().toString()))
+                sendWs(
+                    WsEventType.SERVER_BACKUP_PROGRESS,
+                    BackupProgressPayload(
+                        update.serverId,
+                        update.backupId,
+                        update.percentComplete,
+                        Clock.System.now()
+                            .toString()
+                    )
+                )
             }
         }
 
@@ -199,8 +232,10 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                         update.sizeBytes,
                         if (!update.success) update.errorMessage else null,
                         if (update.hasCompletedAt())
-                            Instant.fromEpochSeconds(update.completedAt.seconds, update.completedAt.nanos.toLong()).toString()
-                        else Clock.System.now().toString(),
+                            Instant.fromEpochSeconds(update.completedAt.seconds, update.completedAt.nanos.toLong())
+                                .toString()
+                        else Clock.System.now()
+                            .toString(),
                     )
                 )
             }
@@ -242,7 +277,8 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
 
         try {
             incoming.consumeEach { }
-        } finally {
+        }
+        finally {
             nodeMetricsJob.cancel()
             nodeStatusJob.cancel()
             serverMetricsJob.cancel()

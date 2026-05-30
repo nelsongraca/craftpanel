@@ -7,6 +7,7 @@ import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.util.toKotlinUuid
 import io.grpc.ManagedChannel
+import io.grpc.netty.GrpcSslContexts
 import io.grpc.netty.NettyChannelBuilder
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emitAll
@@ -15,10 +16,11 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
+import java.io.File
 import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 
-class DataServiceProxy(private val nodeConfig: NodeConfig) {
+class DataServiceProxy(private val nodeConfig: NodeConfig, private val profile: String = "prod") {
 
     private val log = LoggerFactory.getLogger(DataServiceProxy::class.java)
     private val channels = ConcurrentHashMap<String, ManagedChannel>()
@@ -26,9 +28,21 @@ class DataServiceProxy(private val nodeConfig: NodeConfig) {
     private fun channelFor(nodeId: String, privateIp: String): ManagedChannel =
         channels.getOrPut(nodeId) {
             log.debug("Opening DataService channel to $privateIp:${nodeConfig.agentDataPort}")
-            NettyChannelBuilder.forAddress(privateIp, nodeConfig.agentDataPort)
-                .usePlaintext()
-                .build()
+            val builder = NettyChannelBuilder.forAddress(privateIp, nodeConfig.agentDataPort)
+            if (nodeConfig.agentTlsEnabled) {
+                val sslContext = GrpcSslContexts.forClient()
+                    .trustManager(File(nodeConfig.agentTlsTrustCertPath))
+                    .build()
+                builder.useTransportSecurity()
+                    .sslContext(sslContext)
+            }
+            else {
+                check(profile == "dev") {
+                    "Agent TLS trust cert is required outside dev profile — set NODE_AGENT_TLS_TRUST_CERT"
+                }
+                builder.usePlaintext()
+            }
+            builder.build()
         }
 
     fun closeAll() {

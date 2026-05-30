@@ -7,6 +7,7 @@ import io.craftpanel.master.util.toKotlinUuid
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
@@ -48,22 +49,29 @@ class AlertService {
 
     fun listThresholds(scopeType: String?, scopeId: kotlin.uuid.Uuid?): List<AlertThresholdResponse> =
         transaction {
-            AlertThresholds.selectAll()
-                .apply {
-                    if (scopeType != null) where { AlertThresholds.scopeType eq scopeType }
-                    if (scopeId != null) where { AlertThresholds.scopeId eq scopeId }
-                }
-                .map { row ->
-                    AlertThresholdResponse(
-                        id = row[AlertThresholds.id].toString(),
-                        scopeType = row[AlertThresholds.scopeType],
-                        scopeId = row[AlertThresholds.scopeId].toString(),
-                        metric = row[AlertThresholds.metric],
-                        thresholdValue = row[AlertThresholds.thresholdValue],
-                        thresholdState = row[AlertThresholds.thresholdState],
-                        createdAt = row[AlertThresholds.createdAt].toString(),
-                    )
-                }
+            val query = AlertThresholds.selectAll()
+            when {
+                scopeType != null && scopeId != null ->
+                    query.where { (AlertThresholds.scopeType eq scopeType) and (AlertThresholds.scopeId eq scopeId) }
+
+                scopeType != null                    ->
+                    query.where { AlertThresholds.scopeType eq scopeType }
+
+                scopeId != null                      ->
+                    query.where { AlertThresholds.scopeId eq scopeId }
+
+                else                                 -> query
+            }.map { row ->
+                AlertThresholdResponse(
+                    id = row[AlertThresholds.id].toString(),
+                    scopeType = row[AlertThresholds.scopeType],
+                    scopeId = row[AlertThresholds.scopeId].toString(),
+                    metric = row[AlertThresholds.metric],
+                    thresholdValue = row[AlertThresholds.thresholdValue],
+                    thresholdState = row[AlertThresholds.thresholdState],
+                    createdAt = row[AlertThresholds.createdAt].toString(),
+                )
+            }
         }
 
     fun createThreshold(req: CreateAlertThresholdRequest): AlertThresholdResponse {
@@ -111,14 +119,25 @@ class AlertService {
 
     fun listEvents(scopeType: String?, scopeId: kotlin.uuid.Uuid?, activeOnly: Boolean): List<AlertEventResponse> =
         transaction {
-            (AlertEvents innerJoin AlertThresholds)
-                .selectAll()
-                .apply {
-                    if (scopeType != null) where { AlertThresholds.scopeType eq scopeType }
-                    if (scopeId != null) where { AlertThresholds.scopeId eq scopeId }
-                    if (activeOnly) where { AlertEvents.resolvedAt.isNull() }
-                }
-                .orderBy(AlertEvents.firedAt, SortOrder.DESC)
+            val query = (AlertEvents innerJoin AlertThresholds).selectAll()
+            when {
+                scopeType != null && scopeId != null && activeOnly ->
+                    query.where { (AlertThresholds.scopeType eq scopeType) and (AlertThresholds.scopeId eq scopeId) and AlertEvents.resolvedAt.isNull() }
+
+                scopeType != null && scopeId != null               ->
+                    query.where { (AlertThresholds.scopeType eq scopeType) and (AlertThresholds.scopeId eq scopeId) }
+
+                scopeType != null && activeOnly                    ->
+                    query.where { (AlertThresholds.scopeType eq scopeType) and AlertEvents.resolvedAt.isNull() }
+
+                scopeId != null && activeOnly                      ->
+                    query.where { (AlertThresholds.scopeId eq scopeId) and AlertEvents.resolvedAt.isNull() }
+
+                scopeType != null                                  -> query.where { AlertThresholds.scopeType eq scopeType }
+                scopeId != null                                    -> query.where { AlertThresholds.scopeId eq scopeId }
+                activeOnly                                         -> query.where { AlertEvents.resolvedAt.isNull() }
+                else                                               -> query
+            }.orderBy(AlertEvents.firedAt, SortOrder.DESC)
                 .map { row ->
                     AlertEventResponse(
                         id = row[AlertEvents.id].toString(),

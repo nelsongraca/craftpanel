@@ -3,6 +3,7 @@ package io.craftpanel.master.service
 import com.craftpanel.agent.v1.*
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.dns.DnsProvider
+import io.craftpanel.master.util.assertSafeDataPath
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
@@ -243,27 +244,42 @@ class MigrationService(
         }
 
         // ── Collect source/target node data ──────────────────────────────────
+        val sourceNodeIdStr = sourceNodeId.toString()
+        val targetNodeIdStr = targetNodeId.toString()
+
         val serverRow = transaction {
             Servers.selectAll()
                 .where { Servers.id eq serverId }
-                .single()
+                .firstOrNull()
         }
+            ?: run { failMigration("Server $serverIdStr no longer exists"); return }
         val sourceNodeRow = transaction {
             Nodes.selectAll()
                 .where { Nodes.id eq sourceNodeId }
-                .single()
+                .firstOrNull()
         }
+            ?: run { failMigration("Source node $sourceNodeIdStr no longer exists"); return }
         val targetNodeRow = transaction {
             Nodes.selectAll()
                 .where { Nodes.id eq targetNodeId }
-                .single()
+                .firstOrNull()
+        }
+            ?: run { failMigration("Target node $targetNodeIdStr no longer exists"); return }
+
+        val rawSourceDataPath = sourceNodeRow[Nodes.dataPath]
+        val rawTargetDataPath = targetNodeRow[Nodes.dataPath]
+        try {
+            assertSafeDataPath(rawSourceDataPath)
+            assertSafeDataPath(rawTargetDataPath)
+        }
+        catch (e: UnprocessableException) {
+            failMigration("Invalid node dataPath: ${e.message}")
+            return
         }
 
-        val sourceNodeIdStr = sourceNodeId.toString()
-        val targetNodeIdStr = targetNodeId.toString()
         val targetPrivateIp = targetNodeRow[Nodes.privateIp]
-        val sourceDataPath = "${sourceNodeRow[Nodes.dataPath]}/servers/$serverId"
-        val targetDataPath = "${targetNodeRow[Nodes.dataPath]}/servers/$serverId"
+        val sourceDataPath = "$rawSourceDataPath/servers/$serverId"
+        val targetDataPath = "$rawTargetDataPath/servers/$serverId"
 
         // ── Step 1: Allocate rsync port ──────────────────────────────────────
         val rsyncPort: Int
@@ -590,11 +606,11 @@ class MigrationService(
             .toSet()
         val node = Nodes.selectAll()
             .where { Nodes.id eq targetNodeId }
-            .single()
+            .firstOrNull() ?: throw NotFoundException("Target node $targetNodeId not found")
         val start = node[Nodes.portRangeStart]
         val end = node[Nodes.portRangeEnd]
         val port = (start..end).firstOrNull { it !in usedPorts }
-            ?: error("No free ports available in range $start-$end on target node")
+            ?: throw PortExhaustedException("No free ports in range $start-$end on node $targetNodeId")
         PortRegistry.insert {
             it[PortRegistry.nodeId] = targetNodeId
             it[PortRegistry.port] = port
@@ -629,24 +645,27 @@ class MigrationService(
         image: String,
         allVars: Map<String, String>,
         publicHostname: String?,
-    ): MasterMessage = masterMessage {
-        createContainer = createContainerCommand {
-            this.serverId = serverId.toString()
-            containerName = "craftpanel-$serverId"
-            this.image = image
-            ramMb = serverRow[Servers.memoryMb]
-            cpuShares = serverRow[Servers.cpuShares]
-            hostPort = serverRow[Servers.hostPort]
-            envVars.putAll(allVars)
-            mounts.add(volumeMount {
-                hostPath = "${targetNodeRow[Nodes.dataPath]}/servers/$serverId"
-                containerPath = "/data"
-                readOnly = false
-            })
-            dockerNetwork = serverRow[Servers.networkId]?.let { "craftpanel-net-$it" } ?: ""
-            restartPolicy = "unless-stopped"
-            stopCommand = serverRow[Servers.stopCommand]
-            mcRouterHostname = publicHostname ?: ""
+    ): MasterMessage {
+        assertSafeDataPath(targetNodeRow[Nodes.dataPath])
+        return masterMessage {
+            createContainer = createContainerCommand {
+                this.serverId = serverId.toString()
+                containerName = "craftpanel-$serverId"
+                this.image = image
+                ramMb = serverRow[Servers.memoryMb]
+                cpuShares = serverRow[Servers.cpuShares]
+                hostPort = serverRow[Servers.hostPort]
+                envVars.putAll(allVars)
+                mounts.add(volumeMount {
+                    hostPath = "${targetNodeRow[Nodes.dataPath]}/servers/$serverId"
+                    containerPath = "/data"
+                    readOnly = false
+                })
+                dockerNetwork = serverRow[Servers.networkId]?.let { "craftpanel-net-$it" } ?: ""
+                restartPolicy = "unless-stopped"
+                stopCommand = serverRow[Servers.stopCommand]
+                mcRouterHostname = publicHostname ?: ""
+            }
         }
     }
 

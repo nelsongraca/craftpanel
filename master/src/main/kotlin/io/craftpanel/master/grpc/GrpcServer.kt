@@ -23,7 +23,10 @@ class GrpcServer(private val config: AppConfig, private val controlService: Cont
             log.info("gRPC TLS enabled (cert: ${config.grpc.tlsCertPath})")
         }
         else {
-            log.warn("gRPC TLS disabled — plaintext only, not suitable for production")
+            check(config.profile == "dev") {
+                "gRPC TLS is required outside dev profile — set GRPC_TLS_CERT and GRPC_TLS_KEY"
+            }
+            log.error("gRPC plaintext mode — DEV ONLY, not suitable for production")
         }
 
         server = builder.build()

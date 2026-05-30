@@ -6,6 +6,7 @@ import com.craftpanel.agent.v1.shutdownCommand
 import io.craftpanel.master.database.schema.NodeMetrics
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.util.assertSafeDataPath
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -112,6 +113,7 @@ class NodeService(private val sendToNode: (String, MasterMessage) -> Boolean) {
     }
 
     fun updateNode(id: kotlin.uuid.Uuid, req: PatchNodeRequest) {
+        if (req.dataPath != null) assertSafeDataPath(req.dataPath)
         val result = transaction {
             val current = Nodes.selectAll()
                 .where { Nodes.id eq id }
