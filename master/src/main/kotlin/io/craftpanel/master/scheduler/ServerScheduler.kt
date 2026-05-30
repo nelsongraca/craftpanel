@@ -130,6 +130,7 @@ class ServerScheduler(
 
     private fun fires(expression: String, at: ZonedDateTime): Boolean = runCatching {
         val cron = cronParser.parse(expression)
-        ExecutionTime.forCron(cron).isMatch(at)
+        ExecutionTime.forCron(cron)
+            .isMatch(at)
     }.getOrElse { false }
 }

@@ -261,12 +261,14 @@ class AlertsRoutesTest {
 
         // Threshold and its events should be gone
         transaction {
-            assertEquals(0,
+            assertEquals(
+                0,
                 AlertThresholds.selectAll()
                     .where { AlertThresholds.id eq thresholdId }
                     .count()
             )
-            assertEquals(0,
+            assertEquals(
+                0,
                 AlertEvents.selectAll()
                     .where { AlertEvents.thresholdId eq thresholdId }
                     .count()

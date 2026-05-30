@@ -90,6 +90,7 @@ class ControlServiceImpl(
 
         val rawKey = generateNodeKey()
         val keyHash = sha256Hex(rawKey)
+        val rawDataToken = generateNodeKey()
         val meta = request.metadata
         val now = Clock.System.now()
             .toLocalDateTime(TimeZone.UTC)
@@ -101,6 +102,7 @@ class ControlServiceImpl(
                 it[publicIp] = meta.publicIp
                 it[privateIp] = meta.privateIp
                 it[tokenHash] = keyHash
+                it[dataToken] = rawDataToken
                 it[status] = "PENDING"
                 it[totalRamMb] = meta.totalRamMb
                 it[totalCpuShares] = meta.totalCpuShares
@@ -113,6 +115,7 @@ class ControlServiceImpl(
         return registerNodeResponse {
             nodeKey = rawKey
             nodeId = generatedId.toString()
+            dataToken = rawDataToken
         }
     }
 
@@ -121,20 +124,26 @@ class ControlServiceImpl(
         val now = Clock.System.now()
             .toLocalDateTime(TimeZone.UTC)
 
-        val row = transaction {
+        val (row, issuedDataToken) = transaction {
             val r = Nodes.selectAll()
                 .where { Nodes.tokenHash eq keyHash }
                 .firstOrNull()
 
             if (r != null) {
+                val existingDataToken = r[Nodes.dataToken]
+                val newDataToken = if (existingDataToken == null) generateNodeKey() else null
                 Nodes.update({ Nodes.tokenHash eq keyHash }) {
                     it[lastSeenAt] = now
                     it[publicIp] = request.metadata.publicIp
                     it[privateIp] = request.metadata.privateIp
                     it[agentVersion] = request.metadata.agentVersion.takeIf { it.isNotEmpty() }
+                    if (newDataToken != null) it[dataToken] = newDataToken
                 }
+                r to newDataToken
             }
-            r
+            else {
+                r to null
+            }
         }
 
         val identifyStatus = when (row?.get(Nodes.status)) {
@@ -149,6 +158,7 @@ class ControlServiceImpl(
         return identifyNodeResponse {
             status = identifyStatus
             nodeId = rowId
+            if (issuedDataToken != null) dataToken = issuedDataToken
         }
     }
 

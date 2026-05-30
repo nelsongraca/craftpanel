@@ -39,9 +39,9 @@ open class ContainerManager(private val docker: DockerClient) {
                         ?.trimStart('/') ?: container.id
                     serverId = container.labels["craftpanel.server.id"] ?: ""
                     runState = when {
-                        container.state == "running" -> ContainerState.RunState.RUNNING
+                        container.state == "running"                                    -> ContainerState.RunState.RUNNING
                         container.state == "exited" && container.status.contains("(0)") -> ContainerState.RunState.STOPPED
-                        else -> ContainerState.RunState.EXITED
+                        else                                                            -> ContainerState.RunState.EXITED
                     }
                 }
             }
@@ -175,7 +175,7 @@ read only = no
 auth users = craftpanel
 secrets file = /etc/rsyncd/secrets
 CONF
-            echo "craftpanel:${password}" > /etc/rsyncd/secrets
+            echo "craftpanel:${password}" > /etc/rsyncd/secrets  # password is alphanumeric-only — safe for unquoted rsyncd secrets file
             chmod 600 /etc/rsyncd/secrets
             rsync --daemon --no-detach --port $port --config /etc/rsyncd.conf
         """.trimIndent()

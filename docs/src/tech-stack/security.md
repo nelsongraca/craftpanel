@@ -2,13 +2,14 @@
 
 ## Communication Boundaries
 
-| Channel               | Protocol                                  | Authentication                          |
-|-----------------------|-------------------------------------------|-----------------------------------------|
-| Browser → Master      | HTTPS + WSS (TLS)                         | JWT bearer token                        |
-| Master ↔ Agent        | gRPC over TLS                             | Node key (256-bit, stored hashed in DB) |
-| Agent → Docker        | Unix socket (local only)                  | Not exposed over network                |
-| Players → mc-router   | Plain Minecraft protocol TCP (port 25565) | n/a                                     |
-| mc-router → Container | Docker bridge or host port                | n/a                                     |
+| Channel                    | Protocol                                  | Authentication                                          |
+|----------------------------|-------------------------------------------|---------------------------------------------------------|
+| Browser → Master           | HTTPS + WSS (TLS)                         | JWT bearer token                                        |
+| Master → Agent (Control)   | gRPC over TLS                             | Node key (256-bit, stored hashed in DB)                 |
+| Master → Agent (DataService) | gRPC over TLS                           | Per-node data token (master holds raw; agent holds hash) |
+| Agent → Docker             | Unix socket (local only)                  | Not exposed over network                                |
+| Players → mc-router        | Plain Minecraft protocol TCP (port 25565) | n/a                                                     |
+| mc-router → Container      | Docker bridge or host port                | n/a                                                     |
 
 ---
 
@@ -21,6 +22,17 @@ Refresh tokens are long-lived, stored as SHA-256 hashes in the database, and rot
 bodies.
 
 See [Auth API](../api/auth.md) for the full JWT structure and endpoint reference.
+
+---
+
+## DataService Data Token
+
+Each node has a per-node **data token** used to authenticate master's calls to the agent's DataService gRPC server (console streaming and file operations).
+
+- Master generates the raw token at node registration and stores it in `nodes.data_token` (raw — master is the trust root, so this is acceptable).
+- The agent receives the raw token, computes its SHA-256 hash, and persists only the hash to disk (`NODE_DATA_TOKEN_FILE`, default `/etc/craftpanel/node.data-token`).
+- For every DataService call, master presents the raw token in the `x-craftpanel-data-token` gRPC metadata header; the agent verifies via a constant-time hash comparison.
+- Blast radius of a compromised raw token: one node only. A leaked on-disk hash cannot be used to authenticate.
 
 ---
 

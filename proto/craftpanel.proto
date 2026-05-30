@@ -66,6 +66,9 @@ message RegisterNodeResponse {
   string node_key = 1;
   // UUID assigned to this node record by master.
   string node_id = 2;
+  // Per-node DataService token. Master stores the raw value; the agent persists
+  // only its SHA-256 hash and verifies inbound DataService calls against it.
+  string data_token = 3;
 }
 
 message IdentifyNodeRequest {
@@ -78,6 +81,9 @@ message IdentifyNodeRequest {
 message IdentifyNodeResponse {
   IdentifyStatus status = 1;
   string node_id = 2;
+  // Per-node DataService token. Non-empty only when (re)issued (e.g. a node that
+  // predates the token); empty means the agent should keep its current token.
+  string data_token = 3;
 
   enum IdentifyStatus {
     IDENTIFY_STATUS_UNSPECIFIED = 0;

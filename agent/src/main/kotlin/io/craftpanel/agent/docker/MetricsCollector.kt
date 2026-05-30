@@ -125,7 +125,8 @@ open class MetricsCollector(private val docker: DockerClient) {
                     }
                 })
             if (!latch.await(5, TimeUnit.SECONDS)) return null
-            parsePlayerList(serverId,
+            parsePlayerList(
+                serverId,
                 output.toString()
                     .trim()
             )
@@ -254,8 +255,7 @@ open class MetricsCollector(private val docker: DockerClient) {
 
     private fun readDiskMetrics(): Pair<Long, Long> {
         return runCatching {
-            val fs = File("/").toPath().fileSystem.getFileStores()
-                .first()
+            val fs = java.nio.file.Files.getFileStore(File("/").toPath())
             Pair(fs.totalSpace - fs.usableSpace, fs.totalSpace)
         }.getOrElse { Pair(0L, 0L) }
     }

@@ -1,6 +1,6 @@
 # gRPC Schema
 
-All communication between master and agent uses gRPC over mTLS. The REST API is exclusively for browser↔master — no REST endpoints are exposed to agents.
+All communication between master and agent uses gRPC over TLS. The REST API is exclusively for browser↔master — no REST endpoints are exposed to agents.
 
 The full proto definition is at [`craftpanel.proto`](craftpanel.proto).
 
@@ -80,6 +80,16 @@ and restart master if compromised.
 
 Admin calls `POST /nodes/{id}/token/rotate`. Master immediately invalidates the key. On next connect the agent receives `REJECTED` and halts. Re-provision by handing the agent a fresh registration (
 clear the local key file and restart — agent falls back to `RegisterNode` with the bootstrap token).
+
+### DataService data token
+
+Each node has a separate **per-node data token** used to authenticate master's calls to the agent's DataService gRPC server (console, file operations).
+
+- Master generates the raw token at `RegisterNode` and persists it in the `nodes.data_token` column (raw).
+- The agent receives the raw token in the `RegisterNodeResponse`, computes its SHA-256 hash, and persists **only the hash** to disk (default: `/etc/craftpanel/node.data-token`).
+- On subsequent connects (`IdentifyNode`), if a node predates this mechanism, master generates and persists the token lazily on the first reconnect.
+- For every DataService call, master presents the raw token in the `x-craftpanel-data-token` gRPC metadata header; the agent hashes the presented value and verifies it against the stored hash using a constant-time comparison.
+- A leaked hash (from the agent's disk) cannot be used to authenticate — only the raw token (held only by master) is presentable. Blast radius of a leaked raw token is limited to the one node.
 
 ---
 

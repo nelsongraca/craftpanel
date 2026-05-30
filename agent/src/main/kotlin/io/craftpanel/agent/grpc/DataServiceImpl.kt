@@ -36,7 +36,7 @@ class DataServiceImpl(
 
     private val log = LoggerFactory.getLogger(DataServiceImpl::class.java)
 
-    // ── Console ──────────────────────────────────────────────────────────────
+    // Console
 
     override fun console(requests: Flow<ConsoleInput>): Flow<ConsoleOutput> = callbackFlow {
         val inputPipe = PipedOutputStream()
@@ -105,7 +105,7 @@ class DataServiceImpl(
         }
     }
 
-    // ── File operations ───────────────────────────────────────────────────────
+    // File operations
 
     override suspend fun listFiles(request: ListFilesRequest): ListFilesResponse = withContext(Dispatchers.IO) {
         val root = serverDataRoot(request.serverId)
@@ -214,7 +214,7 @@ class DataServiceImpl(
         copyFileResponse { success = true }
     }
 
-    // ── Streaming file transfer ──────────────────────────────────────────────
+    // Streaming file transfer
 
     override suspend fun uploadFile(requests: Flow<UploadFileChunk>): UploadFileResponse = withContext(Dispatchers.IO) {
         var serverId = ""
@@ -227,7 +227,11 @@ class DataServiceImpl(
             if (serverId.isEmpty()) {
                 serverId = chunk.serverId
                 destPath = chunk.path
-                tempFile = Files.createTempFile("craftpanel-upload-", ".tmp")
+                val root = serverDataRoot(serverId)
+                val dest = safeResolve(root, destPath)
+                Files.createDirectories(dest.parent)
+                // Temp file in same directory as dest so ATOMIC_MOVE stays on the same filesystem.
+                tempFile = Files.createTempFile(dest.parent, "craftpanel-upload-", ".tmp")
             }
             val file = tempFile ?: throw StatusException(Status.INTERNAL.withDescription("Upload stream error"))
             Files.newOutputStream(file, java.nio.file.StandardOpenOption.APPEND)
@@ -239,7 +243,6 @@ class DataServiceImpl(
             if (chunk.isLast) {
                 val root = serverDataRoot(serverId)
                 val dest = safeResolve(root, destPath)
-                Files.createDirectories(dest.parent)
                 Files.move(file, dest, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE)
                 tempFile = null
             }
@@ -255,39 +258,62 @@ class DataServiceImpl(
         if (Files.isDirectory(target)) throw StatusException(Status.INVALID_ARGUMENT.withDescription("Path is a directory"))
 
         val buffer = ByteArray(65536)
+        var pending: ByteArray? = null
         Files.newInputStream(target)
             .use { stream ->
-                var read: Int
-                var first = true
-                while (stream.read(buffer)
-                        .also { read = it } != -1
-                ) {
-                    val chunk = buffer.copyOf(read)
-                    val isLast = stream.available() == 0
-                    emit(downloadFileChunk {
-                        data = ByteString.copyFrom(chunk)
-                        this.isLast = isLast
-                    })
-                    first = false
-                }
-                if (first) {
-                    emit(downloadFileChunk { data = ByteString.EMPTY; isLast = true })
+                while (true) {
+                    val read = stream.read(buffer)
+                    if (read == -1) {
+                        // Emit pending as the last chunk; if nothing was read, emit an empty final chunk.
+                        emit(downloadFileChunk {
+                            data = if (pending != null) ByteString.copyFrom(pending) else ByteString.EMPTY
+                            isLast = true
+                        })
+                        break
+                    }
+                    val current = buffer.copyOf(read)
+                    pending?.let { emit(downloadFileChunk { data = ByteString.copyFrom(it); isLast = false }) }
+                    pending = current
                 }
             }
     }.flowOn(Dispatchers.IO)
 
-    // ── Helpers ──────────────────────────────────────────────────────────────
+    // Helpers
 
     private fun serverDataRoot(serverId: String): Path =
         Paths.get(config.dataBasePath, "servers", serverId)
             .normalize()
 
     private fun safeResolve(root: Path, relativePath: String): Path {
+        val canonicalRoot = runCatching { root.toRealPath() }.getOrElse {
+            Files.createDirectories(root)
+            root.toRealPath()
+        }
         val clean = relativePath.trimStart('/')
         val resolved = root.resolve(clean)
             .normalize()
         if (!resolved.startsWith(root)) {
             throw StatusException(Status.PERMISSION_DENIED.withDescription("Path traversal detected"))
+        }
+        if (Files.exists(resolved)) {
+            // Resolved symlinks must stay within the canonical root.
+            val real = runCatching { resolved.toRealPath() }.getOrElse { resolved }
+            if (!real.startsWith(canonicalRoot)) {
+                throw StatusException(Status.PERMISSION_DENIED.withDescription("Path traversal via symlink detected"))
+            }
+        }
+        else {
+            // For not-yet-existing targets, verify the nearest existing ancestor is within root.
+            var ancestor = resolved.parent
+            while (ancestor != null && !Files.exists(ancestor)) {
+                ancestor = ancestor.parent
+            }
+            if (ancestor != null) {
+                val realAncestor = runCatching { ancestor.toRealPath() }.getOrElse { ancestor }
+                if (!realAncestor.startsWith(canonicalRoot)) {
+                    throw StatusException(Status.PERMISSION_DENIED.withDescription("Path traversal via symlink detected"))
+                }
+            }
         }
         return resolved
     }

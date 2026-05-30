@@ -113,8 +113,9 @@ Two services:
 - **ControlService** — persistent bidirectional stream, agent-initiated, lives for the lifetime of the connection. Handles container lifecycle commands, backups, migration, metrics, player updates.
 - **DataService** — on-demand per-operation connections. Handles console streaming (bidirectional), file operations, file upload/download.
 
-> **DataService is not yet implemented.** Both `master/…/grpc/DataServiceImpl.kt` and `agent/…/grpc/DataServiceImpl.kt` are stub shells returning empty/false. Console and file operations are Phase 3
-> work — don't build on these assuming they function.
+> **Agent DataService is implemented** — `agent/…/grpc/DataServiceImpl.kt` handles console attach, file list/read/write/delete/move/copy, upload/download. Authentication: master presents a per-node
+> data token (`x-craftpanel-data-token` gRPC header); the agent verifies it against a SHA-256 hash stored at `NODE_DATA_TOKEN_FILE`. Master's `DataServiceProxy` is the client-side caller.
+> `master/…/grpc/DataServiceImpl.kt` is not used (master does not expose a DataService server — it proxies to agents via `DataServiceProxy`).
 
 Agent sends `NodeStateSnapshot` as the **first message** on every (re)connect so master can reconcile DB state before issuing commands.
 

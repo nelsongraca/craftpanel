@@ -18,6 +18,9 @@ object GrpcChannelFactory {
             builder.sslContext(sslContext)
         }
         else {
+            check(config.profile == "dev") {
+                "gRPC TLS is required outside dev profile — set GRPC_TLS_CERT"
+            }
             builder.usePlaintext()
         }
 
