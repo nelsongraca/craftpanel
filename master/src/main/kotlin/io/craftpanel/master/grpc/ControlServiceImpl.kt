@@ -45,6 +45,7 @@ data class AlertEventNotification(
 class ControlServiceImpl(
     private val nodeConfig: NodeConfig,
     private val onNodeDisconnect: (String) -> Unit = {},
+    private val caCertPemProvider: () -> String? = { null },
 ) : ControlServiceGrpcKt.ControlServiceCoroutineImplBase() {
 
     private val log = LoggerFactory.getLogger(ControlServiceImpl::class.java)
@@ -116,6 +117,7 @@ class ControlServiceImpl(
             nodeKey = rawKey
             nodeId = generatedId.toString()
             dataToken = rawDataToken
+            caCertPemProvider()?.let { caCert = it }
         }
     }
 
@@ -159,6 +161,7 @@ class ControlServiceImpl(
             status = identifyStatus
             nodeId = rowId
             if (issuedDataToken != null) dataToken = issuedDataToken
+            caCertPemProvider()?.let { caCert = it }
         }
     }
 

@@ -59,8 +59,9 @@ dependencies {
     // Cron expression parsing
     implementation(libs.cron.utils)
 
-    // Argon2id password hashing
+    // Argon2id password hashing + X.509 cert generation
     implementation(libs.bcprov.jdk18on)
+    implementation(libs.bcpkix.jdk18on)
 
     // Logging
     implementation(libs.logback.classic)

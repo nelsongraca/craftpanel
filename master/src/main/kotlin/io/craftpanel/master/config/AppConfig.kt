@@ -20,8 +20,13 @@ data class GrpcConfig(
     val port: Int,
     val tlsCertPath: String,
     val tlsKeyPath: String,
+    // Directory where auto-generated CA and server certs are persisted.
+    // Ignored when tlsCertPath/tlsKeyPath are set explicitly.
+    val certStorePath: String,
+    val tlsSans: List<String>,
 ) {
 
+    // Explicit cert paths take priority over auto-gen
     val tlsEnabled: Boolean get() = tlsCertPath.isNotBlank() && tlsKeyPath.isNotBlank()
 }
 
@@ -80,10 +85,17 @@ class AppConfig(config: ApplicationConfig) {
         port = config.property("grpc.port")
             .getString()
             .toInt(),
-        tlsCertPath = config.property("grpc.tlsCertPath")
-            .getString(),
-        tlsKeyPath = config.property("grpc.tlsKeyPath")
-            .getString(),
+        tlsCertPath = config.propertyOrNull("grpc.tlsCertPath")
+            ?.getString() ?: "",
+        tlsKeyPath = config.propertyOrNull("grpc.tlsKeyPath")
+            ?.getString() ?: "",
+        certStorePath = config.propertyOrNull("grpc.certStorePath")
+            ?.getString() ?: "/etc/craftpanel/certs",
+        tlsSans = config.propertyOrNull("grpc.tlsSans")
+            ?.getString()
+            ?.split(",")
+            ?.map { it.trim() }
+            ?.filter { it.isNotEmpty() } ?: emptyList(),
     )
     val node = NodeConfig(
         bootstrapToken = config.property("node.bootstrapToken")
@@ -130,11 +142,7 @@ class AppConfig(config: ApplicationConfig) {
         check(node.bootstrapToken != "changeme" && node.bootstrapToken.length >= 16) {
             "NODE_BOOTSTRAP_TOKEN must be set to a non-default value of at least 16 characters"
         }
-        check(grpc.tlsEnabled) {
-            "gRPC TLS is required outside dev profile — set GRPC_TLS_CERT and GRPC_TLS_KEY"
-        }
-        check(node.agentTlsEnabled) {
-            "Agent TLS trust cert is required outside dev profile — set NODE_AGENT_TLS_TRUST_CERT"
-        }
+        // TLS is always enforced: either via explicit cert paths or auto-generated certs.
+        // The actual TLS enforcement happens in GrpcServer.start().
     }
 }

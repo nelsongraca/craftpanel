@@ -77,8 +77,9 @@ docker-java-api = { module = "com.github.docker-java:docker-java-api", version.r
 docker-java-core = { module = "com.github.docker-java:docker-java-core", version.ref = "docker-java" }
 docker-java-transport-httpclient5 = { module = "com.github.docker-java:docker-java-transport-httpclient5", version.ref = "docker-java" }
 
-# Bouncy Castle (Argon2id password hashing — pure Java, no native deps)
+# Bouncy Castle (Argon2id password hashing + X.509 cert generation — pure Java, no native deps)
 bcprov-jdk18on = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
+bcpkix-jdk18on = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bouncycastle" }
 
 # OpenAPI spec generation
 ktor-openapi = { module = "io.github.smiley4:ktor-openapi", version.ref = "ktor-openapi-tools" }

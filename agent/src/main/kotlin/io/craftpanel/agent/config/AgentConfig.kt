@@ -4,7 +4,10 @@ data class AgentConfig(
     val profile: String,
     val masterAddress: String,
     val masterPort: Int,
+    // Explicit path to master's CA cert PEM. Takes priority over the auto-fetched cert.
     val tlsCertPath: String,
+    // Where the agent persists the CA cert received from master during registration.
+    val caCertFilePath: String,
     val bootstrapToken: String,
     val keyFilePath: String,
     val dataTokenFilePath: String,
@@ -29,7 +32,9 @@ data class AgentConfig(
             if (!dataServiceTlsEnabled) log.warn("DATA_SERVICE_TLS_CERT/KEY not set — DataService running in plaintext (dev only)")
             return
         }
-        check(tlsEnabled) { "GRPC_TLS_CERT is required outside dev profile" }
+        check(tlsEnabled || java.io.File(caCertFilePath).exists()) {
+            "gRPC CA cert required outside dev profile — set GRPC_TLS_CERT or ensure $caCertFilePath exists (auto-populated on first registration)"
+        }
         check(dataServiceTlsEnabled) { "DATA_SERVICE_TLS_CERT and DATA_SERVICE_TLS_KEY are required outside dev profile" }
         check(bootstrapToken != "changeme" && bootstrapToken.length >= 16) {
             "NODE_BOOTSTRAP_TOKEN must be set to a non-default value of at least 16 characters"
@@ -46,6 +51,7 @@ data class AgentConfig(
             masterPort = System.getenv("MASTER_GRPC_PORT")
                 ?.toIntOrNull() ?: 50051,
             tlsCertPath = System.getenv("GRPC_TLS_CERT") ?: "",
+            caCertFilePath = System.getenv("GRPC_CA_CERT_FILE") ?: "/etc/craftpanel/grpc-ca.crt",
             bootstrapToken = System.getenv("NODE_BOOTSTRAP_TOKEN") ?: "changeme",
             keyFilePath = System.getenv("NODE_KEY_FILE") ?: "/etc/craftpanel/node.key",
             dataTokenFilePath = System.getenv("NODE_DATA_TOKEN_FILE") ?: "/etc/craftpanel/node.data-token",

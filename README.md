@@ -114,13 +114,13 @@ services:
       DATABASE_PASSWORD: changeme
       JWT_SECRET: "replace-with-a-random-32-char-string"
       NODE_BOOTSTRAP_TOKEN: "replace-with-a-secret-token"
-      # gRPC TLS — required in production; agents verify master with this cert.
-      # Omit to run plaintext (development only, master will log a warning).
-      GRPC_TLS_CERT: /run/secrets/grpc.crt
-      GRPC_TLS_KEY: /run/secrets/grpc.key
+      # GRPC_TLS_SANS — comma-separated hostnames/IPs agents use to reach this master.
+      # Add your server's public hostname or IP so agents can verify the TLS cert.
+      GRPC_TLS_SANS: "master.example.com,192.168.1.10"
     volumes:
-      - ./certs/grpc.crt:/run/secrets/grpc.crt:ro
-      - ./certs/grpc.key:/run/secrets/grpc.key:ro
+      # Master auto-generates a self-signed CA + server cert on first boot and
+      # persists them here. Mount a volume so certs survive container restarts.
+      - master_certs:/etc/craftpanel/certs
     depends_on:
       - db
 
@@ -133,6 +133,7 @@ services:
 
 volumes:
   postgres_data:
+  master_certs:
 ```
 
 ```bash
@@ -140,6 +141,21 @@ docker compose up -d
 ```
 
 Open `http://localhost:3000`.
+
+### TLS setup — distributing the CA certificate
+
+Master generates a self-signed CA and server certificate on first boot. Before connecting agents you need to copy the CA certificate to each agent node:
+
+```bash
+# Copy the CA cert from the running master container
+docker compose cp master:/etc/craftpanel/certs/grpc-ca.crt ./grpc-ca.crt
+
+# Then copy grpc-ca.crt to each node machine and mount it into the agent container (see below)
+```
+
+The CA certificate is public — it contains no secret material. Once you have it on the node machine, agents use it to verify master's TLS certificate on every connection.
+
+If you replace or regenerate the CA cert on master, copy the new `grpc-ca.crt` to all nodes and restart agents.
 
 ### Agent on node machines
 
@@ -155,46 +171,51 @@ services:
       MASTER_GRPC_PORT: "50051"
       NODE_BOOTSTRAP_TOKEN: "replace-with-a-secret-token"   # must match master
       NODE_KEY_FILE: /etc/craftpanel/node.key               # persisted across restarts
-      GRPC_TLS_CERT: /run/secrets/grpc.crt
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - node_key:/etc/craftpanel
-      - ./certs/grpc.crt:/run/secrets/grpc.crt:ro
+      - node_data:/etc/craftpanel
+      # CA cert copied from master — see TLS setup section above
+      - ./grpc-ca.crt:/etc/craftpanel/grpc-ca.crt:ro
     group_add:
       - "999"   # docker group GID — adjust to match host
 
 volumes:
-  node_key:
+  node_data:
 ```
 
 On first start the agent registers itself with master using the bootstrap token. A Super Admin must approve the node in the UI before it can host servers.
+
+> **Bring your own certificate:** If you prefer to manage TLS certs externally (e.g. from a corporate CA), set `GRPC_TLS_CERT` and `GRPC_TLS_KEY` on master and mount `GRPC_TLS_CERT` on agents as before. Explicit cert paths take priority over auto-gen.
 
 ### Environment variable reference
 
 **Master**
 
-| Variable               | Default                                       | Description                                     |
-|------------------------|-----------------------------------------------|-------------------------------------------------|
-| `DATABASE_URL`         | `jdbc:postgresql://localhost:5432/craftpanel` | PostgreSQL JDBC URL                             |
-| `DATABASE_USERNAME`    | `craftpanel`                                  | Database user                                   |
-| `DATABASE_PASSWORD`    | _(empty)_                                     | Database password                               |
-| `JWT_SECRET`           | `changeme-at-least-32-characters-long`        | HMAC secret for JWT signing                     |
-| `NODE_BOOTSTRAP_TOKEN` | `changeme`                                    | Shared secret for initial node registration     |
-| `HTTP_PORT`            | `8080`                                        | REST/WebSocket listen port                      |
-| `GRPC_PORT`            | `50051`                                       | gRPC listen port                                |
-| `GRPC_TLS_CERT`        | _(empty)_                                     | Path to TLS certificate (disables TLS if unset) |
-| `GRPC_TLS_KEY`         | _(empty)_                                     | Path to TLS private key                         |
+| Variable               | Default                                       | Description                                                                      |
+|------------------------|-----------------------------------------------|----------------------------------------------------------------------------------|
+| `DATABASE_URL`         | `jdbc:postgresql://localhost:5432/craftpanel` | PostgreSQL JDBC URL                                                              |
+| `DATABASE_USERNAME`    | `craftpanel`                                  | Database user                                                                    |
+| `DATABASE_PASSWORD`    | _(empty)_                                     | Database password                                                                |
+| `JWT_SECRET`           | `changeme-at-least-32-characters-long`        | HMAC secret for JWT signing                                                      |
+| `NODE_BOOTSTRAP_TOKEN` | `changeme`                                    | Shared secret for initial node registration                                      |
+| `HTTP_PORT`            | `8080`                                        | REST/WebSocket listen port                                                       |
+| `GRPC_PORT`            | `50051`                                       | gRPC listen port                                                                 |
+| `GRPC_CERT_STORE_PATH` | `/etc/craftpanel/certs`                       | Directory for auto-generated CA + server certs (mount a volume here)            |
+| `GRPC_TLS_SANS`        | _(empty)_                                     | Comma-separated extra SANs for auto-generated cert (add your server hostname/IP) |
+| `GRPC_TLS_CERT`        | _(empty)_                                     | Path to TLS server cert — overrides auto-gen when set (BYOC mode)               |
+| `GRPC_TLS_KEY`         | _(empty)_                                     | Path to TLS private key — required when `GRPC_TLS_CERT` is set                  |
 
 **Agent**
 
-| Variable               | Default                       | Description                                                            |
-|------------------------|-------------------------------|------------------------------------------------------------------------|
-| `MASTER_HOST`          | `localhost`                   | Master hostname or IP                                                  |
-| `MASTER_GRPC_PORT`     | `50051`                       | Master gRPC port                                                       |
-| `NODE_BOOTSTRAP_TOKEN` | `changeme`                    | Must match master's `NODE_BOOTSTRAP_TOKEN`                             |
-| `NODE_KEY_FILE`        | `/etc/craftpanel/node.key`    | Where the node key is persisted after registration                     |
-| `GRPC_TLS_CERT`        | _(empty)_                     | Path to master's TLS cert for verification (leave blank for plaintext) |
-| `DOCKER_SOCKET`        | `unix:///var/run/docker.sock` | Docker socket path                                                     |
+| Variable               | Default                          | Description                                                                       |
+|------------------------|----------------------------------|-----------------------------------------------------------------------------------|
+| `MASTER_HOST`          | `localhost`                      | Master hostname or IP                                                             |
+| `MASTER_GRPC_PORT`     | `50051`                          | Master gRPC port                                                                  |
+| `NODE_BOOTSTRAP_TOKEN` | `changeme`                       | Must match master's `NODE_BOOTSTRAP_TOKEN`                                        |
+| `NODE_KEY_FILE`        | `/etc/craftpanel/node.key`       | Where the node key is persisted after registration                                |
+| `GRPC_CA_CERT_FILE`    | `/etc/craftpanel/grpc-ca.crt`    | Path to master's CA cert PEM (copy from master's `GRPC_CERT_STORE_PATH`)         |
+| `GRPC_TLS_CERT`        | _(empty)_                        | Explicit CA cert path — overrides `GRPC_CA_CERT_FILE` when set (BYOC mode)       |
+| `DOCKER_SOCKET`        | `unix:///var/run/docker.sock`    | Docker socket path                                                                |
 
 ## Running Tests
 

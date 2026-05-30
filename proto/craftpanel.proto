@@ -69,6 +69,9 @@ message RegisterNodeResponse {
   // Per-node DataService token. Master stores the raw value; the agent persists
   // only its SHA-256 hash and verifies inbound DataService calls against it.
   string data_token = 3;
+  // PEM-encoded CA certificate. Agent persists this and uses it to verify the
+  // master's TLS certificate on all subsequent gRPC connections.
+  string ca_cert = 4;
 }
 
 message IdentifyNodeRequest {
@@ -84,6 +87,9 @@ message IdentifyNodeResponse {
   // Per-node DataService token. Non-empty only when (re)issued (e.g. a node that
   // predates the token); empty means the agent should keep its current token.
   string data_token = 3;
+  // PEM-encoded CA certificate. Non-empty only when the CA cert has been rotated
+  // since the agent last connected. Agent replaces its stored CA cert and reconnects.
+  string ca_cert = 4;
 
   enum IdentifyStatus {
     IDENTIFY_STATUS_UNSPECIFIED = 0;

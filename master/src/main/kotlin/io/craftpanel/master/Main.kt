@@ -59,8 +59,13 @@ fun Application.module() {
     val dataServiceProxy = DataServiceProxy(appConfig.node, appConfig.profile)
     monitor.subscribe(ApplicationStopped) { dataServiceProxy.closeAll() }
 
-    val controlService = ControlServiceImpl(appConfig.node, onNodeDisconnect = dataServiceProxy::closeNode)
-    val grpcServer = GrpcServer(appConfig, controlService).start()
+    var grpcServer: GrpcServer? = null
+    val controlService = ControlServiceImpl(
+        appConfig.node,
+        onNodeDisconnect = dataServiceProxy::closeNode,
+        caCertPemProvider = { grpcServer?.readCaCertPem() },
+    )
+    grpcServer = GrpcServer(appConfig, controlService).start()
     monitor.subscribe(ApplicationStopped) { grpcServer.stop() }
 
     val jwtManager = JwtManager(appConfig.jwt)

@@ -47,6 +47,10 @@ class NodeAuthenticator(
             if (response.dataToken.isNotBlank()) {
                 NodeKeyStore.writeDataTokenHash(config.dataTokenFilePath, sha256Hex(response.dataToken))
             }
+            if (response.caCert.isNotBlank()) {
+                NodeKeyStore.writeCaCert(config.caCertFilePath, response.caCert)
+                log.info("gRPC CA cert received and persisted to ${config.caCertFilePath}")
+            }
             log.info("Registered as node ${response.nodeId} — status PENDING, awaiting admin approval")
             return NodeIdentity(nodeId = response.nodeId, nodeKey = response.nodeKey)
         }
@@ -60,6 +64,10 @@ class NodeAuthenticator(
         if (response.dataToken.isNotBlank()) {
             NodeKeyStore.writeDataTokenHash(config.dataTokenFilePath, sha256Hex(response.dataToken))
             log.info("Node ${response.nodeId}: data-token (re)issued and persisted")
+        }
+        if (response.caCert.isNotBlank()) {
+            NodeKeyStore.writeCaCert(config.caCertFilePath, response.caCert)
+            log.info("Node ${response.nodeId}: CA cert refreshed — reconnect will use updated cert")
         }
 
         return when (response.status) {

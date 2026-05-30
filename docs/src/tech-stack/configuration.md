@@ -30,9 +30,12 @@ http:
 grpc:
   host: 0.0.0.0
   port: 9090
-  tls:
-    cert: /etc/craftpanel/tls/grpc.crt
-    key: /etc/craftpanel/tls/grpc.key
+  # cert_store: /etc/craftpanel/certs   # where auto-generated CA+server certs are persisted
+  # tls_sans: master.example.com,10.0.0.1  # extra SANs for auto-generated cert
+  # Bring-your-own-cert (overrides auto-gen):
+  # tls:
+  #   cert: /etc/craftpanel/tls/grpc.crt
+  #   key: /etc/craftpanel/tls/grpc.key
 
 jwt:
   # key loaded from secret file in production — see below
@@ -89,8 +92,10 @@ Supported `_FILE` variables:
 | `http.port`         | `CRAFTPANEL_HTTP_PORT`         | No       | `8080`    | HTTP bind port                             |
 | `grpc.host`         | `CRAFTPANEL_GRPC_HOST`         | No       | `0.0.0.0` | gRPC bind address                          |
 | `grpc.port`         | `CRAFTPANEL_GRPC_PORT`         | No       | `9090`    | gRPC bind port                             |
-| `grpc.tls.cert`     | `CRAFTPANEL_GRPC_TLS_CERT`     | Yes      | —         | Path to gRPC TLS certificate               |
-| `grpc.tls.key`      | `CRAFTPANEL_GRPC_TLS_KEY`      | Yes      | —         | Path to gRPC TLS private key               |
+| `GRPC_CERT_STORE_PATH` | `GRPC_CERT_STORE_PATH`      | No       | `/etc/craftpanel/certs` | Directory for auto-generated CA + server certs |
+| `GRPC_TLS_SANS`        | `GRPC_TLS_SANS`             | No       | —         | Comma-separated extra SANs (add server hostname/IP) |
+| `GRPC_TLS_CERT`        | `GRPC_TLS_CERT`             | No       | —         | BYOC: path to server cert (overrides auto-gen)      |
+| `GRPC_TLS_KEY`         | `GRPC_TLS_KEY`              | No       | —         | BYOC: path to private key (required with GRPC_TLS_CERT) |
 | `jwt.secret`        | `CRAFTPANEL_JWT_SECRET`        | Yes      | —         | JWT signing key (min 32 bytes)             |
 | `dns.provider`      | `CRAFTPANEL_DNS_PROVIDER`      | Yes      | —         | DNS provider identifier, e.g. `cloudflare` |
 | `dns.api_key`       | `CRAFTPANEL_DNS_API_KEY`       | Yes      | —         | DNS provider API key                       |
