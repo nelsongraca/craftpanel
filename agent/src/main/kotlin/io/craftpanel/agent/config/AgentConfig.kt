@@ -13,13 +13,16 @@ data class AgentConfig(
     val dockerSocketPath: String,
     val agentVersion: String,
     val dataBasePath: String,
+    val hostDataBasePath: String,
     val mcRouterImage: String,
     val mcRouterUpdateOnStart: Boolean,
     val publicIpUrl: String,
 ) {
 
     val tlsEnabled: Boolean get() = tlsCertPath.isNotBlank()
-    val tlsConfigured: Boolean get() = tlsEnabled || java.io.File(caCertFilePath).exists()
+    val tlsConfigured: Boolean
+        get() = tlsEnabled || java.io.File(caCertFilePath)
+            .exists()
 
     fun validate() {
         if (profile == "dev") {
@@ -51,6 +54,8 @@ data class AgentConfig(
             dockerSocketPath = System.getenv("DOCKER_SOCKET") ?: "unix:///var/run/docker.sock",
             agentVersion = System.getenv("AGENT_VERSION") ?: "dev",
             dataBasePath = System.getenv("DATA_PATH") ?: "/data",
+            hostDataBasePath = System.getenv("HOST_DATA_PATH")
+                ?: System.getenv("DATA_PATH") ?: "/data",
             mcRouterImage = System.getenv("MCROUTER_IMAGE") ?: "itzg/mc-router:latest",
             mcRouterUpdateOnStart = System.getenv("MCROUTER_UPDATE_ON_START")
                 ?.lowercase() != "false",

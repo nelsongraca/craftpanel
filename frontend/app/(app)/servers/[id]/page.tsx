@@ -3,7 +3,7 @@
 import {useCallback, useEffect, useState} from "react";
 import {useParams, useRouter} from "next/navigation";
 import Link from "next/link";
-import {ArrowUpCircle, ChevronRight, MoreHorizontal, Play, RotateCcw, Shuffle, Square, X,} from "lucide-react";
+import {ArrowUpCircle, ChevronRight, MoreHorizontal, Play, RotateCcw, Shuffle, Square, Trash2, X,} from "lucide-react";
 import {deleteServer, getNetwork, getNode, getServer, listNetworks, restartServer, startServer, stopServer, updateServer, updateServerResources, upgradeServer} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
@@ -123,7 +123,7 @@ function HeaderActionButton({
                             }: {
     icon: React.ReactNode;
     label: string;
-    loading: boolean;
+    loading?: boolean;
     onClick: () => void;
     variant: "green" | "red" | "yellow";
 }) {
@@ -542,6 +542,14 @@ export default function ServerDetailPage() {
                                 variant="yellow"
                             />
                         )}
+                        {ds === "STOPPED" && hasPermission(permissions, "server.delete") && (
+                            <HeaderActionButton
+                                icon={<Trash2 size={12} strokeWidth={2.5}/>}
+                                label="Delete"
+                                onClick={doDelete}
+                                variant="red"
+                            />
+                        )}
 
                         {/* ··· overflow menu */}
                         <div className="relative">
@@ -582,18 +590,6 @@ export default function ServerDetailPage() {
                                         >
                                             <ArrowUpCircle size={12} strokeWidth={2}/>
                                             Upgrade
-                                        </button>
-                                    )}
-                                    {ds === "STOPPED" && hasPermission(permissions, "server.delete") && (
-                                        <button
-                                            onClick={() => {
-                                                setMenuOpen(false);
-                                                doDelete();
-                                            }}
-                                            className="flex items-center gap-2 w-full text-left px-3 py-2 text-[12px] font-heading font-bold uppercase tracking-wider text-error hover:bg-surface-high transition-colors"
-                                        >
-                                            <X size={12} strokeWidth={2}/>
-                                            Delete
                                         </button>
                                     )}
                                 </div>
@@ -759,7 +755,8 @@ export default function ServerDetailPage() {
                 title={confirmDialog?.title ?? ""}
                 description={confirmDialog?.description ?? ""}
                 destructive={confirmDialog?.destructive}
-                onConfirm={confirmDialog?.onConfirm ?? (() => {})}
+                onConfirm={confirmDialog?.onConfirm ?? (() => {
+                })}
             />
         </div>
     );

@@ -9,6 +9,5 @@
         <appender-ref ref="STDOUT"/>
     </root>
 
-    <logger name="io.craftpanel" level="DEBUG"/>
-    <logger name="io.grpc" level="INFO"/>
+    <logger name="io.craftpanel" level="${LOG_LEVEL:-INFO}"/>
 </configuration>

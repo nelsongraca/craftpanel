@@ -15,7 +15,7 @@ fun main(): Unit = runBlocking {
 
     val config = AgentConfig.fromEnv()
     config.validate()
-    log.info("Master: ${config.masterAddress}:${config.masterPort} | TLS: ${config.tlsConfigured} | profile: ${config.profile}")
+    log.info("Master: ${config.masterAddress}:${config.masterPort} | TLS: ${config.tlsConfigured} | profile: ${config.profile} | dataPath: ${config.dataBasePath} | hostDataPath: ${config.hostDataBasePath}")
 
     val docker = DockerClientFactory.create(config.dockerSocketPath)
     val containerManager = ContainerManager(docker)

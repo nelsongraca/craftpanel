@@ -218,14 +218,15 @@ services:
       MASTER_GRPC_PORT: "50051"
       NODE_BOOTSTRAP_TOKEN: "replace-with-a-secret-token"   # must match master
       NODE_KEY_FILE: /etc/craftpanel/node.key               # persisted across restarts
-      DATA_PATH: /srv/craftpanel                            # host path for server data — see note below
+      DATA_PATH: /srv/craftpanel                            # container-internal mount path — agent reads/writes files here
+      HOST_DATA_PATH: /srv/craftpanel                       # host path Docker uses for server container bind-mounts — see note below
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - node_data:/etc/craftpanel
       # CA cert copied from master — see TLS setup section above
       - ./grpc-ca.crt:/etc/craftpanel/grpc-ca.crt:ro
       # Server data directory — must be a host bind-mount, NOT a named volume.
-      # Docker containers launched by the agent use this path directly on the host.
+      # Docker containers launched by the agent use HOST_DATA_PATH on the host directly.
       - /srv/craftpanel:/srv/craftpanel
     group_add:
       - "999"   # docker group GID — adjust to match host
@@ -236,7 +237,13 @@ volumes:
 
 On first start the agent registers itself with master using the bootstrap token. A Super Admin must approve the node in the UI before it can host servers.
 
-> **Data path alignment:** `DATA_PATH` on the agent and the node's **Data Path** field in the CraftPanel UI must be the **same absolute host path**. Master stores this path per node and passes it as the Docker bind-mount source when creating server containers (`{data_path}/servers/{server-id}` → `/data` inside the container). If they differ, the agent cannot read or write server files even though the container runs fine. The default for both is `/data`; change both together if you use a different path. The data directory must exist on the host before starting the agent — the agent does not create it.
+> **Data path alignment:** Two separate env vars control how the agent accesses server data:
+> - `DATA_PATH` — the path the agent process uses **inside its container** to read/write files (file browser, backups, migrations). Set this to the container-internal mount point (e.g. `/srv/craftpanel`).
+> - `HOST_DATA_PATH` — the **host path** Docker receives when creating server containers as a bind-mount source (`{HOST_DATA_PATH}/servers/{server-id}` → `/data` inside the Minecraft container). Must match what the host actually has on disk. Defaults to `DATA_PATH` if not set (works when the agent is not containerised or when the container path equals the host path).
+>
+> In a typical Docker Compose setup where `/srv/craftpanel` on the host is mounted at `/srv/craftpanel` in the agent container, both can be `/srv/craftpanel`. If they differ (e.g. host path is `/mnt/data`, container mount is `/srv/craftpanel`), set `DATA_PATH=/srv/craftpanel` and `HOST_DATA_PATH=/mnt/data`.
+>
+> `HOST_DATA_PATH` must also match the node's **Data Path** field in the CraftPanel UI. The data directory must exist on the host before starting the agent.
 
 > **Bring your own certificate:** If you prefer to manage TLS certs externally (e.g. from a corporate CA), set `GRPC_TLS_CERT` and `GRPC_TLS_KEY` on master and mount `GRPC_TLS_CERT` on agents as before. Explicit cert paths take priority over auto-gen.
 
@@ -272,7 +279,8 @@ On first start the agent registers itself with master using the bootstrap token.
 | `GRPC_CA_CERT_FILE`    | `/etc/craftpanel/grpc-ca.crt`    | Path to master's CA cert PEM (copy from master's `GRPC_CERT_STORE_PATH`)         |
 | `GRPC_TLS_CERT`        | _(empty)_                        | Explicit CA cert path — overrides `GRPC_CA_CERT_FILE` when set (BYOC mode)       |
 | `DOCKER_SOCKET`        | `unix:///var/run/docker.sock`    | Docker socket path                                                                |
-| `DATA_PATH`            | `/data`                          | Base directory on the **host** where server data is stored. Must match the node's **Data Path** field in the UI and must be bind-mounted into the agent container (not a named volume). Must exist before the agent starts. |
+| `DATA_PATH`            | `/data`                          | Container-internal path the agent uses to read/write server files. Must be the mount point of the server data bind-mount inside the agent container. |
+| `HOST_DATA_PATH`       | _(value of `DATA_PATH`)_         | Host path Docker uses as the bind-mount source when creating server containers. Must match the node's **Data Path** in the UI. Defaults to `DATA_PATH` (use when host path equals container path). |
 
 ## Running Tests
 

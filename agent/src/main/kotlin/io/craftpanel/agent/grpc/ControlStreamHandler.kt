@@ -26,6 +26,7 @@ import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.PosixFilePermission
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.io.path.pathString
 import kotlin.time.Duration.Companion.seconds
 
 class ControlStreamHandler(
@@ -138,7 +139,7 @@ class ControlStreamHandler(
             withContext(Dispatchers.IO) { containerManager.pullImage(cmd.image) }
             val cmdWithMount = cmd.toBuilder()
                 .addMounts(volumeMount {
-                    hostPath = "${config.dataBasePath}/servers/${cmd.serverId}"
+                    hostPath = "${config.hostDataBasePath}/servers/${cmd.serverId}"
                     containerPath = "/data"
                     readOnly = false
                 })
@@ -160,7 +161,7 @@ class ControlStreamHandler(
 
     internal suspend fun handleStart(cmd: StartContainerCommand, outbound: SendChannel<AgentMessage>) {
         log.info("Starting container ${cmd.containerName}")
-        val expectedDataPath = "${config.dataBasePath}/servers/${cmd.serverId}"
+        val expectedDataPath = "${config.hostDataBasePath}/servers/${cmd.serverId}"
         val currentDataPath = containerManager.getContainerDataPath(cmd.containerName)
         if (currentDataPath != null && currentDataPath != expectedDataPath) {
             log.warn("Container ${cmd.containerName} has stale data mount '$currentDataPath' (expected '$expectedDataPath') — removing for recreate")
@@ -560,9 +561,10 @@ class ControlStreamHandler(
         val result = runCatching {
             withContext(Dispatchers.IO) {
                 val root = serverDataRoot(cmd.serverId)
+                log.debug("listFiles serverId={} requestedPath={} root={} rootExists={}", cmd.serverId, cmd.path, root, Files.exists(root))
                 val target = safeResolve(root, cmd.path.ifEmpty { "/" })
-                if (!Files.exists(target)) error("Path not found")
-                if (!Files.isDirectory(target)) error("Path is not a directory")
+                log.debug("listFiles target={} exists={} isDir={}", target, Files.exists(target), Files.isDirectory(target))
+                if (!Files.isDirectory(target)) error("Path not found")
                 Files.list(target)
                     .use { stream ->
                         stream.map { path ->
@@ -589,7 +591,10 @@ class ControlStreamHandler(
             listFilesResponse = listFilesResponse {
                 requestId = cmd.requestId
                 result.onSuccess { entries.addAll(it) }
-                result.onFailure { errorMessage = it.message ?: "Unknown error" }
+                result.onFailure {
+                    errorMessage = it.message ?: "Unknown error"
+                    log.debug(errorMessage,it)
+                }
             }
         })
     }
@@ -787,15 +792,18 @@ class ControlStreamHandler(
 
     private fun safeResolve(root: Path, relativePath: String): Path {
         val canonicalRoot = runCatching { root.toRealPath() }.getOrNull()
+        log.debug("safeResolve root={} canonicalRoot={} relativePath={}", root, canonicalRoot, relativePath)
         val clean = relativePath.trimStart('/')
         val resolved = root.resolve(clean)
             .normalize()
+        log.debug("safeResolve resolved={} startsWithRoot={}", resolved, resolved.startsWith(root))
         if (!resolved.startsWith(root)) {
             error("Path traversal detected")
         }
         if (canonicalRoot != null) {
             if (Files.exists(resolved)) {
                 val real = runCatching { resolved.toRealPath() }.getOrElse { resolved }
+                log.debug("safeResolve real={} startsWithCanonical={}", real, real.startsWith(canonicalRoot))
                 if (!real.startsWith(canonicalRoot)) {
                     error("Path traversal via symlink detected")
                 }

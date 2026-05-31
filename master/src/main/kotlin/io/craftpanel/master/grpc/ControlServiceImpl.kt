@@ -86,7 +86,11 @@ class ControlServiceImpl(
     val rsyncCompleteFlow = _rsyncCompleteFlow.asSharedFlow()
 
     fun sendToNode(nodeId: String, msg: MasterMessage): Boolean {
-        val channel = connectedAgents[nodeId] ?: return false
+        val channel = connectedAgents[nodeId]
+        if (channel == null) {
+            log.warn("sendToNode: node {} not found in connectedAgents (connected: {})", nodeId, connectedAgents.keys)
+            return false
+        }
         return channel.trySend(msg).isSuccess
     }
 

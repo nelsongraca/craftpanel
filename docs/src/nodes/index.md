@@ -58,24 +58,32 @@ The agent is configured entirely through environment variables.
 | `DOCKER_SOCKET`       | `unix:///var/run/docker.sock` | Docker socket path                                                                          |
 | `AGENT_VERSION`       | `dev`                     | Version string reported to master during registration                                           |
 | `APP_PROFILE`         | `prod`                    | Runtime profile. Set to `dev` to allow plaintext gRPC (development only) |
-| `DATA_PATH`           | `/data`                   | Base directory on the node host where server data volumes are stored. Must match the node's **Data Path** field in the CraftPanel UI. Must exist before the agent starts. Must be bind-mounted into the agent container (not a named Docker volume) so the agent and Docker daemon share the same host path. |
+| `DATA_PATH`           | `/data`                   | Container-internal path the agent uses for file access (file browser, backups, migrations). Set to the mount point inside the agent container. |
+| `HOST_DATA_PATH`      | *(value of `DATA_PATH`)* | Host path Docker uses as the bind-mount source when creating server containers. Must match the node's **Data Path** field in the UI. Defaults to `DATA_PATH`. |
 | `PUBLIC_IP_URL`       | *(empty)*                 | URL to fetch the node's public IP address (e.g. `https://api.ipify.org`). When empty, the private IP is reported instead |
 | `MCROUTER_IMAGE`      | `itzg/mc-router:latest`   | Docker image used when provisioning the mc-router container on startup                          |
 | `MCROUTER_UPDATE_ON_START` | `true`             | Pull the mc-router image on every agent startup to keep it up to date. Set to `false` to skip the pull and use whatever image is already cached locally |
 
 ### Data path alignment
 
-Server data lives at `{DATA_PATH}/servers/{server-id}` on the host. When master creates a Minecraft container it bind-mounts this exact path into the container at `/data`. The agent also reads and writes files at this path directly (for the file browser, backups, and migrations).
+The agent uses two separate path env vars because the agent runs inside a container but must also tell the Docker daemon (on the host) where to bind-mount server data:
+
+| Env var | Purpose |
+|---|---|
+| `DATA_PATH` | Path **inside the agent container** — used for file browser, backups, migrations |
+| `HOST_DATA_PATH` | Path **on the host** — passed to Docker as bind-mount source when creating server containers. Defaults to `DATA_PATH`. |
+
+Server data lives at `{HOST_DATA_PATH}/servers/{server-id}` on the host. When master creates a Minecraft container it bind-mounts this exact path into the Minecraft container at `/data`. The agent reads and writes files via `DATA_PATH`.
+
+In a standard setup where the same absolute path is used on both the host and inside the agent container, set both to the same value (or just set `DATA_PATH`). When paths differ — e.g. host has `/mnt/data` mounted at `/srv/craftpanel` inside the agent — set `DATA_PATH=/srv/craftpanel` and `HOST_DATA_PATH=/mnt/data`.
 
 Three values must stay in sync:
 
 | Where | Value |
 |---|---|
-| Agent env var | `DATA_PATH` |
+| `HOST_DATA_PATH` env var | Host path for Docker bind-mounts |
 | Node record in CraftPanel UI | **Data Path** field (editable after registration) |
 | Host filesystem | The directory must exist before the agent starts |
-
-If `DATA_PATH` and the node's **Data Path** differ, containers run normally but the file browser, console attach, and backup commands fail with `Agent error: /data` (or whichever path is missing).
 
 The data directory must be a **bind-mount** in the agent's Docker compose, not a named volume — Docker containers created by the agent reference the raw host path, so it must be reachable from the host Docker daemon at the same path:
 
