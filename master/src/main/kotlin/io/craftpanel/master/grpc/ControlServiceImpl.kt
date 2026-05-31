@@ -167,6 +167,7 @@ class ControlServiceImpl(
     // ── gRPC: control stream ─────────────────────────────────────────────────
 
     override fun control(requests: Flow<AgentMessage>): Flow<MasterMessage> = channelFlow {
+        log.info("control stream opened")
         var connectedNodeId: String? = null
         val outChannel = this.channel
         val lastMetricsAt = AtomicReference(Clock.System.now())
@@ -189,6 +190,7 @@ class ControlServiceImpl(
 
         try {
             requests.collect { msg ->
+                log.info("control stream msg: nodeId=${msg.nodeId}, hasNodeState=${msg.hasNodeState()}, hasNodeMetrics=${msg.hasNodeMetrics()}")
                 if (connectedNodeId == null) {
                     val nodeId = msg.nodeId
                     val nodeStatus = transaction {
@@ -200,18 +202,20 @@ class ControlServiceImpl(
                             .firstOrNull()
                             ?.get(Nodes.status)
                     }
+                    log.info("Node $nodeId: first message, db status=$nodeStatus")
                     if (nodeStatus == null || nodeStatus == "REJECTED" || nodeStatus == "DECOMMISSIONED") {
                         throw StatusException(Status.PERMISSION_DENIED.withDescription("Node $nodeId is not authorized to connect"))
                     }
                     connectedNodeId = nodeId
                     connectedAgents[nodeId] = outChannel
+                    log.debug("Node $nodeId: registered in connectedAgents (channel=${System.identityHashCode(outChannel)})")
                 }
 
                 when {
                     msg.hasNodeState()             -> {
                         log.info("Node ${msg.nodeId} sent state snapshot with ${msg.nodeState.containersCount} containers")
                         runCatching { reconcileNodeState(msg.nodeId, msg.nodeState) }
-                            .onSuccess { _nodeStatusFlow.emit(msg.nodeId to "ACTIVE") }
+                            .onSuccess { restored -> log.debug("Node ${msg.nodeId}: reconcileNodeState ok, wasRestored=$restored — emitting ACTIVE"); _nodeStatusFlow.emit(msg.nodeId to "ACTIVE") }
                             .onFailure { e -> log.error("Node ${msg.nodeId}: reconcileNodeState failed — ${e.message}", e) }
                     }
 
@@ -229,13 +233,11 @@ class ControlServiceImpl(
                     }
 
                     msg.hasServerStatus()          -> {
-                        log.debug("Node {} server status: {} → {}", msg.nodeId, msg.serverStatus.serverId, msg.serverStatus.status)
                         persistServerStatus(msg.serverStatus)
                         _serverStatusFlow.emit(msg.serverStatus.serverId to msg.serverStatus)
                     }
 
                     msg.hasPlayerUpdate()          -> {
-                        log.debug("Node ${msg.nodeId} player update: ${msg.playerUpdate.serverId} — ${msg.playerUpdate.playerCount} players")
                         persistPlayerUpdate(msg.playerUpdate)
                         _playerUpdateFlow.emit(msg.playerUpdate.serverId to msg.playerUpdate)
                     }
@@ -270,6 +272,13 @@ class ControlServiceImpl(
         finally {
             connectedNodeId?.let { nodeId ->
                 val wasOwner = connectedAgents.remove(nodeId, outChannel)
+                log.debug(
+                    "Node $nodeId: stream finally — wasOwner=$wasOwner, watchdogFired=$watchdogFired, channel=${System.identityHashCode(outChannel)}, stillConnected=${
+                        connectedAgents.containsKey(
+                            nodeId
+                        )
+                    }"
+                )
                 drainNodeRequests(nodeId)
                 onNodeDisconnect(nodeId)
                 if (wasOwner && !watchdogFired && !connectedAgents.containsKey(nodeId)) {
@@ -279,6 +288,9 @@ class ControlServiceImpl(
                 }
                 else if (wasOwner && connectedAgents.containsKey(nodeId)) {
                     log.info("Node $nodeId: stream ended but new connection is already active — skipping degrade")
+                }
+                else if (!wasOwner) {
+                    log.debug("Node $nodeId: stream finally skipped — not owner (superseded by newer connection)")
                 }
             }
         }
@@ -406,6 +418,7 @@ class ControlServiceImpl(
                 .firstOrNull()
                 ?.get(Nodes.status)
 
+            log.debug("Node $nodeId: reconcileNodeState — currentStatus=$currentStatus, containers=${snapshot.containersCount}")
             val byServerId = snapshot.containersList.associateBy { it.serverId }
 
             Servers.selectAll()
@@ -444,8 +457,10 @@ class ControlServiceImpl(
                     it[Nodes.lastSeenAt] = now
                 }
                 wasRestored = currentStatus == "DEGRADED"
+                log.debug("Node $nodeId: wrote status=ACTIVE (was $currentStatus), wasRestored=$wasRestored")
             }
             else {
+                log.debug("Node $nodeId: status=$currentStatus — only updating lastSeenAt")
                 Nodes.update({ Nodes.id eq kotlinNodeId }) { it[Nodes.lastSeenAt] = now }
             }
         }

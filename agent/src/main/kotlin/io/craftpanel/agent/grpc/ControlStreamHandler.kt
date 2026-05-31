@@ -11,7 +11,9 @@ import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.MetricsCollector
 import io.grpc.ManagedChannel
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.SendChannel
+import kotlinx.coroutines.flow.receiveAsFlow
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.io.PipedInputStream
@@ -42,13 +44,13 @@ class ControlStreamHandler(
     suspend fun run(channel: ManagedChannel): Unit = coroutineScope {
         val stub = ControlServiceGrpcKt.ControlServiceCoroutineStub(channel)
         val bulkClient = BulkDataClient(channel)
-        val outbound = MutableSharedFlow<AgentMessage>(extraBufferCapacity = 64)
+        val outbound = Channel<AgentMessage>(capacity = 64)
 
-        val stream = stub.control(outbound)
+        val stream = stub.control(outbound.receiveAsFlow())
 
         // Send NodeStateSnapshot as the first message
         val snapshot = buildStateSnapshot()
-        outbound.emit(agentMessage {
+        outbound.send(agentMessage {
             nodeId = identity.nodeId
             nodeState = snapshot
         })
@@ -59,7 +61,7 @@ class ControlStreamHandler(
             while (true) {
                 delay(60.seconds)
                 val metrics = metricsCollector.collect()
-                outbound.emit(agentMessage {
+                outbound.send(agentMessage {
                     nodeId = identity.nodeId
                     nodeMetrics = metrics
                 })
@@ -68,14 +70,14 @@ class ControlStreamHandler(
                     .forEach { (serverId, containerId) ->
                         metricsCollector.collectContainerMetrics(serverId, containerId)
                             ?.let { cm ->
-                                outbound.emit(agentMessage {
+                                outbound.send(agentMessage {
                                     nodeId = identity.nodeId
                                     containerMetrics = cm
                                 })
                             }
                         metricsCollector.collectPlayerCount(serverId, containerId)
                             ?.let { pu ->
-                                outbound.emit(agentMessage {
+                                outbound.send(agentMessage {
                                     nodeId = identity.nodeId
                                     playerUpdate = pu
                                 })
@@ -130,14 +132,14 @@ class ControlStreamHandler(
 
     // ─── Container lifecycle ──────────────────────────────────────────────────
 
-    internal suspend fun handleCreate(cmd: CreateContainerCommand, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleCreate(cmd: CreateContainerCommand, outbound: SendChannel<AgentMessage>) {
         log.info("Creating container ${cmd.containerName} for server ${cmd.serverId}")
         runCatching {
             withContext(Dispatchers.IO) { containerManager.pullImage(cmd.image) }
             containerManager.createContainer(cmd)
         }
             .onSuccess { dockerContainerId ->
-                outbound.emit(agentMessage {
+                outbound.send(agentMessage {
                     nodeId = identity.nodeId
                     serverStatus = serverStatusUpdate {
                         serverId = cmd.serverId
@@ -149,11 +151,11 @@ class ControlStreamHandler(
             .onFailure { log.error("Failed to create container ${cmd.containerName}", it) }
     }
 
-    internal suspend fun handleStart(cmd: StartContainerCommand, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleStart(cmd: StartContainerCommand, outbound: SendChannel<AgentMessage>) {
         log.info("Starting container ${cmd.containerName}")
         runCatching { containerManager.startContainer(cmd.containerName) }
             .onSuccess {
-                outbound.emit(agentMessage {
+                outbound.send(agentMessage {
                     nodeId = identity.nodeId
                     serverStatus = serverStatusUpdate {
                         serverId = cmd.serverId
@@ -163,7 +165,7 @@ class ControlStreamHandler(
             }
             .onFailure {
                 log.error("Failed to start container ${cmd.containerName}", it)
-                outbound.emit(agentMessage {
+                outbound.send(agentMessage {
                     nodeId = identity.nodeId
                     serverStatus = serverStatusUpdate {
                         serverId = cmd.serverId
@@ -173,11 +175,11 @@ class ControlStreamHandler(
             }
     }
 
-    internal suspend fun handleStop(cmd: StopContainerCommand, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleStop(cmd: StopContainerCommand, outbound: SendChannel<AgentMessage>) {
         log.info("Stopping container ${cmd.containerName}")
         runCatching { containerManager.stopContainer(cmd.containerName, cmd.timeoutSeconds, cmd.stopCommand) }
             .onSuccess {
-                outbound.emit(agentMessage {
+                outbound.send(agentMessage {
                     nodeId = identity.nodeId
                     serverStatus = serverStatusUpdate {
                         serverId = cmd.serverId
@@ -187,7 +189,7 @@ class ControlStreamHandler(
             }
             .onFailure {
                 log.error("Failed to stop container ${cmd.containerName}", it)
-                outbound.emit(agentMessage {
+                outbound.send(agentMessage {
                     nodeId = identity.nodeId
                     serverStatus = serverStatusUpdate {
                         serverId = cmd.serverId
@@ -197,14 +199,14 @@ class ControlStreamHandler(
             }
     }
 
-    internal suspend fun handleRestart(cmd: RestartContainerCommand, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleRestart(cmd: RestartContainerCommand, outbound: SendChannel<AgentMessage>) {
         log.info("Restarting container ${cmd.containerName}")
         runCatching {
             containerManager.stopContainer(cmd.containerName, cmd.timeoutSeconds, cmd.stopCommand)
             containerManager.startContainer(cmd.containerName)
         }
             .onSuccess {
-                outbound.emit(agentMessage {
+                outbound.send(agentMessage {
                     nodeId = identity.nodeId
                     serverStatus = serverStatusUpdate {
                         serverId = cmd.serverId
@@ -214,7 +216,7 @@ class ControlStreamHandler(
             }
             .onFailure {
                 log.error("Failed to restart container ${cmd.containerName}", it)
-                outbound.emit(agentMessage {
+                outbound.send(agentMessage {
                     nodeId = identity.nodeId
                     serverStatus = serverStatusUpdate {
                         serverId = cmd.serverId
@@ -236,10 +238,10 @@ class ControlStreamHandler(
             .onFailure { log.error("Failed to pull image ${cmd.image}", it) }
     }
 
-    internal suspend fun handleShutdown(cmd: ShutdownCommand, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleShutdown(cmd: ShutdownCommand, outbound: SendChannel<AgentMessage>) {
         log.info("Shutdown requested — stopping all containers gracefully")
         val (graceful, forced) = containerManager.shutdownAll(cmd.timeoutSeconds)
-        outbound.emit(agentMessage {
+        outbound.send(agentMessage {
             nodeId = identity.nodeId
             shutdownAcknowledge = shutdownAcknowledgeUpdate {
                 gracefulCount = graceful
@@ -250,13 +252,13 @@ class ControlStreamHandler(
 
     // ─── Backup ───────────────────────────────────────────────────────────────
 
-    internal suspend fun handleTriggerBackup(cmd: TriggerBackupCommand, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleTriggerBackup(cmd: TriggerBackupCommand, outbound: SendChannel<AgentMessage>) {
         log.info("Backup ${cmd.backupId}: starting for server ${cmd.serverId} → ${cmd.destinationPath}")
 
         val dataPath = containerManager.getContainerDataPath(cmd.containerName)
         if (dataPath == null) {
             log.error("Backup ${cmd.backupId}: cannot find /data mount for container ${cmd.containerName}")
-            outbound.emit(agentMessage {
+            outbound.send(agentMessage {
                 nodeId = identity.nodeId
                 backupComplete = backupCompleteUpdate {
                     backupId = cmd.backupId
@@ -269,7 +271,7 @@ class ControlStreamHandler(
             return
         }
 
-        outbound.emit(agentMessage {
+        outbound.send(agentMessage {
             nodeId = identity.nodeId
             backupProgress = backupProgressUpdate {
                 backupId = cmd.backupId
@@ -287,7 +289,7 @@ class ControlStreamHandler(
                     .redirectErrorStream(true)
                     .start()
 
-                outbound.emit(agentMessage {
+                outbound.send(agentMessage {
                     nodeId = identity.nodeId
                     backupProgress = backupProgressUpdate {
                         backupId = cmd.backupId
@@ -307,7 +309,7 @@ class ControlStreamHandler(
             }
         }.onSuccess { sizeBytes ->
             log.info("Backup ${cmd.backupId}: completed, size=$sizeBytes bytes")
-            outbound.emit(agentMessage {
+            outbound.send(agentMessage {
                 nodeId = identity.nodeId
                 backupComplete = backupCompleteUpdate {
                     backupId = cmd.backupId
@@ -321,7 +323,7 @@ class ControlStreamHandler(
         }
             .onFailure { ex ->
                 log.error("Backup ${cmd.backupId}: failed", ex)
-                outbound.emit(agentMessage {
+                outbound.send(agentMessage {
                     nodeId = identity.nodeId
                     backupComplete = backupCompleteUpdate {
                         backupId = cmd.backupId
@@ -345,7 +347,7 @@ class ControlStreamHandler(
 
     internal suspend fun handlePrepareRsyncReceive(
         cmd: PrepareRsyncReceiveCommand,
-        outbound: MutableSharedFlow<AgentMessage>,
+        outbound: SendChannel<AgentMessage>,
     ) {
         log.info("Migration ${cmd.migrationId}: preparing rsync receiver on port ${cmd.port} → ${cmd.destinationPath}")
         runCatching {
@@ -361,7 +363,7 @@ class ControlStreamHandler(
                 password
             }
         }.onSuccess { password ->
-            outbound.emit(agentMessage {
+            outbound.send(agentMessage {
                 nodeId = identity.nodeId
                 rsyncReady = rsyncReadyUpdate {
                     migrationId = cmd.migrationId
@@ -377,7 +379,7 @@ class ControlStreamHandler(
 
     internal suspend fun handleStartRsync(
         cmd: StartRsyncCommand,
-        outbound: MutableSharedFlow<AgentMessage>,
+        outbound: SendChannel<AgentMessage>,
     ) {
         log.info("Migration ${cmd.migrationId}: starting rsync transfer (final=${cmd.isFinalPass})")
         runCatching {
@@ -391,7 +393,7 @@ class ControlStreamHandler(
                     isFinalPass = cmd.isFinalPass,
                     rsyncImage = cmd.rsyncImage.ifEmpty { "alpine" },
                     onProgress = { bytes, total, pct, phase ->
-                        outbound.tryEmit(agentMessage {
+                        outbound.trySend(agentMessage {
                             nodeId = identity.nodeId
                             rsyncProgress = rsyncProgressUpdate {
                                 migrationId = cmd.migrationId
@@ -407,7 +409,7 @@ class ControlStreamHandler(
                 )
             }
         }.onSuccess { success ->
-            outbound.emit(agentMessage {
+            outbound.send(agentMessage {
                 nodeId = identity.nodeId
                 rsyncComplete = rsyncCompleteUpdate {
                     migrationId = cmd.migrationId
@@ -421,7 +423,7 @@ class ControlStreamHandler(
         }
             .onFailure { ex ->
                 log.error("Migration ${cmd.migrationId}: rsync transfer error", ex)
-                outbound.emit(agentMessage {
+                outbound.send(agentMessage {
                     nodeId = identity.nodeId
                     rsyncComplete = rsyncCompleteUpdate {
                         migrationId = cmd.migrationId
@@ -441,7 +443,7 @@ class ControlStreamHandler(
 
     // ─── Console ──────────────────────────────────────────────────────────────
 
-    internal suspend fun handleConsoleAttach(cmd: ConsoleAttach, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleConsoleAttach(cmd: ConsoleAttach, outbound: SendChannel<AgentMessage>) {
         val reqId = cmd.requestId
         if (consoleSessions.containsKey(reqId)) {
             log.warn("Console attach for already-active session $reqId — ignoring")
@@ -451,7 +453,7 @@ class ControlStreamHandler(
         val containers = containerManager.listContainers()
         val container = containers.find { it.serverId == cmd.serverId }
         if (container == null) {
-            outbound.emit(agentMessage {
+            outbound.send(agentMessage {
                 nodeId = identity.nodeId
                 consoleOutput = consoleOutput {
                     requestId = reqId
@@ -473,7 +475,7 @@ class ControlStreamHandler(
                     override fun onNext(frame: Frame) {
                         frame.payload?.takeIf { it.isNotEmpty() }
                             ?.let { payload ->
-                                outbound.tryEmit(agentMessage {
+                                outbound.trySend(agentMessage {
                                     nodeId = identity.nodeId
                                     consoleOutput = consoleOutput {
                                         requestId = reqId
@@ -484,7 +486,7 @@ class ControlStreamHandler(
                     }
 
                     override fun onComplete() {
-                        outbound.tryEmit(agentMessage {
+                        outbound.trySend(agentMessage {
                             nodeId = identity.nodeId
                             consoleOutput = consoleOutput {
                                 requestId = reqId
@@ -495,7 +497,7 @@ class ControlStreamHandler(
                     }
 
                     override fun onError(t: Throwable) {
-                        outbound.tryEmit(agentMessage {
+                        outbound.trySend(agentMessage {
                             nodeId = identity.nodeId
                             consoleOutput = consoleOutput {
                                 requestId = reqId
@@ -544,7 +546,7 @@ class ControlStreamHandler(
 
     // ─── File operations ──────────────────────────────────────────────────────
 
-    internal suspend fun handleListFiles(cmd: ListFilesRequest, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleListFiles(cmd: ListFilesRequest, outbound: SendChannel<AgentMessage>) {
         val result = runCatching {
             withContext(Dispatchers.IO) {
                 val root = serverDataRoot(cmd.serverId)
@@ -572,7 +574,7 @@ class ControlStreamHandler(
                     }
             }
         }
-        outbound.emit(agentMessage {
+        outbound.send(agentMessage {
             nodeId = identity.nodeId
             listFilesResponse = listFilesResponse {
                 requestId = cmd.requestId
@@ -582,7 +584,7 @@ class ControlStreamHandler(
         })
     }
 
-    internal suspend fun handleReadFile(cmd: ReadFileRequest, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleReadFile(cmd: ReadFileRequest, outbound: SendChannel<AgentMessage>) {
         val result = runCatching {
             withContext(Dispatchers.IO) {
                 val root = serverDataRoot(cmd.serverId)
@@ -593,7 +595,7 @@ class ControlStreamHandler(
                 Pair(bytes, if (isTextContent(bytes)) "utf-8" else "binary")
             }
         }
-        outbound.emit(agentMessage {
+        outbound.send(agentMessage {
             nodeId = identity.nodeId
             readFileResponse = readFileResponse {
                 requestId = cmd.requestId
@@ -606,7 +608,7 @@ class ControlStreamHandler(
         })
     }
 
-    internal suspend fun handleWriteFile(cmd: WriteFileRequest, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleWriteFile(cmd: WriteFileRequest, outbound: SendChannel<AgentMessage>) {
         val result = runCatching {
             withContext(Dispatchers.IO) {
                 val root = serverDataRoot(cmd.serverId)
@@ -615,7 +617,7 @@ class ControlStreamHandler(
                 Files.write(target, cmd.content.toByteArray())
             }
         }
-        outbound.emit(agentMessage {
+        outbound.send(agentMessage {
             nodeId = identity.nodeId
             writeFileResponse = writeFileResponse {
                 requestId = cmd.requestId
@@ -625,7 +627,7 @@ class ControlStreamHandler(
         })
     }
 
-    internal suspend fun handleDeleteFile(cmd: DeleteFileRequest, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleDeleteFile(cmd: DeleteFileRequest, outbound: SendChannel<AgentMessage>) {
         val result = runCatching {
             withContext(Dispatchers.IO) {
                 val root = serverDataRoot(cmd.serverId)
@@ -647,7 +649,7 @@ class ControlStreamHandler(
                 }
             }
         }
-        outbound.emit(agentMessage {
+        outbound.send(agentMessage {
             nodeId = identity.nodeId
             deleteFileResponse = deleteFileResponse {
                 requestId = cmd.requestId
@@ -657,7 +659,7 @@ class ControlStreamHandler(
         })
     }
 
-    internal suspend fun handleMakeDirectory(cmd: MakeDirectoryRequest, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleMakeDirectory(cmd: MakeDirectoryRequest, outbound: SendChannel<AgentMessage>) {
         val result = runCatching {
             withContext(Dispatchers.IO) {
                 val root = serverDataRoot(cmd.serverId)
@@ -665,7 +667,7 @@ class ControlStreamHandler(
                 Files.createDirectories(target)
             }
         }
-        outbound.emit(agentMessage {
+        outbound.send(agentMessage {
             nodeId = identity.nodeId
             makeDirectoryResponse = makeDirectoryResponse {
                 requestId = cmd.requestId
@@ -675,7 +677,7 @@ class ControlStreamHandler(
         })
     }
 
-    internal suspend fun handleMoveFile(cmd: MoveFileRequest, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleMoveFile(cmd: MoveFileRequest, outbound: SendChannel<AgentMessage>) {
         val result = runCatching {
             withContext(Dispatchers.IO) {
                 val root = serverDataRoot(cmd.serverId)
@@ -687,7 +689,7 @@ class ControlStreamHandler(
                 Files.move(src, dst, StandardCopyOption.ATOMIC_MOVE)
             }
         }
-        outbound.emit(agentMessage {
+        outbound.send(agentMessage {
             nodeId = identity.nodeId
             moveFileResponse = moveFileResponse {
                 requestId = cmd.requestId
@@ -697,7 +699,7 @@ class ControlStreamHandler(
         })
     }
 
-    internal suspend fun handleCopyFile(cmd: CopyFileRequest, outbound: MutableSharedFlow<AgentMessage>) {
+    internal suspend fun handleCopyFile(cmd: CopyFileRequest, outbound: SendChannel<AgentMessage>) {
         val result = runCatching {
             withContext(Dispatchers.IO) {
                 val root = serverDataRoot(cmd.serverId)
@@ -714,7 +716,7 @@ class ControlStreamHandler(
                 }
             }
         }
-        outbound.emit(agentMessage {
+        outbound.send(agentMessage {
             nodeId = identity.nodeId
             copyFileResponse = copyFileResponse {
                 requestId = cmd.requestId
@@ -729,7 +731,7 @@ class ControlStreamHandler(
     internal suspend fun handleDownloadFile(
         cmd: DownloadFileCommand,
         bulkClient: BulkDataClient,
-        outbound: MutableSharedFlow<AgentMessage>,
+        outbound: SendChannel<AgentMessage>,
     ) {
         val result = runCatching {
             val root = serverDataRoot(cmd.serverId)
@@ -737,7 +739,7 @@ class ControlStreamHandler(
             if (!Files.exists(filePath)) error("File not found: ${cmd.path}")
             bulkClient.uploadToMaster(identity.nodeKey, cmd.transferId, filePath)
         }
-        outbound.emit(agentMessage {
+        outbound.send(agentMessage {
             nodeId = identity.nodeId
             downloadFileResponse = downloadFileResponse {
                 requestId = cmd.requestId
@@ -750,14 +752,14 @@ class ControlStreamHandler(
     internal suspend fun handleUploadFile(
         cmd: UploadFileCommand,
         bulkClient: BulkDataClient,
-        outbound: MutableSharedFlow<AgentMessage>,
+        outbound: SendChannel<AgentMessage>,
     ) {
         val result = runCatching {
             val root = serverDataRoot(cmd.serverId)
             val destPath = safeResolve(root, cmd.path)
             bulkClient.receiveFromMaster(identity.nodeKey, cmd.transferId, destPath)
         }
-        outbound.emit(agentMessage {
+        outbound.send(agentMessage {
             nodeId = identity.nodeId
             uploadFileResponse = uploadFileResponse {
                 requestId = cmd.requestId
