@@ -28,6 +28,12 @@ Built via Gradle from the repo root — do not run `pnpm build` directly in CI:
 ./gradlew :frontend:dockerBuildImage   # packages into Docker image
 ```
 
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `MASTER_URL` | `http://localhost:8080` | Base URL of the master backend. Next.js proxies all `/api/*` requests to `$MASTER_URL/api/*` via rewrites. Set to the internal service address in Docker (e.g. `http://master:8080`). |
+
 ## Conventions
 
 - Dark-only — no light theme; `dark` class is hardcoded on `<html>`
