@@ -9,7 +9,5 @@
         <appender-ref ref="STDOUT"/>
     </root>
 
-    <logger name="io.craftpanel" level="${env.LOG_LEVEL:-INFO}"/>
-    <logger name="io.ktor" level="INFO"/>
-    <logger name="org.jetbrains.exposed" level="INFO"/>
+    <logger name="io.craftpanel" level="${LOG_LEVEL:-INFO}"/>
 </configuration>

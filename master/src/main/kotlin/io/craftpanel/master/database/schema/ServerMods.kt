@@ -1,5 +1,6 @@
 package io.craftpanel.master.database.schema
 
+import org.jetbrains.exposed.v1.core.ReferenceOption
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.datetime.CurrentDateTime
 import org.jetbrains.exposed.v1.datetime.datetime
@@ -7,7 +8,7 @@ import org.jetbrains.exposed.v1.datetime.datetime
 object ServerMods : Table("server_mods") {
 
     val id = uuid("id").autoGenerate()
-    val serverId = uuid("server_id").references(Servers.id)
+    val serverId = uuid("server_id").references(Servers.id, onDelete = ReferenceOption.CASCADE)
     val modrinthProjectId = varchar("modrinth_project_id", 64)
     val displayName = varchar("display_name", 128)
     val pinStrategy = varchar("pin_strategy", 10)   // PINNED|LATEST|BETA|ALPHA

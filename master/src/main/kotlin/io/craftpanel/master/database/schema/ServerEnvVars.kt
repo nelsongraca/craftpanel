@@ -1,11 +1,12 @@
 package io.craftpanel.master.database.schema
 
+import org.jetbrains.exposed.v1.core.ReferenceOption
 import org.jetbrains.exposed.v1.core.Table
 
 object ServerEnvVars : Table("server_env_vars") {
 
     val id = uuid("id").autoGenerate()
-    val serverId = uuid("server_id").references(Servers.id)
+    val serverId = uuid("server_id").references(Servers.id, onDelete = ReferenceOption.CASCADE)
     val key = varchar("key", 100)
     val value = text("value")
 
