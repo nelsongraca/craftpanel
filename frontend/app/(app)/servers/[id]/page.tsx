@@ -16,6 +16,7 @@ import {BackupsTab} from "./backups-tab";
 import {ModsTab} from "./mods-tab";
 import {ConfigTab} from "./config-tab";
 import {MigrationTab} from "./migration-tab";
+import {ConfirmDialog} from "@/components/ui/confirm-dialog";
 
 // ── Mojang version manifest ───────────────────────────────────────────────────
 
@@ -195,6 +196,12 @@ export default function ServerDetailPage() {
     const [actionError, setActionError] = useState<string | null>(null);
     const [pending, setPending] = useState<string | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
+    const [confirmDialog, setConfirmDialog] = useState<{
+        title: string;
+        description: string;
+        destructive?: boolean;
+        onConfirm: () => void;
+    } | null>(null);
 
     // ── Edit: general settings ─────────────────────────────────────────────────
     const [editingGeneral, setEditingGeneral] = useState(false);
@@ -400,20 +407,26 @@ export default function ServerDetailPage() {
         }
     }
 
-    async function doDelete() {
+    function doDelete() {
         if (!server) return;
-        if (!window.confirm(`Delete "${server.display_name}"? This cannot be undone.`)) return;
-        setActionError(null);
-        try {
-            const {error} = await deleteServer({path: {id}});
-            if (error) {
-                setActionError(error.message ?? "Failed to delete server");
-            } else {
-                router.push("/servers");
-            }
-        } catch {
-            setActionError("Failed to delete server");
-        }
+        setConfirmDialog({
+            title: "Delete Server?",
+            description: `Delete "${server.display_name}"? This cannot be undone.`,
+            destructive: true,
+            onConfirm: async () => {
+                setActionError(null);
+                try {
+                    const {error} = await deleteServer({path: {id}});
+                    if (error) {
+                        setActionError(error.message ?? "Failed to delete server");
+                    } else {
+                        router.push("/servers");
+                    }
+                } catch {
+                    setActionError("Failed to delete server");
+                }
+            },
+        });
     }
 
     async function doUpgrade() {
@@ -740,6 +753,14 @@ export default function ServerDetailPage() {
                     onChangeItzgTag={setEditItzgTag}
                 />
             )}
+            <ConfirmDialog
+                open={confirmDialog !== null}
+                onOpenChange={(open) => !open && setConfirmDialog(null)}
+                title={confirmDialog?.title ?? ""}
+                description={confirmDialog?.description ?? ""}
+                destructive={confirmDialog?.destructive}
+                onConfirm={confirmDialog?.onConfirm ?? (() => {})}
+            />
         </div>
     );
 }

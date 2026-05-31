@@ -9,6 +9,7 @@ import {deleteServer, listNetworks, listNodes, listServers, restartServer, start
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import type {Network, Node, Server} from "@/lib/types";
+import {ConfirmDialog} from "@/components/ui/confirm-dialog";
 
 type DisplayStatus = "HEALTHY" | "UNHEALTHY" | "STARTING" | "STOPPING" | "STOPPED";
 
@@ -122,6 +123,12 @@ export default function ServersPage() {
     const [actionError, setActionError] = useState<string | null>(null);
     const [pendingAction, setPendingAction] = useState<Record<string, string>>({});
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+    const [confirmDialog, setConfirmDialog] = useState<{
+        title: string;
+        description: string;
+        destructive?: boolean;
+        onConfirm: () => void;
+    } | null>(null);
 
     const [search, setSearch] = useState("");
     const [filterStatus, setFilterStatus] = useState("");
@@ -214,24 +221,31 @@ export default function ServersPage() {
         }
     }
 
-    async function doDelete(server: Server) {
-        if (!window.confirm(`Delete "${server.display_name}"? This cannot be undone.`)) return;
-        setActionError(null);
-        try {
-            const {error} = await deleteServer({path: {id: server.id}});
-            if (error) {
-                setActionError(error.message ?? "Failed to delete server");
-            } else {
-                await fetchServers();
-            }
-        } catch {
-            setActionError("Failed to delete server");
-        }
+    function doDelete(server: Server) {
+        setConfirmDialog({
+            title: "Delete Server?",
+            description: `Delete "${server.display_name}"? This cannot be undone.`,
+            destructive: true,
+            onConfirm: async () => {
+                setActionError(null);
+                try {
+                    const {error} = await deleteServer({path: {id: server.id}});
+                    if (error) {
+                        setActionError(error.message ?? "Failed to delete server");
+                    } else {
+                        await fetchServers();
+                    }
+                } catch {
+                    setActionError("Failed to delete server");
+                }
+            },
+        });
     }
 
     const canCreate = hasPermission(permissions, "server.create");
 
     return (
+        <>
         <div>
             <PageHeader
                 title="Servers"
@@ -481,5 +495,14 @@ export default function ServersPage() {
                 )}
             </div>
         </div>
+        <ConfirmDialog
+            open={confirmDialog !== null}
+            onOpenChange={(open) => !open && setConfirmDialog(null)}
+            title={confirmDialog?.title ?? ""}
+            description={confirmDialog?.description ?? ""}
+            destructive={confirmDialog?.destructive}
+            onConfirm={confirmDialog?.onConfirm ?? (() => {})}
+        />
+        </>
     );
 }

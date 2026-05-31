@@ -11,6 +11,7 @@ import {hasPermission} from "@/lib/permissions";
 import type {Node} from "@/lib/types";
 import {timeAgo} from "@/lib/utils/format";
 import {TokenModal} from "@/components/nodes/TokenModal";
+import {ConfirmDialog} from "@/components/ui/confirm-dialog";
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 
@@ -221,6 +222,12 @@ export default function NodesPage() {
     const [actionError, setActionError] = useState<string | null>(null);
     const [pendingAction, setPendingAction] = useState<Record<string, string>>({});
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+    const [confirmDialog, setConfirmDialog] = useState<{
+        title: string;
+        description: string;
+        destructive?: boolean;
+        onConfirm: () => void;
+    } | null>(null);
 
     const [filterStatus, setFilterStatus] = useState("");
 
@@ -284,74 +291,94 @@ export default function NodesPage() {
         }
     }
 
-    async function doReject(nodeId: string) {
-        if (!window.confirm("Reject this node? The agent will not be able to connect.")) return;
-        setPendingAction((p) => ({...p, [nodeId]: "reject"}));
-        setActionError(null);
-        try {
-            const {error} = await rejectNode({path: {id: nodeId}});
-            if (error) {
-                setActionError(error.message ?? "Failed to reject node");
-            } else {
-                await fetchNodes();
-            }
-        } catch {
-            setActionError("Failed to reject node");
-        } finally {
-            setPendingAction((p) => {
-                const n = {...p};
-                delete n[nodeId];
-                return n;
-            });
-        }
+    function doReject(nodeId: string) {
+        setConfirmDialog({
+            title: "Reject Node?",
+            description: "The agent will not be able to connect.",
+            destructive: true,
+            onConfirm: async () => {
+                setPendingAction((p) => ({...p, [nodeId]: "reject"}));
+                setActionError(null);
+                try {
+                    const {error} = await rejectNode({path: {id: nodeId}});
+                    if (error) {
+                        setActionError(error.message ?? "Failed to reject node");
+                    } else {
+                        await fetchNodes();
+                    }
+                } catch {
+                    setActionError("Failed to reject node");
+                } finally {
+                    setPendingAction((p) => {
+                        const n = {...p};
+                        delete n[nodeId];
+                        return n;
+                    });
+                }
+            },
+        });
     }
 
-    async function doRotateToken(nodeId: string) {
-        if (!window.confirm("Rotate the node key? The agent will need to re-register.")) return;
-        setPendingAction((p) => ({...p, [nodeId]: "rotate"}));
-        setActionError(null);
-        try {
-            const {data, error} = await rotateNodeToken({path: {id: nodeId}});
-            if (error) {
-                setActionError(error.message ?? "Failed to rotate token");
-            } else if (data) {
-                setTokenKey(data.node_key);
-            }
-        } catch {
-            setActionError("Failed to rotate token");
-        } finally {
-            setPendingAction((p) => {
-                const n = {...p};
-                delete n[nodeId];
-                return n;
-            });
-        }
+    function doRotateToken(nodeId: string) {
+        setConfirmDialog({
+            title: "Rotate Node Key?",
+            description: "The agent will need to re-register.",
+            onConfirm: async () => {
+                setPendingAction((p) => ({...p, [nodeId]: "rotate"}));
+                setActionError(null);
+                try {
+                    const {data, error} = await rotateNodeToken({path: {id: nodeId}});
+                    if (error) {
+                        setActionError(error.message ?? "Failed to rotate token");
+                    } else if (data) {
+                        setTokenKey(data.node_key);
+                    }
+                } catch {
+                    setActionError("Failed to rotate token");
+                } finally {
+                    setPendingAction((p) => {
+                        const n = {...p};
+                        delete n[nodeId];
+                        return n;
+                    });
+                }
+            },
+        });
     }
 
-    async function doShutdown(nodeId: string, displayName: string) {
-        if (!window.confirm(`Send shutdown command to "${displayName}"?`)) return;
-        setPendingAction((p) => ({...p, [nodeId]: "shutdown"}));
-        setActionError(null);
-        try {
-            const {error} = await shutdownNode({path: {id: nodeId}});
-            if (error) {
-                setActionError(error.message ?? "Failed to shutdown node");
-            } else {
-                await fetchNodes();
-            }
-        } catch {
-            setActionError("Failed to shutdown node");
-        } finally {
-            setPendingAction((p) => {
-                const n = {...p};
-                delete n[nodeId];
-                return n;
-            });
-        }
+    function doShutdown(nodeId: string, displayName: string) {
+        setConfirmDialog({
+            title: "Shutdown Node?",
+            description: `Send shutdown command to "${displayName}"?`,
+            onConfirm: async () => {
+                setPendingAction((p) => ({...p, [nodeId]: "shutdown"}));
+                setActionError(null);
+                try {
+                    const {error} = await shutdownNode({path: {id: nodeId}});
+                    if (error) {
+                        setActionError(error.message ?? "Failed to shutdown node");
+                    } else {
+                        await fetchNodes();
+                    }
+                } catch {
+                    setActionError("Failed to shutdown node");
+                } finally {
+                    setPendingAction((p) => {
+                        const n = {...p};
+                        delete n[nodeId];
+                        return n;
+                    });
+                }
+            },
+        });
     }
 
-    async function doDecommission(node: Node) {
-        if (!window.confirm(`Decommission "${node.display_name}"? This cannot be undone.`)) return;
+    function doDecommission(node: Node) {
+        setConfirmDialog({
+            title: "Decommission Node?",
+            description: `Decommission "${node.display_name}"? This cannot be undone.`,
+            destructive: true,
+            onConfirm: async () => {
         setPendingAction((p) => ({...p, [node.id]: "decommission"}));
         setActionError(null);
         try {
@@ -370,6 +397,8 @@ export default function NodesPage() {
                 return n;
             });
         }
+            },
+        });
     }
 
     // ── Derived ────────────────────────────────────────────────────────────────
@@ -653,6 +682,14 @@ export default function NodesPage() {
             {tokenKey && (
                 <TokenModal nodeKey={tokenKey} onClose={() => setTokenKey(null)}/>
             )}
+            <ConfirmDialog
+                open={confirmDialog !== null}
+                onOpenChange={(open) => !open && setConfirmDialog(null)}
+                title={confirmDialog?.title ?? ""}
+                description={confirmDialog?.description ?? ""}
+                destructive={confirmDialog?.destructive}
+                onConfirm={confirmDialog?.onConfirm ?? (() => {})}
+            />
         </div>
     );
 }

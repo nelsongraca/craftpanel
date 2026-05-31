@@ -12,6 +12,7 @@ import {
 } from "@/lib/generated/sdk.gen";
 import type { EnvVarItem, ProxyBackend, PutEnvVarsRequest, PutProxyBackendsRequest } from "@/lib/types";
 import type { IoCraftpanelMasterServiceServerResponse as ServerResponse } from "@/lib/generated/types.gen";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 const PROXY_TYPES = new Set(["VELOCITY", "BUNGEECORD", "WATERFALL"]);
 
@@ -56,6 +57,12 @@ function GameServerConfigSection({
     const [saving, setSaving] = useState(false);
     const [togglingMode, setTogglingMode] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [confirmDialog, setConfirmDialog] = useState<{
+        title: string;
+        description: string;
+        destructive?: boolean;
+        onConfirm: () => void;
+    } | null>(null);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -76,12 +83,7 @@ function GameServerConfigSection({
         load();
     }, [load]);
 
-    async function handleToggleMode() {
-        const next = configMode === "MANAGED" ? "MANUAL" : "MANAGED";
-        if (configMode === "MANAGED") {
-            if (!window.confirm("Disable managed env vars? Existing vars are preserved but won't be applied until you switch back."))
-                return;
-        }
+    async function applyToggleMode(next: string) {
         setTogglingMode(true);
         setError(null);
         const res = await updateConfigMode({ path: { id: serverId }, body: { config_mode: next } });
@@ -91,6 +93,19 @@ function GameServerConfigSection({
             setConfigMode(next);
         }
         setTogglingMode(false);
+    }
+
+    function handleToggleMode() {
+        const next = configMode === "MANAGED" ? "MANUAL" : "MANAGED";
+        if (configMode === "MANAGED") {
+            setConfirmDialog({
+                title: "Disable Managed Env Vars?",
+                description: "Existing vars are preserved but won't be applied until you switch back.",
+                onConfirm: () => void applyToggleMode(next),
+            });
+            return;
+        }
+        void applyToggleMode(next);
     }
 
     function addRow() {
@@ -134,6 +149,7 @@ function GameServerConfigSection({
     }
 
     return (
+        <>
         <div className="px-6 py-6 space-y-6">
             <div className="flex items-center justify-between">
                 <div>
@@ -257,6 +273,15 @@ function GameServerConfigSection({
                 </>
             )}
         </div>
+        <ConfirmDialog
+            open={confirmDialog !== null}
+            onOpenChange={(open) => !open && setConfirmDialog(null)}
+            title={confirmDialog?.title ?? ""}
+            description={confirmDialog?.description ?? ""}
+            destructive={confirmDialog?.destructive}
+            onConfirm={confirmDialog?.onConfirm ?? (() => {})}
+        />
+        </>
     );
 }
 

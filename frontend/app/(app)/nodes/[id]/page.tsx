@@ -13,6 +13,7 @@ import type {Node} from "@/lib/types";
 import {timeAgo} from "@/lib/utils/format";
 import {TokenModal} from "@/components/nodes/TokenModal";
 import type {IoCraftpanelMasterServiceServerResponse as Server} from "@/lib/generated/types.gen";
+import {ConfirmDialog} from "@/components/ui/confirm-dialog";
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 
@@ -631,6 +632,12 @@ export default function NodeDetailPage() {
     const [activeTab, setActiveTab] = useState<Tab>("Overview");
     const [actionError, setActionError] = useState<string | null>(null);
     const [pending, setPending] = useState<string | null>(null);
+    const [confirmDialog, setConfirmDialog] = useState<{
+        title: string;
+        description: string;
+        destructive?: boolean;
+        onConfirm: () => void;
+    } | null>(null);
 
     // Modals
     const [showEdit, setShowEdit] = useState(false);
@@ -681,78 +688,100 @@ export default function NodeDetailPage() {
         }
     }
 
-    async function doReject() {
-        if (!window.confirm("Reject this node? The agent will not be able to connect.")) return;
-        setPending("reject");
-        setActionError(null);
-        try {
-            const {error} = await rejectNode({path: {id}});
-            if (error) {
-                setActionError(error.message ?? "Failed to reject node");
-            } else {
-                await fetchNode();
-            }
-        } catch {
-            setActionError("Failed to reject node");
-        } finally {
-            setPending(null);
-        }
+    function doReject() {
+        setConfirmDialog({
+            title: "Reject Node?",
+            description: "The agent will not be able to connect.",
+            destructive: true,
+            onConfirm: async () => {
+                setPending("reject");
+                setActionError(null);
+                try {
+                    const {error} = await rejectNode({path: {id}});
+                    if (error) {
+                        setActionError(error.message ?? "Failed to reject node");
+                    } else {
+                        await fetchNode();
+                    }
+                } catch {
+                    setActionError("Failed to reject node");
+                } finally {
+                    setPending(null);
+                }
+            },
+        });
     }
 
-    async function doRotateToken() {
-        if (!window.confirm("Rotate the node key? The agent will need to re-register.")) return;
-        setPending("rotate");
-        setActionError(null);
-        try {
-            const {data, error} = await rotateNodeToken({path: {id}});
-            if (error) {
-                setActionError(error.message ?? "Failed to rotate token");
-            } else if (data) {
-                setTokenKey(data.node_key);
-            }
-        } catch {
-            setActionError("Failed to rotate token");
-        } finally {
-            setPending(null);
-        }
+    function doRotateToken() {
+        setConfirmDialog({
+            title: "Rotate Node Key?",
+            description: "The agent will need to re-register.",
+            onConfirm: async () => {
+                setPending("rotate");
+                setActionError(null);
+                try {
+                    const {data, error} = await rotateNodeToken({path: {id}});
+                    if (error) {
+                        setActionError(error.message ?? "Failed to rotate token");
+                    } else if (data) {
+                        setTokenKey(data.node_key);
+                    }
+                } catch {
+                    setActionError("Failed to rotate token");
+                } finally {
+                    setPending(null);
+                }
+            },
+        });
     }
 
-    async function doShutdown() {
+    function doShutdown() {
         if (!node) return;
-        if (!window.confirm(`Send shutdown command to "${node.display_name}"?`)) return;
-        setPending("shutdown");
-        setActionError(null);
-        try {
-            const {error} = await shutdownNode({path: {id}});
-            if (error) {
-                setActionError(error.message ?? "Failed to shutdown node");
-            } else {
-                await fetchNode();
-            }
-        } catch {
-            setActionError("Failed to shutdown node");
-        } finally {
-            setPending(null);
-        }
+        setConfirmDialog({
+            title: "Shutdown Node?",
+            description: `Send shutdown command to "${node.display_name}"?`,
+            onConfirm: async () => {
+                setPending("shutdown");
+                setActionError(null);
+                try {
+                    const {error} = await shutdownNode({path: {id}});
+                    if (error) {
+                        setActionError(error.message ?? "Failed to shutdown node");
+                    } else {
+                        await fetchNode();
+                    }
+                } catch {
+                    setActionError("Failed to shutdown node");
+                } finally {
+                    setPending(null);
+                }
+            },
+        });
     }
 
-    async function doDecommission() {
+    function doDecommission() {
         if (!node) return;
-        if (!window.confirm(`Decommission "${node.display_name}"? This cannot be undone.`)) return;
-        setPending("decommission");
-        setActionError(null);
-        try {
-            const {error} = await decommissionNode({path: {id}});
-            if (error) {
-                setActionError(error.message ?? "Failed to decommission node");
-            } else {
-                router.push("/nodes");
-            }
-        } catch {
-            setActionError("Failed to decommission node");
-        } finally {
-            setPending(null);
-        }
+        setConfirmDialog({
+            title: "Decommission Node?",
+            description: `Decommission "${node.display_name}"? This cannot be undone.`,
+            destructive: true,
+            onConfirm: async () => {
+                setPending("decommission");
+                setActionError(null);
+                try {
+                    const {error} = await decommissionNode({path: {id}});
+                    if (error) {
+                        setActionError(error.message ?? "Failed to decommission node");
+                    } else {
+                        router.push("/nodes");
+                    }
+                } catch {
+                    setActionError("Failed to decommission node");
+                } finally {
+                    setPending(null);
+                }
+            },
+        });
     }
 
     // ── Guards ─────────────────────────────────────────────────────────────────
@@ -908,6 +937,14 @@ export default function NodeDetailPage() {
             {tokenKey && (
                 <TokenModal nodeKey={tokenKey} onClose={() => setTokenKey(null)}/>
             )}
+            <ConfirmDialog
+                open={confirmDialog !== null}
+                onOpenChange={(open) => !open && setConfirmDialog(null)}
+                title={confirmDialog?.title ?? ""}
+                description={confirmDialog?.description ?? ""}
+                destructive={confirmDialog?.destructive}
+                onConfirm={confirmDialog?.onConfirm ?? (() => {})}
+            />
         </div>
     );
 }

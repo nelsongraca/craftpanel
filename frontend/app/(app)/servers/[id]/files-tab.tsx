@@ -1,6 +1,7 @@
 "use client";
 
 import {useCallback, useEffect, useRef, useState} from "react";
+import {ConfirmDialog} from "@/components/ui/confirm-dialog";
 import {deleteServerFile, listServerFiles, mkdirServerFile, moveServerFile, readServerFile,} from "@/lib/generated/sdk.gen";
 import {ChevronDown, ChevronRight, Download, File, Folder, FolderPlus, Pencil, Save, Trash2, Upload, X} from "lucide-react";
 
@@ -38,6 +39,12 @@ export function FilesTab({serverId}: Props) {
     const [dirty, setDirty] = useState(false);
     const [rootLoading, setRootLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [confirmDialog, setConfirmDialog] = useState<{
+        title: string;
+        description: string;
+        destructive?: boolean;
+        onConfirm: () => void;
+    } | null>(null);
     const [renameNode, setRenameNode] = useState<{ path: string; name: string } | null>(null);
     const [renameValue, setRenameValue] = useState("");
     const uploadRef = useRef<HTMLInputElement>(null);
@@ -119,21 +126,27 @@ export function FilesTab({serverId}: Props) {
         setDirty(false);
     }
 
-    async function deleteEntry(path: string, isDir: boolean) {
-        if (!confirm(`Delete ${path}?`)) return;
-        const {error: err} = await deleteServerFile({
-            path: {id: serverId},
-            query: {path, recursive: isDir ? true : undefined},
+    function deleteEntry(path: string, isDir: boolean) {
+        setConfirmDialog({
+            title: "Delete File?",
+            description: `Delete ${path}? This cannot be undone.`,
+            destructive: true,
+            onConfirm: async () => {
+                const {error: err} = await deleteServerFile({
+                    path: {id: serverId},
+                    query: {path, recursive: isDir ? true : undefined},
+                });
+                if (err) {
+                    setError("Failed to delete");
+                    return;
+                }
+                if (selectedPath === path) {
+                    setSelectedPath(null);
+                    setFileContent("");
+                }
+                setRoots(await loadDir("/"));
+            },
         });
-        if (err) {
-            setError("Failed to delete");
-            return;
-        }
-        if (selectedPath === path) {
-            setSelectedPath(null);
-            setFileContent("");
-        }
-        setRoots(await loadDir("/"));
     }
 
     async function mkdirPrompt() {
@@ -271,6 +284,7 @@ export function FilesTab({serverId}: Props) {
     }
 
     return (
+        <>
         <div className="flex h-[600px]">
             {/* ── Tree ── */}
             <div className="w-64 shrink-0 border-r border-border flex flex-col overflow-hidden">
@@ -352,5 +366,14 @@ export function FilesTab({serverId}: Props) {
                 )}
             </div>
         </div>
+        <ConfirmDialog
+            open={confirmDialog !== null}
+            onOpenChange={(open) => !open && setConfirmDialog(null)}
+            title={confirmDialog?.title ?? ""}
+            description={confirmDialog?.description ?? ""}
+            destructive={confirmDialog?.destructive}
+            onConfirm={confirmDialog?.onConfirm ?? (() => {})}
+        />
+        </>
     );
 }
