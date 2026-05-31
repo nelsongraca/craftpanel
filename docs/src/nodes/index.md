@@ -53,7 +53,8 @@ The agent is configured entirely through environment variables.
 | `MASTER_GRPC_PORT`    | `50051`                   | Port of the master gRPC server                                                                  |
 | `GRPC_TLS_CERT`       | *(empty — TLS disabled)*  | Path to the TLS CA certificate used to verify the master. Leave empty to disable TLS.           |
 | `NODE_BOOTSTRAP_TOKEN`| `changeme`                | Shared secret used for first-time node registration. Not needed after the node key is persisted |
-| `NODE_KEY_FILE`       | `/etc/craftpanel/node.key`| Path where the agent persists its node key after registration                                   |
+| `GRPC_CA_CERT_FILE`   | `/etc/craftpanel/grpc-ca.crt` | Path to the master's CA certificate PEM. Must be pre-provisioned — copy from master's cert store and mount read-only into the agent container. |
+| `NODE_KEY_FILE`       | `/etc/craftpanel/node.key`| Path where the agent persists its node key after registration. Mount a writable volume so it survives restarts. |
 | `DOCKER_SOCKET`       | `unix:///var/run/docker.sock` | Docker socket path                                                                          |
 | `AGENT_VERSION`       | `dev`                     | Version string reported to master during registration                                           |
 | `APP_PROFILE`         | `prod`                    | Runtime profile. Set to `dev` to allow plaintext gRPC (development only) |

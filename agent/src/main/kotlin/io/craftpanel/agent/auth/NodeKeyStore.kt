@@ -42,11 +42,4 @@ object NodeKeyStore {
     }
 
     fun readCaCert(caCertFilePath: String): String? = read(caCertFilePath)
-
-    fun writeCaCert(caCertFilePath: String, caCertPem: String) {
-        val file = File(caCertFilePath)
-        file.parentFile?.mkdirs()
-        file.writeText(caCertPem)
-        log.info("gRPC CA cert persisted to $caCertFilePath")
-    }
 }

@@ -43,10 +43,6 @@ class NodeAuthenticator(
                 this.metadata = metadata
             })
             NodeKeyStore.write(config.keyFilePath, response.nodeKey)
-            if (response.caCert.isNotBlank()) {
-                NodeKeyStore.writeCaCert(config.caCertFilePath, response.caCert)
-                log.info("gRPC CA cert received and persisted to ${config.caCertFilePath}")
-            }
             log.info("Registered as node ${response.nodeId} — status PENDING, awaiting admin approval")
             return NodeIdentity(nodeId = response.nodeId, nodeKey = response.nodeKey)
         }
@@ -56,11 +52,6 @@ class NodeAuthenticator(
             nodeKey = existingKey
             this.metadata = metadata
         })
-
-        if (response.caCert.isNotBlank()) {
-            NodeKeyStore.writeCaCert(config.caCertFilePath, response.caCert)
-            log.info("Node ${response.nodeId}: CA cert refreshed — reconnect will use updated cert")
-        }
 
         return when (response.status) {
             IdentifyNodeResponse.IdentifyStatus.ACTIVE  -> {

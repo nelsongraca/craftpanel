@@ -65,10 +65,6 @@ message RegisterNodeResponse {
   string node_key = 1;
   // UUID assigned to this node record by master.
   string node_id = 2;
-  reserved 3; reserved "data_token";
-  // PEM-encoded CA certificate. Agent persists this and uses it to verify the
-  // master's TLS certificate on all subsequent gRPC connections.
-  string ca_cert = 4;
 }
 
 message IdentifyNodeRequest {
@@ -81,10 +77,6 @@ message IdentifyNodeRequest {
 message IdentifyNodeResponse {
   IdentifyStatus status = 1;
   string node_id = 2;
-  reserved 3; reserved "data_token";
-  // PEM-encoded CA certificate. Non-empty only when the CA cert has been rotated
-  // since the agent last connected. Agent replaces its stored CA cert and reconnects.
-  string ca_cert = 4;
 
   enum IdentifyStatus {
     IDENTIFY_STATUS_UNSPECIFIED = 0;

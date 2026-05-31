@@ -62,14 +62,10 @@ fun Application.module() {
         transaction { seedAdminUser(appConfig.adminSeed.email, appConfig.adminSeed.password, appConfig.adminSeed.username) }
     }
 
-    var grpcServer: GrpcServer? = null
-    val controlService = ControlServiceImpl(
-        appConfig.node,
-        caCertPemProvider = { grpcServer?.readCaCertPem() },
-    )
+    val controlService = ControlServiceImpl(appConfig.node)
     val bulkDataService = BulkDataServiceImpl(controlService)
     val dataServiceProxy = DataServiceProxy(controlService, bulkDataService)
-    grpcServer = GrpcServer(appConfig, controlService, bulkDataService).start()
+    val grpcServer = GrpcServer(appConfig, controlService, bulkDataService).start()
     monitor.subscribe(ApplicationStopped) { grpcServer.stop() }
 
     val jwtManager = JwtManager(appConfig.jwt)
