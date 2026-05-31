@@ -147,9 +147,9 @@ class ControlServiceImpl(
         }
 
         val identifyStatus = when (row?.get(Nodes.status)) {
-            "ACTIVE"  -> IdentifyNodeResponse.IdentifyStatus.ACTIVE
-            "PENDING" -> IdentifyNodeResponse.IdentifyStatus.PENDING
-            else      -> IdentifyNodeResponse.IdentifyStatus.REJECTED
+            "ACTIVE", "DEGRADED" -> IdentifyNodeResponse.IdentifyStatus.ACTIVE
+            "PENDING"            -> IdentifyNodeResponse.IdentifyStatus.PENDING
+            else                 -> IdentifyNodeResponse.IdentifyStatus.REJECTED
         }
 
         val rowId = row?.get(Nodes.id)?.toString() ?: ""
@@ -203,7 +203,9 @@ class ControlServiceImpl(
                 when {
                     msg.hasNodeState()        -> {
                         log.info("Node ${msg.nodeId} sent state snapshot with ${msg.nodeState.containersCount} containers")
-                        reconcileNodeState(msg.nodeId, msg.nodeState)
+                        if (reconcileNodeState(msg.nodeId, msg.nodeState)) {
+                            _nodeStatusFlow.emit(msg.nodeId to "ACTIVE")
+                        }
                     }
 
                     msg.hasNodeMetrics()      -> {
@@ -260,10 +262,10 @@ class ControlServiceImpl(
         }
         finally {
             connectedNodeId?.let { nodeId ->
-                connectedAgents.remove(nodeId, outChannel)
+                val wasOwner = connectedAgents.remove(nodeId, outChannel)
                 drainNodeRequests(nodeId)
                 onNodeDisconnect(nodeId)
-                if (!watchdogFired) {
+                if (wasOwner && !watchdogFired) {
                     log.warn("Node $nodeId: control stream disconnected — marking degraded")
                     markNodeDegraded(nodeId)
                     _nodeStatusFlow.emit(nodeId to "DEGRADED")
@@ -370,9 +372,10 @@ class ControlServiceImpl(
 
     // ── Reconciliation & lifecycle ────────────────────────────────────────────
 
-    internal fun reconcileNodeState(nodeId: String, snapshot: NodeStateSnapshot) {
-        val kotlinNodeId = runCatching { UUID.fromString(nodeId).toKotlinUuid() }.getOrNull() ?: return
+    internal fun reconcileNodeState(nodeId: String, snapshot: NodeStateSnapshot): Boolean {
+        val kotlinNodeId = runCatching { UUID.fromString(nodeId).toKotlinUuid() }.getOrNull() ?: return false
         val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        var wasRestored = false
 
         transaction {
             val currentStatus = Nodes.selectAll()
@@ -417,10 +420,12 @@ class ControlServiceImpl(
                     it[Nodes.status] = "ACTIVE"
                     it[Nodes.lastSeenAt] = now
                 }
+                wasRestored = true
             } else {
                 Nodes.update({ Nodes.id eq kotlinNodeId }) { it[Nodes.lastSeenAt] = now }
             }
         }
+        return wasRestored
     }
 
     internal fun markNodeDegraded(nodeId: String) {

@@ -94,6 +94,17 @@ The example below runs master, frontend, and a PostgreSQL database on one machin
 ```yaml
 # docker-compose.yml
 services:
+  traefik:
+    image: traefik:v3
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
   db:
     image: postgres:17-alpine
     environment:
@@ -106,8 +117,7 @@ services:
   master:
     image: ghcr.io/nelsongraca/craftpanel/master:latest
     ports:
-      - "8080:8080"     # REST API + WebSocket
-      - "50051:50051"   # gRPC (agents connect here)
+      - "50051:50051"   # gRPC — agents connect here directly
     environment:
       DATABASE_URL: jdbc:postgresql://db:5432/craftpanel
       DATABASE_USERNAME: craftpanel
@@ -123,13 +133,23 @@ services:
       - master_certs:/etc/craftpanel/certs
     depends_on:
       - db
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.master-api.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.master-api.entrypoints=web"
+      - "traefik.http.routers.master-api.priority=10"
+      - "traefik.http.services.master.loadbalancer.server.port=8080"
 
   frontend:
     image: ghcr.io/nelsongraca/craftpanel/frontend:latest
-    ports:
-      - "3000:3000"
-    environment:
-      MASTER_URL: http://master:8080
+    depends_on:
+      - master
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.routers.frontend.priority=1"
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
 
 volumes:
   postgres_data:
@@ -140,7 +160,7 @@ volumes:
 docker compose up -d
 ```
 
-Open `http://localhost:3000`.
+Open `http://localhost`.
 
 ### First-time admin user
 

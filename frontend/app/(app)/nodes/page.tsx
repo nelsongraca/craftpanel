@@ -12,6 +12,7 @@ import type {Node} from "@/lib/types";
 import {timeAgo} from "@/lib/utils/format";
 import {TokenModal} from "@/components/nodes/TokenModal";
 import {ConfirmDialog} from "@/components/ui/confirm-dialog";
+import {useWs} from "@/lib/ws-context";
 
 // ── Status helpers ────────────────────────────────────────────────────────────
 
@@ -214,6 +215,7 @@ function EditModal({
 export default function NodesPage() {
     const router = useRouter();
     const {user} = useAuth();
+    const {subscribe} = useWs();
     const permissions = user?.permissions ?? [];
 
     const [nodes, setNodes] = useState<Node[]>([]);
@@ -267,6 +269,15 @@ export default function NodesPage() {
         document.addEventListener("click", handler);
         return () => document.removeEventListener("click", handler);
     }, []);
+
+    useEffect(() => {
+        return subscribe("node.status", (payload) => {
+            const {nodeId, status} = payload as {nodeId: string; status: string};
+            setNodes((prev) =>
+                prev.map((n) => n.id === nodeId ? {...n, status} : n),
+            );
+        });
+    }, [subscribe]);
 
     // ── Actions ────────────────────────────────────────────────────────────────
 

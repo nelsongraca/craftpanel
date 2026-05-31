@@ -132,7 +132,10 @@ class ControlStreamHandler(
 
     internal suspend fun handleCreate(cmd: CreateContainerCommand, outbound: MutableSharedFlow<AgentMessage>) {
         log.info("Creating container ${cmd.containerName} for server ${cmd.serverId}")
-        runCatching { containerManager.createContainer(cmd) }
+        runCatching {
+            withContext(Dispatchers.IO) { containerManager.pullImage(cmd.image) }
+            containerManager.createContainer(cmd)
+        }
             .onSuccess { dockerContainerId ->
                 outbound.emit(agentMessage {
                     nodeId = identity.nodeId

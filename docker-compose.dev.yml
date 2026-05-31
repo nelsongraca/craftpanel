@@ -1,4 +1,15 @@
 services:
+  traefik:
+    image: traefik:v3
+    command:
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
   db:
     image: postgres:17-alpine
     ports:
@@ -7,11 +18,46 @@ services:
       POSTGRES_DB: craftpanel
       POSTGRES_USER: craftpanel
       POSTGRES_PASSWORD: craftpanel
+    volumes:
+      - db-data:/var/lib/postgresql/data
+
+  master:
+    # Build: ./gradlew :master:dockerBuildImage
+    image: ghcr.io/nelsongraca/craftpanel/master:latest
+    ports:
+      - "50051:50051"
+    environment:
+      CRAFTPANEL_DATABASE_URL: jdbc:postgresql://db:5432/craftpanel
+      CRAFTPANEL_DATABASE_USER: craftpanel
+      CRAFTPANEL_DATABASE_PASSWORD: craftpanel
+      CRAFTPANEL_JWT_SECRET: dev-secret-change-me-in-production
+      NODE_BOOTSTRAP_TOKEN: devtoken
+      APP_PROFILE: dev
+    depends_on:
+      - db
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.master-api.rule=PathPrefix(`/api`)"
+      - "traefik.http.routers.master-api.entrypoints=web"
+      - "traefik.http.routers.master-api.priority=10"
+      - "traefik.http.services.master.loadbalancer.server.port=8080"
+
+  frontend:
+    # Build: ./gradlew :frontend:dockerBuildImage
+    image: ghcr.io/nelsongraca/craftpanel/frontend:latest
+    depends_on:
+      - master
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
+      - "traefik.http.routers.frontend.entrypoints=web"
+      - "traefik.http.routers.frontend.priority=1"
+      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
 
   seed:
     image: postgres:17-alpine
     depends_on:
-      - db
+      - master
     volumes:
       - ./dev/seed.sql:/seed.sql:ro
     environment:
@@ -19,9 +65,10 @@ services:
     # Waits for master's /health endpoint (which confirms schema is ready), then loads seed data.
     entrypoint: >
       sh -c "
-        until wget -qO- http://host.docker.internal:8080/health; do sleep 2; done &&
+        until wget -qO- http://master:8080/health; do sleep 2; done &&
         psql -h db -U craftpanel -d craftpanel -f /seed.sql
       "
     restart: "no"
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+
+volumes:
+  db-data:

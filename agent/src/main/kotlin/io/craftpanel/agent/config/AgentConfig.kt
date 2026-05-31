@@ -19,6 +19,7 @@ data class AgentConfig(
 ) {
 
     val tlsEnabled: Boolean get() = tlsCertPath.isNotBlank()
+    val tlsConfigured: Boolean get() = tlsEnabled || java.io.File(caCertFilePath).exists()
 
     fun validate() {
         if (profile == "dev") {
@@ -26,10 +27,7 @@ data class AgentConfig(
             if (!tlsEnabled) log.warn("GRPC_TLS_CERT not set — running control channel in plaintext (dev only)")
             return
         }
-        check(
-            tlsEnabled || java.io.File(caCertFilePath)
-                .exists()
-        ) {
+        check(tlsConfigured) {
             "gRPC CA cert required outside dev profile — set GRPC_TLS_CERT or mount master's grpc-ca.crt at $caCertFilePath"
         }
         check(bootstrapToken != "changeme" && bootstrapToken.length >= 16) {
