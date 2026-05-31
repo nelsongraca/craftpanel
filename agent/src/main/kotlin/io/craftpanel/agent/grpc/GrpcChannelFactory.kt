@@ -25,7 +25,7 @@ object GrpcChannelFactory {
             builder.sslContext(sslContext)
         } else {
             check(config.profile == "dev") {
-                "gRPC TLS is required outside dev profile — set GRPC_TLS_CERT or ensure ${config.caCertFilePath} exists"
+                "gRPC TLS is required outside dev profile — set GRPC_TLS_CERT or mount master's grpc-ca.crt at ${config.caCertFilePath}"
             }
             builder.usePlaintext()
         }

@@ -33,7 +33,7 @@ data class AgentConfig(
             return
         }
         check(tlsEnabled || java.io.File(caCertFilePath).exists()) {
-            "gRPC CA cert required outside dev profile — set GRPC_TLS_CERT or ensure $caCertFilePath exists (auto-populated on first registration)"
+            "gRPC CA cert required outside dev profile — set GRPC_TLS_CERT or mount master's grpc-ca.crt at $caCertFilePath"
         }
         check(dataServiceTlsEnabled) { "DATA_SERVICE_TLS_CERT and DATA_SERVICE_TLS_KEY are required outside dev profile" }
         check(bootstrapToken != "changeme" && bootstrapToken.length >= 16) {
