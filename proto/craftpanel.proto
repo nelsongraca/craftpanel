@@ -330,8 +330,6 @@ message TriggerBackupCommand {
   string backup_id = 1;
   string server_id = 2;
   string container_name = 3;
-  // Absolute destination path on this node for the resulting archive.
-  string destination_path = 4;
 }
 
 message DeleteBackupCommand {
@@ -342,30 +340,26 @@ message DeleteBackupCommand {
 message PrepareRsyncReceiveCommand {
   string migration_id = 1;
   string server_id = 2;
-  // Absolute path on this node where data should be received into.
-  string destination_path = 3;
   // Port pre-allocated by master from the destination node's port range.
   // Agent binds the rsyncd container to this port.
-  int32  port = 4;
+  int32  port = 3;
   // craftpanel-rsync image reference. Pinned by master to ensure consistency.
-  string rsync_image = 5;
+  string rsync_image = 4;
 }
 
 message StartRsyncCommand {
   string migration_id = 1;
   string server_id = 2;
-  // Absolute path on this node to sync from.
-  string source_path = 3;
   // Private IP of the destination node.
-  string destination_ip = 4;
-  int32  destination_port = 5;
+  string destination_ip = 3;
+  int32  destination_port = 4;
   // One-time password returned by the destination agent in RsyncReadyUpdate.
-  string rsync_password = 6;
+  string rsync_password = 5;
   // craftpanel-rsync image reference.
-  string rsync_image = 7;
+  string rsync_image = 6;
   // False = initial pass (server still running).
   // True  = final delta pass (server stopped, minimise downtime window).
-  bool   is_final_pass = 8;
+  bool   is_final_pass = 7;
 }
 
 message SendRconCommand {

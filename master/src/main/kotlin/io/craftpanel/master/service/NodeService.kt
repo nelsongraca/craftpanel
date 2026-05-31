@@ -6,7 +6,6 @@ import com.craftpanel.agent.v1.shutdownCommand
 import io.craftpanel.master.database.schema.NodeMetrics
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
-import io.craftpanel.master.util.assertSafeDataPath
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -34,7 +33,6 @@ data class NodeResponse(
     @SerialName("system_ram_used_mb") val systemRamUsedMb: Int?,
     @SerialName("port_range_start") val portRangeStart: Int,
     @SerialName("port_range_end") val portRangeEnd: Int,
-    @SerialName("data_path") val dataPath: String,
     @SerialName("agent_version") val agentVersion: String?,
     @SerialName("last_seen_at") val lastSeenAt: String?,
     @SerialName("created_at") val createdAt: String,
@@ -46,7 +44,6 @@ data class PatchNodeRequest(
     @SerialName("display_name") val displayName: String? = null,
     @SerialName("port_range_start") val portRangeStart: Int? = null,
     @SerialName("port_range_end") val portRangeEnd: Int? = null,
-    @SerialName("data_path") val dataPath: String? = null,
 )
 
 @Serializable
@@ -115,7 +112,6 @@ class NodeService(private val sendToNode: (String, MasterMessage) -> Boolean) {
     }
 
     fun updateNode(id: kotlin.uuid.Uuid, req: PatchNodeRequest) {
-        if (req.dataPath != null) assertSafeDataPath(req.dataPath)
         val result = transaction {
             val current = Nodes.selectAll()
                 .where { Nodes.id eq id }
@@ -128,7 +124,6 @@ class NodeService(private val sendToNode: (String, MasterMessage) -> Boolean) {
                 if (req.displayName != null) it[displayName] = req.displayName
                 it[portRangeStart] = newStart
                 it[portRangeEnd] = newEnd
-                if (req.dataPath != null) it[dataPath] = req.dataPath
             }
             "ok"
         }
@@ -199,7 +194,6 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toNodeResponse(alloc: NodeAl
     systemRamUsedMb = this[Nodes.systemRamUsedMb],
     portRangeStart = this[Nodes.portRangeStart],
     portRangeEnd = this[Nodes.portRangeEnd],
-    dataPath = this[Nodes.dataPath],
     agentVersion = this[Nodes.agentVersion],
     lastSeenAt = this[Nodes.lastSeenAt]?.toString(),
     createdAt = this[Nodes.createdAt].toUtcString(),

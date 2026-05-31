@@ -24,7 +24,6 @@ object Nodes : Table("nodes") {
 
     val portRangeStart = integer("port_range_start").default(25570)
     val portRangeEnd = integer("port_range_end").default(26070)
-    val dataPath = varchar("data_path", 500).default("/data")
     val agentVersion = varchar("agent_version", 50).nullable()
 
     val lastSeenAt = datetime("last_seen_at").nullable()

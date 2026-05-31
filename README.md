@@ -5,7 +5,7 @@ mod integration.
 
 ## Agentic Development Experiment
 
-CraftPanel is also an experiment in agentic software development. The goal is to build the project as close to **zero human-authored code** as practically achievable, using [Claude Code](https://claude.ai/code) as the primary development agent throughout the entire lifecycle ? architecture, scaffolding, implementation, and iteration.
+CraftPanel is also an experiment in agentic software development. The goal is to build the project as close to **zero human-authored code** as practically achievable, using [Claude Code](https://claude.ai/code) as the primary development agent throughout the entire lifecycle - architecture, scaffolding, implementation, and iteration.
 
 Human involvement is intentionally limited to:
 
@@ -218,11 +218,15 @@ services:
       MASTER_GRPC_PORT: "50051"
       NODE_BOOTSTRAP_TOKEN: "replace-with-a-secret-token"   # must match master
       NODE_KEY_FILE: /etc/craftpanel/node.key               # persisted across restarts
+      DATA_PATH: /srv/craftpanel                            # host path for server data — see note below
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - node_data:/etc/craftpanel
       # CA cert copied from master — see TLS setup section above
       - ./grpc-ca.crt:/etc/craftpanel/grpc-ca.crt:ro
+      # Server data directory — must be a host bind-mount, NOT a named volume.
+      # Docker containers launched by the agent use this path directly on the host.
+      - /srv/craftpanel:/srv/craftpanel
     group_add:
       - "999"   # docker group GID — adjust to match host
 
@@ -231,6 +235,8 @@ volumes:
 ```
 
 On first start the agent registers itself with master using the bootstrap token. A Super Admin must approve the node in the UI before it can host servers.
+
+> **Data path alignment:** `DATA_PATH` on the agent and the node's **Data Path** field in the CraftPanel UI must be the **same absolute host path**. Master stores this path per node and passes it as the Docker bind-mount source when creating server containers (`{data_path}/servers/{server-id}` → `/data` inside the container). If they differ, the agent cannot read or write server files even though the container runs fine. The default for both is `/data`; change both together if you use a different path. The data directory must exist on the host before starting the agent — the agent does not create it.
 
 > **Bring your own certificate:** If you prefer to manage TLS certs externally (e.g. from a corporate CA), set `GRPC_TLS_CERT` and `GRPC_TLS_KEY` on master and mount `GRPC_TLS_CERT` on agents as before. Explicit cert paths take priority over auto-gen.
 
@@ -266,6 +272,7 @@ On first start the agent registers itself with master using the bootstrap token.
 | `GRPC_CA_CERT_FILE`    | `/etc/craftpanel/grpc-ca.crt`    | Path to master's CA cert PEM (copy from master's `GRPC_CERT_STORE_PATH`)         |
 | `GRPC_TLS_CERT`        | _(empty)_                        | Explicit CA cert path — overrides `GRPC_CA_CERT_FILE` when set (BYOC mode)       |
 | `DOCKER_SOCKET`        | `unix:///var/run/docker.sock`    | Docker socket path                                                                |
+| `DATA_PATH`            | `/data`                          | Base directory on the **host** where server data is stored. Must match the node's **Data Path** field in the UI and must be bind-mounted into the agent container (not a named volume). Must exist before the agent starts. |
 
 ## Running Tests
 

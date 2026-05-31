@@ -12,10 +12,13 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [error, setError] = useState<string | null>(null);
     const [statusMsg, setStatusMsg] = useState<string>("Connecting…");
+    const [reconnectKey, setReconnectKey] = useState(0);
 
     useEffect(() => {
         if (serverStatus !== "HEALTHY") return;
 
+        setStatusMsg("Connecting…");
+        setError(null);
         let disposed = false;
         let term: import("@xterm/xterm").Terminal | null = null;
         let ws: WebSocket | null = null;
@@ -64,7 +67,7 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
                     if (msg.type === "console.ready") {
                         setStatusMsg("");
                     } else if (msg.type === "console.output") {
-                        term?.write(msg.data ?? "");
+                        term?.write((msg.data ?? "").replace(/\r?\n/g, "\r\n"));
                     } else if (msg.type === "console.disconnected") {
                         const reason = msg.reason ?? "Disconnected";
                         term?.write(`\r\n\x1b[33m[${reason}]\x1b[0m\r\n`);
@@ -76,12 +79,20 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
             };
 
             ws.onerror = () => setError("WebSocket connection failed");
-            ws.onclose = () => setStatusMsg((s) => s || "Disconnected");
+            ws.onclose = () => {
+                setStatusMsg((s) => s || "Disconnected");
+                if (!disposed) {
+                    setTimeout(() => {
+                        if (!disposed) setReconnectKey((k) => k + 1);
+                    }, 3000);
+                }
+            };
 
             term.onData((data) => {
                 if (ws?.readyState === WebSocket.OPEN) {
                     ws.send(JSON.stringify({type: "console.input", data}));
                 }
+                term?.write(data);
             });
 
             return () => {
@@ -96,7 +107,7 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
             ws?.close();
             term?.dispose();
         };
-    }, [serverId, serverStatus]);
+    }, [serverId, serverStatus, reconnectKey]);
 
     if (serverStatus !== "HEALTHY") {
         return (

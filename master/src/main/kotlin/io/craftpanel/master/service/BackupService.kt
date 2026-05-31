@@ -5,7 +5,6 @@ import com.craftpanel.agent.v1.deleteBackupCommand
 import com.craftpanel.agent.v1.masterMessage
 import com.craftpanel.agent.v1.triggerBackupCommand
 import io.craftpanel.master.database.schema.Backups
-import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.grpc.DataServiceProxy
 import kotlinx.datetime.TimeZone
@@ -87,12 +86,6 @@ class BackupService(
         }
             ?: throw NotFoundException("Server not found")
         val nodeKotlinId = serverRow[Servers.nodeId]
-        val nodeRow = transaction {
-            Nodes.selectAll()
-                .where { Nodes.id eq nodeKotlinId }
-                .firstOrNull()
-        }
-            ?: throw UnprocessableException("Node not found")
         val nodeId = nodeKotlinId.toString()
         val now = Clock.System.now()
             .toLocalDateTime(TimeZone.UTC)
@@ -126,7 +119,6 @@ class BackupService(
                 }
             }
 
-            val destPath = "${nodeRow[Nodes.dataPath]}/backups/${UUID.randomUUID()}.tar.gz"
             val backupId = Backups.insert {
                 it[Backups.serverId] = serverId
                 it[Backups.nodeId] = nodeKotlinId
@@ -143,7 +135,6 @@ class BackupService(
                     this.backupId = backupId.toString()
                     this.serverId = serverId.toString()
                     containerName = "craftpanel-$serverId"
-                    destinationPath = destPath
                 }
             })
 

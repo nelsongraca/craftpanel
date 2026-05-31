@@ -51,7 +51,10 @@ export function FilesTab({serverId}: Props) {
 
     const loadDir = useCallback(async (path: string): Promise<TreeNode[]> => {
         const {data, error: err} = await listServerFiles({path: {id: serverId}, query: {path}});
-        if (err || !data) return [];
+        if (err || !data) {
+            setError((err as { message?: string })?.message ?? "Failed to list files — agent may be disconnected");
+            return [];
+        }
         return (data.entries ?? []).map((e) => ({
             name: e.name,
             isDirectory: e.is_directory,
@@ -301,6 +304,8 @@ export function FilesTab({serverId}: Props) {
                 <div className="flex-1 overflow-y-auto py-1">
                     {rootLoading ? (
                         <p className="text-text-muted text-[11px] px-3 py-2">Loading…</p>
+                    ) : roots.length === 0 && !error ? (
+                        <p className="text-text-muted text-[11px] px-3 py-2">Empty directory</p>
                     ) : (
                         renderTree(roots)
                     )}

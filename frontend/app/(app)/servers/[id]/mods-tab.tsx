@@ -142,7 +142,7 @@ export function ModsTab({serverId}: { serverId: string }) {
     }
 
     return (
-        <div className="space-y-4">
+        <div className="px-6 py-6 space-y-6">
             {error && (
                 <div className="text-error text-sm bg-error/10 border border-error/30 rounded px-3 py-2">{error}</div>
             )}

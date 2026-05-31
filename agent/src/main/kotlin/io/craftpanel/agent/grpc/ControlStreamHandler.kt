@@ -136,7 +136,14 @@ class ControlStreamHandler(
         log.info("Creating container ${cmd.containerName} for server ${cmd.serverId}")
         runCatching {
             withContext(Dispatchers.IO) { containerManager.pullImage(cmd.image) }
-            containerManager.createContainer(cmd)
+            val cmdWithMount = cmd.toBuilder()
+                .addMounts(volumeMount {
+                    hostPath = "${config.dataBasePath}/servers/${cmd.serverId}"
+                    containerPath = "/data"
+                    readOnly = false
+                })
+                .build()
+            containerManager.createContainer(cmdWithMount)
         }
             .onSuccess { dockerContainerId ->
                 outbound.send(agentMessage {
@@ -153,6 +160,21 @@ class ControlStreamHandler(
 
     internal suspend fun handleStart(cmd: StartContainerCommand, outbound: SendChannel<AgentMessage>) {
         log.info("Starting container ${cmd.containerName}")
+        val expectedDataPath = "${config.dataBasePath}/servers/${cmd.serverId}"
+        val currentDataPath = containerManager.getContainerDataPath(cmd.containerName)
+        if (currentDataPath != null && currentDataPath != expectedDataPath) {
+            log.warn("Container ${cmd.containerName} has stale data mount '$currentDataPath' (expected '$expectedDataPath') — removing for recreate")
+            runCatching { withContext(Dispatchers.IO) { containerManager.removeContainer(cmd.containerName, force = true) } }
+                .onFailure { log.error("Failed to remove stale container ${cmd.containerName}", it) }
+            outbound.send(agentMessage {
+                nodeId = identity.nodeId
+                serverStatus = serverStatusUpdate {
+                    serverId = cmd.serverId
+                    status = ServerStatusUpdate.ServerStatus.UNHEALTHY
+                }
+            })
+            return
+        }
         runCatching { containerManager.startContainer(cmd.containerName) }
             .onSuccess {
                 outbound.send(agentMessage {
@@ -253,23 +275,9 @@ class ControlStreamHandler(
     // ─── Backup ───────────────────────────────────────────────────────────────
 
     internal suspend fun handleTriggerBackup(cmd: TriggerBackupCommand, outbound: SendChannel<AgentMessage>) {
-        log.info("Backup ${cmd.backupId}: starting for server ${cmd.serverId} → ${cmd.destinationPath}")
-
-        val dataPath = containerManager.getContainerDataPath(cmd.containerName)
-        if (dataPath == null) {
-            log.error("Backup ${cmd.backupId}: cannot find /data mount for container ${cmd.containerName}")
-            outbound.send(agentMessage {
-                nodeId = identity.nodeId
-                backupComplete = backupCompleteUpdate {
-                    backupId = cmd.backupId
-                    serverId = cmd.serverId
-                    success = false
-                    errorMessage = "Cannot find /data mount for container ${cmd.containerName}"
-                    completedAt = nowTimestamp()
-                }
-            })
-            return
-        }
+        val sourceDir = "${config.dataBasePath}/servers/${cmd.serverId}"
+        val destPath = "${config.dataBasePath}/backups/${cmd.backupId}.tar.gz"
+        log.info("Backup ${cmd.backupId}: starting for server ${cmd.serverId} → $destPath")
 
         outbound.send(agentMessage {
             nodeId = identity.nodeId
@@ -282,10 +290,10 @@ class ControlStreamHandler(
 
         runCatching {
             withContext(Dispatchers.IO) {
-                val destFile = File(cmd.destinationPath)
+                val destFile = File(destPath)
                 destFile.parentFile?.mkdirs()
 
-                val process = ProcessBuilder("tar", "-czf", cmd.destinationPath, "-C", dataPath, ".")
+                val process = ProcessBuilder("tar", "-czf", destPath, "-C", sourceDir, ".")
                     .redirectErrorStream(true)
                     .start()
 
@@ -305,7 +313,7 @@ class ControlStreamHandler(
                     error("tar exited with $exitCode: $output")
                 }
 
-                File(cmd.destinationPath).length()
+                File(destPath).length()
             }
         }.onSuccess { sizeBytes ->
             log.info("Backup ${cmd.backupId}: completed, size=$sizeBytes bytes")
@@ -315,7 +323,7 @@ class ControlStreamHandler(
                     backupId = cmd.backupId
                     serverId = cmd.serverId
                     success = true
-                    filePath = cmd.destinationPath
+                    filePath = destPath
                     this.sizeBytes = sizeBytes
                     completedAt = nowTimestamp()
                 }
@@ -349,14 +357,15 @@ class ControlStreamHandler(
         cmd: PrepareRsyncReceiveCommand,
         outbound: SendChannel<AgentMessage>,
     ) {
-        log.info("Migration ${cmd.migrationId}: preparing rsync receiver on port ${cmd.port} → ${cmd.destinationPath}")
+        val destPath = "${config.dataBasePath}/servers/${cmd.serverId}"
+        log.info("Migration ${cmd.migrationId}: preparing rsync receiver on port ${cmd.port} → $destPath")
         runCatching {
             withContext(Dispatchers.IO) {
                 val password = generateRsyncPassword()
                 containerManager.startRsyncdContainer(
                     migrationId = cmd.migrationId,
                     port = cmd.port,
-                    destPath = cmd.destinationPath,
+                    destPath = destPath,
                     password = password,
                     rsyncImage = cmd.rsyncImage.ifEmpty { "alpine" },
                 )
@@ -381,12 +390,13 @@ class ControlStreamHandler(
         cmd: StartRsyncCommand,
         outbound: SendChannel<AgentMessage>,
     ) {
+        val sourcePath = "${config.dataBasePath}/servers/${cmd.serverId}"
         log.info("Migration ${cmd.migrationId}: starting rsync transfer (final=${cmd.isFinalPass})")
         runCatching {
             withContext(Dispatchers.IO) {
                 containerManager.runRsyncTransfer(
                     migrationId = cmd.migrationId,
-                    sourcePath = cmd.sourcePath,
+                    sourcePath = sourcePath,
                     destIp = cmd.destinationIp,
                     destPort = cmd.destinationPort,
                     password = cmd.rsyncPassword,
@@ -514,7 +524,7 @@ class ControlStreamHandler(
                     .withStdOut(true)
                     .withStdErr(true)
                     .withFollowStream(true)
-                    .withLogs(false)
+                    .withLogs(true)
                     .exec(callback)
                     .awaitCompletion()
             }
@@ -776,31 +786,30 @@ class ControlStreamHandler(
             .normalize()
 
     private fun safeResolve(root: Path, relativePath: String): Path {
-        val canonicalRoot = runCatching { root.toRealPath() }.getOrElse {
-            Files.createDirectories(root)
-            root.toRealPath()
-        }
+        val canonicalRoot = runCatching { root.toRealPath() }.getOrNull()
         val clean = relativePath.trimStart('/')
         val resolved = root.resolve(clean)
             .normalize()
         if (!resolved.startsWith(root)) {
             error("Path traversal detected")
         }
-        if (Files.exists(resolved)) {
-            val real = runCatching { resolved.toRealPath() }.getOrElse { resolved }
-            if (!real.startsWith(canonicalRoot)) {
-                error("Path traversal via symlink detected")
-            }
-        }
-        else {
-            var ancestor = resolved.parent
-            while (ancestor != null && !Files.exists(ancestor)) {
-                ancestor = ancestor.parent
-            }
-            if (ancestor != null) {
-                val realAncestor = runCatching { ancestor.toRealPath() }.getOrElse { ancestor }
-                if (!realAncestor.startsWith(canonicalRoot)) {
+        if (canonicalRoot != null) {
+            if (Files.exists(resolved)) {
+                val real = runCatching { resolved.toRealPath() }.getOrElse { resolved }
+                if (!real.startsWith(canonicalRoot)) {
                     error("Path traversal via symlink detected")
+                }
+            }
+            else {
+                var ancestor = resolved.parent
+                while (ancestor != null && !Files.exists(ancestor)) {
+                    ancestor = ancestor.parent
+                }
+                if (ancestor != null) {
+                    val realAncestor = runCatching { ancestor.toRealPath() }.getOrElse { ancestor }
+                    if (!realAncestor.startsWith(canonicalRoot)) {
+                        error("Path traversal via symlink detected")
+                    }
                 }
             }
         }

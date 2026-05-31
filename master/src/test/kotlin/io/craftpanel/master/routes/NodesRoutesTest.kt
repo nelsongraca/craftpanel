@@ -230,7 +230,6 @@ class NodesRoutesTest {
         assertNotNull(node["allocated_cpu_shares"])
         assertNotNull(node["port_range_start"])
         assertNotNull(node["port_range_end"])
-        assertNotNull(node["data_path"])
         assertNotNull(node["created_at"])
         assertEquals("alpha", node["display_name"]!!.jsonPrimitive.content)
         assertEquals("PENDING", node["status"]!!.jsonPrimitive.content)

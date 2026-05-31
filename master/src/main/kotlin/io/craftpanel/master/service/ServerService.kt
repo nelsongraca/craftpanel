@@ -369,12 +369,6 @@ class ServerService(
         if (currentStatus == "HEALTHY" || currentStatus == "STARTING")
             throw ConflictException("Server is already running")
         val nodeKotlinId = serverRow[Servers.nodeId]
-        val nodeRow = transaction {
-            Nodes.selectAll()
-                .where { Nodes.id eq nodeKotlinId }
-                .firstOrNull()
-        }
-            ?: throw UnprocessableException("Node not found")
         val serverType = serverRow[Servers.serverType]
         val serverImage = deriveImage(serverType, serverRow[Servers.itzgImageTag])
         val allVars = buildAllVars(id, serverRow)
@@ -386,7 +380,7 @@ class ServerService(
             else null
 
         if (serverRow[Servers.containerId] == null) {
-            val createCmd = buildCreateContainerCommand(id, serverRow, nodeRow, serverImage, allVars, publicHostname)
+            val createCmd = buildCreateContainerCommand(id, serverRow, serverImage, allVars, publicHostname)
             if (!sendToNode(nodeId, createCmd)) throw BadGatewayException("Agent not connected")
         }
 
@@ -451,12 +445,6 @@ class ServerService(
         }
             ?: throw NotFoundException("Server not found")
         if (serverRow[Servers.status] != "STOPPED") throw ConflictException("Server must be STOPPED before upgrade")
-        val nodeRow = transaction {
-            Nodes.selectAll()
-                .where { Nodes.id eq serverRow[Servers.nodeId] }
-                .firstOrNull()
-        }
-            ?: throw UnprocessableException("Node not found")
         val nodeId = serverRow[Servers.nodeId].toString()
         val serverImage = deriveImage(serverRow[Servers.serverType], req.itzgImageTag)
         val allVars = buildAllVars(id, serverRow)
@@ -468,7 +456,7 @@ class ServerService(
         }
         val pullCmd = masterMessage { pullImage = pullImageCommand { serverId = id.toString(); image = serverImage } }
         if (!sendToNode(nodeId, pullCmd)) throw BadGatewayException("Agent not connected")
-        val createCmd = buildCreateContainerCommand(id, serverRow, nodeRow, serverImage, allVars, publicHostname)
+        val createCmd = buildCreateContainerCommand(id, serverRow, serverImage, allVars, publicHostname)
         if (!sendToNode(nodeId, createCmd)) throw BadGatewayException("Agent not connected")
         transaction {
             Servers.update({ Servers.id eq id }) {
@@ -577,11 +565,6 @@ class ServerService(
             val isRunning = serverRow[Servers.status] in listOf("HEALTHY", "STARTING", "UNHEALTHY")
             if (isRunning) {
                 val nodeId = serverRow[Servers.nodeId].toString()
-                val nodeRow = transaction {
-                    Nodes.selectAll()
-                        .where { Nodes.id eq serverRow[Servers.nodeId] }
-                        .firstOrNull()
-                } ?: return
                 val allVars = buildAllVars(id, serverRow)
                 val serverImage = deriveImage(serverRow[Servers.serverType], serverRow[Servers.itzgImageTag])
                 sendToNode(
@@ -590,7 +573,7 @@ class ServerService(
                         stopContainer = stopContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand] }
                     })
                 sendToNode(nodeId, masterMessage { removeContainer = removeContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; force = false } })
-                sendToNode(nodeId, buildCreateContainerCommand(id, serverRow, nodeRow, serverImage, allVars, fullHostname))
+                sendToNode(nodeId, buildCreateContainerCommand(id, serverRow, serverImage, allVars, fullHostname))
                 sendToNode(nodeId, masterMessage { startContainer = startContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id" } })
             }
         }
@@ -616,11 +599,6 @@ class ServerService(
             val isRunning = serverRow[Servers.status] in listOf("HEALTHY", "STARTING", "UNHEALTHY")
             if (isRunning) {
                 val nodeId = serverRow[Servers.nodeId].toString()
-                val nodeRow = transaction {
-                    Nodes.selectAll()
-                        .where { Nodes.id eq serverRow[Servers.nodeId] }
-                        .firstOrNull()
-                } ?: return
                 val allVars = buildAllVars(id, serverRow)
                 val serverImage = deriveImage(serverRow[Servers.serverType], serverRow[Servers.itzgImageTag])
                 sendToNode(
@@ -629,7 +607,7 @@ class ServerService(
                         stopContainer = stopContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand] }
                     })
                 sendToNode(nodeId, masterMessage { removeContainer = removeContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; force = false } })
-                sendToNode(nodeId, buildCreateContainerCommand(id, serverRow, nodeRow, serverImage, allVars, null))
+                sendToNode(nodeId, buildCreateContainerCommand(id, serverRow, serverImage, allVars, null))
                 sendToNode(nodeId, masterMessage { startContainer = startContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id" } })
             }
         }
@@ -668,7 +646,6 @@ class ServerService(
     private fun buildCreateContainerCommand(
         serverId: kotlin.uuid.Uuid,
         serverRow: ResultRow,
-        nodeRow: ResultRow,
         image: String,
         allVars: Map<String, String>,
         publicHostname: String?,
@@ -681,11 +658,6 @@ class ServerService(
             cpuShares = serverRow[Servers.cpuShares]
             hostPort = serverRow[Servers.hostPort]
             envVars.putAll(allVars)
-            mounts.add(volumeMount {
-                hostPath = "${nodeRow[Nodes.dataPath]}/servers/$serverId"
-                containerPath = "/data"
-                readOnly = false
-            })
             dockerNetwork = serverRow[Servers.networkId]?.let { "craftpanel-net-$it" } ?: ""
             restartPolicy = "unless-stopped"
             stopCommand = serverRow[Servers.stopCommand]

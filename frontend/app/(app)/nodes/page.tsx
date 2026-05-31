@@ -100,7 +100,6 @@ function EditModal({
     const [displayName, setDisplayName] = useState(node.display_name);
     const [portStart, setPortStart] = useState(String(node.port_range_start));
     const [portEnd, setPortEnd] = useState(String(node.port_range_end));
-    const [dataPath, setDataPath] = useState(node.data_path);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -114,7 +113,6 @@ function EditModal({
                     display_name: displayName || null,
                     port_range_start: portStart ? parseInt(portStart) : null,
                     port_range_end: portEnd ? parseInt(portEnd) : null,
-                    data_path: dataPath || null,
                 },
             });
             if (e) {
@@ -183,16 +181,6 @@ function EditModal({
                             />
                         </label>
                     </div>
-                    <label className="block">
-            <span className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">
-              Data Path
-            </span>
-                        <input
-                            value={dataPath}
-                            onChange={(e) => setDataPath(e.target.value)}
-                            className="w-full h-8 bg-surface border border-border rounded px-2.5 text-[12px] font-mono text-text-primary focus:outline-none focus:border-accent"
-                        />
-                    </label>
                 </div>
 
                 <div className="flex justify-end gap-2 mt-6">

@@ -141,7 +141,6 @@ function EditModal({node, onClose, onSaved}: { node: Node; onClose: () => void; 
     const [displayName, setDisplayName] = useState(node.display_name);
     const [portStart, setPortStart] = useState(String(node.port_range_start));
     const [portEnd, setPortEnd] = useState(String(node.port_range_end));
-    const [dataPath, setDataPath] = useState(node.data_path);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -155,7 +154,6 @@ function EditModal({node, onClose, onSaved}: { node: Node; onClose: () => void; 
                     display_name: displayName || null,
                     port_range_start: portStart ? parseInt(portStart) : null,
                     port_range_end: portEnd ? parseInt(portEnd) : null,
-                    data_path: dataPath || null,
                 },
             });
             if (e) {
@@ -199,11 +197,6 @@ function EditModal({node, onClose, onSaved}: { node: Node; onClose: () => void; 
                                    className="w-full h-8 bg-surface border border-border rounded px-2.5 text-[12px] font-mono text-text-primary focus:outline-none focus:border-accent"/>
                         </label>
                     </div>
-                    <label className="block">
-                        <span className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">Data Path</span>
-                        <input value={dataPath} onChange={(e) => setDataPath(e.target.value)}
-                               className="w-full h-8 bg-surface border border-border rounded px-2.5 text-[12px] font-mono text-text-primary focus:outline-none focus:border-accent"/>
-                    </label>
                 </div>
                 <div className="flex justify-end gap-2 mt-6">
                     <button onClick={onClose}
@@ -283,7 +276,6 @@ function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
                 <InfoRow label="Hostname" value={node.hostname}/>
                 <InfoRow label="Public IP" value={node.public_ip}/>
                 <InfoRow label="Private IP" value={node.private_ip}/>
-                <InfoRow label="Data Path" value={node.data_path}/>
                 <InfoRow label="Port Range" value={`${node.port_range_start}–${node.port_range_end}`}/>
                 <InfoRow label="Agent" value={node.agent_version ?? "—"}/>
                 <InfoRow label="RAM Total" value={fmtMb(node.total_ram_mb)}/>

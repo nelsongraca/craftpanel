@@ -131,7 +131,6 @@ class MigrationsRoutesTest {
                 it[Nodes.privateIp] = "10.0.0.1"
                 it[Nodes.tokenHash] = UUID.randomUUID().toString()
                 it[Nodes.status] = status
-                it[Nodes.dataPath] = "/data"
             }[Nodes.id]
         }
         return UUID.fromString(nodeId.toString()) to nodeId
