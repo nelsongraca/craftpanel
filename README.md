@@ -129,7 +129,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://master:8080
+      MASTER_URL: http://master:8080
 
 volumes:
   postgres_data:
