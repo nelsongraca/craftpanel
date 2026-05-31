@@ -56,6 +56,7 @@ class OpenApiSpecTask {
                 register(RateLimitName("auth-refresh")) { rateLimiter(limit = 100, refillPeriod = kotlin.time.Duration.INFINITE) }
             }
             install(OpenApi) {
+                ignoredRouteSelectors += RateLimitRouteSelector::class
                 info {
                     title = "CraftPanel API"
                     version = "1.0.0"

@@ -186,6 +186,7 @@ fun Application.module() {
     }
 
     install(OpenApi) {
+        ignoredRouteSelectors += RateLimitRouteSelector::class
         info {
             title = "CraftPanel API"
             version = "1.0.0"
