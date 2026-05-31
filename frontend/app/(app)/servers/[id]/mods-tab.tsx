@@ -2,7 +2,7 @@
 
 import {useCallback, useEffect, useState} from "react";
 import {Pin, Plus, RefreshCw, Search, Trash2} from "lucide-react";
-import {addMod, deleteMod, listMods, updateMod} from "@/lib/generated/sdk.gen";
+import {addMod, deleteMod, listMods, searchMods, updateMod} from "@/lib/generated/sdk.gen";
 import type {IoCraftpanelMasterServiceModResponse as Mod} from "@/lib/generated/types.gen";
 
 type PinStrategy = "LATEST" | "PINNED" | "BETA" | "ALPHA";
@@ -64,12 +64,11 @@ export function ModsTab({serverId}: { serverId: string }) {
         if (!searchQuery.trim()) return;
         setSearching(true);
         try {
-            const params = new URLSearchParams({query: searchQuery, limit: "10"});
-            const res = await fetch(`/api/servers/${serverId}/mods/search?${params}`);
-            if (res.ok) {
-                const body = (await res.json()) as { hits?: ModrinthHit[] };
-                setSearchResults(body.hits ?? []);
-            }
+            const {data} = await searchMods({
+                path: {id: serverId, query: searchQuery, limit: 10}
+            });
+            const body = data as { hits?: ModrinthHit[] } | undefined;
+            setSearchResults(body?.hits ?? []);
         } catch {
             // ignore network errors silently
         }

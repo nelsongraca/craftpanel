@@ -37,10 +37,14 @@ import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.plugins.defaultheaders.*
 import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.plugins.statuspages.*
+import io.ktor.server.request.httpMethod
+import io.ktor.server.request.path
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import kotlinx.serialization.json.Json
+import org.slf4j.LoggerFactory
+import org.slf4j.event.Level
 import kotlin.time.Duration.Companion.minutes
 
 private object SecurityHeaderNames {
@@ -112,7 +116,19 @@ fun Application.module() {
 
     install(WebSockets)
 
-    install(CallLogging)
+    install(CallLogging) {
+        logger = LoggerFactory.getLogger("io.craftpanel.master.http")
+        level = Level.DEBUG
+        format { call ->
+            val status = call.response.status()
+            val method = call.request.httpMethod.value
+            val path = call.request.path()
+            val authHeader = call.request.headers[HttpHeaders.Authorization]?.take(20) ?: "none"
+            val failures = call.authentication.allFailures.joinToString { it.toString() }
+            val extra = if (status == HttpStatusCode.Unauthorized) " | auth=$authHeader failures=[$failures]" else ""
+            "$method $path -> $status$extra"
+        }
+    }
 
     install(CORS) {
         allowCredentials = true
