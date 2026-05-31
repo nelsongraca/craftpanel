@@ -6,6 +6,8 @@ import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.auth.routes.authRoutes
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.config.NodeConfig
+import io.craftpanel.master.grpc.BulkDataServiceImpl
+import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.routes.*
 import io.craftpanel.master.service.*
@@ -87,7 +89,8 @@ class OpenApiSpecTask {
             routing {
                 route("openapi.json") { openApi() }
                 val wsTicketService = WsTicketService()
-                val proxy = DataServiceProxy(NodeConfig(bootstrapToken = "test", agentDataPort = 50052))
+                val controlSvc = ControlServiceImpl(NodeConfig(bootstrapToken = "test", agentDataPort = 50052))
+                val proxy = DataServiceProxy(controlSvc, BulkDataServiceImpl(controlSvc))
                 val noopSend: (String, com.craftpanel.agent.v1.MasterMessage) -> Boolean = { _, _ -> false }
                 val modService = ModService()
                 authRoutes(jwtManager, refreshTokenService, wsTicketService)

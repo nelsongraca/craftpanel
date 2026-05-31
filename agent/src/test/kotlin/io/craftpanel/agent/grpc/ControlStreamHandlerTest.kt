@@ -1,6 +1,8 @@
 package io.craftpanel.agent.grpc
 
 import com.craftpanel.agent.v1.*
+import com.github.dockerjava.api.DockerClient
+import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.MetricsCollector
 import io.mockk.*
@@ -14,8 +16,24 @@ class ControlStreamHandlerTest {
 
     private val containerManager: ContainerManager = mockk()
     private val metricsCollector: MetricsCollector = mockk(relaxed = true)
+    private val docker: DockerClient = mockk(relaxed = true)
     private val identity = NodeIdentity(nodeId = "node-1", nodeKey = "test-key")
-    private val handler = ControlStreamHandler(identity, containerManager, metricsCollector)
+    private val config = AgentConfig(
+        profile = "dev",
+        masterAddress = "localhost",
+        masterPort = 50051,
+        tlsCertPath = "",
+        caCertFilePath = "/etc/craftpanel/grpc-ca.crt",
+        bootstrapToken = "test-token-16chars",
+        keyFilePath = "/etc/craftpanel/node.key",
+        dockerSocketPath = "unix:///var/run/docker.sock",
+        agentVersion = "test",
+        dataBasePath = "",  // overridden per test via tempDir
+        mcRouterImage = "itzg/mc-router:latest",
+        mcRouterUpdateOnStart = false,
+        publicIpUrl = "",
+    )
+    private val handler = ControlStreamHandler(identity, config, containerManager, metricsCollector, docker)
 
     private lateinit var tempDir: File
 

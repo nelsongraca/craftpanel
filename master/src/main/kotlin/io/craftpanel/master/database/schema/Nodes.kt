@@ -15,9 +15,6 @@ object Nodes : Table("nodes") {
     // SHA-256 hex of the 256-bit node key
     val tokenHash = varchar("token_hash", 64).uniqueIndex()
 
-    // Raw per-node DataService token. Master holds the raw value; agent holds only the SHA-256 hash.
-    val dataToken = varchar("data_token", 64).nullable()
-
     // PENDING | ACTIVE | REJECTED | DECOMMISSIONED | DEGRADED
     val status = varchar("status", 20).default("PENDING")
 

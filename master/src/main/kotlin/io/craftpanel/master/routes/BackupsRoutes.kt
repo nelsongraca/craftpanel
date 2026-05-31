@@ -129,10 +129,7 @@ fun Route.backupsRoutes(backupService: BackupService) {
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val info = backupService.resolveDownload(id, backupId)
                 call.respondBytesWriter(contentType = ContentType.Application.OctetStream) {
-                    backupService.downloadStream(info)
-                        .collect { chunk ->
-                            writeFully(chunk.data.toByteArray())
-                        }
+                    backupService.downloadStream(info).collect { bytes -> writeFully(bytes) }
                 }
             }
         }

@@ -41,13 +41,6 @@ object NodeKeyStore {
         log.info("Node key persisted to $keyFilePath")
     }
 
-    fun readDataTokenHash(tokenHashFilePath: String): String? = read(tokenHashFilePath)
-
-    fun writeDataTokenHash(tokenHashFilePath: String, tokenHash: String) {
-        write(tokenHashFilePath, tokenHash)
-        log.info("Node data-token hash persisted to $tokenHashFilePath")
-    }
-
     fun readCaCert(caCertFilePath: String): String? = read(caCertFilePath)
 
     fun writeCaCert(caCertFilePath: String, caCertPem: String) {

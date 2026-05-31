@@ -9,7 +9,11 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import java.security.Security
 
-class GrpcServer(private val config: AppConfig, private val controlService: ControlServiceImpl) {
+class GrpcServer(
+    private val config: AppConfig,
+    private val controlService: ControlServiceImpl,
+    private val bulkDataService: BulkDataServiceImpl,
+) {
 
     private val log = LoggerFactory.getLogger(GrpcServer::class.java)
     private lateinit var server: Server
@@ -22,6 +26,7 @@ class GrpcServer(private val config: AppConfig, private val controlService: Cont
 
         val builder = NettyServerBuilder.forPort(config.grpc.port)
             .addService(controlService)
+            .addService(bulkDataService)
 
         when {
             config.grpc.tlsEnabled -> {

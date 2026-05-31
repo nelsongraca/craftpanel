@@ -12,7 +12,6 @@ import io.grpc.ManagedChannel
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
 import java.net.URI
-import java.security.MessageDigest
 
 data class NodeIdentity(val nodeId: String, val nodeKey: String)
 
@@ -44,9 +43,6 @@ class NodeAuthenticator(
                 this.metadata = metadata
             })
             NodeKeyStore.write(config.keyFilePath, response.nodeKey)
-            if (response.dataToken.isNotBlank()) {
-                NodeKeyStore.writeDataTokenHash(config.dataTokenFilePath, sha256Hex(response.dataToken))
-            }
             if (response.caCert.isNotBlank()) {
                 NodeKeyStore.writeCaCert(config.caCertFilePath, response.caCert)
                 log.info("gRPC CA cert received and persisted to ${config.caCertFilePath}")
@@ -61,10 +57,6 @@ class NodeAuthenticator(
             this.metadata = metadata
         })
 
-        if (response.dataToken.isNotBlank()) {
-            NodeKeyStore.writeDataTokenHash(config.dataTokenFilePath, sha256Hex(response.dataToken))
-            log.info("Node ${response.nodeId}: data-token (re)issued and persisted")
-        }
         if (response.caCert.isNotBlank()) {
             NodeKeyStore.writeCaCert(config.caCertFilePath, response.caCert)
             log.info("Node ${response.nodeId}: CA cert refreshed — reconnect will use updated cert")
@@ -101,10 +93,4 @@ class NodeAuthenticator(
 
     private fun resolvePrivateIp(): String =
         runCatching { InetAddress.getLocalHost().hostAddress }.getOrElse { "unknown" }
-
-    private fun sha256Hex(input: String): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        return digest.digest(input.toByteArray())
-            .joinToString("") { "%02x".format(it) }
-    }
 }

@@ -1,7 +1,12 @@
 package io.craftpanel.agent.grpc
 
 import com.craftpanel.agent.v1.*
+import com.github.dockerjava.api.DockerClient
+import com.github.dockerjava.api.async.ResultCallback
+import com.github.dockerjava.api.model.Frame
+import com.google.protobuf.ByteString
 import com.google.protobuf.timestamp
+import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.MetricsCollector
 import io.grpc.ManagedChannel
@@ -9,19 +14,34 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableSharedFlow
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.io.PipedInputStream
+import java.io.PipedOutputStream
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
+import java.nio.file.StandardCopyOption
+import java.nio.file.attribute.BasicFileAttributes
+import java.nio.file.attribute.PosixFilePermission
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration.Companion.seconds
 
 class ControlStreamHandler(
     private val identity: NodeIdentity,
+    private val config: AgentConfig,
     private val containerManager: ContainerManager,
     private val metricsCollector: MetricsCollector,
+    private val docker: DockerClient,
 ) {
 
     private val log = LoggerFactory.getLogger(ControlStreamHandler::class.java)
 
+    // Active console sessions: request_id → (job, inputPipe)
+    private val consoleSessions = ConcurrentHashMap<String, Pair<Job, PipedOutputStream>>()
+
     suspend fun run(channel: ManagedChannel): Unit = coroutineScope {
         val stub = ControlServiceGrpcKt.ControlServiceCoroutineStub(channel)
+        val bulkClient = BulkDataClient(channel)
         val outbound = MutableSharedFlow<AgentMessage>(extraBufferCapacity = 64)
 
         val stream = stub.control(outbound)
@@ -44,7 +64,6 @@ class ControlStreamHandler(
                     nodeMetrics = metrics
                 })
 
-                // Per-container metrics
                 containerManager.listRunningContainerIds()
                     .forEach { (serverId, containerId) ->
                         metricsCollector.collectContainerMetrics(serverId, containerId)
@@ -81,6 +100,21 @@ class ControlStreamHandler(
                 msg.hasPrepareRsyncReceive() -> launch { handlePrepareRsyncReceive(msg.prepareRsyncReceive, outbound) }
                 msg.hasStartRsync()          -> launch { handleStartRsync(msg.startRsync, outbound) }
                 msg.hasSendRcon()            -> launch { handleSendRcon(msg.sendRcon) }
+                // Console
+                msg.hasConsoleAttach()       -> launch { handleConsoleAttach(msg.consoleAttach, outbound) }
+                msg.hasConsoleInput()        -> handleConsoleInput(msg.consoleInput)
+                msg.hasConsoleDetach()       -> handleConsoleDetach(msg.consoleDetach)
+                // File ops (unary) — each in its own coroutine so it does not block the stream
+                msg.hasListFiles()           -> launch { handleListFiles(msg.listFiles, outbound) }
+                msg.hasReadFile()            -> launch { handleReadFile(msg.readFile, outbound) }
+                msg.hasWriteFile()           -> launch { handleWriteFile(msg.writeFile, outbound) }
+                msg.hasDeleteFile()          -> launch { handleDeleteFile(msg.deleteFile, outbound) }
+                msg.hasMakeDirectory()       -> launch { handleMakeDirectory(msg.makeDirectory, outbound) }
+                msg.hasMoveFile()            -> launch { handleMoveFile(msg.moveFile, outbound) }
+                msg.hasCopyFile()            -> launch { handleCopyFile(msg.copyFile, outbound) }
+                // Bulk transfers — agent dials master's BulkDataService
+                msg.hasDownloadFile()        -> launch { handleDownloadFile(msg.downloadFile, bulkClient, outbound) }
+                msg.hasUploadFile()          -> launch { handleUploadFile(msg.uploadFile, bulkClient, outbound) }
                 else                         -> log.warn("Unhandled master message: ${msg.payloadCase}")
             }
         }
@@ -90,13 +124,11 @@ class ControlStreamHandler(
         val containers = containerManager.listContainers()
         return nodeStateSnapshot {
             this.containers.addAll(containers)
-            recordedAt = timestamp {
-                val now = Instant.now()
-                seconds = now.epochSecond
-                nanos = now.nano
-            }
+            recordedAt = nowTimestamp()
         }
     }
+
+    // ─── Container lifecycle ──────────────────────────────────────────────────
 
     internal suspend fun handleCreate(cmd: CreateContainerCommand, outbound: MutableSharedFlow<AgentMessage>) {
         log.info("Creating container ${cmd.containerName} for server ${cmd.serverId}")
@@ -201,6 +233,20 @@ class ControlStreamHandler(
             .onFailure { log.error("Failed to pull image ${cmd.image}", it) }
     }
 
+    internal suspend fun handleShutdown(cmd: ShutdownCommand, outbound: MutableSharedFlow<AgentMessage>) {
+        log.info("Shutdown requested — stopping all containers gracefully")
+        val (graceful, forced) = containerManager.shutdownAll(cmd.timeoutSeconds)
+        outbound.emit(agentMessage {
+            nodeId = identity.nodeId
+            shutdownAcknowledge = shutdownAcknowledgeUpdate {
+                gracefulCount = graceful
+                forcedCount = forced
+            }
+        })
+    }
+
+    // ─── Backup ───────────────────────────────────────────────────────────────
+
     internal suspend fun handleTriggerBackup(cmd: TriggerBackupCommand, outbound: MutableSharedFlow<AgentMessage>) {
         log.info("Backup ${cmd.backupId}: starting for server ${cmd.serverId} → ${cmd.destinationPath}")
 
@@ -214,11 +260,7 @@ class ControlStreamHandler(
                     serverId = cmd.serverId
                     success = false
                     errorMessage = "Cannot find /data mount for container ${cmd.containerName}"
-                    completedAt = timestamp {
-                        val now = Instant.now()
-                        seconds = now.epochSecond
-                        nanos = now.nano
-                    }
+                    completedAt = nowTimestamp()
                 }
             })
             return
@@ -270,11 +312,7 @@ class ControlStreamHandler(
                     success = true
                     filePath = cmd.destinationPath
                     this.sizeBytes = sizeBytes
-                    completedAt = timestamp {
-                        val now = Instant.now()
-                        seconds = now.epochSecond
-                        nanos = now.nano
-                    }
+                    completedAt = nowTimestamp()
                 }
             })
         }
@@ -287,11 +325,7 @@ class ControlStreamHandler(
                         serverId = cmd.serverId
                         success = false
                         errorMessage = ex.message ?: "Unknown error"
-                        completedAt = timestamp {
-                            val now = Instant.now()
-                            seconds = now.epochSecond
-                            nanos = now.nano
-                        }
+                        completedAt = nowTimestamp()
                     }
                 })
             }
@@ -303,6 +337,8 @@ class ControlStreamHandler(
             withContext(Dispatchers.IO) { File(cmd.filePath).delete() }
         }.onFailure { log.error("Failed to delete backup file ${cmd.filePath}", it) }
     }
+
+    // ─── Migration ────────────────────────────────────────────────────────────
 
     internal suspend fun handlePrepareRsyncReceive(
         cmd: PrepareRsyncReceiveCommand,
@@ -361,11 +397,7 @@ class ControlStreamHandler(
                                 totalBytes = total
                                 percentComplete = pct
                                 this.phase = phase
-                                recordedAt = timestamp {
-                                    val now = Instant.now()
-                                    seconds = now.epochSecond
-                                    nanos = now.nano
-                                }
+                                recordedAt = nowTimestamp()
                             }
                         })
                     },
@@ -379,11 +411,7 @@ class ControlStreamHandler(
                     isFinalPass = cmd.isFinalPass
                     this.success = success
                     if (!success) errorMessage = "rsync exited with non-zero code"
-                    completedAt = timestamp {
-                        val now = Instant.now()
-                        seconds = now.epochSecond
-                        nanos = now.nano
-                    }
+                    completedAt = nowTimestamp()
                 }
             })
             log.info("Migration ${cmd.migrationId}: rsync transfer complete (success=$success)")
@@ -397,11 +425,7 @@ class ControlStreamHandler(
                         isFinalPass = cmd.isFinalPass
                         success = false
                         errorMessage = ex.message ?: "Unknown error"
-                        completedAt = timestamp {
-                            val now = Instant.now()
-                            seconds = now.epochSecond
-                            nanos = now.nano
-                        }
+                        completedAt = nowTimestamp()
                     }
                 })
             }
@@ -411,6 +435,417 @@ class ControlStreamHandler(
         log.debug("RCON exec on server ${cmd.serverId}: ${cmd.command}")
         containerManager.execRconCommand(cmd.serverId, cmd.command)
     }
+
+    // ─── Console ──────────────────────────────────────────────────────────────
+
+    internal suspend fun handleConsoleAttach(cmd: ConsoleAttach, outbound: MutableSharedFlow<AgentMessage>) {
+        val reqId = cmd.requestId
+        if (consoleSessions.containsKey(reqId)) {
+            log.warn("Console attach for already-active session $reqId — ignoring")
+            return
+        }
+
+        val containers = containerManager.listContainers()
+        val container = containers.find { it.serverId == cmd.serverId }
+        if (container == null) {
+            outbound.emit(agentMessage {
+                nodeId = identity.nodeId
+                consoleOutput = consoleOutput {
+                    requestId = reqId
+                    closed = true
+                }
+            })
+            log.warn("Console attach: server ${cmd.serverId} not found")
+            return
+        }
+
+        val inputPipe = PipedOutputStream()
+
+        @Suppress("BlockingMethodInNonBlockingContext")
+        val inputStream = PipedInputStream(inputPipe)
+
+        val job = CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val callback = object : ResultCallback.Adapter<Frame>() {
+                    override fun onNext(frame: Frame) {
+                        frame.payload?.takeIf { it.isNotEmpty() }
+                            ?.let { payload ->
+                                outbound.tryEmit(agentMessage {
+                                    nodeId = identity.nodeId
+                                    consoleOutput = consoleOutput {
+                                        requestId = reqId
+                                        data = ByteString.copyFrom(payload)
+                                    }
+                                })
+                            }
+                    }
+
+                    override fun onComplete() {
+                        outbound.tryEmit(agentMessage {
+                            nodeId = identity.nodeId
+                            consoleOutput = consoleOutput {
+                                requestId = reqId
+                                closed = true
+                            }
+                        })
+                        consoleSessions.remove(reqId)
+                    }
+
+                    override fun onError(t: Throwable) {
+                        outbound.tryEmit(agentMessage {
+                            nodeId = identity.nodeId
+                            consoleOutput = consoleOutput {
+                                requestId = reqId
+                                closed = true
+                            }
+                        })
+                        consoleSessions.remove(reqId)
+                    }
+                }
+
+                log.info("Attaching console to container ${container.containerName} (session=$reqId)")
+                docker.attachContainerCmd(container.containerName)
+                    .withStdIn(inputStream)
+                    .withStdOut(true)
+                    .withStdErr(true)
+                    .withFollowStream(true)
+                    .withLogs(false)
+                    .exec(callback)
+                    .awaitCompletion()
+            }
+            finally {
+                runCatching { inputPipe.close() }
+                consoleSessions.remove(reqId)
+            }
+        }
+
+        consoleSessions[reqId] = Pair(job, inputPipe)
+    }
+
+    internal fun handleConsoleInput(cmd: ConsoleInput) {
+        val session = consoleSessions[cmd.requestId] ?: return
+        if (cmd.data.size() > 0) {
+            runCatching {
+                session.second.write(cmd.data.toByteArray())
+                session.second.flush()
+            }.onFailure { log.warn("Console input write failed (session=${cmd.requestId})", it) }
+        }
+    }
+
+    internal fun handleConsoleDetach(cmd: ConsoleDetach) {
+        val session = consoleSessions.remove(cmd.requestId) ?: return
+        session.first.cancel()
+        runCatching { session.second.close() }
+        log.info("Console session ${cmd.requestId} detached")
+    }
+
+    // ─── File operations ──────────────────────────────────────────────────────
+
+    internal suspend fun handleListFiles(cmd: ListFilesRequest, outbound: MutableSharedFlow<AgentMessage>) {
+        val result = runCatching {
+            withContext(Dispatchers.IO) {
+                val root = serverDataRoot(cmd.serverId)
+                val target = safeResolve(root, cmd.path.ifEmpty { "/" })
+                if (!Files.exists(target)) error("Path not found")
+                if (!Files.isDirectory(target)) error("Path is not a directory")
+                Files.list(target)
+                    .use { stream ->
+                        stream.map { path ->
+                            val attrs = runCatching { Files.readAttributes(path, BasicFileAttributes::class.java) }.getOrNull()
+                            fileEntry {
+                                name = path.fileName.toString()
+                                isDirectory = Files.isDirectory(path)
+                                sizeBytes = attrs?.size() ?: 0L
+                                if (attrs != null) {
+                                    modifiedAt = timestamp {
+                                        seconds = attrs.lastModifiedTime()
+                                            .toInstant().epochSecond
+                                    }
+                                }
+                                permissions = posixPermissions(path)
+                            }
+                        }
+                            .toList()
+                    }
+            }
+        }
+        outbound.emit(agentMessage {
+            nodeId = identity.nodeId
+            listFilesResponse = listFilesResponse {
+                requestId = cmd.requestId
+                result.onSuccess { entries.addAll(it) }
+                result.onFailure { errorMessage = it.message ?: "Unknown error" }
+            }
+        })
+    }
+
+    internal suspend fun handleReadFile(cmd: ReadFileRequest, outbound: MutableSharedFlow<AgentMessage>) {
+        val result = runCatching {
+            withContext(Dispatchers.IO) {
+                val root = serverDataRoot(cmd.serverId)
+                val target = safeResolve(root, cmd.path)
+                if (!Files.exists(target)) error("File not found")
+                if (Files.isDirectory(target)) error("Path is a directory")
+                val bytes = Files.readAllBytes(target)
+                Pair(bytes, if (isTextContent(bytes)) "utf-8" else "binary")
+            }
+        }
+        outbound.emit(agentMessage {
+            nodeId = identity.nodeId
+            readFileResponse = readFileResponse {
+                requestId = cmd.requestId
+                result.onSuccess { (bytes, enc) ->
+                    content = ByteString.copyFrom(bytes)
+                    encoding = enc
+                }
+                result.onFailure { errorMessage = it.message ?: "Unknown error" }
+            }
+        })
+    }
+
+    internal suspend fun handleWriteFile(cmd: WriteFileRequest, outbound: MutableSharedFlow<AgentMessage>) {
+        val result = runCatching {
+            withContext(Dispatchers.IO) {
+                val root = serverDataRoot(cmd.serverId)
+                val target = safeResolve(root, cmd.path)
+                Files.createDirectories(target.parent)
+                Files.write(target, cmd.content.toByteArray())
+            }
+        }
+        outbound.emit(agentMessage {
+            nodeId = identity.nodeId
+            writeFileResponse = writeFileResponse {
+                requestId = cmd.requestId
+                success = result.isSuccess
+                result.onFailure { errorMessage = it.message ?: "Unknown error" }
+            }
+        })
+    }
+
+    internal suspend fun handleDeleteFile(cmd: DeleteFileRequest, outbound: MutableSharedFlow<AgentMessage>) {
+        val result = runCatching {
+            withContext(Dispatchers.IO) {
+                val root = serverDataRoot(cmd.serverId)
+                val target = safeResolve(root, cmd.path)
+                if (!Files.exists(target)) error("Path not found")
+                if (Files.isDirectory(target)) {
+                    if (!cmd.recursive) {
+                        val isEmpty = Files.list(target)
+                            .use { it.findFirst().isEmpty }
+                        if (!isEmpty) error("Directory is not empty; use recursive=true")
+                        Files.delete(target)
+                    }
+                    else {
+                        deleteRecursively(target)
+                    }
+                }
+                else {
+                    Files.delete(target)
+                }
+            }
+        }
+        outbound.emit(agentMessage {
+            nodeId = identity.nodeId
+            deleteFileResponse = deleteFileResponse {
+                requestId = cmd.requestId
+                success = result.isSuccess
+                result.onFailure { errorMessage = it.message ?: "Unknown error" }
+            }
+        })
+    }
+
+    internal suspend fun handleMakeDirectory(cmd: MakeDirectoryRequest, outbound: MutableSharedFlow<AgentMessage>) {
+        val result = runCatching {
+            withContext(Dispatchers.IO) {
+                val root = serverDataRoot(cmd.serverId)
+                val target = safeResolve(root, cmd.path)
+                Files.createDirectories(target)
+            }
+        }
+        outbound.emit(agentMessage {
+            nodeId = identity.nodeId
+            makeDirectoryResponse = makeDirectoryResponse {
+                requestId = cmd.requestId
+                success = result.isSuccess
+                result.onFailure { errorMessage = it.message ?: "Unknown error" }
+            }
+        })
+    }
+
+    internal suspend fun handleMoveFile(cmd: MoveFileRequest, outbound: MutableSharedFlow<AgentMessage>) {
+        val result = runCatching {
+            withContext(Dispatchers.IO) {
+                val root = serverDataRoot(cmd.serverId)
+                val src = safeResolve(root, cmd.sourcePath)
+                val dst = safeResolve(root, cmd.destinationPath)
+                if (!Files.exists(src)) error("Source not found")
+                if (Files.exists(dst)) error("Destination already exists")
+                Files.createDirectories(dst.parent)
+                Files.move(src, dst, StandardCopyOption.ATOMIC_MOVE)
+            }
+        }
+        outbound.emit(agentMessage {
+            nodeId = identity.nodeId
+            moveFileResponse = moveFileResponse {
+                requestId = cmd.requestId
+                success = result.isSuccess
+                result.onFailure { errorMessage = it.message ?: "Unknown error" }
+            }
+        })
+    }
+
+    internal suspend fun handleCopyFile(cmd: CopyFileRequest, outbound: MutableSharedFlow<AgentMessage>) {
+        val result = runCatching {
+            withContext(Dispatchers.IO) {
+                val root = serverDataRoot(cmd.serverId)
+                val src = safeResolve(root, cmd.sourcePath)
+                val dst = safeResolve(root, cmd.destinationPath)
+                if (!Files.exists(src)) error("Source not found")
+                if (Files.exists(dst)) error("Destination already exists")
+                Files.createDirectories(dst.parent)
+                if (cmd.recursive && Files.isDirectory(src)) {
+                    copyRecursively(src, dst)
+                }
+                else {
+                    Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING)
+                }
+            }
+        }
+        outbound.emit(agentMessage {
+            nodeId = identity.nodeId
+            copyFileResponse = copyFileResponse {
+                requestId = cmd.requestId
+                success = result.isSuccess
+                result.onFailure { errorMessage = it.message ?: "Unknown error" }
+            }
+        })
+    }
+
+    // ─── Bulk transfers ───────────────────────────────────────────────────────
+
+    internal suspend fun handleDownloadFile(
+        cmd: DownloadFileCommand,
+        bulkClient: BulkDataClient,
+        outbound: MutableSharedFlow<AgentMessage>,
+    ) {
+        val result = runCatching {
+            val root = serverDataRoot(cmd.serverId)
+            val filePath = safeResolve(root, cmd.path)
+            if (!Files.exists(filePath)) error("File not found: ${cmd.path}")
+            bulkClient.uploadToMaster(identity.nodeKey, cmd.transferId, filePath)
+        }
+        outbound.emit(agentMessage {
+            nodeId = identity.nodeId
+            downloadFileResponse = downloadFileResponse {
+                requestId = cmd.requestId
+                success = result.isSuccess
+                result.onFailure { errorMessage = it.message ?: "Unknown error" }
+            }
+        })
+    }
+
+    internal suspend fun handleUploadFile(
+        cmd: UploadFileCommand,
+        bulkClient: BulkDataClient,
+        outbound: MutableSharedFlow<AgentMessage>,
+    ) {
+        val result = runCatching {
+            val root = serverDataRoot(cmd.serverId)
+            val destPath = safeResolve(root, cmd.path)
+            bulkClient.receiveFromMaster(identity.nodeKey, cmd.transferId, destPath)
+        }
+        outbound.emit(agentMessage {
+            nodeId = identity.nodeId
+            uploadFileResponse = uploadFileResponse {
+                requestId = cmd.requestId
+                success = result.isSuccess
+                result.onFailure { errorMessage = it.message ?: "Unknown error" }
+            }
+        })
+    }
+
+    // ─── Path helpers ─────────────────────────────────────────────────────────
+
+    private fun serverDataRoot(serverId: String): Path =
+        Paths.get(config.dataBasePath, "servers", serverId)
+            .normalize()
+
+    private fun safeResolve(root: Path, relativePath: String): Path {
+        val canonicalRoot = runCatching { root.toRealPath() }.getOrElse {
+            Files.createDirectories(root)
+            root.toRealPath()
+        }
+        val clean = relativePath.trimStart('/')
+        val resolved = root.resolve(clean)
+            .normalize()
+        if (!resolved.startsWith(root)) {
+            error("Path traversal detected")
+        }
+        if (Files.exists(resolved)) {
+            val real = runCatching { resolved.toRealPath() }.getOrElse { resolved }
+            if (!real.startsWith(canonicalRoot)) {
+                error("Path traversal via symlink detected")
+            }
+        }
+        else {
+            var ancestor = resolved.parent
+            while (ancestor != null && !Files.exists(ancestor)) {
+                ancestor = ancestor.parent
+            }
+            if (ancestor != null) {
+                val realAncestor = runCatching { ancestor.toRealPath() }.getOrElse { ancestor }
+                if (!realAncestor.startsWith(canonicalRoot)) {
+                    error("Path traversal via symlink detected")
+                }
+            }
+        }
+        return resolved
+    }
+
+    private fun deleteRecursively(path: Path) {
+        if (Files.isDirectory(path)) {
+            Files.list(path)
+                .use { stream -> stream.forEach { deleteRecursively(it) } }
+        }
+        Files.delete(path)
+    }
+
+    private fun copyRecursively(src: Path, dst: Path) {
+        if (Files.isDirectory(src)) {
+            Files.createDirectories(dst)
+            Files.list(src)
+                .use { stream ->
+                    stream.forEach { child -> copyRecursively(child, dst.resolve(child.fileName)) }
+                }
+        }
+        else {
+            Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING)
+        }
+    }
+
+    private fun posixPermissions(path: Path): String = runCatching {
+        val perms = Files.getPosixFilePermissions(path)
+        buildString {
+            append(if (PosixFilePermission.OWNER_READ in perms) 'r' else '-')
+            append(if (PosixFilePermission.OWNER_WRITE in perms) 'w' else '-')
+            append(if (PosixFilePermission.OWNER_EXECUTE in perms) 'x' else '-')
+            append(if (PosixFilePermission.GROUP_READ in perms) 'r' else '-')
+            append(if (PosixFilePermission.GROUP_WRITE in perms) 'w' else '-')
+            append(if (PosixFilePermission.GROUP_EXECUTE in perms) 'x' else '-')
+            append(if (PosixFilePermission.OTHERS_READ in perms) 'r' else '-')
+            append(if (PosixFilePermission.OTHERS_WRITE in perms) 'w' else '-')
+            append(if (PosixFilePermission.OTHERS_EXECUTE in perms) 'x' else '-')
+        }
+    }.getOrElse { "rwxr-xr-x" }
+
+    private fun isTextContent(bytes: ByteArray): Boolean {
+        if (bytes.isEmpty()) return true
+        val sample = bytes.take(8192)
+        val nullCount = sample.count { it == 0.toByte() }
+        return nullCount == 0
+    }
+
+    // ─── General helpers ──────────────────────────────────────────────────────
 
     private fun generateRsyncPassword(): String {
         // Alphanumeric charset only — intentional security invariant.
@@ -422,15 +857,9 @@ class ControlStreamHandler(
             .joinToString("")
     }
 
-    internal suspend fun handleShutdown(cmd: ShutdownCommand, outbound: MutableSharedFlow<AgentMessage>) {
-        log.info("Shutdown requested — stopping all containers gracefully")
-        val (graceful, forced) = containerManager.shutdownAll(cmd.timeoutSeconds)
-        outbound.emit(agentMessage {
-            nodeId = identity.nodeId
-            shutdownAcknowledge = shutdownAcknowledgeUpdate {
-                gracefulCount = graceful
-                forcedCount = forced
-            }
-        })
+    private fun nowTimestamp() = timestamp {
+        val now = Instant.now()
+        seconds = now.epochSecond
+        nanos = now.nano
     }
 }

@@ -1,5 +1,6 @@
 package io.craftpanel.agent.grpc
 
+import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.MetricsCollector
@@ -13,6 +14,7 @@ class ConnectionManager(
     private val config: AgentConfig,
     private val containerManager: ContainerManager,
     private val metricsCollector: MetricsCollector,
+    private val docker: DockerClient,
 ) {
 
     private val log = LoggerFactory.getLogger(ConnectionManager::class.java)
@@ -29,7 +31,7 @@ class ConnectionManager(
                     val identity = NodeAuthenticator(config, metricsCollector).authenticate(channel)
                     backoffSeconds = 5L  // reset on successful auth
 
-                    ControlStreamHandler(identity, containerManager, metricsCollector).run(channel)
+                    ControlStreamHandler(identity, config, containerManager, metricsCollector, docker).run(channel)
                 }
                 finally {
                     channel.shutdown()

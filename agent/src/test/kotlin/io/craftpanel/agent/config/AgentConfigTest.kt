@@ -10,9 +10,7 @@ class AgentConfigTest {
     @Test
     fun `fromEnv returns defaults when no overrides set`() {
         val config = AgentConfig.fromEnv()
-        // Only assert fields that are safe to check — env may be set in CI but these are unusual
         assertEquals(50051, config.masterPort.let { if (System.getenv("MASTER_GRPC_PORT") == null) it else 50051 })
-        assertEquals(50052, config.dataServicePort.let { if (System.getenv("DATA_SERVICE_PORT") == null) it else 50052 })
     }
 
     @Test
@@ -31,18 +29,6 @@ class AgentConfigTest {
     fun `tlsEnabled is false when tlsCertPath is whitespace`() {
         val config = config(tlsCertPath = "   ")
         assertFalse(config.tlsEnabled)
-    }
-
-    @Test
-    fun `dataServiceTlsEnabled is true when both paths set`() {
-        val config = config(dataServiceTlsCertPath = "/certs/server.crt", dataServiceTlsKeyPath = "/certs/server.key")
-        assertTrue(config.dataServiceTlsEnabled)
-    }
-
-    @Test
-    fun `dataServiceTlsEnabled is false when only cert path set`() {
-        val config = config(dataServiceTlsCertPath = "/certs/server.crt", dataServiceTlsKeyPath = "")
-        assertFalse(config.dataServiceTlsEnabled)
     }
 
     @Test
@@ -88,12 +74,9 @@ class AgentConfigTest {
         tlsCertPath: String = "",
         bootstrapToken: String = "test-token-16chars",
         keyFilePath: String = "/etc/craftpanel/node.key",
-        dataTokenFilePath: String = "/etc/craftpanel/node.data-token",
+        caCertFilePath: String = "/etc/craftpanel/grpc-ca.crt",
         dockerSocketPath: String = "unix:///var/run/docker.sock",
         agentVersion: String = "1.0",
-        dataServicePort: Int = 50052,
-        dataServiceTlsCertPath: String = "",
-        dataServiceTlsKeyPath: String = "",
         dataBasePath: String = "/data",
         mcRouterImage: String = "itzg/mc-router:latest",
         mcRouterUpdateOnStart: Boolean = true,
@@ -103,14 +86,11 @@ class AgentConfigTest {
         masterAddress = masterAddress,
         masterPort = masterPort,
         tlsCertPath = tlsCertPath,
+        caCertFilePath = caCertFilePath,
         bootstrapToken = bootstrapToken,
         keyFilePath = keyFilePath,
-        dataTokenFilePath = dataTokenFilePath,
         dockerSocketPath = dockerSocketPath,
         agentVersion = agentVersion,
-        dataServicePort = dataServicePort,
-        dataServiceTlsCertPath = dataServiceTlsCertPath,
-        dataServiceTlsKeyPath = dataServiceTlsKeyPath,
         dataBasePath = dataBasePath,
         mcRouterImage = mcRouterImage,
         mcRouterUpdateOnStart = mcRouterUpdateOnStart,

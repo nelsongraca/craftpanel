@@ -7,6 +7,8 @@ import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.database.schema.*
+import io.craftpanel.master.grpc.BulkDataServiceImpl
+import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.service.*
 import io.craftpanel.master.util.toKotlinUuid
@@ -50,7 +52,8 @@ class BackupsRoutesTest {
         expirySeconds = 900,
     )
     private val jwtManager = JwtManager(jwtConfig)
-    private val noopProxy = DataServiceProxy(NodeConfig("test-token", 50052))
+    private val noopControlSvc = ControlServiceImpl(NodeConfig("test-token", 50052))
+    private val noopProxy = DataServiceProxy(noopControlSvc, BulkDataServiceImpl(noopControlSvc))
     private val noopSend: (String, com.craftpanel.agent.v1.MasterMessage) -> Boolean = { _, _ -> true }
 
     @BeforeTest

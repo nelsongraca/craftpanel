@@ -54,13 +54,9 @@ The agent is configured entirely through environment variables.
 | `GRPC_TLS_CERT`       | *(empty — TLS disabled)*  | Path to the TLS CA certificate used to verify the master. Leave empty to disable TLS.           |
 | `NODE_BOOTSTRAP_TOKEN`| `changeme`                | Shared secret used for first-time node registration. Not needed after the node key is persisted |
 | `NODE_KEY_FILE`       | `/etc/craftpanel/node.key`| Path where the agent persists its node key after registration                                   |
-| `NODE_DATA_TOKEN_FILE`| `/etc/craftpanel/node.data-token` | Path where the agent persists the SHA-256 hash of the per-node DataService token issued by master |
 | `DOCKER_SOCKET`       | `unix:///var/run/docker.sock` | Docker socket path                                                                          |
 | `AGENT_VERSION`       | `dev`                     | Version string reported to master during registration                                           |
-| `APP_PROFILE`         | `prod`                    | Runtime profile. Set to `dev` to allow plaintext gRPC and skip auth token enforcement (development only) |
-| `DATA_SERVICE_PORT`   | `50052`                   | Port the agent's DataService gRPC server listens on (console, file ops)                         |
-| `DATA_SERVICE_TLS_CERT` | *(required in prod)*    | Path to the TLS certificate for the DataService gRPC server                                     |
-| `DATA_SERVICE_TLS_KEY`  | *(required in prod)*    | Path to the TLS private key for the DataService gRPC server                                     |
+| `APP_PROFILE`         | `prod`                    | Runtime profile. Set to `dev` to allow plaintext gRPC (development only) |
 | `DATA_PATH`           | `/data`                   | Base directory on the node host where server data volumes are stored                            |
 | `PUBLIC_IP_URL`       | *(empty)*                 | URL to fetch the node's public IP address (e.g. `https://api.ipify.org`). When empty, the private IP is reported instead |
 | `MCROUTER_IMAGE`      | `itzg/mc-router:latest`   | Docker image used when provisioning the mc-router container on startup                          |

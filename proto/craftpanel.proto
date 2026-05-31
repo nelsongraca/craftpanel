@@ -27,28 +27,27 @@ service ControlService {
   // RegisterNode or IdentifyNode succeeds. The first message the agent sends
   // must always be a NodeStateSnapshot for master to reconcile DB state.
   // Stream lives for the duration of the connection.
+  //
+  // Console sessions and small file operations are multiplexed over this stream
+  // using request_id correlation fields. Bulk transfers (upload/download) use
+  // the separate BulkDataService to avoid head-of-line blocking.
   rpc Control(stream AgentMessage) returns (stream MasterMessage);
 }
 
-// DataService — on-demand connections for large or interactive data streams.
-// A new connection is established per operation and torn down on completion.
-service DataService {
-  // Bidirectional console stream. Agent proxies browser input to the container
-  // via Docker attach stdin and streams container stdout/stderr back.
-  rpc Console(stream ConsoleInput) returns (stream ConsoleOutput);
+// BulkDataService — agent-initiated on-demand connections to master for large
+// file transfers. Agent dials master (preserving agent-always-initiates) when
+// commanded via the Control stream. Isolates multi-GB transfers from the
+// control stream so metrics, console, and status updates are never stalled.
+service BulkDataService {
+  // Agent streams file data up to master (user file or backup download).
+  // Agent sends transfer_id and node_key in the first chunk; master
+  // authenticates and routes chunks to the waiting HTTP response.
+  rpc StreamToMaster(stream BulkChunk) returns (BulkTransferAck);
 
-  // File operations — unary RPCs for metadata and small content.
-  rpc ListFiles(ListFilesRequest)       returns (ListFilesResponse);
-  rpc ReadFile(ReadFileRequest)         returns (ReadFileResponse);
-  rpc WriteFile(WriteFileRequest)       returns (WriteFileResponse);
-  rpc DeleteFile(DeleteFileRequest)     returns (DeleteFileResponse);
-  rpc MakeDirectory(MakeDirectoryRequest) returns (MakeDirectoryResponse);
-  rpc MoveFile(MoveFileRequest)         returns (MoveFileResponse);
-  rpc CopyFile(CopyFileRequest)         returns (CopyFileResponse);
-
-  // Streaming file transfer.
-  rpc UploadFile(stream UploadFileChunk) returns (UploadFileResponse);
-  rpc DownloadFile(DownloadFileRequest)  returns (stream DownloadFileChunk);
+  // Master streams upload data down to agent (user file upload).
+  // Agent presents BulkTransferInit; master resolves the pending upload
+  // channel and forwards HTTP body bytes down to the agent.
+  rpc ReceiveFromMaster(BulkTransferInit) returns (stream BulkChunk);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -66,9 +65,7 @@ message RegisterNodeResponse {
   string node_key = 1;
   // UUID assigned to this node record by master.
   string node_id = 2;
-  // Per-node DataService token. Master stores the raw value; the agent persists
-  // only its SHA-256 hash and verifies inbound DataService calls against it.
-  string data_token = 3;
+  reserved 3; reserved "data_token";
   // PEM-encoded CA certificate. Agent persists this and uses it to verify the
   // master's TLS certificate on all subsequent gRPC connections.
   string ca_cert = 4;
@@ -84,9 +81,7 @@ message IdentifyNodeRequest {
 message IdentifyNodeResponse {
   IdentifyStatus status = 1;
   string node_id = 2;
-  // Per-node DataService token. Non-empty only when (re)issued (e.g. a node that
-  // predates the token); empty means the agent should keep its current token.
-  string data_token = 3;
+  reserved 3; reserved "data_token";
   // PEM-encoded CA certificate. Non-empty only when the CA cert has been rotated
   // since the agent last connected. Agent replaces its stored CA cert and reconnects.
   string ca_cert = 4;
@@ -110,6 +105,34 @@ message NodeMetadata {
   int32  total_cpu_shares = 5;
   // Agent version string — for compatibility checks.
   string agent_version = 6;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BULK DATA SERVICE MESSAGES
+// ─────────────────────────────────────────────────────────────────────────────
+
+message BulkTransferInit {
+  string transfer_id = 1;
+  // Raw node key — master hashes and verifies against DB.
+  string node_key    = 2;
+}
+
+message BulkChunk {
+  // Required in the first message of StreamToMaster; empty in subsequent chunks.
+  string transfer_id   = 1;
+  // Required in the first message of StreamToMaster; empty in subsequent chunks.
+  string node_key      = 2;
+  bytes  data          = 3;
+  // Set true on the final chunk.
+  bool   is_last       = 4;
+  // Non-empty signals an error; master/agent closes the transfer on receipt.
+  string error_message = 5;
+}
+
+message BulkTransferAck {
+  bool   success       = 1;
+  int64  size_bytes    = 2;
+  string error_message = 3;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -146,6 +169,24 @@ message MasterMessage {
 
     // RCON
     SendRconCommand send_rcon = 13;
+
+    // Console (multiplexed over control stream)
+    ConsoleAttach  console_attach  = 14;
+    ConsoleInput   console_input   = 15;
+    ConsoleDetach  console_detach  = 16;
+
+    // File operations (unary, multiplexed over control stream)
+    ListFilesRequest    list_files    = 17;
+    ReadFileRequest     read_file     = 18;
+    WriteFileRequest    write_file    = 19;
+    DeleteFileRequest   delete_file   = 20;
+    MakeDirectoryRequest make_directory = 21;
+    MoveFileRequest     move_file     = 22;
+    CopyFileRequest     copy_file     = 23;
+
+    // Bulk transfer triggers — agent dials BulkDataService on receipt
+    DownloadFileCommand download_file = 24;
+    UploadFileCommand   upload_file   = 25;
   }
 }
 
@@ -175,6 +216,22 @@ message AgentMessage {
 
     // Node lifecycle
     ShutdownAcknowledgeUpdate shutdown_acknowledge = 12;
+
+    // Console output (multiplexed over control stream)
+    ConsoleOutput console_output = 13;
+
+    // File operation responses (multiplexed over control stream)
+    ListFilesResponse    list_files_response    = 14;
+    ReadFileResponse     read_file_response     = 15;
+    WriteFileResponse    write_file_response    = 16;
+    DeleteFileResponse   delete_file_response   = 17;
+    MakeDirectoryResponse make_directory_response = 18;
+    MoveFileResponse     move_file_response     = 19;
+    CopyFileResponse     copy_file_response     = 20;
+
+    // Bulk transfer responses (sent after agent completes BulkDataService transfer)
+    DownloadFileResponse download_file_response = 21;
+    UploadFileResponse   upload_file_response   = 22;
   }
 }
 
@@ -338,6 +395,187 @@ message PullImageCommand {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// CONSOLE — MULTIPLEXED OVER CONTROL STREAM
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Master → Agent: open a console session for the given server.
+message ConsoleAttach {
+  string request_id = 1;
+  string server_id  = 2;
+}
+
+// Master → Agent: send input bytes to an active console session.
+message ConsoleInput {
+  string request_id = 1;
+  // Raw bytes from the browser terminal written to container stdin via Docker attach.
+  bytes  data = 2;
+}
+
+// Master → Agent: close an active console session.
+message ConsoleDetach {
+  string request_id = 1;
+}
+
+// Agent → Master: output bytes from an active console session.
+message ConsoleOutput {
+  string request_id = 1;
+  // Raw bytes from container stdout/stderr via Docker attach.
+  bytes  data = 2;
+  // True when the container has exited or the session was closed by the agent.
+  // Master closes the WebSocket on receipt.
+  bool   closed = 3;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// FILE OPERATIONS — MULTIPLEXED OVER CONTROL STREAM
+// ─────────────────────────────────────────────────────────────────────────────
+
+message ListFilesRequest {
+  string request_id = 1;
+  string server_id = 2;
+  // Path relative to the server's data directory.
+  string path = 3;
+}
+
+message ListFilesResponse {
+  string request_id = 1;
+  repeated FileEntry entries = 2;
+  string error_message = 3;
+}
+
+message FileEntry {
+  string name = 1;
+  bool   is_directory = 2;
+  int64  size_bytes = 3;
+  google.protobuf.Timestamp modified_at = 4;
+  // Unix permission string, e.g. "rw-r--r--".
+  string permissions = 5;
+}
+
+message ReadFileRequest {
+  string request_id = 1;
+  string server_id = 2;
+  string path = 3;
+}
+
+message ReadFileResponse {
+  string request_id = 1;
+  bytes  content = 2;
+  // "utf-8" or "binary" — master uses this to decide how to present the file.
+  string encoding = 3;
+  string error_message = 4;
+}
+
+message WriteFileRequest {
+  string request_id = 1;
+  string server_id = 2;
+  string path = 3;
+  bytes  content = 4;
+}
+
+message WriteFileResponse {
+  string request_id = 1;
+  bool success = 2;
+  string error_message = 3;
+}
+
+message DeleteFileRequest {
+  string request_id = 1;
+  string server_id = 2;
+  string path = 3;
+  // If true, delete directory and all contents recursively.
+  bool   recursive = 4;
+}
+
+message DeleteFileResponse {
+  string request_id = 1;
+  bool success = 2;
+  string error_message = 3;
+}
+
+message MakeDirectoryRequest {
+  string request_id = 1;
+  string server_id = 2;
+  string path = 3;
+}
+
+message MakeDirectoryResponse {
+  string request_id = 1;
+  bool success = 2;
+  string error_message = 3;
+}
+
+message MoveFileRequest {
+  string request_id = 1;
+  string server_id = 2;
+  // Source path relative to the server's data directory.
+  string source_path = 3;
+  // Destination path relative to the server's data directory.
+  // Moving across directories and renaming within a directory both use this RPC.
+  string destination_path = 4;
+}
+
+message MoveFileResponse {
+  string request_id = 1;
+  bool success = 2;
+  string error_message = 3;
+}
+
+message CopyFileRequest {
+  string request_id = 1;
+  string server_id = 2;
+  string source_path = 3;
+  string destination_path = 4;
+  // If true and destination is an existing directory, copy recursively into it.
+  bool   recursive = 5;
+}
+
+message CopyFileResponse {
+  string request_id = 1;
+  bool success = 2;
+  string error_message = 3;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// BULK TRANSFER COMMANDS — TRIGGERS SENT OVER CONTROL STREAM
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Master → Agent: command agent to open a BulkDataService StreamToMaster connection
+// and stream the file at the given path up to master.
+message DownloadFileCommand {
+  string request_id   = 1;
+  string server_id    = 2;
+  string path         = 3;
+  // UUID master uses to correlate the incoming BulkDataService connection.
+  string transfer_id  = 4;
+}
+
+// Master → Agent: command agent to open a BulkDataService ReceiveFromMaster connection
+// to receive an uploaded file and write it to the given path.
+message UploadFileCommand {
+  string request_id   = 1;
+  string server_id    = 2;
+  string path         = 3;
+  // UUID master uses to correlate the incoming BulkDataService connection.
+  string transfer_id  = 4;
+}
+
+// Agent → Master: result of a BulkDataService download transfer.
+message DownloadFileResponse {
+  string request_id    = 1;
+  bool   success       = 2;
+  string error_message = 3;
+}
+
+// Agent → Master: result of a BulkDataService upload transfer.
+message UploadFileResponse {
+  string request_id    = 1;
+  bool   success       = 2;
+  int64  size_bytes    = 3;
+  string error_message = 4;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // AGENT → MASTER OBSERVABILITY
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -440,138 +678,4 @@ message ShutdownAcknowledgeUpdate {
   int32 graceful_count = 1;
   // Containers that did not respond and were force-stopped via Docker stop.
   int32 forced_count = 2;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DATA SERVICE — CONSOLE
-// ─────────────────────────────────────────────────────────────────────────────
-
-message ConsoleInput {
-  string server_id = 1;
-  // Raw bytes from the browser terminal written to container stdin via Docker attach.
-  bytes  data = 2;
-}
-
-message ConsoleOutput {
-  string server_id = 1;
-  // Raw bytes from container stdout/stderr via Docker attach.
-  bytes  data = 2;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DATA SERVICE — FILE OPERATIONS
-// ─────────────────────────────────────────────────────────────────────────────
-
-message ListFilesRequest {
-  string server_id = 1;
-  // Path relative to the server's data directory.
-  string path = 2;
-}
-
-message ListFilesResponse {
-  repeated FileEntry entries = 1;
-}
-
-message FileEntry {
-  string name = 1;
-  bool   is_directory = 2;
-  int64  size_bytes = 3;
-  google.protobuf.Timestamp modified_at = 4;
-  // Unix permission string, e.g. "rw-r--r--".
-  string permissions = 5;
-}
-
-message ReadFileRequest {
-  string server_id = 1;
-  string path = 2;
-}
-
-message ReadFileResponse {
-  bytes  content = 1;
-  // "utf-8" or "binary" — master uses this to decide how to present the file.
-  string encoding = 2;
-}
-
-message WriteFileRequest {
-  string server_id = 1;
-  string path = 2;
-  bytes  content = 3;
-}
-
-message WriteFileResponse {
-  bool success = 1;
-}
-
-message DeleteFileRequest {
-  string server_id = 1;
-  string path = 2;
-  // If true, delete directory and all contents recursively.
-  bool   recursive = 3;
-}
-
-message DeleteFileResponse {
-  bool success = 1;
-}
-
-message MakeDirectoryRequest {
-  string server_id = 1;
-  string path = 2;
-}
-
-message MakeDirectoryResponse {
-  bool success = 1;
-}
-
-message MoveFileRequest {
-  string server_id = 1;
-  // Source path relative to the server's data directory.
-  string source_path = 2;
-  // Destination path relative to the server's data directory.
-  // Moving across directories and renaming within a directory both use this RPC.
-  string destination_path = 3;
-}
-
-message MoveFileResponse {
-  bool success = 1;
-}
-
-message CopyFileRequest {
-  string server_id = 1;
-  string source_path = 2;
-  string destination_path = 3;
-  // If true and destination is an existing directory, copy recursively into it.
-  bool   recursive = 4;
-}
-
-message CopyFileResponse {
-  bool success = 1;
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// DATA SERVICE — FILE TRANSFER
-// ─────────────────────────────────────────────────────────────────────────────
-
-message UploadFileChunk {
-  // Only required on the first message in the stream.
-  string server_id = 1;
-  string path = 2;
-  bytes  data = 3;
-  // Set true on the final chunk.
-  bool   is_last = 4;
-}
-
-message UploadFileResponse {
-  bool  success = 1;
-  int64 size_bytes = 2;
-}
-
-message DownloadFileRequest {
-  string server_id = 1;
-  string path = 2;
-}
-
-message DownloadFileChunk {
-  bytes data = 1;
-  // Set true on the final chunk.
-  bool  is_last = 2;
 }

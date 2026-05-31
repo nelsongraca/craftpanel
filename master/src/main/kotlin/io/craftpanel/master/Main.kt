@@ -10,6 +10,7 @@ import io.craftpanel.master.database.DatabaseFactory
 import io.craftpanel.master.database.migrations.seedAdminUser
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import io.craftpanel.master.grpc.ControlServiceImpl
+import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.grpc.GrpcServer
 import io.craftpanel.master.dns.DnsProviderFactory
@@ -61,16 +62,14 @@ fun Application.module() {
         transaction { seedAdminUser(appConfig.adminSeed.email, appConfig.adminSeed.password, appConfig.adminSeed.username) }
     }
 
-    val dataServiceProxy = DataServiceProxy(appConfig.node, appConfig.profile)
-    monitor.subscribe(ApplicationStopped) { dataServiceProxy.closeAll() }
-
     var grpcServer: GrpcServer? = null
     val controlService = ControlServiceImpl(
         appConfig.node,
-        onNodeDisconnect = dataServiceProxy::closeNode,
         caCertPemProvider = { grpcServer?.readCaCertPem() },
     )
-    grpcServer = GrpcServer(appConfig, controlService).start()
+    val bulkDataService = BulkDataServiceImpl(controlService)
+    val dataServiceProxy = DataServiceProxy(controlService, bulkDataService)
+    grpcServer = GrpcServer(appConfig, controlService, bulkDataService).start()
     monitor.subscribe(ApplicationStopped) { grpcServer.stop() }
 
     val jwtManager = JwtManager(appConfig.jwt)

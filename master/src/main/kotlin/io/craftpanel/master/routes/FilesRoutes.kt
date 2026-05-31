@@ -2,8 +2,6 @@ package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.JWT_AUTH
-import com.craftpanel.agent.v1.uploadFileChunk
-import com.google.protobuf.ByteString
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.grpc.DataServiceProxy
@@ -22,7 +20,6 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.readTo
 import io.ktor.utils.io.writeFully
-import kotlinx.coroutines.flow.flow
 import kotlinx.io.asSink
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -212,29 +209,8 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                 }
 
                 try {
-                    val chunkSize = 65536
-                    val chunks = flow {
-                        val chunks = fileBytes.toList()
-                            .chunked(chunkSize)
-                        chunks.forEachIndexed { idx, chunk ->
-                            emit(uploadFileChunk {
-                                this.serverId = serverId
-                                this.path = uploadPath
-                                data = ByteString.copyFrom(chunk.toByteArray())
-                                isLast = idx == chunks.size - 1
-                            })
-                        }
-                        if (chunks.isEmpty()) {
-                            emit(uploadFileChunk {
-                                this.serverId = serverId
-                                this.path = uploadPath
-                                data = ByteString.EMPTY
-                                isLast = true
-                            })
-                        }
-                    }
-                    val result = proxy.uploadFile(serverId, chunks)
-                    call.respond(HttpStatusCode.Created, UploadResponse(path = uploadPath, sizeBytes = result.sizeBytes))
+                    val sizeBytes = proxy.uploadFile(serverId, uploadPath, fileBytes)
+                    call.respond(HttpStatusCode.Created, UploadResponse(path = uploadPath, sizeBytes = sizeBytes))
                 }
                 catch (e: Exception) {
                     call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
@@ -269,13 +245,11 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                 try {
                     call.respondBytesWriter(contentType = ContentType.Application.OctetStream) {
                         proxy.downloadFile(serverId, path)
-                            .collect { chunk ->
-                                writeFully(chunk.data.toByteArray())
-                            }
+                            .collect { bytes -> writeFully(bytes) }
                     }
                 }
-                catch (e: io.grpc.StatusException) {
-                    call.respondGrpcFileError(e)
+                catch (e: Exception) {
+                    call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
                 }
             }
 

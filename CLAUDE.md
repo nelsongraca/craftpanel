@@ -110,12 +110,10 @@ CI config not yet written.
 Proto files live at repo root `/proto/`, shared by master and agent.
 Two services:
 
-- **ControlService** — persistent bidirectional stream, agent-initiated, lives for the lifetime of the connection. Handles container lifecycle commands, backups, migration, metrics, player updates.
-- **DataService** — on-demand per-operation connections. Handles console streaming (bidirectional), file operations, file upload/download.
+- **ControlService** — persistent bidirectional stream, agent-initiated, lives for the lifetime of the connection. Handles container lifecycle commands, backups, migration, metrics, player updates. Console sessions and small file ops (list, read, write, delete, move, copy, mkdir) are multiplexed over this stream using `request_id` correlation.
+- **BulkDataService** — agent-initiated on-demand connections to master for large file transfers only (upload, download). Isolated from the control stream to prevent head-of-line blocking. Agent authenticates with its node key.
 
-> **Agent DataService is implemented** — `agent/…/grpc/DataServiceImpl.kt` handles console attach, file list/read/write/delete/move/copy, upload/download. Authentication: master presents a per-node
-> data token (`x-craftpanel-data-token` gRPC header); the agent verifies it against a SHA-256 hash stored at `NODE_DATA_TOKEN_FILE`. Master's `DataServiceProxy` is the client-side caller.
-> `master/…/grpc/DataServiceImpl.kt` is not used (master does not expose a DataService server — it proxies to agents via `DataServiceProxy`).
+Master never dials out to agents. Both services are agent-initiated. `DataServiceProxy` in master routes requests through `ControlServiceImpl` (for unary/console ops) or accepts incoming BulkDataService connections from the agent.
 
 Agent sends `NodeStateSnapshot` as the **first message** on every (re)connect so master can reconcile DB state before issuing commands.
 
@@ -256,7 +254,7 @@ Use `bg-accent`, `text-accent`, `border-accent` for amber. Use `bg-surface`, `bg
 - Server lifecycle management via `itzg/minecraft-server` and `itzg/mc-proxy` Docker images
 - Player ingress via `itzg/mc-router` with Cloudflare DNS (per-server A records)
 - Modrinth mod integration
-- Live console streaming and file exploration over WebSocket (proxied through master from agent DataService)
+- Live console streaming and file exploration over WebSocket (proxied through master via ControlService multiplexing)
 - Backup scheduling and retention
 - Live rsync-based server migration between nodes
 - Node registration: agent-initiated via bootstrap token, requires admin approval

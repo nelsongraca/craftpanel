@@ -3,8 +3,6 @@
 package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.Permission
-import com.craftpanel.agent.v1.consoleInput
-import com.google.protobuf.ByteString
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.database.schema.Servers
@@ -57,13 +55,9 @@ private class ConsoleSessionManager(private val proxy: DataServiceProxy, private
             val session = ConsoleSession()
             session.job = scope.launch {
                 try {
-                    val inputFlow = session.input.receiveAsFlow()
-                        .map { bytes ->
-                            consoleInput { this.serverId = serverId; data = ByteString.copyFrom(bytes) }
-                        }
-                    proxy.console(serverId, inputFlow)
-                        .collect { output ->
-                            session.output.emit(output.data.toByteArray())
+                    proxy.console(serverId, session.input.receiveAsFlow())
+                        .collect { bytes ->
+                            session.output.emit(bytes)
                         }
                 }
                 catch (e: Exception) {
