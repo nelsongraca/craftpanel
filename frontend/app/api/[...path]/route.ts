@@ -9,6 +9,8 @@ async function proxy(req: NextRequest): Promise<NextResponse> {
 
     const headers = new Headers(req.headers);
     headers.delete("host");
+    headers.delete("origin");
+    headers.delete("referer");
 
     const upstream = await fetch(target, {
         method: req.method,
