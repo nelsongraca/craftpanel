@@ -14,6 +14,7 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
+import io.craftpanel.master.util.toUtcString
 
 @Serializable
 data class NetworkResponse(
@@ -107,7 +108,7 @@ class NetworkService {
                     dnsDomainSuffix = row[ServerNetworks.cfDomainSuffix],
                     dnsProviderType = row[ServerNetworks.dnsProviderType],
                     serverCount = counts[netId] ?: 0,
-                    createdAt = row[ServerNetworks.createdAt].toString(),
+                    createdAt = row[ServerNetworks.createdAt].toUtcString(),
                 )
             }
         }
@@ -146,7 +147,7 @@ class NetworkService {
                 dnsDomainSuffix = row[ServerNetworks.cfDomainSuffix],
                 dnsProviderType = row[ServerNetworks.dnsProviderType],
                 serverCount = 0,
-                createdAt = row[ServerNetworks.createdAt].toString(),
+                createdAt = row[ServerNetworks.createdAt].toUtcString(),
             )
         }
     }
@@ -180,7 +181,7 @@ class NetworkService {
                 dnsProviderType = row[ServerNetworks.dnsProviderType],
                 serverCount = members.size,
                 servers = members,
-                createdAt = row[ServerNetworks.createdAt].toString(),
+                createdAt = row[ServerNetworks.createdAt].toUtcString(),
             )
         } ?: throw NotFoundException("Network not found")
 

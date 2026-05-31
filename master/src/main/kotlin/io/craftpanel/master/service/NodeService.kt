@@ -17,6 +17,7 @@ import org.jetbrains.exposed.v1.jdbc.update
 import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.Base64
+import io.craftpanel.master.util.toUtcString
 
 @Serializable
 data class NodeResponse(
@@ -30,6 +31,7 @@ data class NodeResponse(
     @SerialName("total_cpu_shares") val totalCpuShares: Int,
     @SerialName("allocated_ram_mb") val allocatedRamMb: Int,
     @SerialName("allocated_cpu_shares") val allocatedCpuShares: Int,
+    @SerialName("system_ram_used_mb") val systemRamUsedMb: Int?,
     @SerialName("port_range_start") val portRangeStart: Int,
     @SerialName("port_range_end") val portRangeEnd: Int,
     @SerialName("data_path") val dataPath: String,
@@ -158,7 +160,7 @@ class NodeService(private val sendToNode: (String, MasterMessage) -> Boolean) {
                 .reversed()
         }
         return NodeMetricsResponse(
-            timestamps = metrics.map { it[NodeMetrics.recordedAt].toString() },
+            timestamps = metrics.map { it[NodeMetrics.recordedAt].toUtcString() },
             cpuPercent = metrics.map { it[NodeMetrics.cpuPercent] },
             ramUsedMb = metrics.map { it[NodeMetrics.ramUsedMb] },
             ramTotalMb = metrics.map { it[NodeMetrics.ramTotalMb] },
@@ -194,13 +196,14 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toNodeResponse(alloc: NodeAl
     totalCpuShares = this[Nodes.totalCpuShares],
     allocatedRamMb = alloc.ramMb,
     allocatedCpuShares = alloc.cpuShares,
+    systemRamUsedMb = this[Nodes.systemRamUsedMb],
     portRangeStart = this[Nodes.portRangeStart],
     portRangeEnd = this[Nodes.portRangeEnd],
     dataPath = this[Nodes.dataPath],
     agentVersion = this[Nodes.agentVersion],
     lastSeenAt = this[Nodes.lastSeenAt]?.toString(),
-    createdAt = this[Nodes.createdAt].toString(),
-    updatedAt = this[Nodes.updatedAt].toString(),
+    createdAt = this[Nodes.createdAt].toUtcString(),
+    updatedAt = this[Nodes.updatedAt].toUtcString(),
 )
 
 private fun generateNodeKey(): String {

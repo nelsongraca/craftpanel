@@ -64,12 +64,17 @@ function fillColor(pct: number): string {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function MiniBar({used, total}: { used: number; total: number }) {
+function fmtShares(shares: number): string {
+    const cores = shares / 1024;
+    return cores >= 1 ? `${cores % 1 === 0 ? cores : cores.toFixed(1)}c` : `${shares}`;
+}
+
+function MiniBar({used, total, fmt = fmtMb}: { used: number; total: number; fmt?: (n: number) => string }) {
     const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0;
     return (
         <div className="flex flex-col gap-1">
       <span className="font-mono text-[11px] text-text-muted whitespace-nowrap">
-        {fmtMb(used)} / {fmtMb(total)}
+        {fmt(used)} / {fmt(total)}
       </span>
             <div className="w-20 h-1 rounded-full" style={{background: "var(--border)"}}>
                 <div
@@ -272,9 +277,9 @@ export default function NodesPage() {
 
     useEffect(() => {
         return subscribe("node.status", (payload) => {
-            const {nodeId, status} = payload as {nodeId: string; status: string};
+            const {node_id, status} = payload as { node_id: string; status: string };
             setNodes((prev) =>
-                prev.map((n) => n.id === nodeId ? {...n, status} : n),
+                prev.map((n) => n.id === node_id ? {...n, status} : n),
             );
         });
     }, [subscribe]);
@@ -390,24 +395,24 @@ export default function NodesPage() {
             description: `Decommission "${node.display_name}"? This cannot be undone.`,
             destructive: true,
             onConfirm: async () => {
-        setPendingAction((p) => ({...p, [node.id]: "decommission"}));
-        setActionError(null);
-        try {
-            const {error} = await decommissionNode({path: {id: node.id}});
-            if (error) {
-                setActionError(error.message ?? "Failed to decommission node");
-            } else {
-                await fetchNodes();
-            }
-        } catch {
-            setActionError("Failed to decommission node");
-        } finally {
-            setPendingAction((p) => {
-                const n = {...p};
-                delete n[node.id];
-                return n;
-            });
-        }
+                setPendingAction((p) => ({...p, [node.id]: "decommission"}));
+                setActionError(null);
+                try {
+                    const {error} = await decommissionNode({path: {id: node.id}});
+                    if (error) {
+                        setActionError(error.message ?? "Failed to decommission node");
+                    } else {
+                        await fetchNodes();
+                    }
+                } catch {
+                    setActionError("Failed to decommission node");
+                } finally {
+                    setPendingAction((p) => {
+                        const n = {...p};
+                        delete n[node.id];
+                        return n;
+                    });
+                }
             },
         });
     }
@@ -535,12 +540,12 @@ export default function NodesPage() {
 
                                     {/* RAM */}
                                     <td className="py-3 pr-4">
-                                        <MiniBar used={node.allocated_ram_mb} total={node.total_ram_mb}/>
+                                        <MiniBar used={Math.max(node.allocated_ram_mb, node.system_ram_used_mb ?? 0)} total={node.total_ram_mb}/>
                                     </td>
 
                                     {/* CPU */}
                                     <td className="py-3 pr-4">
-                                        <MiniBar used={node.allocated_cpu_shares} total={node.total_cpu_shares}/>
+                                        <MiniBar used={node.allocated_cpu_shares} total={node.total_cpu_shares} fmt={fmtShares}/>
                                     </td>
 
                                     {/* SERVERS */}
@@ -699,7 +704,8 @@ export default function NodesPage() {
                 title={confirmDialog?.title ?? ""}
                 description={confirmDialog?.description ?? ""}
                 destructive={confirmDialog?.destructive}
-                onConfirm={confirmDialog?.onConfirm ?? (() => {})}
+                onConfirm={confirmDialog?.onConfirm ?? (() => {
+                })}
             />
         </div>
     );

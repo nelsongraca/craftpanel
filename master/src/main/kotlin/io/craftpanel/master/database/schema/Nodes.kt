@@ -20,6 +20,7 @@ object Nodes : Table("nodes") {
 
     val totalRamMb = integer("total_ram_mb").default(0)
     val totalCpuShares = integer("total_cpu_shares").default(0)
+    val systemRamUsedMb = integer("system_ram_used_mb").nullable()
 
     val portRangeStart = integer("port_range_start").default(25570)
     val portRangeEnd = integer("port_range_end").default(26070)

@@ -26,6 +26,7 @@ import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
+import io.craftpanel.master.util.toUtcString
 
 @Serializable
 data class MigrateRequest(
@@ -166,7 +167,7 @@ class MigrationService(
             targetNodeId = row[ServerMigrations.targetNodeId].toString(),
             status = row[ServerMigrations.status],
             steps = steps,
-            createdAt = row[ServerMigrations.createdAt].toString(),
+            createdAt = row[ServerMigrations.createdAt].toUtcString(),
             completedAt = row[ServerMigrations.completedAt]?.toString(),
         )
     }
@@ -189,7 +190,7 @@ class MigrationService(
                         targetNodeId = row[ServerMigrations.targetNodeId].toString(),
                         status = row[ServerMigrations.status],
                         steps = steps,
-                        createdAt = row[ServerMigrations.createdAt].toString(),
+                        createdAt = row[ServerMigrations.createdAt].toUtcString(),
                         completedAt = row[ServerMigrations.completedAt]?.toString(),
                     )
                 }

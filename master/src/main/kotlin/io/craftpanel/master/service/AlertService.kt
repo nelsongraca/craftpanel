@@ -17,6 +17,7 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.util.*
+import io.craftpanel.master.util.toUtcString
 
 @Serializable
 data class AlertThresholdResponse(
@@ -71,7 +72,7 @@ class AlertService {
                     metric = row[AlertThresholds.metric],
                     thresholdValue = row[AlertThresholds.thresholdValue],
                     thresholdState = row[AlertThresholds.thresholdState],
-                    createdAt = row[AlertThresholds.createdAt].toString(),
+                    createdAt = row[AlertThresholds.createdAt].toUtcString(),
                 )
             }
         }
@@ -120,7 +121,7 @@ class AlertService {
                         metric = row[AlertThresholds.metric],
                         thresholdValue = row[AlertThresholds.thresholdValue],
                         thresholdState = row[AlertThresholds.thresholdState],
-                        createdAt = row[AlertThresholds.createdAt].toString(),
+                        createdAt = row[AlertThresholds.createdAt].toUtcString(),
                     )
                 }
         }
@@ -160,7 +161,7 @@ class AlertService {
                         id = row[AlertEvents.id].toString(),
                         thresholdId = row[AlertEvents.thresholdId].toString(),
                         message = row[AlertEvents.message],
-                        firedAt = row[AlertEvents.firedAt].toString(),
+                        firedAt = row[AlertEvents.firedAt].toUtcString(),
                         resolvedAt = row[AlertEvents.resolvedAt]?.toString(),
                     )
                 }

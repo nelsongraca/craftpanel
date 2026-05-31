@@ -24,6 +24,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.util.*
 import kotlin.time.Clock
+import io.craftpanel.master.util.toUtcString
 
 @Serializable
 data class ServerResponse(
@@ -187,7 +188,9 @@ class ServerService(
                 .toList()
             val usedRam = existing.sumOf { it[Servers.memoryMb] }
             val usedCpu = existing.sumOf { it[Servers.cpuShares] }
-            if (usedRam + req.memoryMb > totalRam) return@transaction CreateResult("insufficient_ram")
+            val systemRamUsed = node[Nodes.systemRamUsedMb] ?: 0
+            val effectiveUsedRam = maxOf(usedRam, systemRamUsed)
+            if (effectiveUsedRam + req.memoryMb > totalRam) return@transaction CreateResult("insufficient_ram")
             if (totalCpu > 0 && usedCpu + req.cpuShares > totalCpu) return@transaction CreateResult("insufficient_cpu")
 
             val usedPorts = PortRegistry.selectAll()
@@ -335,7 +338,9 @@ class ServerService(
                 .toList()
             val usedRam = others.sumOf { it[Servers.memoryMb] }
             val usedCpu = others.sumOf { it[Servers.cpuShares] }
-            if (usedRam + req.memoryMb > node[Nodes.totalRamMb]) return@transaction "insufficient_ram"
+            val systemRamUsed = node[Nodes.systemRamUsedMb] ?: 0
+            val effectiveUsedRam = maxOf(usedRam, systemRamUsed)
+            if (effectiveUsedRam + req.memoryMb > node[Nodes.totalRamMb]) return@transaction "insufficient_ram"
             if (node[Nodes.totalCpuShares] > 0 && usedCpu + req.cpuShares > node[Nodes.totalCpuShares]) return@transaction "insufficient_cpu"
             Servers.update({ Servers.id eq id }) {
                 it[memoryMb] = req.memoryMb
@@ -497,10 +502,10 @@ class ServerService(
         return ContainerMetricsSeriesResponse(
             serverId = id.toString(),
             series = ContainerMetricsSeries(
-                cpuPercent = rows.map { ContainerMetricsPoint(it[ContainerMetrics.recordedAt].toString(), it[ContainerMetrics.cpuPercent]) },
-                ramUsedMb = rows.map { ContainerMetricsPoint(it[ContainerMetrics.recordedAt].toString(), it[ContainerMetrics.ramUsedMb].toDouble()) },
-                netInBytes = rows.map { ContainerMetricsPointLong(it[ContainerMetrics.recordedAt].toString(), it[ContainerMetrics.netInBytes]) },
-                netOutBytes = rows.map { ContainerMetricsPointLong(it[ContainerMetrics.recordedAt].toString(), it[ContainerMetrics.netOutBytes]) },
+                cpuPercent = rows.map { ContainerMetricsPoint(it[ContainerMetrics.recordedAt].toUtcString(), it[ContainerMetrics.cpuPercent]) },
+                ramUsedMb = rows.map { ContainerMetricsPoint(it[ContainerMetrics.recordedAt].toUtcString(), it[ContainerMetrics.ramUsedMb].toDouble()) },
+                netInBytes = rows.map { ContainerMetricsPointLong(it[ContainerMetrics.recordedAt].toUtcString(), it[ContainerMetrics.netInBytes]) },
+                netOutBytes = rows.map { ContainerMetricsPointLong(it[ContainerMetrics.recordedAt].toUtcString(), it[ContainerMetrics.netOutBytes]) },
             )
         )
     }
@@ -768,8 +773,8 @@ internal fun rowToServerResponse(row: ResultRow, isMigrating: Boolean) = ServerR
     lastPlayerCount = row[Servers.lastPlayerCount],
     lastPlayerNames = row[Servers.lastPlayerNames]?.split(",")
         ?.filter { it.isNotBlank() },
-    createdAt = row[Servers.createdAt].toString(),
-    updatedAt = row[Servers.updatedAt].toString(),
+    createdAt = row[Servers.createdAt].toUtcString(),
+    updatedAt = row[Servers.updatedAt].toUtcString(),
 )
 
 internal val PROXY_SERVER_TYPES = setOf("VELOCITY", "BUNGEECORD", "WATERFALL")

@@ -20,6 +20,7 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.util.*
 import kotlin.time.Clock
+import io.craftpanel.master.util.toUtcString
 
 private val VALID_PIN_STRATEGIES = setOf("PINNED", "LATEST", "BETA", "ALPHA")
 
@@ -168,6 +169,6 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toModResponse() = ModRespons
     pinStrategy = this[ServerMods.pinStrategy],
     pinnedVersionId = this[ServerMods.pinnedVersionId],
     installedVersionId = this[ServerMods.installedVersionId],
-    createdAt = this[ServerMods.createdAt].toString(),
-    updatedAt = this[ServerMods.updatedAt].toString(),
+    createdAt = this[ServerMods.createdAt].toUtcString(),
+    updatedAt = this[ServerMods.updatedAt].toUtcString(),
 )

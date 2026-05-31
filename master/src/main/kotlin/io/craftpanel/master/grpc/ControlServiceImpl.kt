@@ -34,6 +34,7 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
+import io.craftpanel.master.util.toUtcString
 
 data class AlertEventNotification(
     val eventId: String,
@@ -102,7 +103,8 @@ class ControlServiceImpl(
         val rawKey = generateNodeKey()
         val keyHash = sha256Hex(rawKey)
         val meta = request.metadata
-        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        val now = Clock.System.now()
+            .toLocalDateTime(TimeZone.UTC)
 
         val generatedId = transaction {
             Nodes.insert {
@@ -128,7 +130,8 @@ class ControlServiceImpl(
 
     override suspend fun identifyNode(request: IdentifyNodeRequest): IdentifyNodeResponse {
         val keyHash = sha256Hex(request.nodeKey)
-        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        val now = Clock.System.now()
+            .toLocalDateTime(TimeZone.UTC)
 
         val row = transaction {
             val r = Nodes.selectAll()
@@ -152,7 +155,8 @@ class ControlServiceImpl(
             else                 -> IdentifyNodeResponse.IdentifyStatus.REJECTED
         }
 
-        val rowId = row?.get(Nodes.id)?.toString() ?: ""
+        val rowId = row?.get(Nodes.id)
+            ?.toString() ?: ""
         log.info("Node identified: $rowId — $identifyStatus")
         return identifyNodeResponse {
             status = identifyStatus
@@ -189,7 +193,10 @@ class ControlServiceImpl(
                     val nodeId = msg.nodeId
                     val nodeStatus = transaction {
                         Nodes.selectAll()
-                            .where { Nodes.id eq UUID.fromString(nodeId).toKotlinUuid() }
+                            .where {
+                                Nodes.id eq UUID.fromString(nodeId)
+                                    .toKotlinUuid()
+                            }
                             .firstOrNull()
                             ?.get(Nodes.status)
                     }
@@ -201,62 +208,62 @@ class ControlServiceImpl(
                 }
 
                 when {
-                    msg.hasNodeState()        -> {
+                    msg.hasNodeState()             -> {
                         log.info("Node ${msg.nodeId} sent state snapshot with ${msg.nodeState.containersCount} containers")
-                        if (reconcileNodeState(msg.nodeId, msg.nodeState)) {
-                            _nodeStatusFlow.emit(msg.nodeId to "ACTIVE")
-                        }
+                        runCatching { reconcileNodeState(msg.nodeId, msg.nodeState) }
+                            .onSuccess { _nodeStatusFlow.emit(msg.nodeId to "ACTIVE") }
+                            .onFailure { e -> log.error("Node ${msg.nodeId}: reconcileNodeState failed — ${e.message}", e) }
                     }
 
-                    msg.hasNodeMetrics()      -> {
+                    msg.hasNodeMetrics()           -> {
                         lastMetricsAt.set(Clock.System.now())
                         persistNodeMetrics(msg.nodeId, msg.nodeMetrics)
                         _nodeMetricsFlow.emit(msg.nodeId to msg.nodeMetrics)
                         launch { evaluateNodeAlerts(msg.nodeId, msg.nodeMetrics) }
                     }
 
-                    msg.hasContainerMetrics() -> {
+                    msg.hasContainerMetrics()      -> {
                         persistContainerMetrics(msg.containerMetrics)
                         _containerMetricsFlow.emit(msg.containerMetrics.serverId to msg.containerMetrics)
                         launch { evaluateServerAlerts(msg.containerMetrics) }
                     }
 
-                    msg.hasServerStatus()     -> {
+                    msg.hasServerStatus()          -> {
                         log.debug("Node {} server status: {} → {}", msg.nodeId, msg.serverStatus.serverId, msg.serverStatus.status)
                         persistServerStatus(msg.serverStatus)
                         _serverStatusFlow.emit(msg.serverStatus.serverId to msg.serverStatus)
                     }
 
-                    msg.hasPlayerUpdate()     -> {
+                    msg.hasPlayerUpdate()          -> {
                         log.debug("Node ${msg.nodeId} player update: ${msg.playerUpdate.serverId} — ${msg.playerUpdate.playerCount} players")
                         persistPlayerUpdate(msg.playerUpdate)
                         _playerUpdateFlow.emit(msg.playerUpdate.serverId to msg.playerUpdate)
                     }
 
-                    msg.hasBackupProgress()   -> _backupProgressFlow.emit(msg.backupProgress)
+                    msg.hasBackupProgress()        -> _backupProgressFlow.emit(msg.backupProgress)
 
-                    msg.hasBackupComplete()   -> {
+                    msg.hasBackupComplete()        -> {
                         persistBackupComplete(msg.backupComplete)
                         _backupCompleteFlow.emit(msg.backupComplete)
                     }
 
-                    msg.hasRsyncReady()       -> _rsyncReadyFlow.emit(msg.rsyncReady)
-                    msg.hasRsyncProgress()    -> _rsyncProgressFlow.emit(msg.rsyncProgress)
-                    msg.hasRsyncComplete()    -> _rsyncCompleteFlow.emit(msg.rsyncComplete)
+                    msg.hasRsyncReady()            -> _rsyncReadyFlow.emit(msg.rsyncReady)
+                    msg.hasRsyncProgress()         -> _rsyncProgressFlow.emit(msg.rsyncProgress)
+                    msg.hasRsyncComplete()         -> _rsyncCompleteFlow.emit(msg.rsyncComplete)
 
                     // Data op responses — route to waiting callers
-                    msg.hasConsoleOutput()       -> routeConsoleOutput(msg.nodeId, msg.consoleOutput)
-                    msg.hasListFilesResponse()   -> routeUnaryResponse(msg.nodeId, msg.listFilesResponse.requestId, msg)
-                    msg.hasReadFileResponse()    -> routeUnaryResponse(msg.nodeId, msg.readFileResponse.requestId, msg)
-                    msg.hasWriteFileResponse()   -> routeUnaryResponse(msg.nodeId, msg.writeFileResponse.requestId, msg)
-                    msg.hasDeleteFileResponse()  -> routeUnaryResponse(msg.nodeId, msg.deleteFileResponse.requestId, msg)
+                    msg.hasConsoleOutput()         -> routeConsoleOutput(msg.nodeId, msg.consoleOutput)
+                    msg.hasListFilesResponse()     -> routeUnaryResponse(msg.nodeId, msg.listFilesResponse.requestId, msg)
+                    msg.hasReadFileResponse()      -> routeUnaryResponse(msg.nodeId, msg.readFileResponse.requestId, msg)
+                    msg.hasWriteFileResponse()     -> routeUnaryResponse(msg.nodeId, msg.writeFileResponse.requestId, msg)
+                    msg.hasDeleteFileResponse()    -> routeUnaryResponse(msg.nodeId, msg.deleteFileResponse.requestId, msg)
                     msg.hasMakeDirectoryResponse() -> routeUnaryResponse(msg.nodeId, msg.makeDirectoryResponse.requestId, msg)
-                    msg.hasMoveFileResponse()    -> routeUnaryResponse(msg.nodeId, msg.moveFileResponse.requestId, msg)
-                    msg.hasCopyFileResponse()    -> routeUnaryResponse(msg.nodeId, msg.copyFileResponse.requestId, msg)
-                    msg.hasDownloadFileResponse() -> routeUnaryResponse(msg.nodeId, msg.downloadFileResponse.requestId, msg)
-                    msg.hasUploadFileResponse()  -> routeUnaryResponse(msg.nodeId, msg.uploadFileResponse.requestId, msg)
+                    msg.hasMoveFileResponse()      -> routeUnaryResponse(msg.nodeId, msg.moveFileResponse.requestId, msg)
+                    msg.hasCopyFileResponse()      -> routeUnaryResponse(msg.nodeId, msg.copyFileResponse.requestId, msg)
+                    msg.hasDownloadFileResponse()  -> routeUnaryResponse(msg.nodeId, msg.downloadFileResponse.requestId, msg)
+                    msg.hasUploadFileResponse()    -> routeUnaryResponse(msg.nodeId, msg.uploadFileResponse.requestId, msg)
 
-                    else                      -> log.debug("Node ${msg.nodeId} sent unhandled message type")
+                    else                           -> log.debug("Node ${msg.nodeId} sent unhandled message type")
                 }
             }
         }
@@ -265,10 +272,13 @@ class ControlServiceImpl(
                 val wasOwner = connectedAgents.remove(nodeId, outChannel)
                 drainNodeRequests(nodeId)
                 onNodeDisconnect(nodeId)
-                if (wasOwner && !watchdogFired) {
+                if (wasOwner && !watchdogFired && !connectedAgents.containsKey(nodeId)) {
                     log.warn("Node $nodeId: control stream disconnected — marking degraded")
                     markNodeDegraded(nodeId)
                     _nodeStatusFlow.emit(nodeId to "DEGRADED")
+                }
+                else if (wasOwner && connectedAgents.containsKey(nodeId)) {
+                    log.info("Node $nodeId: stream ended but new connection is already active — skipping degrade")
                 }
             }
         }
@@ -277,14 +287,16 @@ class ControlServiceImpl(
     // ── Data op routing helpers ───────────────────────────────────────────────
 
     private fun routeUnaryResponse(nodeId: String, requestId: String, msg: AgentMessage) {
-        pendingRequests.remove("$nodeId/$requestId")?.complete(msg)
+        pendingRequests.remove("$nodeId/$requestId")
+            ?.complete(msg)
     }
 
     private fun routeConsoleOutput(nodeId: String, output: ConsoleOutput) {
         val key = "$nodeId/${output.requestId}"
         consoleOutputChannels[key]?.trySend(output)
         if (output.closed) {
-            consoleOutputChannels.remove(key)?.close()
+            consoleOutputChannels.remove(key)
+                ?.close()
         }
     }
 
@@ -294,13 +306,15 @@ class ControlServiceImpl(
             if (k.startsWith(prefix)) {
                 v.completeExceptionally(Exception("Node $nodeId disconnected"))
                 true
-            } else false
+            }
+            else false
         }
         consoleOutputChannels.entries.removeIf { (k, v) ->
             if (k.startsWith(prefix)) {
                 v.close(Exception("Node $nodeId disconnected"))
                 true
-            } else false
+            }
+            else false
         }
     }
 
@@ -316,7 +330,8 @@ class ControlServiceImpl(
         }
         return try {
             withTimeout(timeoutMs.milliseconds) { deferred.await() }
-        } finally {
+        }
+        finally {
             pendingRequests.remove("$nodeId/$reqId")
         }
     }
@@ -324,7 +339,8 @@ class ControlServiceImpl(
     /** Open a multiplexed console session over the control stream. */
     internal fun openConsole(nodeId: String, serverId: String, input: Flow<ByteArray>): Flow<ConsoleOutput> =
         channelFlow {
-            val reqId = UUID.randomUUID().toString()
+            val reqId = UUID.randomUUID()
+                .toString()
             val outputChannel = Channel<ConsoleOutput>(Channel.BUFFERED)
             consoleOutputChannels["$nodeId/$reqId"] = outputChannel
 
@@ -343,7 +359,8 @@ class ControlServiceImpl(
                             consoleInput = consoleInput { requestId = reqId; data = com.google.protobuf.ByteString.copyFrom(bytes) }
                         })
                     }
-                } finally {
+                }
+                finally {
                     sendToNode(nodeId, masterMessage {
                         consoleDetach = consoleDetach { requestId = reqId }
                     })
@@ -356,8 +373,10 @@ class ControlServiceImpl(
                     send(output)
                     if (output.closed) break
                 }
-            } finally {
-                consoleOutputChannels.remove("$nodeId/$reqId")?.close()
+            }
+            finally {
+                consoleOutputChannels.remove("$nodeId/$reqId")
+                    ?.close()
             }
         }
 
@@ -373,8 +392,12 @@ class ControlServiceImpl(
     // ── Reconciliation & lifecycle ────────────────────────────────────────────
 
     internal fun reconcileNodeState(nodeId: String, snapshot: NodeStateSnapshot): Boolean {
-        val kotlinNodeId = runCatching { UUID.fromString(nodeId).toKotlinUuid() }.getOrNull() ?: return false
-        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        val kotlinNodeId = runCatching {
+            UUID.fromString(nodeId)
+                .toKotlinUuid()
+        }.getOrNull() ?: return false
+        val now = Clock.System.now()
+            .toLocalDateTime(TimeZone.UTC)
         var wasRestored = false
 
         transaction {
@@ -415,13 +438,14 @@ class ControlServiceImpl(
                     }
                 }
 
-            if (currentStatus == "DEGRADED") {
+            if (currentStatus in setOf("ACTIVE", "DEGRADED")) {
                 Nodes.update({ Nodes.id eq kotlinNodeId }) {
                     it[Nodes.status] = "ACTIVE"
                     it[Nodes.lastSeenAt] = now
                 }
-                wasRestored = true
-            } else {
+                wasRestored = currentStatus == "DEGRADED"
+            }
+            else {
                 Nodes.update({ Nodes.id eq kotlinNodeId }) { it[Nodes.lastSeenAt] = now }
             }
         }
@@ -429,11 +453,15 @@ class ControlServiceImpl(
     }
 
     internal fun markNodeDegraded(nodeId: String) {
-        val kotlinNodeId = runCatching { UUID.fromString(nodeId).toKotlinUuid() }.getOrElse {
+        val kotlinNodeId = runCatching {
+            UUID.fromString(nodeId)
+                .toKotlinUuid()
+        }.getOrElse {
             log.warn("markNodeDegraded: invalid nodeId format: $nodeId")
             return
         }
-        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        val now = Clock.System.now()
+            .toLocalDateTime(TimeZone.UTC)
 
         transaction {
             Nodes.update({ Nodes.id eq kotlinNodeId }) { it[Nodes.status] = "DEGRADED" }
@@ -469,12 +497,17 @@ class ControlServiceImpl(
     // ── Metrics persistence ───────────────────────────────────────────────────
 
     private fun persistNodeMetrics(nodeId: String, metrics: NodeMetricsUpdate) {
-        val kotlinNodeId = runCatching { UUID.fromString(nodeId).toKotlinUuid() }.getOrNull() ?: return
+        val kotlinNodeId = runCatching {
+            UUID.fromString(nodeId)
+                .toKotlinUuid()
+        }.getOrNull() ?: return
         val recordedAt = if (metrics.hasRecordedAt()) {
             Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong())
                 .toLocalDateTime(TimeZone.UTC)
-        } else {
-            Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        }
+        else {
+            Clock.System.now()
+                .toLocalDateTime(TimeZone.UTC)
         }
 
         transaction {
@@ -489,16 +522,26 @@ class ControlServiceImpl(
                 it[NodeMetrics.diskUsedBytes] = metrics.diskUsedBytes
                 it[NodeMetrics.diskTotalBytes] = metrics.diskTotalBytes
             }
+            if (metrics.ramUsedMb > 0) {
+                Nodes.update({ Nodes.id eq kotlinNodeId }) {
+                    it[Nodes.systemRamUsedMb] = metrics.ramUsedMb
+                }
+            }
         }
     }
 
     private fun persistContainerMetrics(metrics: ContainerMetricsUpdate) {
-        val kotlinServerId = runCatching { UUID.fromString(metrics.serverId).toKotlinUuid() }.getOrNull() ?: return
+        val kotlinServerId = runCatching {
+            UUID.fromString(metrics.serverId)
+                .toKotlinUuid()
+        }.getOrNull() ?: return
         val recordedAt = if (metrics.hasRecordedAt()) {
             Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong())
                 .toLocalDateTime(TimeZone.UTC)
-        } else {
-            Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        }
+        else {
+            Clock.System.now()
+                .toLocalDateTime(TimeZone.UTC)
         }
 
         transaction {
@@ -514,7 +557,10 @@ class ControlServiceImpl(
     }
 
     private fun persistServerStatus(update: ServerStatusUpdate) {
-        val serverId = runCatching { UUID.fromString(update.serverId).toKotlinUuid() }.getOrNull() ?: return
+        val serverId = runCatching {
+            UUID.fromString(update.serverId)
+                .toKotlinUuid()
+        }.getOrNull() ?: return
         val dbStatus = when (update.status) {
             ServerStatusUpdate.ServerStatus.STARTING  -> "STARTING"
             ServerStatusUpdate.ServerStatus.HEALTHY   -> "HEALTHY"
@@ -522,7 +568,8 @@ class ControlServiceImpl(
             ServerStatusUpdate.ServerStatus.UNHEALTHY -> "UNHEALTHY"
             else                                      -> return
         }
-        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        val now = Clock.System.now()
+            .toLocalDateTime(TimeZone.UTC)
         transaction {
             Servers.update({ Servers.id eq serverId }) {
                 it[Servers.status] = dbStatus
@@ -533,24 +580,34 @@ class ControlServiceImpl(
     }
 
     private fun persistPlayerUpdate(update: PlayerUpdate) {
-        val serverId = runCatching { UUID.fromString(update.serverId).toKotlinUuid() }.getOrNull() ?: return
-        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        val serverId = runCatching {
+            UUID.fromString(update.serverId)
+                .toKotlinUuid()
+        }.getOrNull() ?: return
+        val now = Clock.System.now()
+            .toLocalDateTime(TimeZone.UTC)
         transaction {
             Servers.update({ Servers.id eq serverId }) {
                 it[Servers.lastPlayerCount] = update.playerCount
-                it[Servers.lastPlayerNames] = update.playerNamesList.joinToString(",").takeIf { s -> s.isNotBlank() }
+                it[Servers.lastPlayerNames] = update.playerNamesList.joinToString(",")
+                    .takeIf { s -> s.isNotBlank() }
                 it[Servers.lastPlayerUpdate] = now
             }
         }
     }
 
     private fun persistBackupComplete(update: BackupCompleteUpdate) {
-        val backupId = runCatching { UUID.fromString(update.backupId).toKotlinUuid() }.getOrNull() ?: return
+        val backupId = runCatching {
+            UUID.fromString(update.backupId)
+                .toKotlinUuid()
+        }.getOrNull() ?: return
         val completedAt = if (update.hasCompletedAt()) {
             Instant.fromEpochSeconds(update.completedAt.seconds, update.completedAt.nanos.toLong())
                 .toLocalDateTime(TimeZone.UTC)
-        } else {
-            Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        }
+        else {
+            Clock.System.now()
+                .toLocalDateTime(TimeZone.UTC)
         }
 
         transaction {
@@ -559,7 +616,8 @@ class ControlServiceImpl(
                     it[Backups.status] = "COMPLETED"
                     it[Backups.filePath] = update.filePath.takeIf { s -> s.isNotEmpty() }
                     it[Backups.sizeBytes] = update.sizeBytes.takeIf { n -> n > 0 }
-                } else {
+                }
+                else {
                     it[Backups.status] = "FAILED"
                     it[Backups.errorMessage] = update.errorMessage.takeIf { s -> s.isNotEmpty() }
                 }
@@ -571,8 +629,12 @@ class ControlServiceImpl(
     // ── Alert evaluation ──────────────────────────────────────────────────────
 
     private suspend fun evaluateNodeAlerts(nodeId: String, metrics: NodeMetricsUpdate) {
-        val kotlinNodeId = runCatching { UUID.fromString(nodeId).toKotlinUuid() }.getOrNull() ?: return
-        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        val kotlinNodeId = runCatching {
+            UUID.fromString(nodeId)
+                .toKotlinUuid()
+        }.getOrNull() ?: return
+        val now = Clock.System.now()
+            .toLocalDateTime(TimeZone.UTC)
 
         val metricValues = buildMap {
             put("cpu_percent", metrics.cpuPercent)
@@ -605,12 +667,22 @@ class ControlServiceImpl(
                         it[AlertEvents.firedAt] = now
                         it[AlertEvents.message] = msg
                     }[AlertEvents.id]
-                    result += AlertEventNotification(eventId.toString(), thresholdId.toString(), ScopeType.NODE.name, nodeId, metric, msg, now.toString())
-                } else if (!triggered && openEvent != null) {
+                    result += AlertEventNotification(eventId.toString(), thresholdId.toString(), ScopeType.NODE.name, nodeId, metric, msg, now.toUtcString())
+                }
+                else if (!triggered && openEvent != null) {
                     val eventId = openEvent[AlertEvents.id]
                     AlertEvents.update({ AlertEvents.id eq eventId }) { it[AlertEvents.resolvedAt] = now }
                     val msg = "Node $nodeId: $metric normalised"
-                    result += AlertEventNotification(eventId.toString(), thresholdId.toString(), ScopeType.NODE.name, nodeId, metric, msg, openEvent[AlertEvents.firedAt].toString(), now.toString())
+                    result += AlertEventNotification(
+                        eventId.toString(),
+                        thresholdId.toString(),
+                        ScopeType.NODE.name,
+                        nodeId,
+                        metric,
+                        msg,
+                        openEvent[AlertEvents.firedAt].toUtcString(),
+                        now.toUtcString()
+                    )
                 }
             }
             result
@@ -620,8 +692,12 @@ class ControlServiceImpl(
     }
 
     private suspend fun evaluateServerAlerts(metrics: ContainerMetricsUpdate) {
-        val kotlinServerId = runCatching { UUID.fromString(metrics.serverId).toKotlinUuid() }.getOrNull() ?: return
-        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        val kotlinServerId = runCatching {
+            UUID.fromString(metrics.serverId)
+                .toKotlinUuid()
+        }.getOrNull() ?: return
+        val now = Clock.System.now()
+            .toLocalDateTime(TimeZone.UTC)
 
         val serverMemMb = transaction {
             Servers.selectAll()
@@ -659,15 +735,16 @@ class ControlServiceImpl(
                         it[AlertEvents.firedAt] = now
                         it[AlertEvents.message] = msg
                     }[AlertEvents.id]
-                    result += AlertEventNotification(eventId.toString(), thresholdId.toString(), ScopeType.SERVER.name, metrics.serverId, metric, msg, now.toString())
-                } else if (!triggered && openEvent != null) {
+                    result += AlertEventNotification(eventId.toString(), thresholdId.toString(), ScopeType.SERVER.name, metrics.serverId, metric, msg, now.toUtcString())
+                }
+                else if (!triggered && openEvent != null) {
                     val eventId = openEvent[AlertEvents.id]
                     AlertEvents.update({ AlertEvents.id eq eventId }) { it[AlertEvents.resolvedAt] = now }
                     val msg = "Server ${metrics.serverId}: $metric normalised"
                     result += AlertEventNotification(
                         eventId.toString(), thresholdId.toString(), ScopeType.SERVER.name,
                         metrics.serverId, metric, msg,
-                        openEvent[AlertEvents.firedAt].toString(), now.toString()
+                        openEvent[AlertEvents.firedAt].toUtcString(), now.toUtcString()
                     )
                 }
             }
@@ -681,11 +758,14 @@ class ControlServiceImpl(
 
     fun generateNodeKey(): String {
         val bytes = ByteArray(32).also { random.nextBytes(it) }
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
+        return Base64.getUrlEncoder()
+            .withoutPadding()
+            .encodeToString(bytes)
     }
 
     fun sha256Hex(input: String): String {
         val digest = MessageDigest.getInstance("SHA-256")
-        return digest.digest(input.toByteArray()).joinToString("") { "%02x".format(it) }
+        return digest.digest(input.toByteArray())
+            .joinToString("") { "%02x".format(it) }
     }
 }

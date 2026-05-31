@@ -14,6 +14,7 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.util.*
+import io.craftpanel.master.util.toUtcString
 
 @Serializable
 data class GroupResponse(
@@ -117,7 +118,7 @@ private fun fetchGroup(id: UUID): GroupResponse? {
         name = row[Groups.name],
         isSystem = row[Groups.isSystem],
         permissions = perms,
-        createdAt = row[Groups.createdAt].toString(),
+        createdAt = row[Groups.createdAt].toUtcString(),
     )
 }
 
@@ -133,7 +134,7 @@ private fun fetchAllGroups(): List<GroupResponse> {
                 name = row[Groups.name],
                 isSystem = row[Groups.isSystem],
                 permissions = allPerms[groupId] ?: emptyList(),
-                createdAt = row[Groups.createdAt].toString(),
+                createdAt = row[Groups.createdAt].toUtcString(),
             )
         }
 }

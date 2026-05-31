@@ -3,6 +3,20 @@
 Self-hosted Minecraft server management platform. Manage servers across multiple nodes from a single web UI, with role-based access control, live console streaming, backups, migration, and Modrinth
 mod integration.
 
+## Agentic Development Experiment
+
+CraftPanel is also an experiment in agentic software development. The goal is to build the project as close to **zero human-authored code** as practically achievable, using [Claude Code](https://claude.ai/code) as the primary development agent throughout the entire lifecycle ? architecture, scaffolding, implementation, and iteration.
+
+Human involvement is intentionally limited to:
+
+- **Specification and direction** - defining requirements, reviewing designs, and course-correcting the agent
+- **Code review** - agent-produced code is periodically reviewed by a human; not exhaustively, but enough to catch structural drift
+- **Judgement calls** - security decisions, architectural trade-offs, and anything the agent flags as ambiguous
+
+The codebase is therefore a living record of what agentic development can produce on a non-trivial, production-scoped project. Shortcuts were not taken in the spec to make the agent's job easier ? the full requirements, data model, API surface, and UI are designed to the same standard as a human-built product.
+
+> This README is itself agent-written, guided by human direction, consistent with the experiment's own rules.
+
 ## Overview
 
 ```

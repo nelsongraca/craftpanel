@@ -17,6 +17,7 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.util.*
+import io.craftpanel.master.util.toUtcString
 
 @Serializable
 data class CreateUserRequest(val username: String, val email: String, val password: String)
@@ -135,5 +136,5 @@ internal fun org.jetbrains.exposed.v1.core.ResultRow.toUserResponse() = UserResp
     username = this[Users.username],
     email = this[Users.email],
     isActive = this[Users.isActive],
-    createdAt = this[Users.createdAt].toString(),
+    createdAt = this[Users.createdAt].toUtcString(),
 )

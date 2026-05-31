@@ -22,6 +22,7 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.util.*
 import kotlin.time.Clock
+import io.craftpanel.master.util.toUtcString
 
 private val CRON_REGEX = Regex("""^(\*|[0-9,\-*/]+)\s+(\*|[0-9,\-*/]+)\s+(\*|[0-9,\-*/]+)\s+(\*|[0-9,\-*/]+)\s+(\*|[0-9,\-*/]+)$""")
 
@@ -236,6 +237,6 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toBackupResponse() = BackupR
     filePath = this[Backups.filePath],
     sizeBytes = this[Backups.sizeBytes],
     errorMessage = this[Backups.errorMessage],
-    createdAt = this[Backups.createdAt].toString(),
+    createdAt = this[Backups.createdAt].toUtcString(),
     completedAt = this[Backups.completedAt]?.toString(),
 )
