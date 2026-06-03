@@ -54,6 +54,11 @@ data class RateLimitConfig(
     val refreshPerMinute: Int,
 )
 
+data class ImagesConfig(
+    val minecraftImage: String,
+    val proxyImage: String,
+)
+
 data class AdminSeedConfig(
     val email: String,
     val password: String,
@@ -148,6 +153,12 @@ class AppConfig(config: ApplicationConfig) {
             ?.getString() ?: "",
         username = config.propertyOrNull("adminSeed.username")
             ?.getString() ?: "admin",
+    )
+    val images = ImagesConfig(
+        minecraftImage = config.propertyOrNull("images.minecraftImage")
+            ?.getString() ?: "itzg/minecraft-server",
+        proxyImage = config.propertyOrNull("images.proxyImage")
+            ?.getString() ?: "itzg/mc-proxy",
     )
 
     fun validate() {

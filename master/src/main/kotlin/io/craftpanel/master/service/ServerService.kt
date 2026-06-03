@@ -4,6 +4,7 @@ import com.craftpanel.agent.v1.*
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.database.schema.*
+import io.craftpanel.master.config.ImagesConfig
 import io.craftpanel.master.dns.DnsProvider
 import org.jetbrains.exposed.v1.core.ResultRow
 import io.craftpanel.master.util.toKotlinUuid
@@ -109,6 +110,7 @@ class ServerService(
     private val sendToNode: (String, MasterMessage) -> Boolean,
     private val modService: ModService,
     private val dnsProvider: DnsProvider? = null,
+    private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
 ) {
 
     private val log = LoggerFactory.getLogger(ServerService::class.java)
@@ -370,7 +372,7 @@ class ServerService(
             throw ConflictException("Server is already running")
         val nodeKotlinId = serverRow[Servers.nodeId]
         val serverType = serverRow[Servers.serverType]
-        val serverImage = deriveImage(serverType, serverRow[Servers.itzgImageTag])
+        val serverImage = deriveImage(serverType, serverRow[Servers.itzgImageTag], images.minecraftImage, images.proxyImage)
         val allVars = buildAllVars(id, serverRow)
         val nodeId = nodeKotlinId.toString()
         val publicHostname = serverRow[Servers.dnsRecordName]
@@ -446,7 +448,7 @@ class ServerService(
             ?: throw NotFoundException("Server not found")
         if (serverRow[Servers.status] != "STOPPED") throw ConflictException("Server must be STOPPED before upgrade")
         val nodeId = serverRow[Servers.nodeId].toString()
-        val serverImage = deriveImage(serverRow[Servers.serverType], req.itzgImageTag)
+        val serverImage = deriveImage(serverRow[Servers.serverType], req.itzgImageTag, images.minecraftImage, images.proxyImage)
         val allVars = buildAllVars(id, serverRow)
         val publicHostname = serverRow[Servers.dnsRecordName]
 
@@ -751,9 +753,14 @@ internal fun rowToServerResponse(row: ResultRow, isMigrating: Boolean) = ServerR
 
 internal val PROXY_SERVER_TYPES = setOf("VELOCITY", "BUNGEECORD", "WATERFALL")
 
-internal fun deriveImage(serverType: String, tag: String): String = when (serverType) {
-    "BUNGEECORD", "VELOCITY", "WATERFALL" -> "itzg/mc-proxy:$tag"
-    else                                  -> "itzg/minecraft-server:$tag"
+internal fun deriveImage(
+    serverType: String,
+    tag: String,
+    minecraftImage: String = "itzg/minecraft-server",
+    proxyImage: String = "itzg/mc-proxy",
+): String = when (serverType) {
+    "BUNGEECORD", "VELOCITY", "WATERFALL" -> "$proxyImage:$tag"
+    else                                  -> "$minecraftImage:$tag"
 }
 
 private fun parseUuid(raw: String): kotlin.uuid.Uuid? =

@@ -87,7 +87,7 @@ fun Application.module() {
     val systemService = SystemService()
     val alertService = AlertService()
     val modService = ModService()
-    val serverService = ServerService(controlService::sendToNode, modService, dnsProvider)
+    val serverService = ServerService(controlService::sendToNode, modService, dnsProvider, appConfig.images)
     val backupService = BackupService(controlService::sendToNode, dataServiceProxy)
     val proxyBackendService = ProxyBackendService()
     val envVarsService = EnvVarsService()

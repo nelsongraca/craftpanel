@@ -53,6 +53,8 @@ object CraftPanelStack {
             withEnv("DATABASE_PASSWORD", DB_PASSWORD)
             withEnv("NODE_BOOTSTRAP_TOKEN", "test-bootstrap-token")
             withEnv("JWT_SECRET", "test-jwt-secret-at-least-32-characters-long!")
+            withEnv("CRAFTPANEL_IMAGE_OVERRIDE_MINECRAFT", "craftpanel-fake-server:test")
+            withEnv("CRAFTPANEL_IMAGE_OVERRIDE_PROXY", "craftpanel-fake-proxy:test")
             waitingFor(Wait.forHttp("/health").forStatusCode(200))
         }
         master.start()
@@ -64,8 +66,6 @@ object CraftPanelStack {
             withEnv("MASTER_HOST", "master")
             withEnv("MASTER_GRPC_PORT", "50051")
             withEnv("NODE_BOOTSTRAP_TOKEN", "test-bootstrap-token")
-            withEnv("CRAFTPANEL_IMAGE_OVERRIDE_MINECRAFT", "craftpanel-fake-server:test")
-            withEnv("CRAFTPANEL_IMAGE_OVERRIDE_PROXY", "craftpanel-fake-proxy:test")
             withFileSystemBind("/var/run/docker.sock", "/var/run/docker.sock", BindMode.READ_WRITE)
             waitingFor(Wait.forLogMessage(".*Sent NodeStateSnapshot.*", 1))
         }
