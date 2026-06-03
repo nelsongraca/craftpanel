@@ -9,9 +9,13 @@ abstract class BaseSystemTest : DescribeSpec() {
     val api: DefaultApi by lazy { DefaultApi(basePath = CraftPanelStack.masterApiUrl) }
     val docker: DockerClient by lazy { CraftPanelStack.dockerClient }
 
+    lateinit var nodeId: String
+
     init {
         beforeSpec {
             CraftPanelStack.start()
+            AuthHelper(api).login()
+            nodeId = NodeHelper(api).trustFirstPendingNode()
         }
         afterSpec {
             CraftPanelStack.stop()

@@ -76,8 +76,14 @@ class NodeService(private val sendToNode: (String, MasterMessage) -> Boolean) {
         } ?: throw NotFoundException("Node not found")
 
     fun trustNode(id: kotlin.uuid.Uuid) {
-        val updated = transaction { Nodes.update({ Nodes.id eq id }) { it[status] = "ACTIVE" } }
-        if (updated == 0) throw NotFoundException("Node not found")
+        transaction {
+            val node = Nodes.selectAll()
+                .where { Nodes.id eq id }
+                .firstOrNull()
+                ?: throw NotFoundException("Node not found")
+            if (node[Nodes.status] == "ACTIVE") throw ConflictException("Node is already active")
+            Nodes.update({ Nodes.id eq id }) { it[status] = "ACTIVE" }
+        }
     }
 
     fun rejectNode(id: kotlin.uuid.Uuid) {

@@ -70,7 +70,6 @@ dependencies {
 
     // Testcontainers
     testImplementation(libs.testcontainers.core)
-    testImplementation(libs.testcontainers.postgresql)
 
     // Generated client runtime
     testImplementation(libs.okhttp)
@@ -79,11 +78,16 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.core)
 }
 
-// Never run via check or test lifecycle — only via :system-tests:systemTest
+// Not wired into check — system tests require running Docker images, explicit trigger only
 tasks.named<Test>("test") {
-    enabled = false
+    useJUnitPlatform()
 }
 
+tasks.named("check") {
+    setDependsOn(dependsOn.filter { it.toString() != "test" })
+}
+
+// Alias kept for CLI / CI usage
 val systemTest by tasks.registering(Test::class) {
     group = "verification"
     description = "Runs the Kotest system test suite (explicit trigger only)"

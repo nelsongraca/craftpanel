@@ -63,6 +63,7 @@ fun Route.nodesRoutes(nodeService: NodeService) {
                 request { pathParameter<String>("id") }
                 response {
                     code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
