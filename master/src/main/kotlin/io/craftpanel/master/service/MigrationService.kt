@@ -2,6 +2,7 @@ package io.craftpanel.master.service
 
 import com.craftpanel.agent.v1.*
 import io.craftpanel.master.database.schema.*
+import io.craftpanel.master.config.ImagesConfig
 import io.craftpanel.master.dns.DnsProvider
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
@@ -64,7 +65,13 @@ class MigrationService(
     private val serverStatusFlow: SharedFlow<Pair<String, ServerStatusUpdate>>,
     private val dnsProvider: DnsProvider?,
     private val scope: CoroutineScope,
+    private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
 ) {
+
+    private fun deriveImage(serverType: String, tag: String): String = when (serverType) {
+        "BUNGEECORD", "VELOCITY", "WATERFALL" -> "${images.proxyImage}:$tag"
+        else                                  -> "${images.minecraftImage}:$tag"
+    }
 
     private val eventFlows = ConcurrentHashMap<String, MutableSharedFlow<MigrationEvent>>()
 

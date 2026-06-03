@@ -115,6 +115,11 @@ class ServerService(
 
     private val log = LoggerFactory.getLogger(ServerService::class.java)
 
+    private fun deriveImage(serverType: String, tag: String): String = when (serverType) {
+        "BUNGEECORD", "VELOCITY", "WATERFALL" -> "${images.proxyImage}:$tag"
+        else                                  -> "${images.minecraftImage}:$tag"
+    }
+
     fun authInfo(id: kotlin.uuid.Uuid): ServerAuthInfo? = transaction {
         Servers.selectAll()
             .where { Servers.id eq id }
@@ -372,7 +377,7 @@ class ServerService(
             throw ConflictException("Server is already running")
         val nodeKotlinId = serverRow[Servers.nodeId]
         val serverType = serverRow[Servers.serverType]
-        val serverImage = deriveImage(serverType, serverRow[Servers.itzgImageTag], images.minecraftImage, images.proxyImage)
+        val serverImage = deriveImage(serverType, serverRow[Servers.itzgImageTag])
         val allVars = buildAllVars(id, serverRow)
         val nodeId = nodeKotlinId.toString()
         val publicHostname = serverRow[Servers.dnsRecordName]
@@ -448,7 +453,7 @@ class ServerService(
             ?: throw NotFoundException("Server not found")
         if (serverRow[Servers.status] != "STOPPED") throw ConflictException("Server must be STOPPED before upgrade")
         val nodeId = serverRow[Servers.nodeId].toString()
-        val serverImage = deriveImage(serverRow[Servers.serverType], req.itzgImageTag, images.minecraftImage, images.proxyImage)
+        val serverImage = deriveImage(serverRow[Servers.serverType], req.itzgImageTag)
         val allVars = buildAllVars(id, serverRow)
         val publicHostname = serverRow[Servers.dnsRecordName]
 
@@ -753,15 +758,6 @@ internal fun rowToServerResponse(row: ResultRow, isMigrating: Boolean) = ServerR
 
 internal val PROXY_SERVER_TYPES = setOf("VELOCITY", "BUNGEECORD", "WATERFALL")
 
-internal fun deriveImage(
-    serverType: String,
-    tag: String,
-    minecraftImage: String = "itzg/minecraft-server",
-    proxyImage: String = "itzg/mc-proxy",
-): String = when (serverType) {
-    "BUNGEECORD", "VELOCITY", "WATERFALL" -> "$proxyImage:$tag"
-    else                                  -> "$minecraftImage:$tag"
-}
 
 private fun parseUuid(raw: String): kotlin.uuid.Uuid? =
     runCatching {

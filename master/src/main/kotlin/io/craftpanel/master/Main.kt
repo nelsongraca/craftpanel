@@ -99,6 +99,7 @@ fun Application.module() {
         serverStatusFlow = controlService.serverStatusFlow,
         dnsProvider = dnsProvider,
         scope = this,
+        images = appConfig.images,
     )
 
     migrationService.failStuckMigrations()
