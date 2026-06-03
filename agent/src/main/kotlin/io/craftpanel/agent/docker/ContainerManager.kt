@@ -9,17 +9,11 @@ import com.github.dockerjava.api.command.PullImageResultCallback
 import com.github.dockerjava.api.model.*
 import org.slf4j.LoggerFactory
 import java.io.File
-import java.net.StandardProtocolFamily
-import java.net.UnixDomainSocketAddress
-import java.nio.ByteBuffer
-import java.nio.channels.SocketChannel
+import java.io.ByteArrayInputStream
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-open class ContainerManager(
-    private val docker: DockerClient,
-    private val dockerSocket: String = "/var/run/docker.sock",
-) {
+open class ContainerManager(private val docker: DockerClient) {
 
     private val log = LoggerFactory.getLogger(ContainerManager::class.java)
 
@@ -118,62 +112,38 @@ open class ContainerManager(
 
     fun stopContainer(containerName: String, timeoutSeconds: Int, stopCommand: String) {
         val timeout = timeoutSeconds.takeIf { it > 0 } ?: 30
-        var stdinSent = false
 
         if (stopCommand.isNotEmpty()) {
-            stdinSent = writeStdinToContainer(containerName, stopCommand)
-        }
-
-        if (stdinSent) {
-            val deadline = System.currentTimeMillis() + (timeout * 1000L)
-            while (System.currentTimeMillis() < deadline) {
-                val running = runCatching {
-                    docker.inspectContainerCmd(containerName).exec().state?.running
-                }.getOrNull()
-                if (running != true) {
-                    log.info("Container {} exited cleanly after stop command", containerName)
-                    return
-                }
-                Thread.sleep(200)
+            val exited = sendStopCommandToStdin(containerName, stopCommand, timeout)
+            if (exited) {
+                log.info("Container {} exited cleanly after stop command", containerName)
+                return
             }
             log.warn("Container {} did not exit within {}s after stop command — force stopping", containerName, timeout)
         }
 
         docker.stopContainerCmd(containerName)
-            .withTimeout(if (stdinSent) 5 else timeout)
+            .withTimeout(if (stopCommand.isNotEmpty()) 5 else timeout)
             .exec()
         log.info("Stopped container {}", containerName)
     }
 
-    private fun writeStdinToContainer(containerName: String, data: String): Boolean =
+    private fun sendStopCommandToStdin(containerName: String, command: String, timeoutSeconds: Int): Boolean =
         runCatching {
-            val socketAddr = UnixDomainSocketAddress.of(dockerSocket)
-            SocketChannel.open(StandardProtocolFamily.UNIX).use { ch ->
-                ch.connect(socketAddr)
-                val request = buildString {
-                    append("POST /containers/$containerName/attach?stdin=1&stream=1 HTTP/1.1\r\n")
-                    append("Host: localhost\r\n")
-                    append("Connection: Upgrade\r\n")
-                    append("Upgrade: tcp\r\n")
-                    append("\r\n")
-                }
-                ch.write(ByteBuffer.wrap(request.toByteArray()))
+            val inputStream = ByteArrayInputStream("$command\n".toByteArray())
 
-                val buf = ByteBuffer.allocate(2048)
-                ch.read(buf)
-                buf.flip()
-                val response = String(buf.array(), 0, buf.limit())
-                if (!response.contains("101")) {
-                    log.warn("Docker attach returned unexpected response for {}: {}", containerName, response.take(200))
-                    return@use false
-                }
+            docker.attachContainerCmd(containerName)
+                .withStdIn(inputStream)
+                .withStdOut(true)
+                .withStdErr(true)
+                .withFollowStream(true)
+                .withLogs(true)
+                .exec(ResultCallback.Adapter())
+                .awaitCompletion(timeoutSeconds.toLong(), TimeUnit.SECONDS)
 
-                ch.write(ByteBuffer.wrap("$data\n".toByteArray()))
-                Thread.sleep(100)
-                true
-            }
+            docker.inspectContainerCmd(containerName).exec().state?.running != true
         }.getOrElse { e ->
-            log.warn("Failed to write stdin to container {}: {}", containerName, e.message)
+            log.warn("Failed to send stop command to container {}: {}", containerName, e.message)
             false
         }
 

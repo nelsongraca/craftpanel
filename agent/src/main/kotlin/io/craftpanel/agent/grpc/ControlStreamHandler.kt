@@ -26,7 +26,6 @@ import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.PosixFilePermission
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.io.path.pathString
 import kotlin.time.Duration.Companion.seconds
 
 class ControlStreamHandler(
@@ -93,8 +92,8 @@ class ControlStreamHandler(
             when {
                 msg.hasCreateContainer()     -> handleCreate(msg.createContainer, outbound)
                 msg.hasStartContainer()      -> handleStart(msg.startContainer, outbound)
-                msg.hasStopContainer()       -> handleStop(msg.stopContainer, outbound)
-                msg.hasRestartContainer()    -> handleRestart(msg.restartContainer, outbound)
+                msg.hasStopContainer()       -> launch { handleStop(msg.stopContainer, outbound) }
+                msg.hasRestartContainer()    -> launch { handleRestart(msg.restartContainer, outbound) }
                 msg.hasRemoveContainer()     -> handleRemove(msg.removeContainer)
                 msg.hasPullImage()           -> handlePullImage(msg.pullImage)
                 msg.hasShutdown()            -> handleShutdown(msg.shutdown, outbound)
