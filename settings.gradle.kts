@@ -1,6 +1,6 @@
 rootProject.name = "craftpanel"
 
-include("docs", "master", "agent", "frontend")
+include("docs", "master", "agent", "frontend", "fake-server")
 
 dependencyResolutionManagement {
     repositories {

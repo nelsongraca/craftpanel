@@ -1,0 +1,23 @@
+FROM itzg/mc-monitor:latest AS mc-monitor
+
+FROM eclipse-temurin:25-jre-alpine
+
+WORKDIR /app
+
+COPY --from=mc-monitor /mc-monitor /usr/local/bin/mc-monitor
+COPY build/libs/craftpanel-fake-server-test.jar app.jar
+
+EXPOSE 25565/tcp
+EXPOSE 25565/udp
+
+ENV GAME_PORT=25565 \
+    SERVER_NAME="CraftPanel Fake Proxy" \
+    MOTD="A fake Minecraft proxy" \
+    MAX_PLAYERS=100 \
+    ONLINE_PLAYERS="" \
+    STOP_COMMAND="end"
+
+HEALTHCHECK --interval=5s --timeout=5s --start-period=15s --retries=3 \
+    CMD mc-monitor status --host localhost --port ${GAME_PORT}
+
+ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -1,0 +1,39 @@
+// ── craftpanel-fake-server Docker tasks ─────────────────────────────────────
+// Add these inside your existing root build.gradle.kts Docker task block,
+// alongside your existing dockerBuildAll / dockerPushAll wiring.
+//
+// The fake images are tagged with "-test" suffix so they're never confused
+// with production images and won't be pushed by dockerPushAll.
+
+val imageRegistry: String? = findProperty("imageRegistry") as String?
+val fakeSuffix = "craftpanel-fake-server"
+val fakeTag = if (imageRegistry != null) "$imageRegistry/$fakeSuffix:test" else "$fakeSuffix:test"
+
+val fakeProxySuffix = "craftpanel-fake-proxy"
+val fakeProxyTag = if (imageRegistry != null) "$imageRegistry/$fakeProxySuffix:test" else "$fakeProxySuffix:test"
+
+// Build the fat jar before building the image
+val buildFakeServerJar by tasks.registering(GradleBuild::class) {
+    dir = file("fake-server")
+    tasks = listOf("jar")
+}
+
+val dockerBuildFakeServer by tasks.registering(com.bmuschko.gradle.docker.tasks.image.DockerBuildImage::class) {
+    dependsOn(buildFakeServerJar)
+    inputDir.set(file("fake-server"))
+    dockerFile.set(file("fake-server/Dockerfile"))
+    images.add(fakeTag)
+}
+
+val dockerBuildFakeProxy by tasks.registering(com.bmuschko.gradle.docker.tasks.image.DockerBuildImage::class) {
+    dependsOn(buildFakeServerJar)  // Same jar, different Dockerfile
+    inputDir.set(file("fake-server"))
+    dockerFile.set(file("fake-server/Dockerfile.proxy"))
+    images.add(fakeProxyTag)
+}
+
+// Hook into the existing aggregation task used by system tests
+// (don't add to dockerPushAll — test images are never pushed)
+tasks.named("dockerBuildAll") {
+    dependsOn(dockerBuildFakeServer, dockerBuildFakeProxy)
+}
