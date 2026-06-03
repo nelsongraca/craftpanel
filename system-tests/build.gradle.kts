@@ -68,8 +68,9 @@ dependencies {
     // Coroutines
     testImplementation(libs.kotlinx.coroutines.test)
 
-    // Testcontainers — compose support included in core for 2.0+
+    // Testcontainers
     testImplementation(libs.testcontainers.core)
+    testImplementation(libs.testcontainers.postgresql)
 
     // Generated client runtime
     testImplementation(libs.okhttp)
