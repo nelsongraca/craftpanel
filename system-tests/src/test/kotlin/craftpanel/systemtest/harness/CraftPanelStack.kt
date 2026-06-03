@@ -10,8 +10,8 @@ import org.testcontainers.containers.wait.strategy.Wait
 // Self-referential subclasses — standard Kotlin idiom for Testcontainers to avoid
 // the Nothing/wildcard type-parameter issues with the fluent builder API.
 private class PgContainer : GenericContainer<PgContainer>("postgres:16")
-private class MasterContainer : GenericContainer<MasterContainer>("craftpanel-master:latest")
-private class AgentContainer : GenericContainer<AgentContainer>("craftpanel-agent:latest")
+private class MasterContainer : GenericContainer<MasterContainer>("ghcr.io/nelsongraca/craftpanel/master:latest")
+private class AgentContainer : GenericContainer<AgentContainer>("ghcr.io/nelsongraca/craftpanel/agent:latest")
 
 private const val DB_NAME = "craftpanel"
 private const val DB_USER = "craftpanel"
@@ -59,8 +59,8 @@ object CraftPanelStack {
             .withEnv("DATABASE_PASSWORD", DB_PASSWORD)
             .withEnv("NODE_BOOTSTRAP_TOKEN", "test-bootstrap-token")
             .withEnv("JWT_SECRET", "test-jwt-secret-at-least-32-characters-long!")
-            .withEnv("CRAFTPANEL_IMAGE_OVERRIDE_MINECRAFT", "craftpanel-fake-server:test")
-            .withEnv("CRAFTPANEL_IMAGE_OVERRIDE_PROXY", "craftpanel-fake-proxy:test")
+            .withEnv("CRAFTPANEL_IMAGE_OVERRIDE_MINECRAFT", "craftpanel-fake-server")
+            .withEnv("CRAFTPANEL_IMAGE_OVERRIDE_PROXY", "craftpanel-fake-proxy")
             .withEnv("CRAFTPANEL_ADMIN_EMAIL", ADMIN_EMAIL)
             .withEnv("CRAFTPANEL_ADMIN_PASSWORD", ADMIN_PASSWORD)
             .withLogConsumer { frame -> System.err.println("[master] ${frame.utf8String.trimEnd()}") }

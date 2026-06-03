@@ -57,7 +57,15 @@ data class RateLimitConfig(
 data class ImagesConfig(
     val minecraftImage: String,
     val proxyImage: String,
-)
+) {
+    fun deriveImage(serverType: String, tag: String): String {
+        val base = when (serverType) {
+            "BUNGEECORD", "VELOCITY", "WATERFALL" -> proxyImage
+            else -> minecraftImage
+        }
+        return if (':' in base) base else "$base:$tag"
+    }
+}
 
 data class AdminSeedConfig(
     val email: String,

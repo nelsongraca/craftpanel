@@ -18,7 +18,8 @@ fun main(): Unit = runBlocking {
     log.info("Master: ${config.masterAddress}:${config.masterPort} | TLS: ${config.tlsConfigured} | profile: ${config.profile} | dataPath: ${config.dataBasePath} | hostDataPath: ${config.hostDataBasePath}")
 
     val docker = DockerClientFactory.create(config.dockerSocketPath)
-    val containerManager = ContainerManager(docker)
+    val dockerSocket = config.dockerSocketPath.removePrefix("unix://")
+    val containerManager = ContainerManager(docker, dockerSocket)
     val metricsCollector = MetricsCollector(docker)
 
     McRouterProvisioner(docker, config.mcRouterImage, config.mcRouterUpdateOnStart).ensureRunning()

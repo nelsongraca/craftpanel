@@ -36,7 +36,7 @@ tasks.jar {
 val imageRegistry: String? = findProperty("imageRegistry") as String?
 
 fun imageTag(suffix: String) =
-    if (imageRegistry != null) "$imageRegistry/$suffix:test" else "$suffix:test"
+    if (imageRegistry != null) "$imageRegistry/$suffix:test" else "$suffix:latest"
 
 val dockerBuildFakeServer by tasks.registering(DockerBuildImage::class) {
     dependsOn(tasks.jar)

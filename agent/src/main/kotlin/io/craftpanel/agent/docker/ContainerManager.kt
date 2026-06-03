@@ -9,10 +9,17 @@ import com.github.dockerjava.api.command.PullImageResultCallback
 import com.github.dockerjava.api.model.*
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.net.StandardProtocolFamily
+import java.net.UnixDomainSocketAddress
+import java.nio.ByteBuffer
+import java.nio.channels.SocketChannel
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-open class ContainerManager(private val docker: DockerClient) {
+open class ContainerManager(
+    private val docker: DockerClient,
+    private val dockerSocket: String = "/var/run/docker.sock",
+) {
 
     private val log = LoggerFactory.getLogger(ContainerManager::class.java)
 
@@ -38,10 +45,10 @@ open class ContainerManager(private val docker: DockerClient) {
                     containerName = container.names.firstOrNull()
                         ?.trimStart('/') ?: container.id
                     serverId = container.labels["craftpanel.server.id"] ?: ""
-                    runState = when {
-                        container.state == "running"                                    -> ContainerState.RunState.RUNNING
-                        container.state == "exited" && container.status.contains("(0)") -> ContainerState.RunState.STOPPED
-                        else                                                            -> ContainerState.RunState.EXITED
+                    runState = when (container.state) {
+                        "running"                                               -> ContainerState.RunState.RUNNING
+                        "exited" if container.status.contains("(0)")           -> ContainerState.RunState.STOPPED
+                        else                                                    -> ContainerState.RunState.EXITED
                     }
                 }
             }
@@ -93,10 +100,14 @@ open class ContainerManager(private val docker: DockerClient) {
     }
 
     fun pullImage(image: String) {
-        docker.pullImageCmd(image)
-            .exec(PullImageResultCallback())
-            .awaitCompletion()
-        log.info("Pulled image $image")
+        runCatching {
+            docker.pullImageCmd(image)
+                .exec(PullImageResultCallback())
+                .awaitCompletion()
+            log.info("Pulled image $image")
+        }.onFailure {
+            log.warn("Failed to pull image $image — using local cache if available: ${it.message}")
+        }
     }
 
     fun startContainer(containerName: String) {
@@ -106,25 +117,65 @@ open class ContainerManager(private val docker: DockerClient) {
     }
 
     fun stopContainer(containerName: String, timeoutSeconds: Int, stopCommand: String) {
+        val timeout = timeoutSeconds.takeIf { it > 0 } ?: 30
+        var stdinSent = false
+
         if (stopCommand.isNotEmpty()) {
-            runCatching {
-                val stdin = (stopCommand + "\n").toByteArray()
-                    .inputStream()
-                docker.attachContainerCmd(containerName)
-                    .withStdIn(stdin)
-                    .withStdOut(false)
-                    .withStdErr(false)
-                    .exec(ResultCallback.Adapter())
-                    .awaitStarted()
-            }.onFailure {
-                log.warn("Failed to send stop command to stdin for {}", containerName, it)
-            }
+            stdinSent = writeStdinToContainer(containerName, stopCommand)
         }
+
+        if (stdinSent) {
+            val deadline = System.currentTimeMillis() + (timeout * 1000L)
+            while (System.currentTimeMillis() < deadline) {
+                val running = runCatching {
+                    docker.inspectContainerCmd(containerName).exec().state?.running
+                }.getOrNull()
+                if (running != true) {
+                    log.info("Container {} exited cleanly after stop command", containerName)
+                    return
+                }
+                Thread.sleep(200)
+            }
+            log.warn("Container {} did not exit within {}s after stop command — force stopping", containerName, timeout)
+        }
+
         docker.stopContainerCmd(containerName)
-            .withTimeout(timeoutSeconds.takeIf { it > 0 } ?: 30)
+            .withTimeout(if (stdinSent) 5 else timeout)
             .exec()
         log.info("Stopped container {}", containerName)
     }
+
+    private fun writeStdinToContainer(containerName: String, data: String): Boolean =
+        runCatching {
+            val socketAddr = UnixDomainSocketAddress.of(dockerSocket)
+            SocketChannel.open(StandardProtocolFamily.UNIX).use { ch ->
+                ch.connect(socketAddr)
+                val request = buildString {
+                    append("POST /containers/$containerName/attach?stdin=1&stream=1 HTTP/1.1\r\n")
+                    append("Host: localhost\r\n")
+                    append("Connection: Upgrade\r\n")
+                    append("Upgrade: tcp\r\n")
+                    append("\r\n")
+                }
+                ch.write(ByteBuffer.wrap(request.toByteArray()))
+
+                val buf = ByteBuffer.allocate(2048)
+                ch.read(buf)
+                buf.flip()
+                val response = String(buf.array(), 0, buf.limit())
+                if (!response.contains("101")) {
+                    log.warn("Docker attach returned unexpected response for {}: {}", containerName, response.take(200))
+                    return@use false
+                }
+
+                ch.write(ByteBuffer.wrap("$data\n".toByteArray()))
+                Thread.sleep(100)
+                true
+            }
+        }.getOrElse { e ->
+            log.warn("Failed to write stdin to container {}: {}", containerName, e.message)
+            false
+        }
 
     fun removeContainer(containerName: String, force: Boolean) {
         docker.removeContainerCmd(containerName)
@@ -153,7 +204,7 @@ open class ContainerManager(private val docker: DockerClient) {
                 .exec()
             docker.execStartCmd(exec.id)
                 .withDetach(true)
-                .exec(ResultCallback.Adapter<Frame>())
+                .exec(ResultCallback.Adapter())
         }.onFailure { log.warn("RCON exec failed for server $serverId: command='$command'", it) }
     }
 

@@ -115,10 +115,6 @@ class ServerService(
 
     private val log = LoggerFactory.getLogger(ServerService::class.java)
 
-    private fun deriveImage(serverType: String, tag: String): String = when (serverType) {
-        "BUNGEECORD", "VELOCITY", "WATERFALL" -> "${images.proxyImage}:$tag"
-        else                                  -> "${images.minecraftImage}:$tag"
-    }
 
     fun authInfo(id: kotlin.uuid.Uuid): ServerAuthInfo? = transaction {
         Servers.selectAll()
@@ -377,7 +373,7 @@ class ServerService(
             throw ConflictException("Server is already running")
         val nodeKotlinId = serverRow[Servers.nodeId]
         val serverType = serverRow[Servers.serverType]
-        val serverImage = deriveImage(serverType, serverRow[Servers.itzgImageTag])
+        val serverImage = images.deriveImage(serverType, serverRow[Servers.itzgImageTag])
         val allVars = buildAllVars(id, serverRow)
         val nodeId = nodeKotlinId.toString()
         val publicHostname = serverRow[Servers.dnsRecordName]
@@ -453,7 +449,7 @@ class ServerService(
             ?: throw NotFoundException("Server not found")
         if (serverRow[Servers.status] != "STOPPED") throw ConflictException("Server must be STOPPED before upgrade")
         val nodeId = serverRow[Servers.nodeId].toString()
-        val serverImage = deriveImage(serverRow[Servers.serverType], req.itzgImageTag)
+        val serverImage = images.deriveImage(serverRow[Servers.serverType], req.itzgImageTag)
         val allVars = buildAllVars(id, serverRow)
         val publicHostname = serverRow[Servers.dnsRecordName]
 
@@ -573,7 +569,7 @@ class ServerService(
             if (isRunning) {
                 val nodeId = serverRow[Servers.nodeId].toString()
                 val allVars = buildAllVars(id, serverRow)
-                val serverImage = deriveImage(serverRow[Servers.serverType], serverRow[Servers.itzgImageTag])
+                val serverImage = images.deriveImage(serverRow[Servers.serverType], serverRow[Servers.itzgImageTag])
                 sendToNode(
                     nodeId,
                     masterMessage {
@@ -607,7 +603,7 @@ class ServerService(
             if (isRunning) {
                 val nodeId = serverRow[Servers.nodeId].toString()
                 val allVars = buildAllVars(id, serverRow)
-                val serverImage = deriveImage(serverRow[Servers.serverType], serverRow[Servers.itzgImageTag])
+                val serverImage = images.deriveImage(serverRow[Servers.serverType], serverRow[Servers.itzgImageTag])
                 sendToNode(
                     nodeId,
                     masterMessage {

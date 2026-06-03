@@ -68,10 +68,7 @@ class MigrationService(
     private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
 ) {
 
-    private fun deriveImage(serverType: String, tag: String): String = when (serverType) {
-        "BUNGEECORD", "VELOCITY", "WATERFALL" -> "${images.proxyImage}:$tag"
-        else                                  -> "${images.minecraftImage}:$tag"
-    }
+
 
     private val eventFlows = ConcurrentHashMap<String, MutableSharedFlow<MigrationEvent>>()
 
@@ -480,7 +477,7 @@ class MigrationService(
         run {
             val stepId = startStep(7, "Create and start server container on target node")
 
-            val serverImage = deriveImage(serverRow[Servers.serverType], serverRow[Servers.itzgImageTag])
+            val serverImage = images.deriveImage(serverRow[Servers.serverType], serverRow[Servers.itzgImageTag])
             val allVars = buildAllVarsForMigration(serverId, serverRow)
             val publicHostname = serverRow[Servers.dnsRecordName]
 
