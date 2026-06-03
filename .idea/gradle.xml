@@ -14,6 +14,7 @@
             <option value="$PROJECT_DIR$/fake-server" />
             <option value="$PROJECT_DIR$/frontend" />
             <option value="$PROJECT_DIR$/master" />
+            <option value="$PROJECT_DIR$/system-tests" />
           </set>
         </option>
       </GradleProjectSettings>
