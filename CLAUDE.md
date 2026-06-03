@@ -308,3 +308,4 @@ Schema migrations via `exposed-migration-jdbc`.
 - Don't add new Ktor routes without an `operationId` in the doc block — it's required for the codegen to produce a usable function name
 - Don't use fully qualified names on code, always use imports.
 - Don't use static imports for Enum constants.
+- Don't use `apply` for testcontainers configuration

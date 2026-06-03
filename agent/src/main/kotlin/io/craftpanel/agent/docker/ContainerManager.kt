@@ -40,9 +40,9 @@ open class ContainerManager(private val docker: DockerClient) {
                         ?.trimStart('/') ?: container.id
                     serverId = container.labels["craftpanel.server.id"] ?: ""
                     runState = when (container.state) {
-                        "running"                                               -> ContainerState.RunState.RUNNING
-                        "exited" if container.status.contains("(0)")           -> ContainerState.RunState.STOPPED
-                        else                                                    -> ContainerState.RunState.EXITED
+                        "running"                                    -> ContainerState.RunState.RUNNING
+                        "exited" if container.status.contains("(0)") -> ContainerState.RunState.STOPPED
+                        else                                         -> ContainerState.RunState.EXITED
                     }
                 }
             }
@@ -141,7 +141,8 @@ open class ContainerManager(private val docker: DockerClient) {
                 .exec(ResultCallback.Adapter())
                 .awaitCompletion(timeoutSeconds.toLong(), TimeUnit.SECONDS)
 
-            docker.inspectContainerCmd(containerName).exec().state?.running != true
+            docker.inspectContainerCmd(containerName)
+                .exec().state?.running != true
         }.getOrElse { e ->
             log.warn("Failed to send stop command to container {}: {}", containerName, e.message)
             false
