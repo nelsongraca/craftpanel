@@ -392,8 +392,9 @@ class ServerService(
 
         transaction {
             Servers.update({ Servers.id eq id }) {
-                it[status] = "STARTING"; it[updatedAt] = Clock.System.now()
-                .toLocalDateTime(TimeZone.UTC)
+                it[status] = "STARTING"
+                it[needsRecreate] = false
+                it[updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
             }
         }
     }
@@ -429,14 +430,43 @@ class ServerService(
                 .firstOrNull()
         }
             ?: throw NotFoundException("Server not found")
+        if (serverRow[Servers.status] == "STOPPED") throw ConflictException("Server is not running")
         val nodeId = serverRow[Servers.nodeId].toString()
-        val restartCmd = masterMessage {
-            restartContainer = restartContainerCommand {
-                serverId = id.toString(); containerName = "craftpanel-$id"
-                timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand]
+        if (serverRow[Servers.needsRecreate]) {
+            val serverImage = images.deriveImage(serverRow[Servers.serverType], serverRow[Servers.itzgImageTag])
+            val allVars = buildAllVars(id, serverRow)
+            val publicHostname = serverRow[Servers.dnsRecordName]
+            val stopCmd = masterMessage {
+                stopContainer = stopContainerCommand {
+                    serverId = id.toString(); containerName = "craftpanel-$id"
+                    timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand]
+                }
             }
+            if (!sendToNode(nodeId, stopCmd)) throw BadGatewayException("Agent not connected")
+            val removeCmd = masterMessage {
+                removeContainer = removeContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; force = false }
+            }
+            if (!sendToNode(nodeId, removeCmd)) throw BadGatewayException("Agent not connected")
+            val createCmd = buildCreateContainerCommand(id, serverRow, serverImage, allVars, publicHostname)
+            if (!sendToNode(nodeId, createCmd)) throw BadGatewayException("Agent not connected")
+            val startCmd = masterMessage { startContainer = startContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id" } }
+            if (!sendToNode(nodeId, startCmd)) throw BadGatewayException("Agent not connected")
+            transaction {
+                Servers.update({ Servers.id eq id }) {
+                    it[needsRecreate] = false
+                    it[status] = "STOPPING"
+                    it[updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+                }
+            }
+        } else {
+            val restartCmd = masterMessage {
+                restartContainer = restartContainerCommand {
+                    serverId = id.toString(); containerName = "craftpanel-$id"
+                    timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand]
+                }
+            }
+            if (!sendToNode(nodeId, restartCmd)) throw BadGatewayException("Agent not connected")
         }
-        if (!sendToNode(nodeId, restartCmd)) throw BadGatewayException("Agent not connected")
     }
 
     fun upgradeServer(id: kotlin.uuid.Uuid, req: UpgradeServerRequest) {

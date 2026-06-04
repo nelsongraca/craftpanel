@@ -89,6 +89,7 @@ class ModService {
                 it[ServerMods.pinStrategy] = req.pinStrategy
                 it[ServerMods.pinnedVersionId] = req.pinnedVersionId
             }[ServerMods.id]
+            markNeedsRecreate(serverId)
             ServerMods.selectAll()
                 .where { ServerMods.id eq modId }
                 .first()
@@ -115,6 +116,7 @@ class ModService {
                 if (req.pinnedVersionId != null) it[ServerMods.pinnedVersionId] = req.pinnedVersionId
                 it[ServerMods.updatedAt] = now
             }
+            markNeedsRecreate(serverId)
             ServerMods.selectAll()
                 .where { ServerMods.id eq modId }
                 .first()
@@ -125,6 +127,7 @@ class ModService {
     fun deleteMod(serverId: kotlin.uuid.Uuid, modId: kotlin.uuid.Uuid) {
         val deleted = transaction { ServerMods.deleteWhere { (ServerMods.id eq modId) and (ServerMods.serverId eq serverId) } }
         if (deleted == 0) throw NotFoundException("Mod not found")
+        transaction { markNeedsRecreate(serverId) }
     }
 
     fun searchModrinth(query: String, limit: Int): ModrinthSearchResult {
@@ -142,6 +145,10 @@ class ModService {
             .build()
         val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
         return ModrinthSearchResult(response.statusCode(), response.body())
+    }
+
+    fun markNeedsRecreate(serverId: kotlin.uuid.Uuid) {
+        Servers.update({ Servers.id eq serverId }) { it[Servers.needsRecreate] = true }
     }
 
     fun buildModrinthEnvVar(serverId: kotlin.uuid.Uuid): String =

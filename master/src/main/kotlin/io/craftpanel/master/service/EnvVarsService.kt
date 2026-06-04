@@ -77,6 +77,7 @@ class EnvVarsService {
                     it[ServerEnvVars.value] = item.value
                 }
             }
+            Servers.update({ Servers.id eq serverId }) { it[Servers.needsRecreate] = true }
         }
         return getEnvVars(serverId)
     }
@@ -94,6 +95,7 @@ class EnvVarsService {
         transaction {
             Servers.update({ Servers.id eq serverId }) {
                 it[Servers.configMode] = req.configMode
+                it[Servers.needsRecreate] = true
             }
         }
         return getEnvVars(serverId)
