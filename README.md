@@ -103,78 +103,33 @@ Both run automatically as part of `:frontend:assembleFrontend`.
 
 ### Docker Compose (recommended)
 
-The example below runs master, frontend, and a PostgreSQL database on one machine. Agents run separately on each node machine (see [Agent on node machines](#agent-on-node-machines)).
-
-```yaml
-# docker-compose.yml
-services:
-  traefik:
-    image: traefik:v3
-    command:
-      - "--providers.docker=true"
-      - "--providers.docker.exposedbydefault=false"
-      - "--entrypoints.web.address=:80"
-    ports:
-      - "80:80"
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-
-  db:
-    image: postgres:17-alpine
-    environment:
-      POSTGRES_DB: craftpanel
-      POSTGRES_USER: craftpanel
-      POSTGRES_PASSWORD: changeme
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-
-  master:
-    image: ghcr.io/nelsongraca/craftpanel/master:latest
-    ports:
-      - "50051:50051"   # gRPC — agents connect here directly
-    environment:
-      DATABASE_URL: jdbc:postgresql://db:5432/craftpanel
-      DATABASE_USERNAME: craftpanel
-      DATABASE_PASSWORD: changeme
-      JWT_SECRET: "replace-with-a-random-32-char-string"
-      NODE_BOOTSTRAP_TOKEN: "replace-with-a-secret-token"
-      # GRPC_TLS_SANS — comma-separated hostnames/IPs agents use to reach this master.
-      # Add your server's public hostname or IP so agents can verify the TLS cert.
-      GRPC_TLS_SANS: "master.example.com,192.168.1.10"
-    volumes:
-      # Master auto-generates a self-signed CA + server cert on first boot and
-      # persists them here. Mount a volume so certs survive container restarts.
-      - master_certs:/etc/craftpanel/certs
-    depends_on:
-      - db
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.master-api.rule=PathPrefix(`/api`)"
-      - "traefik.http.routers.master-api.entrypoints=web"
-      - "traefik.http.routers.master-api.priority=10"
-      - "traefik.http.services.master.loadbalancer.server.port=8080"
-
-  frontend:
-    image: ghcr.io/nelsongraca/craftpanel/frontend:latest
-    depends_on:
-      - master
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.frontend.rule=PathPrefix(`/`)"
-      - "traefik.http.routers.frontend.entrypoints=web"
-      - "traefik.http.routers.frontend.priority=1"
-      - "traefik.http.services.frontend.loadbalancer.server.port=3000"
-
-volumes:
-  postgres_data:
-  master_certs:
-```
+`docker-compose.yml` at the repo root deploys master, frontend, agent, PostgreSQL, and Traefik on a single machine with automatic HTTPS via Let's Encrypt.
 
 ```bash
+# 1. Copy and fill in required values
+cp .env.example .env
+$EDITOR .env
+
+# 2. Create the server data directory (must exist before agent starts)
+mkdir -p /opt/craftpanel/data   # or whatever HOST_DATA_PATH is set to
+
+# 3. Start
 docker compose up -d
 ```
 
-Open `http://localhost`.
+Open `https://$DOMAIN` once Traefik has provisioned the certificate (usually under a minute).
+
+**What the compose file includes:**
+
+| Service | Role |
+|---------|------|
+| `traefik` | Reverse proxy — HTTPS with Let's Encrypt, HTTP→HTTPS redirect |
+| `db` | PostgreSQL 17 with health check |
+| `master` | REST/WebSocket backend + gRPC server, behind Traefik for `/api` |
+| `frontend` | Next.js UI, behind Traefik for `/` |
+| `agent` | Node agent on the same host; connects to master internally |
+
+The agent reads master's CA certificate directly from a shared Docker volume — no manual cert copying needed for a single-node setup. Port `50051` (gRPC) is exposed on the host; remove it from the compose file if you are not connecting agents from external nodes.
 
 ### First-time admin user
 
@@ -195,7 +150,7 @@ Master generates a self-signed CA and server certificate on first boot. Before c
 
 ```bash
 # Copy the CA cert from the running master container
-docker compose cp master:/etc/craftpanel/certs/grpc-ca.crt ./grpc-ca.crt
+docker compose cp master:/app/certs/grpc-ca.crt ./grpc-ca.crt
 
 # Then copy grpc-ca.crt to each node machine and mount it into the agent container (see below)
 ```
@@ -204,9 +159,9 @@ The CA certificate is public — it contains no secret material. Once you have i
 
 If you replace or regenerate the CA cert on master, copy the new `grpc-ca.crt` to all nodes and restart agents.
 
-### Agent on node machines
+### Agent on additional nodes
 
-Run one agent container per node. It needs access to the Docker socket and must be able to reach master's gRPC port (default `50051`).
+The `docker-compose.yml` already runs an agent on the master host for single-node setups. To add more nodes, run one agent container per extra machine. It needs access to the Docker socket and must be able to reach master's gRPC port (default `50051`).
 
 ```yaml
 # docker-compose.agent.yml
@@ -260,7 +215,7 @@ On first start the agent registers itself with master using the bootstrap token.
 | `NODE_BOOTSTRAP_TOKEN`       | `changeme`                                    | Shared secret for initial node registration                                       |
 | `HTTP_PORT`                  | `8080`                                        | REST/WebSocket listen port                                                        |
 | `GRPC_PORT`                  | `50051`                                       | gRPC listen port                                                                  |
-| `GRPC_CERT_STORE_PATH`       | `/etc/craftpanel/certs`                       | Directory for auto-generated CA + server certs (mount a volume here)             |
+| `GRPC_CERT_STORE_PATH`       | `/app/certs`                                  | Directory for auto-generated CA + server certs (mount a volume here)             |
 | `GRPC_TLS_SANS`              | _(empty)_                                     | Comma-separated extra SANs for auto-generated cert (add your server hostname/IP) |
 | `GRPC_TLS_CERT`              | _(empty)_                                     | Path to TLS server cert — overrides auto-gen when set (BYOC mode)                |
 | `GRPC_TLS_KEY`               | _(empty)_                                     | Path to TLS private key — required when `GRPC_TLS_CERT` is set                   |
@@ -275,8 +230,8 @@ On first start the agent registers itself with master using the bootstrap token.
 | `MASTER_HOST`          | `localhost`                      | Master hostname or IP                                                             |
 | `MASTER_GRPC_PORT`     | `50051`                          | Master gRPC port                                                                  |
 | `NODE_BOOTSTRAP_TOKEN` | `changeme`                       | Must match master's `NODE_BOOTSTRAP_TOKEN`                                        |
-| `NODE_KEY_FILE`        | `/etc/craftpanel/node.key`       | Where the node key is persisted after registration                                |
-| `GRPC_CA_CERT_FILE`    | `/etc/craftpanel/grpc-ca.crt`    | Path to master's CA cert PEM (copy from master's `GRPC_CERT_STORE_PATH`)         |
+| `NODE_KEY_FILE`        | `/app/config/node.key`           | Where the node key is persisted after registration                                |
+| `GRPC_CA_CERT_FILE`    | `/app/config/grpc-ca.crt`        | Path to master's CA cert PEM (copy from master's `GRPC_CERT_STORE_PATH`)         |
 | `GRPC_TLS_CERT`        | _(empty)_                        | Explicit CA cert path — overrides `GRPC_CA_CERT_FILE` when set (BYOC mode)       |
 | `DOCKER_SOCKET`        | `unix:///var/run/docker.sock`    | Docker socket path                                                                |
 | `DATA_PATH`            | `/data`                          | Container-internal path the agent uses to read/write server files. Must be the mount point of the server data bind-mount inside the agent container. |

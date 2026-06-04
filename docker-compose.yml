@@ -1,0 +1,114 @@
+name: craftpanel
+
+services:
+  traefik:
+    image: traefik:v3
+    command:
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entryPoint.to=websecure
+      - --entrypoints.web.http.redirections.entryPoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.le.acme.email=${ACME_EMAIL:?set ACME_EMAIL to your Let's Encrypt address}
+      - --certificatesresolvers.le.acme.storage=/certs/acme.json
+      - --certificatesresolvers.le.acme.tlschallenge=true
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-certs:/certs
+    restart: unless-stopped
+
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: craftpanel
+      POSTGRES_USER: craftpanel
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?required}
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U craftpanel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  master:
+    image: ghcr.io/nelsongraca/craftpanel/master:${IMAGE_VERSION:-latest}
+    environment:
+      DATABASE_URL: jdbc:postgresql://db:5432/craftpanel
+      DATABASE_USERNAME: craftpanel
+      DATABASE_PASSWORD: ${DB_PASSWORD:?required}
+      JWT_SECRET: ${JWT_SECRET:?required}
+      NODE_BOOTSTRAP_TOKEN: ${NODE_BOOTSTRAP_TOKEN:?required}
+      # "master" covers the local agent (docker service name).
+      # Append your public hostname or IP if you connect agents from external nodes.
+      GRPC_TLS_SANS: master
+      CRAFTPANEL_ADMIN_EMAIL: ${ADMIN_EMAIL:?required}
+      CRAFTPANEL_ADMIN_PASSWORD: ${ADMIN_PASSWORD:?required}
+    ports:
+      # gRPC — needed for agents on external nodes. Remove if single-node only.
+      - "50051:50051"
+    volumes:
+      - master-certs:/app/certs
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.master.rule=Host(`${DOMAIN:?required}`) && PathPrefix(`/api`)
+      - traefik.http.routers.master.entrypoints=websecure
+      - traefik.http.routers.master.tls.certresolver=le
+      - traefik.http.routers.master.priority=10
+      - traefik.http.services.master.loadbalancer.server.port=8080
+
+  frontend:
+    image: ghcr.io/nelsongraca/craftpanel/frontend:${IMAGE_VERSION:-latest}
+    depends_on:
+      - master
+    restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.frontend.rule=Host(`${DOMAIN:?required}`)
+      - traefik.http.routers.frontend.entrypoints=websecure
+      - traefik.http.routers.frontend.tls.certresolver=le
+      - traefik.http.routers.frontend.priority=1
+      - traefik.http.services.frontend.loadbalancer.server.port=3000
+
+  agent:
+    image: ghcr.io/nelsongraca/craftpanel/agent:${IMAGE_VERSION:-latest}
+    environment:
+      MASTER_HOST: master
+      MASTER_GRPC_PORT: 50051
+      NODE_BOOTSTRAP_TOKEN: ${NODE_BOOTSTRAP_TOKEN:?required}
+      # Reads master's CA cert directly from the shared volume — no manual cert copy needed.
+      GRPC_CA_CERT_FILE: /app/master-certs/grpc-ca.crt
+      DATA_PATH: /data
+      # Host path Docker uses when bind-mounting data into Minecraft server containers.
+      # Must be an absolute path that exists on the host. Defaults to /opt/craftpanel/data.
+      HOST_DATA_PATH: ${HOST_DATA_PATH:-/opt/craftpanel/data}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - agent-config:/app/config
+      # Share master's cert store (read-only) so the agent can verify gRPC TLS without
+      # manually copying grpc-ca.crt between containers.
+      - master-certs:/app/master-certs:ro
+      # Server data must be a bind-mount (not a named volume) so that Docker can pass
+      # HOST_DATA_PATH to Minecraft server containers as a bind-mount source.
+      - ${HOST_DATA_PATH:-/opt/craftpanel/data}:/data
+    # Adjust the GID to match your host's docker group: stat -c %g /var/run/docker.sock
+    group_add:
+      - "999"
+    depends_on:
+      - master
+    restart: unless-stopped
+
+volumes:
+  db-data:
+  master-certs:
+  agent-config:
+  traefik-certs:

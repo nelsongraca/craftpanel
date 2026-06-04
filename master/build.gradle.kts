@@ -69,7 +69,6 @@ dependencies {
     // Test
     testImplementation(kotlin("test"))
     testImplementation(libs.ktor.server.test.host)
-    testImplementation(libs.ktor.client.content.negotiation)
     testImplementation(libs.h2)
 }
 
@@ -140,6 +139,7 @@ val prepareDockerContext by tasks.registering(Copy::class) {
     description = "Stages files needed for the Docker build into an isolated context directory"
     dependsOn(tasks.installDist)
     from(file("Dockerfile"))
+    from(file("docker-entrypoint.sh"))
     from(layout.buildDirectory.dir("install/master")) {
         into("build/install/master")
     }

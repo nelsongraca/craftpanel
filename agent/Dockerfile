@@ -2,17 +2,18 @@ FROM eclipse-temurin:25-jdk-alpine
 
 ARG DOCKER_GID=999
 
-RUN addgroup -g ${DOCKER_GID} docker || true && \
+RUN apk add --no-cache su-exec && \
+    addgroup -g ${DOCKER_GID} docker || true && \
     addgroup -S craftpanel && \
     adduser -S craftpanel -G craftpanel && \
     adduser craftpanel docker
 
-RUN mkdir -p /etc/craftpanel && chown craftpanel:craftpanel /etc/craftpanel
-
 WORKDIR /app
 
 COPY build/install/agent/ .
+COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
-USER craftpanel
+RUN mkdir -p config && chmod +x docker-entrypoint.sh
 
-ENTRYPOINT ["bin/agent"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
+CMD ["bin/agent"]
