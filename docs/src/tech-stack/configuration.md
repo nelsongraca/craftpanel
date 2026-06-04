@@ -97,9 +97,10 @@ Supported `_FILE` variables:
 | `GRPC_TLS_CERT`        | `GRPC_TLS_CERT`             | No       | —         | BYOC: path to server cert (overrides auto-gen)      |
 | `GRPC_TLS_KEY`         | `GRPC_TLS_KEY`              | No       | —         | BYOC: path to private key (required with GRPC_TLS_CERT) |
 | `jwt.secret`        | `CRAFTPANEL_JWT_SECRET`        | Yes      | —         | JWT signing key (min 32 bytes)             |
-| `dns.provider`      | `CRAFTPANEL_DNS_PROVIDER`      | Yes      | —         | DNS provider identifier, e.g. `cloudflare` |
-| `dns.api_key`       | `CRAFTPANEL_DNS_API_KEY`       | Yes      | —         | DNS provider API key                       |
-| `dns.base_domain`   | `CRAFTPANEL_DNS_BASE_DOMAIN`   | Yes      | —         | Base domain, e.g. `mc.example.com`         |
+| `dns.provider`      | `CRAFTPANEL_DNS_PROVIDER`      | Yes      | —              | DNS provider identifier, e.g. `cloudflare` |
+| `dns.api_key`       | `CRAFTPANEL_DNS_API_KEY`       | Yes      | —              | DNS provider API key                       |
+| `dns.base_domain`   | `CRAFTPANEL_DNS_BASE_DOMAIN`   | Yes      | —              | Base domain, e.g. `mc.example.com`         |
+| `platform_name`     | `CRAFTPANEL_PLATFORM_NAME`     | No       | `CraftPanel`   | Platform name used in generated server MOTDs, e.g. `1.21.4 Paper powered by CraftPanel` |
 
 !!! warning
 Never store secrets in the config file in production. Use environment variables or the `_FILE` secret pattern instead.
