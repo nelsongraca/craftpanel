@@ -165,7 +165,7 @@ tasks.register<DockerPushImage>("dockerPushImage") {
 // ---------------------------------------------------------------------------
 // OpenAPI spec generation
 // ---------------------------------------------------------------------------
-val openApiOutputFile = rootProject.layout.projectDirectory.file("openapi.json")
+val openApiOutputFile = rootProject.layout.buildDirectory.file("openapi.json")
 
 tasks.named<Test>("test") {
     exclude("**/OpenApiSpecTask*")
@@ -177,7 +177,7 @@ tasks.register<Test>("generateOpenApiSpec") {
     testClassesDirs = sourceSets["test"].output.classesDirs
     classpath = sourceSets["test"].runtimeClasspath
     filter { includeTestsMatching("io.craftpanel.master.OpenApiSpecTask") }
-    systemProperty("openapi.output", openApiOutputFile.asFile.absolutePath)
+    systemProperty("openapi.output", openApiOutputFile.get().asFile.absolutePath)
     outputs.file(openApiOutputFile)
 }
 

@@ -125,6 +125,8 @@ class OpenApiSpecTask {
             .bodyAsText()
         val output = System.getProperty("openapi.output")
             ?: error("System property 'openapi.output' not set — run via :master:generateOpenApiSpec")
-        File(output).writeText(spec)
+        val outputFile = File(output)
+        outputFile.parentFile.mkdirs()
+        outputFile.writeText(spec)
     }
 }

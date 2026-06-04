@@ -9,16 +9,17 @@ kotlin {
     jvmToolchain(25)
 }
 
-val openApiSpecFile = rootProject.layout.projectDirectory.file("openapi.json")
+val openApiSpecFile = rootProject.layout.buildDirectory.file("openapi.json")
 val generatedRawDir = layout.buildDirectory.dir("generated/openapi-raw")
 val generatedDir = layout.buildDirectory.dir("generated/openapi")
 
 val generateApiClient by tasks.registering(GenerateTask::class) {
     group = "build"
     description = "Generates Kotlin HTTP client from openapi.json"
+    dependsOn(":master:generateOpenApiSpec")
     generatorName.set("kotlin")
     validateSpec.set(false)
-    inputSpec.set(openApiSpecFile.asFile.absolutePath)
+    inputSpec.set(openApiSpecFile.get().asFile.absolutePath)
     outputDir.set(generatedRawDir.get().asFile.absolutePath)
     apiPackage.set("craftpanel.systemtest.client.api")
     modelPackage.set("craftpanel.systemtest.client.model")
@@ -78,19 +79,31 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.core)
 }
 
-// Not wired into check — system tests require running Docker images, explicit trigger only
+val systemTestsEnabled = project.hasProperty("systemTests")
+
 tasks.named<Test>("test") {
     useJUnitPlatform()
+    // Gate execution so ./gradlew test without -PsystemTests skips this subproject
+    onlyIf("requires -PsystemTests flag") { project.hasProperty("systemTests") }
 }
 
-tasks.named("check") {
-    setDependsOn(dependsOn.filter { it.toString() != "test" })
+// Exclude from check lifecycle unless -PsystemTests is set.
+// The kotlin-jvm plugin wires check → test via a JvmTestSuite provider whose toString is
+// "provider(TestSuite 'test', ...)", so we match on both forms.
+if (!systemTestsEnabled) {
+    afterEvaluate {
+        tasks.named("check").configure {
+            setDependsOn(dependsOn.filterNot { dep ->
+                dep.toString().let { s -> s == "test" || s.contains("TestSuite 'test'") }
+            })
+        }
+    }
 }
 
-// Alias kept for CLI / CI usage
+// Explicit alias for CI — always runs regardless of flag
 val systemTest by tasks.registering(Test::class) {
     group = "verification"
-    description = "Runs the Kotest system test suite (explicit trigger only)"
+    description = "Runs the Kotest system test suite (requires running Docker images)"
     testClassesDirs = sourceSets.test.get().output.classesDirs
     classpath = sourceSets.test.get().runtimeClasspath
     useJUnitPlatform()

@@ -37,7 +37,7 @@ tasks.register<Exec>("generateApiTypes") {
     // Use pnpm from the node distribution installed by the frontend plugin
     commandLine(layout.projectDirectory.file(".node/bin/pnpm").asFile, "run", "generate-api")
     inputs.files(
-        rootProject.layout.projectDirectory.file("openapi.json"),
+        rootProject.layout.buildDirectory.file("openapi.json"),
         layout.projectDirectory.file("openapi-ts.config.ts"),
     )
     outputs.dir(layout.projectDirectory.dir("lib/generated"))
