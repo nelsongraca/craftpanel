@@ -4,15 +4,15 @@ import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.model.Frame
 import craftpanel.systemtest.client.api.DefaultApi
-import craftpanel.systemtest.client.model.IocraftpanelmasterserviceCreateServerRequest
-import craftpanel.systemtest.client.model.IocraftpanelmasterserviceServerResponse
+import craftpanel.systemtest.client.model.CreateServerRequest
+import craftpanel.systemtest.client.model.ServerResponse
 import kotlinx.coroutines.delay
 
 class ServerHelper(private val api: DefaultApi) {
 
     suspend fun createTestServer(nodeId: String): String {
         val response = api.createServer(
-            IocraftpanelmasterserviceCreateServerRequest(
+            CreateServerRequest(
                 name = "test-${System.currentTimeMillis()}",
                 nodeId = nodeId,
                 serverType = "PAPER",
@@ -25,7 +25,7 @@ class ServerHelper(private val api: DefaultApi) {
         return response.id
     }
 
-    suspend fun awaitStatus(id: String, status: String, timeoutMs: Long = 60_000): IocraftpanelmasterserviceServerResponse =
+    suspend fun awaitStatus(id: String, status: String, timeoutMs: Long = 60_000): ServerResponse =
         pollUntilNotNull(timeoutMs) {
             api.getServer(id).takeIf { it.status == status }
         } ?: error("Server $id did not reach status $status within ${timeoutMs}ms")

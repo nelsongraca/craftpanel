@@ -1,6 +1,6 @@
 package craftpanel.systemtest.server
 
-import craftpanel.systemtest.client.model.IocraftpanelmasterserviceCreateModRequest
+import craftpanel.systemtest.client.model.CreateModRequest
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.matchers.collections.shouldContain
@@ -41,7 +41,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
 
                         api.addMod(
                             serverId,
-                            IocraftpanelmasterserviceCreateModRequest(
+                            CreateModRequest(
                                 modrinthProjectId = "lithium",
                                 displayName = "Lithium",
                                 pinStrategy = "PINNED",
@@ -71,7 +71,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
 
                         api.addMod(
                             serverId,
-                            IocraftpanelmasterserviceCreateModRequest(
+                            CreateModRequest(
                                 modrinthProjectId = "lithium",
                                 displayName = "Lithium",
                                 pinStrategy = "PINNED",
@@ -80,7 +80,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                         )
                         api.addMod(
                             serverId,
-                            IocraftpanelmasterserviceCreateModRequest(
+                            CreateModRequest(
                                 modrinthProjectId = "sodium",
                                 displayName = "Sodium",
                                 pinStrategy = "PINNED",
@@ -113,7 +113,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
 
                         api.addMod(
                             serverId,
-                            IocraftpanelmasterserviceCreateModRequest(
+                            CreateModRequest(
                                 modrinthProjectId = "lithium",
                                 displayName = "Lithium",
                                 pinStrategy = "PINNED",
@@ -122,7 +122,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                         )
                         val sodium = api.addMod(
                             serverId,
-                            IocraftpanelmasterserviceCreateModRequest(
+                            CreateModRequest(
                                 modrinthProjectId = "sodium",
                                 displayName = "Sodium",
                                 pinStrategy = "PINNED",
@@ -163,7 +163,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
 
                         api.addMod(
                             serverId,
-                            IocraftpanelmasterserviceCreateModRequest(
+                            CreateModRequest(
                                 modrinthProjectId = "lithium",
                                 displayName = "Lithium",
                                 pinStrategy = "LATEST",

@@ -16,6 +16,7 @@ import io.github.smiley4.ktoropenapi.OpenApi
 import io.github.smiley4.ktoropenapi.config.AuthScheme
 import io.github.smiley4.ktoropenapi.config.AuthType
 import io.github.smiley4.ktoropenapi.config.SchemaGenerator
+import io.github.smiley4.schemakenerator.swagger.data.RefType
 import io.github.smiley4.ktoropenapi.openApi
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -70,7 +71,7 @@ class OpenApiSpecTask {
                     }
                     defaultSecuritySchemeNames("BearerAuth")
                 }
-                schemas { generator = SchemaGenerator.kotlinx() }
+                schemas { generator = SchemaGenerator.kotlinx { referencePath = RefType.OPENAPI_SIMPLE } }
             }
             install(Authentication) {
                 jwt("auth-jwt") {

@@ -1,7 +1,7 @@
 package craftpanel.systemtest.harness
 
 import craftpanel.systemtest.client.api.DefaultApi
-import craftpanel.systemtest.client.model.IocraftpanelmasterserviceNodeResponse
+import craftpanel.systemtest.client.model.NodeResponse
 import kotlinx.coroutines.delay
 
 class NodeHelper(private val api: DefaultApi) {
@@ -22,7 +22,7 @@ class NodeHelper(private val api: DefaultApi) {
         return node.id
     }
 
-    suspend fun awaitPendingNode(timeoutMs: Long = 30_000): IocraftpanelmasterserviceNodeResponse =
+    suspend fun awaitPendingNode(timeoutMs: Long = 30_000): NodeResponse =
         pollUntilNotNull(timeoutMs) {
             api.listNodes()
                 .firstOrNull { it.status == "PENDING" }
@@ -31,7 +31,7 @@ class NodeHelper(private val api: DefaultApi) {
     suspend fun pollUntilActive(
         id: String,
         timeoutMs: Long = 30_000,
-    ): IocraftpanelmasterserviceNodeResponse =
+    ): NodeResponse =
         pollUntilNotNull(timeoutMs) {
             api.getNode(id)
                 .takeIf { it.status == "ACTIVE" }
