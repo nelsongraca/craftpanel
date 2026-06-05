@@ -84,8 +84,27 @@ object CraftPanelStack {
 
     fun stop() {
         if (::agent.isInitialized) agent.stop()
+        cleanupAgentContainers()
         if (::master.isInitialized) master.stop()
         if (::postgres.isInitialized) postgres.stop()
         if (::network.isInitialized) network.close()
+    }
+
+    private fun cleanupAgentContainers() {
+        runCatching {
+            val client = DockerClientFactory.instance().client()
+            val containers = client.listContainersCmd()
+                .withShowAll(true)
+                .withNameFilter(listOf("craftpanel-"))
+                .exec()
+            for (container in containers) {
+                runCatching {
+                    client.removeContainerCmd(container.id)
+                        .withForce(true)
+                        .exec()
+                    println("[cleanup] Removed container ${container.names.firstOrNull()}")
+                }
+            }
+        }
     }
 }
