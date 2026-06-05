@@ -27,7 +27,8 @@ class ServerHelper(private val api: DefaultApi) {
 
     suspend fun awaitStatus(id: String, status: String, timeoutMs: Long = 60_000): ServerResponse =
         pollUntilNotNull(timeoutMs) {
-            api.getServer(id).takeIf { it.status == status }
+            api.getServer(id)
+                .takeIf { it.status == status }
         } ?: error("Server $id did not reach status $status within ${timeoutMs}ms")
 
     suspend fun awaitContainerLog(containerName: String, substring: String, docker: DockerClient, timeoutMs: Long = 15_000) {
@@ -40,7 +41,9 @@ class ServerHelper(private val api: DefaultApi) {
                     .withStdErr(true)
                     .withFollowStream(false)
                     .exec(object : ResultCallback.Adapter<Frame>() {
-                        override fun onNext(frame: Frame) { logs.append(String(frame.payload)) }
+                        override fun onNext(frame: Frame) {
+                            logs.append(String(frame.payload))
+                        }
                     })
                     .awaitCompletion()
             }
@@ -49,12 +52,18 @@ class ServerHelper(private val api: DefaultApi) {
         }
     }
 
+    suspend fun awaitPlayerCount(id: String, expected: Int, timeoutMs: Long = 90_000): ServerResponse =
+        pollUntilNotNull(timeoutMs) {
+            api.getServer(id)
+                .takeIf { it.lastPlayerCount == expected }
+        } ?: error("Server $id did not reach lastPlayerCount=$expected within ${timeoutMs}ms")
+
     suspend fun awaitStoppedOrGone(id: String, timeoutMs: Long = 30_000) {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
             val result = runCatching { api.getServer(id) }
             when {
-                result.isFailure -> return
+                result.isFailure                        -> return
                 result.getOrNull()?.status == "STOPPED" -> return
             }
             delay(500)

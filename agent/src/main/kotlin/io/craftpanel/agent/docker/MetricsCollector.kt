@@ -3,9 +3,9 @@ package io.craftpanel.agent.docker
 import com.craftpanel.agent.v1.*
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
-import com.github.dockerjava.api.model.Frame
 import com.github.dockerjava.api.model.Statistics
 import com.google.protobuf.timestamp
+import io.craftpanel.agent.McQueryClient
 import org.slf4j.LoggerFactory
 import java.io.Closeable
 import java.io.File
@@ -102,58 +102,26 @@ open class MetricsCollector(private val docker: DockerClient) {
 
     fun collectPlayerCount(serverId: String, containerId: String): PlayerUpdate? {
         return runCatching {
-            val exec = docker.execCreateCmd(containerId)
-                .withCmd("rcon-cli", "list")
-                .withAttachStdout(true)
-                .withAttachStderr(false)
-                .exec()
-            val output = StringBuilder()
-            val latch = CountDownLatch(1)
-            docker.execStartCmd(exec.id)
-                .withDetach(false)
-                .exec(object : ResultCallback.Adapter<Frame>() {
-                    override fun onNext(frame: Frame) {
-                        frame.payload?.let { output.append(String(it)) }
-                    }
-
-                    override fun onComplete() {
-                        latch.countDown()
-                    }
-
-                    override fun onError(t: Throwable) {
-                        latch.countDown()
-                    }
-                })
-            if (!latch.await(5, TimeUnit.SECONDS)) return null
-            parsePlayerList(
-                serverId,
-                output.toString()
-                    .trim()
-            )
+            val ip = getContainerIp(containerId) ?: return null
+            val result = McQueryClient.query(ip) ?: return null
+            val now = Instant.now()
+            playerUpdate {
+                this.serverId = serverId
+                playerCount = result.playerCount
+                playerNames.addAll(result.playerNames)
+                recordedAt = timestamp { seconds = now.epochSecond; nanos = now.nano }
+            }
         }.getOrElse {
             log.warn("Failed to collect player count for $containerId: ${it.message}")
             null
         }
     }
 
-    private fun parsePlayerList(serverId: String, output: String): PlayerUpdate? {
-        val countMatch = Regex("""There are (\d+)""").find(output) ?: return null
-        val count = countMatch.groupValues[1].toInt()
-        val names = if (count > 0 && output.contains(": ")) {
-            output.substringAfter(": ")
-                .trim()
-                .split(", ")
-                .filter { it.isNotBlank() }
-        }
-        else emptyList()
-        val now = Instant.now()
-        return playerUpdate {
-            this.serverId = serverId
-            playerCount = count
-            playerNames.addAll(names)
-            recordedAt = timestamp { seconds = now.epochSecond; nanos = now.nano }
-        }
-    }
+    private fun getContainerIp(containerId: String): String? =
+        docker.inspectContainerCmd(containerId)
+            .exec()
+            .networkSettings?.networks?.values?.firstOrNull()?.ipAddress
+            ?.takeIf { it.isNotBlank() }
 
     fun collectCapacity(): Pair<Int, Int> {
         val totalRamMb = runCatching {

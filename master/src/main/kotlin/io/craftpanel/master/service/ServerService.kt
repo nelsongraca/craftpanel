@@ -727,6 +727,7 @@ class ServerService(
         val systemVars = buildMap {
             put("EULA", "TRUE"); put("TYPE", serverType)
             put("VERSION", serverRow[Servers.mcVersion]); put("MEMORY", "${serverRow[Servers.memoryMb]}M")
+            put("ENABLE_QUERY", "TRUE")
             if (modrinthProjects.isNotEmpty()) put("MODRINTH_PROJECTS", modrinthProjects)
         }
         return systemVars + dbEnvVars
