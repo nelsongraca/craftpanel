@@ -13,6 +13,8 @@ import io.ktor.server.routing.*
 import io.github.tabilzad.ktor.annotations.KtorDescription
 import io.github.tabilzad.ktor.annotations.KtorResponds
 import io.github.tabilzad.ktor.annotations.ResponseEntry
+import io.github.tabilzad.ktor.annotations.responds
+import io.github.tabilzad.ktor.annotations.respondsNothing
 import java.util.*
 
 fun Route.networksRoutes(networkService: NetworkService) {
@@ -22,15 +24,17 @@ fun Route.networksRoutes(networkService: NetworkService) {
             @KtorResponds(mapping = [ResponseEntry("200", NetworkResponse::class, isCollection = true)])
             @KtorDescription(operationId = "listNetworks", summary = "List networks")
             get("") {
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 call.respond(networkService.listNetworks(userId))
             }
 
-            @KtorResponds(mapping = [ResponseEntry("201", NetworkResponse::class)])
             @KtorDescription(operationId = "createNetwork", summary = "Create network")
             post("") {
+                responds<NetworkResponse>(HttpStatusCode.Created)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CREATE))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -38,9 +42,11 @@ fun Route.networksRoutes(networkService: NetworkService) {
                 call.respond(HttpStatusCode.Created, networkService.createNetwork(req))
             }
 
-            @KtorResponds(mapping = [ResponseEntry("200", NetworkDetailResponse::class)])
             @KtorDescription(operationId = "getNetwork", summary = "Get network")
             get("/{id}") {
+                responds<NetworkDetailResponse>(HttpStatusCode.OK)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -51,6 +57,9 @@ fun Route.networksRoutes(networkService: NetworkService) {
 
             @KtorDescription(operationId = "updateNetwork", summary = "Update network")
             patch("/{id}") {
+                respondsNothing(HttpStatusCode.NoContent)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
                 val userId = call.userId()
                 val id = parseNetworkId(call.parameters["id"])
                     ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid network ID"))
@@ -64,6 +73,9 @@ fun Route.networksRoutes(networkService: NetworkService) {
 
             @KtorDescription(operationId = "deleteNetwork", summary = "Delete network")
             delete("/{id}") {
+                respondsNothing(HttpStatusCode.NoContent)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
                 val userId = call.userId()
                 val id = parseNetworkId(call.parameters["id"])
                     ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid network ID"))

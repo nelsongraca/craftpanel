@@ -364,7 +364,7 @@ export default function ServerDetailPage() {
         try {
             const {error} = await updateServerResources({
                 path: {id},
-                body: {memory_mb: editRamMb, cpu_shares: editCpuShares, itzg_image_tag: editItzgTag || null},
+                body: {memory_mb: editRamMb, cpu_shares: editCpuShares, itzg_image_tag: editItzgTag || undefined},
             });
             if (error) {
                 setResourcesError(error.message ?? "Failed to save");

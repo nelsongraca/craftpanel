@@ -13,6 +13,8 @@ import io.ktor.server.routing.*
 import io.github.tabilzad.ktor.annotations.KtorDescription
 import io.github.tabilzad.ktor.annotations.KtorResponds
 import io.github.tabilzad.ktor.annotations.ResponseEntry
+import io.github.tabilzad.ktor.annotations.responds
+import io.github.tabilzad.ktor.annotations.respondsNothing
 import kotlin.time.Instant
 import kotlinx.serialization.json.JsonObject
 import java.util.*
@@ -24,13 +26,16 @@ fun Route.serversRoutes(serverService: ServerService) {
             @KtorResponds(mapping = [ResponseEntry("200", ServerResponse::class, isCollection = true)])
             @KtorDescription(operationId = "listServers", summary = "List servers")
             get("") {
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
                 val userId = call.userId()
                 call.respond(serverService.listServers(userId))
             }
 
-            @KtorResponds(mapping = [ResponseEntry("201", ServerResponse::class)])
             @KtorDescription(operationId = "createServer", summary = "Create server")
             post("") {
+                responds<ServerResponse>(HttpStatusCode.Created)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CREATE))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -38,9 +43,12 @@ fun Route.serversRoutes(serverService: ServerService) {
                 call.respond(HttpStatusCode.Created, serverService.createServer(req))
             }
 
-            @KtorResponds(mapping = [ResponseEntry("200", ServerResponse::class)])
             @KtorDescription(operationId = "getServer", summary = "Get server")
             get("/{id}") {
+                responds<ServerResponse>(HttpStatusCode.OK)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+                responds<ErrorResponse>(HttpStatusCode.NotFound)
                 val userId = call.userId()
                 val id = parseServerId(call.parameters["id"])
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -53,6 +61,10 @@ fun Route.serversRoutes(serverService: ServerService) {
 
             @KtorDescription(operationId = "updateServer", summary = "Update server")
             patch("/{id}") {
+                respondsNothing(HttpStatusCode.NoContent)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+                responds<ErrorResponse>(HttpStatusCode.NotFound)
                 val userId = call.userId()
                 val id = parseServerId(call.parameters["id"])
                     ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -67,6 +79,10 @@ fun Route.serversRoutes(serverService: ServerService) {
 
             @KtorDescription(operationId = "deleteServer", summary = "Delete server")
             delete("/{id}") {
+                respondsNothing(HttpStatusCode.NoContent)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+                responds<ErrorResponse>(HttpStatusCode.NotFound)
                 val userId = call.userId()
                 val id = parseServerId(call.parameters["id"])
                     ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -80,6 +96,10 @@ fun Route.serversRoutes(serverService: ServerService) {
 
             @KtorDescription(operationId = "updateServerResources", summary = "Update server resources")
             patch("/{id}/resources") {
+                respondsNothing(HttpStatusCode.NoContent)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+                responds<ErrorResponse>(HttpStatusCode.NotFound)
                 val userId = call.userId()
                 val id = parseServerId(call.parameters["id"])
                     ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -92,9 +112,12 @@ fun Route.serversRoutes(serverService: ServerService) {
                 call.respond(HttpStatusCode.NoContent)
             }
 
-            @KtorResponds(mapping = [ResponseEntry("202", MessageResponse::class)])
             @KtorDescription(operationId = "startServer", summary = "Start server")
             post("/{id}/start") {
+                responds<MessageResponse>(HttpStatusCode.Accepted)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+                responds<ErrorResponse>(HttpStatusCode.NotFound)
                 val userId = call.userId()
                 val id = parseServerId(call.parameters["id"])
                     ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -106,9 +129,12 @@ fun Route.serversRoutes(serverService: ServerService) {
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Server start initiated"))
             }
 
-            @KtorResponds(mapping = [ResponseEntry("202", MessageResponse::class)])
             @KtorDescription(operationId = "stopServer", summary = "Stop server")
             post("/{id}/stop") {
+                responds<MessageResponse>(HttpStatusCode.Accepted)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+                responds<ErrorResponse>(HttpStatusCode.NotFound)
                 val userId = call.userId()
                 val id = parseServerId(call.parameters["id"])
                     ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -120,9 +146,12 @@ fun Route.serversRoutes(serverService: ServerService) {
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Server stop initiated"))
             }
 
-            @KtorResponds(mapping = [ResponseEntry("202", MessageResponse::class)])
             @KtorDescription(operationId = "restartServer", summary = "Restart server")
             post("/{id}/restart") {
+                responds<MessageResponse>(HttpStatusCode.Accepted)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+                responds<ErrorResponse>(HttpStatusCode.NotFound)
                 val userId = call.userId()
                 val id = parseServerId(call.parameters["id"])
                     ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -134,9 +163,12 @@ fun Route.serversRoutes(serverService: ServerService) {
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Server restart initiated"))
             }
 
-            @KtorResponds(mapping = [ResponseEntry("202", MessageResponse::class)])
             @KtorDescription(operationId = "upgradeServer", summary = "Upgrade server image")
             post("/{id}/upgrade") {
+                responds<MessageResponse>(HttpStatusCode.Accepted)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+                responds<ErrorResponse>(HttpStatusCode.NotFound)
                 val userId = call.userId()
                 val id = parseServerId(call.parameters["id"])
                     ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -149,9 +181,12 @@ fun Route.serversRoutes(serverService: ServerService) {
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Server upgrade initiated"))
             }
 
-            @KtorResponds(mapping = [ResponseEntry("200", ContainerMetricsSeriesResponse::class)])
             @KtorDescription(operationId = "getServerMetrics", summary = "Get server container metrics")
             get("/{id}/metrics") {
+                responds<ContainerMetricsSeriesResponse>(HttpStatusCode.OK)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+                responds<ErrorResponse>(HttpStatusCode.NotFound)
                 val userId = call.userId()
                 val id = parseServerId(call.parameters["id"])
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -170,6 +205,10 @@ fun Route.serversRoutes(serverService: ServerService) {
 
             @KtorDescription(operationId = "updateServerExposure", summary = "Update server exposure")
             patch("/{id}/exposure") {
+                respondsNothing(HttpStatusCode.NoContent)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+                responds<ErrorResponse>(HttpStatusCode.NotFound)
                 val userId = call.userId()
                 val id = parseServerId(call.parameters["id"])
                     ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))

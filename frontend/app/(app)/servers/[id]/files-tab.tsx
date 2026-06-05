@@ -137,7 +137,7 @@ export function FilesTab({serverId}: Props) {
             onConfirm: async () => {
                 const {error: err} = await deleteServerFile({
                     path: {id: serverId},
-                    query: {path, recursive: isDir ? true : undefined},
+                    query: {path, recursive: isDir ? "true" : undefined},
                 });
                 if (err) {
                     setError("Failed to delete");

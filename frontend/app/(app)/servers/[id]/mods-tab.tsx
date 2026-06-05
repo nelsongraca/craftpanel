@@ -65,7 +65,8 @@ export function ModsTab({serverId, onModsChanged}: { serverId: string; onModsCha
         setSearching(true);
         try {
             const {data} = await searchMods({
-                path: {id: serverId, query: searchQuery, limit: 10}
+                path: {id: serverId},
+                query: {query: searchQuery, limit: "10"}
             });
             const body = data as { hits?: ModrinthHit[] } | undefined;
             setSearchResults(body?.hits ?? []);

@@ -16,6 +16,8 @@ import io.ktor.server.routing.*
 import io.github.tabilzad.ktor.annotations.KtorDescription
 import io.github.tabilzad.ktor.annotations.KtorResponds
 import io.github.tabilzad.ktor.annotations.ResponseEntry
+import io.github.tabilzad.ktor.annotations.responds
+import io.github.tabilzad.ktor.annotations.respondsNothing
 import java.util.*
 
 fun Route.nodesRoutes(nodeService: NodeService) {
@@ -25,15 +27,18 @@ fun Route.nodesRoutes(nodeService: NodeService) {
             @KtorResponds(mapping = [ResponseEntry("200", NodeResponse::class, isCollection = true)])
             @KtorDescription(operationId = "listNodes", summary = "List nodes")
             get("") {
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 call.respond(nodeService.listNodes())
             }
 
-            @KtorResponds(mapping = [ResponseEntry("200", NodeResponse::class)])
             @KtorDescription(operationId = "getNode", summary = "Get node")
             get("/{id}") {
+                responds<NodeResponse>(HttpStatusCode.OK)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -44,6 +49,9 @@ fun Route.nodesRoutes(nodeService: NodeService) {
 
             @KtorDescription(operationId = "trustNode", summary = "Trust node")
             post("/{id}/trust") {
+                respondsNothing(HttpStatusCode.NoContent)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -55,6 +63,9 @@ fun Route.nodesRoutes(nodeService: NodeService) {
 
             @KtorDescription(operationId = "rejectNode", summary = "Reject node")
             post("/{id}/reject") {
+                respondsNothing(HttpStatusCode.NoContent)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -64,9 +75,11 @@ fun Route.nodesRoutes(nodeService: NodeService) {
                 call.respond(HttpStatusCode.NoContent)
             }
 
-            @KtorResponds(mapping = [ResponseEntry("200", NodeKeyResponse::class)])
             @KtorDescription(operationId = "rotateNodeToken", summary = "Rotate node token")
             post("/{id}/token/rotate") {
+                responds<NodeKeyResponse>(HttpStatusCode.OK)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -75,9 +88,11 @@ fun Route.nodesRoutes(nodeService: NodeService) {
                 call.respond(NodeKeyResponse(nodeService.rotateToken(id)))
             }
 
-            @KtorResponds(mapping = [ResponseEntry("202", MessageResponse::class)])
             @KtorDescription(operationId = "shutdownNode", summary = "Shutdown node agent")
             post("/{id}/shutdown") {
+                responds<MessageResponse>(HttpStatusCode.Accepted)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -89,6 +104,9 @@ fun Route.nodesRoutes(nodeService: NodeService) {
 
             @KtorDescription(operationId = "updateNode", summary = "Update node")
             patch("/{id}") {
+                respondsNothing(HttpStatusCode.NoContent)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES))
                     return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -101,6 +119,9 @@ fun Route.nodesRoutes(nodeService: NodeService) {
 
             @KtorDescription(operationId = "decommissionNode", summary = "Decommission node")
             delete("/{id}") {
+                respondsNothing(HttpStatusCode.NoContent)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES))
                     return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -110,9 +131,11 @@ fun Route.nodesRoutes(nodeService: NodeService) {
                 call.respond(HttpStatusCode.NoContent)
             }
 
-            @KtorResponds(mapping = [ResponseEntry("200", NodeMetricsResponse::class)])
             @KtorDescription(operationId = "getNodeMetrics", summary = "Get node metrics")
             get("/{id}/metrics") {
+                responds<NodeMetricsResponse>(HttpStatusCode.OK)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))

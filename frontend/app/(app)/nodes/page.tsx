@@ -110,9 +110,9 @@ function EditModal({
             const {error: e} = await updateNode({
                 path: {id: node.id},
                 body: {
-                    display_name: displayName || null,
-                    port_range_start: portStart ? parseInt(portStart) : null,
-                    port_range_end: portEnd ? parseInt(portEnd) : null,
+                    display_name: displayName || undefined,
+                    port_range_start: portStart ? parseInt(portStart) : undefined,
+                    port_range_end: portEnd ? parseInt(portEnd) : undefined,
                 },
             });
             if (e) {

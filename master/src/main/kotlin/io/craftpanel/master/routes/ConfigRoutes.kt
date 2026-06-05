@@ -18,17 +18,20 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.github.tabilzad.ktor.annotations.KtorDescription
-import io.github.tabilzad.ktor.annotations.KtorResponds
-import io.github.tabilzad.ktor.annotations.ResponseEntry
+import io.github.tabilzad.ktor.annotations.responds
+import io.github.tabilzad.ktor.annotations.respondsNothing
 import java.util.UUID
 
 fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService: EnvVarsService) {
     authenticate(JWT_AUTH) {
         route("/api/servers/{id}/config") {
 
-            @KtorResponds(mapping = [ResponseEntry("200", ProxyBackendListResponse::class)])
             @KtorDescription(operationId = "getProxyBackends", summary = "Get proxy backend list")
             get("/proxy") {
+                responds<ProxyBackendListResponse>(HttpStatusCode.OK)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+                responds<ErrorResponse>(HttpStatusCode.NotFound)
                 val userId = call.userId()
                 val id = parseConfigServerId(call.parameters["id"])
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -39,9 +42,12 @@ fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService:
                 call.respond(proxyBackendService.listBackends(id))
             }
 
-            @KtorResponds(mapping = [ResponseEntry("200", ProxyBackendListResponse::class)])
             @KtorDescription(operationId = "replaceProxyBackends", summary = "Replace proxy backend list")
             put("/proxy") {
+                responds<ProxyBackendListResponse>(HttpStatusCode.OK)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+                responds<ErrorResponse>(HttpStatusCode.NotFound)
                 val userId = call.userId()
                 val id = parseConfigServerId(call.parameters["id"])
                     ?: return@put call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -53,9 +59,12 @@ fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService:
                 call.respond(proxyBackendService.replaceBackends(id, req))
             }
 
-            @KtorResponds(mapping = [ResponseEntry("200", EnvVarsResponse::class)])
             @KtorDescription(operationId = "getEnvVars", summary = "Get server env vars")
             get("/env-vars") {
+                responds<EnvVarsResponse>(HttpStatusCode.OK)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+                responds<ErrorResponse>(HttpStatusCode.NotFound)
                 val userId = call.userId()
                 val id = parseConfigServerId(call.parameters["id"])
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -66,9 +75,12 @@ fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService:
                 call.respond(envVarsService.getEnvVars(id))
             }
 
-            @KtorResponds(mapping = [ResponseEntry("200", EnvVarsResponse::class)])
             @KtorDescription(operationId = "replaceEnvVars", summary = "Replace server env vars")
             put("/env-vars") {
+                responds<EnvVarsResponse>(HttpStatusCode.OK)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+                responds<ErrorResponse>(HttpStatusCode.NotFound)
                 val userId = call.userId()
                 val id = parseConfigServerId(call.parameters["id"])
                     ?: return@put call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -82,6 +94,10 @@ fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService:
 
             @KtorDescription(operationId = "updateStopCommand", summary = "Update server stop command")
             patch("/stop-command") {
+                respondsNothing(HttpStatusCode.NoContent)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+                responds<ErrorResponse>(HttpStatusCode.NotFound)
                 val userId = call.userId()
                 val id = parseConfigServerId(call.parameters["id"])
                     ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -94,9 +110,12 @@ fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService:
                 call.respond(HttpStatusCode.NoContent)
             }
 
-            @KtorResponds(mapping = [ResponseEntry("200", EnvVarsResponse::class)])
             @KtorDescription(operationId = "updateConfigMode", summary = "Update server config mode")
             put("/mode") {
+                responds<EnvVarsResponse>(HttpStatusCode.OK)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+                responds<ErrorResponse>(HttpStatusCode.NotFound)
                 val userId = call.userId()
                 val id = parseConfigServerId(call.parameters["id"])
                     ?: return@put call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))

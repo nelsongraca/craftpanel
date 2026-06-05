@@ -10,26 +10,28 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.github.tabilzad.ktor.annotations.KtorDescription
-import io.github.tabilzad.ktor.annotations.KtorResponds
-import io.github.tabilzad.ktor.annotations.ResponseEntry
+import io.github.tabilzad.ktor.annotations.responds
+import io.github.tabilzad.ktor.annotations.respondsNothing
 import java.util.*
 
 fun Route.usersRoutes(userService: UserService) {
     authenticate(JWT_AUTH) {
         route("/api/users") {
 
-            @KtorResponds(mapping = [ResponseEntry("200", UsersListResponse::class)])
             @KtorDescription(operationId = "listUsers", summary = "List users")
             get("") {
+                responds<UsersListResponse>(HttpStatusCode.OK)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 call.respond(userService.listUsers())
             }
 
-            @KtorResponds(mapping = [ResponseEntry("201", UserResponse::class)])
             @KtorDescription(operationId = "createUser", summary = "Create user")
             post("") {
+                responds<UserResponse>(HttpStatusCode.Created)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -37,9 +39,11 @@ fun Route.usersRoutes(userService: UserService) {
                 call.respond(HttpStatusCode.Created, userService.createUser(req))
             }
 
-            @KtorResponds(mapping = [ResponseEntry("200", UserResponse::class)])
             @KtorDescription(operationId = "getUser", summary = "Get user")
             get("/{id}") {
+                responds<UserResponse>(HttpStatusCode.OK)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+                responds<ErrorResponse>(HttpStatusCode.NotFound)
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -48,9 +52,11 @@ fun Route.usersRoutes(userService: UserService) {
                 call.respond(userService.getUser(targetId))
             }
 
-            @KtorResponds(mapping = [ResponseEntry("200", UserResponse::class)])
             @KtorDescription(operationId = "updateUser", summary = "Update user")
             patch("/{id}") {
+                responds<UserResponse>(HttpStatusCode.OK)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+                responds<ErrorResponse>(HttpStatusCode.NotFound)
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
                     return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -62,6 +68,9 @@ fun Route.usersRoutes(userService: UserService) {
 
             @KtorDescription(operationId = "deleteUser", summary = "Delete user")
             delete("/{id}") {
+                respondsNothing(HttpStatusCode.NoContent)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+                responds<ErrorResponse>(HttpStatusCode.NotFound)
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
                     return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))

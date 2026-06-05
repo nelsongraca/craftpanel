@@ -13,17 +13,19 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.github.tabilzad.ktor.annotations.KtorDescription
-import io.github.tabilzad.ktor.annotations.KtorResponds
-import io.github.tabilzad.ktor.annotations.ResponseEntry
+import io.github.tabilzad.ktor.annotations.responds
+import io.github.tabilzad.ktor.annotations.respondsNothing
 import java.util.*
 
 fun Route.assignmentsRoutes(assignmentService: AssignmentService) {
     authenticate(JWT_AUTH) {
         route("/api/users/{userId}/assignments") {
 
-            @KtorResponds(mapping = [ResponseEntry("200", AssignmentsListResponse::class)])
             @KtorDescription(operationId = "listUserAssignments", summary = "List group assignments for a user")
             get("") {
+                responds<AssignmentsListResponse>(HttpStatusCode.OK)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+                responds<ErrorResponse>(HttpStatusCode.NotFound)
                 val callerId = call.userId()
                 if (!PermissionResolver.hasPermission(callerId, Permission.SYSTEM_USERS))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -32,9 +34,11 @@ fun Route.assignmentsRoutes(assignmentService: AssignmentService) {
                 call.respond(assignmentService.listAssignments(targetId))
             }
 
-            @KtorResponds(mapping = [ResponseEntry("201", AssignmentResponse::class)])
             @KtorDescription(operationId = "createAssignment", summary = "Add a group assignment to a user")
             post("") {
+                responds<AssignmentResponse>(HttpStatusCode.Created)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+                responds<ErrorResponse>(HttpStatusCode.NotFound)
                 val callerId = call.userId()
                 if (!PermissionResolver.hasPermission(callerId, Permission.SYSTEM_USERS))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -46,6 +50,9 @@ fun Route.assignmentsRoutes(assignmentService: AssignmentService) {
 
             @KtorDescription(operationId = "deleteAssignment", summary = "Remove a group assignment from a user")
             delete("/{assignmentId}") {
+                respondsNothing(HttpStatusCode.NoContent)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+                responds<ErrorResponse>(HttpStatusCode.NotFound)
                 val callerId = call.userId()
                 if (!PermissionResolver.hasPermission(callerId, Permission.SYSTEM_USERS))
                     return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))

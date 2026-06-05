@@ -15,8 +15,8 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.github.tabilzad.ktor.annotations.KtorDescription
-import io.github.tabilzad.ktor.annotations.KtorResponds
-import io.github.tabilzad.ktor.annotations.ResponseEntry
+import io.github.tabilzad.ktor.annotations.responds
+import io.github.tabilzad.ktor.annotations.respondsNothing
 import java.util.*
 
 @Serializable
@@ -29,9 +29,10 @@ fun Route.alertsRoutes(alertService: AlertService) {
     authenticate(JWT_AUTH) {
         route("/api/alerts") {
 
-            @KtorResponds(mapping = [ResponseEntry("200", AlertThresholdsResponse::class)])
             @KtorDescription(operationId = "listAlertThresholds", summary = "List alert thresholds")
             get("/thresholds") {
+                responds<AlertThresholdsResponse>(HttpStatusCode.OK)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_SETTINGS))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -46,9 +47,10 @@ fun Route.alertsRoutes(alertService: AlertService) {
                 call.respond(AlertThresholdsResponse(alertService.listThresholds(scopeType, scopeId)))
             }
 
-            @KtorResponds(mapping = [ResponseEntry("201", AlertThresholdResponse::class)])
             @KtorDescription(operationId = "createAlertThreshold", summary = "Create alert threshold")
             post("/thresholds") {
+                responds<AlertThresholdResponse>(HttpStatusCode.Created)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_SETTINGS))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -58,6 +60,9 @@ fun Route.alertsRoutes(alertService: AlertService) {
 
             @KtorDescription(operationId = "deleteAlertThreshold", summary = "Delete alert threshold")
             delete("/thresholds/{id}") {
+                respondsNothing(HttpStatusCode.NoContent)
+                responds<ErrorResponse>(HttpStatusCode.BadRequest)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_SETTINGS))
                     return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -73,9 +78,10 @@ fun Route.alertsRoutes(alertService: AlertService) {
                 call.respond(HttpStatusCode.NoContent)
             }
 
-            @KtorResponds(mapping = [ResponseEntry("200", AlertEventsListResponse::class)])
             @KtorDescription(operationId = "listAlertEvents", summary = "List alert events")
             get("/events") {
+                responds<AlertEventsListResponse>(HttpStatusCode.OK)
+                responds<ErrorResponse>(HttpStatusCode.Forbidden)
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_SETTINGS))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
