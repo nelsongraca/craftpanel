@@ -120,6 +120,7 @@ tasks.register<DockerBuildImage>("dockerBuildImage") {
     group = "docker"
     description = "Builds the Docker image for agent"
     dependsOn(tasks.installDist)
+    mustRunAfter(tasks.named("assemble"), tasks.named("check"))
     inputDir.set(projectDir)
     dockerFile.set(file("Dockerfile"))
     images.add(imageName)

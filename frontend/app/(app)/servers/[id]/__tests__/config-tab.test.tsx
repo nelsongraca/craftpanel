@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, within, waitFor, act } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ConfigTab } from '../config-tab'
-import type { IoCraftpanelMasterServiceServerResponse as ServerResponse } from '@/lib/generated/types.gen'
+import type { ServerResponse } from '@/lib/generated/types.gen'
 
 // base-ui Switch doesn't fire onCheckedChange via userEvent in jsdom — replace with plain button
 vi.mock('@/components/ui/switch', () => ({

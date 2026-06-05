@@ -153,7 +153,7 @@ class ModsRoutes(val modService: ModService) {
                 get("/search", {
                     operationId = "searchMods"
                     summary = "Search Modrinth mods"
-                    request { pathParameter<String>("id"); pathParameter<String>("query"); pathParameter<Int>("limit") }
+                    request { pathParameter<String>("id"); queryParameter<String>("query"); queryParameter<Int>("limit") }
                     response {
                         code(HttpStatusCode.OK) { }
                         code(HttpStatusCode.BadGateway) { body<ErrorResponse>() }

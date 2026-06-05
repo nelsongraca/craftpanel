@@ -12,7 +12,7 @@ import {useWs} from "@/lib/ws-context";
 import type {Node} from "@/lib/types";
 import {timeAgo} from "@/lib/utils/format";
 import {TokenModal} from "@/components/nodes/TokenModal";
-import type {IoCraftpanelMasterServiceServerResponse as Server} from "@/lib/generated/types.gen";
+import type {ServerResponse as Server} from "@/lib/generated/types.gen";
 import {ConfirmDialog} from "@/components/ui/confirm-dialog";
 
 // ── Status helpers ────────────────────────────────────────────────────────────

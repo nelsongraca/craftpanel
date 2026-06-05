@@ -3,7 +3,7 @@
 import {useCallback, useEffect, useState} from "react";
 import {Clock, Download, Play, RefreshCw, Trash2} from "lucide-react";
 import {deleteBackup, getBackupSchedule, listBackups, triggerBackup, updateBackupSchedule,} from "@/lib/generated/sdk.gen";
-import type {IoCraftpanelMasterServiceBackupResponse as Backup, IoCraftpanelMasterServiceBackupScheduleResponse as Schedule,} from "@/lib/generated/types.gen";
+import type {BackupResponse as Backup, BackupScheduleResponse as Schedule,} from "@/lib/generated/types.gen";
 import {fmtBytes} from "@/lib/utils/format";
 
 function fmtDate(iso: string): string {

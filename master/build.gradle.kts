@@ -136,6 +136,7 @@ tasks.register<DockerBuildImage>("dockerBuildImage") {
     group = "docker"
     description = "Builds the Docker image for master"
     dependsOn(tasks.installDist)
+    mustRunAfter(tasks.named("assemble"), tasks.named("check"))
     inputDir.set(layout.projectDirectory)
     dockerFile.set(layout.projectDirectory.file("Dockerfile"))
     images.add(imageName)

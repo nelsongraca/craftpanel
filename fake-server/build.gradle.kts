@@ -26,7 +26,9 @@ tasks.jar {
     manifest {
         attributes["Main-Class"] = "craftpanel.fakeserver.MainKt"
     }
-    from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })
+    from(
+        configurations.runtimeClasspath.get()
+            .map { if (it.isDirectory) it else zipTree(it) })
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 }
 
@@ -38,15 +40,21 @@ val imageRegistry: String? = findProperty("imageRegistry") as String?
 fun imageTag(suffix: String) =
     if (imageRegistry != null) "$imageRegistry/$suffix:test" else "$suffix:latest"
 
+val dockerBuildEnabled = rootProject.hasProperty("dockerBuild")
+
 val dockerBuildFakeServer by tasks.registering(DockerBuildImage::class) {
-    dependsOn(tasks.jar)
+    enabled = dockerBuildEnabled
+    dependsOn(tasks.named("assemble"))
+    mustRunAfter(tasks.named("check"))
     inputDir.set(projectDir)
     dockerFile.set(file("Dockerfile"))
     images.add(imageTag("craftpanel-fake-server"))
 }
 
 val dockerBuildFakeProxy by tasks.registering(DockerBuildImage::class) {
-    dependsOn(tasks.jar)
+    enabled = dockerBuildEnabled
+    dependsOn(tasks.named("assemble"))
+    mustRunAfter(tasks.named("check"))
     mustRunAfter(dockerBuildFakeServer)
     inputDir.set(projectDir)
     dockerFile.set(file("Dockerfile.proxy"))

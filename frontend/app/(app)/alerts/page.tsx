@@ -3,7 +3,7 @@
 import {useCallback, useEffect, useState} from "react";
 import {AlertTriangle, CheckCircle, Plus, Trash2, X} from "lucide-react";
 import {createAlertThreshold, deleteAlertThreshold, listAlertEvents, listAlertThresholds,} from "@/lib/generated/sdk.gen";
-import type {IoCraftpanelMasterServiceCreateAlertThresholdRequest as CreateRequest} from "@/lib/generated/types.gen";
+import type {CreateAlertThresholdRequest as CreateRequest} from "@/lib/generated/types.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import type {AlertEvent, AlertThreshold} from "@/lib/types";

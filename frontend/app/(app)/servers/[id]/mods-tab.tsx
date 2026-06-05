@@ -3,7 +3,7 @@
 import {useCallback, useEffect, useState} from "react";
 import {Pin, Plus, RefreshCw, Search, Trash2} from "lucide-react";
 import {addMod, deleteMod, listMods, searchMods, updateMod} from "@/lib/generated/sdk.gen";
-import type {IoCraftpanelMasterServiceModResponse as Mod} from "@/lib/generated/types.gen";
+import type {ModResponse as Mod} from "@/lib/generated/types.gen";
 
 type PinStrategy = "LATEST" | "PINNED" | "BETA" | "ALPHA";
 
@@ -66,7 +66,7 @@ export function ModsTab({serverId, onModsChanged}: { serverId: string; onModsCha
         try {
             const {data} = await searchMods({
                 path: {id: serverId},
-                query: {query: searchQuery, limit: "10"}
+                query: {query: searchQuery, limit: 10}
             });
             const body = data as { hits?: ModrinthHit[] } | undefined;
             setSearchResults(body?.hits ?? []);

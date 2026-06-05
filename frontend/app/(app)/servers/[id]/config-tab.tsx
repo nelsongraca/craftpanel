@@ -12,7 +12,7 @@ import {
     updateStopCommand,
 } from "@/lib/generated/sdk.gen";
 import type { EnvVarItem, ProxyBackend, PutEnvVarsRequest, PutProxyBackendsRequest } from "@/lib/types";
-import type { IoCraftpanelMasterServiceServerResponse as ServerResponse } from "@/lib/generated/types.gen";
+import type { ServerResponse } from "@/lib/generated/types.gen";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Switch } from "@/components/ui/switch";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";

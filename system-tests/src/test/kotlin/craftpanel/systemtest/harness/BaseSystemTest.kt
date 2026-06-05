@@ -17,6 +17,9 @@ abstract class BaseSystemTest : DescribeSpec() {
             AuthHelper(api).login()
             nodeId = NodeHelper(api).trustFirstPendingNode()
         }
+        beforeTest {
+            NodeHelper(api).pollUntilActive(nodeId)
+        }
         afterSpec {
             CraftPanelStack.stop()
         }
