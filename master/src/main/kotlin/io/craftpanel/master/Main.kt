@@ -210,7 +210,7 @@ fun Application.module() {
     routing {
         @KtorDescription(operationId = "healthCheck", summary = "Health check")
         get("health") { call.respond(mapOf("status" to "ok")) }
-        authRoutes(jwtManager, refreshTokenService, wsTicketService, appConfig.rateLimit)
+        authRoutes(jwtManager, refreshTokenService, wsTicketService, appConfig.rateLimit, appConfig.auth.secureCookies)
         nodesRoutes(nodeService)
         networksRoutes(networkService)
         serversRoutes(serverService)

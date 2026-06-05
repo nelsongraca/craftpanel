@@ -106,6 +106,7 @@ fun Route.authRoutes(
     refreshTokenService: RefreshTokenService,
     wsTicketService: WsTicketService,
     @Suppress("UNUSED_PARAMETER") rateLimitConfig: RateLimitConfig = RateLimitConfig(10, 30),
+    secureCookies: Boolean = true,
 ) {
     route("/api/auth") {
         rateLimit(RateLimitName("auth-login")) {
@@ -130,7 +131,7 @@ fun Route.authRoutes(
                     name = "refresh_token",
                     value = refreshResult.rawToken,
                     httpOnly = true,
-                    secure = true,
+                    secure = secureCookies,
                     extensions = mapOf("SameSite" to "Strict"),
                     path = "/api/auth",
                 )
@@ -164,7 +165,7 @@ fun Route.authRoutes(
                     name = "refresh_token",
                     value = newToken.rawToken,
                     httpOnly = true,
-                    secure = true,
+                    secure = secureCookies,
                     extensions = mapOf("SameSite" to "Strict"),
                     path = "/api/auth",
                 )
@@ -178,7 +179,7 @@ fun Route.authRoutes(
                 val rawToken = call.request.cookies["refresh_token"]
                 if (rawToken != null) refreshTokenService.revoke(rawToken)
                 call.response.cookies.append(
-                    name = "refresh_token", value = "", httpOnly = true, secure = true,
+                    name = "refresh_token", value = "", httpOnly = true, secure = secureCookies,
                     extensions = mapOf("SameSite" to "Strict"), path = "/api/auth", maxAge = 0,
                 )
                 call.respond(HttpStatusCode.NoContent)
@@ -190,7 +191,7 @@ fun Route.authRoutes(
                 val userId = UUID.fromString(principal.payload.subject)
                 refreshTokenService.revokeAll(userId)
                 call.response.cookies.append(
-                    name = "refresh_token", value = "", httpOnly = true, secure = true,
+                    name = "refresh_token", value = "", httpOnly = true, secure = secureCookies,
                     extensions = mapOf("SameSite" to "Strict"), path = "/api/auth", maxAge = 0,
                 )
                 call.respond(HttpStatusCode.NoContent)

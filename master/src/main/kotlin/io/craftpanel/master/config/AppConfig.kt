@@ -49,6 +49,10 @@ data class CorsConfig(
     val allowedSchemes: List<String>,
 )
 
+data class AuthConfig(
+    val secureCookies: Boolean,
+)
+
 data class RateLimitConfig(
     val loginPerMinute: Int,
     val refreshPerMinute: Int,
@@ -145,6 +149,11 @@ class AppConfig(config: ApplicationConfig) {
             ?.split(",")
             ?.map { it.trim() }
             ?.filter { it.isNotEmpty() } ?: listOf("https"),
+    )
+    val auth = AuthConfig(
+        secureCookies = config.propertyOrNull("auth.secureCookies")
+            ?.getString()
+            ?.toBooleanStrictOrNull() ?: true,
     )
     val rateLimit = RateLimitConfig(
         loginPerMinute = config.propertyOrNull("rateLimit.loginPerMinute")
