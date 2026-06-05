@@ -34,6 +34,7 @@ class ControlStreamHandlerTest {
         mcRouterUpdateOnStart = false,
         publicIpUrl = "",
         hostnameOverride = "",
+        systemReservedRamMb = 0,
     )
     private val handler = ControlStreamHandler(identity, config, containerManager, metricsCollector, docker)
 
@@ -93,7 +94,8 @@ class ControlStreamHandlerTest {
             image = "itzg/minecraft-server:latest"
         }, outbound)
 
-        val msg = outbound.messages().single()
+        val msg = outbound.messages()
+            .single()
         assertTrue(msg.hasServerStatus())
         assertEquals("srv-create", msg.serverStatus.serverId)
         assertEquals(ServerStatusUpdate.ServerStatus.STOPPED, msg.serverStatus.status)
@@ -111,7 +113,10 @@ class ControlStreamHandlerTest {
             image = "itzg/minecraft-server:latest"
         }, outbound)
 
-        assertTrue(outbound.messages().isEmpty())
+        assertTrue(
+            outbound.messages()
+                .isEmpty()
+        )
     }
 
     // -------------------------------------------------------------------------
@@ -129,7 +134,8 @@ class ControlStreamHandlerTest {
             containerName = "craftpanel-start"
         }, outbound)
 
-        val msg = outbound.messages().single()
+        val msg = outbound.messages()
+            .single()
         assertEquals(ServerStatusUpdate.ServerStatus.HEALTHY, msg.serverStatus.status)
         assertEquals("srv-start", msg.serverStatus.serverId)
     }
@@ -145,7 +151,11 @@ class ControlStreamHandlerTest {
             containerName = "craftpanel-start-fail"
         }, outbound)
 
-        assertEquals(ServerStatusUpdate.ServerStatus.UNHEALTHY, outbound.messages().single().serverStatus.status)
+        assertEquals(
+            ServerStatusUpdate.ServerStatus.UNHEALTHY,
+            outbound.messages()
+                .single().serverStatus.status
+        )
     }
 
     // -------------------------------------------------------------------------
@@ -163,7 +173,8 @@ class ControlStreamHandlerTest {
             timeoutSeconds = 10
         }, outbound)
 
-        val msg = outbound.messages().single()
+        val msg = outbound.messages()
+            .single()
         assertEquals(ServerStatusUpdate.ServerStatus.STOPPED, msg.serverStatus.status)
         assertEquals("srv-stop", msg.serverStatus.serverId)
     }
@@ -178,7 +189,11 @@ class ControlStreamHandlerTest {
             containerName = "craftpanel-stop-fail"
         }, outbound)
 
-        assertEquals(ServerStatusUpdate.ServerStatus.UNHEALTHY, outbound.messages().single().serverStatus.status)
+        assertEquals(
+            ServerStatusUpdate.ServerStatus.UNHEALTHY,
+            outbound.messages()
+                .single().serverStatus.status
+        )
     }
 
     // -------------------------------------------------------------------------
@@ -197,7 +212,11 @@ class ControlStreamHandlerTest {
             timeoutSeconds = 10
         }, outbound)
 
-        assertEquals(ServerStatusUpdate.ServerStatus.HEALTHY, outbound.messages().single().serverStatus.status)
+        assertEquals(
+            ServerStatusUpdate.ServerStatus.HEALTHY,
+            outbound.messages()
+                .single().serverStatus.status
+        )
         verify { containerManager.stopContainer("craftpanel-restart", 10, "") }
         verify { containerManager.startContainer("craftpanel-restart") }
     }
@@ -212,7 +231,11 @@ class ControlStreamHandlerTest {
             containerName = "craftpanel-restart-fail"
         }, outbound)
 
-        assertEquals(ServerStatusUpdate.ServerStatus.UNHEALTHY, outbound.messages().single().serverStatus.status)
+        assertEquals(
+            ServerStatusUpdate.ServerStatus.UNHEALTHY,
+            outbound.messages()
+                .single().serverStatus.status
+        )
     }
 
     // -------------------------------------------------------------------------
@@ -252,7 +275,8 @@ class ControlStreamHandlerTest {
 
         handler.handleShutdown(shutdownCommand { timeoutSeconds = 30 }, outbound)
 
-        val msg = outbound.messages().single()
+        val msg = outbound.messages()
+            .single()
         assertTrue(msg.hasShutdownAcknowledge())
         assertEquals(3, msg.shutdownAcknowledge.gracefulCount)
         assertEquals(1, msg.shutdownAcknowledge.forcedCount)

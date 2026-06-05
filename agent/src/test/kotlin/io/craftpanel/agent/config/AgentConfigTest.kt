@@ -111,5 +111,6 @@ class AgentConfigTest {
         mcRouterUpdateOnStart = mcRouterUpdateOnStart,
         publicIpUrl = publicIpUrl,
         hostnameOverride = hostnameOverride,
+        systemReservedRamMb = 0,
     )
 }
