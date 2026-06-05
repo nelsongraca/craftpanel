@@ -83,21 +83,8 @@ val systemTestsEnabled = project.hasProperty("systemTests")
 
 tasks.named<Test>("test") {
     useJUnitPlatform()
-    // Gate execution so ./gradlew test without -PsystemTests skips this subproject
-    onlyIf("requires -PsystemTests flag") { project.hasProperty("systemTests") }
-}
-
-// Exclude from check lifecycle unless -PsystemTests is set.
-// The kotlin-jvm plugin wires check → test via a JvmTestSuite provider whose toString is
-// "provider(TestSuite 'test', ...)", so we match on both forms.
-if (!systemTestsEnabled) {
-    afterEvaluate {
-        tasks.named("check").configure {
-            setDependsOn(dependsOn.filterNot { dep ->
-                dep.toString().let { s -> s == "test" || s.contains("TestSuite 'test'") }
-            })
-        }
-    }
+    // Disable (not just skip) so check doesn't fail when -PsystemTests is absent
+    enabled = systemTestsEnabled
 }
 
 // Explicit alias for CI — always runs regardless of flag
