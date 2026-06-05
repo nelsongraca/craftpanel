@@ -6,7 +6,7 @@ Self-hosted multi-user multi-node Minecraft server management platform.
 
 Always use Context7 when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
 When finishing a task always run get_file_problems from intellij/idea to find possible issues and fix them before submitting the code. If there are any warnings or errors that cannot be fixed, list them explicitly in the final answer.
-Before commiting any code always use reformat_c~~~~ode from intellij/idea to reformst the files.
+Before commiting any code always use reformat_code from intellij/idea to reformat the files.
 If a method or class is deprecated avoid using it.
 
 Before starting any task, assess complexity:
@@ -123,6 +123,7 @@ Node authentication over gRPC:
 - **Subsequent connections**: agent calls `IdentifyNode` with node key → master returns `ACTIVE`, `PENDING`, or `REJECTED`
 - Node keys stored as SHA-256 hashes in DB, never raw
 - TLS on gRPC channel; node key is the auth mechanism (not mTLS client certs)
+- `NODE_HOSTNAME` env var overrides the hostname the agent reports to master (useful when container hostname differs from actual node hostname)
 
 ### Agent registry (`ControlServiceImpl`)
 
@@ -267,9 +268,9 @@ Tests live in `master/src/test/kotlin/`. Run with `./gradlew :master:test`. Cove
 
 Singleton H2 in-memory DB shared across all tests. Call `initIfNeeded()` once and `reset()` in `@BeforeTest`.
 
-- Creates: `Users`, `RefreshTokens`, `Groups`, `GroupPermissions`, `UserGroupAssignments`, `ServerNetworks`, `Nodes`, `Servers`, `ServerEnvVars`, `NodeMetrics`, `PortRegistry`, `ServerMigrations`
+- Creates: `Users`, `RefreshTokens`, `Groups`, `GroupPermissions`, `UserGroupAssignments`, `ServerNetworks`, `Nodes`, `Servers`, `ServerEnvVars`, `NodeMetrics`, `PortRegistry`, `ServerMigrations`, `MigrationStepLog`, `Backups`, `AlertThresholds`, `AlertEvents`, `ContainerMetrics`, `ServerMods`, `SystemSettings`
 - Seeds system groups on first init
-- `reset()` deletes in FK-safe order: `ServerMigrations → PortRegistry → NodeMetrics → ServerEnvVars → Servers → Nodes → ServerNetworks → RefreshTokens → UserGroupAssignments → Users`
+- `reset()` deletes in FK-safe order: `AlertEvents → AlertThresholds → Backups → ServerMods → MigrationStepLog → ServerMigrations → PortRegistry → ContainerMetrics → NodeMetrics → ServerEnvVars → Servers → Nodes → ServerNetworks → SystemSettings → RefreshTokens → UserGroupAssignments → Users`
 
 ### Route test conventions
 
@@ -277,6 +278,18 @@ Singleton H2 in-memory DB shared across all tests. Call `initIfNeeded()` once an
 - Server/client `ContentNegotiation` are disambiguated with `as` import aliases
 - Generate JWTs directly with `jwtManager.generate(TokenClaims(...))` — no need to go through the login endpoint
 - Inject lambdas for dependencies that require external state (e.g. `sendToNode: (String, MasterMessage) -> Boolean`)
+
+### System tests (`system-tests/`)
+
+End-to-end tests using Testcontainers 2.0.5 + Kotest. Spin up real PostgreSQL + master + agent containers.
+
+```bash
+./gradlew :system-tests:test
+```
+
+- `CraftPanelStack` — singleton that starts/stops the full stack via Testcontainers
+- `BaseSystemTest` — Kotest `DescribeSpec` base; handles `CraftPanelStack.start()`, auth login, and trusting first pending node in `beforeSpec`/`afterSpec`
+- Helper classes: `AuthHelper`, `NodeHelper`, `ServerHelper` in `harness/`
 
 ## Database
 
