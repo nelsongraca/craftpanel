@@ -12,7 +12,6 @@ frontend {
     packageJsonDirectory.set(layout.projectDirectory)
     assembleScript.set("run build")
     checkScript.set("run lint")
-    testScript.set("run test")
 }
 
 // ---------------------------------------------------------------------------
@@ -25,6 +24,21 @@ tasks.register<Delete>("cleanFrontend") {
 
 tasks.named("clean") {
     dependsOn("cleanFrontend")
+}
+
+// ---------------------------------------------------------------------------
+// Test: run vitest via pnpm
+// ---------------------------------------------------------------------------
+tasks.register<Exec>("testFrontend") {
+    group = "verification"
+    description = "Runs frontend unit tests via vitest"
+    dependsOn("installFrontend")
+    workingDir = layout.projectDirectory.asFile
+    commandLine(layout.projectDirectory.file(".node/bin/pnpm").asFile, "run", "test")
+}
+
+tasks.named("check") {
+    dependsOn("testFrontend")
 }
 
 // ---------------------------------------------------------------------------
