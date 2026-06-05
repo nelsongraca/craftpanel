@@ -14,13 +14,20 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.github.tabilzad.ktor.annotations.KtorDescription
+import io.github.tabilzad.ktor.annotations.KtorResponds
+import io.github.tabilzad.ktor.annotations.ResponseEntry
 import io.ktor.utils.io.writeFully
+import kotlinx.serialization.Serializable
 import java.util.*
+
+@Serializable
+data class BackupsListResponse(val backups: List<BackupResponse>)
 
 fun Route.backupsRoutes(backupService: BackupService) {
     authenticate(JWT_AUTH) {
         route("/api/servers/{id}/backups") {
 
+            @KtorResponds(mapping = [ResponseEntry("200", BackupsListResponse::class)])
             @KtorDescription(operationId = "listBackups", summary = "List server backups")
             get("") {
                 val userId = call.userId()
@@ -31,9 +38,10 @@ fun Route.backupsRoutes(backupService: BackupService) {
                 val serverIdJava = UUID.fromString(id.toString())
                 if (!PermissionResolver.hasPermission(userId, Permission.SERVER_BACKUP, serverId = serverIdJava, networkId = scope.networkId))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                call.respond(mapOf("backups" to backupService.listBackups(id)))
+                call.respond(BackupsListResponse(backupService.listBackups(id)))
             }
 
+            @KtorResponds(mapping = [ResponseEntry("202", BackupResponse::class)])
             @KtorDescription(operationId = "triggerBackup", summary = "Trigger server backup")
             post("") {
                 val userId = call.userId()
@@ -95,6 +103,7 @@ fun Route.backupsRoutes(backupService: BackupService) {
 
         route("/api/servers/{id}/backup-schedule") {
 
+            @KtorResponds(mapping = [ResponseEntry("200", BackupScheduleResponse::class)])
             @KtorDescription(operationId = "getBackupSchedule", summary = "Get server backup schedule")
             get("") {
                 val userId = call.userId()
@@ -108,6 +117,7 @@ fun Route.backupsRoutes(backupService: BackupService) {
                 call.respond(backupService.getSchedule(id))
             }
 
+            @KtorResponds(mapping = [ResponseEntry("200", BackupScheduleResponse::class)])
             @KtorDescription(operationId = "updateBackupSchedule", summary = "Update server backup schedule")
             put("") {
                 val userId = call.userId()

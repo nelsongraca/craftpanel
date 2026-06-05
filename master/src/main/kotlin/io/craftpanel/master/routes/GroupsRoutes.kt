@@ -10,12 +10,15 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.github.tabilzad.ktor.annotations.KtorDescription
+import io.github.tabilzad.ktor.annotations.KtorResponds
+import io.github.tabilzad.ktor.annotations.ResponseEntry
 import java.util.*
 
 fun Route.groupsRoutes(groupService: GroupService) {
     authenticate(JWT_AUTH) {
         route("/api/groups") {
 
+            @KtorResponds(mapping = [ResponseEntry("200", GroupResponse::class, isCollection = true)])
             @KtorDescription(operationId = "listGroups", summary = "List groups")
             get("") {
                 val userId = call.userId()
@@ -24,6 +27,7 @@ fun Route.groupsRoutes(groupService: GroupService) {
                 call.respond(groupService.listGroups())
             }
 
+            @KtorResponds(mapping = [ResponseEntry("201", GroupResponse::class)])
             @KtorDescription(operationId = "createGroup", summary = "Create group")
             post("") {
                 val userId = call.userId()
@@ -33,6 +37,7 @@ fun Route.groupsRoutes(groupService: GroupService) {
                 call.respond(HttpStatusCode.Created, groupService.createGroup(req))
             }
 
+            @KtorResponds(mapping = [ResponseEntry("200", GroupResponse::class)])
             @KtorDescription(operationId = "getGroup", summary = "Get group")
             get("/{id}") {
                 val userId = call.userId()
@@ -43,6 +48,7 @@ fun Route.groupsRoutes(groupService: GroupService) {
                 call.respond(groupService.getGroup(targetId))
             }
 
+            @KtorResponds(mapping = [ResponseEntry("200", GroupResponse::class)])
             @KtorDescription(operationId = "updateGroup", summary = "Update group name")
             patch("/{id}") {
                 val userId = call.userId()
@@ -65,6 +71,7 @@ fun Route.groupsRoutes(groupService: GroupService) {
                 call.respond(HttpStatusCode.NoContent)
             }
 
+            @KtorResponds(mapping = [ResponseEntry("200", GroupResponse::class)])
             @KtorDescription(operationId = "setGroupPermissions", summary = "Replace group permission set")
             put("/{id}/permissions") {
                 val userId = call.userId()

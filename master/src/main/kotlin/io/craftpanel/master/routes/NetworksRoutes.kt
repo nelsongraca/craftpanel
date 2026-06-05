@@ -11,12 +11,15 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.github.tabilzad.ktor.annotations.KtorDescription
+import io.github.tabilzad.ktor.annotations.KtorResponds
+import io.github.tabilzad.ktor.annotations.ResponseEntry
 import java.util.*
 
 fun Route.networksRoutes(networkService: NetworkService) {
     authenticate(JWT_AUTH) {
         route("/api/networks") {
 
+            @KtorResponds(mapping = [ResponseEntry("200", NetworkResponse::class, isCollection = true)])
             @KtorDescription(operationId = "listNetworks", summary = "List networks")
             get("") {
                 val userId = call.userId()
@@ -25,6 +28,7 @@ fun Route.networksRoutes(networkService: NetworkService) {
                 call.respond(networkService.listNetworks(userId))
             }
 
+            @KtorResponds(mapping = [ResponseEntry("201", NetworkResponse::class)])
             @KtorDescription(operationId = "createNetwork", summary = "Create network")
             post("") {
                 val userId = call.userId()
@@ -34,6 +38,7 @@ fun Route.networksRoutes(networkService: NetworkService) {
                 call.respond(HttpStatusCode.Created, networkService.createNetwork(req))
             }
 
+            @KtorResponds(mapping = [ResponseEntry("200", NetworkDetailResponse::class)])
             @KtorDescription(operationId = "getNetwork", summary = "Get network")
             get("/{id}") {
                 val userId = call.userId()

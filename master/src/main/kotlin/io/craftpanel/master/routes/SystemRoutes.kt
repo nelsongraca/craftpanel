@@ -12,11 +12,14 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.github.tabilzad.ktor.annotations.KtorDescription
+import io.github.tabilzad.ktor.annotations.KtorResponds
+import io.github.tabilzad.ktor.annotations.ResponseEntry
 
 fun Route.systemRoutes(systemService: SystemService) {
     authenticate(JWT_AUTH) {
         route("/api/system/settings") {
 
+            @KtorResponds(mapping = [ResponseEntry("200", SystemSettingsResponse::class)])
             @KtorDescription(operationId = "getSystemSettings", summary = "Get system settings")
             get("") {
                 val userId = call.userId()
@@ -25,6 +28,7 @@ fun Route.systemRoutes(systemService: SystemService) {
                 call.respond(systemService.getSettings())
             }
 
+            @KtorResponds(mapping = [ResponseEntry("200", SystemSettingsResponse::class)])
             @KtorDescription(operationId = "updateSystemSettings", summary = "Update system settings")
             patch("") {
                 val userId = call.userId()

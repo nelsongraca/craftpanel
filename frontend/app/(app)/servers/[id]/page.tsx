@@ -689,6 +689,7 @@ export default function ServerDetailPage() {
                     serverType={server.server_type}
                     networkId={server.network_id ?? null}
                     configMode={server.config_mode ?? "MANAGED"}
+                    stopCommand={server.stop_command ?? "stop"}
                 />
             ) : activeTab === "Migration" ? (
                 <div className="px-6 py-4">

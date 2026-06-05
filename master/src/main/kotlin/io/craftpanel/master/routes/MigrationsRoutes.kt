@@ -9,6 +9,9 @@ import io.craftpanel.master.service.MigrateRequest
 import io.craftpanel.master.service.MigrationEvent
 import io.craftpanel.master.service.MigrationResponse
 import io.craftpanel.master.service.MigrationService
+import io.github.tabilzad.ktor.annotations.KtorResponds
+import io.github.tabilzad.ktor.annotations.ResponseEntry
+import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
@@ -25,12 +28,16 @@ import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.launch
 import java.util.*
 
+@Serializable
+data class MigrationsListResponse(val migrations: List<MigrationResponse>)
+
 private val migrationJson = Json { classDiscriminator = "type"; namingStrategy = JsonNamingStrategy.SnakeCase }
 
 fun Route.migrationsRoutes(migrationService: MigrationService) {
     authenticate(JWT_AUTH) {
         route("/api/servers/{id}/migrations") {
 
+            @KtorResponds(mapping = [ResponseEntry("200", MigrationsListResponse::class)])
             @KtorDescription(operationId = "listMigrations", summary = "List server migrations")
             get("") {
                 val userId = call.userId()
@@ -41,9 +48,10 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
                 val serverIdJava = UUID.fromString(id.toString())
                 if (!PermissionResolver.hasPermission(userId, Permission.SERVER_MIGRATE, serverId = serverIdJava, networkId = scope.networkId))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                call.respond(mapOf("migrations" to migrationService.listMigrations(id)))
+                call.respond(MigrationsListResponse(migrationService.listMigrations(id)))
             }
 
+            @KtorResponds(mapping = [ResponseEntry("202", MigrationResponse::class)])
             @KtorDescription(operationId = "startMigration", summary = "Start server migration to another node")
             post("") {
                 val userId = call.userId()
@@ -61,6 +69,7 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
 
         route("/api/migrations/{migrationId}") {
 
+            @KtorResponds(mapping = [ResponseEntry("200", MigrationResponse::class)])
             @KtorDescription(operationId = "getMigration", summary = "Get migration status")
             get("") {
                 call.userId()

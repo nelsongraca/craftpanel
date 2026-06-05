@@ -14,8 +14,14 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.github.tabilzad.ktor.annotations.KtorDescription
+import io.github.tabilzad.ktor.annotations.KtorResponds
+import io.github.tabilzad.ktor.annotations.ResponseEntry
+import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
 import java.util.*
+
+@Serializable
+data class ModsListResponse(val mods: List<ModResponse>)
 
 
 fun Route.modsRoutes(modService: ModService) = with(ModsRoutes(modService)) { register() }
@@ -36,6 +42,7 @@ class ModsRoutes(val modService: ModService) {
         authenticate(JWT_AUTH) {
             route("/api/servers/{id}/mods") {
 
+                @KtorResponds(mapping = [ResponseEntry("200", ModsListResponse::class)])
                 @KtorDescription(operationId = "listMods", summary = "List server mods")
                 get("") {
                     val userId = call.userId()
@@ -46,9 +53,10 @@ class ModsRoutes(val modService: ModService) {
                     val serverIdJava = UUID.fromString(id.toString())
                     if (!PermissionResolver.hasPermission(userId, Permission.SERVER_MODS, serverId = serverIdJava, networkId = scope.networkId))
                         return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                    call.respond(mapOf("mods" to modService.listMods(id)))
+                    call.respond(ModsListResponse(modService.listMods(id)))
                 }
 
+                @KtorResponds(mapping = [ResponseEntry("201", ModResponse::class)])
                 @KtorDescription(operationId = "addMod", summary = "Add mod to server")
                 post("") {
                     val userId = call.userId()
@@ -63,6 +71,7 @@ class ModsRoutes(val modService: ModService) {
                     call.respond(HttpStatusCode.Created, modService.addMod(id, req))
                 }
 
+                @KtorResponds(mapping = [ResponseEntry("200", ModResponse::class)])
                 @KtorDescription(operationId = "updateMod", summary = "Update server mod")
                 patch("/{modId}") {
                     val userId = call.userId()

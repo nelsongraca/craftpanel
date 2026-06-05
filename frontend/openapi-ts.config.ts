@@ -1,7 +1,7 @@
 import {defineConfig} from "@hey-api/openapi-ts"
 
 export default defineConfig({
-    input: "../openapi.json",
+    input: "../build/openapi.json",
     output: {
         path: "lib/generated",
         clean: true,

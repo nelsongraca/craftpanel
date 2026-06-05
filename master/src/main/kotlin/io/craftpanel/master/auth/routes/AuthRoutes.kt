@@ -18,6 +18,8 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.github.tabilzad.ktor.annotations.KtorDescription
+import io.github.tabilzad.ktor.annotations.KtorResponds
+import io.github.tabilzad.ktor.annotations.ResponseEntry
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.and
@@ -110,6 +112,7 @@ fun Route.authRoutes(
 ) {
     route("/api/auth") {
         rateLimit(RateLimitName("auth-login")) {
+            @KtorResponds(mapping = [ResponseEntry("200", LoginResponse::class)])
             @KtorDescription(operationId = "authLogin", summary = "Login")
             post("/login") {
                 val req = call.receive<LoginRequest>()
@@ -140,6 +143,7 @@ fun Route.authRoutes(
         } // rateLimit auth-login
 
         rateLimit(RateLimitName("auth-refresh")) {
+            @KtorResponds(mapping = [ResponseEntry("200", LoginResponse::class)])
             @KtorDescription(operationId = "authRefresh", summary = "Refresh access token")
             post("/refresh") {
                 val rawToken = call.request.cookies["refresh_token"]
@@ -197,6 +201,7 @@ fun Route.authRoutes(
                 call.respond(HttpStatusCode.NoContent)
             }
 
+            @KtorResponds(mapping = [ResponseEntry("200", WsTicketResponse::class)])
             @KtorDescription(operationId = "authWsTicket", summary = "Issue WebSocket upgrade ticket")
             post("/ws-ticket") {
                 val principal = call.principal<JWTPrincipal>()!!
@@ -205,6 +210,7 @@ fun Route.authRoutes(
                 call.respond(WsTicketResponse(ticket, expiresIn))
             }
 
+            @KtorResponds(mapping = [ResponseEntry("200", MeResponse::class)])
             @KtorDescription(operationId = "authMe", summary = "Get current user")
             get("/me") {
                 val principal = call.principal<JWTPrincipal>()!!

@@ -14,12 +14,15 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.github.tabilzad.ktor.annotations.KtorDescription
+import io.github.tabilzad.ktor.annotations.KtorResponds
+import io.github.tabilzad.ktor.annotations.ResponseEntry
 import java.util.*
 
 fun Route.nodesRoutes(nodeService: NodeService) {
     authenticate(JWT_AUTH) {
         route("/api/nodes") {
 
+            @KtorResponds(mapping = [ResponseEntry("200", NodeResponse::class, isCollection = true)])
             @KtorDescription(operationId = "listNodes", summary = "List nodes")
             get("") {
                 val userId = call.userId()
@@ -28,6 +31,7 @@ fun Route.nodesRoutes(nodeService: NodeService) {
                 call.respond(nodeService.listNodes())
             }
 
+            @KtorResponds(mapping = [ResponseEntry("200", NodeResponse::class)])
             @KtorDescription(operationId = "getNode", summary = "Get node")
             get("/{id}") {
                 val userId = call.userId()
@@ -60,6 +64,7 @@ fun Route.nodesRoutes(nodeService: NodeService) {
                 call.respond(HttpStatusCode.NoContent)
             }
 
+            @KtorResponds(mapping = [ResponseEntry("200", NodeKeyResponse::class)])
             @KtorDescription(operationId = "rotateNodeToken", summary = "Rotate node token")
             post("/{id}/token/rotate") {
                 val userId = call.userId()
@@ -70,6 +75,7 @@ fun Route.nodesRoutes(nodeService: NodeService) {
                 call.respond(NodeKeyResponse(nodeService.rotateToken(id)))
             }
 
+            @KtorResponds(mapping = [ResponseEntry("202", MessageResponse::class)])
             @KtorDescription(operationId = "shutdownNode", summary = "Shutdown node agent")
             post("/{id}/shutdown") {
                 val userId = call.userId()
@@ -104,6 +110,7 @@ fun Route.nodesRoutes(nodeService: NodeService) {
                 call.respond(HttpStatusCode.NoContent)
             }
 
+            @KtorResponds(mapping = [ResponseEntry("200", NodeMetricsResponse::class)])
             @KtorDescription(operationId = "getNodeMetrics", summary = "Get node metrics")
             get("/{id}/metrics") {
                 val userId = call.userId()

@@ -25,6 +25,9 @@ data class PutEnvVarsRequest(@SerialName("env_vars") val envVars: List<EnvVarIte
 @Serializable
 data class PatchConfigModeRequest(@SerialName("config_mode") val configMode: String)
 
+@Serializable
+data class PatchStopCommandRequest(@SerialName("stop_command") val stopCommand: String)
+
 class EnvVarsService {
 
     data class ServerScope(val serverIdJava: UUID, val networkId: UUID?)
@@ -80,6 +83,21 @@ class EnvVarsService {
             Servers.update({ Servers.id eq serverId }) { it[Servers.needsRecreate] = true }
         }
         return getEnvVars(serverId)
+    }
+
+    fun updateStopCommand(serverId: Uuid, req: PatchStopCommandRequest) {
+        transaction {
+            Servers.selectAll()
+                .where { Servers.id eq serverId }
+                .firstOrNull()
+        } ?: throw NotFoundException("Server not found")
+
+        transaction {
+            Servers.update({ Servers.id eq serverId }) {
+                it[Servers.stopCommand] = req.stopCommand
+                it[Servers.needsRecreate] = true
+            }
+        }
     }
 
     fun updateConfigMode(serverId: Uuid, req: PatchConfigModeRequest): EnvVarsResponse {

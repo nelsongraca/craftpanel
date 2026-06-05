@@ -47,6 +47,7 @@ data class ServerResponse(
     @SerialName("is_migrating") val isMigrating: Boolean,
     @SerialName("needs_recreate") val needsRecreate: Boolean,
     @SerialName("config_mode") val configMode: String,
+    @SerialName("stop_command") val stopCommand: String,
     @SerialName("last_player_count") val lastPlayerCount: Int?,
     @SerialName("last_player_names") val lastPlayerNames: List<String>?,
     @SerialName("created_at") val createdAt: String,
@@ -225,6 +226,58 @@ class ServerService(
                 it[PortRegistry.protocol] = "TCP"
                 it[PortRegistry.serverId] = insertedId
             }
+            if (req.serverType !in PROXY_SERVER_TYPES) {
+                val platformName = SystemSettings.selectAll()
+                    .where { SystemSettings.key eq "CRAFTPANEL_PLATFORM_NAME" }
+                    .firstOrNull()
+                    ?.get(SystemSettings.value) ?: "CraftPanel"
+                val serverTypeDisplay = req.serverType.lowercase()
+                    .replaceFirstChar { it.uppercase() }
+                val defaults = mapOf(
+                    "MOTD" to "${req.mcVersion} $serverTypeDisplay powered by $platformName",
+                    "DIFFICULTY" to "easy",
+                    "MODE" to "survival",
+                    "HARDCORE" to "false",
+                    "PVP" to "true",
+                    "ALLOW_NETHER" to "true",
+                    "FORCE_GAMEMODE" to "false",
+                    "SPAWN_ANIMALS" to "true",
+                    "SPAWN_MONSTERS" to "true",
+                    "SPAWN_NPCS" to "true",
+                    "SPAWN_PROTECTION" to "16",
+                    "ALLOW_FLIGHT" to "false",
+                    "LEVEL" to "world",
+                    "LEVEL_TYPE" to "DEFAULT",
+                    "GENERATE_STRUCTURES" to "true",
+                    "MAX_WORLD_SIZE" to "29999984",
+                    "MAX_PLAYERS" to "20",
+                    "ONLINE_MODE" to "true",
+                    "ENABLE_WHITELIST" to "false",
+                    "EXISTING_WHITELIST_FILE" to "SYNCHRONIZE",
+                    "EXISTING_OPS_FILE" to "SYNCHRONIZE",
+                    "PLAYER_IDLE_TIMEOUT" to "0",
+                    "ENFORCE_SECURE_PROFILE" to "true",
+                    "PREVENT_PROXY_CONNECTIONS" to "false",
+                    "VIEW_DISTANCE" to "10",
+                    "SIMULATION_DISTANCE" to "10",
+                    "MAX_TICK_TIME" to "60000",
+                    "NETWORK_COMPRESSION_THRESHOLD" to "256",
+                    "SYNC_CHUNK_WRITES" to "true",
+                    "ENABLE_COMMAND_BLOCK" to "false",
+                    "OP_PERMISSION_LEVEL" to "4",
+                    "FUNCTION_PERMISSION_LEVEL" to "2",
+                    "BROADCAST_CONSOLE_TO_OPS" to "true",
+                    "TZ" to "UTC",
+                    "USE_AIKAR_FLAGS" to "true",
+                )
+                for ((k, v) in defaults) {
+                    ServerEnvVars.insert {
+                        it[ServerEnvVars.serverId] = insertedId
+                        it[ServerEnvVars.key] = k
+                        it[ServerEnvVars.value] = v
+                    }
+                }
+            }
             val row = Servers.selectAll()
                 .where { Servers.id eq insertedId }
                 .first()
@@ -399,7 +452,8 @@ class ServerService(
             Servers.update({ Servers.id eq id }) {
                 it[status] = "STARTING"
                 it[needsRecreate] = false
-                it[updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+                it[updatedAt] = Clock.System.now()
+                    .toLocalDateTime(TimeZone.UTC)
             }
         }
     }
@@ -460,10 +514,12 @@ class ServerService(
                 Servers.update({ Servers.id eq id }) {
                     it[needsRecreate] = false
                     it[status] = "STOPPING"
-                    it[updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+                    it[updatedAt] = Clock.System.now()
+                        .toLocalDateTime(TimeZone.UTC)
                 }
             }
-        } else {
+        }
+        else {
             val restartCmd = masterMessage {
                 restartContainer = restartContainerCommand {
                     serverId = id.toString(); containerName = "craftpanel-$id"
@@ -781,6 +837,7 @@ internal fun rowToServerResponse(row: ResultRow, isMigrating: Boolean) = ServerR
     isMigrating = isMigrating,
     needsRecreate = row[Servers.needsRecreate],
     configMode = row[Servers.configMode],
+    stopCommand = row[Servers.stopCommand],
     lastPlayerCount = row[Servers.lastPlayerCount],
     lastPlayerNames = row[Servers.lastPlayerNames]?.split(",")
         ?.filter { it.isNotBlank() },

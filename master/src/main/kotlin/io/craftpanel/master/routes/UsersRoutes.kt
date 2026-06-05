@@ -10,12 +10,15 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.github.tabilzad.ktor.annotations.KtorDescription
+import io.github.tabilzad.ktor.annotations.KtorResponds
+import io.github.tabilzad.ktor.annotations.ResponseEntry
 import java.util.*
 
 fun Route.usersRoutes(userService: UserService) {
     authenticate(JWT_AUTH) {
         route("/api/users") {
 
+            @KtorResponds(mapping = [ResponseEntry("200", UsersListResponse::class)])
             @KtorDescription(operationId = "listUsers", summary = "List users")
             get("") {
                 val userId = call.userId()
@@ -24,6 +27,7 @@ fun Route.usersRoutes(userService: UserService) {
                 call.respond(userService.listUsers())
             }
 
+            @KtorResponds(mapping = [ResponseEntry("201", UserResponse::class)])
             @KtorDescription(operationId = "createUser", summary = "Create user")
             post("") {
                 val userId = call.userId()
@@ -33,6 +37,7 @@ fun Route.usersRoutes(userService: UserService) {
                 call.respond(HttpStatusCode.Created, userService.createUser(req))
             }
 
+            @KtorResponds(mapping = [ResponseEntry("200", UserResponse::class)])
             @KtorDescription(operationId = "getUser", summary = "Get user")
             get("/{id}") {
                 val userId = call.userId()
@@ -43,6 +48,7 @@ fun Route.usersRoutes(userService: UserService) {
                 call.respond(userService.getUser(targetId))
             }
 
+            @KtorResponds(mapping = [ResponseEntry("200", UserResponse::class)])
             @KtorDescription(operationId = "updateUser", summary = "Update user")
             patch("/{id}") {
                 val userId = call.userId()

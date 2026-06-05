@@ -11,6 +11,8 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.github.tabilzad.ktor.annotations.KtorDescription
+import io.github.tabilzad.ktor.annotations.KtorResponds
+import io.github.tabilzad.ktor.annotations.ResponseEntry
 import kotlin.time.Instant
 import kotlinx.serialization.json.JsonObject
 import java.util.*
@@ -19,12 +21,14 @@ fun Route.serversRoutes(serverService: ServerService) {
     authenticate(JWT_AUTH) {
         route("/api/servers") {
 
+            @KtorResponds(mapping = [ResponseEntry("200", ServerResponse::class, isCollection = true)])
             @KtorDescription(operationId = "listServers", summary = "List servers")
             get("") {
                 val userId = call.userId()
                 call.respond(serverService.listServers(userId))
             }
 
+            @KtorResponds(mapping = [ResponseEntry("201", ServerResponse::class)])
             @KtorDescription(operationId = "createServer", summary = "Create server")
             post("") {
                 val userId = call.userId()
@@ -34,6 +38,7 @@ fun Route.serversRoutes(serverService: ServerService) {
                 call.respond(HttpStatusCode.Created, serverService.createServer(req))
             }
 
+            @KtorResponds(mapping = [ResponseEntry("200", ServerResponse::class)])
             @KtorDescription(operationId = "getServer", summary = "Get server")
             get("/{id}") {
                 val userId = call.userId()
@@ -87,6 +92,7 @@ fun Route.serversRoutes(serverService: ServerService) {
                 call.respond(HttpStatusCode.NoContent)
             }
 
+            @KtorResponds(mapping = [ResponseEntry("202", MessageResponse::class)])
             @KtorDescription(operationId = "startServer", summary = "Start server")
             post("/{id}/start") {
                 val userId = call.userId()
@@ -100,6 +106,7 @@ fun Route.serversRoutes(serverService: ServerService) {
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Server start initiated"))
             }
 
+            @KtorResponds(mapping = [ResponseEntry("202", MessageResponse::class)])
             @KtorDescription(operationId = "stopServer", summary = "Stop server")
             post("/{id}/stop") {
                 val userId = call.userId()
@@ -113,6 +120,7 @@ fun Route.serversRoutes(serverService: ServerService) {
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Server stop initiated"))
             }
 
+            @KtorResponds(mapping = [ResponseEntry("202", MessageResponse::class)])
             @KtorDescription(operationId = "restartServer", summary = "Restart server")
             post("/{id}/restart") {
                 val userId = call.userId()
@@ -126,6 +134,7 @@ fun Route.serversRoutes(serverService: ServerService) {
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Server restart initiated"))
             }
 
+            @KtorResponds(mapping = [ResponseEntry("202", MessageResponse::class)])
             @KtorDescription(operationId = "upgradeServer", summary = "Upgrade server image")
             post("/{id}/upgrade") {
                 val userId = call.userId()
@@ -140,6 +149,7 @@ fun Route.serversRoutes(serverService: ServerService) {
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Server upgrade initiated"))
             }
 
+            @KtorResponds(mapping = [ResponseEntry("200", ContainerMetricsSeriesResponse::class)])
             @KtorDescription(operationId = "getServerMetrics", summary = "Get server container metrics")
             get("/{id}/metrics") {
                 val userId = call.userId()

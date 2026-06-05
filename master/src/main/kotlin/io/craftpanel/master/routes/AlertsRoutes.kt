@@ -15,15 +15,21 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.github.tabilzad.ktor.annotations.KtorDescription
+import io.github.tabilzad.ktor.annotations.KtorResponds
+import io.github.tabilzad.ktor.annotations.ResponseEntry
 import java.util.*
 
 @Serializable
 data class AlertThresholdsResponse(val thresholds: List<AlertThresholdResponse>)
 
+@Serializable
+data class AlertEventsListResponse(val events: List<AlertEventResponse>)
+
 fun Route.alertsRoutes(alertService: AlertService) {
     authenticate(JWT_AUTH) {
         route("/api/alerts") {
 
+            @KtorResponds(mapping = [ResponseEntry("200", AlertThresholdsResponse::class)])
             @KtorDescription(operationId = "listAlertThresholds", summary = "List alert thresholds")
             get("/thresholds") {
                 val userId = call.userId()
@@ -40,6 +46,7 @@ fun Route.alertsRoutes(alertService: AlertService) {
                 call.respond(AlertThresholdsResponse(alertService.listThresholds(scopeType, scopeId)))
             }
 
+            @KtorResponds(mapping = [ResponseEntry("201", AlertThresholdResponse::class)])
             @KtorDescription(operationId = "createAlertThreshold", summary = "Create alert threshold")
             post("/thresholds") {
                 val userId = call.userId()
@@ -66,6 +73,7 @@ fun Route.alertsRoutes(alertService: AlertService) {
                 call.respond(HttpStatusCode.NoContent)
             }
 
+            @KtorResponds(mapping = [ResponseEntry("200", AlertEventsListResponse::class)])
             @KtorDescription(operationId = "listAlertEvents", summary = "List alert events")
             get("/events") {
                 val userId = call.userId()
@@ -80,7 +88,7 @@ fun Route.alertsRoutes(alertService: AlertService) {
                         }.getOrNull()
                     }
                 val activeOnly = call.request.queryParameters["active_only"] == "true"
-                call.respond(mapOf("events" to alertService.listEvents(scopeType, scopeId, activeOnly)))
+                call.respond(AlertEventsListResponse(alertService.listEvents(scopeType, scopeId, activeOnly)))
             }
         }
     }

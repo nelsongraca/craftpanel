@@ -6,6 +6,7 @@ import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.service.EnvVarsResponse
 import io.craftpanel.master.service.EnvVarsService
 import io.craftpanel.master.service.PatchConfigModeRequest
+import io.craftpanel.master.service.PatchStopCommandRequest
 import io.craftpanel.master.service.ProxyBackendListResponse
 import io.craftpanel.master.service.ProxyBackendService
 import io.craftpanel.master.service.PutEnvVarsRequest
@@ -17,12 +18,15 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.github.tabilzad.ktor.annotations.KtorDescription
+import io.github.tabilzad.ktor.annotations.KtorResponds
+import io.github.tabilzad.ktor.annotations.ResponseEntry
 import java.util.UUID
 
 fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService: EnvVarsService) {
     authenticate(JWT_AUTH) {
         route("/api/servers/{id}/config") {
 
+            @KtorResponds(mapping = [ResponseEntry("200", ProxyBackendListResponse::class)])
             @KtorDescription(operationId = "getProxyBackends", summary = "Get proxy backend list")
             get("/proxy") {
                 val userId = call.userId()
@@ -35,6 +39,7 @@ fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService:
                 call.respond(proxyBackendService.listBackends(id))
             }
 
+            @KtorResponds(mapping = [ResponseEntry("200", ProxyBackendListResponse::class)])
             @KtorDescription(operationId = "replaceProxyBackends", summary = "Replace proxy backend list")
             put("/proxy") {
                 val userId = call.userId()
@@ -48,6 +53,7 @@ fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService:
                 call.respond(proxyBackendService.replaceBackends(id, req))
             }
 
+            @KtorResponds(mapping = [ResponseEntry("200", EnvVarsResponse::class)])
             @KtorDescription(operationId = "getEnvVars", summary = "Get server env vars")
             get("/env-vars") {
                 val userId = call.userId()
@@ -60,6 +66,7 @@ fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService:
                 call.respond(envVarsService.getEnvVars(id))
             }
 
+            @KtorResponds(mapping = [ResponseEntry("200", EnvVarsResponse::class)])
             @KtorDescription(operationId = "replaceEnvVars", summary = "Replace server env vars")
             put("/env-vars") {
                 val userId = call.userId()
@@ -73,6 +80,21 @@ fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService:
                 call.respond(envVarsService.replaceEnvVars(id, req))
             }
 
+            @KtorDescription(operationId = "updateStopCommand", summary = "Update server stop command")
+            patch("/stop-command") {
+                val userId = call.userId()
+                val id = parseConfigServerId(call.parameters["id"])
+                    ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
+                val scope = envVarsService.getServerScope(id)
+                    ?: return@patch call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, serverId = scope.serverIdJava, networkId = scope.networkId))
+                    return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                val req = call.receive<PatchStopCommandRequest>()
+                envVarsService.updateStopCommand(id, req)
+                call.respond(HttpStatusCode.NoContent)
+            }
+
+            @KtorResponds(mapping = [ResponseEntry("200", EnvVarsResponse::class)])
             @KtorDescription(operationId = "updateConfigMode", summary = "Update server config mode")
             put("/mode") {
                 val userId = call.userId()
