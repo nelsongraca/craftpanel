@@ -125,26 +125,12 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>()
         }
     }
 
-val dockerContextDir = layout.buildDirectory.dir("docker-context")
-
-val prepareDockerContext by tasks.registering(Copy::class) {
-    group = "docker"
-    description = "Stages files needed for the Docker build into an isolated context directory"
-    dependsOn(tasks.installDist)
-    from(file("Dockerfile"))
-    from(file("docker-entrypoint.sh"))
-    from(layout.buildDirectory.dir("install/master")) {
-        into("build/install/master")
-    }
-    into(dockerContextDir)
-}
-
 tasks.register<DockerBuildImage>("dockerBuildImage") {
     group = "docker"
     description = "Builds the Docker image for master"
-    dependsOn(prepareDockerContext)
-    inputDir.set(dockerContextDir)
-    dockerFile.set(dockerContextDir.map { it.file("Dockerfile") })
+    dependsOn(tasks.installDist)
+    inputDir.set(layout.projectDirectory)
+    dockerFile.set(layout.projectDirectory.file("Dockerfile"))
     images.add(imageName)
 }
 
