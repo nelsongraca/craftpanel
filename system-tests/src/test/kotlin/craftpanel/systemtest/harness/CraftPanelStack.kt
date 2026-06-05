@@ -80,6 +80,14 @@ object CraftPanelStack {
             .waitingFor(Wait.forLogMessage(".*Sent NodeStateSnapshot.*", 1))
 
         agent.start()
+
+        // MC server containers are created without an explicit network and land on Docker's
+        // default bridge (172.17.x.x). The agent container is on the testcontainers network
+        // and can't reach them by IP unless we also connect it to the default bridge.
+        dockerClient.connectToNetworkCmd()
+            .withContainerId(agent.containerId)
+            .withNetworkId("bridge")
+            .exec()
     }
 
     fun stop() {

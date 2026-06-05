@@ -47,7 +47,7 @@ class PlayerCountTest : BaseSystemTest() {
                     // awaitPlayerCount(0) waits until the agent has polled at least once
                     val server = helper.awaitPlayerCount(serverId, expected = 0)
                     server.lastPlayerCount shouldBe 0
-                    server.lastPlayerNames shouldBe emptyList()
+                    server.lastPlayerNames shouldBe null
                 }
                 finally {
                     runCatching { api.stopServer(serverId) }
