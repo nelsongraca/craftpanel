@@ -79,12 +79,12 @@ Dockerfile COPYs `.next/standalone`, `.next/static`, and `public/` into `node:22
 ### API codegen
 
 ```bash
-./gradlew :master:generateOpenApiSpec   # boots testApplication, writes openapi.json at repo root
+./gradlew :master:copyOpenApiSpecMain   # generates openapi.json at build/openapi.json (InspeKtor compiler plugin, runs during compileKotlin)
 ./gradlew :frontend:generateApiTypes    # runs @hey-api/openapi-ts → frontend/lib/generated/
 ```
 
 Both run automatically as part of `:frontend:assembleFrontend`. `lib/generated/` is gitignored.
-The spec task is in `master/src/test/kotlin/.../OpenApiSpecTask.kt` and excluded from `:master:test`.
+Spec is generated at compile time by the InspeKtor plugin (`@GenerateOpenApi` on `Application.module()`); routes are annotated with `@KtorDescription(operationId, summary)`.
 
 ### Aggregation tasks
 
@@ -225,7 +225,7 @@ Always hits DB. Cache may be added later.
     - `client.gen.ts` + `client/` — the bundled fetch client
 - `lib/client.ts` — configures the generated client singleton: sets `baseUrl: ""` and `credentials: "include"`, registers request interceptor (Bearer token), and response interceptor (401 → refresh +
   retry). The bare `fetch` inside `refreshToken()` is intentional — using the SDK client there would cause infinite recursion.
-- All routes must have `operationId` set in their ktor-openapi doc block — it controls the generated function name.
+- All routes must have `operationId` set in their `@KtorDescription` annotation — it controls the generated function name.
 - Response shape: `{ data?, error?, response? }`. `data` is populated on success; `error` on API error (has `.message`); `response` may be undefined on network failure — always use `response?.status`.
 
 ## CraftPanel Colour Tokens

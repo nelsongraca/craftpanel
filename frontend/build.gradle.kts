@@ -32,7 +32,7 @@ tasks.named("clean") {
 tasks.register<Exec>("generateApiTypes") {
     group = "build"
     description = "Generates lib/generated/api.ts from the backend OpenAPI spec"
-    dependsOn("installFrontend", ":master:generateOpenApiSpec")
+    dependsOn("installFrontend", ":master:copyOpenApiSpecMain")
     workingDir = layout.projectDirectory.asFile
     // Use pnpm from the node distribution installed by the frontend plugin
     commandLine(layout.projectDirectory.file(".node/bin/pnpm").asFile, "run", "generate-api")

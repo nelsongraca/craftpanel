@@ -13,13 +13,12 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
 import io.craftpanel.master.util.toKotlinUuid
-import io.github.smiley4.ktoropenapi.get
-import io.github.smiley4.ktoropenapi.post
 import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.github.tabilzad.ktor.annotations.KtorDescription
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.channels.consumeEach
@@ -32,17 +31,8 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
     authenticate(JWT_AUTH) {
         route("/api/servers/{id}/migrations") {
 
-            get("", {
-                operationId = "listMigrations"
-                summary = "List server migrations"
-                request { pathParameter<String>("id") }
-                response {
-                    code(HttpStatusCode.OK) { body<Map<String, List<MigrationResponse>>>() }
-                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
-                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
-                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
-                }
-            }) {
+            @KtorDescription(operationId = "listMigrations", summary = "List server migrations")
+            get("") {
                 val userId = call.userId()
                 val id = parseMigrationServerId(call.parameters["id"])
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -54,19 +44,8 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
                 call.respond(mapOf("migrations" to migrationService.listMigrations(id)))
             }
 
-            post("", {
-                operationId = "startMigration"
-                summary = "Start server migration to another node"
-                request { pathParameter<String>("id"); body<MigrateRequest>() }
-                response {
-                    code(HttpStatusCode.Accepted) { body<MigrationResponse>() }
-                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
-                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
-                    code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
-                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
-                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
-                }
-            }) {
+            @KtorDescription(operationId = "startMigration", summary = "Start server migration to another node")
+            post("") {
                 val userId = call.userId()
                 val id = parseMigrationServerId(call.parameters["id"])
                     ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -82,16 +61,8 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
 
         route("/api/migrations/{migrationId}") {
 
-            get("", {
-                operationId = "getMigration"
-                summary = "Get migration status"
-                request { pathParameter<String>("migrationId") }
-                response {
-                    code(HttpStatusCode.OK) { body<MigrationResponse>() }
-                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
-                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
-                }
-            }) {
+            @KtorDescription(operationId = "getMigration", summary = "Get migration status")
+            get("") {
                 call.userId()
                 val migrationId = call.parameters["migrationId"]
                     ?.let {

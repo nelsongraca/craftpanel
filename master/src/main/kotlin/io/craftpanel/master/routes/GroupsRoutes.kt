@@ -4,44 +4,28 @@ import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.service.*
-import io.github.smiley4.ktoropenapi.*
 import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import io.github.tabilzad.ktor.annotations.KtorDescription
 import java.util.*
 
 fun Route.groupsRoutes(groupService: GroupService) {
     authenticate(JWT_AUTH) {
         route("/api/groups") {
 
-            get("", {
-                operationId = "listGroups"
-                summary = "List groups"
-                response {
-                    code(HttpStatusCode.OK) { body<List<GroupResponse>>() }
-                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
-                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
-                }
-            }) {
+            @KtorDescription(operationId = "listGroups", summary = "List groups")
+            get("") {
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 call.respond(groupService.listGroups())
             }
 
-            post("", {
-                operationId = "createGroup"
-                summary = "Create group"
-                request { body<CreateGroupRequest>() }
-                response {
-                    code(HttpStatusCode.Created) { body<GroupResponse>() }
-                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
-                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
-                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
-                }
-            }) {
+            @KtorDescription(operationId = "createGroup", summary = "Create group")
+            post("") {
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -49,17 +33,8 @@ fun Route.groupsRoutes(groupService: GroupService) {
                 call.respond(HttpStatusCode.Created, groupService.createGroup(req))
             }
 
-            get("/{id}", {
-                operationId = "getGroup"
-                summary = "Get group"
-                request { pathParameter<String>("id") }
-                response {
-                    code(HttpStatusCode.OK) { body<GroupResponse>() }
-                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
-                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
-                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
-                }
-            }) {
+            @KtorDescription(operationId = "getGroup", summary = "Get group")
+            get("/{id}") {
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -68,18 +43,8 @@ fun Route.groupsRoutes(groupService: GroupService) {
                 call.respond(groupService.getGroup(targetId))
             }
 
-            patch("/{id}", {
-                operationId = "updateGroup"
-                summary = "Update group name"
-                request { pathParameter<String>("id"); body<PatchGroupRequest>() }
-                response {
-                    code(HttpStatusCode.OK) { body<GroupResponse>() }
-                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
-                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
-                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
-                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
-                }
-            }) {
+            @KtorDescription(operationId = "updateGroup", summary = "Update group name")
+            patch("/{id}") {
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
                     return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -89,18 +54,8 @@ fun Route.groupsRoutes(groupService: GroupService) {
                 call.respond(groupService.updateGroup(targetId, req))
             }
 
-            delete("/{id}", {
-                operationId = "deleteGroup"
-                summary = "Delete group"
-                request { pathParameter<String>("id") }
-                response {
-                    code(HttpStatusCode.NoContent) { }
-                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
-                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
-                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
-                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
-                }
-            }) {
+            @KtorDescription(operationId = "deleteGroup", summary = "Delete group")
+            delete("/{id}") {
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
                     return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -110,19 +65,8 @@ fun Route.groupsRoutes(groupService: GroupService) {
                 call.respond(HttpStatusCode.NoContent)
             }
 
-            put("/{id}/permissions", {
-                operationId = "setGroupPermissions"
-                summary = "Replace group permission set"
-                request { pathParameter<String>("id"); body<PutGroupPermissionsRequest>() }
-                response {
-                    code(HttpStatusCode.OK) { body<GroupResponse>() }
-                    code(HttpStatusCode.BadRequest) { body<ErrorResponse>() }
-                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
-                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
-                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
-                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
-                }
-            }) {
+            @KtorDescription(operationId = "setGroupPermissions", summary = "Replace group permission set")
+            put("/{id}/permissions") {
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
                     return@put call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))

@@ -18,14 +18,13 @@ h2 = "2.3.232"
 kover = "0.9.8"
 mockk = "1.13.17"
 frontend-plugin = "10.0.0"
-ktor-openapi-tools = "5.7.0"
-schema-kenerator = "2.7.2"
 cron-utils = "9.2.1"
 testcontainers = "2.0.5"
 kotest = "6.1.11"
 openapi-generator = "7.21.0"
 okhttp = "4.12.0"
 gson = "2.11.0"
+inspektor = "0.10.5-alpha"
 
 [libraries]
 # Ktor server
@@ -86,12 +85,6 @@ docker-java-transport-httpclient5 = { module = "com.github.docker-java:docker-ja
 bcprov-jdk18on = { module = "org.bouncycastle:bcprov-jdk18on", version.ref = "bouncycastle" }
 bcpkix-jdk18on = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bouncycastle" }
 
-# OpenAPI spec generation
-ktor-openapi = { module = "io.github.smiley4:ktor-openapi", version.ref = "ktor-openapi-tools" }
-ktor-swagger-ui = { module = "io.github.smiley4:ktor-swagger-ui", version.ref = "ktor-openapi-tools" }
-schema-kenerator-core = { module = "io.github.smiley4:schema-kenerator-core", version.ref = "schema-kenerator" }
-schema-kenerator-serialization = { module = "io.github.smiley4:schema-kenerator-serialization", version.ref = "schema-kenerator" }
-schema-kenerator-swagger = { module = "io.github.smiley4:schema-kenerator-swagger", version.ref = "schema-kenerator" }
 cron-utils = { module = "com.cronutils:cron-utils", version.ref = "cron-utils" }
 
 # Test
@@ -148,3 +141,4 @@ ktor = { id = "io.ktor.plugin", version.ref = "ktor" }
 protobuf = { id = "com.google.protobuf", version.ref = "protobuf-plugin" }
 frontend = { id = "org.siouan.frontend-jdk17", version.ref = "frontend-plugin" }
 openapi-generator = { id = "org.openapi.generator", version.ref = "openapi-generator" }
+inspektor = { id = "io.github.tabilzad.inspektor", version.ref = "inspektor" }

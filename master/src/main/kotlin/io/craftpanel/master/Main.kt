@@ -19,12 +19,6 @@ import io.craftpanel.master.service.MigrationService
 import io.craftpanel.master.scheduler.BackupJobHandler
 import io.craftpanel.master.scheduler.ServerScheduler
 import io.craftpanel.master.service.*
-import io.github.smiley4.ktoropenapi.OpenApi
-import io.github.smiley4.ktoropenapi.config.AuthScheme
-import io.github.smiley4.ktoropenapi.config.AuthType
-import io.github.smiley4.ktoropenapi.config.SchemaGenerator
-import io.github.smiley4.ktoropenapi.openApi
-import io.github.smiley4.ktorswaggerui.swaggerUI
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
@@ -42,6 +36,8 @@ import io.ktor.server.request.path
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
+import io.github.tabilzad.ktor.annotations.GenerateOpenApi
+import io.github.tabilzad.ktor.annotations.KtorDescription
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import org.slf4j.event.Level
@@ -57,6 +53,7 @@ private object SecurityHeaderNames {
 
 fun main(args: Array<String>): Unit = EngineMain.main(args)
 
+@GenerateOpenApi
 fun Application.module() {
     val appConfig = AppConfig(environment.config)
     appConfig.validate()
@@ -197,26 +194,6 @@ fun Application.module() {
         }
     }
 
-    install(OpenApi) {
-        ignoredRouteSelectors += RateLimitRouteSelector::class
-        info {
-            title = "CraftPanel API"
-            version = "1.0.0"
-            description = "CraftPanel master REST API"
-        }
-        server { url = "http://localhost:8080" }
-        security {
-            securityScheme("BearerAuth") {
-                type = AuthType.HTTP
-                scheme = AuthScheme.BEARER
-            }
-            defaultSecuritySchemeNames("BearerAuth")
-        }
-        schemas {
-            generator = SchemaGenerator.kotlinx()
-        }
-    }
-
     install(Authentication) {
         jwt(JWT_AUTH) {
             realm = "CraftPanel"
@@ -231,9 +208,8 @@ fun Application.module() {
     }
 
     routing {
+        @KtorDescription(operationId = "healthCheck", summary = "Health check")
         get("health") { call.respond(mapOf("status" to "ok")) }
-        route("openapi.json") { openApi() }
-        route("swagger") { swaggerUI("/openapi.json") }
         authRoutes(jwtManager, refreshTokenService, wsTicketService, appConfig.rateLimit)
         nodesRoutes(nodeService)
         networksRoutes(networkService)
