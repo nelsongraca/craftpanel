@@ -12,6 +12,7 @@ frontend {
     packageJsonDirectory.set(layout.projectDirectory)
     assembleScript.set("run build")
     checkScript.set("run lint")
+    testScript.set("run test")
 }
 
 // ---------------------------------------------------------------------------

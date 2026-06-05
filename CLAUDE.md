@@ -260,6 +260,21 @@ Use `bg-accent`, `text-accent`, `border-accent` for amber. Use `bg-surface`, `bg
 - Live rsync-based server migration between nodes
 - Node registration: agent-initiated via bootstrap token, requires admin approval
 
+## Testing (frontend)
+
+Stack: **Vitest** + **React Testing Library** + **jsdom**. Config at `frontend/vitest.config.ts`, global setup at `frontend/vitest.setup.ts`.
+
+```bash
+cd frontend && .node/bin/pnpm test       # run all tests (use .node/bin/pnpm, not system pnpm)
+./gradlew :frontend:testFrontend         # run via Gradle
+./gradlew :frontend:check                # lint + test
+```
+
+- `next/navigation` is mocked globally in `vitest.setup.ts` — no per-file mock needed
+- Mock generated SDK: `vi.mock('@/lib/generated', () => ({ fn: vi.fn(), ... }))`
+- Mock client module: `vi.mock('@/lib/client', () => ({ setAccessToken: vi.fn(), getAccessToken: vi.fn(), client: { setConfig: vi.fn(), interceptors: { request: { use: vi.fn() }, response: { use: vi.fn() } } } }))`
+- Test files co-located: `lib/foo.test.ts`, `lib/__tests__/bar.test.tsx`, `app/(route)/__tests__/page.test.tsx`
+
 ## Testing (master)
 
 Tests live in `master/src/test/kotlin/`. Run with `./gradlew :master:test`. Coverage via Kover: `./gradlew :master:koverHtmlReport`.
