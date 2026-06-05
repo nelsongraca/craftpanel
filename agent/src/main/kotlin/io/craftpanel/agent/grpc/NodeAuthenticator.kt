@@ -24,7 +24,8 @@ class NodeAuthenticator(
 
     suspend fun authenticate(channel: ManagedChannel): NodeIdentity {
         val stub = ControlServiceGrpcKt.ControlServiceCoroutineStub(channel)
-        val (totalRamMb, totalCpuShares) = metricsCollector.collectCapacity()
+        val (rawTotalRamMb, totalCpuShares) = metricsCollector.collectCapacity()
+        val totalRamMb = maxOf(0, rawTotalRamMb - config.systemReservedRamMb)
         val metadata = nodeMetadata {
             hostname = config.hostnameOverride.ifBlank { InetAddress.getLocalHost().hostName }
             publicIp = resolvePublicIp()

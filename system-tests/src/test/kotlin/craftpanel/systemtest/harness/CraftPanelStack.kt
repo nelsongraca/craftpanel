@@ -92,7 +92,8 @@ object CraftPanelStack {
 
     private fun cleanupAgentContainers() {
         runCatching {
-            val client = DockerClientFactory.instance().client()
+            val client = DockerClientFactory.instance()
+                .client()
             val containers = client.listContainersCmd()
                 .withShowAll(true)
                 .withNameFilter(listOf("craftpanel-"))

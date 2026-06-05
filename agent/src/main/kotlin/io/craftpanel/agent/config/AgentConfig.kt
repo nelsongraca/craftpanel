@@ -18,6 +18,7 @@ data class AgentConfig(
     val mcRouterUpdateOnStart: Boolean,
     val publicIpUrl: String,
     val hostnameOverride: String,
+    val systemReservedRamMb: Int,
 ) {
 
     val tlsEnabled: Boolean get() = tlsCertPath.isNotBlank()
@@ -62,6 +63,7 @@ data class AgentConfig(
                 ?.lowercase() != "false",
             publicIpUrl = System.getenv("PUBLIC_IP_URL") ?: "",
             hostnameOverride = System.getenv("NODE_HOSTNAME") ?: "",
+            systemReservedRamMb = System.getenv("SYSTEM_RESERVED_RAM_MB")?.toIntOrNull()?.coerceAtLeast(0) ?: 0,
         )
     }
 }

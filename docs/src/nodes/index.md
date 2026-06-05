@@ -41,7 +41,7 @@ Master stores metric snapshots at **1-minute intervals** in PostgreSQL. Historic
 
 ## Capacity Tracking
 
-Each node has a configured resource envelope (total allocatable RAM, CPU shares). Master tracks allocated vs. available capacity and prevents over-provisioning when creating or resizing servers.
+Each node has a configured resource envelope (total allocatable RAM, CPU shares). Before reporting capacity to master, the agent subtracts `SYSTEM_RESERVED_RAM_MB` so that OS and infrastructure daemons always retain guaranteed headroom. Master tracks allocated vs. available capacity and prevents over-provisioning when creating or resizing servers.
 
 ## Agent Configuration
 
@@ -64,6 +64,7 @@ The agent is configured entirely through environment variables.
 | `PUBLIC_IP_URL`       | *(empty)*                 | URL to fetch the node's public IP address (e.g. `https://api.ipify.org`). When empty, the private IP is reported instead |
 | `MCROUTER_IMAGE`      | `itzg/mc-router:latest`   | Docker image used when provisioning the mc-router container on startup                          |
 | `MCROUTER_UPDATE_ON_START` | `true`             | Pull the mc-router image on every agent startup to keep it up to date. Set to `false` to skip the pull and use whatever image is already cached locally |
+| `SYSTEM_RESERVED_RAM_MB`  | `0`                | Megabytes of RAM the agent will not offer to servers. Subtracted from the node's physical total before reporting to master. Use this to reserve headroom for the OS, Docker daemon, co-located databases, or the master backend itself. On a co-located node running master + PostgreSQL, a value of `1024`–`2048` is typical. |
 
 ### Data path alignment
 
