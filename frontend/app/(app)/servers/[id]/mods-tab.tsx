@@ -22,7 +22,7 @@ interface ModrinthHit {
     downloads: number;
 }
 
-export function ModsTab({serverId}: { serverId: string }) {
+export function ModsTab({serverId, onModsChanged}: { serverId: string; onModsChanged?: () => void }) {
     const [mods, setMods] = useState<Mod[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -102,6 +102,7 @@ export function ModsTab({serverId}: { serverId: string }) {
             setSearchResults([]);
             setSearchQuery("");
             await load();
+            onModsChanged?.();
         }
     }
 
@@ -109,7 +110,10 @@ export function ModsTab({serverId}: { serverId: string }) {
         setDeleting(modId);
         const res = await deleteMod({path: {id: serverId, modId}});
         if (res.error) setError((res.error as { message?: string })?.message ?? "Failed to remove mod");
-        else setMods((prev) => prev.filter((m) => m.id !== modId));
+        else {
+            setMods((prev) => prev.filter((m) => m.id !== modId));
+            onModsChanged?.();
+        }
         setDeleting(null);
     }
 
@@ -132,6 +136,7 @@ export function ModsTab({serverId}: { serverId: string }) {
         else {
             setEditingId(null);
             await load();
+            onModsChanged?.();
         }
         setSavingEdit(false);
     }

@@ -211,7 +211,6 @@ export default function ServerDetailPage() {
     const [editMcVersion, setEditMcVersion] = useState("");
     const [savingGeneral, setSavingGeneral] = useState(false);
     const [generalError, setGeneralError] = useState<string | null>(null);
-    const [restartBanner, setRestartBanner] = useState(false);
     const [networks, setNetworks] = useState<Network[]>([]);
     const [mcVersions, setMcVersions] = useState<string[]>([]);
 
@@ -340,7 +339,6 @@ export default function ServerDetailPage() {
             }
             await fetchServer();
             setEditingGeneral(false);
-            if (mcVersionChanged) setRestartBanner(true);
         } catch {
             setGeneralError("Failed to save");
         } finally {
@@ -374,7 +372,6 @@ export default function ServerDetailPage() {
             }
             await fetchServer();
             setEditingResources(false);
-            setRestartBanner(true);
         } catch {
             setResourcesError("Failed to save");
         } finally {
@@ -645,25 +642,17 @@ export default function ServerDetailPage() {
             )}
 
             {/* Restart required banner */}
-            {restartBanner && (
+            {server.needs_recreate && (
                 <div className="mx-6 mt-4 flex items-center justify-between bg-warning/10 border border-warning/30 text-warning rounded px-3 py-2 text-[12px]">
                     <span>Settings saved. Restart the server for changes to take effect.</span>
-                    <div className="flex items-center gap-3 ml-4 shrink-0">
-                        {(server.status === "HEALTHY") && hasPermission(permissions, "server.restart") && (
-                            <button
-                                onClick={() => {
-                                    setRestartBanner(false);
-                                    void doAction("restart");
-                                }}
-                                className="text-[11px] font-heading font-bold uppercase tracking-wider underline hover:no-underline"
-                            >
-                                Restart Now
-                            </button>
-                        )}
-                        <button onClick={() => setRestartBanner(false)} className="hover:opacity-70">
-                            <X size={13}/>
+                    {(server.status === "HEALTHY") && hasPermission(permissions, "server.restart") && (
+                        <button
+                            onClick={() => void doAction("restart")}
+                            className="ml-4 shrink-0 text-[11px] font-heading font-bold uppercase tracking-wider underline hover:no-underline"
+                        >
+                            Restart Now
                         </button>
-                    </div>
+                    )}
                 </div>
             )}
 
@@ -693,7 +682,7 @@ export default function ServerDetailPage() {
             ) : activeTab === "Backups" ? (
                 <BackupsTab serverId={server.id}/>
             ) : activeTab === "Mods" ? (
-                <ModsTab serverId={server.id}/>
+                <ModsTab serverId={server.id} onModsChanged={() => void fetchServer()}/>
             ) : activeTab === "Configuration" ? (
                 <ConfigTab
                     serverId={server.id}

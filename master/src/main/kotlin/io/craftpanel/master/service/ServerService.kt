@@ -45,6 +45,7 @@ data class ServerResponse(
     @SerialName("exposed_externally") val exposedExternally: Boolean,
     @SerialName("public_subdomain") val publicSubdomain: String?,
     @SerialName("is_migrating") val isMigrating: Boolean,
+    @SerialName("needs_recreate") val needsRecreate: Boolean,
     @SerialName("config_mode") val configMode: String,
     @SerialName("last_player_count") val lastPlayerCount: Int?,
     @SerialName("last_player_names") val lastPlayerNames: List<String>?,
@@ -284,7 +285,10 @@ class ServerService(
                 if (displayNameKey && newDisplayName != null) it[displayName] = newDisplayName
                 if (descriptionKey) it[description] = newDescription
                 if (networkIdKey) it[networkId] = newNetworkId
-                if (mcVersionKey && newMcVersion != null) it[mcVersion] = newMcVersion
+                if (mcVersionKey && newMcVersion != null) {
+                    it[mcVersion] = newMcVersion
+                    it[needsRecreate] = true
+                }
                 it[updatedAt] = Clock.System.now()
                     .toLocalDateTime(TimeZone.UTC)
             }
@@ -349,6 +353,7 @@ class ServerService(
                 it[memoryMb] = req.memoryMb
                 it[cpuShares] = req.cpuShares
                 if (req.itzgImageTag != null) it[itzgImageTag] = req.itzgImageTag
+                it[needsRecreate] = true
                 it[updatedAt] = Clock.System.now()
                     .toLocalDateTime(TimeZone.UTC)
             }
@@ -774,6 +779,7 @@ internal fun rowToServerResponse(row: ResultRow, isMigrating: Boolean) = ServerR
     exposedExternally = row[Servers.exposedExternally],
     publicSubdomain = row[Servers.publicSubdomain],
     isMigrating = isMigrating,
+    needsRecreate = row[Servers.needsRecreate],
     configMode = row[Servers.configMode],
     lastPlayerCount = row[Servers.lastPlayerCount],
     lastPlayerNames = row[Servers.lastPlayerNames]?.split(",")
