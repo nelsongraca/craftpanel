@@ -52,6 +52,18 @@ class AgentConfigTest {
     }
 
     @Test
+    fun `hostnameOverride defaults to empty string`() {
+        val config = config()
+        assertEquals("", config.hostnameOverride)
+    }
+
+    @Test
+    fun `hostnameOverride reflects configured value`() {
+        val config = config(hostnameOverride = "my-node.example.com")
+        assertEquals("my-node.example.com", config.hostnameOverride)
+    }
+
+    @Test
     fun `data class equality holds for identical configs`() {
         val a = config()
         val b = config()
@@ -82,6 +94,7 @@ class AgentConfigTest {
         mcRouterImage: String = "itzg/mc-router:latest",
         mcRouterUpdateOnStart: Boolean = true,
         publicIpUrl: String = "",
+        hostnameOverride: String = "",
     ) = AgentConfig(
         profile = profile,
         masterAddress = masterAddress,
@@ -97,5 +110,6 @@ class AgentConfigTest {
         mcRouterImage = mcRouterImage,
         mcRouterUpdateOnStart = mcRouterUpdateOnStart,
         publicIpUrl = publicIpUrl,
+        hostnameOverride = hostnameOverride,
     )
 }

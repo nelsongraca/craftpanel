@@ -171,7 +171,7 @@ class MigrationService(
             status = row[ServerMigrations.status],
             steps = steps,
             createdAt = row[ServerMigrations.createdAt].toUtcString(),
-            completedAt = row[ServerMigrations.completedAt]?.toString(),
+            completedAt = row[ServerMigrations.completedAt]?.toUtcString(),
         )
     }
 
@@ -194,7 +194,7 @@ class MigrationService(
                         status = row[ServerMigrations.status],
                         steps = steps,
                         createdAt = row[ServerMigrations.createdAt].toUtcString(),
-                        completedAt = row[ServerMigrations.completedAt]?.toString(),
+                        completedAt = row[ServerMigrations.completedAt]?.toUtcString(),
                     )
                 }
         }
@@ -719,7 +719,7 @@ private fun ResultRow.toStepData() = MigrationStepData(
     stepNumber = this[MigrationStepLog.stepNumber],
     description = this[MigrationStepLog.description],
     status = this[MigrationStepLog.status],
-    startedAt = this[MigrationStepLog.startedAt]?.toString(),
-    completedAt = this[MigrationStepLog.completedAt]?.toString(),
+    startedAt = this[MigrationStepLog.startedAt]?.toUtcString(),
+    completedAt = this[MigrationStepLog.completedAt]?.toUtcString(),
     errorMessage = this[MigrationStepLog.errorMessage],
 )

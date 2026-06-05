@@ -26,7 +26,7 @@ class NodeAuthenticator(
         val stub = ControlServiceGrpcKt.ControlServiceCoroutineStub(channel)
         val (totalRamMb, totalCpuShares) = metricsCollector.collectCapacity()
         val metadata = nodeMetadata {
-            hostname = InetAddress.getLocalHost().hostName
+            hostname = config.hostnameOverride.ifBlank { InetAddress.getLocalHost().hostName }
             publicIp = resolvePublicIp()
             privateIp = resolvePrivateIp()
             agentVersion = config.agentVersion

@@ -201,7 +201,7 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toNodeResponse(alloc: NodeAl
     portRangeStart = this[Nodes.portRangeStart],
     portRangeEnd = this[Nodes.portRangeEnd],
     agentVersion = this[Nodes.agentVersion],
-    lastSeenAt = this[Nodes.lastSeenAt]?.toString(),
+    lastSeenAt = this[Nodes.lastSeenAt]?.toUtcString(),
     createdAt = this[Nodes.createdAt].toUtcString(),
     updatedAt = this[Nodes.updatedAt].toUtcString(),
 )

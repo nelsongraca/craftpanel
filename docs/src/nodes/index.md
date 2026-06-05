@@ -60,6 +60,7 @@ The agent is configured entirely through environment variables.
 | `APP_PROFILE`         | `prod`                    | Runtime profile. Set to `dev` to allow plaintext gRPC (development only) |
 | `DATA_PATH`           | `/data`                   | Container-internal path the agent uses for file access (file browser, backups, migrations). Set to the mount point inside the agent container. |
 | `HOST_DATA_PATH`      | *(value of `DATA_PATH`)* | Host path Docker uses as the bind-mount source when creating server containers. Must match the node's **Data Path** field in the UI. Defaults to `DATA_PATH`. |
+| `NODE_HOSTNAME`       | *(auto-detected)*         | Hostname reported to master during registration and on every reconnect. Overrides the value returned by `InetAddress.getLocalHost().hostName`. Useful in containerised environments where the auto-detected name is an ephemeral container ID rather than a meaningful node label. |
 | `PUBLIC_IP_URL`       | *(empty)*                 | URL to fetch the node's public IP address (e.g. `https://api.ipify.org`). When empty, the private IP is reported instead |
 | `MCROUTER_IMAGE`      | `itzg/mc-router:latest`   | Docker image used when provisioning the mc-router container on startup                          |
 | `MCROUTER_UPDATE_ON_START` | `true`             | Pull the mc-router image on every agent startup to keep it up to date. Set to `false` to skip the pull and use whatever image is already cached locally |

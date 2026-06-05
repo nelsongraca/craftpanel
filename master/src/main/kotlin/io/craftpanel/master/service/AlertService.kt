@@ -162,7 +162,7 @@ class AlertService {
                         thresholdId = row[AlertEvents.thresholdId].toString(),
                         message = row[AlertEvents.message],
                         firedAt = row[AlertEvents.firedAt].toUtcString(),
-                        resolvedAt = row[AlertEvents.resolvedAt]?.toString(),
+                        resolvedAt = row[AlertEvents.resolvedAt]?.toUtcString(),
                     )
                 }
         }

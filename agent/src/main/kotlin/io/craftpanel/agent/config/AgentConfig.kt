@@ -17,6 +17,7 @@ data class AgentConfig(
     val mcRouterImage: String,
     val mcRouterUpdateOnStart: Boolean,
     val publicIpUrl: String,
+    val hostnameOverride: String,
 ) {
 
     val tlsEnabled: Boolean get() = tlsCertPath.isNotBlank()
@@ -60,6 +61,7 @@ data class AgentConfig(
             mcRouterUpdateOnStart = System.getenv("MCROUTER_UPDATE_ON_START")
                 ?.lowercase() != "false",
             publicIpUrl = System.getenv("PUBLIC_IP_URL") ?: "",
+            hostnameOverride = System.getenv("NODE_HOSTNAME") ?: "",
         )
     }
 }

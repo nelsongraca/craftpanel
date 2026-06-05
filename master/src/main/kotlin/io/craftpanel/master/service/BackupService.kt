@@ -229,5 +229,5 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toBackupResponse() = BackupR
     sizeBytes = this[Backups.sizeBytes],
     errorMessage = this[Backups.errorMessage],
     createdAt = this[Backups.createdAt].toUtcString(),
-    completedAt = this[Backups.completedAt]?.toString(),
+    completedAt = this[Backups.completedAt]?.toUtcString(),
 )

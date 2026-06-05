@@ -33,6 +33,7 @@ class ControlStreamHandlerTest {
         mcRouterImage = "itzg/mc-router:latest",
         mcRouterUpdateOnStart = false,
         publicIpUrl = "",
+        hostnameOverride = "",
     )
     private val handler = ControlStreamHandler(identity, config, containerManager, metricsCollector, docker)
 
