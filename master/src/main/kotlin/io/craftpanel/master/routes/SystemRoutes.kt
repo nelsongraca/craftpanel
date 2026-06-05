@@ -6,32 +6,44 @@ import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.service.PatchSettingsRequest
 import io.craftpanel.master.service.SystemService
 import io.craftpanel.master.service.SystemSettingsResponse
+import io.github.smiley4.ktoropenapi.get
+import io.github.smiley4.ktoropenapi.patch
 import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import io.github.tabilzad.ktor.annotations.KtorDescription
-import io.github.tabilzad.ktor.annotations.responds
 
 fun Route.systemRoutes(systemService: SystemService) {
     authenticate(JWT_AUTH) {
         route("/api/system/settings") {
 
-            @KtorDescription(operationId = "getSystemSettings", summary = "Get system settings")
-            get("") {
-                responds<SystemSettingsResponse>(HttpStatusCode.OK)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+            get("", {
+                operationId = "getSystemSettings"
+                summary = "Get system settings"
+                response {
+                    code(HttpStatusCode.OK) { body<SystemSettingsResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_SETTINGS))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 call.respond(systemService.getSettings())
             }
 
-            @KtorDescription(operationId = "updateSystemSettings", summary = "Update system settings")
-            patch("") {
-                responds<SystemSettingsResponse>(HttpStatusCode.OK)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+            patch("", {
+                operationId = "updateSystemSettings"
+                summary = "Update system settings"
+                request { body<PatchSettingsRequest>() }
+                response {
+                    code(HttpStatusCode.OK) { body<SystemSettingsResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_SETTINGS))
                     return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))

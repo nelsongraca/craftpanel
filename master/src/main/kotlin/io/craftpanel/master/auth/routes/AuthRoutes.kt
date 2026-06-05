@@ -10,6 +10,8 @@ import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.routes.ErrorResponse
 import io.craftpanel.master.util.toJavaUuid
 import io.craftpanel.master.util.toKotlinUuid
+import io.github.smiley4.ktoropenapi.get
+import io.github.smiley4.ktoropenapi.post
 import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
@@ -17,9 +19,6 @@ import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import io.github.tabilzad.ktor.annotations.KtorDescription
-import io.github.tabilzad.ktor.annotations.responds
-import io.github.tabilzad.ktor.annotations.respondsNothing
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.and
@@ -112,10 +111,16 @@ fun Route.authRoutes(
 ) {
     route("/api/auth") {
         rateLimit(RateLimitName("auth-login")) {
-            @KtorDescription(operationId = "authLogin", summary = "Login")
-            post("/login") {
-                responds<LoginResponse>(HttpStatusCode.OK)
-                responds<ErrorResponse>(HttpStatusCode.Unauthorized)
+            post("/login", {
+                operationId = "authLogin"
+                summary = "Login"
+                securitySchemeNames = emptyList()
+                request { body<LoginRequest>() }
+                response {
+                    code(HttpStatusCode.OK) { body<LoginResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val req = call.receive<LoginRequest>()
                 val record = lookupUser(req.email)
                 val hashToVerify = record?.passwordHash ?: Argon2Hasher.DUMMY_HASH
@@ -144,10 +149,15 @@ fun Route.authRoutes(
         } // rateLimit auth-login
 
         rateLimit(RateLimitName("auth-refresh")) {
-            @KtorDescription(operationId = "authRefresh", summary = "Refresh access token")
-            post("/refresh") {
-                responds<LoginResponse>(HttpStatusCode.OK)
-                responds<ErrorResponse>(HttpStatusCode.Unauthorized)
+            post("/refresh", {
+                operationId = "authRefresh"
+                summary = "Refresh access token"
+                securitySchemeNames = emptyList()
+                response {
+                    code(HttpStatusCode.OK) { body<LoginResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val rawToken = call.request.cookies["refresh_token"]
                     ?: run {
                         call.respond(HttpStatusCode.Unauthorized, ErrorResponse("No refresh token"))
@@ -180,9 +190,14 @@ fun Route.authRoutes(
         } // rateLimit auth-refresh
 
         authenticate(JWT_AUTH) {
-            @KtorDescription(operationId = "authLogout", summary = "Logout")
-            post("/logout") {
-                respondsNothing(HttpStatusCode.NoContent)
+            post("/logout", {
+                operationId = "authLogout"
+                summary = "Logout"
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val rawToken = call.request.cookies["refresh_token"]
                 if (rawToken != null) refreshTokenService.revoke(rawToken)
                 call.response.cookies.append(
@@ -192,9 +207,14 @@ fun Route.authRoutes(
                 call.respond(HttpStatusCode.NoContent)
             }
 
-            @KtorDescription(operationId = "authLogoutAll", summary = "Logout all sessions")
-            post("/logout-all") {
-                respondsNothing(HttpStatusCode.NoContent)
+            post("/logout-all", {
+                operationId = "authLogoutAll"
+                summary = "Logout all sessions"
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
                 refreshTokenService.revokeAll(userId)
@@ -205,19 +225,28 @@ fun Route.authRoutes(
                 call.respond(HttpStatusCode.NoContent)
             }
 
-            @KtorDescription(operationId = "authWsTicket", summary = "Issue WebSocket upgrade ticket")
-            post("/ws-ticket") {
-                responds<WsTicketResponse>(HttpStatusCode.OK)
+            post("/ws-ticket", {
+                operationId = "authWsTicket"
+                summary = "Issue WebSocket upgrade ticket"
+                response {
+                    code(HttpStatusCode.OK) { body<WsTicketResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
                 val (ticket, expiresIn) = wsTicketService.issue(userId)
                 call.respond(WsTicketResponse(ticket, expiresIn))
             }
 
-            @KtorDescription(operationId = "authMe", summary = "Get current user")
-            get("/me") {
-                responds<MeResponse>(HttpStatusCode.OK)
-                responds<ErrorResponse>(HttpStatusCode.Unauthorized)
+            get("/me", {
+                operationId = "authMe"
+                summary = "Get current user"
+                response {
+                    code(HttpStatusCode.OK) { body<MeResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = UUID.fromString(principal.payload.subject)
 

@@ -496,7 +496,7 @@ class ServersRoutesTest {
         val resp = client.patch("/api/servers/$serverId") {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
-            setBody("""{"network_id":null}""")
+            setBody("""{"network_id":""}""")
         }
         assertEquals(HttpStatusCode.NoContent, resp.status)
         val row = transaction {

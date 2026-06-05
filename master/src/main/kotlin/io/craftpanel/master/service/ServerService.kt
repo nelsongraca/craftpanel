@@ -14,9 +14,6 @@ import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.JsonNull
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -66,6 +63,14 @@ data class CreateServerRequest(
     @SerialName("itzg_image_tag") val itzgImageTag: String = "latest",
     @SerialName("memory_mb") val memoryMb: Int,
     @SerialName("cpu_shares") val cpuShares: Int = 0,
+)
+
+@Serializable
+data class UpdateServerRequest(
+    @SerialName("display_name") val displayName: String? = null,
+    val description: String? = null,
+    @SerialName("network_id") val networkId: String? = null,
+    @SerialName("mc_version") val mcVersion: String? = null,
 )
 
 @Serializable
@@ -309,37 +314,27 @@ class ServerService(
         return rowToServerResponse(row, isMigrating)
     }
 
-    fun updateServer(id: kotlin.uuid.Uuid, body: JsonObject) {
-        val displayNameKey = "display_name" in body
-        val descriptionKey = "description" in body
-        val networkIdKey = "network_id" in body
-        val mcVersionKey = "mc_version" in body
-
-        val newDisplayName = if (displayNameKey && body["display_name"] !is JsonNull) body["display_name"]!!.jsonPrimitive.content else null
-        val newDescription = if (descriptionKey && body["description"] !is JsonNull) body["description"]!!.jsonPrimitive.content else null
-        val newNetworkId: kotlin.uuid.Uuid? = if (networkIdKey && body["network_id"] !is JsonNull) {
-            parseUuid(body["network_id"]!!.jsonPrimitive.content) ?: throw UnprocessableException("Invalid network_id")
-        }
-        else null
-        val newMcVersion = if (mcVersionKey && body["mc_version"] !is JsonNull) body["mc_version"]!!.jsonPrimitive.content else null
+    fun updateServer(id: kotlin.uuid.Uuid, req: UpdateServerRequest) {
+        val newNetworkId: kotlin.uuid.Uuid? = req.networkId?.ifEmpty { null }
+            ?.let { parseUuid(it) ?: throw UnprocessableException("Invalid network_id") }
 
         val result = transaction {
             Servers.selectAll()
                 .where { Servers.id eq id }
                 .firstOrNull()
                 ?: return@transaction "not_found"
-            if (networkIdKey && newNetworkId != null) {
+            if (newNetworkId != null) {
                 val netExists = ServerNetworks.selectAll()
                     .where { ServerNetworks.id eq newNetworkId }
                     .firstOrNull() != null
                 if (!netExists) return@transaction "network_not_found"
             }
             Servers.update({ Servers.id eq id }) {
-                if (displayNameKey && newDisplayName != null) it[displayName] = newDisplayName
-                if (descriptionKey) it[description] = newDescription
-                if (networkIdKey) it[networkId] = newNetworkId
-                if (mcVersionKey && newMcVersion != null) {
-                    it[mcVersion] = newMcVersion
+                if (req.displayName != null) it[displayName] = req.displayName
+                if (req.description != null) it[description] = req.description.ifEmpty { null }
+                if (req.networkId != null) it[networkId] = newNetworkId
+                if (req.mcVersion != null) {
+                    it[mcVersion] = req.mcVersion
                     it[needsRecreate] = true
                 }
                 it[updatedAt] = Clock.System.now()

@@ -36,8 +36,12 @@ import io.ktor.server.request.path
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
-import io.github.tabilzad.ktor.annotations.GenerateOpenApi
-import io.github.tabilzad.ktor.annotations.KtorDescription
+import io.github.smiley4.ktoropenapi.OpenApi
+import io.github.smiley4.ktoropenapi.config.AuthScheme
+import io.github.smiley4.ktoropenapi.config.AuthType
+import io.github.smiley4.ktoropenapi.config.SchemaGenerator
+import io.github.smiley4.ktoropenapi.openApi
+import io.github.smiley4.ktorswaggerui.swaggerUI
 import kotlinx.serialization.json.Json
 import org.slf4j.LoggerFactory
 import org.slf4j.event.Level
@@ -53,7 +57,6 @@ private object SecurityHeaderNames {
 
 fun main(args: Array<String>): Unit = EngineMain.main(args)
 
-@GenerateOpenApi
 fun Application.module() {
     val appConfig = AppConfig(environment.config)
     appConfig.validate()
@@ -194,6 +197,26 @@ fun Application.module() {
         }
     }
 
+    install(OpenApi) {
+        ignoredRouteSelectors += RateLimitRouteSelector::class
+        info {
+            title = "CraftPanel API"
+            version = "1.0.0"
+            description = "CraftPanel master REST API"
+        }
+        server { url = "http://localhost:8080" }
+        security {
+            securityScheme("BearerAuth") {
+                type = AuthType.HTTP
+                scheme = AuthScheme.BEARER
+            }
+            defaultSecuritySchemeNames("BearerAuth")
+        }
+        schemas {
+            generator = SchemaGenerator.kotlinx()
+        }
+    }
+
     install(Authentication) {
         jwt(JWT_AUTH) {
             realm = "CraftPanel"
@@ -208,23 +231,30 @@ fun Application.module() {
     }
 
     routing {
-        @KtorDescription(operationId = "healthCheck", summary = "Health check")
         get("health") { call.respond(mapOf("status" to "ok")) }
-        authRoutes(jwtManager, refreshTokenService, wsTicketService, appConfig.rateLimit, appConfig.auth.secureCookies)
-        nodesRoutes(nodeService)
-        networksRoutes(networkService)
-        serversRoutes(serverService)
-        usersRoutes(userService)
-        groupsRoutes(groupService)
-        assignmentsRoutes(assignmentService)
-        systemRoutes(systemService)
-        consoleRoutes(wsTicketService, dataServiceProxy)
-        filesRoutes(dataServiceProxy)
-        backupsRoutes(backupService)
-        configRoutes(proxyBackendService, envVarsService)
-        modsRoutes(modService)
-        dashboardWsRoutes(wsTicketService, controlService)
-        alertsRoutes(alertService)
-        migrationsRoutes(migrationService)
+        route("openapi.json") { openApi() }
+        route("swagger") { swaggerUI("/openapi.json") }
+        registerAppRoutes(AppServices(
+            jwtManager = jwtManager,
+            refreshTokenService = refreshTokenService,
+            wsTicketService = wsTicketService,
+            nodeService = nodeService,
+            networkService = networkService,
+            serverService = serverService,
+            userService = userService,
+            groupService = groupService,
+            assignmentService = assignmentService,
+            systemService = systemService,
+            backupService = backupService,
+            proxyBackendService = proxyBackendService,
+            envVarsService = envVarsService,
+            modService = modService,
+            alertService = alertService,
+            migrationService = migrationService,
+            dataServiceProxy = dataServiceProxy,
+            controlService = controlService,
+            rateLimitConfig = appConfig.rateLimit,
+            secureCookies = appConfig.auth.secureCookies,
+        ))
     }
 }

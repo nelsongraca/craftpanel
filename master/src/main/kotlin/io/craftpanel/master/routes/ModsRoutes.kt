@@ -8,24 +8,27 @@ import io.craftpanel.master.service.ModResponse
 import io.craftpanel.master.service.ModService
 import io.craftpanel.master.service.PatchModRequest
 import io.craftpanel.master.util.toKotlinUuid
+import kotlinx.serialization.Serializable
+import io.github.smiley4.ktoropenapi.delete
+import io.github.smiley4.ktoropenapi.get
+import io.github.smiley4.ktoropenapi.patch
+import io.github.smiley4.ktoropenapi.post
 import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import io.github.tabilzad.ktor.annotations.KtorDescription
-import io.github.tabilzad.ktor.annotations.responds
-import io.github.tabilzad.ktor.annotations.respondsNothing
-import kotlinx.serialization.Serializable
+import org.slf4j.LoggerFactory
 import java.util.*
 
 @Serializable
 data class ModsListResponse(val mods: List<ModResponse>)
 
-
 fun Route.modsRoutes(modService: ModService) = with(ModsRoutes(modService)) { register() }
 
 class ModsRoutes(val modService: ModService) {
+
+    private val log = LoggerFactory.getLogger(ModsRoutes::class.java)
 
     private fun parseModServerId(raw: String?): kotlin.uuid.Uuid? =
         raw?.let {
@@ -39,12 +42,17 @@ class ModsRoutes(val modService: ModService) {
         authenticate(JWT_AUTH) {
             route("/api/servers/{id}/mods") {
 
-                @KtorDescription(operationId = "listMods", summary = "List server mods")
-                get("") {
-                    responds<ModsListResponse>(HttpStatusCode.OK)
-                    responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                    responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                    responds<ErrorResponse>(HttpStatusCode.NotFound)
+                get("", {
+                    operationId = "listMods"
+                    summary = "List server mods"
+                    request { pathParameter<String>("id") }
+                    response {
+                        code(HttpStatusCode.OK) { body<Map<String, List<ModResponse>>>() }
+                        code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                        code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                        code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                    }
+                }) {
                     val userId = call.userId()
                     val id = parseModServerId(call.parameters["id"])
                         ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -56,12 +64,19 @@ class ModsRoutes(val modService: ModService) {
                     call.respond(ModsListResponse(modService.listMods(id)))
                 }
 
-                @KtorDescription(operationId = "addMod", summary = "Add mod to server")
-                post("") {
-                    responds<ModResponse>(HttpStatusCode.Created)
-                    responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                    responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                    responds<ErrorResponse>(HttpStatusCode.NotFound)
+                post("", {
+                    operationId = "addMod"
+                    summary = "Add mod to server"
+                    request { pathParameter<String>("id"); body<CreateModRequest>() }
+                    response {
+                        code(HttpStatusCode.Created) { body<ModResponse>() }
+                        code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                        code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                        code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                        code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                        code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                    }
+                }) {
                     val userId = call.userId()
                     val id = parseModServerId(call.parameters["id"])
                         ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -74,12 +89,18 @@ class ModsRoutes(val modService: ModService) {
                     call.respond(HttpStatusCode.Created, modService.addMod(id, req))
                 }
 
-                @KtorDescription(operationId = "updateMod", summary = "Update server mod")
-                patch("/{modId}") {
-                    responds<ModResponse>(HttpStatusCode.OK)
-                    responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                    responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                    responds<ErrorResponse>(HttpStatusCode.NotFound)
+                patch("/{modId}", {
+                    operationId = "updateMod"
+                    summary = "Update server mod"
+                    request { pathParameter<String>("id"); pathParameter<String>("modId"); body<PatchModRequest>() }
+                    response {
+                        code(HttpStatusCode.OK) { body<ModResponse>() }
+                        code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                        code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                        code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                        code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                    }
+                }) {
                     val userId = call.userId()
                     val id = parseModServerId(call.parameters["id"])
                         ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -99,12 +120,17 @@ class ModsRoutes(val modService: ModService) {
                     call.respond(modService.updateMod(id, modId, req))
                 }
 
-                @KtorDescription(operationId = "deleteMod", summary = "Remove mod from server")
-                delete("/{modId}") {
-                    respondsNothing(HttpStatusCode.NoContent)
-                    responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                    responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                    responds<ErrorResponse>(HttpStatusCode.NotFound)
+                delete("/{modId}", {
+                    operationId = "deleteMod"
+                    summary = "Remove mod from server"
+                    request { pathParameter<String>("id"); pathParameter<String>("modId") }
+                    response {
+                        code(HttpStatusCode.NoContent) { }
+                        code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                        code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                        code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                    }
+                }) {
                     val userId = call.userId()
                     val id = parseModServerId(call.parameters["id"])
                         ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -124,11 +150,18 @@ class ModsRoutes(val modService: ModService) {
                     call.respond(HttpStatusCode.NoContent)
                 }
 
-                @KtorDescription(operationId = "searchMods", summary = "Search Modrinth mods")
-                get("/search") {
-                    responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                    responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                    responds<ErrorResponse>(HttpStatusCode.NotFound)
+                get("/search", {
+                    operationId = "searchMods"
+                    summary = "Search Modrinth mods"
+                    request { pathParameter<String>("id"); pathParameter<String>("query"); pathParameter<Int>("limit") }
+                    response {
+                        code(HttpStatusCode.OK) { }
+                        code(HttpStatusCode.BadGateway) { body<ErrorResponse>() }
+                        code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                        code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                        code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                    }
+                }) {
                     val userId = call.userId()
                     val id = parseModServerId(call.parameters["id"])
                         ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))

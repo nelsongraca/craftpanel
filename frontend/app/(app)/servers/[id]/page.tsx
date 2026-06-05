@@ -328,8 +328,8 @@ export default function ServerDetailPage() {
             const mcVersionChanged = editMcVersion !== server.mc_version;
             const body: Record<string, unknown> = {};
             if (editDisplayName !== server.display_name) body.display_name = editDisplayName;
-            if (editDescription !== (server.description ?? "")) body.description = editDescription || null;
-            if (editNetworkId !== (server.network_id ?? "")) body.network_id = editNetworkId || null;
+            if (editDescription !== (server.description ?? "")) body.description = editDescription || "";
+            if (editNetworkId !== (server.network_id ?? "")) body.network_id = editNetworkId || "";
             if (mcVersionChanged) body.mc_version = editMcVersion;
 
             const {error} = await updateServer({path: {id}, body: body as Parameters<typeof updateServer>[0]["body"]});

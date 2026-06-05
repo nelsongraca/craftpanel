@@ -8,16 +8,17 @@ import io.craftpanel.master.service.BackupScheduleResponse
 import io.craftpanel.master.service.BackupService
 import io.craftpanel.master.service.PutBackupScheduleRequest
 import io.craftpanel.master.util.toKotlinUuid
+import kotlinx.serialization.Serializable
+import io.github.smiley4.ktoropenapi.delete
+import io.github.smiley4.ktoropenapi.get
+import io.github.smiley4.ktoropenapi.post
+import io.github.smiley4.ktoropenapi.put
 import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import io.github.tabilzad.ktor.annotations.KtorDescription
-import io.github.tabilzad.ktor.annotations.responds
-import io.github.tabilzad.ktor.annotations.respondsNothing
 import io.ktor.utils.io.writeFully
-import kotlinx.serialization.Serializable
 import java.util.*
 
 @Serializable
@@ -27,12 +28,17 @@ fun Route.backupsRoutes(backupService: BackupService) {
     authenticate(JWT_AUTH) {
         route("/api/servers/{id}/backups") {
 
-            @KtorDescription(operationId = "listBackups", summary = "List server backups")
-            get("") {
-                responds<BackupsListResponse>(HttpStatusCode.OK)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            get("", {
+                operationId = "listBackups"
+                summary = "List server backups"
+                request { pathParameter<String>("id") }
+                response {
+                    code(HttpStatusCode.OK) { body<Map<String, List<BackupResponse>>>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 val id = parseBackupServerId(call.parameters["id"])
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -44,12 +50,18 @@ fun Route.backupsRoutes(backupService: BackupService) {
                 call.respond(BackupsListResponse(backupService.listBackups(id)))
             }
 
-            @KtorDescription(operationId = "triggerBackup", summary = "Trigger server backup")
-            post("") {
-                responds<BackupResponse>(HttpStatusCode.Accepted)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            post("", {
+                operationId = "triggerBackup"
+                summary = "Trigger server backup"
+                request { pathParameter<String>("id") }
+                response {
+                    code(HttpStatusCode.Accepted) { body<BackupResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.BadGateway) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 val id = parseBackupServerId(call.parameters["id"])
                     ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -61,12 +73,18 @@ fun Route.backupsRoutes(backupService: BackupService) {
                 call.respond(HttpStatusCode.Accepted, backupService.triggerBackup(id))
             }
 
-            @KtorDescription(operationId = "deleteBackup", summary = "Delete server backup")
-            delete("/{backupId}") {
-                respondsNothing(HttpStatusCode.NoContent)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            delete("/{backupId}", {
+                operationId = "deleteBackup"
+                summary = "Delete server backup"
+                request { pathParameter<String>("id"); pathParameter<String>("backupId") }
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 val id = parseBackupServerId(call.parameters["id"])
                     ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -86,11 +104,18 @@ fun Route.backupsRoutes(backupService: BackupService) {
                 call.respond(HttpStatusCode.NoContent)
             }
 
-            @KtorDescription(operationId = "downloadBackup", summary = "Download backup file")
-            get("/{backupId}/download") {
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            get("/{backupId}/download", {
+                operationId = "downloadBackup"
+                summary = "Download backup file"
+                request { pathParameter<String>("id"); pathParameter<String>("backupId") }
+                response {
+                    code(HttpStatusCode.OK) { }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 val id = parseBackupServerId(call.parameters["id"])
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -108,20 +133,24 @@ fun Route.backupsRoutes(backupService: BackupService) {
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val info = backupService.resolveDownload(id, backupId)
                 call.respondBytesWriter(contentType = ContentType.Application.OctetStream) {
-                    backupService.downloadStream(info)
-                        .collect { bytes -> writeFully(bytes) }
+                    backupService.downloadStream(info).collect { bytes -> writeFully(bytes) }
                 }
             }
         }
 
         route("/api/servers/{id}/backup-schedule") {
 
-            @KtorDescription(operationId = "getBackupSchedule", summary = "Get server backup schedule")
-            get("") {
-                responds<BackupScheduleResponse>(HttpStatusCode.OK)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            get("", {
+                operationId = "getBackupSchedule"
+                summary = "Get server backup schedule"
+                request { pathParameter<String>("id") }
+                response {
+                    code(HttpStatusCode.OK) { body<BackupScheduleResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 val id = parseBackupServerId(call.parameters["id"])
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -133,12 +162,18 @@ fun Route.backupsRoutes(backupService: BackupService) {
                 call.respond(backupService.getSchedule(id))
             }
 
-            @KtorDescription(operationId = "updateBackupSchedule", summary = "Update server backup schedule")
-            put("") {
-                responds<BackupScheduleResponse>(HttpStatusCode.OK)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            put("", {
+                operationId = "updateBackupSchedule"
+                summary = "Update server backup schedule"
+                request { pathParameter<String>("id"); body<PutBackupScheduleRequest>() }
+                response {
+                    code(HttpStatusCode.OK) { body<BackupScheduleResponse>() }
+                    code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 val id = parseBackupServerId(call.parameters["id"])
                     ?: return@put call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))

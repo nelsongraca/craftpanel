@@ -4,34 +4,47 @@ import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.service.*
+import io.github.smiley4.ktoropenapi.delete
+import io.github.smiley4.ktoropenapi.get
+import io.github.smiley4.ktoropenapi.patch
+import io.github.smiley4.ktoropenapi.post
 import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import io.github.tabilzad.ktor.annotations.KtorDescription
-import io.github.tabilzad.ktor.annotations.responds
-import io.github.tabilzad.ktor.annotations.respondsNothing
 import java.util.*
 
 fun Route.usersRoutes(userService: UserService) {
     authenticate(JWT_AUTH) {
         route("/api/users") {
 
-            @KtorDescription(operationId = "listUsers", summary = "List users")
-            get("") {
-                responds<UsersListResponse>(HttpStatusCode.OK)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+            get("", {
+                operationId = "listUsers"
+                summary = "List users"
+                response {
+                    code(HttpStatusCode.OK) { body<UsersListResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 call.respond(userService.listUsers())
             }
 
-            @KtorDescription(operationId = "createUser", summary = "Create user")
-            post("") {
-                responds<UserResponse>(HttpStatusCode.Created)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+            post("", {
+                operationId = "createUser"
+                summary = "Create user"
+                request { body<CreateUserRequest>() }
+                response {
+                    code(HttpStatusCode.Created) { body<UserResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -39,11 +52,17 @@ fun Route.usersRoutes(userService: UserService) {
                 call.respond(HttpStatusCode.Created, userService.createUser(req))
             }
 
-            @KtorDescription(operationId = "getUser", summary = "Get user")
-            get("/{id}") {
-                responds<UserResponse>(HttpStatusCode.OK)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            get("/{id}", {
+                operationId = "getUser"
+                summary = "Get user"
+                request { pathParameter<String>("id") }
+                response {
+                    code(HttpStatusCode.OK) { body<UserResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -52,11 +71,18 @@ fun Route.usersRoutes(userService: UserService) {
                 call.respond(userService.getUser(targetId))
             }
 
-            @KtorDescription(operationId = "updateUser", summary = "Update user")
-            patch("/{id}") {
-                responds<UserResponse>(HttpStatusCode.OK)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            patch("/{id}", {
+                operationId = "updateUser"
+                summary = "Update user"
+                request { pathParameter<String>("id"); body<PatchUserRequest>() }
+                response {
+                    code(HttpStatusCode.OK) { body<UserResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
                     return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -66,11 +92,17 @@ fun Route.usersRoutes(userService: UserService) {
                 call.respond(userService.updateUser(targetId, req))
             }
 
-            @KtorDescription(operationId = "deleteUser", summary = "Delete user")
-            delete("/{id}") {
-                respondsNothing(HttpStatusCode.NoContent)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            delete("/{id}", {
+                operationId = "deleteUser"
+                summary = "Delete user"
+                request { pathParameter<String>("id") }
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
                     return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))

@@ -6,6 +6,10 @@ import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.util.toKotlinUuid
+import io.github.smiley4.ktoropenapi.delete
+import io.github.smiley4.ktoropenapi.get
+import io.github.smiley4.ktoropenapi.post
+import io.github.smiley4.ktoropenapi.put
 import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.server.application.ApplicationCall
@@ -14,9 +18,6 @@ import io.ktor.server.auth.jwt.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import io.github.tabilzad.ktor.annotations.KtorDescription
-import io.github.tabilzad.ktor.annotations.responds
-import io.github.tabilzad.ktor.annotations.respondsNothing
 import io.ktor.utils.io.readTo
 import io.ktor.utils.io.writeFully
 import kotlinx.io.asSink
@@ -80,12 +81,17 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
     authenticate(JWT_AUTH) {
         route("/api/servers/{id}/files") {
 
-            @KtorDescription(operationId = "listServerFiles", summary = "List server files")
-            get("") {
-                responds<ListFilesResponse>(HttpStatusCode.OK)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            get("", {
+                operationId = "listServerFiles"
+                summary = "List server files"
+                request { pathParameter<String>("id"); queryParameter<String>("path") { required = false } }
+                response {
+                    code(HttpStatusCode.OK) { body<ListFilesResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val (_, serverId, _) = extractAndAuthorize(call) ?: return@get
                 val path = call.request.queryParameters["path"] ?: "/"
                 try {
@@ -111,13 +117,18 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                 }
             }
 
-            @KtorDescription(operationId = "readServerFile", summary = "Read server file content")
-            get("/content") {
-                responds<ReadFileResponse>(HttpStatusCode.OK)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
-                responds<ErrorResponse>(HttpStatusCode.Conflict)
+            get("/content", {
+                operationId = "readServerFile"
+                summary = "Read server file content"
+                request { pathParameter<String>("id"); queryParameter<String>("path") { required = true } }
+                response {
+                    code(HttpStatusCode.OK) { body<ReadFileResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val (_, serverId, _) = extractAndAuthorize(call) ?: return@get
                 val path = call.request.queryParameters["path"] ?: run {
                     call.respond(HttpStatusCode.BadRequest, ErrorResponse("path is required"))
@@ -136,12 +147,17 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                 }
             }
 
-            @KtorDescription(operationId = "writeServerFile", summary = "Write server file content")
-            put("/content") {
-                respondsNothing(HttpStatusCode.NoContent)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            put("/content", {
+                operationId = "writeServerFile"
+                summary = "Write server file content"
+                request { pathParameter<String>("id"); queryParameter<String>("path") { required = true } }
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val (_, serverId, _) = extractAndAuthorize(call) ?: return@put
                 val path = call.request.queryParameters["path"] ?: run {
                     call.respond(HttpStatusCode.BadRequest, ErrorResponse("path is required"))
@@ -158,12 +174,17 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                 }
             }
 
-            @KtorDescription(operationId = "uploadServerFile", summary = "Upload a file to the server")
-            post("/upload") {
-                responds<UploadResponse>(HttpStatusCode.Created)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            post("/upload", {
+                operationId = "uploadServerFile"
+                summary = "Upload a file to the server"
+                request { pathParameter<String>("id") }
+                response {
+                    code(HttpStatusCode.Created) { body<UploadResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val (_, serverId, _) = extractAndAuthorize(call) ?: return@post
                 var uploadPath = ""
                 var fileBytes = byteArrayOf()
@@ -196,11 +217,18 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                 }
             }
 
-            @KtorDescription(operationId = "downloadServerFile", summary = "Download a file from the server")
-            get("/download") {
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            get("/download", {
+                operationId = "downloadServerFile"
+                summary = "Download a file from the server"
+                request { pathParameter<String>("id"); queryParameter<String>("path") { required = true } }
+                response {
+                    code(HttpStatusCode.OK) { }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val (_, serverId, _) = extractAndAuthorize(call) ?: return@get
                 val path = call.request.queryParameters["path"] ?: run {
                     call.respond(HttpStatusCode.BadRequest, ErrorResponse("path is required"))
@@ -225,13 +253,22 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                 }
             }
 
-            @KtorDescription(operationId = "deleteServerFile", summary = "Delete a file or directory")
-            delete("") {
-                respondsNothing(HttpStatusCode.NoContent)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
-                responds<ErrorResponse>(HttpStatusCode.Conflict)
+            delete("", {
+                operationId = "deleteServerFile"
+                summary = "Delete a file or directory"
+                request {
+                    pathParameter<String>("id")
+                    queryParameter<String>("path") { required = true }
+                    queryParameter<Boolean>("recursive") { required = false }
+                }
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val (_, serverId, _) = extractAndAuthorize(call) ?: return@delete
                 val path = call.request.queryParameters["path"] ?: run {
                     call.respond(HttpStatusCode.BadRequest, ErrorResponse("path is required"))
@@ -251,13 +288,18 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                 }
             }
 
-            @KtorDescription(operationId = "moveServerFile", summary = "Move or rename a file")
-            post("/move") {
-                respondsNothing(HttpStatusCode.NoContent)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
-                responds<ErrorResponse>(HttpStatusCode.Conflict)
+            post("/move", {
+                operationId = "moveServerFile"
+                summary = "Move or rename a file"
+                request { pathParameter<String>("id"); body<MoveRequest>() }
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val (_, serverId, _) = extractAndAuthorize(call) ?: return@post
                 val req = call.receive<MoveRequest>()
                 try {
@@ -269,13 +311,18 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                 }
             }
 
-            @KtorDescription(operationId = "copyServerFile", summary = "Copy a file or directory")
-            post("/copy") {
-                respondsNothing(HttpStatusCode.NoContent)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
-                responds<ErrorResponse>(HttpStatusCode.Conflict)
+            post("/copy", {
+                operationId = "copyServerFile"
+                summary = "Copy a file or directory"
+                request { pathParameter<String>("id"); body<CopyRequest>() }
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val (_, serverId, _) = extractAndAuthorize(call) ?: return@post
                 val req = call.receive<CopyRequest>()
                 try {
@@ -287,12 +334,17 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                 }
             }
 
-            @KtorDescription(operationId = "mkdirServerFile", summary = "Create a directory")
-            post("/mkdir") {
-                respondsNothing(HttpStatusCode.NoContent)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            post("/mkdir", {
+                operationId = "mkdirServerFile"
+                summary = "Create a directory"
+                request { pathParameter<String>("id"); body<MkdirRequest>() }
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val (_, serverId, _) = extractAndAuthorize(call) ?: return@post
                 val req = call.receive<MkdirRequest>()
                 try {

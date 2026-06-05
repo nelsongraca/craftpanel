@@ -5,37 +5,46 @@ import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.service.*
 import io.craftpanel.master.util.toKotlinUuid
+import io.github.smiley4.ktoropenapi.delete
+import io.github.smiley4.ktoropenapi.get
+import io.github.smiley4.ktoropenapi.patch
+import io.github.smiley4.ktoropenapi.post
 import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import io.github.tabilzad.ktor.annotations.KtorDescription
-import io.github.tabilzad.ktor.annotations.KtorResponds
-import io.github.tabilzad.ktor.annotations.ResponseEntry
-import io.github.tabilzad.ktor.annotations.responds
-import io.github.tabilzad.ktor.annotations.respondsNothing
 import kotlin.time.Instant
-import kotlinx.serialization.json.JsonObject
 import java.util.*
 
 fun Route.serversRoutes(serverService: ServerService) {
     authenticate(JWT_AUTH) {
         route("/api/servers") {
 
-            @KtorResponds(mapping = [ResponseEntry("200", ServerResponse::class, isCollection = true)])
-            @KtorDescription(operationId = "listServers", summary = "List servers")
-            get("") {
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+            get("", {
+                operationId = "listServers"
+                summary = "List servers"
+                response {
+                    code(HttpStatusCode.OK) { body<List<ServerResponse>>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 call.respond(serverService.listServers(userId))
             }
 
-            @KtorDescription(operationId = "createServer", summary = "Create server")
-            post("") {
-                responds<ServerResponse>(HttpStatusCode.Created)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
+            post("", {
+                operationId = "createServer"
+                summary = "Create server"
+                request { body<CreateServerRequest>() }
+                response {
+                    code(HttpStatusCode.Created) { body<ServerResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CREATE))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
@@ -43,12 +52,17 @@ fun Route.serversRoutes(serverService: ServerService) {
                 call.respond(HttpStatusCode.Created, serverService.createServer(req))
             }
 
-            @KtorDescription(operationId = "getServer", summary = "Get server")
-            get("/{id}") {
-                responds<ServerResponse>(HttpStatusCode.OK)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            get("/{id}", {
+                operationId = "getServer"
+                summary = "Get server"
+                request { pathParameter<String>("id") }
+                response {
+                    code(HttpStatusCode.OK) { body<ServerResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 val id = parseServerId(call.parameters["id"])
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -59,12 +73,18 @@ fun Route.serversRoutes(serverService: ServerService) {
                 call.respond(serverService.getServer(id))
             }
 
-            @KtorDescription(operationId = "updateServer", summary = "Update server")
-            patch("/{id}") {
-                respondsNothing(HttpStatusCode.NoContent)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            patch("/{id}", {
+                operationId = "updateServer"
+                summary = "Update server"
+                request { pathParameter<String>("id"); body<UpdateServerRequest>() }
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 val id = parseServerId(call.parameters["id"])
                     ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -72,17 +92,23 @@ fun Route.serversRoutes(serverService: ServerService) {
                     ?: return@patch call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
                 if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, serverId = UUID.fromString(id.toString()), networkId = info.networkId))
                     return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                val body = call.receive<JsonObject>()
+                val body = call.receive<UpdateServerRequest>()
                 serverService.updateServer(id, body)
                 call.respond(HttpStatusCode.NoContent)
             }
 
-            @KtorDescription(operationId = "deleteServer", summary = "Delete server")
-            delete("/{id}") {
-                respondsNothing(HttpStatusCode.NoContent)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            delete("/{id}", {
+                operationId = "deleteServer"
+                summary = "Delete server"
+                request { pathParameter<String>("id") }
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 val id = parseServerId(call.parameters["id"])
                     ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -94,12 +120,19 @@ fun Route.serversRoutes(serverService: ServerService) {
                 call.respond(HttpStatusCode.NoContent)
             }
 
-            @KtorDescription(operationId = "updateServerResources", summary = "Update server resources")
-            patch("/{id}/resources") {
-                respondsNothing(HttpStatusCode.NoContent)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            patch("/{id}/resources", {
+                operationId = "updateServerResources"
+                summary = "Update server resources"
+                request { pathParameter<String>("id"); body<PatchResourcesRequest>() }
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 val id = parseServerId(call.parameters["id"])
                     ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -112,12 +145,19 @@ fun Route.serversRoutes(serverService: ServerService) {
                 call.respond(HttpStatusCode.NoContent)
             }
 
-            @KtorDescription(operationId = "startServer", summary = "Start server")
-            post("/{id}/start") {
-                responds<MessageResponse>(HttpStatusCode.Accepted)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            post("/{id}/start", {
+                operationId = "startServer"
+                summary = "Start server"
+                request { pathParameter<String>("id") }
+                response {
+                    code(HttpStatusCode.Accepted) { body<MessageResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.BadGateway) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 val id = parseServerId(call.parameters["id"])
                     ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -129,12 +169,19 @@ fun Route.serversRoutes(serverService: ServerService) {
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Server start initiated"))
             }
 
-            @KtorDescription(operationId = "stopServer", summary = "Stop server")
-            post("/{id}/stop") {
-                responds<MessageResponse>(HttpStatusCode.Accepted)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            post("/{id}/stop", {
+                operationId = "stopServer"
+                summary = "Stop server"
+                request { pathParameter<String>("id") }
+                response {
+                    code(HttpStatusCode.Accepted) { body<MessageResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.BadGateway) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 val id = parseServerId(call.parameters["id"])
                     ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -146,12 +193,18 @@ fun Route.serversRoutes(serverService: ServerService) {
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Server stop initiated"))
             }
 
-            @KtorDescription(operationId = "restartServer", summary = "Restart server")
-            post("/{id}/restart") {
-                responds<MessageResponse>(HttpStatusCode.Accepted)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            post("/{id}/restart", {
+                operationId = "restartServer"
+                summary = "Restart server"
+                request { pathParameter<String>("id") }
+                response {
+                    code(HttpStatusCode.Accepted) { body<MessageResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.BadGateway) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 val id = parseServerId(call.parameters["id"])
                     ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -163,12 +216,19 @@ fun Route.serversRoutes(serverService: ServerService) {
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Server restart initiated"))
             }
 
-            @KtorDescription(operationId = "upgradeServer", summary = "Upgrade server image")
-            post("/{id}/upgrade") {
-                responds<MessageResponse>(HttpStatusCode.Accepted)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            post("/{id}/upgrade", {
+                operationId = "upgradeServer"
+                summary = "Upgrade server image"
+                request { pathParameter<String>("id"); body<UpgradeServerRequest>() }
+                response {
+                    code(HttpStatusCode.Accepted) { body<MessageResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.BadGateway) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 val id = parseServerId(call.parameters["id"])
                     ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -181,12 +241,18 @@ fun Route.serversRoutes(serverService: ServerService) {
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Server upgrade initiated"))
             }
 
-            @KtorDescription(operationId = "getServerMetrics", summary = "Get server container metrics")
-            get("/{id}/metrics") {
-                responds<ContainerMetricsSeriesResponse>(HttpStatusCode.OK)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            get("/{id}/metrics", {
+                operationId = "getServerMetrics"
+                summary = "Get server container metrics"
+                request { pathParameter<String>("id") }
+                response {
+                    code(HttpStatusCode.OK) { body<ContainerMetricsSeriesResponse>() }
+                    code(HttpStatusCode.BadRequest) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 val id = parseServerId(call.parameters["id"])
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
@@ -203,12 +269,18 @@ fun Route.serversRoutes(serverService: ServerService) {
                 call.respond(serverService.getMetrics(id, from, to))
             }
 
-            @KtorDescription(operationId = "updateServerExposure", summary = "Update server exposure")
-            patch("/{id}/exposure") {
-                respondsNothing(HttpStatusCode.NoContent)
-                responds<ErrorResponse>(HttpStatusCode.BadRequest)
-                responds<ErrorResponse>(HttpStatusCode.Forbidden)
-                responds<ErrorResponse>(HttpStatusCode.NotFound)
+            patch("/{id}/exposure", {
+                operationId = "updateServerExposure"
+                summary = "Update server exposure"
+                request { pathParameter<String>("id"); body<PatchExposureRequest>() }
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
                 val userId = call.userId()
                 val id = parseServerId(call.parameters["id"])
                     ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))

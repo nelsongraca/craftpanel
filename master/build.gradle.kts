@@ -7,7 +7,6 @@ plugins {
     alias(libs.plugins.ktor)
     alias(libs.plugins.protobuf)
     alias(libs.plugins.kover)
-    alias(libs.plugins.inspektor)
     id("com.bmuschko.docker-remote-api") version "10.0.0"
     application
 }
@@ -48,6 +47,14 @@ dependencies {
     implementation(libs.ktor.client.core)
     implementation(libs.ktor.client.cio)
     implementation(libs.ktor.client.content.negotiation)
+
+    // OpenAPI spec generation
+    implementation(libs.ktor.openapi)
+    implementation(libs.ktor.swagger.ui)
+    // Expose schema-kenerator on compile classpath so SchemaGenerator.kotlinx() resolves
+    implementation(libs.schema.kenerator.core)
+    implementation(libs.schema.kenerator.serialization)
+    implementation(libs.schema.kenerator.swagger)
 
     // Cron expression parsing
     implementation(libs.cron.utils)
@@ -142,21 +149,23 @@ tasks.register<DockerPushImage>("dockerPushImage") {
 }
 
 // ---------------------------------------------------------------------------
-// OpenAPI spec generation (InspeKtor compiler plugin — runs during compileKotlin)
+// OpenAPI spec generation
 // ---------------------------------------------------------------------------
-swagger {
-    documentation {
-        info {
-            title = "CraftPanel API"
-            version = "1.0.0"
-        }
-    }
-    pluginOptions {
-        format = "json"
-        filePath = "${rootProject.layout.buildDirectory.get().asFile}"
-    }
+val openApiOutputFile = rootProject.layout.buildDirectory.file("openapi.json")
+
+tasks.named<Test>("test") {
+    exclude("**/OpenApiSpecTask*")
 }
 
+tasks.register<Test>("generateOpenApiSpec") {
+    group = "build"
+    description = "Generates openapi.json at the repo root via a Ktor testApplication"
+    testClassesDirs = sourceSets["test"].output.classesDirs
+    classpath = sourceSets["test"].runtimeClasspath
+    filter { includeTestsMatching("io.craftpanel.master.OpenApiSpecTask") }
+    systemProperty("openapi.output", openApiOutputFile.get().asFile.absolutePath)
+    outputs.file(openApiOutputFile)
+}
 
 // ---------------------------------------------------------------------------
 // Coverage

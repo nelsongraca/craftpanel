@@ -24,7 +24,8 @@ kotest = "6.1.11"
 openapi-generator = "7.21.0"
 okhttp = "4.12.0"
 gson = "2.11.0"
-inspektor = "0.10.5-alpha"
+ktor-openapi-tools = "5.7.0"
+schema-kenerator = "2.7.2"
 
 [libraries]
 # Ktor server
@@ -87,6 +88,13 @@ bcpkix-jdk18on = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bo
 
 cron-utils = { module = "com.cronutils:cron-utils", version.ref = "cron-utils" }
 
+# OpenAPI (smiley4 ktor-openapi)
+ktor-openapi = { module = "io.github.smiley4:ktor-openapi", version.ref = "ktor-openapi-tools" }
+ktor-swagger-ui = { module = "io.github.smiley4:ktor-swagger-ui", version.ref = "ktor-openapi-tools" }
+schema-kenerator-core = { module = "io.github.smiley4:schema-kenerator-core", version.ref = "schema-kenerator" }
+schema-kenerator-serialization = { module = "io.github.smiley4:schema-kenerator-serialization", version.ref = "schema-kenerator" }
+schema-kenerator-swagger = { module = "io.github.smiley4:schema-kenerator-swagger", version.ref = "schema-kenerator" }
+
 # Test
 h2 = { module = "com.h2database:h2", version.ref = "h2" }
 ktor-server-test-host = { module = "io.ktor:ktor-server-test-host", version.ref = "ktor" }
@@ -141,4 +149,3 @@ ktor = { id = "io.ktor.plugin", version.ref = "ktor" }
 protobuf = { id = "com.google.protobuf", version.ref = "protobuf-plugin" }
 frontend = { id = "org.siouan.frontend-jdk17", version.ref = "frontend-plugin" }
 openapi-generator = { id = "org.openapi.generator", version.ref = "openapi-generator" }
-inspektor = { id = "io.github.tabilzad.inspektor", version.ref = "inspektor" }
