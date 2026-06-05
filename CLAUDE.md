@@ -79,12 +79,15 @@ Dockerfile COPYs `.next/standalone`, `.next/static`, and `public/` into `node:22
 ### API codegen
 
 ```bash
-./gradlew :master:copyOpenApiSpecMain   # generates openapi.json at build/openapi.json (InspeKtor compiler plugin, runs during compileKotlin)
+./gradlew :master:generateOpenApiSpec   # generates openapi.json at build/openapi.json (smiley4 testApplication, runs OpenApiSpecTask)
 ./gradlew :frontend:generateApiTypes    # runs @hey-api/openapi-ts → frontend/lib/generated/
 ```
 
 Both run automatically as part of `:frontend:assembleFrontend`. `lib/generated/` is gitignored.
-Spec is generated at compile time by the InspeKtor plugin (`@GenerateOpenApi` on `Application.module()`); routes are annotated with `@KtorDescription(operationId, summary)`.
+Spec is generated at test time by `OpenApiSpecTask` (a `testApplication` that boots full routing and hits `/openapi.json`).
+Routes are documented inline using the smiley4 DSL (`get("/path", { operationId = "..."; summary = "..."; request { ... }; response { ... } }) { ... }`).
+All routes are registered via `registerAppRoutes()` in `AppRoutes.kt` — add new routes there only (shared by `Main.kt` and `OpenApiSpecTask`).
+Schema generator uses `RefType.OPENAPI_SIMPLE` — do not change to `OPENAPI_FULL` (produces FQN-based schema names → ugly generated client class names).
 
 ### Aggregation tasks
 
@@ -337,3 +340,6 @@ Schema migrations via `exposed-migration-jdbc`.
 - Don't use fully qualified names on code, always use imports.
 - Don't use static imports for Enum constants.
 - Don't use `apply` for testcontainers configuration
+- Don't use `JsonObject` as a route request body type — leaks internal kotlinx-serialization type schemas into OpenAPI spec; use a typed `@Serializable` DTO instead
+- Don't access `project` inside `onlyIf {}` lambdas — runs at execution time, breaks Gradle config cache; capture value at configuration time or use `enabled = <bool>`
+- Don't use `afterEvaluate {}` closures that capture script-level objects — fail config cache serialization; use plain `tasks.named(...).configure {}` blocks instead
