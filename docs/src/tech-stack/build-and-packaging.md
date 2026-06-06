@@ -62,7 +62,7 @@ EXPOSE 8080 9090
 ENTRYPOINT ["bin/master"]
 ```
 
-`installDist` must be run before building the image. The Gradle Docker task (see [Image build & push](#image-build--push)) declares this as a dependency so it runs automatically.
+`installDist` must be run before building the image. The Gradle Docker task (see [Image build & push](#image-build-push)) declares this as a dependency so it runs automatically.
 
 ---
 

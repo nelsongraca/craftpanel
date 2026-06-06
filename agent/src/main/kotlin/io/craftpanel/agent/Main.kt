@@ -18,10 +18,33 @@ fun main(): Unit = runBlocking {
     log.info("Master: ${config.masterAddress}:${config.masterPort} | TLS: ${config.tlsConfigured} | profile: ${config.profile} | dataPath: ${config.dataBasePath} | hostDataPath: ${config.hostDataBasePath}")
 
     val docker = DockerClientFactory.create(config.dockerSocketPath)
-    val containerManager = ContainerManager(docker)
+
+    check(docker.listNetworksCmd().withNameFilter(config.craftpanelNetwork).exec()
+            .any { it.name == config.craftpanelNetwork }) {
+        "Docker network '${config.craftpanelNetwork}' not found — create it: docker network create ${config.craftpanelNetwork}"
+    }
+    val ownHostname = System.getenv("HOSTNAME") ?: ""
+    if (ownHostname.isNotEmpty()) {
+        runCatching {
+            val ownNetworks = docker.inspectContainerCmd(ownHostname).exec()
+                .networkSettings?.networks?.keys.orEmpty()
+            if (config.craftpanelNetwork !in ownNetworks) {
+                log.warn(
+                    "Agent container is not attached to network '${config.craftpanelNetwork}' — " +
+                    "add it to the Compose networks section. " +
+                    "mc-router and game server containers will not be reachable."
+                )
+            }
+        }.onFailure {
+            log.debug("Could not inspect own container for network check: ${it.message}")
+        }
+    }
+    log.info("Docker network: ${config.craftpanelNetwork}")
+
+    val containerManager = ContainerManager(docker, config.craftpanelNetwork)
     val metricsCollector = MetricsCollector(docker)
 
-    McRouterProvisioner(docker, config.mcRouterImage, config.mcRouterUpdateOnStart).ensureRunning()
+    McRouterProvisioner(docker, config.mcRouterImage, config.mcRouterUpdateOnStart, config.craftpanelNetwork).ensureRunning()
 
     ConnectionManager(config, containerManager, metricsCollector, docker).run()
 }

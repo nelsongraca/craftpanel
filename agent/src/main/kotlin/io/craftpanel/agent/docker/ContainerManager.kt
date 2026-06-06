@@ -13,7 +13,10 @@ import java.io.ByteArrayInputStream
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-open class ContainerManager(private val docker: DockerClient) {
+open class ContainerManager(
+    private val docker: DockerClient,
+    private val craftpanelNetwork: String = "",
+) {
 
     private val log = LoggerFactory.getLogger(ContainerManager::class.java)
 
@@ -89,6 +92,14 @@ open class ContainerManager(private val docker: DockerClient) {
             .withStdinOpen(true)
             .exec()
 
+        if (craftpanelNetwork.isNotEmpty()) {
+            runCatching {
+                docker.connectToNetworkCmd()
+                    .withNetworkId(craftpanelNetwork)
+                    .withContainerId(response.id)
+                    .exec()
+            }.onFailure { log.warn("Could not connect ${cmd.containerName} to $craftpanelNetwork: ${it.message}") }
+        }
         log.info("Created container ${cmd.containerName} (server ${cmd.serverId})")
         return response.id
     }

@@ -19,6 +19,7 @@ data class AgentConfig(
     val publicIpUrl: String,
     val hostnameOverride: String,
     val systemReservedRamMb: Int,
+    val craftpanelNetwork: String,
 ) {
 
     val tlsEnabled: Boolean get() = tlsCertPath.isNotBlank()
@@ -63,7 +64,10 @@ data class AgentConfig(
                 ?.lowercase() != "false",
             publicIpUrl = System.getenv("PUBLIC_IP_URL") ?: "",
             hostnameOverride = System.getenv("NODE_HOSTNAME") ?: "",
-            systemReservedRamMb = System.getenv("SYSTEM_RESERVED_RAM_MB")?.toIntOrNull()?.coerceAtLeast(0) ?: 0,
+            systemReservedRamMb = System.getenv("SYSTEM_RESERVED_RAM_MB")
+                ?.toIntOrNull()
+                ?.coerceAtLeast(0) ?: 0,
+            craftpanelNetwork = System.getenv("CRAFTPANEL_NETWORK") ?: "craftpanel",
         )
     }
 }

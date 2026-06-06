@@ -35,6 +35,7 @@ class ControlStreamHandlerTest {
         publicIpUrl = "",
         hostnameOverride = "",
         systemReservedRamMb = 0,
+        craftpanelNetwork = "craftpanel",
     )
     private val handler = ControlStreamHandler(identity, config, containerManager, metricsCollector, docker)
 

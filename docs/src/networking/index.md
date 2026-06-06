@@ -18,7 +18,7 @@ The pull step runs by default so nodes always run the latest mc-router release. 
 
 ## Docker Network
 
-All server containers, the mc-router container, and the agent container must share a common Docker bridge network so that mc-router can reach game server containers and the agent can query player counts via the Minecraft Server List Ping protocol.
+All server containers, the mc-router container, and the agent container must share a common Docker bridge network so that mc-router can reach game server containers and the agent can query player counts via the Minecraft Server Query protocol.
 
 ### The `craftpanel` network
 
@@ -30,7 +30,7 @@ docker network create craftpanel
 
 The network name defaults to `craftpanel` and is configurable via the `CRAFTPANEL_NETWORK` env var on the agent. The agent verifies the network exists on startup and **fails fast** if it cannot be found — it will not start with a missing network.
 
-The agent and mc-router containers must be explicitly attached to this network in the Compose file:
+The agent container must be explicitly attached to this network in the Compose file:
 
 ```yaml
 services:
@@ -38,9 +38,6 @@ services:
     # ...
     networks:
       - craftpanel
-
-  # mc-router is provisioned by the agent automatically —
-  # the agent attaches it to this network at container creation time
 
 networks:
   craftpanel:

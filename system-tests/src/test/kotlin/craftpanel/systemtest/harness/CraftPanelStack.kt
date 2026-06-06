@@ -4,7 +4,6 @@ import com.github.dockerjava.api.DockerClient
 import org.testcontainers.DockerClientFactory
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.GenericContainer
-import org.testcontainers.containers.Network
 import org.testcontainers.containers.wait.strategy.Wait
 
 // Self-referential subclasses — standard Kotlin idiom for Testcontainers to avoid
@@ -22,10 +21,10 @@ const val ADMIN_PASSWORD = "admin-test-password"
 
 object CraftPanelStack {
 
-    private lateinit var network: Network
     private lateinit var postgres: PgContainer
     private lateinit var master: MasterContainer
     private lateinit var agent: AgentContainer
+    private var craftpanelNetworkId: String? = null
 
     val masterApiUrl: String
         get() = "http://localhost:${master.getMappedPort(8080)}"
@@ -35,12 +34,13 @@ object CraftPanelStack {
             .client()
 
     fun start() {
-        network = Network.newNetwork()
+        // All containers share the craftpanel network so the agent self-check passes at startup
+        // and game server containers are reachable from the agent without post-start hacks.
+        craftpanelNetworkId = dockerClient.createNetworkCmd().withName("craftpanel").exec().id
 
         postgres = PgContainer()
-            .withNetwork(network)
-            .withNetworkAliases("postgres")
-
+            .withNetworkMode("craftpanel")
+            .withCreateContainerCmdModifier { cmd -> cmd.withAliases("postgres") }
             .withEnv("POSTGRES_DB", DB_NAME)
             .withEnv("POSTGRES_USER", DB_USER)
             .withEnv("POSTGRES_PASSWORD", DB_PASSWORD)
@@ -50,8 +50,8 @@ object CraftPanelStack {
         postgres.start()
 
         master = MasterContainer()
-            .withNetwork(network)
-            .withNetworkAliases("master")
+            .withNetworkMode("craftpanel")
+            .withCreateContainerCmdModifier { cmd -> cmd.withAliases("master") }
             .withExposedPorts(8080)
             .withEnv("CRAFTPANEL_PROFILE", "dev")
             .withEnv("DATABASE_URL", "jdbc:postgresql://postgres:5432/$DB_NAME")
@@ -69,8 +69,8 @@ object CraftPanelStack {
         master.start()
 
         agent = AgentContainer()
-            .withNetwork(network)
-            .withNetworkAliases("agent")
+            .withNetworkMode("craftpanel")
+            .withCreateContainerCmdModifier { cmd -> cmd.withAliases("agent") }
             .withEnv("APP_PROFILE", "dev")
             .withEnv("MASTER_HOST", "master")
             .withEnv("MASTER_GRPC_PORT", "50051")
@@ -80,14 +80,6 @@ object CraftPanelStack {
             .waitingFor(Wait.forLogMessage(".*Sent NodeStateSnapshot.*", 1))
 
         agent.start()
-
-        // MC server containers are created without an explicit network and land on Docker's
-        // default bridge (172.17.x.x). The agent container is on the testcontainers network
-        // and can't reach them by IP unless we also connect it to the default bridge.
-        dockerClient.connectToNetworkCmd()
-            .withContainerId(agent.containerId)
-            .withNetworkId("bridge")
-            .exec()
     }
 
     fun stop() {
@@ -95,7 +87,9 @@ object CraftPanelStack {
         cleanupAgentContainers()
         if (::master.isInitialized) master.stop()
         if (::postgres.isInitialized) postgres.stop()
-        if (::network.isInitialized) network.close()
+        craftpanelNetworkId?.let { id ->
+            runCatching { dockerClient.removeNetworkCmd(id).exec() }
+        }
     }
 
     private fun cleanupAgentContainers() {

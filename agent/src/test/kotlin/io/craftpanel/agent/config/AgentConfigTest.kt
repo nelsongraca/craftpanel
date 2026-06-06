@@ -95,6 +95,7 @@ class AgentConfigTest {
         mcRouterUpdateOnStart: Boolean = true,
         publicIpUrl: String = "",
         hostnameOverride: String = "",
+        craftpanelNetwork: String = "craftpanel",
     ) = AgentConfig(
         profile = profile,
         masterAddress = masterAddress,
@@ -112,5 +113,6 @@ class AgentConfigTest {
         publicIpUrl = publicIpUrl,
         hostnameOverride = hostnameOverride,
         systemReservedRamMb = 0,
+        craftpanelNetwork = craftpanelNetwork,
     )
 }
