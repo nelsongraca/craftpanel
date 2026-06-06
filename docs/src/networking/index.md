@@ -16,6 +16,43 @@ The **agent** provisions and manages the mc-router container automatically — n
 
 The pull step runs by default so nodes always run the latest mc-router release. It can be disabled by setting `MCROUTER_UPDATE_ON_START=false`, which causes the agent to use whatever image is already cached locally — useful when the image is pinned to a specific digest or when image pulls are restricted. See [Agent Configuration](../nodes/index.md#agent-configuration) for the full list of env vars.
 
+## Docker Network
+
+All server containers, the mc-router container, and the agent container must share a common Docker bridge network so that mc-router can reach game server containers and the agent can query player counts via the Minecraft Server List Ping protocol.
+
+### The `craftpanel` network
+
+The operator must create this network before starting the agent:
+
+```bash
+docker network create craftpanel
+```
+
+The network name defaults to `craftpanel` and is configurable via the `CRAFTPANEL_NETWORK` env var on the agent. The agent verifies the network exists on startup and **fails fast** if it cannot be found — it will not start with a missing network.
+
+The agent and mc-router containers must be explicitly attached to this network in the Compose file:
+
+```yaml
+services:
+  craftpanel-agent:
+    # ...
+    networks:
+      - craftpanel
+
+  # mc-router is provisioned by the agent automatically —
+  # the agent attaches it to this network at container creation time
+
+networks:
+  craftpanel:
+    external: true
+```
+
+The agent attaches every game server container to this network at creation time in addition to any server network bridge the container belongs to. No manual configuration is required for individual servers.
+
+### Security note
+
+All containers on the `craftpanel` network can reach each other directly by container name. This is an inherent property of a shared Docker bridge network. On a multi-tenant node hosting servers for different trust levels, this is a known limitation. Network-policy-level isolation between containers on a shared bridge is not available in plain Docker without external tooling. This is accepted for the current architecture and noted for future improvement.
+
 ## DNS Structure
 
 | Record                  | Type | Value            | Managed by                           |

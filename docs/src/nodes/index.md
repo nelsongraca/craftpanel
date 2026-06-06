@@ -62,6 +62,7 @@ The agent is configured entirely through environment variables.
 | `HOST_DATA_PATH`      | *(value of `DATA_PATH`)* | Host path Docker uses as the bind-mount source when creating server containers. Must match the node's **Data Path** field in the UI. Defaults to `DATA_PATH`. |
 | `NODE_HOSTNAME`       | *(auto-detected)*         | Hostname reported to master during registration and on every reconnect. Overrides the value returned by `InetAddress.getLocalHost().hostName`. Useful in containerised environments where the auto-detected name is an ephemeral container ID rather than a meaningful node label. |
 | `PUBLIC_IP_URL`       | *(empty)*                 | URL to fetch the node's public IP address (e.g. `https://api.ipify.org`). When empty, the private IP is reported instead |
+| `CRAFTPANEL_NETWORK`  | `craftpanel`              | Name of the Docker bridge network shared by the agent, mc-router, and all server containers. The network must exist before the agent starts — the agent fails fast if it cannot be found. See [Docker Network](../networking/index.md#docker-network). |
 | `MCROUTER_IMAGE`      | `itzg/mc-router:latest`   | Docker image used when provisioning the mc-router container on startup                          |
 | `MCROUTER_UPDATE_ON_START` | `true`             | Pull the mc-router image on every agent startup to keep it up to date. Set to `false` to skip the pull and use whatever image is already cached locally |
 | `SYSTEM_RESERVED_RAM_MB`  | `0`                | Megabytes of RAM the agent will not offer to servers. Subtracted from the node's physical total before reporting to master. Use this to reserve headroom for the OS, Docker daemon, co-located databases, or the master backend itself. On a co-located node running master + PostgreSQL, a value of `1024`–`2048` is typical. |
@@ -99,6 +100,8 @@ The directory must exist before the agent starts; the agent does not create it.
 ### mc-router provisioning
 
 On startup the agent automatically provisions a single `craftpanel-mc-router` container on the local Docker daemon. This container routes incoming Minecraft TCP connections to the correct game server container using Docker label-based hostname matching (label `mc-router.hostname=<hostname>`).
+
+The mc-router container is attached to the `craftpanel` network (controlled by `CRAFTPANEL_NETWORK`) so it can reach game server containers by their container name. See [Docker Network](../networking/index.md#docker-network).
 
 When `MCROUTER_UPDATE_ON_START=true` (default) the agent pulls the configured image before creating the container, so the node always runs the latest version of mc-router. Set to `false` in environments where image pulls are restricted or where a pinned digest is baked into `MCROUTER_IMAGE`.
 
