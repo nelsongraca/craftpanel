@@ -7,3 +7,4 @@ plans
 openapi.json
 .env
 .local/
+graphify-out/
