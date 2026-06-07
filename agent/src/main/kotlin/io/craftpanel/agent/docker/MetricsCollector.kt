@@ -13,7 +13,7 @@ import java.time.Instant
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-open class MetricsCollector(private val docker: DockerClient) {
+open class MetricsCollector(private val docker: DockerClient, private val craftpanelNetwork: String = "") {
 
     private val log = LoggerFactory.getLogger(MetricsCollector::class.java)
 
@@ -117,11 +117,13 @@ open class MetricsCollector(private val docker: DockerClient) {
         }
     }
 
-    private fun getContainerIp(containerId: String): String? =
-        docker.inspectContainerCmd(containerId)
-            .exec()
-            .networkSettings?.networks?.values?.firstOrNull()?.ipAddress
-            ?.takeIf { it.isNotBlank() }
+    private fun getContainerIp(containerId: String): String? {
+        val networks = docker.inspectContainerCmd(containerId)
+            .exec().networkSettings?.networks ?: return null
+        val net = if (craftpanelNetwork.isNotEmpty()) networks[craftpanelNetwork] ?: networks.values.firstOrNull()
+        else networks.values.firstOrNull()
+        return net?.ipAddress?.takeIf { it.isNotBlank() }
+    }
 
     fun collectCapacity(): Pair<Int, Int> {
         val totalRamMb = runCatching {
