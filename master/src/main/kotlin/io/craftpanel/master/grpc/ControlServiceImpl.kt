@@ -207,8 +207,14 @@ class ControlServiceImpl(
                             ?.get(Nodes.status)
                     }
                     log.info("Node $nodeId: first message, db status=$nodeStatus")
-                    if (nodeStatus == null || nodeStatus == "REJECTED" || nodeStatus == "DECOMMISSIONED") {
-                        throw StatusException(Status.PERMISSION_DENIED.withDescription("Node $nodeId is not authorized to connect"))
+                    if (nodeStatus !in setOf("ACTIVE", "DEGRADED")) {
+                        val reason = when (nodeStatus) {
+                            "PENDING"        -> "Node $nodeId is pending admin approval"
+                            "REJECTED"       -> "Node $nodeId has been rejected"
+                            "DECOMMISSIONED" -> "Node $nodeId has been decommissioned"
+                            else             -> "Node $nodeId is not authorized to connect"
+                        }
+                        throw StatusException(Status.PERMISSION_DENIED.withDescription(reason))
                     }
                     connectedNodeId = nodeId
                     connectedAgents[nodeId] = outChannel
@@ -219,7 +225,15 @@ class ControlServiceImpl(
                     msg.hasNodeState()             -> {
                         log.info("Node ${msg.nodeId} sent state snapshot with ${msg.nodeState.containersCount} containers")
                         runCatching { reconcileNodeState(msg.nodeId, msg.nodeState) }
-                            .onSuccess { restored -> log.debug("Node ${msg.nodeId}: reconcileNodeState ok, wasRestored=$restored — emitting ACTIVE"); _nodeStatusFlow.emit(msg.nodeId to "ACTIVE") }
+                            .onSuccess { result ->
+                                if (result != null) {
+                                    log.debug("Node ${msg.nodeId}: reconcileNodeState ok, wasRestored=$result — emitting ACTIVE")
+                                    _nodeStatusFlow.emit(msg.nodeId to "ACTIVE")
+                                }
+                                else {
+                                    log.debug("Node ${msg.nodeId}: reconcileNodeState ok but node is PENDING — skipping ACTIVE emit")
+                                }
+                            }
                             .onFailure { e -> log.error("Node ${msg.nodeId}: reconcileNodeState failed — ${e.message}", e) }
                     }
 
@@ -407,14 +421,14 @@ class ControlServiceImpl(
 
     // ── Reconciliation & lifecycle ────────────────────────────────────────────
 
-    internal fun reconcileNodeState(nodeId: String, snapshot: NodeStateSnapshot): Boolean {
+    internal fun reconcileNodeState(nodeId: String, snapshot: NodeStateSnapshot): Boolean? {
         val kotlinNodeId = runCatching {
             UUID.fromString(nodeId)
                 .toKotlinUuid()
-        }.getOrNull() ?: return false
+        }.getOrNull() ?: return null
         val now = Clock.System.now()
             .toLocalDateTime(TimeZone.UTC)
-        var wasRestored = false
+        var wasRestored: Boolean? = null
 
         transaction {
             val currentStatus = Nodes.selectAll()
@@ -464,7 +478,7 @@ class ControlServiceImpl(
                 log.debug("Node $nodeId: wrote status=ACTIVE (was $currentStatus), wasRestored=$wasRestored")
             }
             else {
-                log.debug("Node $nodeId: status=$currentStatus — only updating lastSeenAt")
+                log.debug("Node $nodeId: status=$currentStatus — only updating lastSeenAt, not emitting ACTIVE")
                 Nodes.update({ Nodes.id eq kotlinNodeId }) { it[Nodes.lastSeenAt] = now }
             }
         }
@@ -483,7 +497,14 @@ class ControlServiceImpl(
             .toLocalDateTime(TimeZone.UTC)
 
         transaction {
-            Nodes.update({ Nodes.id eq kotlinNodeId }) { it[Nodes.status] = "DEGRADED" }
+            val updated = Nodes.update({
+                (Nodes.id eq kotlinNodeId) and (Nodes.status inList listOf("ACTIVE", "DEGRADED"))
+            }) { it[Nodes.status] = "DEGRADED" }
+
+            if (updated == 0) {
+                log.debug("markNodeDegraded: node $nodeId is not ACTIVE/DEGRADED — skipping degrade")
+                return@transaction
+            }
 
             val serverCount = Servers.update({
                 (Servers.nodeId eq kotlinNodeId) and

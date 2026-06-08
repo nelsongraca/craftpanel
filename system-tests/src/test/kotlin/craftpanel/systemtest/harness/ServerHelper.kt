@@ -7,10 +7,11 @@ import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.client.model.CreateServerRequest
 import craftpanel.systemtest.client.model.ServerResponse
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 
 class ServerHelper(private val api: DefaultApi) {
 
-    suspend fun createTestServer(nodeId: String): String {
+    suspend fun createTestServer(nodeId: String, memoryMb: Int = 512, cpuShares: Int = 128): String {
         val response = api.createServer(
             CreateServerRequest(
                 name = "test-${System.currentTimeMillis()}",
@@ -18,8 +19,8 @@ class ServerHelper(private val api: DefaultApi) {
                 serverType = "PAPER",
                 mcVersion = "1.21.4",
                 itzgImageTag = "latest",
-                memoryMb = 512,
-                cpuShares = 128,
+                memoryMb = memoryMb,
+                cpuShares = cpuShares,
             )
         )
         return response.id
@@ -48,7 +49,7 @@ class ServerHelper(private val api: DefaultApi) {
                     .awaitCompletion()
             }
             if (substring in logs) return
-            delay(500)
+            delay(500.milliseconds)
         }
     }
 
@@ -66,7 +67,7 @@ class ServerHelper(private val api: DefaultApi) {
                 result.isFailure                        -> return
                 result.getOrNull()?.status == "STOPPED" -> return
             }
-            delay(500)
+            delay(500.milliseconds)
         }
     }
 }
@@ -75,7 +76,7 @@ private suspend fun <T> pollUntilNotNull(timeoutMs: Long, block: suspend () -> T
     val deadline = System.currentTimeMillis() + timeoutMs
     while (System.currentTimeMillis() < deadline) {
         block()?.let { return it }
-        delay(500)
+        delay(500.milliseconds)
     }
     return null
 }

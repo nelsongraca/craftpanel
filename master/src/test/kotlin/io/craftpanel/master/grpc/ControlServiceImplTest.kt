@@ -1,6 +1,7 @@
 package io.craftpanel.master.grpc
 
 import com.craftpanel.agent.v1.ContainerState
+import com.craftpanel.agent.v1.agentMessage
 import com.craftpanel.agent.v1.containerState
 import com.craftpanel.agent.v1.nodeStateSnapshot
 import io.craftpanel.master.TestDatabase
@@ -10,6 +11,11 @@ import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.ServerMigrations
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.util.toKotlinUuid
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlin.time.Duration.Companion.milliseconds
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -406,5 +412,86 @@ class ControlServiceImplTest {
     fun `markNodeDegraded ignores invalid node ID`() {
         // Should not throw
         service.markNodeDegraded("not-a-uuid")
+    }
+
+    // -------------------------------------------------------------------------
+    // control stream — PENDING node should not emit ACTIVE to nodeStatusFlow
+    // -------------------------------------------------------------------------
+
+    @Test
+    fun `control stream does not emit ACTIVE to nodeStatusFlow for PENDING node`() = runBlocking {
+        val nodeId = createNode(status = "PENDING")
+
+        val agentMessages = flow {
+            emit(agentMessage {
+                this.nodeId = nodeId.toString()
+                nodeState = nodeStateSnapshot { }
+            })
+        }
+
+        val ex = assertFailsWith<io.grpc.StatusException> {
+            service.control(agentMessages).collect { }
+        }
+        assertEquals(io.grpc.Status.Code.PERMISSION_DENIED, ex.status.code)
+        assertTrue(
+            ex.status.description?.contains("pending admin approval") == true,
+            "Expected 'pending admin approval' in description but got: ${ex.status.description}"
+        )
+    }
+
+    @Test
+    fun `control stream emits ACTIVE to nodeStatusFlow for ACTIVE node`() = runBlocking {
+        val nodeId = createNode(status = "ACTIVE")
+        val emitted = mutableListOf<Pair<String, String>>()
+
+        val collectJob = launch {
+            service.nodeStatusFlow.collect { emitted.add(it) }
+        }
+
+        val agentMessages = flow {
+            emit(agentMessage {
+                this.nodeId = nodeId.toString()
+                nodeState = nodeStateSnapshot { }
+            })
+        }
+
+        service.control(agentMessages)
+            .collect { }
+
+        delay(100.milliseconds)
+        collectJob.cancel()
+
+        assertTrue(
+            emitted.any { it.first == nodeId.toString() && it.second == "ACTIVE" },
+            "ACTIVE node should emit ACTIVE to nodeStatusFlow after sending snapshot"
+        )
+    }
+
+    @Test
+    fun `control stream emits ACTIVE to nodeStatusFlow for DEGRADED node on reconnect`() = runBlocking {
+        val nodeId = createNode(status = "DEGRADED")
+        val emitted = mutableListOf<Pair<String, String>>()
+
+        val collectJob = launch {
+            service.nodeStatusFlow.collect { emitted.add(it) }
+        }
+
+        val agentMessages = flow {
+            emit(agentMessage {
+                this.nodeId = nodeId.toString()
+                nodeState = nodeStateSnapshot { }
+            })
+        }
+
+        service.control(agentMessages)
+            .collect { }
+
+        delay(100.milliseconds)
+        collectJob.cancel()
+
+        assertTrue(
+            emitted.any { it.first == nodeId.toString() && it.second == "ACTIVE" },
+            "DEGRADED node should emit ACTIVE to nodeStatusFlow on reconnect"
+        )
     }
 }

@@ -68,9 +68,9 @@ Large file transfers (upload and download) use a dedicated `BulkDataService` hos
 ### Subsequent connects (node key present)
 
 1. Agent calls `IdentifyNode` with the stored node key and current metadata
-2. If `ACTIVE` — master accepts; agent opens the `Control` stream and sends `NodeStateSnapshot`
-3. If `PENDING` — master accepts; agent opens the `Control` stream but master holds commands until trusted
-4. If `REJECTED` — master refuses; agent logs the error and halts
+2. If `ACTIVE` or `DEGRADED` — master accepts; agent opens the `Control` stream and sends `NodeStateSnapshot`
+3. If `PENDING` — master refuses with `PERMISSION_DENIED`; agent must wait for admin approval before reconnecting
+4. If `REJECTED` or `DECOMMISSIONED` — master refuses; agent logs the error and halts
 
 ### Bootstrap token
 

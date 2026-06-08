@@ -29,6 +29,9 @@ object CraftPanelStack {
     val masterApiUrl: String
         get() = "http://localhost:${master.getMappedPort(8080)}"
 
+    val agentContainerId: String
+        get() = agent.containerId
+
     val dockerClient: DockerClient
         get() = DockerClientFactory.instance()
             .client()
@@ -36,7 +39,9 @@ object CraftPanelStack {
     fun start() {
         // All containers share the craftpanel network so the agent self-check passes at startup
         // and game server containers are reachable from the agent without post-start hacks.
-        craftpanelNetworkId = dockerClient.createNetworkCmd().withName("craftpanel").exec().id
+        craftpanelNetworkId = dockerClient.createNetworkCmd()
+            .withName("craftpanel")
+            .exec().id
 
         postgres = PgContainer()
             .withNetworkMode("craftpanel")
@@ -88,7 +93,10 @@ object CraftPanelStack {
         if (::master.isInitialized) master.stop()
         if (::postgres.isInitialized) postgres.stop()
         craftpanelNetworkId?.let { id ->
-            runCatching { dockerClient.removeNetworkCmd(id).exec() }
+            runCatching {
+                dockerClient.removeNetworkCmd(id)
+                    .exec()
+            }
         }
     }
 

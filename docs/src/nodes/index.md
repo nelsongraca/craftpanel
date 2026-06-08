@@ -11,7 +11,7 @@ Node registration is fully agent-initiated over gRPC. There is no UI step to cre
 3. On first startup the agent calls `RegisterNode` over gRPC, providing the bootstrap token and its metadata (hostname, IPs, total RAM and CPU)
 4. Master validates the bootstrap token, creates a node record with status `PENDING`, generates a unique 256-bit node key, and returns it to the agent
 5. The agent persists the node key to its local config file (mounted on the host) and uses it for all subsequent connections
-6. The node remains `PENDING` — master will not dispatch any commands to it until an admin trusts it from the UI
+6. The node remains `PENDING` — master will refuse its control stream connection until an admin trusts it
 7. An admin reviews the new node in the UI and clicks **Trust** — the node moves to `ACTIVE` and is ready for use
 
 On subsequent agent restarts the agent reads its stored node key and calls `IdentifyNode` instead of `RegisterNode`. No bootstrap token is needed after first registration.
