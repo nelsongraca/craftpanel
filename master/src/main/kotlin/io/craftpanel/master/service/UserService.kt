@@ -56,7 +56,7 @@ class UserService {
                 .where { (Users.username eq req.username) or (Users.email eq req.email) }
                 .firstOrNull()
         }
-        if (existing != null) throw UnprocessableException("Username or email already taken")
+        if (existing != null) throw ConflictException("Username or email already taken")
         val createdId = transaction {
             Users.insert {
                 it[Users.username] = req.username

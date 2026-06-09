@@ -21,7 +21,8 @@ Base path: `/api/networks`
   "networks": [
     {
       "id": "<uuid>",
-      "display_name": "Survival Network",
+      "name": "Survival Network",
+      "type": "NORMAL",
       "description": "Main survival network",
       "server_count": 3,
       "created_at": "2026-05-04T10:00:00Z"
@@ -38,18 +39,23 @@ Base path: `/api/networks`
 
 ```json
 {
-  "display_name": "Survival Network",
+  "name": "Survival Network",
+  "type": "NORMAL",
   "description": "Main survival network"
 }
 ```
+
+`type` must be `NORMAL`, `PROXY`, or `MC_PROXY`. `description` is optional.
 
 **Response `201`:**
 
 ```json
 {
   "id": "<uuid>",
-  "display_name": "Survival Network",
+  "name": "Survival Network",
+  "type": "NORMAL",
   "description": "Main survival network",
+  "server_count": 0,
   "created_at": "2026-05-04T10:00:00Z"
 }
 ```
@@ -63,7 +69,8 @@ Base path: `/api/networks`
 ```json
 {
   "id": "<uuid>",
-  "display_name": "Survival Network",
+  "name": "Survival Network",
+  "type": "NORMAL",
   "description": "Main survival network",
   "servers": [
     {
@@ -93,7 +100,7 @@ All fields optional.
 
 ```json
 {
-  "display_name": "Main Network",
+  "name": "Main Network",
   "description": "Updated description"
 }
 ```

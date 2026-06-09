@@ -604,6 +604,8 @@ class ServerService(
         }
 
         val existingRecordId = serverRow[Servers.dnsRecordId]
+        var newHostname: String? = null
+        var newRecordId: String? = null
 
         if (req.exposedExternally && req.publicSubdomain != null) {
             val provider = dnsProvider
@@ -622,7 +624,7 @@ class ServerService(
                 resolvePublicHostname(req.publicSubdomain, serverRow[Servers.networkId])
             }
 
-            val recordId = if (provider != null && dns != null) {
+            newRecordId = if (provider != null && dns != null) {
                 val nodeIp = transaction {
                     Nodes.selectAll()
                         .where { Nodes.id eq serverRow[Servers.nodeId] }
@@ -640,33 +642,10 @@ class ServerService(
             }
             else null
 
-            transaction {
-                Servers.update({ Servers.id eq id }) {
-                    it[exposedExternally] = true
-                    it[publicSubdomain] = req.publicSubdomain
-                    it[dnsRecordName] = fullHostname
-                    it[dnsRecordId] = recordId
-                    it[updatedAt] = Clock.System.now()
-                        .toLocalDateTime(TimeZone.UTC)
-                }
-            }
-
-            val isRunning = serverRow[Servers.status] in listOf("HEALTHY", "STARTING", "UNHEALTHY")
-            if (isRunning) {
-                val nodeId = serverRow[Servers.nodeId].toString()
-                val allVars = buildAllVars(id, serverRow)
-                val serverImage = images.deriveImage(serverRow[Servers.serverType], serverRow[Servers.itzgImageTag])
-                sendToNode(
-                    nodeId,
-                    masterMessage {
-                        stopContainer = stopContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand] }
-                    })
-                sendToNode(nodeId, masterMessage { removeContainer = removeContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; force = false } })
-                sendToNode(nodeId, buildCreateContainerCommand(id, serverRow, serverImage, allVars, fullHostname))
-                sendToNode(nodeId, masterMessage { startContainer = startContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id" } })
-            }
+            newHostname = fullHostname
         }
-        else {
+
+        if (!req.exposedExternally) {
             val provider = dnsProvider
             if (existingRecordId != null && provider != null) {
                 val dns = resolveNetworkDns(serverRow[Servers.networkId])
@@ -675,30 +654,42 @@ class ServerService(
                         .onFailure { log.warn("Failed to delete DNS record $existingRecordId — continuing", it) }
                 }
             }
-            transaction {
-                Servers.update({ Servers.id eq id }) {
-                    it[exposedExternally] = false
+        }
+
+        transaction {
+            Servers.update({ Servers.id eq id }) {
+                it[exposedExternally] = req.exposedExternally
+                if (req.publicSubdomain != null) {
+                    it[publicSubdomain] = req.publicSubdomain
+                    if (req.exposedExternally) {
+                        it[dnsRecordName] = newHostname
+                        it[dnsRecordId] = newRecordId
+                    }
+                }
+                if (!req.exposedExternally) {
                     it[publicSubdomain] = null
                     it[dnsRecordName] = null
                     it[dnsRecordId] = null
-                    it[updatedAt] = Clock.System.now()
-                        .toLocalDateTime(TimeZone.UTC)
                 }
+                it[updatedAt] = Clock.System.now()
+                    .toLocalDateTime(TimeZone.UTC)
             }
-            val isRunning = serverRow[Servers.status] in listOf("HEALTHY", "STARTING", "UNHEALTHY")
-            if (isRunning) {
-                val nodeId = serverRow[Servers.nodeId].toString()
-                val allVars = buildAllVars(id, serverRow)
-                val serverImage = images.deriveImage(serverRow[Servers.serverType], serverRow[Servers.itzgImageTag])
-                sendToNode(
-                    nodeId,
-                    masterMessage {
-                        stopContainer = stopContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand] }
-                    })
-                sendToNode(nodeId, masterMessage { removeContainer = removeContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; force = false } })
-                sendToNode(nodeId, buildCreateContainerCommand(id, serverRow, serverImage, allVars, null))
-                sendToNode(nodeId, masterMessage { startContainer = startContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id" } })
-            }
+        }
+
+        val isRunning = serverRow[Servers.status] in listOf("HEALTHY", "STARTING", "UNHEALTHY")
+        if (isRunning) {
+            val nodeId = serverRow[Servers.nodeId].toString()
+            val allVars = buildAllVars(id, serverRow)
+            val serverImage = images.deriveImage(serverRow[Servers.serverType], serverRow[Servers.itzgImageTag])
+            val hostname = if (req.exposedExternally && req.publicSubdomain != null) newHostname else null
+            sendToNode(
+                nodeId,
+                masterMessage {
+                    stopContainer = stopContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand] }
+                })
+            sendToNode(nodeId, masterMessage { removeContainer = removeContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; force = false } })
+            sendToNode(nodeId, buildCreateContainerCommand(id, serverRow, serverImage, allVars, hostname))
+            sendToNode(nodeId, masterMessage { startContainer = startContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id" } })
         }
     }
 

@@ -100,6 +100,7 @@ fun Route.usersRoutes(userService: UserService) {
                     code(HttpStatusCode.NoContent) { }
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
@@ -108,6 +109,8 @@ fun Route.usersRoutes(userService: UserService) {
                     return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val targetId = call.parameters["id"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
                     ?: return@delete call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
+                if (userId == targetId)
+                    return@delete call.respond(HttpStatusCode.Conflict, ErrorResponse("Cannot delete yourself"))
                 userService.deleteUser(targetId)
                 call.respond(HttpStatusCode.NoContent)
             }

@@ -5,6 +5,10 @@ import org.testcontainers.DockerClientFactory
 import org.testcontainers.containers.BindMode
 import org.testcontainers.containers.GenericContainer
 import org.testcontainers.containers.wait.strategy.Wait
+import java.io.File
+import java.nio.file.Files
+import java.nio.file.attribute.PosixFilePermission
+import java.util.EnumSet
 
 // Self-referential subclasses — standard Kotlin idiom for Testcontainers to avoid
 // the Nothing/wildcard type-parameter issues with the fluent builder API.
@@ -25,6 +29,7 @@ object CraftPanelStack {
     private lateinit var master: MasterContainer
     private lateinit var agent: AgentContainer
     private var craftpanelNetworkId: String? = null
+    private var testDataDir: File? = null
 
     val masterApiUrl: String
         get() = "http://localhost:${master.getMappedPort(8080)}"
@@ -40,16 +45,25 @@ object CraftPanelStack {
         // All containers share the craftpanel network so the agent self-check passes at startup
         // and game server containers are reachable from the agent without post-start hacks.
 
-        // Remove any leftover network from a previous crashed run so createNetworkCmd doesn't conflict.
+        // Remove any leftover network from a previous run to avoid ConflictException.
+        // First disconnect all containers from the network, then remove it.
         runCatching {
-            dockerClient.listNetworksCmd()
+            val existingNetworks = dockerClient.listNetworksCmd()
                 .withNameFilter("craftpanel")
                 .exec()
                 .filter { it.name == "craftpanel" }
-                .forEach {
-                    dockerClient.removeNetworkCmd(it.id)
-                        .exec()
+            for (net in existingNetworks) {
+                val containers = net.containers?.keys ?: emptySet()
+                for (containerId in containers) {
+                    runCatching {
+                        dockerClient.disconnectFromNetworkCmd()
+                            .withContainerId(containerId)
+                            .withNetworkId(net.id)
+                            .exec()
+                    }
                 }
+                dockerClient.removeNetworkCmd(net.id).exec()
+            }
         }
 
         craftpanelNetworkId = dockerClient.createNetworkCmd()
@@ -81,10 +95,24 @@ object CraftPanelStack {
             .withEnv("CRAFTPANEL_IMAGE_OVERRIDE_PROXY", "craftpanel-fake-proxy")
             .withEnv("CRAFTPANEL_ADMIN_EMAIL", ADMIN_EMAIL)
             .withEnv("CRAFTPANEL_ADMIN_PASSWORD", ADMIN_PASSWORD)
+            .withEnv("RATE_LIMIT_LOGIN", "1000")
+            .withEnv("RATE_LIMIT_REFRESH", "1000")
             .withLogConsumer { frame -> System.err.println("[master] ${frame.utf8String.trimEnd()}") }
             .waitingFor(Wait.forLogMessage(".*Responding at.*", 1))
 
         master.start()
+
+        testDataDir = Files.createTempDirectory("craftpanel-test-data-").toFile()
+        Files.setPosixFilePermissions(
+            testDataDir!!.toPath(),
+            EnumSet.of(
+                PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_EXECUTE,
+                PosixFilePermission.GROUP_READ, PosixFilePermission.GROUP_EXECUTE,
+                PosixFilePermission.OTHERS_READ, PosixFilePermission.OTHERS_EXECUTE,
+            )
+        )
+        testDataDir!!.deleteOnExit()
+        println("[setup] Test data directory: ${testDataDir!!.absolutePath}")
 
         agent = AgentContainer()
             .withNetworkMode("craftpanel")
@@ -93,6 +121,9 @@ object CraftPanelStack {
             .withEnv("MASTER_HOST", "master")
             .withEnv("MASTER_GRPC_PORT", "50051")
             .withEnv("NODE_BOOTSTRAP_TOKEN", "test-bootstrap-token")
+            .withEnv("DATA_PATH", "/data")
+            .withEnv("HOST_DATA_PATH", testDataDir!!.absolutePath)
+            .withFileSystemBind(testDataDir!!.absolutePath, "/data", BindMode.READ_WRITE)
             .withFileSystemBind("/var/run/docker.sock", "/var/run/docker.sock", BindMode.READ_WRITE)
             .withLogConsumer { frame -> System.err.println("[agent] ${frame.utf8String.trimEnd()}") }
             .waitingFor(Wait.forLogMessage(".*Sent NodeStateSnapshot.*", 1))
@@ -109,6 +140,12 @@ object CraftPanelStack {
             runCatching {
                 dockerClient.removeNetworkCmd(id)
                     .exec()
+            }
+        }
+        testDataDir?.let { dir ->
+            runCatching {
+                dir.deleteRecursively()
+                println("[cleanup] Removed test data directory: ${dir.absolutePath}")
             }
         }
     }

@@ -47,7 +47,7 @@ class GroupService {
                 .where { Groups.name eq req.name }
                 .firstOrNull() != null
         }
-        if (exists) throw UnprocessableException("Group name already taken")
+        if (exists) throw ConflictException("Group name already taken")
         val createdId = transaction { Groups.insert { it[Groups.name] = req.name }[Groups.id] }
         return transaction { fetchGroup(UUID.fromString(createdId.toString()))!! }
     }
