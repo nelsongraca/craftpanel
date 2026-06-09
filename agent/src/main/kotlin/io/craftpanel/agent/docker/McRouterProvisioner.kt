@@ -10,10 +10,11 @@ class McRouterProvisioner(
     private val image: String,
     private val updateOnStart: Boolean,
     private val networkName: String = "",
+    private val containerNamePrefix: String = "craftpanel",
 ) {
 
     private val log = LoggerFactory.getLogger(McRouterProvisioner::class.java)
-    private val containerName = "craftpanel-mc-router"
+    private val containerName = "$containerNamePrefix-mc-router"
 
     fun ensureRunning() {
         if (updateOnStart) {

@@ -20,6 +20,7 @@ data class AgentConfig(
     val hostnameOverride: String,
     val systemReservedRamMb: Int,
     val craftpanelNetwork: String,
+    val containerNamePrefix: String,
 ) {
 
     val tlsEnabled: Boolean get() = tlsCertPath.isNotBlank()
@@ -68,6 +69,7 @@ data class AgentConfig(
                 ?.toIntOrNull()
                 ?.coerceAtLeast(0) ?: 0,
             craftpanelNetwork = System.getenv("CRAFTPANEL_NETWORK") ?: "craftpanel",
+            containerNamePrefix = System.getenv("CRAFTPANEL_CONTAINER_PREFIX") ?: "craftpanel",
         )
     }
 }

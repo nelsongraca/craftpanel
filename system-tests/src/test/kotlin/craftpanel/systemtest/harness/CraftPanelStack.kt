@@ -9,6 +9,7 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.attribute.PosixFilePermission
 import java.util.EnumSet
+import kotlin.random.Random
 
 // Self-referential subclasses — standard Kotlin idiom for Testcontainers to avoid
 // the Nothing/wildcard type-parameter issues with the fluent builder API.
@@ -24,6 +25,17 @@ const val ADMIN_EMAIL = "admin@craftpanel.test"
 const val ADMIN_PASSWORD = "admin-test-password"
 
 object CraftPanelStack {
+
+    private val networkSuffix: String = buildString {
+        repeat(4) {
+            append(
+                Random.nextInt(16)
+                    .toString(16)
+            )
+        }
+    }
+
+    val containerPrefix: String = "craftpanel-$networkSuffix"
 
     private lateinit var postgres: PgContainer
     private lateinit var master: MasterContainer
@@ -49,9 +61,9 @@ object CraftPanelStack {
         // First disconnect all containers from the network, then remove it.
         runCatching {
             val existingNetworks = dockerClient.listNetworksCmd()
-                .withNameFilter("craftpanel")
+                .withNameFilter("craftpanel-$networkSuffix")
                 .exec()
-                .filter { it.name == "craftpanel" }
+                .filter { it.name == "craftpanel-$networkSuffix" }
             for (net in existingNetworks) {
                 val containers = net.containers?.keys ?: emptySet()
                 for (containerId in containers) {
@@ -62,16 +74,17 @@ object CraftPanelStack {
                             .exec()
                     }
                 }
-                dockerClient.removeNetworkCmd(net.id).exec()
+                dockerClient.removeNetworkCmd(net.id)
+                    .exec()
             }
         }
 
         craftpanelNetworkId = dockerClient.createNetworkCmd()
-            .withName("craftpanel")
+            .withName("craftpanel-$networkSuffix")
             .exec().id
 
         postgres = PgContainer()
-            .withNetworkMode("craftpanel")
+            .withNetworkMode("craftpanel-$networkSuffix")
             .withCreateContainerCmdModifier { cmd -> cmd.withAliases("postgres") }
             .withEnv("POSTGRES_DB", DB_NAME)
             .withEnv("POSTGRES_USER", DB_USER)
@@ -82,7 +95,7 @@ object CraftPanelStack {
         postgres.start()
 
         master = MasterContainer()
-            .withNetworkMode("craftpanel")
+            .withNetworkMode("craftpanel-$networkSuffix")
             .withCreateContainerCmdModifier { cmd -> cmd.withAliases("master") }
             .withExposedPorts(8080)
             .withEnv("CRAFTPANEL_PROFILE", "dev")
@@ -91,6 +104,7 @@ object CraftPanelStack {
             .withEnv("DATABASE_PASSWORD", DB_PASSWORD)
             .withEnv("NODE_BOOTSTRAP_TOKEN", "test-bootstrap-token")
             .withEnv("JWT_SECRET", "test-jwt-secret-at-least-32-characters-long!")
+            .withEnv("CRAFTPANEL_CONTAINER_PREFIX", containerPrefix)
             .withEnv("CRAFTPANEL_IMAGE_OVERRIDE_MINECRAFT", "craftpanel-fake-server")
             .withEnv("CRAFTPANEL_IMAGE_OVERRIDE_PROXY", "craftpanel-fake-proxy")
             .withEnv("CRAFTPANEL_ADMIN_EMAIL", ADMIN_EMAIL)
@@ -102,7 +116,8 @@ object CraftPanelStack {
 
         master.start()
 
-        testDataDir = Files.createTempDirectory("craftpanel-test-data-").toFile()
+        testDataDir = Files.createTempDirectory("craftpanel-test-data-")
+            .toFile()
         Files.setPosixFilePermissions(
             testDataDir!!.toPath(),
             EnumSet.of(
@@ -115,13 +130,15 @@ object CraftPanelStack {
         println("[setup] Test data directory: ${testDataDir!!.absolutePath}")
 
         agent = AgentContainer()
-            .withNetworkMode("craftpanel")
+            .withNetworkMode("craftpanel-$networkSuffix")
             .withCreateContainerCmdModifier { cmd -> cmd.withAliases("agent") }
             .withEnv("APP_PROFILE", "dev")
             .withEnv("MASTER_HOST", "master")
             .withEnv("MASTER_GRPC_PORT", "50051")
             .withEnv("NODE_BOOTSTRAP_TOKEN", "test-bootstrap-token")
             .withEnv("DATA_PATH", "/data")
+            .withEnv("CRAFTPANEL_CONTAINER_PREFIX", containerPrefix)
+            .withEnv("CRAFTPANEL_NETWORK", "craftpanel-$networkSuffix")
             .withEnv("HOST_DATA_PATH", testDataDir!!.absolutePath)
             .withFileSystemBind(testDataDir!!.absolutePath, "/data", BindMode.READ_WRITE)
             .withFileSystemBind("/var/run/docker.sock", "/var/run/docker.sock", BindMode.READ_WRITE)
@@ -156,7 +173,7 @@ object CraftPanelStack {
                 .client()
             val containers = client.listContainersCmd()
                 .withShowAll(true)
-                .withNameFilter(listOf("craftpanel-"))
+                .withNameFilter(listOf("$containerPrefix-"))
                 .exec()
             for (container in containers) {
                 runCatching {

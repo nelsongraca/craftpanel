@@ -81,6 +81,7 @@ dependencies {
 
 tasks.named<Test>("test") {
     useJUnitPlatform()
+    maxParallelForks = 1
     dependsOn(
         ":master:dockerBuildImage",
         ":agent:dockerBuildImage",

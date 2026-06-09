@@ -3,17 +3,22 @@ package craftpanel.systemtest.harness
 import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.client.model.NodeResponse
 import kotlinx.coroutines.delay
-
+import kotlin.random.Random
 import org.openapitools.client.infrastructure.ServerException
 import org.openapitools.client.infrastructure.ClientException
 
 class NodeHelper(private val api: DefaultApi) {
 
     suspend fun trustFirstPendingNode(timeoutMs: Long = 30_000): String {
+        var lastNodes: List<NodeResponse>? = null
         val node = pollUntilNotNull(timeoutMs) {
             api.listNodes()
+                .also { lastNodes = it }
                 .firstOrNull { it.status == "PENDING" }
-        } ?: error("No PENDING node appeared within ${timeoutMs}ms")
+        } ?: error(
+            "No PENDING node appeared within ${timeoutMs}ms. " +
+                    "Nodes: ${lastNodes?.map { "${it.id}=${it.status}" } ?: "none"}"
+        )
 
         api.trustNode(node.id)
 
@@ -28,22 +33,22 @@ class NodeHelper(private val api: DefaultApi) {
         val serverHelper = ServerHelper(api)
         val tempServerId = serverHelper.createTestServer(node.id)
         try {
+            var interval = 200L
             val deadline = System.currentTimeMillis() + timeoutMs
             var connected = false
             while (System.currentTimeMillis() < deadline && !connected) {
                 try {
                     api.startServer(tempServerId)
                     connected = true
-                } catch (e: ServerException) {
-                    if (e.statusCode == 502 && e.message?.contains("Agent not connected") == true) {
-                        delay(250)
-                    } else {
-                        throw e
+                }
+                catch (e: Exception) {
+                    if (isAgentNotConnectedError(e)) {
+                        val jitter = Random.nextLong(-(interval / 5), interval / 5 + 1)
+                        delay((interval + jitter).coerceAtLeast(50))
+                        interval = (interval * 1.5).toLong()
+                            .coerceAtMost(1000)
                     }
-                } catch (e: ClientException) {
-                    if (e.statusCode == 502 && e.message?.contains("Agent not connected") == true) {
-                        delay(250)
-                    } else {
+                    else {
                         throw e
                     }
                 }
@@ -54,34 +59,44 @@ class NodeHelper(private val api: DefaultApi) {
             // Stop and delete the temp server
             runCatching { api.stopServer(tempServerId) }
             serverHelper.awaitStoppedOrGone(tempServerId)
-        } finally {
+        }
+        finally {
             runCatching { api.deleteServer(tempServerId) }
         }
 
         return node.id
     }
 
-    suspend fun awaitPendingNode(timeoutMs: Long = 30_000): NodeResponse =
-        pollUntilNotNull(timeoutMs) {
+    suspend fun awaitPendingNode(timeoutMs: Long = 30_000): NodeResponse {
+        var lastNodes: List<NodeResponse>? = null
+        return pollUntilNotNull(timeoutMs) {
             api.listNodes()
+                .also { lastNodes = it }
                 .firstOrNull { it.status == "PENDING" }
-        } ?: error("No PENDING node appeared within ${timeoutMs}ms")
+        } ?: error(
+            "No PENDING node appeared within ${timeoutMs}ms. " +
+                    "Nodes: ${lastNodes?.map { "${it.id}=${it.status}" } ?: "none"}"
+        )
+    }
 
     suspend fun pollUntilActive(
         id: String,
         timeoutMs: Long = 30_000,
-    ): NodeResponse =
-        pollUntilNotNull(timeoutMs) {
+    ): NodeResponse {
+        var lastStatus: String? = null
+        return pollUntilNotNull(timeoutMs) {
             api.getNode(id)
+                .also { lastStatus = it.status }
                 .takeIf { it.status == "ACTIVE" }
-        } ?: error("Node $id did not transition to ACTIVE within ${timeoutMs}ms")
-}
-
-private suspend fun <T> pollUntilNotNull(timeoutMs: Long, block: suspend () -> T?): T? {
-    val deadline = System.currentTimeMillis() + timeoutMs
-    while (System.currentTimeMillis() < deadline) {
-        block()?.let { return it }
-        delay(500)
+        } ?: error("Node $id did not transition to ACTIVE within ${timeoutMs}ms. Last status: ${lastStatus ?: "none"}")
     }
-    return null
+
+    private fun isAgentNotConnectedError(e: Throwable): Boolean {
+        val statusCode = when (e) {
+            is ServerException -> e.statusCode
+            is ClientException -> e.statusCode
+            else               -> return false
+        }
+        return statusCode == 502 && e.message?.contains("Agent not connected") == true
+    }
 }

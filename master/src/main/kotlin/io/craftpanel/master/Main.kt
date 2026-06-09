@@ -88,7 +88,8 @@ fun Application.module() {
     val systemService = SystemService()
     val alertService = AlertService()
     val modService = ModService()
-    val serverService = ServerService(controlService::sendToNode, modService, dnsProvider, appConfig.images)
+    val containerNamePrefix = System.getenv("CRAFTPANEL_CONTAINER_PREFIX") ?: "craftpanel"
+    val serverService = ServerService(controlService::sendToNode, modService, dnsProvider, appConfig.images, containerNamePrefix)
     val backupService = BackupService(controlService::sendToNode, dataServiceProxy)
     val proxyBackendService = ProxyBackendService()
     val envVarsService = EnvVarsService()
@@ -101,6 +102,7 @@ fun Application.module() {
         dnsProvider = dnsProvider,
         scope = this,
         images = appConfig.images,
+        containerNamePrefix = containerNamePrefix,
     )
 
     migrationService.failStuckMigrations()

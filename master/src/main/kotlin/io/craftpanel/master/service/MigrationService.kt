@@ -66,8 +66,8 @@ class MigrationService(
     private val dnsProvider: DnsProvider?,
     private val scope: CoroutineScope,
     private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
+    private val containerNamePrefix: String = "craftpanel",
 ) {
-
 
 
     private val eventFlows = ConcurrentHashMap<String, MutableSharedFlow<MigrationEvent>>()
@@ -495,7 +495,7 @@ class MigrationService(
                 sendToNode(targetNodeIdStr, masterMessage {
                     startContainer = startContainerCommand {
                         this.serverId = serverIdStr
-                        containerName = "craftpanel-$serverId"
+                        containerName = "$containerNamePrefix-$serverId"
                     }
                 })
 
@@ -503,7 +503,7 @@ class MigrationService(
                 if (result == null) {
                     sendToNode(targetNodeIdStr, masterMessage {
                         removeContainer = removeContainerCommand {
-                            containerName = "craftpanel-$serverId"
+                            containerName = "$containerNamePrefix-$serverId"
                             force = true
                         }
                     })
@@ -549,7 +549,7 @@ class MigrationService(
             sendToNode(sourceNodeIdStr, masterMessage {
                 stopContainer = stopContainerCommand {
                     this.serverId = serverIdStr
-                    containerName = "craftpanel-$serverId"
+                    containerName = "$containerNamePrefix-$serverId"
                     timeoutSeconds = 30
                     stopCommand = serverRow[Servers.stopCommand]
                 }
@@ -557,7 +557,7 @@ class MigrationService(
             delay(5.seconds)
             sendToNode(sourceNodeIdStr, masterMessage {
                 removeContainer = removeContainerCommand {
-                    containerName = "craftpanel-$serverId"
+                    containerName = "$containerNamePrefix-$serverId"
                     force = false
                 }
             })
@@ -654,13 +654,13 @@ class MigrationService(
     ): MasterMessage = masterMessage {
         createContainer = createContainerCommand {
             this.serverId = serverId.toString()
-            containerName = "craftpanel-$serverId"
+            containerName = "$containerNamePrefix-$serverId"
             this.image = image
             ramMb = serverRow[Servers.memoryMb]
             cpuShares = serverRow[Servers.cpuShares]
             hostPort = serverRow[Servers.hostPort]
             envVars.putAll(allVars)
-            dockerNetwork = serverRow[Servers.networkId]?.let { "craftpanel-net-$it" } ?: ""
+            dockerNetwork = serverRow[Servers.networkId]?.let { "$containerNamePrefix-net-$it" } ?: ""
             restartPolicy = "unless-stopped"
             stopCommand = serverRow[Servers.stopCommand]
             mcRouterHostname = publicHostname ?: ""

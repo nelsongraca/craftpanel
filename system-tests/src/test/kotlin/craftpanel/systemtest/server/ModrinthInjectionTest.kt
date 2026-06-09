@@ -7,6 +7,7 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.delay
+import kotlin.random.Random
 
 class ModrinthInjectionTest : BaseSystemTest() {
 
@@ -22,10 +23,13 @@ class ModrinthInjectionTest : BaseSystemTest() {
                         api.startServer(serverId)
                         helper.awaitStatus(serverId, "HEALTHY", 60_000)
 
-                        val info = docker.inspectContainerCmd("craftpanel-$serverId").exec()
-                        val envKeys = info.config?.env?.map { it.substringBefore("=") }.orEmpty()
+                        val info = docker.inspectContainerCmd(containerName(serverId))
+                            .exec()
+                        val envKeys = info.config?.env?.map { it.substringBefore("=") }
+                            .orEmpty()
                         envKeys shouldNotContain "MODRINTH_PROJECTS"
-                    } finally {
+                    }
+                    finally {
                         runCatching { api.stopServer(serverId) }
                         helper.awaitStoppedOrGone(serverId)
                         runCatching { api.deleteServer(serverId) }
@@ -52,10 +56,13 @@ class ModrinthInjectionTest : BaseSystemTest() {
                         api.restartServer(serverId)
                         awaitRestartCycle(helper, serverId)
 
-                        val info = docker.inspectContainerCmd("craftpanel-$serverId").exec()
-                        val env = info.config?.env?.toList().orEmpty()
+                        val info = docker.inspectContainerCmd(containerName(serverId))
+                            .exec()
+                        val env = info.config?.env?.toList()
+                            .orEmpty()
                         env shouldContain "MODRINTH_PROJECTS=lithium:mc1.21-0.13.0"
-                    } finally {
+                    }
+                    finally {
                         runCatching { api.stopServer(serverId) }
                         helper.awaitStoppedOrGone(serverId)
                         runCatching { api.deleteServer(serverId) }
@@ -91,13 +98,18 @@ class ModrinthInjectionTest : BaseSystemTest() {
                         api.restartServer(serverId)
                         awaitRestartCycle(helper, serverId)
 
-                        val info = docker.inspectContainerCmd("craftpanel-$serverId").exec()
-                        val env = info.config?.env?.toList().orEmpty()
+                        val info = docker.inspectContainerCmd(containerName(serverId))
+                            .exec()
+                        val env = info.config?.env?.toList()
+                            .orEmpty()
                         val modrinthEntry = env.firstOrNull { it.startsWith("MODRINTH_PROJECTS=") }
-                        val projects = modrinthEntry?.removePrefix("MODRINTH_PROJECTS=")?.split(",").orEmpty()
+                        val projects = modrinthEntry?.removePrefix("MODRINTH_PROJECTS=")
+                            ?.split(",")
+                            .orEmpty()
                         projects shouldContain "lithium:mc1.21-0.13.0"
                         projects shouldContain "sodium:mc1.21-0.5.0"
-                    } finally {
+                    }
+                    finally {
                         runCatching { api.stopServer(serverId) }
                         helper.awaitStoppedOrGone(serverId)
                         runCatching { api.deleteServer(serverId) }
@@ -138,13 +150,18 @@ class ModrinthInjectionTest : BaseSystemTest() {
                         api.restartServer(serverId)
                         awaitRestartCycle(helper, serverId)
 
-                        val info = docker.inspectContainerCmd("craftpanel-$serverId").exec()
-                        val env = info.config?.env?.toList().orEmpty()
+                        val info = docker.inspectContainerCmd(containerName(serverId))
+                            .exec()
+                        val env = info.config?.env?.toList()
+                            .orEmpty()
                         val modrinthEntry = env.firstOrNull { it.startsWith("MODRINTH_PROJECTS=") }
-                        val projects = modrinthEntry?.removePrefix("MODRINTH_PROJECTS=")?.split(",").orEmpty()
+                        val projects = modrinthEntry?.removePrefix("MODRINTH_PROJECTS=")
+                            ?.split(",")
+                            .orEmpty()
                         projects shouldContain "lithium:mc1.21-0.13.0"
                         projects shouldNotContain "sodium:mc1.21-0.5.0"
-                    } finally {
+                    }
+                    finally {
                         runCatching { api.stopServer(serverId) }
                         helper.awaitStoppedOrGone(serverId)
                         runCatching { api.deleteServer(serverId) }
@@ -173,14 +190,19 @@ class ModrinthInjectionTest : BaseSystemTest() {
                         api.restartServer(serverId)
                         awaitRestartCycle(helper, serverId)
 
-                        val info = docker.inspectContainerCmd("craftpanel-$serverId").exec()
-                        val env = info.config?.env?.toList().orEmpty()
+                        val info = docker.inspectContainerCmd(containerName(serverId))
+                            .exec()
+                        val env = info.config?.env?.toList()
+                            .orEmpty()
                         val modrinthEntry = env.firstOrNull { it.startsWith("MODRINTH_PROJECTS=") }
-                        val projects = modrinthEntry?.removePrefix("MODRINTH_PROJECTS=")?.split(",").orEmpty()
+                        val projects = modrinthEntry?.removePrefix("MODRINTH_PROJECTS=")
+                            ?.split(",")
+                            .orEmpty()
                         // LATEST entries use just the project ID with no version suffix
                         projects shouldContain "lithium"
                         projects.none { it.startsWith("lithium:") } shouldBe true
-                    } finally {
+                    }
+                    finally {
                         runCatching { api.stopServer(serverId) }
                         helper.awaitStoppedOrGone(serverId)
                         runCatching { api.deleteServer(serverId) }
@@ -191,16 +213,22 @@ class ModrinthInjectionTest : BaseSystemTest() {
         }
     }
 
-    private suspend fun awaitRestartCycle(helper: ServerHelper, serverId: String, timeoutMs: Long = 90_000) {
-        val deadline = System.currentTimeMillis() + timeoutMs
-        // Wait for server to leave HEALTHY (restart in progress)
-        while (System.currentTimeMillis() < deadline) {
+    private suspend fun awaitRestartCycle(helper: ServerHelper, serverId: String, timeoutMs: Long = 120_000) {
+        val phaseTimeoutMs = timeoutMs / 2
+
+        // Phase 1: wait for server to leave HEALTHY (restart in progress)
+        val phase1Deadline = System.currentTimeMillis() + phaseTimeoutMs
+        var interval = 100L
+        while (System.currentTimeMillis() < phase1Deadline) {
             val status = runCatching { api.getServer(serverId).status }.getOrNull()
             if (status != "HEALTHY") break
-            delay(500)
+            val jitter = Random.nextLong(-(interval / 5), interval / 5 + 1)
+            delay((interval + jitter).coerceAtLeast(50))
+            interval = (interval * 1.5).toLong()
+                .coerceAtMost(1000)
         }
-        // Wait for server to return to HEALTHY
-        val remaining = deadline - System.currentTimeMillis()
-        helper.awaitStatus(serverId, "HEALTHY", remaining.coerceAtLeast(1_000))
+
+        // Phase 2: wait for server to return to HEALTHY
+        helper.awaitStatus(serverId, "HEALTHY", phaseTimeoutMs)
     }
 }

@@ -16,6 +16,7 @@ import java.util.concurrent.TimeUnit
 open class ContainerManager(
     private val docker: DockerClient,
     private val craftpanelNetwork: String = "",
+    private val containerNamePrefix: String = "craftpanel",
 ) {
 
     private val log = LoggerFactory.getLogger(ContainerManager::class.java)
@@ -35,7 +36,7 @@ open class ContainerManager(
         return docker.listContainersCmd()
             .withShowAll(true)
             .exec()
-            .filter { it.names.any { n -> n.contains("craftpanel-") } }
+            .filter { it.names.any { n -> n.contains("$containerNamePrefix-") } }
             .map { container ->
                 containerState {
                     containerId = container.id
@@ -177,7 +178,7 @@ open class ContainerManager(
     }
 
     fun execRconCommand(serverId: String, command: String) {
-        val containerName = "craftpanel-$serverId"
+        val containerName = "$containerNamePrefix-$serverId"
         runCatching {
             val exec = docker.execCreateCmd(containerName)
                 .withCmd("rcon-cli", command)
@@ -192,7 +193,7 @@ open class ContainerManager(
 
     fun startRsyncdContainer(migrationId: String, port: Int, destPath: String, password: String, rsyncImage: String): String {
         File(destPath).mkdirs()
-        val containerName = "craftpanel-rsync-recv-$migrationId"
+        val containerName = "$containerNamePrefix-rsync-recv-$migrationId"
         val portBinding = ExposedPort.tcp(port)
         val portBindings = Ports()
         portBindings.bind(portBinding, Ports.Binding.bindPort(port))
@@ -240,7 +241,7 @@ CONF
         rsyncImage: String,
         onProgress: (bytesTransferred: Long, totalBytes: Long, percent: Int, phase: String) -> Unit,
     ): Boolean {
-        val containerName = "craftpanel-rsync-send-${migrationId}${if (isFinalPass) "-final" else ""}"
+        val containerName = "$containerNamePrefix-rsync-send-${migrationId}${if (isFinalPass) "-final" else ""}"
         val script = """
             set -e
             apk add rsync --quiet --no-progress

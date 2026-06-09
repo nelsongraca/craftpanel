@@ -118,6 +118,7 @@ class ServerService(
     private val modService: ModService,
     private val dnsProvider: DnsProvider? = null,
     private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
+    private val containerNamePrefix: String = "craftpanel",
 ) {
 
     private val log = LoggerFactory.getLogger(ServerService::class.java)
@@ -440,7 +441,7 @@ class ServerService(
             if (!sendToNode(nodeId, createCmd)) throw BadGatewayException("Agent not connected")
         }
 
-        val startCmd = masterMessage { startContainer = startContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id" } }
+        val startCmd = masterMessage { startContainer = startContainerCommand { serverId = id.toString(); containerName = "$containerNamePrefix-$id" } }
         if (!sendToNode(nodeId, startCmd)) throw BadGatewayException("Agent not connected")
 
         transaction {
@@ -464,7 +465,7 @@ class ServerService(
         val nodeId = serverRow[Servers.nodeId].toString()
         val stopCmd = masterMessage {
             stopContainer = stopContainerCommand {
-                serverId = id.toString(); containerName = "craftpanel-$id"
+                serverId = id.toString(); containerName = "$containerNamePrefix-$id"
                 timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand]
             }
         }
@@ -492,18 +493,18 @@ class ServerService(
             val publicHostname = serverRow[Servers.dnsRecordName]
             val stopCmd = masterMessage {
                 stopContainer = stopContainerCommand {
-                    serverId = id.toString(); containerName = "craftpanel-$id"
+                    serverId = id.toString(); containerName = "$containerNamePrefix-$id"
                     timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand]
                 }
             }
             if (!sendToNode(nodeId, stopCmd)) throw BadGatewayException("Agent not connected")
             val removeCmd = masterMessage {
-                removeContainer = removeContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; force = false }
+                removeContainer = removeContainerCommand { serverId = id.toString(); containerName = "$containerNamePrefix-$id"; force = false }
             }
             if (!sendToNode(nodeId, removeCmd)) throw BadGatewayException("Agent not connected")
             val createCmd = buildCreateContainerCommand(id, serverRow, serverImage, allVars, publicHostname)
             if (!sendToNode(nodeId, createCmd)) throw BadGatewayException("Agent not connected")
-            val startCmd = masterMessage { startContainer = startContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id" } }
+            val startCmd = masterMessage { startContainer = startContainerCommand { serverId = id.toString(); containerName = "$containerNamePrefix-$id" } }
             if (!sendToNode(nodeId, startCmd)) throw BadGatewayException("Agent not connected")
             transaction {
                 Servers.update({ Servers.id eq id }) {
@@ -517,7 +518,7 @@ class ServerService(
         else {
             val restartCmd = masterMessage {
                 restartContainer = restartContainerCommand {
-                    serverId = id.toString(); containerName = "craftpanel-$id"
+                    serverId = id.toString(); containerName = "$containerNamePrefix-$id"
                     timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand]
                 }
             }
@@ -540,7 +541,7 @@ class ServerService(
         val publicHostname = serverRow[Servers.dnsRecordName]
 
         if (serverRow[Servers.containerId] != null) {
-            val removeCmd = masterMessage { removeContainer = removeContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; force = false } }
+            val removeCmd = masterMessage { removeContainer = removeContainerCommand { serverId = id.toString(); containerName = "$containerNamePrefix-$id"; force = false } }
             if (!sendToNode(nodeId, removeCmd)) throw BadGatewayException("Agent not connected")
         }
         val pullCmd = masterMessage { pullImage = pullImageCommand { serverId = id.toString(); image = serverImage } }
@@ -685,11 +686,11 @@ class ServerService(
             sendToNode(
                 nodeId,
                 masterMessage {
-                    stopContainer = stopContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand] }
+                    stopContainer = stopContainerCommand { serverId = id.toString(); containerName = "$containerNamePrefix-$id"; timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand] }
                 })
-            sendToNode(nodeId, masterMessage { removeContainer = removeContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id"; force = false } })
+            sendToNode(nodeId, masterMessage { removeContainer = removeContainerCommand { serverId = id.toString(); containerName = "$containerNamePrefix-$id"; force = false } })
             sendToNode(nodeId, buildCreateContainerCommand(id, serverRow, serverImage, allVars, hostname))
-            sendToNode(nodeId, masterMessage { startContainer = startContainerCommand { serverId = id.toString(); containerName = "craftpanel-$id" } })
+            sendToNode(nodeId, masterMessage { startContainer = startContainerCommand { serverId = id.toString(); containerName = "$containerNamePrefix-$id" } })
         }
     }
 
@@ -733,13 +734,13 @@ class ServerService(
     ): MasterMessage = masterMessage {
         createContainer = createContainerCommand {
             this.serverId = serverId.toString()
-            containerName = "craftpanel-$serverId"
+            containerName = "$containerNamePrefix-$serverId"
             this.image = image
             ramMb = serverRow[Servers.memoryMb]
             cpuShares = serverRow[Servers.cpuShares]
             hostPort = serverRow[Servers.hostPort]
             envVars.putAll(allVars)
-            dockerNetwork = serverRow[Servers.networkId]?.let { "craftpanel-net-$it" } ?: ""
+            dockerNetwork = serverRow[Servers.networkId]?.let { "$containerNamePrefix-net-$it" } ?: ""
             restartPolicy = "unless-stopped"
             stopCommand = serverRow[Servers.stopCommand]
             mcRouterHostname = publicHostname ?: ""

@@ -45,10 +45,10 @@ fun main(): Unit = runBlocking {
     }
     log.info("Docker network: ${config.craftpanelNetwork}")
 
-    val containerManager = ContainerManager(docker, config.craftpanelNetwork)
+    val containerManager = ContainerManager(docker, config.craftpanelNetwork, config.containerNamePrefix)
     val metricsCollector = MetricsCollector(docker, config.craftpanelNetwork)
 
-    McRouterProvisioner(docker, config.mcRouterImage, config.mcRouterUpdateOnStart, config.craftpanelNetwork).ensureRunning()
+    McRouterProvisioner(docker, config.mcRouterImage, config.mcRouterUpdateOnStart, config.craftpanelNetwork, config.containerNamePrefix).ensureRunning()
 
     ConnectionManager(config, containerManager, metricsCollector, docker).run()
 }

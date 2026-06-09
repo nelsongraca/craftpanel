@@ -8,7 +8,6 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import kotlinx.coroutines.delay
 import org.openapitools.client.infrastructure.ClientException
 
 class NodeRegistrationTest : DescribeSpec() {
@@ -48,17 +47,11 @@ class NodeRegistrationTest : DescribeSpec() {
                 docker.restartContainerCmd(containerId)
                     .exec()
 
-                // Wait for agent to reconnect and resend NodeStateSnapshot (up to 30s)
-                val deadline = System.currentTimeMillis() + 30_000
-                while (System.currentTimeMillis() < deadline) {
-                    delay(500)
-                    // If the bug is present the REST status would still be PENDING (DB is correct),
-                    // but the WebSocket nodeStatusFlow would incorrectly emit ACTIVE.
-                    // This assertion guards the REST/DB layer.
-                    val node = api.getNode(nodeId)
-                    node.status shouldNotBe "ACTIVE"
-                    node.status shouldBe "PENDING"
-                }
+                // Wait for agent to reconnect and reconcile without auto-promoting
+                kotlinx.coroutines.delay(5_000)
+                val node = api.getNode(nodeId)
+                node.status shouldNotBe "ACTIVE"
+                node.status shouldBe "PENDING"
             }
 
             it("trusting a PENDING node transitions it to ACTIVE") {

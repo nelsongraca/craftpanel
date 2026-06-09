@@ -40,9 +40,8 @@ class ServerLifecycleTest : BaseSystemTest() {
                 }
 
                 it("container does not exist on the node before first start") {
-                    val containerName = "craftpanel-$serverId"
                     shouldThrow<NotFoundException> {
-                        docker.inspectContainerCmd(containerName).exec()
+                        docker.inspectContainerCmd(containerName(serverId)).exec()
                     }
                 }
             }
@@ -69,14 +68,14 @@ class ServerLifecycleTest : BaseSystemTest() {
                 it("container exists on node after start") {
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, "HEALTHY", 60_000)
-                    val info = docker.inspectContainerCmd("craftpanel-$serverId").exec()
+                    val info = docker.inspectContainerCmd(containerName(serverId)).exec()
                     info.state?.running shouldBe true
                 }
 
                 it("container has correct env vars") {
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, "HEALTHY", 60_000)
-                    val info = docker.inspectContainerCmd("craftpanel-$serverId").exec()
+                    val info = docker.inspectContainerCmd(containerName(serverId)).exec()
                     val env = info.config?.env?.toList().orEmpty()
                     env shouldContain "TYPE=PAPER"
                     env shouldContain "VERSION=1.21.4"
@@ -100,7 +99,7 @@ class ServerLifecycleTest : BaseSystemTest() {
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, "HEALTHY", 60_000)
                     // Allow fake-server JVM to start its stdin reader before we stop it
-                    helper.awaitContainerLog("craftpanel-$serverId", "stdin listener ready", docker, 15_000)
+                    helper.awaitContainerLog(containerName(serverId), "stdin listener ready", docker, 15_000)
                 }
                 afterEach {
                     runCatching { api.stopServer(serverId) }
@@ -117,7 +116,7 @@ class ServerLifecycleTest : BaseSystemTest() {
                 it("stop command was sent to container stdin") {
                     api.stopServer(serverId)
                     helper.awaitStatus(serverId, "STOPPED")
-                    val logs = docker.collectLogs("craftpanel-$serverId")
+                    val logs = docker.collectLogs(containerName(serverId))
                     logs stringContain "[fake-server] stdin received: stop"
                 }
 
