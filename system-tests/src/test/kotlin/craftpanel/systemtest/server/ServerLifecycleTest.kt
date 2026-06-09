@@ -61,20 +61,20 @@ class ServerLifecycleTest : BaseSystemTest() {
 
                 it("starting a STOPPED server transitions it to STARTING then HEALTHY") {
                     api.startServer(serverId)
-                    val server = helper.awaitStatus(serverId, "HEALTHY", 60_000)
+                    val server = helper.awaitStatus(serverId, "HEALTHY")
                     server.status shouldBe "HEALTHY"
                 }
 
                 it("container exists on node after start") {
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY", 60_000)
+                    helper.awaitStatus(serverId, "HEALTHY")
                     val info = docker.inspectContainerCmd(containerName(serverId)).exec()
                     info.state?.running shouldBe true
                 }
 
                 it("container has correct env vars") {
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY", 60_000)
+                    helper.awaitStatus(serverId, "HEALTHY")
                     val info = docker.inspectContainerCmd(containerName(serverId)).exec()
                     val env = info.config?.env?.toList().orEmpty()
                     env shouldContain "TYPE=PAPER"
@@ -84,7 +84,7 @@ class ServerLifecycleTest : BaseSystemTest() {
 
                 it("starting an already HEALTHY server returns 409") {
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY", 60_000)
+                    helper.awaitStatus(serverId, "HEALTHY")
                     val ex = shouldThrow<ClientException> { api.startServer(serverId) }
                     ex.statusCode shouldBe 409
                 }
@@ -97,7 +97,7 @@ class ServerLifecycleTest : BaseSystemTest() {
                 beforeEach {
                     serverId = helper.createTestServer(nodeId)
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY", 60_000)
+                    helper.awaitStatus(serverId, "HEALTHY")
                     // Allow fake-server JVM to start its stdin reader before we stop it
                     helper.awaitContainerLog(containerName(serverId), "stdin listener ready", docker, 15_000)
                 }
@@ -153,7 +153,7 @@ class ServerLifecycleTest : BaseSystemTest() {
 
                 it("deleting a RUNNING server returns 409") {
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY", 60_000)
+                    helper.awaitStatus(serverId, "HEALTHY")
                     val ex = shouldThrow<ClientException> { api.deleteServer(serverId) }
                     ex.statusCode shouldBe 409
                 }

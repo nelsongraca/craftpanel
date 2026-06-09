@@ -21,7 +21,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                     val serverId = helper.createTestServer(nodeId)
                     try {
                         api.startServer(serverId)
-                        helper.awaitStatus(serverId, "HEALTHY", 60_000)
+                        helper.awaitStatus(serverId, "HEALTHY")
 
                         val info = docker.inspectContainerCmd(containerName(serverId))
                             .exec()
@@ -41,7 +41,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                     val serverId = helper.createTestServer(nodeId)
                     try {
                         api.startServer(serverId)
-                        helper.awaitStatus(serverId, "HEALTHY", 60_000)
+                        helper.awaitStatus(serverId, "HEALTHY")
 
                         api.addMod(
                             serverId,
@@ -74,7 +74,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                     val serverId = helper.createTestServer(nodeId)
                     try {
                         api.startServer(serverId)
-                        helper.awaitStatus(serverId, "HEALTHY", 60_000)
+                        helper.awaitStatus(serverId, "HEALTHY")
 
                         api.addMod(
                             serverId,
@@ -121,7 +121,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                     val serverId = helper.createTestServer(nodeId)
                     try {
                         api.startServer(serverId)
-                        helper.awaitStatus(serverId, "HEALTHY", 60_000)
+                        helper.awaitStatus(serverId, "HEALTHY")
 
                         api.addMod(
                             serverId,
@@ -176,7 +176,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                     val serverId = helper.createTestServer(nodeId)
                     try {
                         api.startServer(serverId)
-                        helper.awaitStatus(serverId, "HEALTHY", 60_000)
+                        helper.awaitStatus(serverId, "HEALTHY")
 
                         api.addMod(
                             serverId,

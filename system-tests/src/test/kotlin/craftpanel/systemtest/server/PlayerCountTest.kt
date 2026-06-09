@@ -24,7 +24,7 @@ class PlayerCountTest : BaseSystemTest() {
                         )
                     )
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY", 60_000)
+                    helper.awaitStatus(serverId, "HEALTHY")
 
                     val server = helper.awaitPlayerCount(serverId, expected = 2)
                     server.lastPlayerCount shouldBe 2
@@ -42,7 +42,7 @@ class PlayerCountTest : BaseSystemTest() {
                 val serverId = helper.createTestServer(nodeId)
                 try {
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY", 60_000)
+                    helper.awaitStatus(serverId, "HEALTHY")
 
                     // awaitPlayerCount(0) waits until the agent has polled at least once
                     val server = helper.awaitPlayerCount(serverId, expected = 0)

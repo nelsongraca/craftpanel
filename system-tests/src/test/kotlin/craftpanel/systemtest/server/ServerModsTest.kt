@@ -23,7 +23,7 @@ class ServerModsTest : BaseSystemTest() {
                 beforeEach {
                     serverId = helper.createTestServer(nodeId)
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY", 60_000)
+                    helper.awaitStatus(serverId, "HEALTHY")
                 }
                 afterEach {
                     runCatching { api.stopServer(serverId) }

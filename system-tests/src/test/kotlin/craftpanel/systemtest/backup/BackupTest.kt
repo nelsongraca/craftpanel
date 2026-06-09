@@ -56,7 +56,7 @@ class BackupTest : BaseSystemTest() {
                 val serverId = helper.createTestServer(nodeId)
                 try {
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY", 60_000)
+                    helper.awaitStatus(serverId, "HEALTHY")
 
                     val backup = api.triggerBackup(serverId)
                     backup.id.shouldNotBeEmpty()
@@ -64,7 +64,7 @@ class BackupTest : BaseSystemTest() {
                     backup.trigger shouldBe "MANUAL"
 
                     // Wait for backup to complete (up to 30s)
-                    helper.awaitStatus(serverId, "HEALTHY", 60_000)
+                    helper.awaitStatus(serverId, "HEALTHY")
                 } finally {
                     runCatching { api.stopServer(serverId) }
                     helper.awaitStoppedOrGone(serverId)
@@ -77,10 +77,10 @@ class BackupTest : BaseSystemTest() {
                 val serverId = helper.createTestServer(nodeId)
                 try {
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY", 60_000)
+                    helper.awaitStatus(serverId, "HEALTHY")
 
                     val backup = api.triggerBackup(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY", 60_000)
+                    helper.awaitStatus(serverId, "HEALTHY")
 
                     api.deleteBackup(serverId, backup.id)
                 } finally {

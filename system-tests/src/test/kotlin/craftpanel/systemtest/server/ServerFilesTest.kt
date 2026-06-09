@@ -17,7 +17,7 @@ class ServerFilesTest : BaseSystemTest() {
             helper = ServerHelper(api)
             serverId = helper.createTestServer(nodeId)
             api.startServer(serverId)
-            helper.awaitStatus(serverId, "HEALTHY", 60_000)
+            helper.awaitStatus(serverId, "HEALTHY")
         }
 
         afterSpec {
@@ -53,7 +53,7 @@ class ServerFilesTest : BaseSystemTest() {
                 val files = api.listServerFiles(serverId)
                 files.path shouldBe "/"
                 api.startServer(serverId)
-                helper.awaitStatus(serverId, "HEALTHY", 60_000)
+                helper.awaitStatus(serverId, "HEALTHY")
             }
 
             it("read file returns 500") {

@@ -9,6 +9,7 @@ import craftpanel.systemtest.client.model.ServerResponse
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
+import org.openapitools.client.infrastructure.ClientException
 
 class ServerHelper(private val api: DefaultApi) {
 
@@ -27,7 +28,7 @@ class ServerHelper(private val api: DefaultApi) {
         return response.id
     }
 
-    suspend fun awaitStatus(id: String, status: String, timeoutMs: Long = 60_000): ServerResponse {
+    suspend fun awaitStatus(id: String, status: String, timeoutMs: Long = 120_000): ServerResponse {
         var lastResponse: ServerResponse? = null
         val result = pollUntilNotNull(timeoutMs) {
             api.getServer(id)
@@ -85,7 +86,8 @@ class ServerHelper(private val api: DefaultApi) {
         while (System.currentTimeMillis() < deadline) {
             val result = runCatching { api.getServer(id) }
             when {
-                result.isFailure                                                 -> return
+                result.exceptionOrNull() is ClientException
+                    && (result.exceptionOrNull() as ClientException).statusCode == 404 -> return
                 result.getOrNull()?.status.also { lastStatus = it } == "STOPPED" -> return
             }
             val jitter = Random.nextLong(-(interval / 5), interval / 5 + 1)

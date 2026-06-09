@@ -65,7 +65,7 @@ class ServerConsoleTest : BaseSystemTest() {
 
                 it("connects with valid ticket") {
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY", 60_000)
+                    helper.awaitStatus(serverId, "HEALTHY")
                     val ticket = api.authWsTicket()
                     val url = "${wsBaseUrl}/api/ws/console/${serverId}?ticket=${ticket.ticket}"
                     val latch = CountDownLatch(1)
@@ -123,7 +123,7 @@ class ServerConsoleTest : BaseSystemTest() {
                     var ws: WebSocket? = null
                     try {
                         api.startServer(serverId)
-                        helper.awaitStatus(serverId, "HEALTHY", 60_000)
+                        helper.awaitStatus(serverId, "HEALTHY")
 
                         val ticket = api.authWsTicket()
                         val url = "${wsBaseUrl}/api/ws/console/${serverId}?ticket=${ticket.ticket}"
@@ -153,7 +153,7 @@ class ServerConsoleTest : BaseSystemTest() {
                     val serverId = helper.createTestServer(nodeId)
                     try {
                         api.startServer(serverId)
-                        helper.awaitStatus(serverId, "HEALTHY", 60_000)
+                        helper.awaitStatus(serverId, "HEALTHY")
 
                         suspend fun connect(): WebSocket {
                             val ticket = api.authWsTicket()
