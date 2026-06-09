@@ -1,7 +1,6 @@
 import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
 import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
 import craftpanel.dockerImageName
-import craftpanel.dockerBuildEnabled
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
@@ -79,7 +78,6 @@ tasks.register<DockerBuildImage>("dockerBuildImage") {
     inputDir.set(layout.buildDirectory.dir("docker"))
     dockerFile.set(layout.buildDirectory.file("docker/Dockerfile"))
     images.add(masterImageName)
-    enabled = dockerBuildEnabled(project)
 }
 
 tasks.register<DockerPushImage>("dockerPushImage") {
@@ -87,7 +85,6 @@ tasks.register<DockerPushImage>("dockerPushImage") {
     description = "Pushes the Docker image for master"
     dependsOn("dockerBuildImage")
     images.add(masterImageName)
-    enabled = dockerBuildEnabled(project)
 }
 
 val openApiOutputFile = rootProject.layout.buildDirectory.file("openapi.json")

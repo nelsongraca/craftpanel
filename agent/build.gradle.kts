@@ -1,7 +1,6 @@
 import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
 import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
 import craftpanel.dockerImageName
-import craftpanel.dockerBuildEnabled
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
@@ -69,7 +68,6 @@ tasks.register<DockerBuildImage>("dockerBuildImage") {
     dockerFile.set(layout.buildDirectory.file("docker/Dockerfile"))
     images.add(agentImageName)
     buildArgs.put("DOCKER_GID", dockerGid)
-    enabled = dockerBuildEnabled(project)
 }
 
 tasks.register<DockerPushImage>("dockerPushImage") {
@@ -77,7 +75,6 @@ tasks.register<DockerPushImage>("dockerPushImage") {
     description = "Pushes the Docker image for agent"
     dependsOn("dockerBuildImage")
     images.add(agentImageName)
-    enabled = dockerBuildEnabled(project)
 }
 
 kover {

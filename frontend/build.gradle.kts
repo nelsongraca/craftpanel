@@ -1,7 +1,6 @@
 import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
 import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
 import craftpanel.dockerImageName
-import craftpanel.dockerBuildEnabled
 
 plugins {
     alias(libs.plugins.frontend)
@@ -68,7 +67,6 @@ tasks.register<DockerBuildImage>("dockerBuildImage") {
     inputDir.set(projectDir)
     dockerFile.set(file("Dockerfile"))
     images.add(frontendImageName)
-    enabled = dockerBuildEnabled(project)
 }
 
 tasks.register<DockerPushImage>("dockerPushImage") {
@@ -76,5 +74,4 @@ tasks.register<DockerPushImage>("dockerPushImage") {
     description = "Pushes the Docker image for frontend"
     dependsOn("dockerBuildImage")
     images.add(frontendImageName)
-    enabled = dockerBuildEnabled(project)
 }

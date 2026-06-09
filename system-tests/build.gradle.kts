@@ -79,20 +79,7 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.core)
 }
 
-val systemTestsEnabled = project.hasProperty("systemTests")
-
 tasks.named<Test>("test") {
-    useJUnitPlatform()
-    // Disable (not just skip) so check doesn't fail when -PsystemTests is absent
-    enabled = systemTestsEnabled
-}
-
-// Explicit alias for CI — always runs regardless of flag
-val systemTest by tasks.registering(Test::class) {
-    group = "verification"
-    description = "Runs the Kotest system test suite (requires running Docker images)"
-    testClassesDirs = sourceSets.test.get().output.classesDirs
-    classpath = sourceSets.test.get().runtimeClasspath
     useJUnitPlatform()
     dependsOn(
         ":master:dockerBuildImage",
@@ -100,4 +87,8 @@ val systemTest by tasks.registering(Test::class) {
         ":frontend:dockerBuildImage",
         ":fake-server:dockerBuildImage",
     )
+}
+
+tasks.named("check") {
+    dependsOn.clear()
 }

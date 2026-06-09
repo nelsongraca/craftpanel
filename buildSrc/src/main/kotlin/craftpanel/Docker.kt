@@ -9,6 +9,3 @@ fun dockerImageName(project: Project, suffix: String): String {
         ?: "latest"
     return "$registry/$suffix:$version"
 }
-
-fun dockerBuildEnabled(project: Project): Boolean =
-    project.rootProject.hasProperty("dockerBuild")

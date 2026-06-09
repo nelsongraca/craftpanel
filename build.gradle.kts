@@ -16,24 +16,19 @@ val imageVersion: String = findProperty("imageVersion")?.toString()
     ?: findProperty("craftpanel_version")?.toString()
     ?: "latest"
 
-val dockerBuildEnabled = project.hasProperty("dockerBuild")
-
 // ---------------------------------------------------------------------------
 // Docker aggregation tasks
 // ---------------------------------------------------------------------------
 val dockerBuildAll by tasks.registering {
     group = "docker"
     description = "Builds all Docker images"
-    enabled = dockerBuildEnabled
+    dependsOn(tasks.named("build"))
 }
 
 val dockerPushAll by tasks.registering {
     group = "docker"
     description = "Pushes all Docker images"
-}
-
-tasks.named("build") {
-    finalizedBy(dockerBuildAll)
+    dependsOn(dockerBuildAll)
 }
 
 subprojects {
@@ -46,10 +41,7 @@ subprojects {
 subprojects {
     afterEvaluate {
         tasks.findByName("dockerBuildImage")
-            ?.let { buildTask ->
-                buildTask.enabled = dockerBuildEnabled
-                dockerBuildAll.configure { dependsOn(buildTask) }
-            }
+            ?.let { dockerBuildAll.configure { dependsOn(it) } }
         tasks.findByName("dockerPushImage")
             ?.let { dockerPushAll.configure { dependsOn(it) } }
     }

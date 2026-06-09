@@ -40,10 +40,7 @@ val imageRegistry: String? = findProperty("imageRegistry") as String?
 fun imageTag(suffix: String) =
     if (imageRegistry != null) "$imageRegistry/$suffix:test" else "$suffix:latest"
 
-val dockerBuildEnabled = rootProject.hasProperty("dockerBuild")
-
 val dockerBuildFakeServer by tasks.registering(DockerBuildImage::class) {
-    enabled = dockerBuildEnabled
     dependsOn(tasks.named("assemble"))
     mustRunAfter(tasks.named("check"))
     inputDir.set(projectDir)
@@ -52,7 +49,6 @@ val dockerBuildFakeServer by tasks.registering(DockerBuildImage::class) {
 }
 
 val dockerBuildFakeProxy by tasks.registering(DockerBuildImage::class) {
-    enabled = dockerBuildEnabled
     dependsOn(tasks.named("assemble"))
     mustRunAfter(tasks.named("check"))
     mustRunAfter(dockerBuildFakeServer)
