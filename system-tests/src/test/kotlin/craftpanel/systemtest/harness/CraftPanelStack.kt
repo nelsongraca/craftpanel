@@ -39,6 +39,19 @@ object CraftPanelStack {
     fun start() {
         // All containers share the craftpanel network so the agent self-check passes at startup
         // and game server containers are reachable from the agent without post-start hacks.
+
+        // Remove any leftover network from a previous crashed run so createNetworkCmd doesn't conflict.
+        runCatching {
+            dockerClient.listNetworksCmd()
+                .withNameFilter("craftpanel")
+                .exec()
+                .filter { it.name == "craftpanel" }
+                .forEach {
+                    dockerClient.removeNetworkCmd(it.id)
+                        .exec()
+                }
+        }
+
         craftpanelNetworkId = dockerClient.createNetworkCmd()
             .withName("craftpanel")
             .exec().id

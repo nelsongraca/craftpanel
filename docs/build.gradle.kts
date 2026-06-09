@@ -1,7 +1,7 @@
 import ru.vyarus.gradle.plugin.mkdocs.task.MkdocsTask
 
 plugins {
-    id("ru.vyarus.mkdocs") version "4.0.1"
+    alias(libs.plugins.mkdocs)
 }
 
 python {

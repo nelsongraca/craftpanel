@@ -1,12 +1,14 @@
 import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
 import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
+import craftpanel.dockerImageName
+import craftpanel.dockerBuildEnabled
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
-    alias(libs.plugins.protobuf)
     alias(libs.plugins.kover)
-    id("com.bmuschko.docker-remote-api") version "10.0.0"
+    alias(libs.plugins.bmuschko.docker)
+    id("craftpanel.protobuf-convention")
     application
 }
 
@@ -20,15 +22,11 @@ java {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Docker GID detection for the agent (needs docker socket access)
-// ---------------------------------------------------------------------------
 val dockerGid: String = (findProperty("dockerGid")?.toString())
     ?: run {
         val result = providers.exec {
             commandLine("getent", "group", "docker")
         }
-        // getent output: "docker:x:GID:..."
         result.standardOutput.asText.get()
             .trim()
             .split(":")
@@ -36,107 +34,52 @@ val dockerGid: String = (findProperty("dockerGid")?.toString())
     }
 
 dependencies {
-    // gRPC client stubs
     implementation(libs.bundles.grpc.server)
-
-    // Coroutines
     implementation(libs.kotlinx.coroutines.core)
-
-    // Serialization
     implementation(libs.kotlinx.serialization.json)
-
-    // Docker Java client
     implementation(libs.docker.java.api)
     implementation(libs.docker.java.core)
     implementation(libs.docker.java.transport.httpclient5)
-
-    // Logging
     implementation(libs.logback.classic)
-
     testImplementation(kotlin("test"))
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)
 }
 
-tasks.withType<Test> {
-    jvmArgs("-Dnet.bytebuddy.experimental=true")
+sourceSets.main {
+    proto.srcDir("${rootProject.projectDir}/proto")
 }
 
+val agentImageName = dockerImageName(project, "agent")
 
-// ---------------------------------------------------------------------------
-// Protobuf code generation
-// ---------------------------------------------------------------------------
-val catalog = extensions.getByType<VersionCatalogsExtension>()
-    .named("libs")
-val protocVersion = catalog.findVersion("protobuf")
-    .get().requiredVersion
-val grpcVersion = catalog.findVersion("grpc")
-    .get().requiredVersion
-val grpcKotlinVersion = catalog.findVersion("grpc-kotlin")
-    .get().requiredVersion
-
-protobuf {
-    protoc {
-        artifact = "com.google.protobuf:protoc:$protocVersion"
-    }
-    plugins {
-        create("grpc") {
-            artifact = "io.grpc:protoc-gen-grpc-java:$grpcVersion"
-        }
-        create("grpckt") {
-            artifact = "io.grpc:protoc-gen-grpc-kotlin:$grpcKotlinVersion:jdk8@jar"
-        }
-    }
-    generateProtoTasks {
-        all().configureEach {
-            plugins {
-                create("grpc")
-                create("grpckt")
-            }
-            builtins {
-                create("kotlin")
-            }
-        }
-    }
-    sourceSets {
-        main {
-            proto {
-                srcDir("${rootProject.projectDir}/proto")
-            }
-        }
-    }
+tasks.register<Copy>("stageDocker") {
+    dependsOn(tasks.installDist)
+    from(layout.buildDirectory.dir("install/agent")) { into("build/install/agent") }
+    from(layout.projectDirectory.file("Dockerfile"))
+    from(layout.projectDirectory.file("docker-entrypoint.sh"))
+    into(layout.buildDirectory.dir("docker"))
 }
-
-// ---------------------------------------------------------------------------
-// Docker
-// ---------------------------------------------------------------------------
-val imageRegistry: String = rootProject.findProperty("imageRegistry")
-    ?.toString() ?: "ghcr.io/nelsongraca/craftpanel"
-val imageVersion: String = rootProject.findProperty("imageVersion")
-    ?.toString() ?: "latest"
-val imageName = "$imageRegistry/agent:$imageVersion"
 
 tasks.register<DockerBuildImage>("dockerBuildImage") {
     group = "docker"
     description = "Builds the Docker image for agent"
-    dependsOn(tasks.installDist)
+    dependsOn("stageDocker")
     mustRunAfter(tasks.named("assemble"), tasks.named("check"))
-    inputDir.set(projectDir)
-    dockerFile.set(file("Dockerfile"))
-    images.add(imageName)
+    inputDir.set(layout.buildDirectory.dir("docker"))
+    dockerFile.set(layout.buildDirectory.file("docker/Dockerfile"))
+    images.add(agentImageName)
     buildArgs.put("DOCKER_GID", dockerGid)
+    enabled = dockerBuildEnabled(project)
 }
 
 tasks.register<DockerPushImage>("dockerPushImage") {
     group = "docker"
     description = "Pushes the Docker image for agent"
     dependsOn("dockerBuildImage")
-    images.add(imageName)
+    images.add(agentImageName)
+    enabled = dockerBuildEnabled(project)
 }
 
-// ---------------------------------------------------------------------------
-// Coverage
-// ---------------------------------------------------------------------------
 kover {
     reports {
         filters {

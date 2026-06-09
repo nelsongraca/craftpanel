@@ -103,7 +103,7 @@ kotlinx-coroutines-test = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-t
 
 # System tests
 testcontainers-core = { module = "org.testcontainers:testcontainers", version.ref = "testcontainers" }
-testcontainers-postgresql = { module = "org.testcontainers:testcontainers-postgresql", version.ref = "testcontainers" }
+testcontainers-postgresql = { module = "org.testcontainers:postgresql", version.ref = "testcontainers" }
 kotest-runner-junit5 = { module = "io.kotest:kotest-runner-junit5", version.ref = "kotest" }
 kotest-assertions-core = { module = "io.kotest:kotest-assertions-core", version.ref = "kotest" }
 okhttp = { module = "com.squareup.okhttp3:okhttp", version.ref = "okhttp" }
@@ -149,3 +149,5 @@ ktor = { id = "io.ktor.plugin", version.ref = "ktor" }
 protobuf = { id = "com.google.protobuf", version.ref = "protobuf-plugin" }
 frontend = { id = "org.siouan.frontend-jdk17", version.ref = "frontend-plugin" }
 openapi-generator = { id = "org.openapi.generator", version.ref = "openapi-generator" }
+bmuschko-docker = { id = "com.bmuschko.docker-remote-api", version = "10.0.0" }
+mkdocs = { id = "ru.vyarus.mkdocs", version = "4.0.1" }

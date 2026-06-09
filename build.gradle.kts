@@ -3,8 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.ktor) apply false
-    alias(libs.plugins.protobuf) apply false
-    id("com.bmuschko.docker-remote-api") version "10.0.0" apply false
+    alias(libs.plugins.bmuschko.docker) apply false
     alias(libs.plugins.kover) apply false
 }
 
@@ -37,12 +36,12 @@ tasks.named("build") {
     finalizedBy(dockerBuildAll)
 }
 
-allprojects {
-    tasks.matching { it.name == "clean" }
-        .configureEach {
-            delete(layout.buildDirectory)
-        }
+subprojects {
+    tasks.withType<Test>().configureEach {
+        jvmArgs("-Dnet.bytebuddy.experimental=true")
+    }
 }
+
 // Wire subproject docker tasks into the root aggregators once subprojects configure
 subprojects {
     afterEvaluate {

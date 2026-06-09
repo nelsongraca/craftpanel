@@ -8,3 +8,7 @@ openapi.json
 .env
 .local/
 graphify-out/
+.claude
+.agents
+.antigravitycli
+.opencode

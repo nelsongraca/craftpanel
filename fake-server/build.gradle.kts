@@ -3,7 +3,7 @@ import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
 plugins {
     alias(libs.plugins.kotlin.jvm)
     application
-    id("com.bmuschko.docker-remote-api") version "10.0.0"
+    alias(libs.plugins.bmuschko.docker)
 }
 
 group = "craftpanel"

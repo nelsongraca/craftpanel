@@ -94,4 +94,10 @@ val systemTest by tasks.registering(Test::class) {
     testClassesDirs = sourceSets.test.get().output.classesDirs
     classpath = sourceSets.test.get().runtimeClasspath
     useJUnitPlatform()
+    dependsOn(
+        ":master:dockerBuildImage",
+        ":agent:dockerBuildImage",
+        ":frontend:dockerBuildImage",
+        ":fake-server:dockerBuildImage",
+    )
 }
