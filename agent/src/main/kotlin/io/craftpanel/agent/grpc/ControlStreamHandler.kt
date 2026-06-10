@@ -742,7 +742,7 @@ class ControlStreamHandler(
                 if (!Files.exists(src)) error("Source not found")
                 if (Files.exists(dst)) error("Destination already exists")
                 Files.createDirectories(dst.parent)
-                if (cmd.recursive && Files.isDirectory(src)) {
+                if (Files.isDirectory(src)) {
                     copyRecursively(src, dst)
                 }
                 else {
@@ -769,15 +769,8 @@ class ControlStreamHandler(
     ) {
         val fileResult = runCatching {
             withContext(Dispatchers.IO) {
-                val filePath = if (cmd.path.startsWith("/")) {
-                    val resolved = Paths.get(cmd.path).normalize()
-                    if (!resolved.startsWith(Paths.get(config.dataBasePath).normalize()))
-                        error("Path traversal detected")
-                    resolved
-                } else {
-                    val root = serverDataRoot(cmd.serverId)
-                    safeResolve(root, cmd.path)
-                }
+                val root = serverDataRoot(cmd.serverId)
+                val filePath = safeResolve(root, cmd.path)
                 if (!Files.exists(filePath)) error("File not found: ${cmd.path}")
                 filePath
             }
@@ -825,35 +818,13 @@ class ControlStreamHandler(
             .normalize()
 
     private fun safeResolve(root: Path, relativePath: String): Path {
-        val canonicalRoot = runCatching { root.toRealPath() }.getOrNull()
-        log.debug("safeResolve root={} canonicalRoot={} relativePath={}", root, canonicalRoot, relativePath)
+        log.debug("safeResolve root={} relativePath={}", root, relativePath)
         val clean = relativePath.trimStart('/')
         val resolved = root.resolve(clean)
             .normalize()
         log.debug("safeResolve resolved={} startsWithRoot={}", resolved, resolved.startsWith(root))
         if (!resolved.startsWith(root)) {
             error("Path traversal detected")
-        }
-        if (canonicalRoot != null) {
-            if (Files.exists(resolved)) {
-                val real = runCatching { resolved.toRealPath() }.getOrElse { resolved }
-                log.debug("safeResolve real={} startsWithCanonical={}", real, real.startsWith(canonicalRoot))
-                if (!real.startsWith(canonicalRoot)) {
-                    error("Path traversal via symlink detected")
-                }
-            }
-            else {
-                var ancestor = resolved.parent
-                while (ancestor != null && !Files.exists(ancestor)) {
-                    ancestor = ancestor.parent
-                }
-                if (ancestor != null) {
-                    val realAncestor = runCatching { ancestor.toRealPath() }.getOrElse { ancestor }
-                    if (!realAncestor.startsWith(canonicalRoot)) {
-                        error("Path traversal via symlink detected")
-                    }
-                }
-            }
         }
         return resolved
     }

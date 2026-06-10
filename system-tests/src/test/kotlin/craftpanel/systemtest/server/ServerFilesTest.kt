@@ -44,6 +44,7 @@ class ServerFilesTest : BaseSystemTest() {
 
                 it("lists root directory") {
                     val files = api.listServerFiles(serverId)
+                    files.propertyEntries.find { it.name == "server.propertiee" }.
                     files.path shouldBe "/"
                 }
 

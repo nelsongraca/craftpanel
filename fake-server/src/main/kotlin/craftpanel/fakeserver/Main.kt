@@ -7,10 +7,15 @@ fun main() {
     val config = Config.fromEnv()
     log("craftpanel-fake-server starting")
 
-    File("/data/server.properties").takeIf { !it.exists() }
-        ?.writeText(
+    val propsFile = File("/data/server.properties")
+    if (propsFile.exists()) {
+        log("  server.properties already exists at ${propsFile.absolutePath}")
+    } else {
+        propsFile.writeText(
             "level-name=world\nmotd=${config.serverName}\nserver-port=${config.gamePort}\nmax-players=${config.maxPlayers}\nonline-mode=false\n"
         )
+        log("  Created server.properties at ${propsFile.absolutePath}")
+    }
     log("  TCP/UDP game port : ${config.gamePort}")
     log("  Server name       : ${config.serverName}")
     log("  Max players       : ${config.maxPlayers}")
