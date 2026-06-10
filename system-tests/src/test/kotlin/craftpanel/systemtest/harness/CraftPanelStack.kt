@@ -46,7 +46,8 @@ class CraftPanelStack {
     var nodeId: String = ""
         private set
 
-    val nodeIds: List<String> = mutableListOf()
+    private val _nodeIds = mutableListOf<String>()
+    val nodeIds: List<String> get() = _nodeIds
 
     val masterApiUrl: String
         get() = "http://localhost:${master.getMappedPort(8080)}"
@@ -66,8 +67,8 @@ class CraftPanelStack {
     }
 
     fun storeNodeIds(ids: List<String>) {
-        (nodeIds as MutableList).clear()
-        (nodeIds as MutableList).addAll(ids)
+        _nodeIds.clear()
+        _nodeIds.addAll(ids)
         nodeId = ids.firstOrNull() ?: ""
     }
 

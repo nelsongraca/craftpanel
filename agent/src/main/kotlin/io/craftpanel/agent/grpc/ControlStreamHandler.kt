@@ -364,6 +364,8 @@ class ControlStreamHandler(
     ) {
         val destPath = "${config.dataBasePath}/servers/${cmd.serverId}"
         log.info("Migration ${cmd.migrationId}: preparing rsync receiver on port ${cmd.port} → $destPath")
+        val rsyncImage = cmd.rsyncImage.ifEmpty { "alpine:latest" }
+        withContext(Dispatchers.IO) { containerManager.pullImage(rsyncImage) }
         runCatching {
             withContext(Dispatchers.IO) {
                 val password = generateRsyncPassword()
@@ -372,7 +374,7 @@ class ControlStreamHandler(
                     port = cmd.port,
                     destPath = destPath,
                     password = password,
-                    rsyncImage = cmd.rsyncImage.ifEmpty { "alpine" },
+                    rsyncImage = rsyncImage,
                 )
                 password
             }
@@ -397,6 +399,8 @@ class ControlStreamHandler(
     ) {
         val sourcePath = "${config.dataBasePath}/servers/${cmd.serverId}"
         log.info("Migration ${cmd.migrationId}: starting rsync transfer (final=${cmd.isFinalPass})")
+        val rsyncImage = cmd.rsyncImage.ifEmpty { "alpine:latest" }
+        withContext(Dispatchers.IO) { containerManager.pullImage(rsyncImage) }
         runCatching {
             withContext(Dispatchers.IO) {
                 containerManager.runRsyncTransfer(
@@ -406,7 +410,7 @@ class ControlStreamHandler(
                     destPort = cmd.destinationPort,
                     password = cmd.rsyncPassword,
                     isFinalPass = cmd.isFinalPass,
-                    rsyncImage = cmd.rsyncImage.ifEmpty { "alpine" },
+                    rsyncImage = rsyncImage,
                     onProgress = { bytes, total, pct, phase ->
                         outbound.trySend(agentMessage {
                             nodeId = identity.nodeId

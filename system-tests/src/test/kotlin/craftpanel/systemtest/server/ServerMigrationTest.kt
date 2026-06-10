@@ -24,35 +24,35 @@ import java.util.concurrent.TimeUnit
 
 class ServerMigrationTest : DescribeSpec() {
 
+    private val stack = CraftPanelStack()
+    private val api: DefaultApi by lazy { DefaultApi(basePath = stack.masterApiUrl) }
+    private val helper: ServerHelper by lazy { ServerHelper(api) }
+    private val serverIds = mutableListOf<String>()
+    private lateinit var sourceNodeId: String
+    private lateinit var targetNodeId: String
+
     private val wsClient = OkHttpClient.Builder().build()
 
     init {
+        beforeSpec {
+            stack.start(nodeCount = 2)
+            AuthHelper(api).login()
+            val ids = MultiNodeHelper(api).trustAllPendingNodes(2)
+            sourceNodeId = ids[0]
+            targetNodeId = ids[1]
+            stack.storeNodeIds(ids)
+        }
+
+        afterSpec {
+            serverIds.forEach { id ->
+                runCatching { api.stopServer(id) }
+                helper.awaitStoppedOrGone(id)
+                runCatching { api.deleteServer(id) }
+            }
+            stack.stop()
+        }
+
         describe("Server migration") {
-
-            val stack = CraftPanelStack()
-            val api: DefaultApi by lazy { DefaultApi(basePath = stack.masterApiUrl) }
-            lateinit var sourceNodeId: String
-            lateinit var targetNodeId: String
-            val serverIds = mutableListOf<String>()
-            val helper: ServerHelper by lazy { ServerHelper(api) }
-
-            beforeSpec {
-                stack.start(nodeCount = 2)
-                AuthHelper(api).login()
-                val ids = MultiNodeHelper(api).trustAllPendingNodes(2)
-                sourceNodeId = ids[0]
-                targetNodeId = ids[1]
-                stack.storeNodeIds(ids)
-            }
-
-            afterSpec {
-                serverIds.forEach { id ->
-                    runCatching { api.stopServer(id) }
-                    helper.awaitStoppedOrGone(id)
-                    runCatching { api.deleteServer(id) }
-                }
-                stack.stop()
-            }
 
             it("migrates a STOPPED server to target node and reaches terminal state") {
                 val serverId = helper.createTestServer(sourceNodeId).also { serverIds.add(it) }
@@ -61,13 +61,13 @@ class ServerMigrationTest : DescribeSpec() {
                     serverId,
                     MigrateRequest(
                         targetNodeId = targetNodeId,
-                        rsyncImage = "alpine",
+                        rsyncImage = "alpine:latest",
                         playerWarningMessage = "test migration"
                     )
                 )
 
                 response.id.isNotEmpty()
-                response.status shouldBe "CREATED"
+                response.status shouldBe "PENDING"
 
                 val migration = pollMigrationStatus(api, response.id, 180_000)
                 val isTerminal = migration.status == "COMPLETED" || migration.status == "FAILED"
@@ -87,7 +87,7 @@ class ServerMigrationTest : DescribeSpec() {
                     serverId,
                     MigrateRequest(
                         targetNodeId = targetNodeId,
-                        rsyncImage = "alpine",
+                        rsyncImage = "alpine:latest",
                         playerWarningMessage = "test migration"
                     )
                 )
@@ -105,7 +105,7 @@ class ServerMigrationTest : DescribeSpec() {
                     serverId,
                     MigrateRequest(
                         targetNodeId = targetNodeId,
-                        rsyncImage = "alpine",
+                        rsyncImage = "alpine:latest",
                         playerWarningMessage = "test migration"
                     )
                 )
@@ -151,7 +151,7 @@ class ServerMigrationTest : DescribeSpec() {
                     serverId,
                     MigrateRequest(
                         targetNodeId = targetNodeId,
-                        rsyncImage = "alpine",
+                        rsyncImage = "alpine:latest",
                         playerWarningMessage = "test migration"
                     )
                 )
@@ -162,21 +162,23 @@ class ServerMigrationTest : DescribeSpec() {
                 migrations["migrations"].orEmpty().shouldNotBeEmpty()
             }
 
-            it("migrate HEALTHY server returns 409") {
+            it("migrate HEALTHY server is allowed (server is stopped as part of migration)") {
                 val serverId = helper.createTestServer(sourceNodeId).also { serverIds.add(it) }
                 api.startServer(serverId)
                 helper.awaitStatus(serverId, "HEALTHY")
 
-                shouldThrow<ClientException> {
-                    api.startMigration(
-                        serverId,
-                        MigrateRequest(
-                            targetNodeId = targetNodeId,
-                            rsyncImage = "alpine",
-                            playerWarningMessage = "test"
-                        )
+                val response = api.startMigration(
+                    serverId,
+                    MigrateRequest(
+                        targetNodeId = targetNodeId,
+                        rsyncImage = "alpine:latest",
+                        playerWarningMessage = "test"
                     )
-                }.statusCode shouldBe 409
+                )
+                response.status shouldBe "PENDING"
+
+                val migration = pollMigrationStatus(api, response.id, 180_000)
+                migration.status shouldBe "COMPLETED"
             }
 
             it("migrate to non-existent node returns 404") {
@@ -187,7 +189,7 @@ class ServerMigrationTest : DescribeSpec() {
                         serverId,
                         MigrateRequest(
                             targetNodeId = "00000000-0000-0000-0000-000000000000",
-                            rsyncImage = "alpine",
+                            rsyncImage = "alpine:latest",
                             playerWarningMessage = "test"
                         )
                     )

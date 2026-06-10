@@ -14,22 +14,22 @@ import org.openapitools.client.infrastructure.ClientException
 
 class TokenRotationTest : DescribeSpec() {
 
+    private val stack = CraftPanelStack()
+    private val api: DefaultApi by lazy { DefaultApi(basePath = stack.masterApiUrl) }
+
     init {
+        beforeSpec {
+            stack.start(nodeCount = 1)
+            AuthHelper(api).login()
+            val ids = MultiNodeHelper(api).trustAllPendingNodes(1)
+            stack.storeNodeIds(ids)
+        }
+
+        afterSpec {
+            stack.stop()
+        }
+
         describe("Token rotation") {
-
-            val stack = CraftPanelStack()
-            val api: DefaultApi by lazy { DefaultApi(basePath = stack.masterApiUrl) }
-
-            beforeSpec {
-                stack.start(nodeCount = 1)
-                AuthHelper(api).login()
-                val ids = MultiNodeHelper(api).trustAllPendingNodes(1)
-                stack.storeNodeIds(ids)
-            }
-
-            afterSpec {
-                stack.stop()
-            }
 
             it("rotates token and returns a new key, node stays ACTIVE") {
                 val response = api.rotateNodeToken(stack.nodeId)

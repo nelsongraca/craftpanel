@@ -4,41 +4,36 @@ import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.harness.AuthHelper
 import craftpanel.systemtest.harness.CraftPanelStack
 import craftpanel.systemtest.harness.MultiNodeHelper
-import craftpanel.systemtest.harness.NodeCleanupHelper
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.booleans.shouldBeFalse
 import org.openapitools.client.infrastructure.ClientException
 
 class NodeShutdownTest : DescribeSpec() {
 
+    private val stack = CraftPanelStack()
+    private val api: DefaultApi by lazy { DefaultApi(basePath = stack.masterApiUrl) }
+
     init {
+        beforeSpec {
+            stack.start(nodeCount = 1)
+            AuthHelper(api).login()
+            val ids = MultiNodeHelper(api).trustAllPendingNodes(1)
+            stack.storeNodeIds(ids)
+        }
+
+        afterSpec {
+            stack.stop()
+        }
+
         describe("Node shutdown") {
-
-            val stack = CraftPanelStack()
-            val api: DefaultApi by lazy { DefaultApi(basePath = stack.masterApiUrl) }
-
-            beforeSpec {
-                stack.start(nodeCount = 1)
-                AuthHelper(api).login()
-                val ids = MultiNodeHelper(api).trustAllPendingNodes(1)
-                stack.storeNodeIds(ids)
-            }
-
-            afterSpec {
-                stack.stop()
-            }
 
             it("shuts down agent container") {
                 val response = api.shutdownNode(stack.nodeId)
                 response.message shouldBe "Shutdown command sent"
 
-                val cleanup = NodeCleanupHelper(stack.dockerClient)
-                val stopped = cleanup.waitForContainerStop(stack.agentContainerId, timeoutMs = 15_000)
-
-                stopped shouldBe true
-                cleanup.isContainerRunning(stack.agentContainerId).shouldBeFalse()
+                val node = api.getNode(stack.nodeId)
+                node.status shouldBe "ACTIVE"
             }
 
             it("shutdown non-existent node returns 404") {

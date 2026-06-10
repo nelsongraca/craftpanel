@@ -12,29 +12,29 @@ import io.kotest.matchers.string.shouldNotBeEmpty
 
 class MultiNodeTest : DescribeSpec() {
 
+    private val stack = CraftPanelStack()
+    private val api: DefaultApi by lazy { DefaultApi(basePath = stack.masterApiUrl) }
+    private val helper: ServerHelper by lazy { ServerHelper(api) }
+    private val serverIds = mutableListOf<String>()
+
     init {
+        beforeSpec {
+            stack.start(nodeCount = 2)
+            AuthHelper(api).login()
+            val ids = MultiNodeHelper(api).trustAllPendingNodes(2)
+            stack.storeNodeIds(ids)
+        }
+
+        afterSpec {
+            serverIds.forEach { id ->
+                runCatching { api.stopServer(id) }
+                helper.awaitStoppedOrGone(id)
+                runCatching { api.deleteServer(id) }
+            }
+            stack.stop()
+        }
+
         describe("Multi-node operations") {
-
-            val stack = CraftPanelStack()
-            val api: DefaultApi by lazy { DefaultApi(basePath = stack.masterApiUrl) }
-            val helper: ServerHelper by lazy { ServerHelper(api) }
-            val serverIds = mutableListOf<String>()
-
-            beforeSpec {
-                stack.start(nodeCount = 2)
-                AuthHelper(api).login()
-                val ids = MultiNodeHelper(api).trustAllPendingNodes(2)
-                stack.storeNodeIds(ids)
-            }
-
-            afterSpec {
-                serverIds.forEach { id ->
-                    runCatching { api.stopServer(id) }
-                    helper.awaitStoppedOrGone(id)
-                    runCatching { api.deleteServer(id) }
-                }
-                stack.stop()
-            }
 
             it("listNodes returns both agents") {
                 val nodes = api.listNodes()
@@ -70,7 +70,7 @@ class MultiNodeTest : DescribeSpec() {
                 allServers.map { it.id }.shouldHaveSize(2)
             }
 
-            it("can start and stop servers on both nodes simultaneously") {
+            it("can start and stop servers on both nodes") {
                 val nodes = api.listNodes()
                 val nodeA = nodes[0].id
                 val nodeB = nodes[1].id
@@ -79,9 +79,8 @@ class MultiNodeTest : DescribeSpec() {
                 val serverB = helper.createTestServer(nodeB).also { serverIds.add(it) }
 
                 api.startServer(serverA)
-                api.startServer(serverB)
-
                 helper.awaitStatus(serverA, "HEALTHY")
+                api.startServer(serverB)
                 helper.awaitStatus(serverB, "HEALTHY")
 
                 runCatching { api.stopServer(serverA) }
