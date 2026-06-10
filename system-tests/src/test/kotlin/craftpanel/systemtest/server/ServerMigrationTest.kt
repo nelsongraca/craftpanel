@@ -9,7 +9,7 @@ import craftpanel.systemtest.harness.MultiNodeHelper
 import craftpanel.systemtest.harness.ServerHelper
 import craftpanel.systemtest.harness.pollUntilNotNull
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.core.spec.style.DescribeSpec
+import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
@@ -22,7 +22,7 @@ import org.openapitools.client.infrastructure.ClientException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-class ServerMigrationTest : DescribeSpec() {
+class ServerMigrationTest : ShouldSpec() {
 
     private val stack = CraftPanelStack()
     private val api: DefaultApi by lazy { DefaultApi(basePath = stack.masterApiUrl) }
@@ -52,9 +52,9 @@ class ServerMigrationTest : DescribeSpec() {
             stack.stop()
         }
 
-        describe("Server migration") {
+        context("Server migration") {
 
-            it("migrates a STOPPED server to target node and reaches terminal state") {
+            should("migrates a STOPPED server to target node and reaches terminal state") {
                 val serverId = helper.createTestServer(sourceNodeId).also { serverIds.add(it) }
 
                 val response = api.startMigration(
@@ -80,7 +80,7 @@ class ServerMigrationTest : DescribeSpec() {
                 server.nodeId shouldBe targetNodeId
             }
 
-            it("server can start on target node after migration") {
+            should("server can start on target node after migration") {
                 val serverId = helper.createTestServer(sourceNodeId).also { serverIds.add(it) }
 
                 val migrateResp = api.startMigration(
@@ -98,7 +98,7 @@ class ServerMigrationTest : DescribeSpec() {
                 helper.awaitStatus(serverId, "HEALTHY", timeoutMs = 120_000)
             }
 
-            it("receives migration progress events via WebSocket") {
+            should("receives migration progress events via WebSocket") {
                 val serverId = helper.createTestServer(sourceNodeId).also { serverIds.add(it) }
 
                 val migration = api.startMigration(
@@ -144,7 +144,7 @@ class ServerMigrationTest : DescribeSpec() {
                 events.shouldNotBeEmpty()
             }
 
-            it("listMigrations returns non-empty after migration") {
+            should("listMigrations returns non-empty after migration") {
                 val serverId = helper.createTestServer(sourceNodeId).also { serverIds.add(it) }
 
                 val migrateResp = api.startMigration(
@@ -162,7 +162,7 @@ class ServerMigrationTest : DescribeSpec() {
                 migrations["migrations"].orEmpty().shouldNotBeEmpty()
             }
 
-            it("migrate HEALTHY server is allowed (server is stopped as part of migration)") {
+            should("migrate HEALTHY server is allowed (server is stopped as part of migration)") {
                 val serverId = helper.createTestServer(sourceNodeId).also { serverIds.add(it) }
                 api.startServer(serverId)
                 helper.awaitStatus(serverId, "HEALTHY")
@@ -181,7 +181,7 @@ class ServerMigrationTest : DescribeSpec() {
                 migration.status shouldBe "COMPLETED"
             }
 
-            it("migrate to non-existent node returns 404") {
+            should("migrate to non-existent node returns 404") {
                 val serverId = helper.createTestServer(sourceNodeId).also { serverIds.add(it) }
 
                 shouldThrow<ClientException> {
@@ -196,7 +196,7 @@ class ServerMigrationTest : DescribeSpec() {
                 }.statusCode shouldBe 404
             }
 
-            it("get non-existent migration returns 404") {
+            should("get non-existent migration returns 404") {
                 shouldThrow<ClientException> {
                     api.getMigration("00000000-0000-0000-0000-000000000000")
                 }.statusCode shouldBe 404

@@ -21,9 +21,9 @@ class DashboardWsTest : BaseSystemTest() {
         .build()
 
     init {
-        describe("Dashboard WebSocket") {
+        context("Dashboard WebSocket") {
 
-            it("connects with valid ticket and receives SNAPSHOT event") {
+            should("connects with valid ticket and receives SNAPSHOT event") {
                 val ticket = api.authWsTicket()
                 val url = "${wsBaseUrl}/api/ws?ticket=${ticket.ticket}"
                 val latch = CountDownLatch(1)
@@ -46,7 +46,7 @@ class DashboardWsTest : BaseSystemTest() {
                 ws.close(1000, "test done")
             }
 
-            it("snapshot payload has expected structure") {
+            should("snapshot payload has expected structure") {
                 val ticket = api.authWsTicket()
                 val url = "${wsBaseUrl}/api/ws?ticket=${ticket.ticket}"
                 val latch = CountDownLatch(1)
@@ -73,7 +73,7 @@ class DashboardWsTest : BaseSystemTest() {
                 ws.close(1000, "test done")
             }
 
-            it("rejects connection with invalid ticket") {
+            should("rejects connection with invalid ticket") {
                 val url = "${wsBaseUrl}/api/ws?ticket=invalid-fake-ticket"
                 val latch = CountDownLatch(1)
                 var closeCode = -1
@@ -94,7 +94,7 @@ class DashboardWsTest : BaseSystemTest() {
                 closeCode shouldBe 1008
             }
 
-            it("starting a server emits SERVER_STATUS events") {
+            should("starting a server emits SERVER_STATUS events") {
                 val helper = ServerHelper(api)
                 val serverId = helper.createTestServer(nodeId)
                 try {
@@ -133,7 +133,7 @@ class DashboardWsTest : BaseSystemTest() {
                 }
             }
 
-            it("stopping a server emits SERVER_STATUS STOPPED") {
+            should("stopping a server emits SERVER_STATUS STOPPED") {
                 val helper = ServerHelper(api)
                 val serverId = helper.createTestServer(nodeId)
                 try {

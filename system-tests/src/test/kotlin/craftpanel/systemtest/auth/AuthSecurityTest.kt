@@ -5,14 +5,14 @@ import craftpanel.systemtest.harness.SharedStack
 import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.client.model.LoginRequest
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.core.spec.style.DescribeSpec
+import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldNotBeEmpty
 import org.openapitools.client.infrastructure.ApiClient
 import org.openapitools.client.infrastructure.ClientException
 
-class AuthSecurityTest : DescribeSpec() {
+class AuthSecurityTest : ShouldSpec() {
 
     private val adminApi: DefaultApi by lazy { DefaultApi(basePath = SharedStack.masterApiUrl) }
 
@@ -21,15 +21,15 @@ class AuthSecurityTest : DescribeSpec() {
             AuthHelper(adminApi).login()
         }
 
-        describe("Token security") {
+        context("Token security") {
 
-            it("refresh without refresh cookie returns 401") {
+            should("refresh without refresh cookie returns 401") {
                 val freshApi = DefaultApi(basePath = SharedStack.masterApiUrl)
                 val ex = shouldThrow<ClientException> { freshApi.authRefresh() }
                 ex.statusCode shouldBe 401
             }
 
-            it("login with new credentials works after logout") {
+            should("login with new credentials works after logout") {
                 val adminToken = ApiClient.accessToken
                 val tempEmail = "authsec-${System.currentTimeMillis()}@test.com"
                 val tempPw = "test-pw"
@@ -57,12 +57,12 @@ class AuthSecurityTest : DescribeSpec() {
                 }
             }
 
-            it("logout-all succeeds when authenticated") {
+            should("logout-all succeeds when authenticated") {
                 adminApi.authLogoutAll()
                 adminApi.authMe()
             }
 
-            it("expired access token returns 401") {
+            should("expired access token returns 401") {
                 val savedToken = ApiClient.accessToken
                 try {
                     val response = adminApi.authLogin(
@@ -78,7 +78,7 @@ class AuthSecurityTest : DescribeSpec() {
                 }
             }
 
-            it("refresh after user deactivation returns 401") {
+            should("refresh after user deactivation returns 401") {
                 val adminToken = ApiClient.accessToken
                 val tempEmail = "authsec-deact-${System.currentTimeMillis()}@test.com"
                 val tempPw = "test-pw"

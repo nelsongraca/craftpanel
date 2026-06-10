@@ -35,9 +35,9 @@ class PermissionsTest : BaseSystemTest() {
             runCatching { api.deleteServer(serverId) }
         }
 
-        describe("Multi-user permission enforcement") {
+        context("Multi-user permission enforcement") {
 
-            it("user without any assignment cannot list servers") {
+            should("user without any assignment cannot list servers") {
                 val email = "perm-no-list-${System.currentTimeMillis()}@test.com"
                 createViewerUser(email, "pw")
                 withViewerApi(email, "pw") { vApi ->
@@ -47,7 +47,7 @@ class PermissionsTest : BaseSystemTest() {
                 cleanupUser(email)
             }
 
-            it("user without any assignment cannot list users") {
+            should("user without any assignment cannot list users") {
                 val email = "perm-no-users-${System.currentTimeMillis()}@test.com"
                 createViewerUser(email, "pw")
                 withViewerApi(email, "pw") { vApi ->
@@ -57,7 +57,7 @@ class PermissionsTest : BaseSystemTest() {
                 cleanupUser(email)
             }
 
-            it("user without any assignment cannot view system settings") {
+            should("user without any assignment cannot view system settings") {
                 val email = "perm-no-settings-${System.currentTimeMillis()}@test.com"
                 createViewerUser(email, "pw")
                 withViewerApi(email, "pw") { vApi ->
@@ -67,7 +67,7 @@ class PermissionsTest : BaseSystemTest() {
                 cleanupUser(email)
             }
 
-            it("user without any assignment cannot list nodes") {
+            should("user without any assignment cannot list nodes") {
                 val email = "perm-no-nodes-${System.currentTimeMillis()}@test.com"
                 createViewerUser(email, "pw")
                 withViewerApi(email, "pw") { vApi ->
@@ -77,7 +77,7 @@ class PermissionsTest : BaseSystemTest() {
                 cleanupUser(email)
             }
 
-            it("user with GLOBAL viewer can list servers and see details") {
+            should("user with GLOBAL viewer can list servers and see details") {
                 val email = "perm-global-view-${System.currentTimeMillis()}@test.com"
                 val (_, groupId) = createViewerUserWithGlobalAssignment(email, "pw")
                 withViewerApi(email, "pw") { vApi ->
@@ -94,7 +94,7 @@ class PermissionsTest : BaseSystemTest() {
                 cleanupUser(email)
             }
 
-            it("user with GLOBAL viewer cannot start/stop/delete servers") {
+            should("user with GLOBAL viewer cannot start/stop/delete servers") {
                 val email = "perm-global-cmd-${System.currentTimeMillis()}@test.com"
                 val (_, groupId) = createViewerUserWithGlobalAssignment(email, "pw")
                 withViewerApi(email, "pw") { vApi ->
@@ -106,7 +106,7 @@ class PermissionsTest : BaseSystemTest() {
                 cleanupUser(email)
             }
 
-            it("user with GLOBAL viewer cannot access admin endpoints") {
+            should("user with GLOBAL viewer cannot access admin endpoints") {
                 val email = "perm-global-admin-${System.currentTimeMillis()}@test.com"
                 val (_, groupId) = createViewerUserWithGlobalAssignment(email, "pw")
                 withViewerApi(email, "pw") { vApi ->
@@ -119,7 +119,7 @@ class PermissionsTest : BaseSystemTest() {
                 cleanupUser(email)
             }
 
-            it("user with SERVER-scoped assignment sees only the assigned server") {
+            should("user with SERVER-scoped assignment sees only the assigned server") {
                 val otherServer = helper.createTestServer(nodeId)
                 val email = "perm-scoped-${System.currentTimeMillis()}@test.com"
                 val groupId = createScopedViewerUser(email, "pw", serverId)
@@ -133,7 +133,7 @@ class PermissionsTest : BaseSystemTest() {
                 runCatching { api.deleteServer(otherServer) }
             }
 
-            it("user with SERVER-scoped assignment can get the assigned server") {
+            should("user with SERVER-scoped assignment can get the assigned server") {
                 val email = "perm-scoped-get-${System.currentTimeMillis()}@test.com"
                 val groupId = createScopedViewerUser(email, "pw", serverId)
                 withViewerApi(email, "pw") { vApi ->
@@ -144,7 +144,7 @@ class PermissionsTest : BaseSystemTest() {
                 cleanupUser(email)
             }
 
-            it("inactive user cannot login") {
+            should("inactive user cannot login") {
                 val email = "perm-inactive-${System.currentTimeMillis()}@test.com"
                 val (userId, groupId) = createViewerUserWithGlobalAssignment(email, "pw")
                 api.updateUser(userId, PatchUserRequest(isActive = false))
@@ -158,7 +158,7 @@ class PermissionsTest : BaseSystemTest() {
                 cleanupUser(email)
             }
 
-            it("user with NETWORK-scoped assignment sees all servers in the network") {
+            should("user with NETWORK-scoped assignment sees all servers in the network") {
                 val net = api.createNetwork(
                     CreateNetworkRequest(name = "perm-net-${System.currentTimeMillis()}", type = "NORMAL")
                 )
@@ -208,7 +208,7 @@ class PermissionsTest : BaseSystemTest() {
                 }
             }
 
-            it("user with start but not stop permission can start but not stop") {
+            should("user with start but not stop permission can start but not stop") {
                 val email = "perm-start-only-${System.currentTimeMillis()}@test.com"
                 val group = api.createGroup(
                     CreateGroupRequest(name = "start-only-group-${System.currentTimeMillis()}")
@@ -238,7 +238,7 @@ class PermissionsTest : BaseSystemTest() {
                 }
             }
 
-            it("deleted user cannot login") {
+            should("deleted user cannot login") {
                 val email = "perm-deleted-${System.currentTimeMillis()}@test.com"
                 val (userId, groupId) = createViewerUserWithGlobalAssignment(email, "pw")
                 api.deleteUser(userId)
@@ -251,7 +251,7 @@ class PermissionsTest : BaseSystemTest() {
                 cleanupUser(email)
             }
 
-            it("user without server.view sees empty server list") {
+            should("user without server.view sees empty server list") {
                 val email = "perm-no-view-${System.currentTimeMillis()}@test.com"
                 val group = api.createGroup(
                     CreateGroupRequest(name = "no-view-group-${System.currentTimeMillis()}")
@@ -278,7 +278,7 @@ class PermissionsTest : BaseSystemTest() {
                 }
             }
 
-            it("user without system.users gets 403 from listUsers") {
+            should("user without system.users gets 403 from listUsers") {
                 val email = "perm-no-users-${System.currentTimeMillis()}@test.com"
                 val group = api.createGroup(
                     CreateGroupRequest(name = "no-users-group-${System.currentTimeMillis()}")
@@ -305,7 +305,7 @@ class PermissionsTest : BaseSystemTest() {
                 }
             }
 
-            it("user without system.settings gets 403 from getSystemSettings") {
+            should("user without system.settings gets 403 from getSystemSettings") {
                 val email = "perm-no-settings-${System.currentTimeMillis()}@test.com"
                 val group = api.createGroup(
                     CreateGroupRequest(name = "no-settings-group-${System.currentTimeMillis()}")

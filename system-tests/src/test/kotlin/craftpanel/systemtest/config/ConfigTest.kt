@@ -12,9 +12,9 @@ import org.openapitools.client.infrastructure.ClientException
 class ConfigTest : BaseSystemTest() {
 
     init {
-        describe("Server configuration") {
+        context("Server configuration") {
 
-            it("get env vars returns defaults for new server") {
+            should("get env vars returns defaults for new server") {
                 val serverId = ServerHelper(api).createTestServer(nodeId)
                 try {
                     val envVars = api.getEnvVars(serverId)
@@ -27,7 +27,7 @@ class ConfigTest : BaseSystemTest() {
                 }
             }
 
-            it("sets and retrieves env vars") {
+            should("sets and retrieves env vars") {
                 val serverId = ServerHelper(api).createTestServer(nodeId)
                 try {
                     api.replaceEnvVars(
@@ -47,7 +47,7 @@ class ConfigTest : BaseSystemTest() {
                 }
             }
 
-            it("replaces env vars, removing previous entries") {
+            should("replaces env vars, removing previous entries") {
                 val serverId = ServerHelper(api).createTestServer(nodeId)
                 try {
                     api.replaceEnvVars(
@@ -70,7 +70,7 @@ class ConfigTest : BaseSystemTest() {
                 }
             }
 
-            it("updates stop command") {
+            should("updates stop command") {
                 val serverId = ServerHelper(api).createTestServer(nodeId)
                 try {
                     api.updateStopCommand(serverId, PatchStopCommandRequest(stopCommand = "say Goodbye"))
@@ -81,7 +81,7 @@ class ConfigTest : BaseSystemTest() {
                 }
             }
 
-            it("updates config mode") {
+            should("updates config mode") {
                 val serverId = ServerHelper(api).createTestServer(nodeId)
                 try {
                     api.updateConfigMode(serverId, PatchConfigModeRequest(configMode = "MANAGED"))
@@ -92,7 +92,7 @@ class ConfigTest : BaseSystemTest() {
                 }
             }
 
-            it("managing proxy backends on a non-proxy server returns 409") {
+            should("managing proxy backends on a non-proxy server returns 409") {
                 val serverId = ServerHelper(api).createTestServer(nodeId)
                 try {
                     val ex = shouldThrow<ClientException> {
@@ -115,7 +115,7 @@ class ConfigTest : BaseSystemTest() {
                 }
             }
 
-            it("configuring a non-existent server returns 404") {
+            should("configuring a non-existent server returns 404") {
                 val ex = shouldThrow<ClientException> {
                     api.getEnvVars("00000000-0000-0000-0000-000000000000")
                 }
@@ -123,9 +123,9 @@ class ConfigTest : BaseSystemTest() {
             }
         }
 
-        describe("Server resources") {
+        context("Server resources") {
 
-            it("updates server memory and CPU") {
+            should("updates server memory and CPU") {
                 val serverId = ServerHelper(api).createTestServer(nodeId, memoryMb = 512, cpuShares = 128)
                 try {
                     api.updateServerResources(
@@ -140,7 +140,7 @@ class ConfigTest : BaseSystemTest() {
                 }
             }
 
-            it("updating server resources beyond node capacity returns 409") {
+            should("updating server resources beyond node capacity returns 409") {
                 val node = api.getNode(nodeId)
                 val excessiveMb = node.totalRamMb + 1024
                 val serverId = ServerHelper(api).createTestServer(nodeId, memoryMb = 512)
@@ -158,9 +158,9 @@ class ConfigTest : BaseSystemTest() {
             }
         }
 
-        describe("Server exposure") {
+        context("Server exposure") {
 
-            it("updates server exposure") {
+            should("updates server exposure") {
                 val serverId = ServerHelper(api).createTestServer(nodeId)
                 try {
                     api.updateServerExposure(

@@ -5,11 +5,11 @@ import craftpanel.systemtest.harness.AuthHelper
 import craftpanel.systemtest.harness.CraftPanelStack
 import craftpanel.systemtest.harness.MultiNodeHelper
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.core.spec.style.DescribeSpec
+import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.shouldBe
 import org.openapitools.client.infrastructure.ClientException
 
-class NodeShutdownTest : DescribeSpec() {
+class NodeShutdownTest : ShouldSpec() {
 
     private val stack = CraftPanelStack()
     private val api: DefaultApi by lazy { DefaultApi(basePath = stack.masterApiUrl) }
@@ -26,9 +26,9 @@ class NodeShutdownTest : DescribeSpec() {
             stack.stop()
         }
 
-        describe("Node shutdown") {
+        context("Node shutdown") {
 
-            it("shuts down agent container") {
+            should("shuts down agent container") {
                 val response = api.shutdownNode(stack.nodeId)
                 response.message shouldBe "Shutdown command sent"
 
@@ -36,7 +36,7 @@ class NodeShutdownTest : DescribeSpec() {
                 node.status shouldBe "ACTIVE"
             }
 
-            it("shutdown non-existent node returns 404") {
+            should("shutdown non-existent node returns 404") {
                 shouldThrow<ClientException> {
                     api.shutdownNode("00000000-0000-0000-0000-000000000000")
                 }.statusCode shouldBe 404

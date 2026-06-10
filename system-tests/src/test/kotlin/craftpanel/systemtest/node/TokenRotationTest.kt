@@ -6,13 +6,13 @@ import craftpanel.systemtest.harness.CraftPanelStack
 import craftpanel.systemtest.harness.MultiNodeHelper
 import craftpanel.systemtest.harness.NodeCleanupHelper
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.core.spec.style.DescribeSpec
+import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.string.shouldNotBeEmpty
 import org.openapitools.client.infrastructure.ClientException
 
-class TokenRotationTest : DescribeSpec() {
+class TokenRotationTest : ShouldSpec() {
 
     private val stack = CraftPanelStack()
     private val api: DefaultApi by lazy { DefaultApi(basePath = stack.masterApiUrl) }
@@ -29,9 +29,9 @@ class TokenRotationTest : DescribeSpec() {
             stack.stop()
         }
 
-        describe("Token rotation") {
+        context("Token rotation") {
 
-            it("rotates token and returns a new key, node stays ACTIVE") {
+            should("rotates token and returns a new key, node stays ACTIVE") {
                 val response = api.rotateNodeToken(stack.nodeId)
                 response.nodeKey.shouldNotBeEmpty()
 
@@ -39,7 +39,7 @@ class TokenRotationTest : DescribeSpec() {
                 node.status shouldBe "ACTIVE"
             }
 
-            it("can rotate token twice") {
+            should("can rotate token twice") {
                 val first = api.rotateNodeToken(stack.nodeId)
                 first.nodeKey.shouldNotBeEmpty()
 
@@ -47,13 +47,13 @@ class TokenRotationTest : DescribeSpec() {
                 second.nodeKey.shouldNotBeEmpty()
             }
 
-            it("returns 404 for non-existent node") {
+            should("returns 404 for non-existent node") {
                 shouldThrow<ClientException> {
                     api.rotateNodeToken("00000000-0000-0000-0000-000000000000")
                 }.statusCode shouldBe 404
             }
 
-            it("agent with old key is rejected after rotation") {
+            should("agent with old key is rejected after rotation") {
                 val response = api.rotateNodeToken(stack.nodeId)
                 response.nodeKey.shouldNotBeEmpty()
 

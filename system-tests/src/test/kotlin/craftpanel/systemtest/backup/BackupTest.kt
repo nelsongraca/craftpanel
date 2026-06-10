@@ -12,9 +12,9 @@ import org.openapitools.client.infrastructure.ClientException
 class BackupTest : BaseSystemTest() {
 
     init {
-        describe("Backup lifecycle") {
+        context("Backup lifecycle") {
 
-            it("list backups returns empty for new server") {
+            should("list backups returns empty for new server") {
                 val serverId = ServerHelper(api).createTestServer(nodeId)
                 try {
                     val backups = api.listBackups(serverId)
@@ -24,7 +24,7 @@ class BackupTest : BaseSystemTest() {
                 }
             }
 
-            it("get backup schedule returns defaults") {
+            should("get backup schedule returns defaults") {
                 val serverId = ServerHelper(api).createTestServer(nodeId)
                 try {
                     val schedule = api.getBackupSchedule(serverId)
@@ -34,7 +34,7 @@ class BackupTest : BaseSystemTest() {
                 }
             }
 
-            it("updates backup schedule") {
+            should("updates backup schedule") {
                 val serverId = ServerHelper(api).createTestServer(nodeId)
                 try {
                     val updated = api.updateBackupSchedule(
@@ -51,7 +51,7 @@ class BackupTest : BaseSystemTest() {
                 }
             }
 
-            it("triggers backup on a running server") {
+            should("triggers backup on a running server") {
                 val helper = ServerHelper(api)
                 val serverId = helper.createTestServer(nodeId)
                 try {
@@ -72,7 +72,7 @@ class BackupTest : BaseSystemTest() {
                 }
             }
 
-            it("triggers and then deletes a backup") {
+            should("triggers and then deletes a backup") {
                 val helper = ServerHelper(api)
                 val serverId = helper.createTestServer(nodeId)
                 try {

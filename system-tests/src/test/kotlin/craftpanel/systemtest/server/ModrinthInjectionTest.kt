@@ -12,11 +12,11 @@ import kotlin.random.Random
 class ModrinthInjectionTest : BaseSystemTest() {
 
     init {
-        describe("Modrinth mod injection") {
+        context("Modrinth mod injection") {
 
-            describe("PINNED strategy") {
+            context("PINNED strategy") {
 
-                it("MODRINTH_PROJECTS env var is absent on a server with no mods") {
+                should("MODRINTH_PROJECTS env var is absent on a server with no mods") {
                     val helper = ServerHelper(api)
                     val serverId = helper.createTestServer(nodeId)
                     try {
@@ -36,7 +36,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                     }
                 }
 
-                it("adding a pinned mod and restarting injects MODRINTH_PROJECTS into the container") {
+                should("adding a pinned mod and restarting injects MODRINTH_PROJECTS into the container") {
                     val helper = ServerHelper(api)
                     val serverId = helper.createTestServer(nodeId)
                     try {
@@ -69,7 +69,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                     }
                 }
 
-                it("adding a second mod includes both in MODRINTH_PROJECTS") {
+                should("adding a second mod includes both in MODRINTH_PROJECTS") {
                     val helper = ServerHelper(api)
                     val serverId = helper.createTestServer(nodeId)
                     try {
@@ -116,7 +116,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                     }
                 }
 
-                it("removing a mod and restarting removes it from MODRINTH_PROJECTS") {
+                should("removing a mod and restarting removes it from MODRINTH_PROJECTS") {
                     val helper = ServerHelper(api)
                     val serverId = helper.createTestServer(nodeId)
                     try {
@@ -169,9 +169,9 @@ class ModrinthInjectionTest : BaseSystemTest() {
                 }
             }
 
-            describe("LATEST strategy") {
+            context("LATEST strategy") {
 
-                it("a LATEST mod appears in MODRINTH_PROJECTS without a version pin") {
+                should("a LATEST mod appears in MODRINTH_PROJECTS without a version pin") {
                     val helper = ServerHelper(api)
                     val serverId = helper.createTestServer(nodeId)
                     try {

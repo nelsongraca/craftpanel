@@ -9,21 +9,21 @@ import org.openapitools.client.infrastructure.ClientException
 class SystemSettingsTest : BaseSystemTest() {
 
     init {
-        describe("System settings") {
+        context("System settings") {
 
-            it("gets system settings with defaults") {
+            should("gets system settings with defaults") {
                 val response = api.getSystemSettings()
                 response.settings.metricRetentionDays shouldBe 30
             }
 
-            it("updates system settings") {
+            should("updates system settings") {
                 val updated = api.updateSystemSettings(
                     PatchSettingsRequest(metricRetentionDays = 60)
                 )
                 updated.settings.metricRetentionDays shouldBe 60
             }
 
-            it("updates backup and port settings") {
+            should("updates backup and port settings") {
                 val updated = api.updateSystemSettings(
                     PatchSettingsRequest(
                         defaultBackupMaxCount = 10,

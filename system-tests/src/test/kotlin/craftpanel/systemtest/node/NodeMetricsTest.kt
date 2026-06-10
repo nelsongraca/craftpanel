@@ -9,9 +9,9 @@ import org.openapitools.client.infrastructure.ClientException
 class NodeMetricsTest : BaseSystemTest() {
 
     init {
-        describe("Node metrics") {
+        context("Node metrics") {
 
-            it("returns metric structure for trusted node") {
+            should("returns metric structure for trusted node") {
                 val metrics = api.getNodeMetrics(nodeId)
                 metrics.timestamps.shouldNotBe(null)
                 metrics.cpuPercent.shouldNotBe(null)
@@ -24,7 +24,7 @@ class NodeMetricsTest : BaseSystemTest() {
                 metrics.timestamps.size shouldBe metrics.cpuPercent.size
             }
 
-            it("metric arrays have matching sizes") {
+            should("metric arrays have matching sizes") {
                 val metrics = api.getNodeMetrics(nodeId)
                 val n = metrics.timestamps.size
                 if (n > 0) {
@@ -36,7 +36,7 @@ class NodeMetricsTest : BaseSystemTest() {
                 }
             }
 
-            it("returns 404 for non-existent node") {
+            should("returns 404 for non-existent node") {
                 shouldThrow<ClientException> {
                     api.getNodeMetrics("00000000-0000-0000-0000-000000000000")
                 }.statusCode shouldBe 404

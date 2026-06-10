@@ -13,9 +13,9 @@ import org.openapitools.client.infrastructure.ClientException
 class ServerModsTest : BaseSystemTest() {
 
     init {
-        describe("Server mods CRUD") {
+        context("Server mods CRUD") {
 
-            describe("listMods") {
+            context("listMods") {
                 val helper = ServerHelper(api)
                 lateinit var serverId: String
 
@@ -30,13 +30,13 @@ class ServerModsTest : BaseSystemTest() {
                     runCatching { api.deleteServer(serverId) }
                 }
 
-                it("new server has no mods") {
+                should("new server has no mods") {
                     val mods = api.listMods(serverId)
                     mods.values.flatten()
                         .isEmpty() shouldBe true
                 }
 
-                it("after adding one mod, list contains it") {
+                should("after adding one mod, list contains it") {
                     api.addMod(
                         serverId,
                         CreateModRequest(
@@ -52,7 +52,7 @@ class ServerModsTest : BaseSystemTest() {
                     all.first().modrinthProjectId shouldBe "lithium"
                 }
 
-                it("after adding two mods, both are present") {
+                should("after adding two mods, both are present") {
                     api.addMod(
                         serverId,
                         CreateModRequest(
@@ -80,7 +80,7 @@ class ServerModsTest : BaseSystemTest() {
                 }
             }
 
-            describe("addMod") {
+            context("addMod") {
                 val helper = ServerHelper(api)
                 lateinit var serverId: String
 
@@ -95,7 +95,7 @@ class ServerModsTest : BaseSystemTest() {
                     runCatching { api.deleteServer(serverId) }
                 }
 
-                it("adding duplicate mod returns 409") {
+                should("adding duplicate mod returns 409") {
                     api.addMod(
                         serverId,
                         CreateModRequest(
@@ -120,7 +120,7 @@ class ServerModsTest : BaseSystemTest() {
                 }
             }
 
-            describe("updateMod") {
+            context("updateMod") {
                 val helper = ServerHelper(api)
                 lateinit var serverId: String
 
@@ -135,7 +135,7 @@ class ServerModsTest : BaseSystemTest() {
                     runCatching { api.deleteServer(serverId) }
                 }
 
-                it("changes version pin") {
+                should("changes version pin") {
                     val mod = api.addMod(
                         serverId,
                         CreateModRequest(
@@ -155,7 +155,7 @@ class ServerModsTest : BaseSystemTest() {
                     updated.pinnedVersionId shouldBe "mc1.21-0.14.0"
                 }
 
-                it("changes strategy from PINNED to LATEST") {
+                should("changes strategy from PINNED to LATEST") {
                     val mod = api.addMod(
                         serverId,
                         CreateModRequest(
@@ -177,7 +177,7 @@ class ServerModsTest : BaseSystemTest() {
                 }
             }
 
-            describe("deleteMod") {
+            context("deleteMod") {
                 val helper = ServerHelper(api)
                 lateinit var serverId: String
 
@@ -192,7 +192,7 @@ class ServerModsTest : BaseSystemTest() {
                     runCatching { api.deleteServer(serverId) }
                 }
 
-                it("removes an existing mod") {
+                should("removes an existing mod") {
                     val mod = api.addMod(
                         serverId,
                         CreateModRequest(
@@ -208,7 +208,7 @@ class ServerModsTest : BaseSystemTest() {
                         .isEmpty() shouldBe true
                 }
 
-                it("returns 404 for non-existent mod") {
+                should("returns 404 for non-existent mod") {
                     val ex = shouldThrow<ClientException> {
                         api.deleteMod(
                             serverId,

@@ -13,9 +13,9 @@ import org.openapitools.client.infrastructure.ClientException
 class ServerUpdateTest : BaseSystemTest() {
 
     init {
-        describe("Server update") {
+        context("Server update") {
 
-            it("updates server name") {
+            should("updates server name") {
                 val helper = ServerHelper(api)
                 val serverId = helper.createTestServer(nodeId)
                 try {
@@ -27,7 +27,7 @@ class ServerUpdateTest : BaseSystemTest() {
                 }
             }
 
-            it("updates server description") {
+            should("updates server description") {
                 val helper = ServerHelper(api)
                 val serverId = helper.createTestServer(nodeId)
                 try {
@@ -39,7 +39,7 @@ class ServerUpdateTest : BaseSystemTest() {
                 }
             }
 
-            it("updates server network") {
+            should("updates server network") {
                 val helper = ServerHelper(api)
                 val serverId = helper.createTestServer(nodeId)
                 val network = api.createNetwork(
@@ -55,7 +55,7 @@ class ServerUpdateTest : BaseSystemTest() {
                 }
             }
 
-            it("updating non-existent server returns 404") {
+            should("updating non-existent server returns 404") {
                 shouldThrow<ClientException> {
                     api.updateServer(
                         "00000000-0000-0000-0000-000000000000",
@@ -64,7 +64,7 @@ class ServerUpdateTest : BaseSystemTest() {
                 }.statusCode shouldBe 404
             }
 
-            it("partial update only changes specified fields") {
+            should("partial update only changes specified fields") {
                 val helper = ServerHelper(api)
                 val serverId = helper.createTestServer(nodeId)
                 try {
@@ -80,7 +80,7 @@ class ServerUpdateTest : BaseSystemTest() {
                 }
             }
 
-            it("update is idempotent") {
+            should("update is idempotent") {
                 val helper = ServerHelper(api)
                 val serverId = helper.createTestServer(nodeId)
                 try {

@@ -15,9 +15,9 @@ class ServerMetricsTest : BaseSystemTest() {
     private fun fiveMinutesAgo() = Instant.now().minus(Duration.ofMinutes(5)).toString()
 
     init {
-        describe("Server container metrics") {
+        context("Server container metrics") {
 
-            it("running server returns metric series") {
+            should("running server returns metric series") {
                 val helper = ServerHelper(api)
                 val serverId = helper.createTestServer(nodeId)
                 try {
@@ -35,7 +35,7 @@ class ServerMetricsTest : BaseSystemTest() {
                 }
             }
 
-            it("stopped server returns empty metrics") {
+            should("stopped server returns empty metrics") {
                 val helper = ServerHelper(api)
                 val serverId = helper.createTestServer(nodeId)
                 try {
@@ -51,7 +51,7 @@ class ServerMetricsTest : BaseSystemTest() {
                 }
             }
 
-            it("non-existent server returns 404") {
+            should("non-existent server returns 404") {
                 val ex = shouldThrow<ClientException> {
                     api.getServerMetrics(
                         "00000000-0000-0000-0000-000000000000",
@@ -61,7 +61,7 @@ class ServerMetricsTest : BaseSystemTest() {
                 ex.statusCode shouldBe 404
             }
 
-            it("missing from query parameter returns 400") {
+            should("missing from query parameter returns 400") {
                 val helper = ServerHelper(api)
                 val serverId = helper.createTestServer(nodeId)
                 try {

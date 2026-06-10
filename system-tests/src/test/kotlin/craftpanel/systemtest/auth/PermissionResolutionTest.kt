@@ -33,9 +33,9 @@ class PermissionResolutionTest : BaseSystemTest() {
             runCatching { api.deleteServer(serverId) }
         }
 
-        describe("Wildcard permission resolution") {
+        context("Wildcard permission resolution") {
 
-            it("server.* grants all server operations") {
+            should("server.* grants all server operations") {
                 val email = "wild-server-${System.currentTimeMillis()}@test.com"
                 val group = api.createGroup(
                     CreateGroupRequest(name = "wild-server-group-${System.currentTimeMillis()}")
@@ -77,7 +77,7 @@ class PermissionResolutionTest : BaseSystemTest() {
                 }
             }
 
-            it("wildcard * grants all permissions") {
+            should("wildcard * grants all permissions") {
                 val email = "wild-all-${System.currentTimeMillis()}@test.com"
                 val superAdminGroup = api.listGroups().first { it.name == "Super Admin" }
                 val user = api.createUser(
@@ -101,9 +101,9 @@ class PermissionResolutionTest : BaseSystemTest() {
             }
         }
 
-        describe("Scope union resolution") {
+        context("Scope union resolution") {
 
-            it("GLOBAL server.view + SERVER-scoped server.start allows start on assigned server only") {
+            should("GLOBAL server.view + SERVER-scoped server.start allows start on assigned server only") {
                 val otherServer = helper.createTestServer(nodeId)
                 val email = "scope-union-${System.currentTimeMillis()}@test.com"
                 try {
@@ -151,7 +151,7 @@ class PermissionResolutionTest : BaseSystemTest() {
                 }
             }
 
-            it("NETWORK scope respected after server moves between networks") {
+            should("NETWORK scope respected after server moves between networks") {
                 val netA = api.createNetwork(
                     CreateNetworkRequest(name = "perm-move-a-${System.currentTimeMillis()}", type = "NORMAL")
                 )
@@ -203,7 +203,7 @@ class PermissionResolutionTest : BaseSystemTest() {
                 }
             }
 
-            it("duplicate permission nodes from multiple groups are deduplicated") {
+            should("duplicate permission nodes from multiple groups are deduplicated") {
                 val email = "perm-dedup-${System.currentTimeMillis()}@test.com"
                 val groupA = api.createGroup(
                     CreateGroupRequest(name = "dedup-a-${System.currentTimeMillis()}")

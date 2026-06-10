@@ -309,7 +309,7 @@ End-to-end tests using Testcontainers 2.0.5 + Kotest. Spin up real PostgreSQL + 
 Requires Docker daemon running. Tests spin up PostgreSQL, master, agent, and fake-server containers.
 
 - `CraftPanelStack` — singleton that starts/stops the full stack via Testcontainers
-- `BaseSystemTest` — Kotest `DescribeSpec` base; handles `CraftPanelStack.start()`, auth login, and trusting first pending node in `beforeSpec`/`afterSpec`
+- `BaseSystemTest` — Kotest `ShouldSpec` base; handles `CraftPanelStack.start()`, auth login, and trusting first pending node in `beforeSpec`/`afterSpec`
 - Helper classes: `AuthHelper`, `NodeHelper`, `ServerHelper` in `harness/`
 - `listMods` returns `Map<String, List<ModResponse>>` (bucketed by loader); `.isEmpty()` checks map keys, not entries — use `.values.flatten().isEmpty()`
 - `system-tests/build/generated/` is regenerated at build time via `:master:generateOpenApiSpec` → `:system-tests:generateApiClient`. Manual edits there survive until the next build that re-runs codegen.

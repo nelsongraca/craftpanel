@@ -8,7 +8,7 @@ import craftpanel.systemtest.harness.NodeHelper
 import craftpanel.systemtest.harness.SharedStack
 import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.core.spec.style.DescribeSpec
+import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
@@ -16,7 +16,7 @@ import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.string.shouldNotBeEmpty
 import org.openapitools.client.infrastructure.ClientException
 
-class NodeOperationsTest : DescribeSpec() {
+class NodeOperationsTest : ShouldSpec() {
 
     private val sharedApi: DefaultApi by lazy {
         DefaultApi(basePath = SharedStack.masterApiUrl)
@@ -27,9 +27,9 @@ class NodeOperationsTest : DescribeSpec() {
             AuthHelper(sharedApi).login()
         }
 
-        describe("getNode") {
+        context("getNode") {
 
-            it("returns full metadata for a trusted node") {
+            should("returns full metadata for a trusted node") {
                 val node = sharedApi.getNode(SharedStack.nodeId)
                 node.id shouldBe SharedStack.nodeId
                 node.status shouldBe "ACTIVE"
@@ -40,7 +40,7 @@ class NodeOperationsTest : DescribeSpec() {
                 node.createdAt.shouldNotBeEmpty()
             }
 
-            it("returns 404 for non-existent node") {
+            should("returns 404 for non-existent node") {
                 val ex = shouldThrow<ClientException> {
                     sharedApi.getNode("00000000-0000-0000-0000-000000000000")
                 }
@@ -48,7 +48,7 @@ class NodeOperationsTest : DescribeSpec() {
             }
         }
 
-        describe("rejectNode") {
+        context("rejectNode") {
             val stack = CraftPanelStack()
 
             beforeTest {
@@ -60,7 +60,7 @@ class NodeOperationsTest : DescribeSpec() {
                 stack.stop()
             }
 
-            it("rejects a PENDING node and transitions it to REJECTED") {
+            should("rejects a PENDING node and transitions it to REJECTED") {
                 val api = DefaultApi(basePath = stack.masterApiUrl)
                 AuthHelper(api).login()
                 val pending = NodeHelper(api).awaitPendingNode()
@@ -71,7 +71,7 @@ class NodeOperationsTest : DescribeSpec() {
                 rejected.status shouldBe "REJECTED"
             }
 
-            it("rejecting an ACTIVE node returns 409") {
+            should("rejecting an ACTIVE node returns 409") {
                 val api = DefaultApi(basePath = stack.masterApiUrl)
                 AuthHelper(api).login()
                 val nodeId = NodeHelper(api).trustFirstPendingNode()
@@ -81,7 +81,7 @@ class NodeOperationsTest : DescribeSpec() {
             }
         }
 
-        describe("rotateNodeToken") {
+        context("rotateNodeToken") {
             val stack = CraftPanelStack()
 
             beforeTest {
@@ -96,7 +96,7 @@ class NodeOperationsTest : DescribeSpec() {
                 stack.stop()
             }
 
-            it("rotates the node token and returns a new key") {
+            should("rotates the node token and returns a new key") {
                 val api = DefaultApi(basePath = stack.masterApiUrl)
                 AuthHelper(api).login()
 
@@ -107,7 +107,7 @@ class NodeOperationsTest : DescribeSpec() {
                 node.status shouldBe "ACTIVE"
             }
 
-            it("agent with old token is rejected after rotation") {
+            should("agent with old token is rejected after rotation") {
                 val api = DefaultApi(basePath = stack.masterApiUrl)
                 AuthHelper(api).login()
 
@@ -116,13 +116,13 @@ class NodeOperationsTest : DescribeSpec() {
             }
         }
 
-        describe("updateNode") {
+        context("updateNode") {
 
             beforeTest {
                 AuthHelper(sharedApi).login()
             }
 
-            it("updates node display name") {
+            should("updates node display name") {
                 val newName = "updated-node-${System.currentTimeMillis()}"
                 sharedApi.updateNode(
                     SharedStack.nodeId,
@@ -132,7 +132,7 @@ class NodeOperationsTest : DescribeSpec() {
                 node.displayName shouldBe newName
             }
 
-            it("returns 422 for invalid port range") {
+            should("returns 422 for invalid port range") {
                 val ex = shouldThrow<ClientException> {
                     sharedApi.updateNode(
                         SharedStack.nodeId,
@@ -143,7 +143,7 @@ class NodeOperationsTest : DescribeSpec() {
             }
         }
 
-        describe("decommissionNode") {
+        context("decommissionNode") {
             val stack = CraftPanelStack()
 
             beforeTest {
@@ -156,7 +156,7 @@ class NodeOperationsTest : DescribeSpec() {
                 stack.stop()
             }
 
-            it("decommissions a node without active servers") {
+            should("decommissions a node without active servers") {
                 val api = DefaultApi(basePath = stack.masterApiUrl)
                 AuthHelper(api).login()
 
@@ -169,7 +169,7 @@ class NodeOperationsTest : DescribeSpec() {
             }
         }
 
-        describe("decommissionNode guards") {
+        context("decommissionNode guards") {
             val stack = CraftPanelStack()
 
             beforeTest {
@@ -184,7 +184,7 @@ class NodeOperationsTest : DescribeSpec() {
                 stack.stop()
             }
 
-            it("decommissioning a node with active servers returns 409") {
+            should("decommissioning a node with active servers returns 409") {
                 val api = DefaultApi(basePath = stack.masterApiUrl)
                 AuthHelper(api).login()
 

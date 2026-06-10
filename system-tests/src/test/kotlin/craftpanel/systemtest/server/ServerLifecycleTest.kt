@@ -16,9 +16,9 @@ import org.openapitools.client.infrastructure.ClientException
 class ServerLifecycleTest : BaseSystemTest() {
 
     init {
-        describe("Server lifecycle") {
+        context("Server lifecycle") {
 
-            describe("creation") {
+            context("creation") {
                 val helper = ServerHelper(api)
                 lateinit var serverId: String
 
@@ -29,24 +29,24 @@ class ServerLifecycleTest : BaseSystemTest() {
                     runCatching { api.deleteServer(serverId) }
                 }
 
-                it("creates a server and returns it with status STOPPED") {
+                should("creates a server and returns it with status STOPPED") {
                     val server = api.getServer(serverId)
                     server.status shouldBe "STOPPED"
                 }
 
-                it("created server appears in GET /servers list") {
+                should("created server appears in GET /servers list") {
                     val servers = api.listServers()
                     servers.map { it.id } shouldContain serverId
                 }
 
-                it("container does not exist on the node before first start") {
+                should("container does not exist on the node before first start") {
                     shouldThrow<NotFoundException> {
                         docker.inspectContainerCmd(containerName(serverId)).exec()
                     }
                 }
             }
 
-            describe("start") {
+            context("start") {
                 val helper = ServerHelper(api)
                 lateinit var serverId: String
 
@@ -59,20 +59,20 @@ class ServerLifecycleTest : BaseSystemTest() {
                     runCatching { api.deleteServer(serverId) }
                 }
 
-                it("starting a STOPPED server transitions it to STARTING then HEALTHY") {
+                should("starting a STOPPED server transitions it to STARTING then HEALTHY") {
                     api.startServer(serverId)
                     val server = helper.awaitStatus(serverId, "HEALTHY")
                     server.status shouldBe "HEALTHY"
                 }
 
-                it("container exists on node after start") {
+                should("container exists on node after start") {
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, "HEALTHY")
                     val info = docker.inspectContainerCmd(containerName(serverId)).exec()
                     info.state?.running shouldBe true
                 }
 
-                it("container has correct env vars") {
+                should("container has correct env vars") {
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, "HEALTHY")
                     val info = docker.inspectContainerCmd(containerName(serverId)).exec()
@@ -82,7 +82,7 @@ class ServerLifecycleTest : BaseSystemTest() {
                     env shouldContain "MEMORY=512M"
                 }
 
-                it("starting an already HEALTHY server returns 409") {
+                should("starting an already HEALTHY server returns 409") {
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, "HEALTHY")
                     val ex = shouldThrow<ClientException> { api.startServer(serverId) }
@@ -90,7 +90,7 @@ class ServerLifecycleTest : BaseSystemTest() {
                 }
             }
 
-            describe("stop") {
+            context("stop") {
                 val helper = ServerHelper(api)
                 lateinit var serverId: String
 
@@ -107,20 +107,20 @@ class ServerLifecycleTest : BaseSystemTest() {
                     runCatching { api.deleteServer(serverId) }
                 }
 
-                it("stopping a HEALTHY server transitions it to STOPPED") {
+                should("stopping a HEALTHY server transitions it to STOPPED") {
                     api.stopServer(serverId)
                     val server = helper.awaitStatus(serverId, "STOPPED")
                     server.status shouldBe "STOPPED"
                 }
 
-                it("stop command was sent to container stdin") {
+                should("stop command was sent to container stdin") {
                     api.stopServer(serverId)
                     helper.awaitStatus(serverId, "STOPPED")
                     val logs = docker.collectLogs(containerName(serverId))
                     logs stringContain "[fake-server] stdin received: stop"
                 }
 
-                it("stopping an already STOPPED server returns 409") {
+                should("stopping an already STOPPED server returns 409") {
                     api.stopServer(serverId)
                     helper.awaitStatus(serverId, "STOPPED")
                     val ex = shouldThrow<ClientException> { api.stopServer(serverId) }
@@ -128,7 +128,7 @@ class ServerLifecycleTest : BaseSystemTest() {
                 }
             }
 
-            describe("delete") {
+            context("delete") {
                 val helper = ServerHelper(api)
                 lateinit var serverId: String
 
@@ -141,17 +141,17 @@ class ServerLifecycleTest : BaseSystemTest() {
                     runCatching { api.deleteServer(serverId) }
                 }
 
-                it("deleting a STOPPED server returns 204") {
+                should("deleting a STOPPED server returns 204") {
                     api.deleteServer(serverId)
                 }
 
-                it("deleted server no longer appears in GET /servers") {
+                should("deleted server no longer appears in GET /servers") {
                     api.deleteServer(serverId)
                     val servers = api.listServers()
                     servers.map { it.id } shouldNotContain serverId
                 }
 
-                it("deleting a RUNNING server returns 409") {
+                should("deleting a RUNNING server returns 409") {
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, "HEALTHY")
                     val ex = shouldThrow<ClientException> { api.deleteServer(serverId) }

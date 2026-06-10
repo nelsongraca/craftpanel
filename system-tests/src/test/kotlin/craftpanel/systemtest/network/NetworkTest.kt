@@ -12,12 +12,12 @@ import org.openapitools.client.infrastructure.ClientException
 class NetworkTest : BaseSystemTest() {
 
     init {
-        describe("Network CRUD") {
+        context("Network CRUD") {
 
             lateinit var createdNetworkId: String
             val networkName = "test-network-${System.currentTimeMillis()}"
 
-            it("creates a network") {
+            should("creates a network") {
                 val network = api.createNetwork(
                     CreateNetworkRequest(
                         name = networkName,
@@ -28,31 +28,31 @@ class NetworkTest : BaseSystemTest() {
                 network.name shouldBe networkName
             }
 
-            it("lists networks including the new network") {
+            should("lists networks including the new network") {
                 val networks = api.listNetworks()
                 networks.map { it.name } shouldContain networkName
             }
 
-            it("gets network detail by ID") {
+            should("gets network detail by ID") {
                 val network = api.getNetwork(createdNetworkId)
                 network.name shouldBe networkName
                 network.type shouldBe "NORMAL"
             }
 
-            it("updates network name") {
+            should("updates network name") {
                 val newName = "renamed-network-${System.currentTimeMillis()}"
                 api.updateNetwork(createdNetworkId, PatchNetworkRequest(name = newName))
                 val network = api.getNetwork(createdNetworkId)
                 network.name shouldBe newName
             }
 
-            it("deletes a network") {
+            should("deletes a network") {
                 api.deleteNetwork(createdNetworkId)
                 val networks = api.listNetworks()
                 networks.map { it.id } shouldNotContain createdNetworkId
             }
 
-            it("creating a network with duplicate name returns 409") {
+            should("creating a network with duplicate name returns 409") {
                 val name = "unique-network-${System.currentTimeMillis()}"
                 api.createNetwork(CreateNetworkRequest(name = name, type = "NORMAL"))
                 val ex = shouldThrow<ClientException> {
@@ -61,7 +61,7 @@ class NetworkTest : BaseSystemTest() {
                 ex.statusCode shouldBe 409
             }
 
-            it("getting a non-existent network returns 404") {
+            should("getting a non-existent network returns 404") {
                 val ex = shouldThrow<ClientException> {
                     api.getNetwork("00000000-0000-0000-0000-000000000000")
                 }

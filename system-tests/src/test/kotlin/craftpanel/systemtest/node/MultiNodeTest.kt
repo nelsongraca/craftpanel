@@ -5,12 +5,12 @@ import craftpanel.systemtest.harness.AuthHelper
 import craftpanel.systemtest.harness.CraftPanelStack
 import craftpanel.systemtest.harness.MultiNodeHelper
 import craftpanel.systemtest.harness.ServerHelper
-import io.kotest.core.spec.style.DescribeSpec
+import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeEmpty
 
-class MultiNodeTest : DescribeSpec() {
+class MultiNodeTest : ShouldSpec() {
 
     private val stack = CraftPanelStack()
     private val api: DefaultApi by lazy { DefaultApi(basePath = stack.masterApiUrl) }
@@ -34,16 +34,16 @@ class MultiNodeTest : DescribeSpec() {
             stack.stop()
         }
 
-        describe("Multi-node operations") {
+        context("Multi-node operations") {
 
-            it("listNodes returns both agents") {
+            should("listNodes returns both agents") {
                 val nodes = api.listNodes()
                 nodes.shouldHaveSize(2)
                 nodes.all { it.status == "ACTIVE" } shouldBe true
                 nodes.map { it.id }.distinct().shouldHaveSize(2)
             }
 
-            it("getNode returns correct metadata for each agent") {
+            should("getNode returns correct metadata for each agent") {
                 val nodes = api.listNodes()
                 nodes.shouldHaveSize(2)
 
@@ -55,7 +55,7 @@ class MultiNodeTest : DescribeSpec() {
                 }
             }
 
-            it("can create servers on both nodes") {
+            should("can create servers on both nodes") {
                 val nodes = api.listNodes()
                 val nodeA = nodes[0].id
                 val nodeB = nodes[1].id
@@ -70,7 +70,7 @@ class MultiNodeTest : DescribeSpec() {
                 allServers.map { it.id }.shouldHaveSize(2)
             }
 
-            it("can start and stop servers on both nodes") {
+            should("can start and stop servers on both nodes") {
                 val nodes = api.listNodes()
                 val nodeA = nodes[0].id
                 val nodeB = nodes[1].id
@@ -90,7 +90,7 @@ class MultiNodeTest : DescribeSpec() {
                 helper.awaitStoppedOrGone(serverB)
             }
 
-            it("node metrics available for both nodes") {
+            should("node metrics available for both nodes") {
                 val nodes = api.listNodes()
                 for (node in nodes) {
                     val metrics = api.getNodeMetrics(node.id)

@@ -12,9 +12,9 @@ import org.openapitools.client.infrastructure.ClientException
 class ServerUpgradeTest : BaseSystemTest() {
 
     init {
-        describe("Server upgrade") {
+        context("Server upgrade") {
 
-            describe("upgrade when stopped") {
+            context("upgrade when stopped") {
                 val helper = ServerHelper(api)
                 lateinit var serverId: String
 
@@ -25,14 +25,14 @@ class ServerUpgradeTest : BaseSystemTest() {
                     runCatching { api.deleteServer(serverId) }
                 }
 
-                it("upgrades server version tag when stopped") {
+                should("upgrades server version tag when stopped") {
                     api.upgradeServer(serverId, UpgradeServerRequest(itzgImageTag = "1.21.5"))
                     val server = api.getServer(serverId)
                     server.status shouldBe "STOPPED"
                     server.itzgImageTag shouldBe "1.21.5"
                 }
 
-                it("upgrade while running returns 409") {
+                should("upgrade while running returns 409") {
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, "HEALTHY")
                     val ex = shouldThrow<ClientException> {
@@ -41,14 +41,14 @@ class ServerUpgradeTest : BaseSystemTest() {
                     ex.statusCode shouldBe 409
                 }
 
-                it("blank itzg_image_tag returns 422") {
+                should("blank itzg_image_tag returns 422") {
                     val ex = shouldThrow<ClientException> {
                         api.upgradeServer(serverId, UpgradeServerRequest(itzgImageTag = ""))
                     }
                     ex.statusCode shouldBe 422
                 }
 
-                it("stop, upgrade, start with new version") {
+                should("stop, upgrade, start with new version") {
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, "HEALTHY")
                     api.stopServer(serverId)
@@ -63,7 +63,7 @@ class ServerUpgradeTest : BaseSystemTest() {
                     server.itzgImageTag shouldBe "1.21.5"
                 }
 
-                it("container env var reflects version after upgrade and restart") {
+                should("container env var reflects version after upgrade and restart") {
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, "HEALTHY")
                     api.stopServer(serverId)
@@ -80,8 +80,8 @@ class ServerUpgradeTest : BaseSystemTest() {
                 }
             }
 
-            describe("errors") {
-                it("returns 404 for non-existent server") {
+            context("errors") {
+                should("returns 404 for non-existent server") {
                     val ex = shouldThrow<ClientException> {
                         api.upgradeServer(
                             "00000000-0000-0000-0000-000000000000",

@@ -20,7 +20,7 @@ class MigrationSecurityTest : BaseSystemTest() {
     private val wsClient = OkHttpClient.Builder().build()
 
     init {
-        describe("Migration validation") {
+        context("Migration validation") {
 
             val helper = ServerHelper(api)
             lateinit var serverId: String
@@ -35,7 +35,7 @@ class MigrationSecurityTest : BaseSystemTest() {
                 runCatching { api.deleteServer(serverId) }
             }
 
-            it("start migration of running server returns 409") {
+            should("start migration of running server returns 409") {
                 api.startServer(serverId)
                 helper.awaitStatus(serverId, "HEALTHY")
                 try {
@@ -55,7 +55,7 @@ class MigrationSecurityTest : BaseSystemTest() {
                 }
             }
 
-            it("start migration to non-existent node returns 404") {
+            should("start migration to non-existent node returns 404") {
                 shouldThrow<ClientException> {
                     api.startMigration(
                         serverId,
@@ -68,21 +68,21 @@ class MigrationSecurityTest : BaseSystemTest() {
                 }.statusCode shouldBe 404
             }
 
-            it("list migrations on clean server returns empty") {
+            should("list migrations on clean server returns empty") {
                 val migrations = api.listMigrations(serverId)
                 migrations["migrations"].orEmpty().shouldBeEmpty()
             }
 
-            it("get non-existent migration returns 404") {
+            should("get non-existent migration returns 404") {
                 shouldThrow<ClientException> {
                     api.getMigration("00000000-0000-0000-0000-000000000000")
                 }.statusCode shouldBe 404
             }
         }
 
-        describe("Migration WebSocket auth") {
+        context("Migration WebSocket auth") {
 
-            it("connects to non-existent migration events without auth") {
+            should("connects to non-existent migration events without auth") {
                 val url = "${wsBaseUrl}/api/migrations/00000000-0000-0000-0000-000000000000/events"
                 val latch = CountDownLatch(1)
                 var closeCode = -1
@@ -107,7 +107,7 @@ class MigrationSecurityTest : BaseSystemTest() {
                 closeCode shouldBe 1000
             }
 
-            it("migration WS does not require JWT or ticket") {
+            should("migration WS does not require JWT or ticket") {
                 // Connect without any auth headers or tickets
                 val url = "${wsBaseUrl}/api/migrations/00000000-0000-0000-0000-000000000000/events"
                 val latch = CountDownLatch(1)

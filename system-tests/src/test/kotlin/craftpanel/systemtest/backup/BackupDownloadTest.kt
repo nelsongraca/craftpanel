@@ -11,9 +11,9 @@ import org.openapitools.client.infrastructure.ClientException
 class BackupDownloadTest : BaseSystemTest() {
 
     init {
-        describe("Backup download") {
+        context("Backup download") {
 
-            it("downloads a completed backup") {
+            should("downloads a completed backup") {
                 val helper = ServerHelper(api)
                 val serverId = helper.createTestServer(nodeId)
                 try {
@@ -41,7 +41,7 @@ class BackupDownloadTest : BaseSystemTest() {
                 }
             }
 
-            it("downloading a non-existent backup returns 404") {
+            should("downloading a non-existent backup returns 404") {
                 val helper = ServerHelper(api)
                 val serverId = helper.createTestServer(nodeId)
                 try {
@@ -57,7 +57,7 @@ class BackupDownloadTest : BaseSystemTest() {
                 }
             }
 
-            it("downloading an in-progress backup returns 409") {
+            should("downloading an in-progress backup returns 409") {
                 val helper = ServerHelper(api)
                 val serverId = helper.createTestServer(nodeId)
                 try {

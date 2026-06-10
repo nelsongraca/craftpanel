@@ -10,9 +10,9 @@ import io.kotest.matchers.shouldBe
 class PlayerCountTest : BaseSystemTest() {
 
     init {
-        describe("Player count via MC Query protocol") {
+        context("Player count via MC Query protocol") {
 
-            it("agent reports correct player count and names from fake server") {
+            should("agent reports correct player count and names from fake server") {
                 val helper = ServerHelper(api)
                 val serverId = helper.createTestServer(nodeId)
                 try {
@@ -37,7 +37,7 @@ class PlayerCountTest : BaseSystemTest() {
                 }
             }
 
-            it("agent reports zero players when no players are online") {
+            should("agent reports zero players when no players are online") {
                 val helper = ServerHelper(api)
                 val serverId = helper.createTestServer(nodeId)
                 try {

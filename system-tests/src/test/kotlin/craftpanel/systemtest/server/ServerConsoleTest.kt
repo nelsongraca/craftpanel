@@ -18,9 +18,9 @@ class ServerConsoleTest : BaseSystemTest() {
         .build()
 
     init {
-        describe("Server console WebSocket") {
+        context("Server console WebSocket") {
 
-            describe("connection auth") {
+            context("connection auth") {
                 val helper = ServerHelper(api)
                 lateinit var serverId: String
 
@@ -33,7 +33,7 @@ class ServerConsoleTest : BaseSystemTest() {
                     runCatching { api.deleteServer(serverId) }
                 }
 
-                it("rejects connection without a ticket") {
+                should("rejects connection without a ticket") {
                     val url = "${wsBaseUrl}/api/ws/console/${serverId}"
                     val request = Request.Builder()
                         .url(url)
@@ -62,7 +62,7 @@ class ServerConsoleTest : BaseSystemTest() {
                     closeCode shouldBe 1008
                 }
 
-                it("connects with valid ticket") {
+                should("connects with valid ticket") {
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, "HEALTHY")
                     val ticket = api.authWsTicket()
@@ -86,7 +86,7 @@ class ServerConsoleTest : BaseSystemTest() {
                     ws.close(1000, "test done")
                 }
 
-                it("connecting to non-existent server closes normally") {
+                should("connecting to non-existent server closes normally") {
                     val ticket = api.authWsTicket()
                     val url = "${wsBaseUrl}/api/ws/console/00000000-0000-0000-0000-000000000000?ticket=${ticket.ticket}"
                     val latch = CountDownLatch(1)
@@ -113,7 +113,7 @@ class ServerConsoleTest : BaseSystemTest() {
                     closeCode shouldBe 1000
                 }
 
-                it("rejects connection with invalid ticket") {
+                should("rejects connection with invalid ticket") {
                     val url = "${wsBaseUrl}/api/ws/console/${serverId}?ticket=invalid-fake-ticket"
                     val latch = CountDownLatch(1)
                     var closeCode = -1
@@ -139,7 +139,7 @@ class ServerConsoleTest : BaseSystemTest() {
                     closeCode shouldBe 1008
                 }
 
-                it("connecting to stopped server closes") {
+                should("connecting to stopped server closes") {
                     val ticket = api.authWsTicket()
                     val url = "${wsBaseUrl}/api/ws/console/${serverId}?ticket=${ticket.ticket}"
                     val latch = CountDownLatch(1)
@@ -164,9 +164,9 @@ class ServerConsoleTest : BaseSystemTest() {
                 }
             }
 
-            describe("interactive session") {
+            context("interactive session") {
 
-                it("connects and sends a command") {
+                should("connects and sends a command") {
                     val helper = ServerHelper(api)
                     val serverId = helper.createTestServer(nodeId)
                     var ws: WebSocket? = null
@@ -197,7 +197,7 @@ class ServerConsoleTest : BaseSystemTest() {
                     }
                 }
 
-                it("disconnecting and reconnecting creates a new session") {
+                should("disconnecting and reconnecting creates a new session") {
                     val helper = ServerHelper(api)
                     val serverId = helper.createTestServer(nodeId)
                     try {
@@ -231,7 +231,7 @@ class ServerConsoleTest : BaseSystemTest() {
                     }
                 }
 
-                it("sending stop command shuts down the server") {
+                should("sending stop command shuts down the server") {
                     val helper = ServerHelper(api)
                     val serverId = helper.createTestServer(nodeId)
                     var ws: WebSocket? = null
@@ -257,7 +257,7 @@ class ServerConsoleTest : BaseSystemTest() {
                     }
                 }
 
-                it("sends arbitrary text and appears in Docker logs") {
+                should("sends arbitrary text and appears in Docker logs") {
                     val helper = ServerHelper(api)
                     val serverId = helper.createTestServer(nodeId)
                     var ws: WebSocket? = null
@@ -284,7 +284,7 @@ class ServerConsoleTest : BaseSystemTest() {
                     }
                 }
 
-                it("detaches cleanly") {
+                should("detaches cleanly") {
                     val helper = ServerHelper(api)
                     val serverId = helper.createTestServer(nodeId)
                     try {

@@ -9,9 +9,9 @@ import org.openapitools.client.infrastructure.ClientException
 class ServerEdgeCasesTest : BaseSystemTest() {
 
     init {
-        describe("Server lifecycle edge cases") {
+        context("Server lifecycle edge cases") {
 
-            describe("delete guards") {
+            context("delete guards") {
                 val helper = ServerHelper(api)
                 lateinit var serverId: String
 
@@ -24,20 +24,20 @@ class ServerEdgeCasesTest : BaseSystemTest() {
                     runCatching { api.deleteServer(serverId) }
                 }
 
-                it("deleting a HEALTHY server returns 409") {
+                should("deleting a HEALTHY server returns 409") {
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, "HEALTHY")
                     val ex = shouldThrow<ClientException> { api.deleteServer(serverId) }
                     ex.statusCode shouldBe 409
                 }
 
-                it("deleting a STARTING server returns 409") {
+                should("deleting a STARTING server returns 409") {
                     api.startServer(serverId)
                     val ex = shouldThrow<ClientException> { api.deleteServer(serverId) }
                     ex.statusCode shouldBe 409
                 }
 
-                it("stop then delete succeeds") {
+                should("stop then delete succeeds") {
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, "HEALTHY")
                     api.stopServer(serverId)
@@ -46,7 +46,7 @@ class ServerEdgeCasesTest : BaseSystemTest() {
                 }
             }
 
-            describe("restart") {
+            context("restart") {
                 val helper = ServerHelper(api)
                 lateinit var serverId: String
 
@@ -59,7 +59,7 @@ class ServerEdgeCasesTest : BaseSystemTest() {
                     runCatching { api.deleteServer(serverId) }
                 }
 
-                it("restarting a HEALTHY server transitions through STOPPING to HEALTHY") {
+                should("restarting a HEALTHY server transitions through STOPPING to HEALTHY") {
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, "HEALTHY")
 
@@ -69,7 +69,7 @@ class ServerEdgeCasesTest : BaseSystemTest() {
                     afterRestart.status shouldBe "HEALTHY"
                 }
 
-                it("restarting a STOPPED server returns 409") {
+                should("restarting a STOPPED server returns 409") {
                     val ex = shouldThrow<ClientException> { api.restartServer(serverId) }
                     ex.statusCode shouldBe 409
                 }
