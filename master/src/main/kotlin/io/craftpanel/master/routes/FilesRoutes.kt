@@ -113,7 +113,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                         ))
                 }
                 catch (e: Exception) {
-                    call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
+                    call.respondFileAgentError(e)
                 }
             }
 
@@ -143,8 +143,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     call.respond(ReadFileResponse(path = path, content = result.content.toStringUtf8(), encoding = result.encoding))
                 }
                 catch (e: Exception) {
-                    if (e is io.grpc.StatusException) call.respondGrpcFileError(e)
-                    else call.respondFileAgentError(e)
+                    call.respondFileAgentError(e)
                 }
             }
 
@@ -154,7 +153,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                 request {
                     pathParameter<String>("id")
                     queryParameter<String>("path") { required = true }
-                    body<String> { mediaTypes(ContentType.Application.OctetStream) }
+                    body<String> { mediaTypes(ContentType.Text.Plain) }
                 }
                 response {
                     code(HttpStatusCode.NoContent) { }
@@ -175,7 +174,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     call.respond(HttpStatusCode.NoContent)
                 }
                 catch (e: Exception) {
-                    call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
+                    call.respondFileAgentError(e)
                 }
             }
 
@@ -218,7 +217,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     call.respond(HttpStatusCode.Created, UploadResponse(path = uploadPath, sizeBytes = sizeBytes))
                 }
                 catch (e: Exception) {
-                    call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
+                    call.respondFileAgentError(e)
                 }
             }
 
@@ -254,7 +253,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     }
                 }
                 catch (e: Exception) {
-                    call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
+                    call.respondFileAgentError(e)
                 }
             }
 
@@ -285,14 +284,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     call.respond(HttpStatusCode.NoContent)
                 }
                 catch (e: Exception) {
-                    if (e is io.grpc.StatusException) {
-                        when (e.status.code) {
-                            io.grpc.Status.Code.NOT_FOUND           -> call.respond(HttpStatusCode.NotFound, ErrorResponse("Path not found"))
-                            io.grpc.Status.Code.FAILED_PRECONDITION -> call.respond(HttpStatusCode.Conflict, ErrorResponse("Directory is not empty; use recursive=true"))
-                            else                                    -> call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
-                        }
-                    }
-                    else call.respondFileAgentError(e)
+                    call.respondFileAgentError(e)
                 }
             }
 
@@ -315,8 +307,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     call.respond(HttpStatusCode.NoContent)
                 }
                 catch (e: Exception) {
-                    if (e is io.grpc.StatusException) call.respondGrpcMoveError(e)
-                    else call.respondFileAgentError(e)
+                    call.respondFileAgentError(e)
                 }
             }
 
@@ -339,8 +330,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     call.respond(HttpStatusCode.NoContent)
                 }
                 catch (e: Exception) {
-                    if (e is io.grpc.StatusException) call.respondGrpcMoveError(e)
-                    else call.respondFileAgentError(e)
+                    call.respondFileAgentError(e)
                 }
             }
 
@@ -362,7 +352,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     call.respond(HttpStatusCode.NoContent)
                 }
                 catch (e: Exception) {
-                    call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
+                    call.respondFileAgentError(e)
                 }
             }
         }
@@ -374,25 +364,20 @@ private data class AuthContext(val userId: UUID, val serverId: String, val netwo
 private suspend fun ApplicationCall.respondFileAgentError(e: Exception) {
     val msg = e.message ?: "Unknown agent error"
     when {
-        msg.contains("not found", ignoreCase = true) -> respond(HttpStatusCode.NotFound, ErrorResponse(msg))
-        msg.contains("directory", ignoreCase = true) || msg.contains("already exists", ignoreCase = true) || msg.contains("not empty", ignoreCase = true) -> respond(HttpStatusCode.Conflict, ErrorResponse(msg))
-        else -> respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: $msg"))
-    }
-}
+        msg.contains("not found", ignoreCase = true) -> respond(
+            HttpStatusCode.NotFound,
+            ErrorResponse(msg)
+        )
 
-private suspend fun ApplicationCall.respondGrpcFileError(e: io.grpc.StatusException) {
-    when (e.status.code) {
-        io.grpc.Status.Code.NOT_FOUND        -> respond(HttpStatusCode.NotFound, ErrorResponse("File not found"))
-        io.grpc.Status.Code.INVALID_ARGUMENT -> respond(HttpStatusCode.Conflict, ErrorResponse("Path is a directory"))
-        else                                 -> respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
-    }
-}
+        msg.contains("directory", ignoreCase = true) || msg.contains("already exists", ignoreCase = true) || msg.contains("not empty", ignoreCase = true) -> respond(
+            HttpStatusCode.Conflict,
+            ErrorResponse(msg)
+        )
 
-private suspend fun ApplicationCall.respondGrpcMoveError(e: io.grpc.StatusException) {
-    when (e.status.code) {
-        io.grpc.Status.Code.NOT_FOUND      -> respond(HttpStatusCode.NotFound, ErrorResponse("Source not found"))
-        io.grpc.Status.Code.ALREADY_EXISTS -> respond(HttpStatusCode.Conflict, ErrorResponse("Destination already exists"))
-        else                               -> respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
+        else -> respond(
+            HttpStatusCode.BadGateway,
+            ErrorResponse("Agent error: $msg")
+        )
     }
 }
 

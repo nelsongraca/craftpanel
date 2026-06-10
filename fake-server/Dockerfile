@@ -4,12 +4,19 @@ FROM itzg/mc-monitor:latest AS mc-monitor
 
 FROM eclipse-temurin:25-jre-alpine
 
+RUN apk add --no-cache su-exec && \
+    addgroup -g 1000 minecraft && \
+    adduser -u 1000 -G minecraft -S minecraft
+
 WORKDIR /app
 
 # mc-monitor is a static Go binary — drop it straight in
 COPY --from=mc-monitor /mc-monitor /usr/local/bin/mc-monitor
 
 COPY build/libs/craftpanel-fake-server-test.jar app.jar
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+
+RUN chmod +x /app/docker-entrypoint.sh && mkdir -p /data
 
 EXPOSE 25565/tcp
 EXPOSE 25565/udp
@@ -27,4 +34,4 @@ ENV GAME_PORT=25565 \
 HEALTHCHECK --interval=5s --timeout=5s --start-period=15s --retries=3 \
     CMD mc-monitor status --host localhost --port ${GAME_PORT}
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]

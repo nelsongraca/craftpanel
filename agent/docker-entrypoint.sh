@@ -1,4 +1,5 @@
 #!/bin/sh
 set -e
-chown craftpanel:craftpanel /app/config
+mkdir -p /app/config /data/servers /data/backups
+chown craftpanel:craftpanel /app/config /data/servers /data/backups
 exec su-exec craftpanel "$@"
