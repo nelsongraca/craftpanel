@@ -143,12 +143,19 @@ class CraftPanelStack {
             .waitingFor(Wait.forLogMessage(".*Responding at.*", 1))
             .apply {
                 if (coverageEnabled && agentJar != null && coverageDir != null) {
-                    val argsFile = File(coverageDir, "master-kover.args").apply {
-                        writeText("report.file=/tmp/coverage/master.ic\ninclude=io.craftpanel.*")
+                    coverageDir.mkdirs()
+                    coverageDir.setWritable(true, false)
+                    coverageDir.setReadable(true, false)
+                    coverageDir.setExecutable(true, false)
+                    val masterSuffix = containerPrefix.removePrefix("craftpanel-")
+                    val masterReport = "master-$masterSuffix.ic"
+                    val masterArgs = "master-$masterSuffix-kover.args"
+                    val argsFile = File(coverageDir, masterArgs).apply {
+                        writeText("report.file=/tmp/coverage/$masterReport\ninclude=io.craftpanel.*")
                     }
                     withFileSystemBind(agentJar.absolutePath, "/opt/kover/agent.jar", BindMode.READ_ONLY)
                     withFileSystemBind(coverageDir.absolutePath, "/tmp/coverage", BindMode.READ_WRITE)
-                    withEnv("JAVA_TOOL_OPTIONS", "-javaagent:/opt/kover/agent.jar=file:/tmp/coverage/master-kover.args")
+                    withEnv("JAVA_TOOL_OPTIONS", "-javaagent:/opt/kover/agent.jar=file:/tmp/coverage/$masterArgs")
                 }
             }
 
@@ -194,12 +201,15 @@ class CraftPanelStack {
                 .waitingFor(Wait.forLogMessage(".*Sent NodeStateSnapshot.*", 1))
                 .apply {
                     if (coverageEnabled && agentJar != null && coverageDir != null) {
-                        val argsFile = File(coverageDir, "agent-$i-kover.args").apply {
-                            writeText("report.file=/tmp/coverage/agent-$i.ic\ninclude=io.craftpanel.*")
+                        val agentSuffix = containerPrefix.removePrefix("craftpanel-")
+                        val agentReport = "agent-$agentSuffix-$i.ic"
+                        val agentArgs = "agent-$agentSuffix-$i-kover.args"
+                        val argsFile = File(coverageDir, agentArgs).apply {
+                            writeText("report.file=/tmp/coverage/$agentReport\ninclude=io.craftpanel.*")
                         }
                         withFileSystemBind(agentJar.absolutePath, "/opt/kover/agent.jar", BindMode.READ_ONLY)
                         withFileSystemBind(coverageDir.absolutePath, "/tmp/coverage", BindMode.READ_WRITE)
-                        withEnv("JAVA_TOOL_OPTIONS", "-javaagent:/opt/kover/agent.jar=file:/tmp/coverage/agent-$i-kover.args")
+                        withEnv("JAVA_TOOL_OPTIONS", "-javaagent:/opt/kover/agent.jar=file:/tmp/coverage/$agentArgs")
                     }
                 }
 
