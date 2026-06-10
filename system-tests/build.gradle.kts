@@ -61,18 +61,27 @@ tasks.named("compileTestKotlin") {
     dependsOn(patchGeneratedClient)
 }
 
+// -- Kover standalone agent + CLI (only resolved when -PwithCoverage is set) --
+val koverAgent by configurations.registering {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+
+val koverCli by configurations.registering {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+
+val coverageOutputDir = layout.buildDirectory.dir("tmp/kover-coverage")
+
 dependencies {
-    // Kotest — framework-datatest merged into core in Kotest 6; no separate artifact
+    koverAgent(libs.kover.jvm.agent)
+    koverCli(libs.kover.cli)
+
     testImplementation(libs.kotest.runner.junit5)
     testImplementation(libs.kotest.assertions.core)
-
-    // Coroutines
     testImplementation(libs.kotlinx.coroutines.test)
-
-    // Testcontainers
     testImplementation(libs.testcontainers.core)
-
-    // Generated client runtime
     testImplementation(libs.okhttp)
     testImplementation(libs.okhttp.logging)
     testImplementation(libs.gson)
@@ -88,8 +97,57 @@ tasks.named<Test>("test") {
         ":agent:dockerBuildImage",
         ":fake-server:dockerBuildImage",
     )
+
+    val withCoverage = project.hasProperty("withCoverage")
+    if (withCoverage) {
+        val agentJar = koverAgent.get()
+            .filter { it.name.startsWith("kover-jvm-agent") }.singleFile
+        val outputDir = coverageOutputDir.get().asFile.also { it.mkdirs() }
+        systemProperty("kover.agent.jar", agentJar.absolutePath)
+        systemProperty("kover.output.dir", outputDir.absolutePath)
+    }
 }
 
 tasks.named("check") {
     dependsOn.clear()
+}
+
+val koverSystemTestReport by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Generates Kover coverage report from system test Docker containers"
+    dependsOn(tasks.named("test"), ":master:installDist", ":agent:installDist")
+
+    val cliJar = koverCli.get()
+        .filter { it.name.startsWith("kover-cli") }.singleFile
+    val icFiles = fileTree(coverageOutputDir) { include("*.ic") }.files
+
+    commandLine(
+        buildList {
+            add("java")
+            add("-jar")
+            add(cliJar.absolutePath)
+            add("report")
+            icFiles.forEach { add(it.absolutePath) }
+            add("--classfiles")
+            add(file("${rootProject.projectDir}/master/build/install/master/lib").absolutePath)
+            add("--classfiles")
+            add(file("${rootProject.projectDir}/agent/build/install/agent/lib").absolutePath)
+            add("--html")
+            add(file("$buildDir/reports/kover/html").absolutePath)
+            add("--xml")
+            add(file("$buildDir/reports/kover/report.xml").absolutePath)
+            add("--title")
+            add("CraftPanel System Tests")
+            file("${rootProject.projectDir}/master/src/main/kotlin").let {
+                add("--src")
+                add(it.absolutePath)
+            }
+            file("${rootProject.projectDir}/agent/src/main/kotlin").let {
+                add("--src")
+                add(it.absolutePath)
+            }
+        }
+    )
+
+    onlyIf { project.hasProperty("withCoverage") && icFiles.isNotEmpty() }
 }

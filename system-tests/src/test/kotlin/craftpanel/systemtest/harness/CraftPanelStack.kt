@@ -60,7 +60,11 @@ class CraftPanelStack {
         nodeId = id
     }
 
-    fun start() {
+    fun start(
+        coverageEnabled: Boolean = false,
+        agentJar: File? = null,
+        coverageDir: File? = null,
+    ) {
         // All containers share the craftpanel network so the agent self-check passes at startup
         // and game server containers are reachable from the agent without post-start hacks.
 
@@ -124,6 +128,16 @@ class CraftPanelStack {
             .withEnv("RATE_LIMIT_REFRESH", "1000")
             .withLogConsumer { frame -> System.err.println("[master] ${frame.utf8String.trimEnd()}") }
             .waitingFor(Wait.forLogMessage(".*Responding at.*", 1))
+            .apply {
+                if (coverageEnabled && agentJar != null && coverageDir != null) {
+                    val argsFile = File(coverageDir, "master-kover.args").apply {
+                        writeText("report.file=/tmp/coverage/master.ic\ninclude=io.craftpanel.*")
+                    }
+                    withFileSystemBind(agentJar.absolutePath, "/opt/kover/agent.jar", BindMode.READ_ONLY)
+                    withFileSystemBind(coverageDir.absolutePath, "/tmp/coverage", BindMode.READ_WRITE)
+                    withEnv("JAVA_TOOL_OPTIONS", "-javaagent:/opt/kover/agent.jar=file:/tmp/coverage/master-kover.args")
+                }
+            }
 
         master.start()
 
@@ -156,6 +170,16 @@ class CraftPanelStack {
             .withFileSystemBind("/var/run/docker.sock", "/var/run/docker.sock", BindMode.READ_WRITE)
             .withLogConsumer { frame -> System.err.println("[agent] ${frame.utf8String.trimEnd()}") }
             .waitingFor(Wait.forLogMessage(".*Sent NodeStateSnapshot.*", 1))
+            .apply {
+                if (coverageEnabled && agentJar != null && coverageDir != null) {
+                    val argsFile = File(coverageDir, "agent-kover.args").apply {
+                        writeText("report.file=/tmp/coverage/agent.ic\ninclude=io.craftpanel.*")
+                    }
+                    withFileSystemBind(agentJar.absolutePath, "/opt/kover/agent.jar", BindMode.READ_ONLY)
+                    withFileSystemBind(coverageDir.absolutePath, "/tmp/coverage", BindMode.READ_WRITE)
+                    withEnv("JAVA_TOOL_OPTIONS", "-javaagent:/opt/kover/agent.jar=file:/tmp/coverage/agent-kover.args")
+                }
+            }
 
         agent.start()
     }
