@@ -2,6 +2,8 @@ package craftpanel.systemtest.auth
 
 import craftpanel.systemtest.client.model.CreateAssignmentRequest
 import craftpanel.systemtest.client.model.CreateGroupRequest
+import craftpanel.systemtest.client.model.CreateNetworkRequest
+import craftpanel.systemtest.client.model.CreateServerRequest
 import craftpanel.systemtest.client.model.CreateUserRequest
 import craftpanel.systemtest.client.model.PatchUserRequest
 import craftpanel.systemtest.client.model.PutGroupPermissionsRequest
@@ -154,6 +156,180 @@ class PermissionsTest : BaseSystemTest() {
                 api.updateUser(userId, PatchUserRequest(isActive = true))
                 api.deleteGroup(groupId)
                 cleanupUser(email)
+            }
+
+            it("user with NETWORK-scoped assignment sees all servers in the network") {
+                val net = api.createNetwork(
+                    CreateNetworkRequest(name = "perm-net-${System.currentTimeMillis()}", type = "NORMAL")
+                )
+                val s1 = api.createServer(
+                    CreateServerRequest(
+                        name = "net-s1-${System.currentTimeMillis()}", nodeId = nodeId,
+                        serverType = "PAPER", mcVersion = "1.21.4", itzgImageTag = "latest",
+                        memoryMb = 256, cpuShares = 64, networkId = net.id
+                    )
+                )
+                val s2 = api.createServer(
+                    CreateServerRequest(
+                        name = "net-s2-${System.currentTimeMillis()}", nodeId = nodeId,
+                        serverType = "PAPER", mcVersion = "1.21.4", itzgImageTag = "latest",
+                        memoryMb = 256, cpuShares = 64, networkId = net.id
+                    )
+                )
+                try {
+                    val email = "perm-net-scope-${System.currentTimeMillis()}@test.com"
+                    val group = api.createGroup(
+                        CreateGroupRequest(name = "net-scope-group-${System.currentTimeMillis()}")
+                    )
+                    api.setGroupPermissions(
+                        group.id, PutGroupPermissionsRequest(permissions = listOf("server.view"))
+                    )
+                    val user = api.createUser(
+                        CreateUserRequest(
+                            username = "net-scope-${System.currentTimeMillis()}", email = email, password = "pw"
+                        )
+                    )
+                    api.createAssignment(
+                        user.id, CreateAssignmentRequest(
+                            groupId = group.id, scopeType = "NETWORK", scopeId = net.id
+                        )
+                    )
+                    withViewerApi(email, "pw") { vApi ->
+                        val servers = vApi.listServers()
+                        servers.map { it.id } shouldContain s1.id
+                        servers.map { it.id } shouldContain s2.id
+                    }
+                    api.deleteGroup(group.id)
+                    cleanupUser(email)
+                } finally {
+                    runCatching { api.deleteServer(s1.id) }
+                    runCatching { api.deleteServer(s2.id) }
+                    runCatching { api.deleteNetwork(net.id) }
+                }
+            }
+
+            it("user with start but not stop permission can start but not stop") {
+                val email = "perm-start-only-${System.currentTimeMillis()}@test.com"
+                val group = api.createGroup(
+                    CreateGroupRequest(name = "start-only-group-${System.currentTimeMillis()}")
+                )
+                api.setGroupPermissions(
+                    group.id, PutGroupPermissionsRequest(permissions = listOf("server.start", "server.view"))
+                )
+                val user = api.createUser(
+                    CreateUserRequest(
+                        username = "start-only-${System.currentTimeMillis()}", email = email, password = "pw"
+                    )
+                )
+                api.createAssignment(
+                    user.id, CreateAssignmentRequest(
+                        groupId = group.id, scopeType = "GLOBAL"
+                    )
+                )
+                try {
+                    withViewerApi(email, "pw") { vApi ->
+                        vApi.startServer(serverId)
+                        val ex = shouldThrow<ClientException> { vApi.stopServer(serverId) }
+                        ex.statusCode shouldBe 403
+                    }
+                } finally {
+                    api.deleteGroup(group.id)
+                    cleanupUser(email)
+                }
+            }
+
+            it("deleted user cannot login") {
+                val email = "perm-deleted-${System.currentTimeMillis()}@test.com"
+                val (userId, groupId) = createViewerUserWithGlobalAssignment(email, "pw")
+                api.deleteUser(userId)
+                val ex = shouldThrow<ClientException> {
+                    AuthHelper(DefaultApi(basePath = masterApiUrl))
+                        .login(email = email, password = "pw")
+                }
+                ex.statusCode shouldBe 401
+                api.deleteGroup(groupId)
+                cleanupUser(email)
+            }
+
+            it("user without server.view sees empty server list") {
+                val email = "perm-no-view-${System.currentTimeMillis()}@test.com"
+                val group = api.createGroup(
+                    CreateGroupRequest(name = "no-view-group-${System.currentTimeMillis()}")
+                )
+                api.setGroupPermissions(
+                    group.id, PutGroupPermissionsRequest(permissions = listOf("system.settings"))
+                )
+                val user = api.createUser(
+                    CreateUserRequest(
+                        username = "no-view-${System.currentTimeMillis()}", email = email, password = "pw"
+                    )
+                )
+                api.createAssignment(
+                    user.id, CreateAssignmentRequest(groupId = group.id, scopeType = "GLOBAL")
+                )
+                try {
+                    withViewerApi(email, "pw") { vApi ->
+                        val servers = vApi.listServers()
+                        servers.shouldBeEmpty()
+                    }
+                } finally {
+                    api.deleteGroup(group.id)
+                    cleanupUser(email)
+                }
+            }
+
+            it("user without system.users gets 403 from listUsers") {
+                val email = "perm-no-users-${System.currentTimeMillis()}@test.com"
+                val group = api.createGroup(
+                    CreateGroupRequest(name = "no-users-group-${System.currentTimeMillis()}")
+                )
+                api.setGroupPermissions(
+                    group.id, PutGroupPermissionsRequest(permissions = listOf("server.view"))
+                )
+                val user = api.createUser(
+                    CreateUserRequest(
+                        username = "no-users-${System.currentTimeMillis()}", email = email, password = "pw"
+                    )
+                )
+                api.createAssignment(
+                    user.id, CreateAssignmentRequest(groupId = group.id, scopeType = "GLOBAL")
+                )
+                try {
+                    withViewerApi(email, "pw") { vApi ->
+                        val ex = shouldThrow<ClientException> { vApi.listUsers() }
+                        ex.statusCode shouldBe 403
+                    }
+                } finally {
+                    api.deleteGroup(group.id)
+                    cleanupUser(email)
+                }
+            }
+
+            it("user without system.settings gets 403 from getSystemSettings") {
+                val email = "perm-no-settings-${System.currentTimeMillis()}@test.com"
+                val group = api.createGroup(
+                    CreateGroupRequest(name = "no-settings-group-${System.currentTimeMillis()}")
+                )
+                api.setGroupPermissions(
+                    group.id, PutGroupPermissionsRequest(permissions = listOf("server.view"))
+                )
+                val user = api.createUser(
+                    CreateUserRequest(
+                        username = "no-settings-${System.currentTimeMillis()}", email = email, password = "pw"
+                    )
+                )
+                api.createAssignment(
+                    user.id, CreateAssignmentRequest(groupId = group.id, scopeType = "GLOBAL")
+                )
+                try {
+                    withViewerApi(email, "pw") { vApi ->
+                        val ex = shouldThrow<ClientException> { vApi.getSystemSettings() }
+                        ex.statusCode shouldBe 403
+                    }
+                } finally {
+                    api.deleteGroup(group.id)
+                    cleanupUser(email)
+                }
             }
         }
     }

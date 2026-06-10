@@ -10,8 +10,10 @@ import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import org.openapitools.client.infrastructure.ClientException
 import org.openapitools.client.infrastructure.ServerException
+import java.nio.charset.StandardCharsets
 
 class ServerFilesTest : BaseSystemTest() {
 
@@ -197,6 +199,60 @@ class ServerFilesTest : BaseSystemTest() {
                         api.listServerFiles(serverId, path = "/nonexistent")
                     }
                     ex.statusCode shouldBe 404
+                }
+
+                it("read non-existent file returns 404") {
+                    val ex = shouldThrow<ClientException> {
+                        api.readServerFile(serverId, path = "/does-not-exist.txt")
+                    }
+                    ex.statusCode shouldBe 404
+                }
+
+                it("downloads an existing file") {
+                    api.writeServerFile(serverId, path = "/download-me.txt", body = "download content")
+                    val bytes = api.downloadServerFile(serverId, path = "/download-me.txt")
+                    String(bytes.map { it.toByte() }.toByteArray(), StandardCharsets.UTF_8) shouldBe "download content"
+                }
+
+                it("download non-existent file returns 404") {
+                    val ex = shouldThrow<ClientException> {
+                        api.downloadServerFile(serverId, path = "/does-not-exist.txt")
+                    }
+                    ex.statusCode shouldBe 404
+                }
+
+                it("reads known server.properties file") {
+                    val result = api.readServerFile(serverId, path = "/server.properties")
+                    result.content shouldNotBe ""
+                    result.encoding shouldBe "utf-8"
+                }
+
+                it("writes and reads binary content") {
+                    api.writeServerFile(serverId, path = "/binary-data.bin", body = "AAECAwQFBgcICQ==")
+                    val result = api.readServerFile(serverId, path = "/binary-data.bin")
+                    result.content shouldBe "AAECAwQFBgcICQ=="
+                }
+
+                it("mkdir existing path is idempotent") {
+                    api.mkdirServerFile(serverId, MkdirRequest(path = "/existing-dir"))
+                    api.mkdirServerFile(serverId, MkdirRequest(path = "/existing-dir"))
+                    val files = api.listServerFiles(serverId)
+                    files.propertyEntries.count { it.name == "existing-dir" } shouldBe 1
+                }
+
+                it("copies a directory recursively") {
+                    api.mkdirServerFile(serverId, MkdirRequest(path = "/src-dir/nested"))
+                    api.writeServerFile(serverId, path = "/src-dir/file1.txt", body = "f1")
+                    api.writeServerFile(serverId, path = "/src-dir/nested/file2.txt", body = "f2")
+                    api.copyServerFile(
+                        serverId,
+                        CopyRequest(sourcePath = "/src-dir", destinationPath = "/dst-dir", recursive = true)
+                    )
+                    val dstRoot = api.listServerFiles(serverId, path = "/dst-dir")
+                    dstRoot.propertyEntries.map { it.name } shouldContain "nested"
+                    dstRoot.propertyEntries.map { it.name } shouldContain "file1.txt"
+                    val dstNested = api.listServerFiles(serverId, path = "/dst-dir/nested")
+                    dstNested.propertyEntries.first().name shouldBe "file2.txt"
                 }
             }
         }
