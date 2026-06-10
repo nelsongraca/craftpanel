@@ -7,6 +7,7 @@ import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.util.toKotlinUuid
 import io.grpc.Status
 import io.grpc.StatusException
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
 import kotlin.time.Duration.Companion.milliseconds
@@ -239,31 +240,52 @@ class ControlServiceImpl(
 
                     msg.hasNodeMetrics()           -> {
                         lastMetricsAt.set(Clock.System.now())
-                        persistNodeMetrics(msg.nodeId, msg.nodeMetrics)
+                        runCatching { persistNodeMetrics(msg.nodeId, msg.nodeMetrics) }
+                            .onFailure { e -> log.error("Node ${msg.nodeId}: persistNodeMetrics failed — ${e.message}", e) }
                         _nodeMetricsFlow.emit(msg.nodeId to msg.nodeMetrics)
-                        launch { evaluateNodeAlerts(msg.nodeId, msg.nodeMetrics) }
+                        launch {
+                            try {
+                                evaluateNodeAlerts(msg.nodeId, msg.nodeMetrics)
+                            }
+                            catch (e: Exception) {
+                                if (e is CancellationException) throw e
+                                log.error("Node ${msg.nodeId}: evaluateNodeAlerts failed — ${e.message}", e)
+                            }
+                        }
                     }
 
                     msg.hasContainerMetrics()      -> {
-                        persistContainerMetrics(msg.containerMetrics)
+                        runCatching { persistContainerMetrics(msg.containerMetrics) }
+                            .onFailure { e -> log.error("Node ${msg.nodeId}: persistContainerMetrics failed — ${e.message}", e) }
                         _containerMetricsFlow.emit(msg.containerMetrics.serverId to msg.containerMetrics)
-                        launch { evaluateServerAlerts(msg.containerMetrics) }
+                        launch {
+                            try {
+                                evaluateServerAlerts(msg.containerMetrics)
+                            }
+                            catch (e: Exception) {
+                                if (e is CancellationException) throw e
+                                log.error("Node ${msg.nodeId}: evaluateServerAlerts failed — ${e.message}", e)
+                            }
+                        }
                     }
 
                     msg.hasServerStatus()          -> {
-                        persistServerStatus(msg.serverStatus)
+                        runCatching { persistServerStatus(msg.serverStatus) }
+                            .onFailure { e -> log.error("Node ${msg.nodeId}: persistServerStatus failed — ${e.message}", e) }
                         _serverStatusFlow.emit(msg.serverStatus.serverId to msg.serverStatus)
                     }
 
                     msg.hasPlayerUpdate()          -> {
-                        persistPlayerUpdate(msg.playerUpdate)
+                        runCatching { persistPlayerUpdate(msg.playerUpdate) }
+                            .onFailure { e -> log.error("Node ${msg.nodeId}: persistPlayerUpdate failed — ${e.message}", e) }
                         _playerUpdateFlow.emit(msg.playerUpdate.serverId to msg.playerUpdate)
                     }
 
                     msg.hasBackupProgress()        -> _backupProgressFlow.emit(msg.backupProgress)
 
                     msg.hasBackupComplete()        -> {
-                        persistBackupComplete(msg.backupComplete)
+                        runCatching { persistBackupComplete(msg.backupComplete) }
+                            .onFailure { e -> log.error("Node ${msg.nodeId}: persistBackupComplete failed — ${e.message}", e) }
                         _backupCompleteFlow.emit(msg.backupComplete)
                     }
 

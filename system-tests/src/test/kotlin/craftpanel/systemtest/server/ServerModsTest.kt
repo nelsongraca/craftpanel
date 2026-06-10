@@ -32,7 +32,8 @@ class ServerModsTest : BaseSystemTest() {
 
                 it("new server has no mods") {
                     val mods = api.listMods(serverId)
-                    mods.isEmpty() shouldBe true
+                    mods.values.flatten()
+                        .isEmpty() shouldBe true
                 }
 
                 it("after adding one mod, list contains it") {
@@ -71,7 +72,8 @@ class ServerModsTest : BaseSystemTest() {
                         )
                     )
                     val mods = api.listMods(serverId)
-                    val projects = mods.values.flatten().map { it.modrinthProjectId }
+                    val projects = mods.values.flatten()
+                        .map { it.modrinthProjectId }
                     projects shouldHaveSize 2
                     projects shouldContain "lithium"
                     projects shouldContain "sodium"
@@ -148,7 +150,8 @@ class ServerModsTest : BaseSystemTest() {
                         PatchModRequest(pinnedVersionId = "mc1.21-0.14.0")
                     )
                     val mods = api.listMods(serverId)
-                    val updated = mods.values.flatten().first { it.id == mod.id }
+                    val updated = mods.values.flatten()
+                        .first { it.id == mod.id }
                     updated.pinnedVersionId shouldBe "mc1.21-0.14.0"
                 }
 
@@ -167,7 +170,8 @@ class ServerModsTest : BaseSystemTest() {
                         PatchModRequest(pinStrategy = "LATEST", pinnedVersionId = null)
                     )
                     val mods = api.listMods(serverId)
-                    val updated = mods.values.flatten().first { it.id == mod.id }
+                    val updated = mods.values.flatten()
+                        .first { it.id == mod.id }
                     updated.pinStrategy shouldBe "LATEST"
                     updated.pinnedVersionId shouldBe null
                 }
@@ -200,7 +204,8 @@ class ServerModsTest : BaseSystemTest() {
                     )
                     api.deleteMod(serverId, mod.id)
                     val mods = api.listMods(serverId)
-                    mods.isEmpty() shouldBe true
+                    mods.values.flatten()
+                        .isEmpty() shouldBe true
                 }
 
                 it("returns 404 for non-existent mod") {

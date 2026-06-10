@@ -19,7 +19,6 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.readTo
-import io.ktor.utils.io.writeFully
 import kotlinx.io.asSink
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -246,15 +245,17 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     ContentDisposition.Attachment.withParameter(ContentDisposition.Parameters.FileName, filename)
                         .toString()
                 )
-                try {
-                    call.respondBytesWriter(contentType = ContentType.Application.OctetStream) {
-                        proxy.downloadFile(serverId, path)
-                            .collect { bytes -> writeFully(bytes) }
-                    }
+                val downloadFlow = try {
+                    proxy.downloadFile(serverId, path)
                 }
                 catch (e: Exception) {
                     call.respondFileAgentError(e)
+                    return@get
                 }
+                val chunks = mutableListOf<ByteArray>()
+                downloadFlow.collect { chunks.add(it) }
+                val byteList = chunks.flatMap { chunk -> chunk.map { it.toInt() and 0xFF } }
+                call.respond(byteList)
             }
 
             delete("", {

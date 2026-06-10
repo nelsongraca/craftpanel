@@ -89,6 +89,7 @@ data class PatchExposureRequest(
 @Serializable
 data class UpgradeServerRequest(
     @SerialName("itzg_image_tag") val itzgImageTag: String,
+    @SerialName("mc_version") val mcVersion: String? = null,
 )
 
 @Serializable
@@ -537,7 +538,8 @@ class ServerService(
         if (serverRow[Servers.status] != "STOPPED") throw ConflictException("Server must be STOPPED before upgrade")
         val nodeId = serverRow[Servers.nodeId].toString()
         val serverImage = images.deriveImage(serverRow[Servers.serverType], req.itzgImageTag)
-        val allVars = buildAllVars(id, serverRow)
+        val effectiveMcVersion = req.mcVersion ?: serverRow[Servers.mcVersion]
+        val allVars = buildAllVars(id, serverRow) + mapOf("VERSION" to effectiveMcVersion)
         val publicHostname = serverRow[Servers.dnsRecordName]
 
         if (serverRow[Servers.containerId] != null) {
@@ -551,6 +553,7 @@ class ServerService(
         transaction {
             Servers.update({ Servers.id eq id }) {
                 it[Servers.itzgImageTag] = req.itzgImageTag
+                if (req.mcVersion != null) it[Servers.mcVersion] = req.mcVersion
                 it[Servers.containerId] = null
                 it[updatedAt] = Clock.System.now()
                     .toLocalDateTime(TimeZone.UTC)

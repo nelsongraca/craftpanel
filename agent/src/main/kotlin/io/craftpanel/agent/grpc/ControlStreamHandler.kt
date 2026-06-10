@@ -29,6 +29,7 @@ import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.PosixFilePermission
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.time.Duration.Companion.seconds
 
 class ControlStreamHandler(
@@ -41,8 +42,8 @@ class ControlStreamHandler(
 
     private val log = LoggerFactory.getLogger(ControlStreamHandler::class.java)
 
-    // Active console sessions: request_id → (job, inputPipe)
-    private val consoleSessions = ConcurrentHashMap<String, Pair<Job, PipedOutputStream>>()
+    // Active console sessions: request_id → (job, inputPipe, detached)
+    private val consoleSessions = ConcurrentHashMap<String, Triple<Job, PipedOutputStream, AtomicBoolean>>()
 
     suspend fun run(channel: ManagedChannel): Unit = coroutineScope {
         val stub = ControlServiceGrpcKt.ControlServiceCoroutineStub(channel)
@@ -478,6 +479,7 @@ class ControlStreamHandler(
         }
 
         val inputPipe = PipedOutputStream()
+        val detached = AtomicBoolean(false)
 
         @Suppress("BlockingMethodInNonBlockingContext")
         val inputStream = PipedInputStream(inputPipe)
@@ -506,6 +508,15 @@ class ControlStreamHandler(
                                 closed = true
                             }
                         })
+                        if (!detached.get()) {
+                            outbound.trySend(agentMessage {
+                                nodeId = identity.nodeId
+                                serverStatus = serverStatusUpdate {
+                                    serverId = cmd.serverId
+                                    status = ServerStatusUpdate.ServerStatus.STOPPED
+                                }
+                            })
+                        }
                         consoleSessions.remove(reqId)
                     }
 
@@ -537,7 +548,7 @@ class ControlStreamHandler(
             }
         }
 
-        consoleSessions[reqId] = Pair(job, inputPipe)
+        consoleSessions[reqId] = Triple(job, inputPipe, detached)
     }
 
     internal fun handleConsoleInput(cmd: ConsoleInput) {
@@ -552,6 +563,7 @@ class ControlStreamHandler(
 
     internal fun handleConsoleDetach(cmd: ConsoleDetach) {
         val session = consoleSessions.remove(cmd.requestId) ?: return
+        session.third.set(true)
         session.first.cancel()
         runCatching { session.second.close() }
         log.info("Console session ${cmd.requestId} detached")
@@ -750,20 +762,28 @@ class ControlStreamHandler(
         bulkClient: BulkDataClient,
         outbound: SendChannel<AgentMessage>,
     ) {
-        val result = runCatching {
-            val root = serverDataRoot(cmd.serverId)
-            val filePath = safeResolve(root, cmd.path)
-            if (!Files.exists(filePath)) error("File not found: ${cmd.path}")
-            bulkClient.uploadToMaster(identity.nodeKey, cmd.transferId, filePath)
+        val fileResult = runCatching {
+            withContext(Dispatchers.IO) {
+                val root = serverDataRoot(cmd.serverId)
+                val filePath = safeResolve(root, cmd.path)
+                if (!Files.exists(filePath)) error("File not found: ${cmd.path}")
+                filePath
+            }
         }
+
         outbound.send(agentMessage {
             nodeId = identity.nodeId
             downloadFileResponse = downloadFileResponse {
                 requestId = cmd.requestId
-                success = result.isSuccess
-                result.onFailure { errorMessage = it.message ?: "Unknown error" }
+                success = fileResult.isSuccess
+                fileResult.onFailure { errorMessage = it.message ?: "Unknown error" }
             }
         })
+
+        if (fileResult.isSuccess) {
+            runCatching { bulkClient.uploadToMaster(identity.nodeKey, cmd.transferId, fileResult.getOrThrow()) }
+                .onFailure { log.error("Download transfer ${cmd.transferId}: bulk upload failed", it) }
+        }
     }
 
     internal suspend fun handleUploadFile(

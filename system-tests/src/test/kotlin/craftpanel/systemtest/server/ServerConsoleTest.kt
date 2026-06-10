@@ -116,23 +116,27 @@ class ServerConsoleTest : BaseSystemTest() {
                 it("rejects connection with invalid ticket") {
                     val url = "${wsBaseUrl}/api/ws/console/${serverId}?ticket=invalid-fake-ticket"
                     val latch = CountDownLatch(1)
-                    var httpCode = -1
+                    var closeCode = -1
 
                     wsClient.newWebSocket(request(url), object : WebSocketListener() {
-                        override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                            httpCode = response?.code ?: -1
-                            latch.countDown()
-                        }
-                        override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                            latch.countDown()
-                        }
                         override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                            closeCode = code
+                            latch.countDown()
+                        }
+
+                        override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                            if (closeCode == -1) closeCode = code
+                            latch.countDown()
+                        }
+
+                        override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                            closeCode = response?.code ?: -1
                             latch.countDown()
                         }
                     })
 
                     latch.await(5, TimeUnit.SECONDS)
-                    httpCode shouldBe 401
+                    closeCode shouldBe 1008
                 }
 
                 it("connecting to stopped server closes") {
@@ -145,9 +149,11 @@ class ServerConsoleTest : BaseSystemTest() {
                         override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
                             closeCode = code; latch.countDown()
                         }
+
                         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                             if (closeCode == -1) closeCode = code; latch.countDown()
                         }
+
                         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                             closeCode = response?.code ?: -1; latch.countDown()
                         }
@@ -180,7 +186,7 @@ class ServerConsoleTest : BaseSystemTest() {
 
                         connectLatch.await(5, TimeUnit.SECONDS)
 
-                        val sent = ws.send("list")
+                        val sent = ws.send("""{"type":"console.input","data":"list"}""")
                         sent shouldBe true
                     }
                     finally {
@@ -241,10 +247,11 @@ class ServerConsoleTest : BaseSystemTest() {
                             }
                         })
                         connectLatch.await(5, TimeUnit.SECONDS)
-                        ws.send("stop")
+                        ws.send("""{"type":"console.input","data":"stop\n"}""")
                         helper.awaitStoppedOrGone(serverId)
                         api.getServer(serverId).status shouldBe "STOPPED"
-                    } finally {
+                    }
+                    finally {
                         ws?.close(1000, "test done")
                         runCatching { api.deleteServer(serverId) }
                     }
@@ -266,9 +273,10 @@ class ServerConsoleTest : BaseSystemTest() {
                             }
                         })
                         connectLatch.await(5, TimeUnit.SECONDS)
-                        ws.send("hello from test")
+                        ws.send("""{"type":"console.input","data":"hello from test"}""")
                         helper.awaitContainerLog(containerName(serverId), "hello from test", docker)
-                    } finally {
+                    }
+                    finally {
                         ws?.close(1000, "test done")
                         runCatching { api.stopServer(serverId) }
                         helper.awaitStoppedOrGone(serverId)
@@ -292,9 +300,11 @@ class ServerConsoleTest : BaseSystemTest() {
                             override fun onOpen(webSocket: WebSocket, response: Response) {
                                 connectLatch.countDown()
                             }
+
                             override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
                                 closeCode = code; closeLatch.countDown()
                             }
+
                             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                                 if (closeCode == -1) closeCode = code; closeLatch.countDown()
                             }
@@ -304,7 +314,8 @@ class ServerConsoleTest : BaseSystemTest() {
                         ws.close(1000, "bye")
                         closeLatch.await(5, TimeUnit.SECONDS)
                         closeCode shouldBe 1000
-                    } finally {
+                    }
+                    finally {
                         runCatching { api.stopServer(serverId) }
                         helper.awaitStoppedOrGone(serverId)
                         runCatching { api.deleteServer(serverId) }

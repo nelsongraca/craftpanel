@@ -188,7 +188,7 @@ class BackupService(
         return BackupDownloadInfo(serverId = serverId.toString(), filePath = filePath)
     }
 
-    fun downloadStream(info: BackupDownloadInfo) = dataServiceProxy.downloadFile(info.serverId, info.filePath)
+    suspend fun downloadStream(info: BackupDownloadInfo) = dataServiceProxy.downloadFile(info.serverId, info.filePath)
 
     fun getSchedule(serverId: kotlin.uuid.Uuid): BackupScheduleResponse {
         val serverRow = transaction {

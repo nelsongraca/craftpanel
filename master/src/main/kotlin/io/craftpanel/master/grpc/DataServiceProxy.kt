@@ -23,7 +23,10 @@ class DataServiceProxy(
 ) {
 
     private fun lookupNodeId(serverId: String): String = transaction {
-        val id = runCatching { UUID.fromString(serverId).toKotlinUuid() }.getOrElse {
+        val id = runCatching {
+            UUID.fromString(serverId)
+                .toKotlinUuid()
+        }.getOrElse {
             error("Invalid server ID: $serverId")
         }
         val server = Servers.selectAll()
@@ -49,7 +52,8 @@ class DataServiceProxy(
 
     suspend fun listFiles(serverId: String, path: String): ListFilesResponse {
         val nodeId = lookupNodeId(serverId)
-        val reqId = UUID.randomUUID().toString()
+        val reqId = UUID.randomUUID()
+            .toString()
         val response = controlService.sendAndAwait(nodeId, reqId, masterMessage {
             listFiles = listFilesRequest { requestId = reqId; this.serverId = serverId; this.path = path }
         })
@@ -60,7 +64,8 @@ class DataServiceProxy(
 
     suspend fun readFile(serverId: String, path: String): ReadFileResponse {
         val nodeId = lookupNodeId(serverId)
-        val reqId = UUID.randomUUID().toString()
+        val reqId = UUID.randomUUID()
+            .toString()
         val response = controlService.sendAndAwait(nodeId, reqId, masterMessage {
             readFile = readFileRequest { requestId = reqId; this.serverId = serverId; this.path = path }
         })
@@ -71,7 +76,8 @@ class DataServiceProxy(
 
     suspend fun writeFile(serverId: String, path: String, content: ByteArray) {
         val nodeId = lookupNodeId(serverId)
-        val reqId = UUID.randomUUID().toString()
+        val reqId = UUID.randomUUID()
+            .toString()
         val response = controlService.sendAndAwait(nodeId, reqId, masterMessage {
             writeFile = writeFileRequest {
                 requestId = reqId; this.serverId = serverId; this.path = path
@@ -84,7 +90,8 @@ class DataServiceProxy(
 
     suspend fun deleteFile(serverId: String, path: String, recursive: Boolean) {
         val nodeId = lookupNodeId(serverId)
-        val reqId = UUID.randomUUID().toString()
+        val reqId = UUID.randomUUID()
+            .toString()
         val response = controlService.sendAndAwait(nodeId, reqId, masterMessage {
             deleteFile = deleteFileRequest {
                 requestId = reqId; this.serverId = serverId; this.path = path; this.recursive = recursive
@@ -96,7 +103,8 @@ class DataServiceProxy(
 
     suspend fun makeDirectory(serverId: String, path: String) {
         val nodeId = lookupNodeId(serverId)
-        val reqId = UUID.randomUUID().toString()
+        val reqId = UUID.randomUUID()
+            .toString()
         val response = controlService.sendAndAwait(nodeId, reqId, masterMessage {
             makeDirectory = makeDirectoryRequest { requestId = reqId; this.serverId = serverId; this.path = path }
         })
@@ -106,7 +114,8 @@ class DataServiceProxy(
 
     suspend fun moveFile(serverId: String, sourcePath: String, destinationPath: String) {
         val nodeId = lookupNodeId(serverId)
-        val reqId = UUID.randomUUID().toString()
+        val reqId = UUID.randomUUID()
+            .toString()
         val response = controlService.sendAndAwait(nodeId, reqId, masterMessage {
             moveFile = moveFileRequest {
                 requestId = reqId; this.serverId = serverId
@@ -119,7 +128,8 @@ class DataServiceProxy(
 
     suspend fun copyFile(serverId: String, sourcePath: String, destinationPath: String, recursive: Boolean) {
         val nodeId = lookupNodeId(serverId)
-        val reqId = UUID.randomUUID().toString()
+        val reqId = UUID.randomUUID()
+            .toString()
         val response = controlService.sendAndAwait(nodeId, reqId, masterMessage {
             copyFile = copyFileRequest {
                 requestId = reqId; this.serverId = serverId
@@ -138,15 +148,19 @@ class DataServiceProxy(
      */
     suspend fun uploadFile(serverId: String, path: String, content: ByteArray): Long {
         val nodeId = lookupNodeId(serverId)
-        val transferId = UUID.randomUUID().toString()
-        val reqId = UUID.randomUUID().toString()
+        val transferId = UUID.randomUUID()
+            .toString()
+        val reqId = UUID.randomUUID()
+            .toString()
 
         // Pre-fill the upload channel before signalling the agent so it's ready when agent connects.
         val uploadChannel = bulkService.registerUpload(transferId)
         val chunkSize = 65536
-        content.toList().chunked(chunkSize).forEach { chunk ->
-            uploadChannel.send(chunk.toByteArray())
-        }
+        content.toList()
+            .chunked(chunkSize)
+            .forEach { chunk ->
+                uploadChannel.send(chunk.toByteArray())
+            }
         uploadChannel.close()
 
         // Signal agent to open BulkDataService ReceiveFromMaster connection.
@@ -164,23 +178,33 @@ class DataServiceProxy(
     /**
      * Download the file at [path] from the agent.
      * Returns a Flow of byte arrays to be streamed to the HTTP client.
+     * Throws before starting the stream if the file does not exist on the agent.
      */
-    fun downloadFile(serverId: String, path: String): Flow<ByteArray> {
+    suspend fun downloadFile(serverId: String, path: String): Flow<ByteArray> {
         val nodeId = lookupNodeId(serverId)
-        val transferId = UUID.randomUUID().toString()
-        val reqId = UUID.randomUUID().toString()
+        val transferId = UUID.randomUUID()
+            .toString()
+        val reqId = UUID.randomUUID()
+            .toString()
 
-        // Register the download channel before signalling the agent.
+        // Register the download channel before signalling the agent so BulkDataService is ready.
         val downloadFlow = bulkService.registerDownload(transferId)
 
-        // Signal agent to open BulkDataService StreamToMaster connection.
-        // Fire-and-forget — errors surface via the download flow.
-        if (!controlService.sendToNode(nodeId, masterMessage {
+        val response = runCatching {
+            controlService.sendAndAwait(nodeId, reqId, masterMessage {
                 downloadFile = downloadFileCommand {
                     requestId = reqId; this.serverId = serverId; this.path = path; this.transferId = transferId
                 }
-            })) {
-            error("Node $nodeId is not connected")
+            })
+        }.getOrElse { ex ->
+            bulkService.cancelDownload(transferId)
+            throw ex
+        }
+
+        val r = response.downloadFileResponse
+        if (!r.success) {
+            bulkService.cancelDownload(transferId)
+            error(r.errorMessage.ifBlank { "File not found" })
         }
 
         return downloadFlow

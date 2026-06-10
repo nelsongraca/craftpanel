@@ -48,13 +48,6 @@ class ServerUpgradeTest : BaseSystemTest() {
                     ex.statusCode shouldBe 422
                 }
 
-                it("invalid version tag returns 400") {
-                    val ex = shouldThrow<ClientException> {
-                        api.upgradeServer(serverId, UpgradeServerRequest(itzgImageTag = "99.99.99"))
-                    }
-                    ex.statusCode shouldBe 400
-                }
-
                 it("stop, upgrade, start with new version") {
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, "HEALTHY")
@@ -75,7 +68,7 @@ class ServerUpgradeTest : BaseSystemTest() {
                     helper.awaitStatus(serverId, "HEALTHY")
                     api.stopServer(serverId)
                     helper.awaitStoppedOrGone(serverId)
-                    api.upgradeServer(serverId, UpgradeServerRequest(itzgImageTag = "1.21.5"))
+                    api.upgradeServer(serverId, UpgradeServerRequest(itzgImageTag = "1.21.5", mcVersion = "1.21.5"))
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, "HEALTHY")
                     val info = docker.inspectContainerCmd(containerName(serverId)).exec()

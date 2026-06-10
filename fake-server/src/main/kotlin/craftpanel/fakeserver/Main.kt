@@ -1,10 +1,16 @@
 package craftpanel.fakeserver
 
+import java.io.File
 import kotlinx.coroutines.*
 
 fun main() {
     val config = Config.fromEnv()
     log("craftpanel-fake-server starting")
+
+    File("/data/server.properties").takeIf { !it.exists() }
+        ?.writeText(
+            "level-name=world\nmotd=${config.serverName}\nserver-port=${config.gamePort}\nmax-players=${config.maxPlayers}\nonline-mode=false\n"
+        )
     log("  TCP/UDP game port : ${config.gamePort}")
     log("  Server name       : ${config.serverName}")
     log("  Max players       : ${config.maxPlayers}")

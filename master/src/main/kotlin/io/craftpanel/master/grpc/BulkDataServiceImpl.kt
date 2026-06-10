@@ -38,10 +38,16 @@ class BulkDataServiceImpl(private val controlService: ControlServiceImpl) :
                 for (bytes in channel) {
                     emit(bytes)
                 }
-            } finally {
+            }
+            finally {
                 pendingDownloads.remove(transferId)
             }
         }
+    }
+
+    fun cancelDownload(transferId: String) {
+        pendingDownloads.remove(transferId)
+            ?.close()
     }
 
     /**
@@ -121,7 +127,8 @@ class BulkDataServiceImpl(private val controlService: ControlServiceImpl) :
             }
             emit(bulkChunk { data = ByteString.EMPTY; isLast = true })
             log.info("BulkData: upload transfer {} complete", request.transferId)
-        } finally {
+        }
+        finally {
             pendingUploads.remove(request.transferId)
         }
     }
