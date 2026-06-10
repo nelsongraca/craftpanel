@@ -6,7 +6,7 @@ Self-hosted multi-user multi-node Minecraft server management platform.
 
 ALWAYS context7 when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
 When finishing a task always run get_file_problems from intellij/idea to find possible issues and fix them before submitting the code. If there are any warnings or errors that cannot be fixed, list them explicitly in the final answer.
-Before commiting any code always use reformat_code from intellij/idea to reformat the files.
+Before committing any code always use reformat_code from intellij/idea to reformat the files.
 If a method or class is deprecated avoid using it.
 
 Before starting any task, assess complexity:
@@ -22,8 +22,10 @@ Before starting any task, assess complexity:
 craftpanel/
 ├── master/        # Kotlin + Ktor REST/WebSocket backend, gRPC server, PostgreSQL
 ├── agent/         # Minimal Kotlin gRPC client, manages Docker containers on remote nodes
+├── fake-server/   # Minimal Minecraft server simulator used by system tests (TCP ping + stdin)
 ├── frontend/      # Next.js 16 frontend
 ├── proto/         # Shared protobuf definitions (consumed by master and agent)
+├── system-tests/  # End-to-end Kotest + Testcontainers tests
 ├── docs/          # MkDocs documentation
 ├── plans/         # Development roadmap and per-phase implementation plans
 └── CLAUDE.md
@@ -261,17 +263,6 @@ Always hits DB. Cache may be added later.
 
 Use `bg-accent`, `text-accent`, `border-accent` for amber. Use `bg-surface`, `bg-bg` for backgrounds. Never use raw hex in components — always use token classes.
 
-## Domain Features
-
-- Permission-node-based multi-user access control with assignment scopes
-- Server lifecycle management via `itzg/minecraft-server` and `itzg/mc-proxy` Docker images
-- Player ingress via `itzg/mc-router` with Cloudflare DNS (per-server A records)
-- Modrinth mod integration
-- Live console streaming and file exploration over WebSocket (proxied through master via ControlService multiplexing)
-- Backup scheduling and retention
-- Live rsync-based server migration between nodes
-- Node registration: agent-initiated via bootstrap token, requires admin approval
-
 ## Testing (frontend)
 
 Stack: **Vitest** + **React Testing Library** + **jsdom**. Config at `frontend/vitest.config.ts`, global setup at `frontend/vitest.setup.ts`.
@@ -312,7 +303,10 @@ End-to-end tests using Testcontainers 2.0.5 + Kotest. Spin up real PostgreSQL + 
 
 ```bash
 ./gradlew :system-tests:test
+./gradlew :system-tests:test --tests "craftpanel.systemtest.server.ServerLifecycleTest"  # run one class
 ```
+
+Requires Docker daemon running. Tests spin up PostgreSQL, master, agent, and fake-server containers.
 
 - `CraftPanelStack` — singleton that starts/stops the full stack via Testcontainers
 - `BaseSystemTest` — Kotest `DescribeSpec` base; handles `CraftPanelStack.start()`, auth login, and trusting first pending node in `beforeSpec`/`afterSpec`
