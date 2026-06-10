@@ -113,6 +113,28 @@ class ServerConsoleTest : BaseSystemTest() {
                     closeCode shouldBe 1000
                 }
 
+                it("rejects connection with invalid ticket") {
+                    val url = "${wsBaseUrl}/api/ws/console/${serverId}?ticket=invalid-fake-ticket"
+                    val latch = CountDownLatch(1)
+                    var httpCode = -1
+
+                    wsClient.newWebSocket(request(url), object : WebSocketListener() {
+                        override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                            httpCode = response?.code ?: -1
+                            latch.countDown()
+                        }
+                        override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                            latch.countDown()
+                        }
+                        override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                            latch.countDown()
+                        }
+                    })
+
+                    latch.await(5, TimeUnit.SECONDS)
+                    httpCode shouldBe 401
+                }
+
                 it("connecting to stopped server closes") {
                     val ticket = api.authWsTicket()
                     val url = "${wsBaseUrl}/api/ws/console/${serverId}?ticket=${ticket.ticket}"

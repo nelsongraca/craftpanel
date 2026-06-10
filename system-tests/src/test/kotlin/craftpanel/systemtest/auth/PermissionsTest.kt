@@ -250,6 +250,87 @@ class PermissionsTest : BaseSystemTest() {
                 api.deleteGroup(groupId)
                 cleanupUser(email)
             }
+
+            it("user without server.view sees empty server list") {
+                val email = "perm-no-view-${System.currentTimeMillis()}@test.com"
+                val group = api.createGroup(
+                    CreateGroupRequest(name = "no-view-group-${System.currentTimeMillis()}")
+                )
+                api.setGroupPermissions(
+                    group.id, PutGroupPermissionsRequest(permissions = listOf("system.settings"))
+                )
+                val user = api.createUser(
+                    CreateUserRequest(
+                        username = "no-view-${System.currentTimeMillis()}", email = email, password = "pw"
+                    )
+                )
+                api.createAssignment(
+                    user.id, CreateAssignmentRequest(groupId = group.id, scopeType = "GLOBAL")
+                )
+                try {
+                    withViewerApi(email, "pw") { vApi ->
+                        val servers = vApi.listServers()
+                        servers.shouldBeEmpty()
+                    }
+                } finally {
+                    api.deleteGroup(group.id)
+                    cleanupUser(email)
+                }
+            }
+
+            it("user without system.users gets 403 from listUsers") {
+                val email = "perm-no-users-${System.currentTimeMillis()}@test.com"
+                val group = api.createGroup(
+                    CreateGroupRequest(name = "no-users-group-${System.currentTimeMillis()}")
+                )
+                api.setGroupPermissions(
+                    group.id, PutGroupPermissionsRequest(permissions = listOf("server.view"))
+                )
+                val user = api.createUser(
+                    CreateUserRequest(
+                        username = "no-users-${System.currentTimeMillis()}", email = email, password = "pw"
+                    )
+                )
+                api.createAssignment(
+                    user.id, CreateAssignmentRequest(groupId = group.id, scopeType = "GLOBAL")
+                )
+                try {
+                    withViewerApi(email, "pw") { vApi ->
+                        val ex = shouldThrow<ClientException> { vApi.listUsers() }
+                        ex.statusCode shouldBe 403
+                    }
+                } finally {
+                    api.deleteGroup(group.id)
+                    cleanupUser(email)
+                }
+            }
+
+            it("user without system.settings gets 403 from getSystemSettings") {
+                val email = "perm-no-settings-${System.currentTimeMillis()}@test.com"
+                val group = api.createGroup(
+                    CreateGroupRequest(name = "no-settings-group-${System.currentTimeMillis()}")
+                )
+                api.setGroupPermissions(
+                    group.id, PutGroupPermissionsRequest(permissions = listOf("server.view"))
+                )
+                val user = api.createUser(
+                    CreateUserRequest(
+                        username = "no-settings-${System.currentTimeMillis()}", email = email, password = "pw"
+                    )
+                )
+                api.createAssignment(
+                    user.id, CreateAssignmentRequest(groupId = group.id, scopeType = "GLOBAL")
+                )
+                try {
+                    withViewerApi(email, "pw") { vApi ->
+                        val ex = shouldThrow<ClientException> { vApi.getSystemSettings() }
+                        ex.statusCode shouldBe 403
+                    }
+                } finally {
+                    api.deleteGroup(group.id)
+                    cleanupUser(email)
+                }
+            }
         }
     }
 
