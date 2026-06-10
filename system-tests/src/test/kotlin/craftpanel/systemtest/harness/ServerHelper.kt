@@ -13,7 +13,7 @@ import org.openapitools.client.infrastructure.ClientException
 
 class ServerHelper(private val api: DefaultApi) {
 
-    suspend fun createTestServer(nodeId: String, memoryMb: Int = 512, cpuShares: Int = 128): String {
+    suspend fun createTestServer(nodeId: String, memoryMb: Int = 512, cpuShares: Int = 0): String {
         val response = api.createServer(
             CreateServerRequest(
                 name = "test-${System.currentTimeMillis()}",

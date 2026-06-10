@@ -2,7 +2,6 @@ package craftpanel.systemtest.server
 
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.ServerHelper
-import craftpanel.systemtest.harness.CraftPanelStack
 import io.kotest.matchers.shouldBe
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -186,7 +185,7 @@ class ServerConsoleTest : BaseSystemTest() {
     }
 
     private val wsBaseUrl: String
-        get() = CraftPanelStack.masterApiUrl.replace("http://", "ws://")
+        get() = masterApiUrl.replace("http://", "ws://")
 
     private fun request(url: String): Request = Request.Builder()
         .url(url)

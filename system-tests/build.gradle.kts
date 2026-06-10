@@ -81,11 +81,11 @@ dependencies {
 
 tasks.named<Test>("test") {
     useJUnitPlatform()
-    maxParallelForks = 1
+    maxParallelForks = 2
+    systemProperty("kotest.framework.config.fqn", "craftpanel.systemtest.harness.SystemTestConfig")
     dependsOn(
         ":master:dockerBuildImage",
         ":agent:dockerBuildImage",
-        ":frontend:dockerBuildImage",
         ":fake-server:dockerBuildImage",
     )
 }

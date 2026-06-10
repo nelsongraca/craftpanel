@@ -24,7 +24,7 @@ private const val DB_PASSWORD = "craftpanel-test"
 const val ADMIN_EMAIL = "admin@craftpanel.test"
 const val ADMIN_PASSWORD = "admin-test-password"
 
-object CraftPanelStack {
+class CraftPanelStack {
 
     private val networkSuffix: String = buildString {
         repeat(4) {
@@ -43,6 +43,9 @@ object CraftPanelStack {
     private var craftpanelNetworkId: String? = null
     private var testDataDir: File? = null
 
+    var nodeId: String = ""
+        private set
+
     val masterApiUrl: String
         get() = "http://localhost:${master.getMappedPort(8080)}"
 
@@ -52,6 +55,10 @@ object CraftPanelStack {
     val dockerClient: DockerClient
         get() = DockerClientFactory.instance()
             .client()
+
+    fun storeNodeId(id: String) {
+        nodeId = id
+    }
 
     fun start() {
         // All containers share the craftpanel network so the agent self-check passes at startup
@@ -186,3 +193,5 @@ object CraftPanelStack {
         }
     }
 }
+
+val SharedStack = CraftPanelStack()

@@ -12,16 +12,17 @@ import org.openapitools.client.infrastructure.ClientException
 
 class NodeRegistrationTest : DescribeSpec() {
 
-    private val api: DefaultApi by lazy { DefaultApi(basePath = CraftPanelStack.masterApiUrl) }
+    private val stack = CraftPanelStack()
+    private val api: DefaultApi by lazy { DefaultApi(basePath = stack.masterApiUrl) }
 
     init {
         beforeSpec {
-            CraftPanelStack.start()
+            stack.start()
             AuthHelper(api).login()
         }
 
         afterSpec {
-            CraftPanelStack.stop()
+            stack.stop()
         }
 
         describe("Node registration") {
@@ -41,8 +42,8 @@ class NodeRegistrationTest : DescribeSpec() {
             }
 
             it("PENDING node stays PENDING after agent container restart") {
-                val docker = CraftPanelStack.dockerClient
-                val containerId = CraftPanelStack.agentContainerId
+                val docker = stack.dockerClient
+                val containerId = stack.agentContainerId
 
                 docker.restartContainerCmd(containerId)
                     .exec()

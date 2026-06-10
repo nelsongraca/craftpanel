@@ -9,7 +9,6 @@ import craftpanel.systemtest.harness.AuthHelper
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.ServerHelper
 import craftpanel.systemtest.client.api.DefaultApi
-import craftpanel.systemtest.harness.CraftPanelStack
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
@@ -148,7 +147,7 @@ class PermissionsTest : BaseSystemTest() {
                 val (userId, groupId) = createViewerUserWithGlobalAssignment(email, "pw")
                 api.updateUser(userId, PatchUserRequest(isActive = false))
                 val ex = shouldThrow<ClientException> {
-                    AuthHelper(DefaultApi(basePath = CraftPanelStack.masterApiUrl))
+                    AuthHelper(DefaultApi(basePath = masterApiUrl))
                         .login(email = email, password = "pw")
                 }
                 ex.statusCode shouldBe 401
@@ -237,7 +236,7 @@ class PermissionsTest : BaseSystemTest() {
     private suspend fun <T> withViewerApi(email: String, password: String, block: suspend (DefaultApi) -> T): T {
         val savedToken = ApiClient.accessToken
         try {
-            val viewerApi = DefaultApi(basePath = CraftPanelStack.masterApiUrl)
+            val viewerApi = DefaultApi(basePath = masterApiUrl)
             AuthHelper(viewerApi).login(email = email, password = password)
             return block(viewerApi)
         } finally {

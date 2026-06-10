@@ -3,26 +3,23 @@ package craftpanel.systemtest.auth
 import craftpanel.systemtest.harness.ADMIN_EMAIL
 import craftpanel.systemtest.harness.ADMIN_PASSWORD
 import craftpanel.systemtest.harness.AuthHelper
-import craftpanel.systemtest.harness.CraftPanelStack
+import craftpanel.systemtest.harness.SharedStack
 import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.client.model.LoginRequest
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.DescribeSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeEmpty
+import org.openapitools.client.infrastructure.ApiClient
 import org.openapitools.client.infrastructure.ClientException
 
 class AuthTest : DescribeSpec() {
 
-    private val api: DefaultApi by lazy { DefaultApi(basePath = CraftPanelStack.masterApiUrl) }
+    private val api: DefaultApi by lazy { DefaultApi(basePath = SharedStack.masterApiUrl) }
 
     init {
         beforeSpec {
-            CraftPanelStack.start()
-        }
-
-        afterSpec {
-            CraftPanelStack.stop()
+            AuthHelper(api).login()
         }
 
         describe("Authentication") {
@@ -55,7 +52,7 @@ class AuthTest : DescribeSpec() {
             }
 
             it("returns 401 when accessing protected endpoint without token") {
-                org.openapitools.client.infrastructure.ApiClient.accessToken = null
+                ApiClient.accessToken = null
                 val ex = shouldThrow<ClientException> {
                     api.listServers()
                 }

@@ -6,23 +6,19 @@ import io.kotest.core.spec.style.DescribeSpec
 
 abstract class BaseSystemTest : DescribeSpec() {
 
-    val api: DefaultApi by lazy { DefaultApi(basePath = CraftPanelStack.masterApiUrl) }
-    val docker: DockerClient by lazy { CraftPanelStack.dockerClient }
-    lateinit var nodeId: String
+    val api: DefaultApi by lazy { DefaultApi(basePath = SharedStack.masterApiUrl) }
+    val docker: DockerClient by lazy { SharedStack.dockerClient }
+    val nodeId: String get() = SharedStack.nodeId
+    val masterApiUrl: String get() = SharedStack.masterApiUrl
 
-    fun containerName(serverId: String): String = "${CraftPanelStack.containerPrefix}-$serverId"
+    fun containerName(serverId: String): String = "${SharedStack.containerPrefix}-$serverId"
 
     init {
         beforeSpec {
-            CraftPanelStack.start()
             AuthHelper(api).login()
-            nodeId = NodeHelper(api).trustFirstPendingNode()
         }
         beforeTest {
             NodeHelper(api).pollUntilActive(nodeId)
-        }
-        afterSpec {
-            CraftPanelStack.stop()
         }
     }
 }

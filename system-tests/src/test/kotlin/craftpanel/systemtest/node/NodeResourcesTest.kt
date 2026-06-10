@@ -10,14 +10,28 @@ import org.openapitools.client.infrastructure.ClientException
 
 class NodeResourcesTest : BaseSystemTest() {
 
+    private val createdServerIds = mutableListOf<String>()
+    private var baseline = 0
+
     init {
         val serverHelper by lazy { ServerHelper(api) }
 
+        // Capture baseline after BaseSystemTest's beforeSpec (login) has run.
+        // Use delta assertions so leftover allocation from other specs doesn't cause false failures.
+        beforeSpec {
+            baseline = api.getNode(nodeId).allocatedRamMb
+        }
+
+        afterSpec {
+            createdServerIds.forEach { id -> runCatching { api.deleteServer(id) } }
+            createdServerIds.clear()
+        }
+
         describe("Node RAM allocation") {
 
-            it("allocated_ram_mb is 0 before any servers are created") {
+            it("allocated_ram_mb matches baseline before any servers are created in this spec") {
                 val node = api.getNode(nodeId)
-                node.allocatedRamMb shouldBe 0
+                node.allocatedRamMb shouldBe baseline
             }
 
             it("total_ram_mb reflects SYSTEM_RESERVED_RAM_MB subtraction by agent") {
@@ -29,17 +43,19 @@ class NodeResourcesTest : BaseSystemTest() {
             }
 
             it("allocated_ram_mb increases when a server is created") {
-                serverHelper.createTestServer(nodeId, memoryMb = 512)
+                val serverId = serverHelper.createTestServer(nodeId, memoryMb = 512)
+                createdServerIds += serverId
 
                 val node = api.getNode(nodeId)
-                node.allocatedRamMb shouldBe 512
+                node.allocatedRamMb shouldBe baseline + 512
             }
 
             it("allocated_ram_mb accumulates across multiple servers") {
-                serverHelper.createTestServer(nodeId, memoryMb = 256)
+                val serverId = serverHelper.createTestServer(nodeId, memoryMb = 256)
+                createdServerIds += serverId
 
                 val node = api.getNode(nodeId)
-                node.allocatedRamMb shouldBe 512 + 256
+                node.allocatedRamMb shouldBe baseline + 512 + 256
             }
 
             it("allocated_ram_mb is always less than or equal to total_ram_mb") {

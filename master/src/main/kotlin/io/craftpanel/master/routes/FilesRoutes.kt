@@ -374,8 +374,13 @@ private suspend fun ApplicationCall.respondFileAgentError(e: Exception) {
             ErrorResponse(msg)
         )
 
+        msg.contains("not connected", ignoreCase = true) || msg.contains("timed out", ignoreCase = true) || msg.contains("timeout", ignoreCase = true) -> respond(
+            HttpStatusCode.ServiceUnavailable,
+            ErrorResponse("Agent unavailable: $msg")
+        )
+
         else -> respond(
-            HttpStatusCode.BadGateway,
+            HttpStatusCode.InternalServerError,
             ErrorResponse("Agent error: $msg")
         )
     }
