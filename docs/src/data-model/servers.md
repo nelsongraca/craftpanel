@@ -84,7 +84,7 @@ The UI combines both — showing the server's live status alongside a migration 
 | `dns_record_name`    | VARCHAR(255)         | DNS provider record name as returned by the provider                                                                                                             |
 | `container_id`       | VARCHAR(64)          | Docker container ID as last reported by agent; `NULL` when stopped                                                                                               |
 | `container_name`     | TEXT                 | Stable container name; also used as the Docker bridge hostname for same-node routing                                                                             |
-| `player_count`       | INT                  | Last observed player count from Minecraft query protocol; refreshed every 30 s                                                                                   |
+| `player_count`       | INT                  | Last observed player count from Minecraft query protocol; refreshed every 60 s                                                                                   |
 | `player_list`        | JSONB                | Array of online player name strings                                                                                                                              |
 | `last_seen_at`       | TIMESTAMPTZ          | Timestamp of last successful health check from agent                                                                                                             |
 | `stop_command`       | VARCHAR(64)          | Command written to container stdin on graceful stop or restart. Defaults to `stop` for game servers and `end` for proxy types. Configurable per server in the UI |

@@ -13,7 +13,7 @@ The `itzg/minecraft-server` image exposes a built-in health check endpoint. Mast
 
 ## Player Count
 
-The agent queries each running game server using the **Minecraft server query protocol** (UDP). Player count and online player list are refreshed every 30 seconds and surfaced on the server detail
+The agent queries each running game server using the **Minecraft server query protocol** (UDP). Player count and online player list are refreshed every 60 seconds and surfaced on the server detail
 page and dashboard.
 
 ## Node Metrics Dashboard

@@ -37,6 +37,7 @@ class ControlStreamHandlerTest {
         systemReservedRamMb = 0,
         craftpanelNetwork = "craftpanel",
         containerNamePrefix = "craftpanel",
+        metricsPollIntervalSeconds = 60,
     )
     private val handler = ControlStreamHandler(identity, config, containerManager, metricsCollector, docker)
 

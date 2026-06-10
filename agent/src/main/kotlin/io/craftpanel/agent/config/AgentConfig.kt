@@ -21,6 +21,7 @@ data class AgentConfig(
     val systemReservedRamMb: Int,
     val craftpanelNetwork: String,
     val containerNamePrefix: String,
+    val metricsPollIntervalSeconds: Int,
 ) {
 
     val tlsEnabled: Boolean get() = tlsCertPath.isNotBlank()
@@ -70,6 +71,9 @@ data class AgentConfig(
                 ?.coerceAtLeast(0) ?: 0,
             craftpanelNetwork = System.getenv("CRAFTPANEL_NETWORK") ?: "craftpanel",
             containerNamePrefix = System.getenv("CRAFTPANEL_CONTAINER_PREFIX") ?: "craftpanel",
+            metricsPollIntervalSeconds = System.getenv("METRICS_POLL_INTERVAL_SECONDS")
+                ?.toIntOrNull()
+                ?.coerceAtLeast(5) ?: 60,
         )
     }
 }

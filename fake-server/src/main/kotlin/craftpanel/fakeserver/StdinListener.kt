@@ -32,10 +32,8 @@ class StdinListener(private val config: Config) {
                 when (trimmed) {
                     config.stopCommand -> {
                         log("stop command received — shutting down cleanly")
-                        scope.cancel()
-                        // Small delay so the log line above flushes before exit
-                        Thread.sleep(200)
-                        Runtime.getRuntime().halt(0)
+                        shutdown(scope)
+                        System.exit(0)
                     }
                     // itzg sends save-all / save-off / save-on during backup and migration
                     "save-all"  -> log("save-all acknowledged")
@@ -48,4 +46,9 @@ class StdinListener(private val config: Config) {
             log("stdin closed: ${e.message}")
         }
     }
+}
+
+fun shutdown(scope: CoroutineScope) {
+    scope.cancel()
+    Thread.sleep(200)
 }

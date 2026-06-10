@@ -61,9 +61,10 @@ class ControlStreamHandler(
         log.info("Sent NodeStateSnapshot with ${snapshot.containersCount} containers")
 
         // Periodic metrics loop
+        val metricsInterval = config.metricsPollIntervalSeconds.toLong().seconds
         launch {
             while (true) {
-                delay(60.seconds)
+                delay(metricsInterval)
                 val metrics = metricsCollector.collect()
                 outbound.send(agentMessage {
                     nodeId = identity.nodeId

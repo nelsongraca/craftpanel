@@ -18,7 +18,17 @@ fun main() {
     log("  Stop command      : \"${config.stopCommand}\"")
     log("Health determined by Docker HEALTHCHECK via mc-monitor status (TCP ping)")
 
+    var topScope: CoroutineScope? = null
+
+    Runtime.getRuntime().addShutdownHook(Thread {
+        topScope?.let { s ->
+            shutdown(s)
+            log("shutdown complete")
+        }
+    })
+
     runBlocking {
+        topScope = this
         val jobs = listOf(
             launch(Dispatchers.IO) { TcpPingServer(config).start() },
             launch(Dispatchers.IO) { UdpQueryServer(config).start() },

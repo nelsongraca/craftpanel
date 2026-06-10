@@ -64,6 +64,10 @@ class CraftPanelStack {
         // All containers share the craftpanel network so the agent self-check passes at startup
         // and game server containers are reachable from the agent without post-start hacks.
 
+        // Remove any orphaned agent-managed containers from previous runs that might hold
+        // stale port bindings.
+        cleanupAgentContainers()
+
         // Remove any leftover network from a previous run to avoid ConflictException.
         // First disconnect all containers from the network, then remove it.
         runCatching {
@@ -147,6 +151,7 @@ class CraftPanelStack {
             .withEnv("CRAFTPANEL_CONTAINER_PREFIX", containerPrefix)
             .withEnv("CRAFTPANEL_NETWORK", "craftpanel-$networkSuffix")
             .withEnv("HOST_DATA_PATH", testDataDir!!.absolutePath)
+            .withEnv("METRICS_POLL_INTERVAL_SECONDS", "5")
             .withFileSystemBind(testDataDir!!.absolutePath, "/data", BindMode.READ_WRITE)
             .withFileSystemBind("/var/run/docker.sock", "/var/run/docker.sock", BindMode.READ_WRITE)
             .withLogConsumer { frame -> System.err.println("[agent] ${frame.utf8String.trimEnd()}") }

@@ -97,6 +97,7 @@ class AgentConfigTest {
         hostnameOverride: String = "",
         craftpanelNetwork: String = "craftpanel",
         containerNamePrefix: String = "craftpanel",
+        metricsPollIntervalSeconds: Int = 60,
     ) = AgentConfig(
         profile = profile,
         masterAddress = masterAddress,
@@ -116,5 +117,6 @@ class AgentConfigTest {
         systemReservedRamMb = 0,
         craftpanelNetwork = craftpanelNetwork,
         containerNamePrefix = containerNamePrefix,
+        metricsPollIntervalSeconds = metricsPollIntervalSeconds,
     )
 }
