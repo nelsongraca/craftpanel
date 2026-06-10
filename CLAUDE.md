@@ -134,6 +134,15 @@ Node authentication over gRPC:
 Registered on first message inside `channelFlow`, deregistered in `finally` using `remove(nodeId, channel)` (atomic — safe against reconnect races).
 `sendToNode(nodeId, msg)` uses `trySend` — returns `false` if agent disconnected.
 
+### ControlService stream resilience
+
+Any uncaught exception inside `requests.collect { }` in `ControlServiceImpl.control()` propagates through `channelFlow` and tears down the entire bidirectional stream. Wrap every handler branch in `runCatching { }.onFailure { log.error(...) }`. Re-throw `CancellationException` if catching `Exception` in a `launch {}` body.
+
+## Console WebSocket
+
+- Auth happens **after** WS upgrade (ticket query param checked post-handshake) — rejection uses WS close code **1008**, not HTTP 401. Never expect HTTP 401 in `onFailure`.
+- Input must be JSON: `{"type":"console.input","data":"<cmd>\n"}` — raw text is silently dropped. The `\n` terminator is required; `StdinListener` uses `reader.lineSequence()`.
+
 ## Auth (REST/WebSocket)
 
 ### JWT
@@ -308,6 +317,8 @@ End-to-end tests using Testcontainers 2.0.5 + Kotest. Spin up real PostgreSQL + 
 - `CraftPanelStack` — singleton that starts/stops the full stack via Testcontainers
 - `BaseSystemTest` — Kotest `DescribeSpec` base; handles `CraftPanelStack.start()`, auth login, and trusting first pending node in `beforeSpec`/`afterSpec`
 - Helper classes: `AuthHelper`, `NodeHelper`, `ServerHelper` in `harness/`
+- `listMods` returns `Map<String, List<ModResponse>>` (bucketed by loader); `.isEmpty()` checks map keys, not entries — use `.values.flatten().isEmpty()`
+- `system-tests/build/generated/` is regenerated at build time via `:master:generateOpenApiSpec` → `:system-tests:generateApiClient`. Manual edits there survive until the next build that re-runs codegen.
 
 ## Database
 
@@ -343,3 +354,6 @@ Schema migrations via `exposed-migration-jdbc`.
 - Don't use `JsonObject` as a route request body type — leaks internal kotlinx-serialization type schemas into OpenAPI spec; use a typed `@Serializable` DTO instead
 - Don't access `project` inside `onlyIf {}` lambdas — runs at execution time, breaks Gradle config cache; capture value at configuration time or use `enabled = <bool>`
 - Don't use `afterEvaluate {}` closures that capture script-level objects — fail config cache serialization; use plain `tasks.named(...).configure {}` blocks instead
+- Don't use `respondBytesWriter` before verifying file existence — it commits HTTP 200 immediately; call `proxy.downloadFile` (throws on 404) before opening the writer
+- Don't return `application/octet-stream` binary bodies from endpoints consumed by the system-test generated client (jvm-okhttp4+Gson maps binary response as `body.bytes() as? T` → null → NPE) — return JSON `List<Int>` for byte arrays instead, or a typed DTO
+- Don't conflate `itzgImageTag` (Docker image tag e.g. `"1.21.5"`) with `mcVersion` (the `VERSION` env var passed to `itzg/minecraft-server`) — they are separate fields with separate meanings
