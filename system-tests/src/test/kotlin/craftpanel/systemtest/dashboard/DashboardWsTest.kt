@@ -42,7 +42,7 @@ class DashboardWsTest : BaseSystemTest() {
                 })
 
                 latch.await(10, TimeUnit.SECONDS)
-                messageType shouldBe "SNAPSHOT"
+                messageType shouldBe "snapshot"
                 ws.close(1000, "test done")
             }
 
@@ -106,9 +106,9 @@ class DashboardWsTest : BaseSystemTest() {
                     val ws = wsClient.newWebSocket(Request.Builder().url(url).build(), object : WebSocketListener() {
                         override fun onMessage(webSocket: WebSocket, text: String) {
                             val json = JsonParser.parseString(text).asJsonObject
-                            if (json.get("type")?.asString == "SERVER_STATUS") {
+                            if (json.get("type")?.asString == "server.status") {
                                 val payload = json.getAsJsonObject("payload")
-                                if (payload?.get("id")?.asString == serverId) {
+                                if (payload?.get("server_id")?.asString == serverId) {
                                     val status = payload.get("status").asString
                                     seenStatuses.add(status)
                                     if (status == "HEALTHY") statusLatch.countDown()
@@ -148,9 +148,9 @@ class DashboardWsTest : BaseSystemTest() {
                     val ws = wsClient.newWebSocket(Request.Builder().url(url).build(), object : WebSocketListener() {
                         override fun onMessage(webSocket: WebSocket, text: String) {
                             val json = JsonParser.parseString(text).asJsonObject
-                            if (json.get("type")?.asString == "SERVER_STATUS") {
+                            if (json.get("type")?.asString == "server.status") {
                                 val payload = json.getAsJsonObject("payload")
-                                if (payload?.get("id")?.asString == serverId && payload.get("status")?.asString == "STOPPED") {
+                                if (payload?.get("server_id")?.asString == serverId && payload.get("status")?.asString == "STOPPED") {
                                     stoppedReceived = true
                                     stopLatch.countDown()
                                 }

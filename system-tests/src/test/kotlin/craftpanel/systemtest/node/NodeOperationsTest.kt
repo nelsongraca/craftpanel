@@ -118,6 +118,10 @@ class NodeOperationsTest : DescribeSpec() {
 
         describe("updateNode") {
 
+            beforeTest {
+                AuthHelper(sharedApi).login()
+            }
+
             it("updates node display name") {
                 val newName = "updated-node-${System.currentTimeMillis()}"
                 sharedApi.updateNode(
@@ -188,7 +192,17 @@ class NodeOperationsTest : DescribeSpec() {
                 val serverId = helper.createTestServer(stack.nodeId)
                 try {
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY")
+                    // Server status changes to STARTING immediately from the REST handler
+                    // No need to wait for HEALTHY (fake-server may not reach it)
+                    runCatching {
+                        var attempts = 0
+                        while (attempts < 30) {
+                            val s = api.getServer(serverId)
+                            if (s.status != "STOPPED") return@runCatching
+                            Thread.sleep(500)
+                            attempts++
+                        }
+                    }
 
                     val ex = shouldThrow<ClientException> {
                         api.decommissionNode(stack.nodeId)

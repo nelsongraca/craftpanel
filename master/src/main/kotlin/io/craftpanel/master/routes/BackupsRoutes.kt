@@ -132,9 +132,11 @@ fun Route.backupsRoutes(backupService: BackupService) {
                 if (!PermissionResolver.hasPermission(userId, Permission.SERVER_EXPORT, serverId = serverIdJava, networkId = scope.networkId))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val info = backupService.resolveDownload(id, backupId)
-                call.respondBytesWriter(contentType = ContentType.Application.OctetStream) {
-                    backupService.downloadStream(info).collect { bytes -> writeFully(bytes) }
+                val byteList = mutableListOf<Int>()
+                backupService.downloadStream(info).collect { chunk ->
+                    chunk.forEach { byte -> byteList.add(byte.toInt() and 0xFF) }
                 }
+                call.respond(byteList)
             }
         }
 

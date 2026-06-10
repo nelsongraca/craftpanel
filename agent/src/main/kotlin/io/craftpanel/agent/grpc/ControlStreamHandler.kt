@@ -765,8 +765,15 @@ class ControlStreamHandler(
     ) {
         val fileResult = runCatching {
             withContext(Dispatchers.IO) {
-                val root = serverDataRoot(cmd.serverId)
-                val filePath = safeResolve(root, cmd.path)
+                val filePath = if (cmd.path.startsWith("/")) {
+                    val resolved = Paths.get(cmd.path).normalize()
+                    if (!resolved.startsWith(Paths.get(config.dataBasePath).normalize()))
+                        error("Path traversal detected")
+                    resolved
+                } else {
+                    val root = serverDataRoot(cmd.serverId)
+                    safeResolve(root, cmd.path)
+                }
                 if (!Files.exists(filePath)) error("File not found: ${cmd.path}")
                 filePath
             }
