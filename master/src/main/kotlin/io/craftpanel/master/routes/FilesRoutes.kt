@@ -226,7 +226,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                 summary = "Download a file from the server"
                 request { pathParameter<String>("id"); queryParameter<String>("path") { required = true } }
                 response {
-                    code(HttpStatusCode.OK) { }
+                    code(HttpStatusCode.OK) { body<ByteArray>() }
                     code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }

@@ -160,6 +160,24 @@ class ProxyBackendTest : BaseSystemTest() {
                     runCatching { api.deleteServer(proxy.id) }
                 }
             }
+
+            it("starts proxy server after backends configured") {
+                val helper = ServerHelper(api)
+                api.replaceProxyBackends(
+                    proxyServerId,
+                    PutProxyBackendsRequest(
+                        backends = listOf(
+                            BackendInput(
+                                backendServerId = gameServerId,
+                                backendName = "Game Server 1",
+                                order = 1
+                            )
+                        )
+                    )
+                )
+                api.startServer(proxyServerId)
+                helper.awaitStatus(proxyServerId, "HEALTHY")
+            }
         }
     }
 }

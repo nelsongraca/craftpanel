@@ -12,6 +12,7 @@ import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import org.openapitools.client.infrastructure.ClientException
 import org.openapitools.client.infrastructure.ServerException
+import java.nio.charset.StandardCharsets
 
 class ServerFilesTest : BaseSystemTest() {
 
@@ -195,6 +196,26 @@ class ServerFilesTest : BaseSystemTest() {
                 it("listing non-existent path returns 404") {
                     val ex = shouldThrow<ClientException> {
                         api.listServerFiles(serverId, path = "/nonexistent")
+                    }
+                    ex.statusCode shouldBe 404
+                }
+
+                it("read non-existent file returns 404") {
+                    val ex = shouldThrow<ClientException> {
+                        api.readServerFile(serverId, path = "/does-not-exist.txt")
+                    }
+                    ex.statusCode shouldBe 404
+                }
+
+                it("downloads an existing file") {
+                    api.writeServerFile(serverId, path = "/download-me.txt", body = "download content")
+                    val bytes = api.downloadServerFile(serverId, path = "/download-me.txt")
+                    String(bytes.map { it.toByte() }.toByteArray(), StandardCharsets.UTF_8) shouldBe "download content"
+                }
+
+                it("download non-existent file returns 404") {
+                    val ex = shouldThrow<ClientException> {
+                        api.downloadServerFile(serverId, path = "/does-not-exist.txt")
                     }
                     ex.statusCode shouldBe 404
                 }

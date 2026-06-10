@@ -5,6 +5,8 @@ import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldContain
 import org.openapitools.client.infrastructure.ClientException
 
 class ServerUpgradeTest : BaseSystemTest() {
@@ -44,6 +46,44 @@ class ServerUpgradeTest : BaseSystemTest() {
                         api.upgradeServer(serverId, UpgradeServerRequest(itzgImageTag = ""))
                     }
                     ex.statusCode shouldBe 422
+                }
+
+                it("invalid version tag returns 400") {
+                    val ex = shouldThrow<ClientException> {
+                        api.upgradeServer(serverId, UpgradeServerRequest(itzgImageTag = "99.99.99"))
+                    }
+                    ex.statusCode shouldBe 400
+                }
+
+                it("stop, upgrade, start with new version") {
+                    api.startServer(serverId)
+                    helper.awaitStatus(serverId, "HEALTHY")
+                    api.stopServer(serverId)
+                    helper.awaitStoppedOrGone(serverId)
+                    api.upgradeServer(serverId, UpgradeServerRequest(itzgImageTag = "1.21.5"))
+                    var server = api.getServer(serverId)
+                    server.status shouldBe "STOPPED"
+                    server.itzgImageTag shouldBe "1.21.5"
+                    api.startServer(serverId)
+                    helper.awaitStatus(serverId, "HEALTHY")
+                    server = api.getServer(serverId)
+                    server.itzgImageTag shouldBe "1.21.5"
+                }
+
+                it("container env var reflects version after upgrade and restart") {
+                    api.startServer(serverId)
+                    helper.awaitStatus(serverId, "HEALTHY")
+                    api.stopServer(serverId)
+                    helper.awaitStoppedOrGone(serverId)
+                    api.upgradeServer(serverId, UpgradeServerRequest(itzgImageTag = "1.21.5"))
+                    api.startServer(serverId)
+                    helper.awaitStatus(serverId, "HEALTHY")
+                    val info = docker.inspectContainerCmd(containerName(serverId)).exec()
+                    val env = info.config?.env?.associate {
+                        val parts = it.split("=", limit = 2)
+                        parts[0] to parts.getOrElse(1) { "" }
+                    }.orEmpty()
+                    env["VERSION"] shouldBe "1.21.5"
                 }
             }
 
