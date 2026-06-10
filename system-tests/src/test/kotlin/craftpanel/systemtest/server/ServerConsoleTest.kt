@@ -24,10 +24,10 @@ class ServerConsoleTest : BaseSystemTest() {
                 val helper = ServerHelper(api)
                 lateinit var serverId: String
 
-                beforeEach {
+                beforeSpec {
                     serverId = helper.createTestServer(nodeId)
                 }
-                afterEach {
+                afterSpec {
                     runCatching { api.stopServer(serverId) }
                     helper.awaitStoppedOrGone(serverId)
                     runCatching { api.deleteServer(serverId) }
@@ -84,6 +84,8 @@ class ServerConsoleTest : BaseSystemTest() {
                     latch.await(5, TimeUnit.SECONDS)
                     connected shouldBe true
                     ws.close(1000, "test done")
+                    api.stopServer(serverId)
+                    helper.awaitStoppedOrGone(serverId)
                 }
 
                 should("connecting to non-existent server closes normally") {

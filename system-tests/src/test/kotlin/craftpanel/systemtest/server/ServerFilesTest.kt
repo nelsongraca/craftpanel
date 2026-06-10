@@ -19,21 +19,21 @@ class ServerFilesTest : BaseSystemTest() {
 
     init {
         context("Server file operations") {
+            val helper = ServerHelper(api)
+            lateinit var serverId: String
+
+            beforeSpec {
+                serverId = helper.createTestServer(nodeId)
+                api.startServer(serverId)
+                helper.awaitStatus(serverId, "HEALTHY")
+            }
+            afterSpec {
+                runCatching { api.stopServer(serverId) }
+                helper.awaitStoppedOrGone(serverId)
+                runCatching { api.deleteServer(serverId) }
+            }
 
             context("CRUD") {
-                val helper = ServerHelper(api)
-                lateinit var serverId: String
-
-                beforeEach {
-                    serverId = helper.createTestServer(nodeId)
-                    api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY")
-                }
-                afterEach {
-                    runCatching { api.stopServer(serverId) }
-                    helper.awaitStoppedOrGone(serverId)
-                    runCatching { api.deleteServer(serverId) }
-                }
 
                 should("returns 404 for non-existent server") {
                     val ex = shouldThrow<ClientException> {

@@ -15,40 +15,40 @@ class ServerMetricsTest : BaseSystemTest() {
     private fun fiveMinutesAgo() = Instant.now().minus(Duration.ofMinutes(5)).toString()
 
     init {
+        val helper = ServerHelper(api)
+        lateinit var serverId: String
+        lateinit var serverId2: String
+
+        beforeSpec {
+            serverId = helper.createTestServer(nodeId)
+            api.startServer(serverId)
+            helper.awaitStatus(serverId, "HEALTHY")
+            serverId2 = helper.createTestServer(nodeId)
+        }
+        afterSpec {
+            runCatching { api.stopServer(serverId) }
+            helper.awaitStoppedOrGone(serverId)
+            runCatching { api.deleteServer(serverId) }
+            runCatching { api.deleteServer(serverId2) }
+        }
+
         context("Server container metrics") {
 
             should("running server returns metric series") {
-                val helper = ServerHelper(api)
-                val serverId = helper.createTestServer(nodeId)
-                try {
-                    api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY")
+                val metrics = api.getServerMetrics(serverId, fiveMinutesAgo(), now())
 
-                    val metrics = api.getServerMetrics(serverId, fiveMinutesAgo(), now())
-
-                    metrics.serverId shouldBe serverId
-                    metrics.series shouldNotBe null
-                } finally {
-                    runCatching { api.stopServer(serverId) }
-                    helper.awaitStoppedOrGone(serverId)
-                    runCatching { api.deleteServer(serverId) }
-                }
+                metrics.serverId shouldBe serverId
+                metrics.series shouldNotBe null
             }
 
             should("stopped server returns empty metrics") {
-                val helper = ServerHelper(api)
-                val serverId = helper.createTestServer(nodeId)
-                try {
-                    val metrics = api.getServerMetrics(serverId, fiveMinutesAgo(), now())
+                val metrics = api.getServerMetrics(serverId2, fiveMinutesAgo(), now())
 
-                    metrics.serverId shouldBe serverId
-                    metrics.series.cpuPercent shouldBe emptyList()
-                    metrics.series.ramUsedMb shouldBe emptyList()
-                    metrics.series.netInBytes shouldBe emptyList()
-                    metrics.series.netOutBytes shouldBe emptyList()
-                } finally {
-                    runCatching { api.deleteServer(serverId) }
-                }
+                metrics.serverId shouldBe serverId2
+                metrics.series.cpuPercent shouldBe emptyList()
+                metrics.series.ramUsedMb shouldBe emptyList()
+                metrics.series.netInBytes shouldBe emptyList()
+                metrics.series.netOutBytes shouldBe emptyList()
             }
 
             should("non-existent server returns 404") {
@@ -62,16 +62,10 @@ class ServerMetricsTest : BaseSystemTest() {
             }
 
             should("missing from query parameter returns 400") {
-                val helper = ServerHelper(api)
-                val serverId = helper.createTestServer(nodeId)
-                try {
-                    val ex = shouldThrow<ClientException> {
-                        api.getServerMetrics(serverId, "", now())
-                    }
-                    ex.statusCode shouldBe 400
-                } finally {
-                    runCatching { api.deleteServer(serverId) }
+                val ex = shouldThrow<ClientException> {
+                    api.getServerMetrics(serverId2, "", now())
                 }
+                ex.statusCode shouldBe 400
             }
         }
     }

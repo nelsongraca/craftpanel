@@ -13,91 +13,108 @@ import org.openapitools.client.infrastructure.ClientException
 class ServerModsTest : BaseSystemTest() {
 
     init {
-        context("Server mods CRUD") {
+        val helper = ServerHelper(api)
+        lateinit var serverId: String
+        lateinit var serverId2: String
+        lateinit var serverId3: String
+        lateinit var serverId4: String
 
-            context("listMods") {
-                val helper = ServerHelper(api)
-                lateinit var serverId: String
+        beforeSpec {
+            serverId = helper.createTestServer(nodeId)
+            api.startServer(serverId)
+            helper.awaitStatus(serverId, "HEALTHY")
+            serverId2 = helper.createTestServer(nodeId)
+            api.startServer(serverId2)
+            helper.awaitStatus(serverId2, "HEALTHY")
+            serverId3 = helper.createTestServer(nodeId)
+            api.startServer(serverId3)
+            helper.awaitStatus(serverId3, "HEALTHY")
+            serverId4 = helper.createTestServer(nodeId)
+            api.startServer(serverId4)
+            helper.awaitStatus(serverId4, "HEALTHY")
+        }
+        afterSpec {
+            runCatching { api.stopServer(serverId) }
+            helper.awaitStoppedOrGone(serverId)
+            runCatching { api.deleteServer(serverId) }
+            runCatching { api.stopServer(serverId2) }
+            helper.awaitStoppedOrGone(serverId2)
+            runCatching { api.deleteServer(serverId2) }
+            runCatching { api.stopServer(serverId3) }
+            helper.awaitStoppedOrGone(serverId3)
+            runCatching { api.deleteServer(serverId3) }
+            runCatching { api.stopServer(serverId4) }
+            helper.awaitStoppedOrGone(serverId4)
+            runCatching { api.deleteServer(serverId4) }
+        }
 
-                beforeEach {
-                    serverId = helper.createTestServer(nodeId)
-                    api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY")
-                }
-                afterEach {
-                    runCatching { api.stopServer(serverId) }
-                    helper.awaitStoppedOrGone(serverId)
-                    runCatching { api.deleteServer(serverId) }
-                }
+        context("listMods") {
 
-                should("new server has no mods") {
-                    val mods = api.listMods(serverId)
-                    mods.values.flatten()
-                        .isEmpty() shouldBe true
-                }
-
-                should("after adding one mod, list contains it") {
-                    api.addMod(
-                        serverId,
-                        CreateModRequest(
-                            modrinthProjectId = "lithium",
-                            displayName = "Lithium",
-                            pinStrategy = "PINNED",
-                            pinnedVersionId = "mc1.21-0.13.0",
-                        )
-                    )
-                    val mods = api.listMods(serverId)
-                    val all = mods.values.flatten()
-                    all.shouldHaveSize(1)
-                    all.first().modrinthProjectId shouldBe "lithium"
-                }
-
-                should("after adding two mods, both are present") {
-                    api.addMod(
-                        serverId,
-                        CreateModRequest(
-                            modrinthProjectId = "lithium",
-                            displayName = "Lithium",
-                            pinStrategy = "PINNED",
-                            pinnedVersionId = "mc1.21-0.13.0",
-                        )
-                    )
-                    api.addMod(
-                        serverId,
-                        CreateModRequest(
-                            modrinthProjectId = "sodium",
-                            displayName = "Sodium",
-                            pinStrategy = "PINNED",
-                            pinnedVersionId = "mc1.21-0.5.0",
-                        )
-                    )
-                    val mods = api.listMods(serverId)
-                    val projects = mods.values.flatten()
-                        .map { it.modrinthProjectId }
-                    projects shouldHaveSize 2
-                    projects shouldContain "lithium"
-                    projects shouldContain "sodium"
-                }
+            should("new server has no mods") {
+                val mods = api.listMods(serverId)
+                mods.values.flatten()
+                    .isEmpty() shouldBe true
             }
 
-            context("addMod") {
-                val helper = ServerHelper(api)
-                lateinit var serverId: String
+            should("after adding one mod, list contains it") {
+                api.addMod(
+                    serverId,
+                    CreateModRequest(
+                        modrinthProjectId = "lithium",
+                        displayName = "Lithium",
+                        pinStrategy = "PINNED",
+                        pinnedVersionId = "mc1.21-0.13.0",
+                    )
+                )
+                val mods = api.listMods(serverId)
+                val all = mods.values.flatten()
+                all.shouldHaveSize(1)
+                all.first().modrinthProjectId shouldBe "lithium"
+            }
 
-                beforeEach {
-                    serverId = helper.createTestServer(nodeId)
-                    api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY")
-                }
-                afterEach {
-                    runCatching { api.stopServer(serverId) }
-                    helper.awaitStoppedOrGone(serverId)
-                    runCatching { api.deleteServer(serverId) }
-                }
+            should("after adding two mods, both are present") {
+                api.addMod(
+                    serverId,
+                    CreateModRequest(
+                        modrinthProjectId = "lithium",
+                        displayName = "Lithium",
+                        pinStrategy = "PINNED",
+                        pinnedVersionId = "mc1.21-0.13.0",
+                    )
+                )
+                api.addMod(
+                    serverId,
+                    CreateModRequest(
+                        modrinthProjectId = "sodium",
+                        displayName = "Sodium",
+                        pinStrategy = "PINNED",
+                        pinnedVersionId = "mc1.21-0.5.0",
+                    )
+                )
+                val mods = api.listMods(serverId)
+                val projects = mods.values.flatten()
+                    .map { it.modrinthProjectId }
+                projects shouldHaveSize 2
+                projects shouldContain "lithium"
+                projects shouldContain "sodium"
+            }
+        }
 
-                should("adding duplicate mod returns 409") {
+        context("addMod") {
+
+            should("adding duplicate mod returns 409") {
+                api.addMod(
+                    serverId2,
+                    CreateModRequest(
+                        modrinthProjectId = "lithium",
+                        displayName = "Lithium",
+                        pinStrategy = "PINNED",
+                        pinnedVersionId = "mc1.21-0.13.0",
+                    )
+                )
+                val ex = shouldThrow<ClientException> {
                     api.addMod(
-                        serverId,
+                        serverId2,
                         CreateModRequest(
                             modrinthProjectId = "lithium",
                             displayName = "Lithium",
@@ -105,118 +122,81 @@ class ServerModsTest : BaseSystemTest() {
                             pinnedVersionId = "mc1.21-0.13.0",
                         )
                     )
-                    val ex = shouldThrow<ClientException> {
-                        api.addMod(
-                            serverId,
-                            CreateModRequest(
-                                modrinthProjectId = "lithium",
-                                displayName = "Lithium",
-                                pinStrategy = "PINNED",
-                                pinnedVersionId = "mc1.21-0.13.0",
-                            )
-                        )
-                    }
-                    ex.statusCode shouldBe 409
                 }
+                ex.statusCode shouldBe 409
+            }
+        }
+
+        context("updateMod") {
+
+            should("changes version pin") {
+                val mod = api.addMod(
+                    serverId3,
+                    CreateModRequest(
+                        modrinthProjectId = "lithium",
+                        displayName = "Lithium",
+                        pinStrategy = "PINNED",
+                        pinnedVersionId = "mc1.21-0.13.0",
+                    )
+                )
+                api.updateMod(
+                    serverId3, mod.id,
+                    PatchModRequest(pinnedVersionId = "mc1.21-0.14.0")
+                )
+                val mods = api.listMods(serverId3)
+                val updated = mods.values.flatten()
+                    .first { it.id == mod.id }
+                updated.pinnedVersionId shouldBe "mc1.21-0.14.0"
             }
 
-            context("updateMod") {
-                val helper = ServerHelper(api)
-                lateinit var serverId: String
+            should("changes strategy from PINNED to LATEST") {
+                val mod = api.addMod(
+                    serverId3,
+                    CreateModRequest(
+                        modrinthProjectId = "lithium",
+                        displayName = "Lithium",
+                        pinStrategy = "PINNED",
+                        pinnedVersionId = "mc1.21-0.13.0",
+                    )
+                )
+                api.updateMod(
+                    serverId3, mod.id,
+                    PatchModRequest(pinStrategy = "LATEST", pinnedVersionId = null)
+                )
+                val mods = api.listMods(serverId3)
+                val updated = mods.values.flatten()
+                    .first { it.id == mod.id }
+                updated.pinStrategy shouldBe "LATEST"
+                updated.pinnedVersionId shouldBe null
+            }
+        }
 
-                beforeEach {
-                    serverId = helper.createTestServer(nodeId)
-                    api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY")
-                }
-                afterEach {
-                    runCatching { api.stopServer(serverId) }
-                    helper.awaitStoppedOrGone(serverId)
-                    runCatching { api.deleteServer(serverId) }
-                }
+        context("deleteMod") {
 
-                should("changes version pin") {
-                    val mod = api.addMod(
-                        serverId,
-                        CreateModRequest(
-                            modrinthProjectId = "lithium",
-                            displayName = "Lithium",
-                            pinStrategy = "PINNED",
-                            pinnedVersionId = "mc1.21-0.13.0",
-                        )
+            should("removes an existing mod") {
+                val mod = api.addMod(
+                    serverId4,
+                    CreateModRequest(
+                        modrinthProjectId = "lithium",
+                        displayName = "Lithium",
+                        pinStrategy = "PINNED",
+                        pinnedVersionId = "mc1.21-0.13.0",
                     )
-                    api.updateMod(
-                        serverId, mod.id,
-                        PatchModRequest(pinnedVersionId = "mc1.21-0.14.0")
-                    )
-                    val mods = api.listMods(serverId)
-                    val updated = mods.values.flatten()
-                        .first { it.id == mod.id }
-                    updated.pinnedVersionId shouldBe "mc1.21-0.14.0"
-                }
-
-                should("changes strategy from PINNED to LATEST") {
-                    val mod = api.addMod(
-                        serverId,
-                        CreateModRequest(
-                            modrinthProjectId = "lithium",
-                            displayName = "Lithium",
-                            pinStrategy = "PINNED",
-                            pinnedVersionId = "mc1.21-0.13.0",
-                        )
-                    )
-                    api.updateMod(
-                        serverId, mod.id,
-                        PatchModRequest(pinStrategy = "LATEST", pinnedVersionId = null)
-                    )
-                    val mods = api.listMods(serverId)
-                    val updated = mods.values.flatten()
-                        .first { it.id == mod.id }
-                    updated.pinStrategy shouldBe "LATEST"
-                    updated.pinnedVersionId shouldBe null
-                }
+                )
+                api.deleteMod(serverId4, mod.id)
+                val mods = api.listMods(serverId4)
+                mods.values.flatten()
+                    .isEmpty() shouldBe true
             }
 
-            context("deleteMod") {
-                val helper = ServerHelper(api)
-                lateinit var serverId: String
-
-                beforeEach {
-                    serverId = helper.createTestServer(nodeId)
-                    api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY")
-                }
-                afterEach {
-                    runCatching { api.stopServer(serverId) }
-                    helper.awaitStoppedOrGone(serverId)
-                    runCatching { api.deleteServer(serverId) }
-                }
-
-                should("removes an existing mod") {
-                    val mod = api.addMod(
-                        serverId,
-                        CreateModRequest(
-                            modrinthProjectId = "lithium",
-                            displayName = "Lithium",
-                            pinStrategy = "PINNED",
-                            pinnedVersionId = "mc1.21-0.13.0",
-                        )
+            should("returns 404 for non-existent mod") {
+                val ex = shouldThrow<ClientException> {
+                    api.deleteMod(
+                        serverId4,
+                        "00000000-0000-0000-0000-000000000000"
                     )
-                    api.deleteMod(serverId, mod.id)
-                    val mods = api.listMods(serverId)
-                    mods.values.flatten()
-                        .isEmpty() shouldBe true
                 }
-
-                should("returns 404 for non-existent mod") {
-                    val ex = shouldThrow<ClientException> {
-                        api.deleteMod(
-                            serverId,
-                            "00000000-0000-0000-0000-000000000000"
-                        )
-                    }
-                    ex.statusCode shouldBe 404
-                }
+                ex.statusCode shouldBe 404
             }
         }
     }
