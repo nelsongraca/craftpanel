@@ -16,7 +16,8 @@ object TimingListener : AfterEachListener, AfterProjectListener {
 
     override suspend fun afterEach(testCase: TestCase, result: TestResult) {
         val specName = testCase.spec::class.simpleName ?: "?"
-        val path = (testCase.parents().map { it.name.name } + testCase.name.name).joinToString(" > ")
+        val path = (testCase.parents()
+            .map { it.name.name } + testCase.name.name).joinToString(" > ")
         val label = "$specName > $path"
         val ms = result.duration.inWholeMilliseconds
         System.err.println("[timing] %-100s  %6dms".format(label, ms))
@@ -25,7 +26,8 @@ object TimingListener : AfterEachListener, AfterProjectListener {
 
     override suspend fun afterProject() {
         if (entries.isEmpty()) return
-        val top = entries.sortedByDescending { it.duration }.take(20)
+        val top = entries.sortedByDescending { it.duration }
+            .take(20)
         System.err.println()
         System.err.println("─── Slowest tests ─────────────────────────────────────────────────────────")
         top.forEach { e ->

@@ -4,7 +4,7 @@ Self-hosted multi-user multi-node Minecraft server management platform.
 
 ## Base Instructions
 
-Always use Context7 when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
+ALWAYS context7 when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
 When finishing a task always run get_file_problems from intellij/idea to find possible issues and fix them before submitting the code. If there are any warnings or errors that cannot be fixed, list them explicitly in the final answer.
 Before commiting any code always use reformat_code from intellij/idea to reformat the files.
 If a method or class is deprecated avoid using it.
