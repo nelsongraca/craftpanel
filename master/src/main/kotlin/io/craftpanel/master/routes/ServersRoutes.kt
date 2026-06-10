@@ -244,7 +244,11 @@ fun Route.serversRoutes(serverService: ServerService) {
             get("/{id}/metrics", {
                 operationId = "getServerMetrics"
                 summary = "Get server container metrics"
-                request { pathParameter<String>("id") }
+                request {
+                    pathParameter<String>("id")
+                    queryParameter<String>("from") { required = true }
+                    queryParameter<String>("to") { required = true }
+                }
                 response {
                     code(HttpStatusCode.OK) { body<ContainerMetricsSeriesResponse>() }
                     code(HttpStatusCode.BadRequest) { body<ErrorResponse>() }

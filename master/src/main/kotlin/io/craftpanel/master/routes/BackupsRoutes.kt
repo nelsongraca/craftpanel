@@ -109,7 +109,7 @@ fun Route.backupsRoutes(backupService: BackupService) {
                 summary = "Download backup file"
                 request { pathParameter<String>("id"); pathParameter<String>("backupId") }
                 response {
-                    code(HttpStatusCode.OK) { }
+                    code(HttpStatusCode.OK) { body<ByteArray>() }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
                     code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }

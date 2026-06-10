@@ -9,7 +9,9 @@ import io.craftpanel.master.database.schema.Servers
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
@@ -87,8 +89,13 @@ class NodeService(private val sendToNode: (String, MasterMessage) -> Boolean) {
     }
 
     fun rejectNode(id: kotlin.uuid.Uuid) {
-        val updated = transaction { Nodes.update({ Nodes.id eq id }) { it[status] = "REJECTED" } }
-        if (updated == 0) throw NotFoundException("Node not found")
+        transaction {
+            val node = Nodes.selectAll()
+                .where { Nodes.id eq id }
+                .firstOrNull() ?: throw NotFoundException("Node not found")
+            if (node[Nodes.status] == "ACTIVE") throw ConflictException("Cannot reject an active node")
+            Nodes.update({ Nodes.id eq id }) { it[status] = "REJECTED" }
+        }
     }
 
     fun rotateToken(id: kotlin.uuid.Uuid): String {
@@ -141,8 +148,17 @@ class NodeService(private val sendToNode: (String, MasterMessage) -> Boolean) {
     }
 
     fun decommissionNode(id: kotlin.uuid.Uuid) {
-        val updated = transaction { Nodes.update({ Nodes.id eq id }) { it[status] = "DECOMMISSIONED" } }
-        if (updated == 0) throw NotFoundException("Node not found")
+        transaction {
+            val node = Nodes.selectAll()
+                .where { Nodes.id eq id }
+                .firstOrNull() ?: throw NotFoundException("Node not found")
+            if (node[Nodes.status] != "ACTIVE" && node[Nodes.status] != "PENDING") throw ConflictException("Node cannot be decommissioned")
+            val activeServers = Servers.selectAll()
+                .where { (Servers.nodeId eq id) and (Servers.status inList listOf("HEALTHY", "STARTING", "STOPPING")) }
+                .count()
+            if (activeServers > 0) throw ConflictException("Node has active servers")
+            Nodes.update({ Nodes.id eq id }) { it[status] = "DECOMMISSIONED" }
+        }
     }
 
     fun getNodeMetrics(id: kotlin.uuid.Uuid, limit: Int): NodeMetricsResponse {
