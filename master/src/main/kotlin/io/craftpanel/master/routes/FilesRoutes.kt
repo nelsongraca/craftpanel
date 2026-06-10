@@ -142,15 +142,20 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     }
                     call.respond(ReadFileResponse(path = path, content = result.content.toStringUtf8(), encoding = result.encoding))
                 }
-                catch (e: io.grpc.StatusException) {
-                    call.respondGrpcFileError(e)
+                catch (e: Exception) {
+                    if (e is io.grpc.StatusException) call.respondGrpcFileError(e)
+                    else call.respondFileAgentError(e)
                 }
             }
 
             put("/content", {
                 operationId = "writeServerFile"
                 summary = "Write server file content"
-                request { pathParameter<String>("id"); queryParameter<String>("path") { required = true } }
+                request {
+                    pathParameter<String>("id")
+                    queryParameter<String>("path") { required = true }
+                    body<String> { mediaTypes(ContentType.Application.OctetStream) }
+                }
                 response {
                     code(HttpStatusCode.NoContent) { }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
@@ -279,12 +284,15 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     proxy.deleteFile(serverId, path, recursive)
                     call.respond(HttpStatusCode.NoContent)
                 }
-                catch (e: io.grpc.StatusException) {
-                    when (e.status.code) {
-                        io.grpc.Status.Code.NOT_FOUND           -> call.respond(HttpStatusCode.NotFound, ErrorResponse("Path not found"))
-                        io.grpc.Status.Code.FAILED_PRECONDITION -> call.respond(HttpStatusCode.Conflict, ErrorResponse("Directory is not empty; use recursive=true"))
-                        else                                    -> call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
+                catch (e: Exception) {
+                    if (e is io.grpc.StatusException) {
+                        when (e.status.code) {
+                            io.grpc.Status.Code.NOT_FOUND           -> call.respond(HttpStatusCode.NotFound, ErrorResponse("Path not found"))
+                            io.grpc.Status.Code.FAILED_PRECONDITION -> call.respond(HttpStatusCode.Conflict, ErrorResponse("Directory is not empty; use recursive=true"))
+                            else                                    -> call.respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: ${e.message}"))
+                        }
                     }
+                    else call.respondFileAgentError(e)
                 }
             }
 
@@ -306,8 +314,9 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     proxy.moveFile(serverId, req.sourcePath, req.destinationPath)
                     call.respond(HttpStatusCode.NoContent)
                 }
-                catch (e: io.grpc.StatusException) {
-                    call.respondGrpcMoveError(e)
+                catch (e: Exception) {
+                    if (e is io.grpc.StatusException) call.respondGrpcMoveError(e)
+                    else call.respondFileAgentError(e)
                 }
             }
 
@@ -329,8 +338,9 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     proxy.copyFile(serverId, req.sourcePath, req.destinationPath, req.recursive)
                     call.respond(HttpStatusCode.NoContent)
                 }
-                catch (e: io.grpc.StatusException) {
-                    call.respondGrpcMoveError(e)
+                catch (e: Exception) {
+                    if (e is io.grpc.StatusException) call.respondGrpcMoveError(e)
+                    else call.respondFileAgentError(e)
                 }
             }
 
@@ -360,6 +370,15 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
 }
 
 private data class AuthContext(val userId: UUID, val serverId: String, val networkId: UUID?)
+
+private suspend fun ApplicationCall.respondFileAgentError(e: Exception) {
+    val msg = e.message ?: "Unknown agent error"
+    when {
+        msg.contains("not found", ignoreCase = true) -> respond(HttpStatusCode.NotFound, ErrorResponse(msg))
+        msg.contains("directory", ignoreCase = true) || msg.contains("already exists", ignoreCase = true) || msg.contains("not empty", ignoreCase = true) -> respond(HttpStatusCode.Conflict, ErrorResponse(msg))
+        else -> respond(HttpStatusCode.BadGateway, ErrorResponse("Agent error: $msg"))
+    }
+}
 
 private suspend fun ApplicationCall.respondGrpcFileError(e: io.grpc.StatusException) {
     when (e.status.code) {

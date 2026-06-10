@@ -1,108 +1,208 @@
 package craftpanel.systemtest.server
 
+import craftpanel.systemtest.client.model.CopyRequest
+import craftpanel.systemtest.client.model.MkdirRequest
+import craftpanel.systemtest.client.model.MoveRequest
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import org.openapitools.client.infrastructure.ClientException
 import org.openapitools.client.infrastructure.ServerException
 
 class ServerFilesTest : BaseSystemTest() {
 
-    private lateinit var helper: ServerHelper
-    private lateinit var serverId: String
-
     init {
-        beforeSpec {
-            helper = ServerHelper(api)
-            serverId = helper.createTestServer(nodeId)
-            api.startServer(serverId)
-            helper.awaitStatus(serverId, "HEALTHY")
-        }
-
-        afterSpec {
-            runCatching { api.stopServer(serverId) }
-            helper.awaitStoppedOrGone(serverId)
-            runCatching { api.deleteServer(serverId) }
-        }
-
         describe("Server file operations") {
 
-            it("returns 404 for non-existent server") {
-                val ex = shouldThrow<ClientException> {
-                    api.listServerFiles("00000000-0000-0000-0000-000000000000")
+            describe("CRUD") {
+                val helper = ServerHelper(api)
+                lateinit var serverId: String
+
+                beforeEach {
+                    serverId = helper.createTestServer(nodeId)
+                    api.startServer(serverId)
+                    helper.awaitStatus(serverId, "HEALTHY")
                 }
-                ex.statusCode shouldBe 404
-            }
-
-            it("lists root directory") {
-                val files = api.listServerFiles(serverId)
-                files.path shouldBe "/"
-            }
-
-            it("lists subdirectory returns 502") {
-                val ex = shouldThrow<ServerException> {
-                    api.listServerFiles(serverId, path = "/nonexistent")
+                afterEach {
+                    runCatching { api.stopServer(serverId) }
+                    helper.awaitStoppedOrGone(serverId)
+                    runCatching { api.deleteServer(serverId) }
                 }
-                ex.statusCode shouldBe 502
-            }
 
-            it("lists on a stopped server") {
-                api.stopServer(serverId)
-                helper.awaitStoppedOrGone(serverId)
-                val files = api.listServerFiles(serverId)
-                files.path shouldBe "/"
-                api.startServer(serverId)
-                helper.awaitStatus(serverId, "HEALTHY")
-            }
-
-            it("read file returns 500") {
-                val ex = shouldThrow<ServerException> {
-                    api.readServerFile(serverId, path = "/data/server.properties")
+                it("returns 404 for non-existent server") {
+                    val ex = shouldThrow<ClientException> {
+                        api.listServerFiles("00000000-0000-0000-0000-000000000000")
+                    }
+                    ex.statusCode shouldBe 404
                 }
-                ex.statusCode shouldBe 500
-            }
 
-            it("mkdir returns 502") {
-                val ex = shouldThrow<ServerException> {
-                    api.mkdirServerFile(serverId, craftpanel.systemtest.client.model.MkdirRequest(path = "/data/test-dir"))
+                it("lists root directory") {
+                    val files = api.listServerFiles(serverId)
+                    files.path shouldBe "/"
                 }
-                ex.statusCode shouldBe 502
-            }
 
-            it("delete returns 500") {
-                val ex = shouldThrow<ServerException> {
-                    api.deleteServerFile(serverId, path = "/data/to-delete", recursive = true)
+                it("lists on a stopped server") {
+                    api.stopServer(serverId)
+                    helper.awaitStoppedOrGone(serverId)
+                    val files = api.listServerFiles(serverId)
+                    files.path shouldBe "/"
+                    api.startServer(serverId)
+                    helper.awaitStatus(serverId, "HEALTHY")
                 }
-                ex.statusCode shouldBe 500
-            }
 
-            it("move returns 500") {
-                val ex = shouldThrow<ServerException> {
+                it("creates a directory and appears in listing") {
+                    api.mkdirServerFile(serverId, MkdirRequest(path = "/test-dir"))
+                    val files = api.listServerFiles(serverId)
+                    val entries = files.propertyEntries
+                    entries.map { it.name } shouldContain "test-dir"
+                    entries.first { it.name == "test-dir" }.isDirectory shouldBe true
+                }
+
+                it("creates nested directories") {
+                    api.mkdirServerFile(serverId, MkdirRequest(path = "/a/b/c"))
+                    val rootFiles = api.listServerFiles(serverId)
+                    rootFiles.propertyEntries.map { it.name } shouldContain "a"
+                    val subFiles = api.listServerFiles(serverId, path = "/a/b")
+                    subFiles.propertyEntries.map { it.name } shouldContain "c"
+                }
+
+                it("writes a file and reads it back") {
+                    api.writeServerFile(serverId, path = "/hello.txt", body = "Hello, World!")
+                    val result = api.readServerFile(serverId, path = "/hello.txt")
+                    result.content shouldBe "Hello, World!"
+                    result.encoding shouldBe "utf-8"
+                }
+
+                it("overwrites an existing file") {
+                    api.writeServerFile(serverId, path = "/data.txt", body = "original")
+                    api.writeServerFile(serverId, path = "/data.txt", body = "replaced")
+                    val result = api.readServerFile(serverId, path = "/data.txt")
+                    result.content shouldBe "replaced"
+                }
+
+                it("writes empty file content") {
+                    api.writeServerFile(serverId, path = "/empty.txt", body = "")
+                    val result = api.readServerFile(serverId, path = "/empty.txt")
+                    result.content shouldBe ""
+                }
+
+                it("deletes a file") {
+                    api.writeServerFile(serverId, path = "/delete-me.txt", body = "bye")
+                    api.deleteServerFile(serverId, path = "/delete-me.txt")
+                    val ex = shouldThrow<Exception> {
+                        api.readServerFile(serverId, path = "/delete-me.txt")
+                    }
+                    (ex as? ClientException)?.statusCode shouldBe 404
+                }
+
+                it("deleting non-existent file returns 404") {
+                    val ex = shouldThrow<ClientException> {
+                        api.deleteServerFile(serverId, path = "/does-not-exist", recursive = false)
+                    }
+                    ex.statusCode shouldBe 404
+                }
+
+                it("deleting non-empty directory without recursive returns 409") {
+                    api.mkdirServerFile(serverId, MkdirRequest(path = "/my-dir"))
+                    api.writeServerFile(serverId, path = "/my-dir/file.txt", body = "inside")
+                    val ex = shouldThrow<ClientException> {
+                        api.deleteServerFile(serverId, path = "/my-dir", recursive = false)
+                    }
+                    ex.statusCode shouldBe 409
+                }
+
+                it("deleting directory with recursive succeeds") {
+                    api.mkdirServerFile(serverId, MkdirRequest(path = "/deep-dir/sub"))
+                    api.writeServerFile(serverId, path = "/deep-dir/sub/data.txt", body = "data")
+                    api.deleteServerFile(serverId, path = "/deep-dir", recursive = true)
+                    val files = api.listServerFiles(serverId)
+                    files.propertyEntries.map { it.name } shouldNotContain "deep-dir"
+                }
+
+                it("moves a file between directories") {
+                    api.writeServerFile(serverId, path = "/source.txt", body = "move me")
+                    api.mkdirServerFile(serverId, MkdirRequest(path = "/dest"))
                     api.moveServerFile(
                         serverId,
-                        craftpanel.systemtest.client.model.MoveRequest(
-                            sourcePath = "/data/src",
-                            destinationPath = "/data/dst"
-                        )
+                        MoveRequest(sourcePath = "/source.txt", destinationPath = "/dest/source.txt")
                     )
+                    val result = api.readServerFile(serverId, path = "/dest/source.txt")
+                    result.content shouldBe "move me"
+                    shouldThrow<Exception> {
+                        api.readServerFile(serverId, path = "/source.txt")
+                    }
                 }
-                ex.statusCode shouldBe 500
-            }
 
-            it("copy returns 500") {
-                val ex = shouldThrow<ServerException> {
+                it("renames a file in place") {
+                    api.writeServerFile(serverId, path = "/old-name.txt", body = "rename test")
+                    api.moveServerFile(
+                        serverId,
+                        MoveRequest(sourcePath = "/old-name.txt", destinationPath = "/new-name.txt")
+                    )
+                    val result = api.readServerFile(serverId, path = "/new-name.txt")
+                    result.content shouldBe "rename test"
+                    shouldThrow<Exception> {
+                        api.readServerFile(serverId, path = "/old-name.txt")
+                    }
+                }
+
+                it("moving to existing path returns 409") {
+                    api.writeServerFile(serverId, path = "/a.txt", body = "a")
+                    api.writeServerFile(serverId, path = "/b.txt", body = "b")
+                    val ex = shouldThrow<ClientException> {
+                        api.moveServerFile(
+                            serverId,
+                            MoveRequest(sourcePath = "/a.txt", destinationPath = "/b.txt")
+                        )
+                    }
+                    ex.statusCode shouldBe 409
+                }
+
+                it("copies a file to a new path") {
+                    api.writeServerFile(serverId, path = "/original.txt", body = "copy me")
                     api.copyServerFile(
                         serverId,
-                        craftpanel.systemtest.client.model.CopyRequest(
-                            sourcePath = "/data/src",
-                            destinationPath = "/data/dst",
-                            recursive = true
-                        )
+                        CopyRequest(sourcePath = "/original.txt", destinationPath = "/copy.txt", recursive = false)
                     )
+                    val original = api.readServerFile(serverId, path = "/original.txt")
+                    val copy = api.readServerFile(serverId, path = "/copy.txt")
+                    original.content shouldBe "copy me"
+                    copy.content shouldBe "copy me"
                 }
-                ex.statusCode shouldBe 500
+
+                it("copying non-existent file returns 404") {
+                    val ex = shouldThrow<ClientException> {
+                        api.copyServerFile(
+                            serverId,
+                            CopyRequest(sourcePath = "/ghost.txt", destinationPath = "/copy.txt", recursive = false)
+                        )
+                    }
+                    ex.statusCode shouldBe 404
+                }
+
+                it("listing subdirectory returns entries") {
+                    api.mkdirServerFile(serverId, MkdirRequest(path = "/sub"))
+                    api.writeServerFile(serverId, path = "/sub/item.txt", body = "item")
+                    val files = api.listServerFiles(serverId, path = "/sub")
+                    files.propertyEntries.shouldHaveSize(1)
+                    files.propertyEntries.first().name shouldBe "item.txt"
+                }
+
+                it("listing non-existent path returns 404") {
+                    val ex = shouldThrow<ClientException> {
+                        api.listServerFiles(serverId, path = "/nonexistent")
+                    }
+                    ex.statusCode shouldBe 404
+                }
             }
         }
     }
+}
+
+private infix fun <T> List<T>.shouldNotContain(element: T) {
+    if (element in this) throw AssertionError("Collection should not contain $element but it does")
 }

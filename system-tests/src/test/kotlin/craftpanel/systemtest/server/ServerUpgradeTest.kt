@@ -12,7 +12,7 @@ class ServerUpgradeTest : BaseSystemTest() {
     init {
         describe("Server upgrade") {
 
-            describe("upgrade while stopped") {
+            describe("upgrade when stopped") {
                 val helper = ServerHelper(api)
                 lateinit var serverId: String
 
@@ -28,6 +28,22 @@ class ServerUpgradeTest : BaseSystemTest() {
                     val server = api.getServer(serverId)
                     server.status shouldBe "STOPPED"
                     server.itzgImageTag shouldBe "1.21.5"
+                }
+
+                it("upgrade while running returns 409") {
+                    api.startServer(serverId)
+                    helper.awaitStatus(serverId, "HEALTHY")
+                    val ex = shouldThrow<ClientException> {
+                        api.upgradeServer(serverId, UpgradeServerRequest(itzgImageTag = "1.21.5"))
+                    }
+                    ex.statusCode shouldBe 409
+                }
+
+                it("blank itzg_image_tag returns 422") {
+                    val ex = shouldThrow<ClientException> {
+                        api.upgradeServer(serverId, UpgradeServerRequest(itzgImageTag = ""))
+                    }
+                    ex.statusCode shouldBe 422
                 }
             }
 
