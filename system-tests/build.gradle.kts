@@ -105,6 +105,11 @@ tasks.named<Test>("test") {
         val outputDir = coverageOutputDir.get().asFile.also { it.mkdirs() }
         systemProperty("kover.agent.jar", agentJar.absolutePath)
         systemProperty("kover.output.dir", outputDir.absolutePath)
+        // Coverage runs must always execute the JVM to collect fresh .ic files.
+        // Without this, Gradle restores test results from the build cache and skips
+        // the JVM entirely, leaving the coverage output directory empty.
+        outputs.cacheIf { false }
+        finalizedBy("koverSystemTestReport")
     }
 }
 
@@ -115,39 +120,42 @@ tasks.named("check") {
 val koverSystemTestReport by tasks.registering(Exec::class) {
     group = "verification"
     description = "Generates Kover coverage report from system test Docker containers"
-    dependsOn(tasks.named("test"), ":master:installDist", ":agent:installDist")
+    dependsOn(":master:installDist", ":agent:installDist")
+    mustRunAfter(tasks.named("test"))
 
-    val cliJar = koverCli.get()
-        .filter { it.name.startsWith("kover-cli") }.singleFile
-    val icFiles = fileTree(coverageOutputDir) { include("*.ic") }.files
+    val withCoverage = project.hasProperty("withCoverage")
+    // icFiles and commandLine must be resolved at execution time because the .ic files are
+    // generated during the test run. notCompatibleWithConfigurationCache opts this task out
+    // of CC so project access at execution time is allowed for coverage runs.
+    notCompatibleWithConfigurationCache("Kover report resolves coverage files produced at test time")
 
-    commandLine(
-        buildList {
-            add("java")
-            add("-jar")
-            add(cliJar.absolutePath)
-            add("report")
+    onlyIf { withCoverage }
+
+    doFirst {
+        val cliJar = configurations.getByName("koverCli")
+            .filter { it.name.startsWith("kover-cli") }.singleFile
+        val icFiles = fileTree(coverageOutputDir) { include("*.ic") }.files
+        if (icFiles.isEmpty()) throw StopExecutionException("No .ic coverage files found — skipping report")
+        commandLine(buildList {
+            add("java"); add("-jar"); add(cliJar.absolutePath); add("report")
             icFiles.forEach { add(it.absolutePath) }
             add("--classfiles")
-            add(file("${rootProject.projectDir}/master/build/install/master/lib").absolutePath)
+            add(file("${rootProject.projectDir}/master/build/install/master/lib/master.jar").absolutePath)
             add("--classfiles")
-            add(file("${rootProject.projectDir}/agent/build/install/agent/lib").absolutePath)
+            add(file("${rootProject.projectDir}/agent/build/install/agent/lib/agent.jar").absolutePath)
             add("--html")
-            add(file("${layout.buildDirectory}/reports/kover/html").absolutePath)
+            add(
+                layout.buildDirectory.dir("reports/kover/html")
+                    .get().asFile.absolutePath
+            )
             add("--xml")
-            add(file("${layout.buildDirectory}/reports/kover/report.xml").absolutePath)
-            add("--title")
-            add("CraftPanel System Tests")
-            file("${rootProject.projectDir}/master/src/main/kotlin").let {
-                add("--src")
-                add(it.absolutePath)
-            }
-            file("${rootProject.projectDir}/agent/src/main/kotlin").let {
-                add("--src")
-                add(it.absolutePath)
-            }
-        }
-    )
-
-    onlyIf { project.hasProperty("withCoverage") && icFiles.isNotEmpty() }
+            add(
+                layout.buildDirectory.file("reports/kover/report.xml")
+                    .get().asFile.absolutePath
+            )
+            add("--title"); add("CraftPanel System Tests")
+            add("--src"); add(file("${rootProject.projectDir}/master/src/main/kotlin").absolutePath)
+            add("--src"); add(file("${rootProject.projectDir}/agent/src/main/kotlin").absolutePath)
+        })
+    }
 }

@@ -142,6 +142,7 @@ class CraftPanelStack {
             .withEnv("RATE_LIMIT_LOGIN", "1000")
             .withEnv("RATE_LIMIT_REFRESH", "1000")
             .apply {
+                withLogConsumer { frame -> System.err.println("[master] ${frame.utf8String.trimEnd()}") }
                 if (coverageEnabled && agentJar != null && coverageDir != null) {
                     coverageDir.mkdirs()
                     coverageDir.setWritable(true, false)
@@ -150,17 +151,10 @@ class CraftPanelStack {
                     val masterSuffix = containerPrefix.removePrefix("craftpanel-")
                     val masterReport = "master-$masterSuffix.ic"
                     val masterArgs = "master-$masterSuffix-kover.args"
-                    File(coverageDir, masterArgs).writeText("report.file=/tmp/coverage/$masterReport")
-                    val logFile = File(coverageDir, "master.log").also { it.createNewFile() }
-                    withLogConsumer { frame ->
-                        System.err.println("[master] ${frame.utf8String.trimEnd()}")
-                        logFile.appendText(frame.utf8String)
-                    }
+                    File(coverageDir, masterArgs).writeText("report.file=/tmp/coverage/$masterReport\ninclude=io.craftpanel.*")
                     withFileSystemBind(agentJar.absolutePath, "/opt/kover/agent.jar", BindMode.READ_ONLY)
                     withFileSystemBind(coverageDir.absolutePath, "/tmp/coverage", BindMode.READ_WRITE)
                     withEnv("JAVA_TOOL_OPTIONS", "-javaagent:/opt/kover/agent.jar=file:/tmp/coverage/$masterArgs")
-                } else {
-                    withLogConsumer { frame -> System.err.println("[master] ${frame.utf8String.trimEnd()}") }
                 }
             }
             .waitingFor(Wait.forLogMessage(".*Responding at.*", 1))
@@ -204,21 +198,15 @@ class CraftPanelStack {
                 .withFileSystemBind(dataDir.absolutePath, "/data", BindMode.READ_WRITE)
                 .withFileSystemBind("/var/run/docker.sock", "/var/run/docker.sock", BindMode.READ_WRITE)
                 .apply {
+                    withLogConsumer { frame -> System.err.println("[agent-$i] ${frame.utf8String.trimEnd()}") }
                     if (coverageEnabled && agentJar != null && coverageDir != null) {
                         val agentSuffix = containerPrefix.removePrefix("craftpanel-")
                         val agentReport = "agent-$agentSuffix-$i.ic"
                         val agentArgs = "agent-$agentSuffix-$i-kover.args"
-                        File(coverageDir, agentArgs).writeText("report.file=/tmp/coverage/$agentReport")
-                        val logFile = File(coverageDir, "agent-$i.log").also { it.createNewFile() }
-                        withLogConsumer { frame ->
-                            System.err.println("[agent-$i] ${frame.utf8String.trimEnd()}")
-                            logFile.appendText(frame.utf8String)
-                        }
+                        File(coverageDir, agentArgs).writeText("report.file=/tmp/coverage/$agentReport\ninclude=io.craftpanel.*")
                         withFileSystemBind(agentJar.absolutePath, "/opt/kover/agent.jar", BindMode.READ_ONLY)
                         withFileSystemBind(coverageDir.absolutePath, "/tmp/coverage", BindMode.READ_WRITE)
                         withEnv("JAVA_TOOL_OPTIONS", "-javaagent:/opt/kover/agent.jar=file:/tmp/coverage/$agentArgs")
-                    } else {
-                        withLogConsumer { frame -> System.err.println("[agent-$i] ${frame.utf8String.trimEnd()}") }
                     }
                 }
 
@@ -233,7 +221,9 @@ class CraftPanelStack {
             // (including Kover's coverage flush) never run. Send SIGTERM first and wait up to
             // 30 seconds for the JVM to flush coverage data before Testcontainers cleans up.
             runCatching {
-                dockerClient.stopContainerCmd(container.containerId).withTimeout(30).exec()
+                dockerClient.stopContainerCmd(container.containerId)
+                    .withTimeout(30)
+                    .exec()
             }
         }
         container.stop()
@@ -241,6 +231,7 @@ class CraftPanelStack {
 
     fun stop() {
         agents.forEach { gracefulStop(it) }
+        stopAllPrefixedContainers()
         cleanupAgentContainers()
         if (::master.isInitialized) gracefulStop(master)
         if (::postgres.isInitialized) postgres.stop()
@@ -257,6 +248,22 @@ class CraftPanelStack {
             }
         }
         agents.clear()
+    }
+
+    private fun stopAllPrefixedContainers() {
+        runCatching {
+            val containers = dockerClient.listContainersCmd()
+                .withShowAll(true)
+                .withNameFilter(listOf("$containerPrefix-"))
+                .exec()
+            for (container in containers) {
+                runCatching {
+                    dockerClient.stopContainerCmd(container.id)
+                        .exec()
+                    println("[cleanup] Stopped container ${container.names.firstOrNull()}")
+                }
+            }
+        }
     }
 
     private fun cleanupAgentContainers() {
