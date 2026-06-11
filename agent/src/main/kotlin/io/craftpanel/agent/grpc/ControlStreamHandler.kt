@@ -483,6 +483,18 @@ class ControlStreamHandler(
             return
         }
 
+        if (container.runState != ContainerState.RunState.RUNNING) {
+            log.warn("Console attach: server ${cmd.serverId} container is ${container.runState}, not RUNNING")
+            outbound.send(agentMessage {
+                nodeId = identity.nodeId
+                consoleOutput = consoleOutput {
+                    requestId = reqId
+                    closed = true
+                }
+            })
+            return
+        }
+
         val inputPipe = PipedOutputStream()
         val detached = AtomicBoolean(false)
 
@@ -526,6 +538,7 @@ class ControlStreamHandler(
                     }
 
                     override fun onError(t: Throwable) {
+                        log.warn("Console attach error (session=$reqId): ${t.message}")
                         outbound.trySend(agentMessage {
                             nodeId = identity.nodeId
                             consoleOutput = consoleOutput {
@@ -538,14 +551,25 @@ class ControlStreamHandler(
                 }
 
                 log.info("Attaching console to container ${container.containerName} (session=$reqId)")
-                docker.attachContainerCmd(container.containerName)
-                    .withStdIn(inputStream)
-                    .withStdOut(true)
-                    .withStdErr(true)
-                    .withFollowStream(true)
-                    .withLogs(true)
-                    .exec(callback)
-                    .awaitCompletion()
+                runCatching {
+                    docker.attachContainerCmd(container.containerName)
+                        .withStdIn(inputStream)
+                        .withStdOut(true)
+                        .withStdErr(true)
+                        .withFollowStream(true)
+                        .withLogs(false)
+                        .exec(callback)
+                        .awaitCompletion()
+                }.onFailure { e ->
+                    log.warn("Console attach failed (session=$reqId): ${e.message}")
+                    outbound.trySend(agentMessage {
+                        nodeId = identity.nodeId
+                        consoleOutput = consoleOutput {
+                            requestId = reqId
+                            closed = true
+                        }
+                    })
+                }
             }
             finally {
                 runCatching { inputPipe.close() }

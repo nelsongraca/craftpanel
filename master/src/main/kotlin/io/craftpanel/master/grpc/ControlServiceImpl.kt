@@ -404,7 +404,7 @@ class ControlServiceImpl(
             }
 
             // Forward browser input to agent
-            launch {
+            val inputJob = launch {
                 try {
                     input.collect { bytes ->
                         sendToNode(nodeId, masterMessage {
@@ -429,6 +429,7 @@ class ControlServiceImpl(
             finally {
                 consoleOutputChannels.remove("$nodeId/$reqId")
                     ?.close()
+                inputJob.cancel()
             }
         }
 

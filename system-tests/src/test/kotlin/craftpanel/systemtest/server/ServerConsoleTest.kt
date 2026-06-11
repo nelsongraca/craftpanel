@@ -157,7 +157,7 @@ class ServerConsoleTest : BaseSystemTest() {
 
                     connectLatch.await(5, TimeUnit.SECONDS)
 
-                    val sent = ws.send("""{"type":"console.input","data":"list"}""")
+                    val sent = ws.send("""{"type":"console.input","data":"list\r"}""")
                     sent shouldBe true
                     ws.close(1000, "test done")
                 }
@@ -196,7 +196,7 @@ class ServerConsoleTest : BaseSystemTest() {
                     })
 
                     connectLatch.await(5, TimeUnit.SECONDS)
-                    ws.send("""{"type":"console.input","data":"hello from test"}""")
+                    ws.send("""{"type":"console.input","data":"hello from test\r"}""")
                     helper.awaitContainerLog(containerName(serverId), "hello from test", docker)
                     ws.close(1000, "test done")
                 }
@@ -240,10 +240,11 @@ class ServerConsoleTest : BaseSystemTest() {
                             }
                         })
                         connectLatch.await(5, TimeUnit.SECONDS)
-                        ws.send("""{"type":"console.input","data":"stop\n"}""")
+                        ws.send("""{"type":"console.input","data":"stop\r"}""")
                         helper.awaitStoppedOrGone(serverId)
                         api.getServer(serverId).status shouldBe "STOPPED"
-                    } finally {
+                    }
+                    finally {
                         ws?.close(1000, "test done")
                     }
                 }
