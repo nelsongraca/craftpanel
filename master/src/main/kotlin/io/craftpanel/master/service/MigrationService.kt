@@ -489,6 +489,22 @@ class MigrationService(
                 }
             }
             try {
+                sendToNode(sourceNodeIdStr, masterMessage {
+                    stopContainer = stopContainerCommand {
+                        this.serverId = serverIdStr
+                        containerName = "$containerNamePrefix-$serverId"
+                        timeoutSeconds = 30
+                        stopCommand = serverRow[Servers.stopCommand]
+                    }
+                })
+                delay(5.seconds)
+                sendToNode(sourceNodeIdStr, masterMessage {
+                    removeContainer = removeContainerCommand {
+                        containerName = "$containerNamePrefix-$serverId"
+                        force = false
+                    }
+                })
+                delay(1.seconds)
                 val createMsg = buildMigrationCreateCommand(serverId, serverRow, serverImage, allVars, publicHostname)
                 sendToNode(targetNodeIdStr, createMsg)
                 delay(1.seconds)

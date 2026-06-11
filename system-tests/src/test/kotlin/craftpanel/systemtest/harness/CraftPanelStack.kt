@@ -113,6 +113,12 @@ class CraftPanelStack {
             .withName("craftpanel-$networkSuffix")
             .exec().id
 
+        val craftpanelGatewayIp = dockerClient.inspectNetworkCmd()
+            .withNetworkId(craftpanelNetworkId!!)
+            .exec()
+            .ipam?.config?.firstOrNull()?.gateway
+            ?: error("Could not determine craftpanel-$networkSuffix gateway IP")
+
         postgres = PgContainer()
             .withNetworkMode("craftpanel-$networkSuffix")
             .withCreateContainerCmdModifier { cmd ->
@@ -198,6 +204,7 @@ class CraftPanelStack {
                 .withEnv("DATA_PATH", "/data")
                 .withEnv("CRAFTPANEL_CONTAINER_PREFIX", containerPrefix)
                 .withEnv("CRAFTPANEL_NETWORK", "craftpanel-$networkSuffix")
+                .withEnv("NODE_PRIVATE_IP", craftpanelGatewayIp)
                 .withEnv("HOST_DATA_PATH", dataDir.absolutePath)
                 .withEnv("NODE_HOSTNAME", hostname)
                 .withEnv("METRICS_POLL_INTERVAL_SECONDS", "5")

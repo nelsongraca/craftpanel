@@ -218,6 +218,7 @@ CONF
             .withPortBindings(portBindings)
             .withBinds(Bind(destPath, Volume("/data"), AccessMode.rw))
             .withRestartPolicy(RestartPolicy.noRestart())
+            .let { hc -> if (craftpanelNetwork.isNotBlank()) hc.withNetworkMode(craftpanelNetwork) else hc }
 
         docker.createContainerCmd(rsyncImage)
             .withName(containerName)
@@ -251,6 +252,7 @@ CONF
         val hostConfig = HostConfig.newHostConfig()
             .withBinds(Bind(sourcePath, Volume("/source"), AccessMode.ro))
             .withRestartPolicy(RestartPolicy.noRestart())
+            .let { hc -> if (craftpanelNetwork.isNotBlank()) hc.withNetworkMode(craftpanelNetwork) else hc }
 
         docker.createContainerCmd(rsyncImage)
             .withName(containerName)

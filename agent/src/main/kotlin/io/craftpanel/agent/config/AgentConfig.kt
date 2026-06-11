@@ -4,6 +4,7 @@ data class AgentConfig(
     val profile: String,
     val masterAddress: String,
     val masterPort: Int,
+    val masterHttpPort: Int,
     // Explicit path to master's CA cert PEM. Takes priority over the auto-fetched cert.
     val tlsCertPath: String,
     // Where the agent persists the CA cert received from master during registration.
@@ -21,6 +22,7 @@ data class AgentConfig(
     val systemReservedRamMb: Int,
     val craftpanelNetwork: String,
     val containerNamePrefix: String,
+    val privateIpOverride: String,
     val metricsPollIntervalSeconds: Int,
 ) {
 
@@ -52,6 +54,8 @@ data class AgentConfig(
             masterAddress = System.getenv("MASTER_HOST") ?: "localhost",
             masterPort = System.getenv("MASTER_GRPC_PORT")
                 ?.toIntOrNull() ?: 50051,
+            masterHttpPort = System.getenv("MASTER_HTTP_PORT")
+                ?.toIntOrNull() ?: 8080,
             tlsCertPath = System.getenv("GRPC_TLS_CERT") ?: "",
             caCertFilePath = System.getenv("GRPC_CA_CERT_FILE") ?: "/app/config/grpc-ca.crt",
             bootstrapToken = System.getenv("NODE_BOOTSTRAP_TOKEN") ?: "changeme",
@@ -71,6 +75,7 @@ data class AgentConfig(
                 ?.coerceAtLeast(0) ?: 0,
             craftpanelNetwork = System.getenv("CRAFTPANEL_NETWORK") ?: "craftpanel",
             containerNamePrefix = System.getenv("CRAFTPANEL_CONTAINER_PREFIX") ?: "craftpanel",
+            privateIpOverride = System.getenv("NODE_PRIVATE_IP") ?: "",
             metricsPollIntervalSeconds = System.getenv("METRICS_POLL_INTERVAL_SECONDS")
                 ?.toIntOrNull()
                 ?.coerceAtLeast(5) ?: 60,

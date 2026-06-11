@@ -36,6 +36,7 @@ data class AppServices(
 
 fun Route.registerAppRoutes(svc: AppServices) {
     authRoutes(svc.jwtManager, svc.refreshTokenService, svc.wsTicketService, svc.rateLimitConfig, svc.secureCookies)
+    nodeIpRoutes()
     nodesRoutes(svc.nodeService)
     networksRoutes(svc.networkService)
     serversRoutes(svc.serverService)

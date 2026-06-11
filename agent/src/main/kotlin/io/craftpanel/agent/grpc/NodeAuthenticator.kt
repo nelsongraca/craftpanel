@@ -84,5 +84,15 @@ class NodeAuthenticator(
     }
 
     private fun resolvePrivateIp(): String =
-        runCatching { InetAddress.getLocalHost().hostAddress }.getOrElse { "unknown" }
+        config.privateIpOverride.takeIf { it.isNotBlank() }
+            ?: fetchPrivateIpFromMaster()
+            ?: runCatching { InetAddress.getLocalHost().hostAddress }.getOrElse { "unknown" }
+
+    private fun fetchPrivateIpFromMaster(): String? = runCatching {
+        val url = URI("http://${config.masterAddress}:${config.masterHttpPort}/api/nodes/my-ip").toURL()
+        val conn = url.openConnection()
+        conn.connectTimeout = 3000
+        conn.readTimeout = 3000
+        conn.getInputStream().bufferedReader().readText().trim().takeIf { it.isNotBlank() }
+    }.getOrNull()
 }
