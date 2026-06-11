@@ -42,6 +42,7 @@ class CraftPanelStack {
     private val agents = mutableListOf<AgentContainer>()
     private var craftpanelNetworkId: String? = null
     private val testDataDirs = mutableListOf<File>()
+    private var coverageMode = false
 
     var nodeId: String = ""
         private set
@@ -78,6 +79,7 @@ class CraftPanelStack {
         coverageDir: File? = null,
         nodeCount: Int = 1,
     ) {
+        coverageMode = coverageEnabled
         // All containers share the craftpanel network so the agent self-check passes at startup
         // and game server containers are reachable from the agent without post-start hacks.
 
@@ -139,8 +141,6 @@ class CraftPanelStack {
             .withEnv("CRAFTPANEL_ADMIN_PASSWORD", ADMIN_PASSWORD)
             .withEnv("RATE_LIMIT_LOGIN", "1000")
             .withEnv("RATE_LIMIT_REFRESH", "1000")
-            .withLogConsumer { frame -> System.err.println("[master] ${frame.utf8String.trimEnd()}") }
-            .waitingFor(Wait.forLogMessage(".*Responding at.*", 1))
             .apply {
                 if (coverageEnabled && agentJar != null && coverageDir != null) {
                     coverageDir.mkdirs()
@@ -150,14 +150,20 @@ class CraftPanelStack {
                     val masterSuffix = containerPrefix.removePrefix("craftpanel-")
                     val masterReport = "master-$masterSuffix.ic"
                     val masterArgs = "master-$masterSuffix-kover.args"
-                    val argsFile = File(coverageDir, masterArgs).apply {
-                        writeText("report.file=/tmp/coverage/$masterReport\ninclude=io.craftpanel.*")
+                    File(coverageDir, masterArgs).writeText("report.file=/tmp/coverage/$masterReport")
+                    val logFile = File(coverageDir, "master.log").also { it.createNewFile() }
+                    withLogConsumer { frame ->
+                        System.err.println("[master] ${frame.utf8String.trimEnd()}")
+                        logFile.appendText(frame.utf8String)
                     }
                     withFileSystemBind(agentJar.absolutePath, "/opt/kover/agent.jar", BindMode.READ_ONLY)
                     withFileSystemBind(coverageDir.absolutePath, "/tmp/coverage", BindMode.READ_WRITE)
                     withEnv("JAVA_TOOL_OPTIONS", "-javaagent:/opt/kover/agent.jar=file:/tmp/coverage/$masterArgs")
+                } else {
+                    withLogConsumer { frame -> System.err.println("[master] ${frame.utf8String.trimEnd()}") }
                 }
             }
+            .waitingFor(Wait.forLogMessage(".*Responding at.*", 1))
 
         master.start()
 
@@ -197,19 +203,22 @@ class CraftPanelStack {
                 .withEnv("METRICS_POLL_INTERVAL_SECONDS", "5")
                 .withFileSystemBind(dataDir.absolutePath, "/data", BindMode.READ_WRITE)
                 .withFileSystemBind("/var/run/docker.sock", "/var/run/docker.sock", BindMode.READ_WRITE)
-                .withLogConsumer { frame -> System.err.println("[agent-$i] ${frame.utf8String.trimEnd()}") }
-                .waitingFor(Wait.forLogMessage(".*Sent NodeStateSnapshot.*", 1))
                 .apply {
                     if (coverageEnabled && agentJar != null && coverageDir != null) {
                         val agentSuffix = containerPrefix.removePrefix("craftpanel-")
                         val agentReport = "agent-$agentSuffix-$i.ic"
                         val agentArgs = "agent-$agentSuffix-$i-kover.args"
-                        val argsFile = File(coverageDir, agentArgs).apply {
-                            writeText("report.file=/tmp/coverage/$agentReport\ninclude=io.craftpanel.*")
+                        File(coverageDir, agentArgs).writeText("report.file=/tmp/coverage/$agentReport")
+                        val logFile = File(coverageDir, "agent-$i.log").also { it.createNewFile() }
+                        withLogConsumer { frame ->
+                            System.err.println("[agent-$i] ${frame.utf8String.trimEnd()}")
+                            logFile.appendText(frame.utf8String)
                         }
                         withFileSystemBind(agentJar.absolutePath, "/opt/kover/agent.jar", BindMode.READ_ONLY)
                         withFileSystemBind(coverageDir.absolutePath, "/tmp/coverage", BindMode.READ_WRITE)
                         withEnv("JAVA_TOOL_OPTIONS", "-javaagent:/opt/kover/agent.jar=file:/tmp/coverage/$agentArgs")
+                    } else {
+                        withLogConsumer { frame -> System.err.println("[agent-$i] ${frame.utf8String.trimEnd()}") }
                     }
                 }
 
@@ -218,10 +227,22 @@ class CraftPanelStack {
         }
     }
 
+    private fun gracefulStop(container: GenericContainer<*>) {
+        if (coverageMode) {
+            // Testcontainers 2.x ResourceReaper sends SIGKILL directly, so JVM shutdown hooks
+            // (including Kover's coverage flush) never run. Send SIGTERM first and wait up to
+            // 30 seconds for the JVM to flush coverage data before Testcontainers cleans up.
+            runCatching {
+                dockerClient.stopContainerCmd(container.containerId).withTimeout(30).exec()
+            }
+        }
+        container.stop()
+    }
+
     fun stop() {
-        agents.forEach { it.stop() }
+        agents.forEach { gracefulStop(it) }
         cleanupAgentContainers()
-        if (::master.isInitialized) master.stop()
+        if (::master.isInitialized) gracefulStop(master)
         if (::postgres.isInitialized) postgres.stop()
         craftpanelNetworkId?.let { id ->
             runCatching {

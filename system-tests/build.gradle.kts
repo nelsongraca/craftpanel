@@ -72,8 +72,6 @@ val koverCli by configurations.registering {
     isCanBeResolved = true
 }
 
-val coverageOutputDir = layout.buildDirectory.dir("tmp/kover-coverage")
-
 dependencies {
     koverAgent(libs.kover.jvm.agent)
     koverCli(libs.kover.cli)
@@ -88,6 +86,17 @@ dependencies {
     testImplementation(libs.kotlinx.coroutines.core)
 }
 
+// Copy the Kover JVM agent JAR into the project build directory.
+// Docker bind-mounts must point to a local path; the Gradle module cache
+// (deep ~/.gradle/caches/.../hash/... path) can be inaccessible to the
+// Docker daemon, resulting in an empty directory mount instead of a file.
+val stageKoverAgent by tasks.registering(Copy::class) {
+    description = "Copies the Kover JVM agent JAR into the project build directory for Docker bind-mounting"
+    from(configurations.named("koverAgent"))
+    into(layout.buildDirectory.dir("kover-agent"))
+    rename { "kover-jvm-agent.jar" }
+}
+
 tasks.named<Test>("test") {
     useJUnitPlatform()
     maxParallelForks = 1
@@ -98,16 +107,17 @@ tasks.named<Test>("test") {
         ":fake-server:dockerBuildImage",
     )
 
-    val withCoverage = project.hasProperty("withCoverage")
-    if (withCoverage) {
-        // Defer resolution to execution time for configuration-cache compatibility.
-        systemProperty(
-            "kover.agent.jar",
-            koverAgent.map { config -> config.filter { it.name.startsWith("kover-jvm-agent") }.singleFile.absolutePath },
-        )
-        systemProperty("kover.output.dir", coverageOutputDir.map { it.asFile.absolutePath })
+    if (project.hasProperty("withCoverage")) {
+        // Coverage mode requires project access at execution time, which is not
+        // supported by the configuration cache. Opt out so normal runs still cache.
+        notCompatibleWithConfigurationCache("Kover coverage is not compatible with the configuration cache")
+        dependsOn(stageKoverAgent)
         doFirst {
-            coverageOutputDir.get().asFile.mkdirs()
+            val agentJar = project.layout.buildDirectory.file("kover-agent/kover-jvm-agent.jar").get().asFile
+            val outputDir = project.layout.buildDirectory.dir("tmp/kover-coverage").get().asFile
+                .also { it.mkdirs() }
+            systemProperty("kover.agent.jar", agentJar.absolutePath)
+            systemProperty("kover.output.dir", outputDir.absolutePath)
         }
     }
 }
@@ -125,9 +135,10 @@ val koverSystemTestReport by tasks.registering(Exec::class) {
 
     // Defer file resolution and command assembly to execution time for CC compatibility.
     doFirst {
-        val cliJar = koverCli.get()
+        val cliJar = project.configurations.getByName("koverCli")
             .filter { it.name.startsWith("kover-cli") }.singleFile
-        val icFiles = fileTree(coverageOutputDir.get().asFile) { include("*.ic") }.files
+        val icDir = project.layout.buildDirectory.dir("tmp/kover-coverage").get().asFile
+        val icFiles = icDir.walkTopDown().filter { it.isFile && it.extension == "ic" }.toList()
         if (icFiles.isEmpty()) throw StopExecutionException("No .ic coverage files found — skipping report")
         commandLine(buildList {
             add("java")
@@ -136,25 +147,19 @@ val koverSystemTestReport by tasks.registering(Exec::class) {
             add("report")
             icFiles.forEach { add(it.absolutePath) }
             add("--classfiles")
-            add(file("${rootProject.projectDir}/master/build/install/master/lib").absolutePath)
+            add(project.file("${project.rootProject.projectDir}/master/build/install/master/lib").absolutePath)
             add("--classfiles")
-            add(file("${rootProject.projectDir}/agent/build/install/agent/lib").absolutePath)
+            add(project.file("${project.rootProject.projectDir}/agent/build/install/agent/lib").absolutePath)
             add("--html")
-            add(
-                layout.buildDirectory.dir("reports/kover/html")
-                    .get().asFile.absolutePath
-            )
+            add(project.layout.buildDirectory.dir("reports/kover/html").get().asFile.absolutePath)
             add("--xml")
-            add(
-                layout.buildDirectory.file("reports/kover/report.xml")
-                    .get().asFile.absolutePath
-            )
+            add(project.layout.buildDirectory.file("reports/kover/report.xml").get().asFile.absolutePath)
             add("--title")
             add("CraftPanel System Tests")
             add("--src")
-            add(file("${rootProject.projectDir}/master/src/main/kotlin").absolutePath)
+            add(project.file("${project.rootProject.projectDir}/master/src/main/kotlin").absolutePath)
             add("--src")
-            add(file("${rootProject.projectDir}/agent/src/main/kotlin").absolutePath)
+            add(project.file("${project.rootProject.projectDir}/agent/src/main/kotlin").absolutePath)
         })
     }
 }
