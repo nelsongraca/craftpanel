@@ -241,7 +241,7 @@ class ControlServiceImpl(
                     msg.hasNodeMetrics()           -> {
                         lastMetricsAt.set(Clock.System.now())
                         runCatching { persistNodeMetrics(msg.nodeId, msg.nodeMetrics) }
-                            .onFailure { e -> log.error("Node ${msg.nodeId}: persistNodeMetrics failed — ${e.message}", e) }
+                            .onFailure { e -> log.warn("Node ${msg.nodeId}: persistNodeMetrics failed — ${e.message}") }
                         _nodeMetricsFlow.emit(msg.nodeId to msg.nodeMetrics)
                         launch {
                             try {
@@ -249,14 +249,14 @@ class ControlServiceImpl(
                             }
                             catch (e: Exception) {
                                 if (e is CancellationException) throw e
-                                log.error("Node ${msg.nodeId}: evaluateNodeAlerts failed — ${e.message}", e)
+                                log.warn("Node ${msg.nodeId}: evaluateNodeAlerts failed — ${e.message}")
                             }
                         }
                     }
 
                     msg.hasContainerMetrics()      -> {
                         runCatching { persistContainerMetrics(msg.containerMetrics) }
-                            .onFailure { e -> log.error("Node ${msg.nodeId}: persistContainerMetrics failed — ${e.message}", e) }
+                            .onFailure { e -> log.warn("Node ${msg.nodeId}: persistContainerMetrics failed — ${e.message}") }
                         _containerMetricsFlow.emit(msg.containerMetrics.serverId to msg.containerMetrics)
                         launch {
                             try {
@@ -264,14 +264,14 @@ class ControlServiceImpl(
                             }
                             catch (e: Exception) {
                                 if (e is CancellationException) throw e
-                                log.error("Node ${msg.nodeId}: evaluateServerAlerts failed — ${e.message}", e)
+                                log.warn("Node ${msg.nodeId}: evaluateServerAlerts failed — ${e.message}")
                             }
                         }
                     }
 
                     msg.hasServerStatus()          -> {
                         runCatching { persistServerStatus(msg.serverStatus) }
-                            .onFailure { e -> log.error("Node ${msg.nodeId}: persistServerStatus failed — ${e.message}", e) }
+                            .onFailure { e -> log.warn("Node ${msg.nodeId}: persistServerStatus failed — ${e.message}") }
                         _serverStatusFlow.emit(msg.serverStatus.serverId to msg.serverStatus)
                     }
 
