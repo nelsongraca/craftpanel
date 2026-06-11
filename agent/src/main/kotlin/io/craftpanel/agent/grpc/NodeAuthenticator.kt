@@ -1,10 +1,10 @@
 package io.craftpanel.agent.grpc
 
-import com.craftpanel.agent.v1.ControlServiceGrpcKt
-import com.craftpanel.agent.v1.IdentifyNodeResponse
-import com.craftpanel.agent.v1.identifyNodeRequest
-import com.craftpanel.agent.v1.nodeMetadata
-import com.craftpanel.agent.v1.registerNodeRequest
+import io.craftpanel.proto.ControlServiceGrpcKt
+import io.craftpanel.proto.IdentifyNodeResponse
+import io.craftpanel.proto.identifyNodeRequest
+import io.craftpanel.proto.nodeMetadata
+import io.craftpanel.proto.registerNodeRequest
 import io.craftpanel.agent.auth.NodeKeyStore
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.MetricsCollector

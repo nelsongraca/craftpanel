@@ -1,11 +1,11 @@
 package io.craftpanel.master.grpc
 
-import com.craftpanel.agent.v1.BulkDataServiceGrpcKt
-import com.craftpanel.agent.v1.BulkChunk
-import com.craftpanel.agent.v1.BulkTransferInit
-import com.craftpanel.agent.v1.BulkTransferAck
-import com.craftpanel.agent.v1.bulkChunk
-import com.craftpanel.agent.v1.bulkTransferAck
+import io.craftpanel.proto.BulkDataServiceGrpcKt
+import io.craftpanel.proto.BulkChunk
+import io.craftpanel.proto.BulkTransferInit
+import io.craftpanel.proto.BulkTransferAck
+import io.craftpanel.proto.bulkChunk
+import io.craftpanel.proto.bulkTransferAck
 import com.google.protobuf.ByteString
 import io.grpc.Status
 import io.grpc.StatusException

@@ -1,6 +1,6 @@
 package io.craftpanel.master.service
 
-import com.craftpanel.agent.v1.*
+import io.craftpanel.proto.*
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.config.ImagesConfig
 import io.craftpanel.master.dns.DnsProvider

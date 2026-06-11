@@ -2,17 +2,12 @@ package craftpanel.systemtest.node
 
 import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.client.model.PatchNodeRequest
-import craftpanel.systemtest.harness.AuthHelper
-import craftpanel.systemtest.harness.CraftPanelStack
-import craftpanel.systemtest.harness.NodeHelper
-import craftpanel.systemtest.harness.SharedStack
-import craftpanel.systemtest.harness.ServerHelper
+import craftpanel.systemtest.harness.*
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.ShouldSpec
-import io.kotest.matchers.shouldBe
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
-import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeEmpty
 import org.openapitools.client.infrastructure.ClientException
 
@@ -208,7 +203,8 @@ class NodeOperationsTest : ShouldSpec() {
                         api.decommissionNode(stack.nodeId)
                     }
                     ex.statusCode shouldBe 409
-                } finally {
+                }
+                finally {
                     runCatching { api.stopServer(serverId) }
                     runCatching { api.deleteServer(serverId) }
                 }

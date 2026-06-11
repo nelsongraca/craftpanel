@@ -1,7 +1,7 @@
 package io.craftpanel.agent.docker
 
-import com.craftpanel.agent.v1.ContainerState
-import com.craftpanel.agent.v1.createContainerCommand
+import io.craftpanel.proto.ContainerState
+import io.craftpanel.proto.createContainerCommand
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.command.*

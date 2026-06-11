@@ -1,7 +1,7 @@
 package io.craftpanel.master.grpc
 
 import io.craftpanel.master.auth.ScopeType
-import com.craftpanel.agent.v1.*
+import io.craftpanel.proto.*
 import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.util.toKotlinUuid

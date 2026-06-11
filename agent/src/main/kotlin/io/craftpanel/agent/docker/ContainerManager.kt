@@ -1,8 +1,8 @@
 package io.craftpanel.agent.docker
 
-import com.craftpanel.agent.v1.ContainerState
-import com.craftpanel.agent.v1.CreateContainerCommand
-import com.craftpanel.agent.v1.containerState
+import io.craftpanel.proto.ContainerState
+import io.craftpanel.proto.CreateContainerCommand
+import io.craftpanel.proto.containerState
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.command.PullImageResultCallback

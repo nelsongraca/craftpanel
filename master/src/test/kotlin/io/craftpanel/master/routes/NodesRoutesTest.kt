@@ -1,6 +1,6 @@
 package io.craftpanel.master.routes
 
-import com.craftpanel.agent.v1.MasterMessage
+import io.craftpanel.proto.MasterMessage
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.auth.JwtManager

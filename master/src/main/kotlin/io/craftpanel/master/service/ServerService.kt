@@ -1,6 +1,6 @@
 package io.craftpanel.master.service
 
-import com.craftpanel.agent.v1.*
+import io.craftpanel.proto.*
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.database.schema.*

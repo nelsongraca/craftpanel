@@ -143,6 +143,7 @@ val koverSystemTestReport by tasks.registering(Exec::class) {
             add(file("${rootProject.projectDir}/master/build/install/master/lib/master.jar").absolutePath)
             add("--classfiles")
             add(file("${rootProject.projectDir}/agent/build/install/agent/lib/agent.jar").absolutePath)
+            add("--exclude"); add("io.craftpanel.proto.*")
             add("--html")
             add(
                 layout.buildDirectory.dir("reports/kover/html")

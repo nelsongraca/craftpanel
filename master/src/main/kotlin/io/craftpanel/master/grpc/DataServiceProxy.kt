@@ -1,6 +1,6 @@
 package io.craftpanel.master.grpc
 
-import com.craftpanel.agent.v1.*
+import io.craftpanel.proto.*
 import com.google.protobuf.ByteString
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.util.toKotlinUuid

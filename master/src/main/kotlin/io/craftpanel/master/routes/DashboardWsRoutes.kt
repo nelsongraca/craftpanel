@@ -4,7 +4,7 @@ package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.ScopeType
-import com.craftpanel.agent.v1.ServerStatusUpdate
+import io.craftpanel.proto.ServerStatusUpdate
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.database.schema.Nodes

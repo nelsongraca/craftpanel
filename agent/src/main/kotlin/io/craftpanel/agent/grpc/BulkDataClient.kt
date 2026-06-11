@@ -1,8 +1,8 @@
 package io.craftpanel.agent.grpc
 
-import com.craftpanel.agent.v1.BulkDataServiceGrpcKt
-import com.craftpanel.agent.v1.bulkChunk
-import com.craftpanel.agent.v1.bulkTransferInit
+import io.craftpanel.proto.BulkDataServiceGrpcKt
+import io.craftpanel.proto.bulkChunk
+import io.craftpanel.proto.bulkTransferInit
 import com.google.protobuf.ByteString
 import io.grpc.ManagedChannel
 import kotlinx.coroutines.Dispatchers

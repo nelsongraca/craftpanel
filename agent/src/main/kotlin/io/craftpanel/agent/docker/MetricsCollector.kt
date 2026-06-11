@@ -1,6 +1,6 @@
 package io.craftpanel.agent.docker
 
-import com.craftpanel.agent.v1.*
+import io.craftpanel.proto.*
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.model.Statistics

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package craftpanel.agent.v1;
 
-option java_package = "com.craftpanel.agent.v1";
+option java_package = "io.craftpanel.proto";
 option java_multiple_files = true;
 
 import "google/protobuf/timestamp.proto";

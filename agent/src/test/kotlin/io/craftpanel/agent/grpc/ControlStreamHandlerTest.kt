@@ -1,6 +1,6 @@
 package io.craftpanel.agent.grpc
 
-import com.craftpanel.agent.v1.*
+import io.craftpanel.proto.*
 import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerManager

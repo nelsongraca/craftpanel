@@ -1,9 +1,9 @@
 package io.craftpanel.master.grpc
 
-import com.craftpanel.agent.v1.ContainerState
-import com.craftpanel.agent.v1.agentMessage
-import com.craftpanel.agent.v1.containerState
-import com.craftpanel.agent.v1.nodeStateSnapshot
+import io.craftpanel.proto.ContainerState
+import io.craftpanel.proto.agentMessage
+import io.craftpanel.proto.containerState
+import io.craftpanel.proto.nodeStateSnapshot
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.database.schema.Backups

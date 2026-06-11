@@ -23,7 +23,10 @@ class ServerConsoleTest : BaseSystemTest() {
     init {
         beforeSpec {
             serverId = helper.createTestServer(nodeId)
+            api.startServer(serverId)
+            helper.awaitStatus(serverId, "HEALTHY")
         }
+
         afterSpec {
             runCatching { api.stopServer(serverId) }
             helper.awaitStoppedOrGone(serverId)
@@ -64,8 +67,6 @@ class ServerConsoleTest : BaseSystemTest() {
                 }
 
                 should("connects with valid ticket") {
-                    api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY")
                     val ticket = api.authWsTicket()
                     val url = "${wsBaseUrl}/api/ws/console/${serverId}?ticket=${ticket.ticket}"
                     val latch = CountDownLatch(1)
@@ -85,8 +86,6 @@ class ServerConsoleTest : BaseSystemTest() {
                     latch.await(5, TimeUnit.SECONDS)
                     connected shouldBe true
                     ws.close(1000, "test done")
-                    api.stopServer(serverId)
-                    helper.awaitStoppedOrGone(serverId)
                 }
 
                 should("connecting to non-existent server closes normally") {
@@ -141,6 +140,116 @@ class ServerConsoleTest : BaseSystemTest() {
                     latch.await(5, TimeUnit.SECONDS)
                     closeCode shouldBe 1008
                 }
+            }
+
+            context("interactive session") {
+
+                should("connects and sends a command") {
+                    val ticket = api.authWsTicket()
+                    val url = "${wsBaseUrl}/api/ws/console/${serverId}?ticket=${ticket.ticket}"
+                    val connectLatch = CountDownLatch(1)
+
+                    val ws = wsClient.newWebSocket(request(url), object : WebSocketListener() {
+                        override fun onOpen(webSocket: WebSocket, response: Response) {
+                            connectLatch.countDown()
+                        }
+                    })
+
+                    connectLatch.await(5, TimeUnit.SECONDS)
+
+                    val sent = ws.send("""{"type":"console.input","data":"list"}""")
+                    sent shouldBe true
+                    ws.close(1000, "test done")
+                }
+
+                should("disconnecting and reconnecting creates a new session") {
+                    suspend fun connect(): WebSocket {
+                        val ticket = api.authWsTicket()
+                        val url = "${wsBaseUrl}/api/ws/console/${serverId}?ticket=${ticket.ticket}"
+                        val latch = CountDownLatch(1)
+                        val ws = wsClient.newWebSocket(request(url), object : WebSocketListener() {
+                            override fun onOpen(webSocket: WebSocket, response: Response) {
+                                latch.countDown()
+                            }
+                        })
+                        latch.await(5, TimeUnit.SECONDS)
+                        return ws
+                    }
+
+                    val ws1 = connect()
+                    ws1.close(1000, "first session")
+                    Thread.sleep(1000)
+
+                    val ws2 = connect()
+                    ws2.close(1000, "test done")
+                }
+
+                should("sends arbitrary text and appears in Docker logs") {
+                    val ticket = api.authWsTicket()
+                    val url = "${wsBaseUrl}/api/ws/console/${serverId}?ticket=${ticket.ticket}"
+                    val connectLatch = CountDownLatch(1)
+
+                    val ws = wsClient.newWebSocket(request(url), object : WebSocketListener() {
+                        override fun onOpen(webSocket: WebSocket, response: Response) {
+                            connectLatch.countDown()
+                        }
+                    })
+
+                    connectLatch.await(5, TimeUnit.SECONDS)
+                    ws.send("""{"type":"console.input","data":"hello from test"}""")
+                    helper.awaitContainerLog(containerName(serverId), "hello from test", docker)
+                    ws.close(1000, "test done")
+                }
+
+                should("detaches cleanly") {
+                    val ticket = api.authWsTicket()
+                    val url = "${wsBaseUrl}/api/ws/console/${serverId}?ticket=${ticket.ticket}"
+                    val connectLatch = CountDownLatch(1)
+                    val closeLatch = CountDownLatch(1)
+                    var closeCode = -1
+
+                    val ws = wsClient.newWebSocket(request(url), object : WebSocketListener() {
+                        override fun onOpen(webSocket: WebSocket, response: Response) {
+                            connectLatch.countDown()
+                        }
+
+                        override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                            closeCode = code; closeLatch.countDown()
+                        }
+
+                        override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                            if (closeCode == -1) closeCode = code; closeLatch.countDown()
+                        }
+                    })
+
+                    connectLatch.await(5, TimeUnit.SECONDS)
+                    ws.close(1000, "bye")
+                    closeLatch.await(5, TimeUnit.SECONDS)
+                    closeCode shouldBe 1000
+                }
+
+                should("sending stop command shuts down the server") {
+                    var ws: WebSocket? = null
+                    try {
+                        val ticket = api.authWsTicket()
+                        val url = "${wsBaseUrl}/api/ws/console/${serverId}?ticket=${ticket.ticket}"
+                        val connectLatch = CountDownLatch(1)
+                        ws = wsClient.newWebSocket(request(url), object : WebSocketListener() {
+                            override fun onOpen(webSocket: WebSocket, response: Response) {
+                                connectLatch.countDown()
+                            }
+                        })
+                        connectLatch.await(5, TimeUnit.SECONDS)
+                        ws.send("""{"type":"console.input","data":"stop\n"}""")
+                        helper.awaitStoppedOrGone(serverId)
+                        api.getServer(serverId).status shouldBe "STOPPED"
+                    } finally {
+                        ws?.close(1000, "test done")
+                    }
+                }
+            }
+
+            context("stopped server") {
 
                 should("connecting to stopped server closes") {
                     val ticket = api.authWsTicket()
@@ -164,165 +273,6 @@ class ServerConsoleTest : BaseSystemTest() {
 
                     latch.await(5, TimeUnit.SECONDS)
                     closeCode shouldBe 1000
-                }
-            }
-
-            context("interactive session") {
-
-                should("connects and sends a command") {
-                    val helper = ServerHelper(api)
-                    val serverId = helper.createTestServer(nodeId)
-                    var ws: WebSocket? = null
-                    try {
-                        api.startServer(serverId)
-                        helper.awaitStatus(serverId, "HEALTHY")
-
-                        val ticket = api.authWsTicket()
-                        val url = "${wsBaseUrl}/api/ws/console/${serverId}?ticket=${ticket.ticket}"
-                        val connectLatch = CountDownLatch(1)
-
-                        ws = wsClient.newWebSocket(request(url), object : WebSocketListener() {
-                            override fun onOpen(webSocket: WebSocket, response: Response) {
-                                connectLatch.countDown()
-                            }
-                        })
-
-                        connectLatch.await(5, TimeUnit.SECONDS)
-
-                        val sent = ws.send("""{"type":"console.input","data":"list"}""")
-                        sent shouldBe true
-                    }
-                    finally {
-                        ws?.close(1000, "test done")
-                        runCatching { api.stopServer(serverId) }
-                        helper.awaitStoppedOrGone(serverId)
-                        runCatching { api.deleteServer(serverId) }
-                    }
-                }
-
-                should("disconnecting and reconnecting creates a new session") {
-                    val helper = ServerHelper(api)
-                    val serverId = helper.createTestServer(nodeId)
-                    try {
-                        api.startServer(serverId)
-                        helper.awaitStatus(serverId, "HEALTHY")
-
-                        suspend fun connect(): WebSocket {
-                            val ticket = api.authWsTicket()
-                            val url = "${wsBaseUrl}/api/ws/console/${serverId}?ticket=${ticket.ticket}"
-                            val latch = CountDownLatch(1)
-                            val ws = wsClient.newWebSocket(request(url), object : WebSocketListener() {
-                                override fun onOpen(webSocket: WebSocket, response: Response) {
-                                    latch.countDown()
-                                }
-                            })
-                            latch.await(5, TimeUnit.SECONDS)
-                            return ws
-                        }
-
-                        val ws1 = connect()
-                        ws1.close(1000, "first session")
-                        Thread.sleep(1000)
-
-                        val ws2 = connect()
-                        ws2.close(1000, "test done")
-                    }
-                    finally {
-                        runCatching { api.stopServer(serverId) }
-                        helper.awaitStoppedOrGone(serverId)
-                        runCatching { api.deleteServer(serverId) }
-                    }
-                }
-
-                should("sending stop command shuts down the server") {
-                    val helper = ServerHelper(api)
-                    val serverId = helper.createTestServer(nodeId)
-                    var ws: WebSocket? = null
-                    try {
-                        api.startServer(serverId)
-                        helper.awaitStatus(serverId, "HEALTHY")
-                        val ticket = api.authWsTicket()
-                        val url = "${wsBaseUrl}/api/ws/console/${serverId}?ticket=${ticket.ticket}"
-                        val connectLatch = CountDownLatch(1)
-                        ws = wsClient.newWebSocket(request(url), object : WebSocketListener() {
-                            override fun onOpen(webSocket: WebSocket, response: Response) {
-                                connectLatch.countDown()
-                            }
-                        })
-                        connectLatch.await(5, TimeUnit.SECONDS)
-                        ws.send("""{"type":"console.input","data":"stop\n"}""")
-                        helper.awaitStoppedOrGone(serverId)
-                        api.getServer(serverId).status shouldBe "STOPPED"
-                    }
-                    finally {
-                        ws?.close(1000, "test done")
-                        runCatching { api.deleteServer(serverId) }
-                    }
-                }
-
-                should("sends arbitrary text and appears in Docker logs") {
-                    val helper = ServerHelper(api)
-                    val serverId = helper.createTestServer(nodeId)
-                    var ws: WebSocket? = null
-                    try {
-                        api.startServer(serverId)
-                        helper.awaitStatus(serverId, "HEALTHY")
-                        val ticket = api.authWsTicket()
-                        val url = "${wsBaseUrl}/api/ws/console/${serverId}?ticket=${ticket.ticket}"
-                        val connectLatch = CountDownLatch(1)
-                        ws = wsClient.newWebSocket(request(url), object : WebSocketListener() {
-                            override fun onOpen(webSocket: WebSocket, response: Response) {
-                                connectLatch.countDown()
-                            }
-                        })
-                        connectLatch.await(5, TimeUnit.SECONDS)
-                        ws.send("""{"type":"console.input","data":"hello from test"}""")
-                        helper.awaitContainerLog(containerName(serverId), "hello from test", docker)
-                    }
-                    finally {
-                        ws?.close(1000, "test done")
-                        runCatching { api.stopServer(serverId) }
-                        helper.awaitStoppedOrGone(serverId)
-                        runCatching { api.deleteServer(serverId) }
-                    }
-                }
-
-                should("detaches cleanly") {
-                    val helper = ServerHelper(api)
-                    val serverId = helper.createTestServer(nodeId)
-                    try {
-                        api.startServer(serverId)
-                        helper.awaitStatus(serverId, "HEALTHY")
-                        val ticket = api.authWsTicket()
-                        val url = "${wsBaseUrl}/api/ws/console/${serverId}?ticket=${ticket.ticket}"
-                        val connectLatch = CountDownLatch(1)
-                        val closeLatch = CountDownLatch(1)
-                        var closeCode = -1
-
-                        val ws = wsClient.newWebSocket(request(url), object : WebSocketListener() {
-                            override fun onOpen(webSocket: WebSocket, response: Response) {
-                                connectLatch.countDown()
-                            }
-
-                            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                                closeCode = code; closeLatch.countDown()
-                            }
-
-                            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                                if (closeCode == -1) closeCode = code; closeLatch.countDown()
-                            }
-                        })
-
-                        connectLatch.await(5, TimeUnit.SECONDS)
-                        ws.close(1000, "bye")
-                        closeLatch.await(5, TimeUnit.SECONDS)
-                        closeCode shouldBe 1000
-                    }
-                    finally {
-                        runCatching { api.stopServer(serverId) }
-                        helper.awaitStoppedOrGone(serverId)
-                        runCatching { api.deleteServer(serverId) }
-                    }
                 }
             }
         }

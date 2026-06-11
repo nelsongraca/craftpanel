@@ -54,7 +54,7 @@ class BackupsRoutesTest {
     private val jwtManager = JwtManager(jwtConfig)
     private val noopControlSvc = ControlServiceImpl(NodeConfig("test-token", 50052))
     private val noopProxy = DataServiceProxy(noopControlSvc, BulkDataServiceImpl(noopControlSvc))
-    private val noopSend: (String, com.craftpanel.agent.v1.MasterMessage) -> Boolean = { _, _ -> true }
+    private val noopSend: (String, io.craftpanel.proto.MasterMessage) -> Boolean = { _, _ -> true }
 
     @BeforeTest
     fun setup() {

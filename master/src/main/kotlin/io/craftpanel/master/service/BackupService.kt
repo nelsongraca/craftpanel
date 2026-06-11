@@ -1,9 +1,9 @@
 package io.craftpanel.master.service
 
-import com.craftpanel.agent.v1.MasterMessage
-import com.craftpanel.agent.v1.deleteBackupCommand
-import com.craftpanel.agent.v1.masterMessage
-import com.craftpanel.agent.v1.triggerBackupCommand
+import io.craftpanel.proto.MasterMessage
+import io.craftpanel.proto.deleteBackupCommand
+import io.craftpanel.proto.masterMessage
+import io.craftpanel.proto.triggerBackupCommand
 import io.craftpanel.master.database.schema.Backups
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.grpc.DataServiceProxy
