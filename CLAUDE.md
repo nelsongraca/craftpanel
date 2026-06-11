@@ -16,6 +16,25 @@ Before starting any task, assess complexity:
 - Ambiguous architecture, cross-module coordination, new proto changes,
   state machine logic: pause and flag for advisor review before proceeding
 
+**Advisor calls require user confirmation.** Before calling `advisor()`, always ask the user: "Call advisor for [reason]?" and wait for approval. Never call advisor silently.
+
+## Context Efficiency — Cavecrew (MANDATORY)
+
+**Default to cavecrew subagents. Inline tool use is the exception, not the rule.**
+
+| Task type | Agent |
+|---|---|
+| Locate a symbol, file, or call site | `cavecrew-investigator` |
+| 1–2 file edit (typo, rename, single function) | `cavecrew-builder` |
+| Review a diff, PR, or file for issues | `cavecrew-reviewer` |
+
+Rules:
+- **Always** use `cavecrew-investigator` before reading unfamiliar code — never open files inline just to orient.
+- **Always** use `cavecrew-builder` for bounded edits where scope is clear and ≤2 files.
+- **Always** use `cavecrew-reviewer` when the user asks for a review or audit.
+- Only go inline when: (a) the file is already in context from a prior tool call this turn, or (b) the task genuinely requires cross-file synthesis that no single subagent can provide.
+- Cavecrew output is ~60% smaller than inline reads — prefer it aggressively to preserve context window across long sessions.
+
 ## Module Structure
 
 ```
