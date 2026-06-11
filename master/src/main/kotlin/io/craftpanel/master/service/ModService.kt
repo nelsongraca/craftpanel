@@ -113,7 +113,11 @@ class ModService {
         return transaction {
             ServerMods.update({ (ServerMods.id eq modId) and (ServerMods.serverId eq serverId) }) {
                 if (req.pinStrategy != null) it[ServerMods.pinStrategy] = req.pinStrategy
-                if (req.pinnedVersionId != null) it[ServerMods.pinnedVersionId] = req.pinnedVersionId
+                if (req.pinnedVersionId != null) {
+                    it[ServerMods.pinnedVersionId] = req.pinnedVersionId
+                } else if (req.pinStrategy != null && req.pinStrategy != "PINNED") {
+                    it[ServerMods.pinnedVersionId] = null
+                }
                 it[ServerMods.updatedAt] = now
             }
             markNeedsRecreate(serverId)
