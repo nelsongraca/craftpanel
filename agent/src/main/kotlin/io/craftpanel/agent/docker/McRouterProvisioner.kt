@@ -2,6 +2,8 @@ package io.craftpanel.agent.docker
 
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.command.PullImageResultCallback
+import com.github.dockerjava.api.exception.ConflictException
+import com.github.dockerjava.api.exception.NotModifiedException
 import com.github.dockerjava.api.model.*
 import org.slf4j.LoggerFactory
 
@@ -37,8 +39,11 @@ class McRouterProvisioner(
                 return
             }
             log.info("mc-router container exists but not running — starting")
-            docker.startContainerCmd(existing.id)
-                .exec()
+            runCatching {
+                docker.startContainerCmd(existing.id)
+                    .exec()
+            }
+                .onFailure { if (it !is NotModifiedException) throw it }
             connectToNetwork(existing.id)
             return
         }
@@ -51,12 +56,31 @@ class McRouterProvisioner(
             .withPortBindings(bindings)
             .withBinds(Bind("/var/run/docker.sock", Volume("/var/run/docker.sock"), AccessMode.rw))
             .withRestartPolicy(RestartPolicy.unlessStoppedRestart())
-        val id = docker.createContainerCmd(image)
-            .withName(containerName)
-            .withHostConfig(hostConfig)
-            .exec().id
-        docker.startContainerCmd(id)
-            .exec()
+        val id = try {
+            docker.createContainerCmd(image)
+                .withName(containerName)
+                .withHostConfig(hostConfig)
+                .exec().id
+        }
+        catch (e: ConflictException) {
+            // Race: another process created the container between our check and create
+            val raced = docker.listContainersCmd()
+                .withShowAll(true)
+                .withNameFilter(listOf(containerName))
+                .exec()
+                .firstOrNull() ?: throw e
+            if (raced.state == "running") {
+                log.info("mc-router already running (lost create race)")
+                connectToNetwork(raced.id)
+                return
+            }
+            raced.id
+        }
+        runCatching {
+            docker.startContainerCmd(id)
+                .exec()
+        }
+            .onFailure { if (it !is NotModifiedException) throw it }
         connectToNetwork(id)
         log.info("mc-router provisioned and started")
     }

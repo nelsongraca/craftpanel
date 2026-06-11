@@ -7,6 +7,7 @@ import kotlinx.coroutines.delay
 import kotlin.random.Random
 import org.openapitools.client.infrastructure.ServerException
 import org.openapitools.client.infrastructure.ClientException
+import kotlin.time.Duration.Companion.milliseconds
 
 class MultiNodeHelper(private val api: DefaultApi) {
 
@@ -48,7 +49,7 @@ class MultiNodeHelper(private val api: DefaultApi) {
                 catch (e: Exception) {
                     if (isAgentNotConnectedError(e)) {
                         val jitter = Random.nextLong(-(interval / 5), interval / 5 + 1)
-                        delay((interval + jitter).coerceAtLeast(50))
+                        delay((interval + jitter).coerceAtLeast(50).milliseconds)
                         interval = (interval * 1.5).toLong()
                             .coerceAtMost(1000)
                     }
@@ -60,12 +61,8 @@ class MultiNodeHelper(private val api: DefaultApi) {
             if (!connected) {
                 error("Agent on node $nodeId did not connect to master within ${timeoutMs}ms")
             }
-            // Let the server reach HEALTHY first
-            helper.awaitStatus(tempServerId, "HEALTHY", timeoutMs)
             runCatching { api.stopServer(tempServerId) }
             helper.awaitStoppedOrGone(tempServerId)
-            // Wait a moment after cleanup so agent fully releases resources
-            delay(500)
         }
         finally {
             runCatching { api.deleteServer(tempServerId) }

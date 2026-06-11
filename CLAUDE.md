@@ -24,14 +24,14 @@ Before starting any task, assess complexity:
 
 | Task type | Agent |
 |---|---|
-| Locate a symbol, file, or call site | `cavecrew-investigator` |
-| 1–2 file edit (typo, rename, single function) | `cavecrew-builder` |
-| Review a diff, PR, or file for issues | `cavecrew-reviewer` |
+| Locate a symbol, file, or call site | `caveman:cavecrew-investigator` |
+| 1–2 file edit (typo, rename, single function) | `caveman:cavecrew-builder` |
+| Review a diff, PR, or file for issues | `caveman:cavecrew-reviewer` |
 
 Rules:
-- **Always** use `cavecrew-investigator` before reading unfamiliar code — never open files inline just to orient.
-- **Always** use `cavecrew-builder` for bounded edits where scope is clear and ≤2 files.
-- **Always** use `cavecrew-reviewer` when the user asks for a review or audit.
+- **Always** use `caveman:cavecrew-investigator` before reading unfamiliar code — never open files inline just to orient.
+- **Always** use `caveman:cavecrew-builder` for bounded edits where scope is clear and ≤2 files.
+- **Always** use `caveman:cavecrew-reviewer` when the user asks for a review or audit.
 - Only go inline when: (a) the file is already in context from a prior tool call this turn, or (b) the task genuinely requires cross-file synthesis that no single subagent can provide.
 - Cavecrew output is ~60% smaller than inline reads — prefer it aggressively to preserve context window across long sessions.
 
