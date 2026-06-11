@@ -115,7 +115,10 @@ class CraftPanelStack {
 
         postgres = PgContainer()
             .withNetworkMode("craftpanel-$networkSuffix")
-            .withCreateContainerCmdModifier { cmd -> cmd.withAliases("postgres") }
+            .withCreateContainerCmdModifier { cmd ->
+                cmd.withAliases("postgres")
+                cmd.withName("$containerPrefix-postgres")
+            }
             .withEnv("POSTGRES_DB", DB_NAME)
             .withEnv("POSTGRES_USER", DB_USER)
             .withEnv("POSTGRES_PASSWORD", DB_PASSWORD)
@@ -126,7 +129,10 @@ class CraftPanelStack {
 
         master = MasterContainer()
             .withNetworkMode("craftpanel-$networkSuffix")
-            .withCreateContainerCmdModifier { cmd -> cmd.withAliases("master") }
+            .withCreateContainerCmdModifier { cmd ->
+                cmd.withAliases("master")
+                cmd.withName("$containerPrefix-master")
+            }
             .withExposedPorts(8080)
             .withEnv("CRAFTPANEL_PROFILE", "dev")
             .withEnv("DATABASE_URL", "jdbc:postgresql://postgres:5432/$DB_NAME")
