@@ -6,33 +6,31 @@ import craftpanel.systemtest.client.model.MoveRequest
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.openapitools.client.infrastructure.ClientException
-import org.openapitools.client.infrastructure.ServerException
 import java.nio.charset.StandardCharsets
 
 class ServerFilesTest : BaseSystemTest() {
 
     init {
+        val helper = ServerHelper(api)
+        lateinit var serverId: String
+
+        beforeSpec {
+            serverId = helper.createTestServer(nodeId)
+            api.startServer(serverId)
+            helper.awaitStatus(serverId, "HEALTHY")
+        }
+        afterSpec {
+            runCatching { api.stopServer(serverId) }
+            helper.awaitStoppedOrGone(serverId)
+            runCatching { api.deleteServer(serverId) }
+        }
+
         context("Server file operations") {
-            val helper = ServerHelper(api)
-            lateinit var serverId: String
-
-            beforeSpec {
-                serverId = helper.createTestServer(nodeId)
-                api.startServer(serverId)
-                helper.awaitStatus(serverId, "HEALTHY")
-            }
-            afterSpec {
-                runCatching { api.stopServer(serverId) }
-                helper.awaitStoppedOrGone(serverId)
-                runCatching { api.deleteServer(serverId) }
-            }
-
             context("CRUD") {
 
                 should("returns 404 for non-existent server") {

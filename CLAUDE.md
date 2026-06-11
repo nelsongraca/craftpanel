@@ -312,6 +312,8 @@ Requires Docker daemon running. Tests spin up PostgreSQL, master, agent, and fak
 - `BaseSystemTest` — Kotest `ShouldSpec` base; handles `CraftPanelStack.start()`, auth login, and trusting first pending node in `beforeSpec`/`afterSpec`
 - Helper classes: `AuthHelper`, `NodeHelper`, `ServerHelper` in `harness/`
 - `listMods` returns `Map<String, List<ModResponse>>` (bucketed by loader); `.isEmpty()` checks map keys, not entries — use `.values.flatten().isEmpty()`
+- **Kotest 6.x: all lifecycle hooks must be registered at the `init {}` level**, never inside a `context {}` lambda — `beforeSpec`, `afterSpec`, `beforeContainer`, `beforeEach`, etc. are silently ignored when registered inside a container scope. Declare `lateinit var` state and hooks directly in `init`, then reference them from nested `context`/`should` lambdas via closure.
+- Shared servers in system tests: use `beforeSpec`/`afterSpec` with `lateinit var serverId` (and `serverId2` if two configs are needed) rather than per-test `try/finally` creation — reduces container spin-up count significantly.
 - `system-tests/build/generated/` is regenerated at build time via `:master:generateOpenApiSpec` → `:system-tests:generateApiClient`. Manual edits there survive until the next build that re-runs codegen.
 
 ## Database
