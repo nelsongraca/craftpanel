@@ -316,6 +316,17 @@ Requires Docker daemon running. Tests spin up PostgreSQL, master, agent, and fak
 - Shared servers in system tests: use `beforeSpec`/`afterSpec` with `lateinit var serverId` (and `serverId2` if two configs are needed) rather than per-test `try/finally` creation — reduces container spin-up count significantly.
 - `system-tests/build/generated/` is regenerated at build time via `:master:generateOpenApiSpec` → `:system-tests:generateApiClient`. Manual edits there survive until the next build that re-runs codegen.
 
+#### System test coverage (`-PwithCoverage`)
+
+```bash
+./gradlew :system-tests:test -PwithCoverage   # runs tests + auto-generates HTML/XML report
+```
+
+- Testcontainers 2.x `ResourceReaper` sends **SIGKILL** directly — JVM shutdown hooks (including Kover's flush) never run. `CraftPanelStack.gracefulStop()` sends `stopContainerCmd(timeout=30)` first in coverage mode to let the JVM flush `.ic` files before cleanup.
+- Kover CLI `--classfiles` needs the specific JAR (`master.jar`, `agent.jar`), not the `lib/` directory — the CLI cannot scan a directory of JARs.
+- Coverage runs use `outputs.cacheIf { false }` on the test task — without it, Gradle restores test results from the build cache without running the JVM, leaving the coverage directory empty.
+- `koverSystemTestReport` uses `notCompatibleWithConfigurationCache` because `.ic` files don't exist at configuration time and must be discovered at execution time.
+
 ## Database
 
 PostgreSQL via Exposed ORM 1.0 and HikariCP.
@@ -349,6 +360,7 @@ Schema migrations via `exposed-migration-jdbc`.
 - Don't use `apply` for testcontainers configuration
 - Don't use `JsonObject` as a route request body type — leaks internal kotlinx-serialization type schemas into OpenAPI spec; use a typed `@Serializable` DTO instead
 - Don't access `project` inside `onlyIf {}` lambdas — runs at execution time, breaks Gradle config cache; capture value at configuration time or use `enabled = <bool>`
+- Don't use `dependsOn(test)` in a report task triggered via `finalizedBy` — use `mustRunAfter(test)` to avoid double-execution; use a string `finalizedBy("taskName")` not a task-provider reference to avoid forward-reference compile errors
 - Don't use `afterEvaluate {}` closures that capture script-level objects — fail config cache serialization; use plain `tasks.named(...).configure {}` blocks instead
 - Don't use `respondBytesWriter` before verifying file existence — it commits HTTP 200 immediately; call `proxy.downloadFile` (throws on 404) before opening the writer
 - Don't return `application/octet-stream` binary bodies from endpoints consumed by the system-test generated client (jvm-okhttp4+Gson maps binary response as `body.bytes() as? T` → null → NPE) — return JSON `List<Int>` for byte arrays instead, or a typed DTO
