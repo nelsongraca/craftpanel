@@ -17,21 +17,22 @@ class ServerConsoleTest : BaseSystemTest() {
         .pingInterval(10, TimeUnit.SECONDS)
         .build()
 
+    private val helper = ServerHelper(api)
+    private lateinit var serverId: String
+
     init {
+        beforeSpec {
+            serverId = helper.createTestServer(nodeId)
+        }
+        afterSpec {
+            runCatching { api.stopServer(serverId) }
+            helper.awaitStoppedOrGone(serverId)
+            runCatching { api.deleteServer(serverId) }
+        }
+
         context("Server console WebSocket") {
 
             context("connection auth") {
-                val helper = ServerHelper(api)
-                lateinit var serverId: String
-
-                beforeSpec {
-                    serverId = helper.createTestServer(nodeId)
-                }
-                afterSpec {
-                    runCatching { api.stopServer(serverId) }
-                    helper.awaitStoppedOrGone(serverId)
-                    runCatching { api.deleteServer(serverId) }
-                }
 
                 should("rejects connection without a ticket") {
                     val url = "${wsBaseUrl}/api/ws/console/${serverId}"
