@@ -26,14 +26,13 @@ class McRouterProvisioner(
                 .awaitCompletion()
         }
 
-        val existing = docker.listContainersCmd()
-            .withShowAll(true)
-            .withNameFilter(listOf(containerName))
-            .exec()
-            .firstOrNull()
+        val existing = runCatching {
+            docker.inspectContainerCmd(containerName)
+                .exec()
+        }.getOrNull()
 
         if (existing != null) {
-            if (existing.state == "running") {
+            if (existing.state?.running == true) {
                 log.info("mc-router already running")
                 connectToNetwork(existing.id)
                 return
@@ -63,18 +62,20 @@ class McRouterProvisioner(
                 .exec().id
         }
         catch (e: ConflictException) {
-            // Race: another process created the container between our check and create
-            val raced = docker.listContainersCmd()
-                .withShowAll(true)
-                .withNameFilter(listOf(containerName))
-                .exec()
-                .firstOrNull() ?: throw e
-            if (raced.state == "running") {
+            // Race: another agent created the container between our list-check and create.
+            // Use inspectContainerCmd (exact name lookup) — listContainersCmd name-filter
+            // can miss a container that was just created due to Docker's eventual-consistent list.
+            val inspected = runCatching {
+                docker.inspectContainerCmd(containerName)
+                    .exec()
+            }.getOrNull()
+                ?: throw e
+            if (inspected.state?.running == true) {
                 log.info("mc-router already running (lost create race)")
-                connectToNetwork(raced.id)
+                connectToNetwork(inspected.id)
                 return
             }
-            raced.id
+            inspected.id
         }
         runCatching {
             docker.startContainerCmd(id)
