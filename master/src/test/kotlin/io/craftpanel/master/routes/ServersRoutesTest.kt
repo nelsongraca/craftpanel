@@ -854,10 +854,11 @@ class ServersRoutesTest {
         val serverId = createServer(nodeId, status = "STOPPED")
         val resp = client.post("/api/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.Accepted, resp.status)
-        assertEquals(2, sentCommands.size)
-        assertTrue(sentCommands[0].hasCreateContainer())
-        assertTrue(sentCommands[1].hasStartContainer())
-        val create = sentCommands[0].createContainer
+        assertEquals(3, sentCommands.size)
+        assertTrue(sentCommands[0].hasPullImage())
+        assertTrue(sentCommands[1].hasCreateContainer())
+        assertTrue(sentCommands[2].hasStartContainer())
+        val create = sentCommands[1].createContainer
         assertEquals("craftpanel-$serverId", create.containerName)
         assertEquals("itzg/minecraft-server:latest", create.image)
         assertEquals("TRUE", create.envVarsMap["EULA"])
@@ -957,83 +958,5 @@ class ServersRoutesTest {
         assertEquals(1, sentCommands.size)
         assertTrue(sentCommands[0].hasRestartContainer())
         assertEquals("craftpanel-$serverId", sentCommands[0].restartContainer.containerName)
-    }
-
-    // ── POST /servers/{id}/upgrade ───────────────────────────────────────────
-
-    @Test
-    fun `POST upgrade returns 403 without server-upgrade permission`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Operator")
-        val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "STOPPED")
-        val resp = client.post("/api/servers/$serverId/upgrade") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"itzg_image_tag":"1.21"}""")
-        }
-        assertEquals(HttpStatusCode.Forbidden, resp.status)
-    }
-
-    @Test
-    fun `POST upgrade returns 409 when server is not STOPPED`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "HEALTHY")
-        val resp = client.post("/api/servers/$serverId/upgrade") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"itzg_image_tag":"1.21"}""")
-        }
-        assertEquals(HttpStatusCode.Conflict, resp.status)
-    }
-
-    @Test
-    fun `POST upgrade returns 502 when agent not connected`() = testApplication {
-        application { configureTest(sendToNode = { _, _ -> false }) }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "STOPPED")
-        val resp = client.post("/api/servers/$serverId/upgrade") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"itzg_image_tag":"1.21"}""")
-        }
-        assertEquals(HttpStatusCode.BadGateway, resp.status)
-    }
-
-    @Test
-    fun `POST upgrade returns 202 and updates itzg_image_tag`() = testApplication {
-        val sentCommands = mutableListOf<MasterMessage>()
-        application { configureTest(sendToNode = { _, msg -> sentCommands.add(msg); true }) }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "STOPPED")
-        val resp = client.post("/api/servers/$serverId/upgrade") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"itzg_image_tag":"1.21"}""")
-        }
-        assertEquals(HttpStatusCode.Accepted, resp.status)
-        val row = transaction {
-            Servers.selectAll()
-                .where { Servers.id eq serverId.toKotlinUuid() }
-                .first()
-        }
-        assertEquals("1.21", row[Servers.itzgImageTag])
-        // Pull + Create (no Remove since no existing container)
-        assertTrue(sentCommands.any { it.hasPullImage() })
-        assertTrue(sentCommands.any { it.hasCreateContainer() })
-        val create = sentCommands.first { it.hasCreateContainer() }.createContainer
-        assertEquals("itzg/minecraft-server:1.21", create.image)
     }
 }

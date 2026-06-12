@@ -38,6 +38,8 @@ class ControlStreamHandlerTest {
         craftpanelNetwork = "craftpanel",
         containerNamePrefix = "craftpanel",
         metricsPollIntervalSeconds = 60,
+        masterHttpPort = 80,
+        privateIpOverride = ""
     )
     private val handler = ControlStreamHandler(identity, config, containerManager, metricsCollector, docker)
 
@@ -106,7 +108,8 @@ class ControlStreamHandlerTest {
     }
 
     @Test
-    fun `handleCreate emits nothing on failure`() = runBlocking {
+    fun `handleCreate emits UNHEALTHY on failure`() = runBlocking {
+        every { containerManager.pullImage(any()) } just Runs
         every { containerManager.createContainer(any()) } throws RuntimeException("docker error")
         val outbound = channel()
 
@@ -116,10 +119,10 @@ class ControlStreamHandlerTest {
             image = "itzg/minecraft-server:latest"
         }, outbound)
 
-        assertTrue(
-            outbound.messages()
-                .isEmpty()
-        )
+        val msg = outbound.messages().single()
+        assertTrue(msg.hasServerStatus())
+        assertEquals("srv-fail", msg.serverStatus.serverId)
+        assertEquals(ServerStatusUpdate.ServerStatus.UNHEALTHY, msg.serverStatus.status)
     }
 
     // -------------------------------------------------------------------------

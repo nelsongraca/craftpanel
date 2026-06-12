@@ -169,7 +169,7 @@ class UsersRoutesTest {
     }
 
     @Test
-    fun `createUser returns 422 for duplicate username`() = testApplication {
+    fun `createUser returns 409 for duplicate username`() = testApplication {
         application { configureTest() }
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
@@ -179,7 +179,7 @@ class UsersRoutesTest {
             contentType(ContentType.Application.Json)
             setBody("""{"username":"admin","email":"different@example.com","password":"p"}""")
         }
-        assertEquals(HttpStatusCode.UnprocessableEntity, response.status)
+        assertEquals(HttpStatusCode.Conflict, response.status)
     }
 
     // ── GET /api/users/{id} ───────────────────────────────────────────────────
