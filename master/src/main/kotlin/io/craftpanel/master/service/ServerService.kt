@@ -71,6 +71,7 @@ data class UpdateServerRequest(
     val description: String? = null,
     @SerialName("network_id") val networkId: String? = null,
     @SerialName("mc_version") val mcVersion: String? = null,
+    @SerialName("itzg_image_tag") val itzgImageTag: String? = null,
 )
 
 @Serializable
@@ -84,12 +85,6 @@ data class PatchResourcesRequest(
 data class PatchExposureRequest(
     @SerialName("exposed_externally") val exposedExternally: Boolean,
     @SerialName("public_subdomain") val publicSubdomain: String? = null,
-)
-
-@Serializable
-data class UpgradeServerRequest(
-    @SerialName("itzg_image_tag") val itzgImageTag: String,
-    @SerialName("mc_version") val mcVersion: String? = null,
 )
 
 @Serializable
@@ -339,6 +334,10 @@ class ServerService(
                     it[mcVersion] = req.mcVersion
                     it[needsRecreate] = true
                 }
+                if (req.itzgImageTag != null) {
+                    it[itzgImageTag] = req.itzgImageTag
+                    it[needsRecreate] = true
+                }
                 it[updatedAt] = Clock.System.now()
                     .toLocalDateTime(TimeZone.UTC)
             }
@@ -455,7 +454,14 @@ class ServerService(
             }
             else null
 
-        if (serverRow[Servers.containerId] == null) {
+        val shouldRecreate = serverRow[Servers.needsRecreate]
+        if (serverRow[Servers.containerId] == null || shouldRecreate) {
+            val pullCmd = masterMessage { pullImage = pullImageCommand { serverId = id.toString(); image = serverImage } }
+            if (!sendToNode(nodeId, pullCmd)) throw BadGatewayException("Agent not connected")
+            if (serverRow[Servers.containerId] != null) {
+                val removeCmd = masterMessage { removeContainer = removeContainerCommand { serverId = id.toString(); containerName = "$containerNamePrefix-$id"; force = false } }
+                if (!sendToNode(nodeId, removeCmd)) throw BadGatewayException("Agent not connected")
+            }
             val createCmd = buildCreateContainerCommand(id, serverRow, serverImage, allVars, publicHostname)
             if (!sendToNode(nodeId, createCmd)) throw BadGatewayException("Agent not connected")
         }
@@ -542,40 +548,6 @@ class ServerService(
                 }
             }
             if (!sendToNode(nodeId, restartCmd)) throw BadGatewayException("Agent not connected")
-        }
-    }
-
-    fun upgradeServer(id: kotlin.uuid.Uuid, req: UpgradeServerRequest) {
-        if (req.itzgImageTag.isBlank()) throw UnprocessableException("itzg_image_tag must not be blank")
-        val serverRow = transaction {
-            Servers.selectAll()
-                .where { Servers.id eq id }
-                .firstOrNull()
-        }
-            ?: throw NotFoundException("Server not found")
-        if (serverRow[Servers.status] != "STOPPED") throw ConflictException("Server must be STOPPED before upgrade")
-        val nodeId = serverRow[Servers.nodeId].toString()
-        val serverImage = images.deriveImage(serverRow[Servers.serverType], req.itzgImageTag)
-        val effectiveMcVersion = req.mcVersion ?: serverRow[Servers.mcVersion]
-        val allVars = buildAllVars(id, serverRow) + mapOf("VERSION" to effectiveMcVersion)
-        val publicHostname = serverRow[Servers.dnsRecordName]
-
-        if (serverRow[Servers.containerId] != null) {
-            val removeCmd = masterMessage { removeContainer = removeContainerCommand { serverId = id.toString(); containerName = "$containerNamePrefix-$id"; force = false } }
-            if (!sendToNode(nodeId, removeCmd)) throw BadGatewayException("Agent not connected")
-        }
-        val pullCmd = masterMessage { pullImage = pullImageCommand { serverId = id.toString(); image = serverImage } }
-        if (!sendToNode(nodeId, pullCmd)) throw BadGatewayException("Agent not connected")
-        val createCmd = buildCreateContainerCommand(id, serverRow, serverImage, allVars, publicHostname)
-        if (!sendToNode(nodeId, createCmd)) throw BadGatewayException("Agent not connected")
-        transaction {
-            Servers.update({ Servers.id eq id }) {
-                it[Servers.itzgImageTag] = req.itzgImageTag
-                if (req.mcVersion != null) it[Servers.mcVersion] = req.mcVersion
-                it[Servers.containerId] = null
-                it[updatedAt] = Clock.System.now()
-                    .toLocalDateTime(TimeZone.UTC)
-            }
         }
     }
 

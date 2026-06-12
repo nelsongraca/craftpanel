@@ -45,8 +45,7 @@ class PermissionResolutionTest : BaseSystemTest() {
                         permissions = listOf(
                             "server.view", "server.start", "server.stop", "server.restart",
                             "server.configure", "server.create", "server.delete", "server.files",
-                            "server.mods", "server.console", "server.export", "server.backup",
-                            "server.upgrade"
+                            "server.mods", "server.console", "server.export", "server.backup"
                         )
                     )
                 )

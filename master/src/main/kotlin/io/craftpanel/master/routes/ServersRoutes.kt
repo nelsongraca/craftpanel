@@ -216,31 +216,6 @@ fun Route.serversRoutes(serverService: ServerService) {
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Server restart initiated"))
             }
 
-            post("/{id}/upgrade", {
-                operationId = "upgradeServer"
-                summary = "Upgrade server image"
-                request { pathParameter<String>("id"); body<UpgradeServerRequest>() }
-                response {
-                    code(HttpStatusCode.Accepted) { body<MessageResponse>() }
-                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
-                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
-                    code(HttpStatusCode.BadGateway) { body<ErrorResponse>() }
-                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
-                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
-                }
-            }) {
-                val userId = call.userId()
-                val id = parseServerId(call.parameters["id"])
-                    ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
-                val info = serverService.authInfo(id)
-                    ?: return@post call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_UPGRADE, serverId = UUID.fromString(id.toString()), networkId = info.networkId))
-                    return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                val req = call.receive<UpgradeServerRequest>()
-                serverService.upgradeServer(id, req)
-                call.respond(HttpStatusCode.Accepted, MessageResponse("Server upgrade initiated"))
-            }
-
             get("/{id}/metrics", {
                 operationId = "getServerMetrics"
                 summary = "Get server container metrics"

@@ -28,13 +28,13 @@ Server creation requires the `server.create` permission. The creation wizard col
 
 ## Server Lifecycle
 
-| Action        | Permission       | Behaviour                                                               |
-|---------------|------------------|-------------------------------------------------------------------------|
-| Start         | `server.start`   | Creates and starts the container with the current spec                  |
-| Stop          | `server.stop`    | Stops the container; data is preserved                                  |
-| Restart       | `server.restart` | Stop + start; pulls pending mod updates if versions are set to `latest` |
-| Upgrade image | `server.upgrade` | Pulls a new itzg image tag and recreates the container                  |
-| Delete        | `server.delete`  | Stops container and permanently removes data directory                  |
+| Action    | Permission       | Behaviour                                                                                         |
+|-----------|------------------|---------------------------------------------------------------------------------------------------|
+| Start     | `server.start`   | Creates and starts the container with the current spec; pulls a new image if `mc_version` or `itzg_image_tag` changed since last start |
+| Stop      | `server.stop`    | Stops the container; data is preserved                                                            |
+| Restart   | `server.restart` | Stop + start; recreates container if `mc_version` or `itzg_image_tag` changed since last start   |
+| Configure | `server.configure` | Update `mc_version` or `itzg_image_tag` via `PATCH /servers/{id}`; changes take effect on next start |
+| Delete    | `server.delete`  | Stops container and permanently removes data directory                                            |
 
 !!! warning
 Delete is irreversible. Master will prompt for confirmation and require the server to be stopped first.

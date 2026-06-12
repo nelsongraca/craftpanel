@@ -282,4 +282,4 @@ The Minecraft version is set at server creation and stored in the `mc_version` c
 
 ## itzg Image Version
 
-The itzg image tag used for the container is managed separately via the `server.upgrade` permission. Upgrading pulls the new tag and recreates the container.
+The itzg image tag used for the container is set at creation and can be changed via `PATCH /servers/{id}` with the `server.configure` permission. The change is deferred — master sets a `needs_recreate` flag and pulls the new image tag when the server is next started or restarted.

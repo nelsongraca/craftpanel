@@ -190,7 +190,7 @@ system.settings  system.users     system.nodes
 server.create    server.delete    server.start      server.stop
 server.restart   server.configure server.resources  server.files
 server.mods      server.console   server.export     server.backup
-server.upgrade   server.migrate   server.view
+server.migrate   server.view
 ```
 
 Wildcards supported at runtime (`*`, `server.*`, `system.*`). Only explicit nodes stored in DB.

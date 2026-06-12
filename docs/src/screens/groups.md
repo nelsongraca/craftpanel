@@ -180,10 +180,6 @@ Group list and permission editor.
           <div class="cp-checkbox">✓</div>
           <span>server.restart</span>
         </div>
-        <div class="cp-perm-item checked">
-          <div class="cp-checkbox">✓</div>
-          <span>server.upgrade</span>
-        </div>
       </div>
     </div>
 

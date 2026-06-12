@@ -21,7 +21,6 @@ Access control is implemented as a **permission node** system. Permissions are c
 | `server.console`   | View live console output and send commands                                 |
 | `server.export`    | Download a full instance archive                                           |
 | `server.backup`    | Trigger manual backups and manage backup retention                         |
-| `server.upgrade`   | Pull a new itzg image version for a server                                 |
 | `server.migrate`   | Move a server between nodes                                                |
 | `server.view`      | Read-only access: status, config, logs, player count                       |
 
@@ -32,7 +31,7 @@ The following groups are pre-configured on installation. Administrators may crea
 | Group            | Permissions                                                        |
 |------------------|--------------------------------------------------------------------|
 | **Super Admin**  | All permission nodes                                               |
-| **Server Admin** | Everything except `system.*`, `server.resources`, `server.migrate` |
+| **Server Admin** | Everything except `system.*`, `server.resources`, `server.migrate`  |
 | **Operator**     | `server.restart`, `server.console`, `server.view`, `server.backup` |
 | **Viewer**       | `server.view`                                                      |
 

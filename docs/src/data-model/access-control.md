@@ -9,7 +9,7 @@ system.settings  system.users     system.nodes
 server.create    server.delete    server.start      server.stop
 server.restart   server.configure server.resources  server.files
 server.mods      server.console   server.export     server.backup
-server.upgrade   server.migrate   server.view
+server.migrate   server.view
 ```
 
 Wildcards are supported in permission checks using dot-separated prefix matching:

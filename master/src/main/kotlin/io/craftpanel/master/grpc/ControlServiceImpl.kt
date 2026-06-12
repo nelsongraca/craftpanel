@@ -636,7 +636,7 @@ class ControlServiceImpl(
         transaction {
             Servers.update({ Servers.id eq serverId }) {
                 it[Servers.status] = dbStatus
-                it[Servers.containerId] = update.containerId.takeIf { s -> s.isNotEmpty() }
+                if (update.containerId.isNotEmpty()) it[Servers.containerId] = update.containerId
                 it[Servers.lastSeenAt] = now
             }
         }
