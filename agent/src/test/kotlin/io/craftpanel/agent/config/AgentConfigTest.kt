@@ -118,5 +118,7 @@ class AgentConfigTest {
         craftpanelNetwork = craftpanelNetwork,
         containerNamePrefix = containerNamePrefix,
         metricsPollIntervalSeconds = metricsPollIntervalSeconds,
+        masterHttpPort = 80,
+        privateIpOverride = ""
     )
 }

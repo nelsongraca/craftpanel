@@ -119,7 +119,8 @@ class ControlStreamHandlerTest {
             image = "itzg/minecraft-server:latest"
         }, outbound)
 
-        val msg = outbound.messages().single()
+        val msg = outbound.messages()
+            .single()
         assertTrue(msg.hasServerStatus())
         assertEquals("srv-fail", msg.serverStatus.serverId)
         assertEquals(ServerStatusUpdate.ServerStatus.UNHEALTHY, msg.serverStatus.status)
