@@ -229,8 +229,10 @@ class DataServiceProxy(
 
     suspend fun downloadBackup(serverId: String, backupId: String): Flow<ByteArray> {
         val nodeId = lookupNodeId(serverId)
-        val transferId = UUID.randomUUID().toString()
-        val reqId = UUID.randomUUID().toString()
+        val transferId = UUID.randomUUID()
+            .toString()
+        val reqId = UUID.randomUUID()
+            .toString()
 
         val downloadFlow = bulkService.registerDownload(transferId)
 

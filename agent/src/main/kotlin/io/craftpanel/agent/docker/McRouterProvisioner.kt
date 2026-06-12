@@ -69,7 +69,8 @@ class McRouterProvisioner(
             var inspected: InspectContainerResponse? = null
             for (i in 1..5) {
                 inspected = runCatching {
-                    docker.inspectContainerCmd(containerName).exec()
+                    docker.inspectContainerCmd(containerName)
+                        .exec()
                 }.getOrNull()
                 if (inspected != null) break
                 Thread.sleep(200)

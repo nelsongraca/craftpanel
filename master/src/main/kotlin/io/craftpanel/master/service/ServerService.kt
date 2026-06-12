@@ -381,6 +381,13 @@ class ServerService(
         )
 
         transaction {
+            val migrationIds = ServerMigrations.selectAll()
+                .where { ServerMigrations.serverId eq id }
+                .map { it[ServerMigrations.id] }
+            if (migrationIds.isNotEmpty()) {
+                MigrationStepLog.deleteWhere { MigrationStepLog.migrationId inList migrationIds }
+                ServerMigrations.deleteWhere { ServerMigrations.serverId eq id }
+            }
             PortRegistry.deleteWhere { PortRegistry.serverId eq id }
             Servers.deleteWhere { Servers.id eq id }
         }

@@ -291,6 +291,7 @@ class MigrationService(
             }
         }
 
+        try {
         // ── Step 2: PrepareRsyncReceive → target, await RsyncReadyUpdate ─────
         val rsyncPassword: String
         run {
@@ -559,26 +560,7 @@ class MigrationService(
         // ── Step 9: mc-router labels updated implicitly at container creation ─
         // Nothing to do — labels set in step 7 CreateContainerCommand.
 
-        // ── Step 10: Stop and remove old container on source ─────────────────
-        run {
-            val stepId = startStep(10, "Stop and remove old container on source node")
-            sendToNode(sourceNodeIdStr, masterMessage {
-                stopContainer = stopContainerCommand {
-                    this.serverId = serverIdStr
-                    containerName = "$containerNamePrefix-$serverId"
-                    timeoutSeconds = 30
-                    stopCommand = serverRow[Servers.stopCommand]
-                }
-            })
-            delay(5.seconds)
-            sendToNode(sourceNodeIdStr, masterMessage {
-                removeContainer = removeContainerCommand {
-                    containerName = "$containerNamePrefix-$serverId"
-                    force = false
-                }
-            })
-            completeStep(stepId, true)
-        }
+        // ── Step 10: (removed — source container already stopped/removed in step 7) ─
 
         // ── Step 11: Update DB — node assignment + PortRegistry ──────────────
         run {
@@ -620,6 +602,25 @@ class MigrationService(
 
         updateStatus("COMPLETED")
         emit(MigrationEvent.Completed)
+        } finally {
+            // Always clean up rsync-recv container and release the ephemeral rsync port.
+            // On success path the port was already freed in step 11 — the deleteWhere is a no-op.
+            runCatching {
+                sendToNode(targetNodeIdStr, masterMessage {
+                    removeContainer = removeContainerCommand {
+                        containerName = "$containerNamePrefix-rsync-recv-$migrationIdStr"
+                        force = true
+                    }
+                })
+            }
+            transaction {
+                PortRegistry.deleteWhere {
+                    (PortRegistry.nodeId eq targetNodeId) and
+                            (PortRegistry.port eq rsyncPort) and
+                            (PortRegistry.serverId.isNull())
+                }
+            }
+        }
     }
 
     private fun allocateRsyncPort(targetNodeId: Uuid): Int = transaction {
