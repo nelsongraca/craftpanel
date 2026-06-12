@@ -43,10 +43,19 @@ class ServerMigrationTest : ShouldSpec() {
             stack.storeNodeIds(ids)
         }
 
-        afterSpec {
+        afterEach {
+            // Delete all servers between tests — clears PortRegistry entries on both nodes
+            // so the next test's migration can allocate the same port on target without conflict.
             serverIds.forEach { id ->
                 runCatching { api.stopServer(id) }
-                helper.awaitStoppedOrGone(id)
+                runCatching { helper.awaitStoppedOrGone(id) }
+                runCatching { api.deleteServer(id) }
+            }
+            serverIds.clear()
+        }
+
+        afterSpec {
+            serverIds.forEach { id ->
                 runCatching { api.deleteServer(id) }
             }
             stack.stop()
@@ -94,6 +103,10 @@ class ServerMigrationTest : ShouldSpec() {
 
                 pollMigrationStatus(api, migrateResp.id, 180_000)
 
+                // Migration step 7 starts the container on target — server may already be HEALTHY.
+                // Stop and restart to verify the server is independently startable on target.
+                api.stopServer(serverId)
+                helper.awaitStatus(serverId, "STOPPED", timeoutMs = 60_000)
                 api.startServer(serverId)
                 helper.awaitStatus(serverId, "HEALTHY", timeoutMs = 120_000)
             }

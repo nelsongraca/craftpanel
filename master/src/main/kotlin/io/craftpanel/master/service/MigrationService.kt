@@ -565,28 +565,34 @@ class MigrationService(
         // ── Step 11: Update DB — node assignment + PortRegistry ──────────────
         run {
             val stepId = startStep(11, "Update server node assignment in database")
-            transaction {
-                Servers.update({ Servers.id eq serverId }) {
-                    it[Servers.nodeId] = targetNodeId
-                    it[Servers.updatedAt] = now()
+            try {
+                transaction {
+                    Servers.update({ Servers.id eq serverId }) {
+                        it[Servers.nodeId] = targetNodeId
+                        it[Servers.updatedAt] = now()
+                    }
+                    // Move the server's port entry to the target node
+                    val serverPort = serverRow[Servers.hostPort]
+                    PortRegistry.deleteWhere { (PortRegistry.serverId eq serverId) }
+                    PortRegistry.insert {
+                        it[PortRegistry.nodeId] = targetNodeId
+                        it[PortRegistry.port] = serverPort
+                        it[PortRegistry.protocol] = "TCP"
+                        it[PortRegistry.serverId] = serverId
+                    }
+                    // Release rsync ephemeral port
+                    PortRegistry.deleteWhere {
+                        (PortRegistry.nodeId eq targetNodeId) and
+                                (PortRegistry.port eq rsyncPort) and
+                                (PortRegistry.serverId.isNull())
+                    }
                 }
-                // Move the server's port entry to the target node
-                val serverPort = serverRow[Servers.hostPort]
-                PortRegistry.deleteWhere { (PortRegistry.serverId eq serverId) }
-                PortRegistry.insert {
-                    it[PortRegistry.nodeId] = targetNodeId
-                    it[PortRegistry.port] = serverPort
-                    it[PortRegistry.protocol] = "TCP"
-                    it[PortRegistry.serverId] = serverId
-                }
-                // Release rsync ephemeral port
-                PortRegistry.deleteWhere {
-                    (PortRegistry.nodeId eq targetNodeId) and
-                            (PortRegistry.port eq rsyncPort) and
-                            (PortRegistry.serverId.isNull())
-                }
+                completeStep(stepId, true)
+            } catch (e: Exception) {
+                completeStep(stepId, false, e.message)
+                failMigration("DB update failed: ${e.message}")
+                return
             }
-            completeStep(stepId, true)
         }
 
         // ── Step 12: Update proxy backends for networks ───────────────────────
