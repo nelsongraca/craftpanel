@@ -51,7 +51,7 @@ data class PutBackupScheduleRequest(
     @SerialName("backup_max_count") val backupMaxCount: Int? = null,
 )
 
-data class BackupDownloadInfo(val serverId: String, val filePath: String)
+data class BackupDownloadInfo(val serverId: String, val backupId: String)
 
 class BackupService(
     private val sendToNode: (String, MasterMessage) -> Boolean,
@@ -184,11 +184,10 @@ class BackupService(
         } ?: throw NotFoundException("Backup not found")
         if (backup[Backups.status] != "COMPLETED")
             throw ConflictException("Backup is not in COMPLETED status")
-        val filePath = backup[Backups.filePath] ?: throw NotFoundException("Backup file path not available")
-        return BackupDownloadInfo(serverId = serverId.toString(), filePath = filePath)
+        return BackupDownloadInfo(serverId = serverId.toString(), backupId = backupId.toString())
     }
 
-    suspend fun downloadStream(info: BackupDownloadInfo) = dataServiceProxy.downloadFile(info.serverId, info.filePath)
+    suspend fun downloadStream(info: BackupDownloadInfo) = dataServiceProxy.downloadBackup(info.serverId, info.backupId)
 
     fun getSchedule(serverId: kotlin.uuid.Uuid): BackupScheduleResponse {
         val serverRow = transaction {

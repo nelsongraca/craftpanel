@@ -122,6 +122,7 @@ class ControlStreamHandler(
                 // Bulk transfers — agent dials master's BulkDataService
                 msg.hasDownloadFile()        -> launch { handleDownloadFile(msg.downloadFile, bulkClient, outbound) }
                 msg.hasUploadFile()          -> launch { handleUploadFile(msg.uploadFile, bulkClient, outbound) }
+                msg.hasDownloadBackup()      -> launch { handleDownloadBackup(msg.downloadBackup, bulkClient, outbound) }
                 else                         -> log.warn("Unhandled master message: ${msg.payloadCase}")
             }
         }
@@ -833,6 +834,36 @@ class ControlStreamHandler(
                 result.onFailure { errorMessage = it.message ?: "Unknown error" }
             }
         })
+    }
+
+    internal suspend fun handleDownloadBackup(
+        cmd: DownloadBackupCommand,
+        bulkClient: BulkDataClient,
+        outbound: SendChannel<AgentMessage>,
+    ) {
+        val fileResult = runCatching {
+            withContext(Dispatchers.IO) {
+                if (!cmd.backupId.matches(Regex("^[0-9a-fA-F-]{36}$")))
+                    error("Invalid backup id")
+                val backupsRoot = Paths.get(config.dataBasePath, "backups").normalize()
+                val filePath = backupsRoot.resolve("${cmd.backupId}.tar.gz").normalize()
+                if (!filePath.startsWith(backupsRoot)) error("Invalid backup id")
+                if (!Files.exists(filePath)) error("Backup file not found: ${cmd.backupId}")
+                filePath
+            }
+        }
+        outbound.send(agentMessage {
+            nodeId = identity.nodeId
+            downloadFileResponse = downloadFileResponse {
+                requestId = cmd.requestId
+                success = fileResult.isSuccess
+                fileResult.onFailure { errorMessage = it.message ?: "Unknown error" }
+            }
+        })
+        if (fileResult.isSuccess) {
+            runCatching { bulkClient.uploadToMaster(identity.nodeKey, cmd.transferId, fileResult.getOrThrow()) }
+                .onFailure { log.error("Download transfer ${cmd.transferId}: bulk upload failed", it) }
+        }
     }
 
     // ─── Path helpers ─────────────────────────────────────────────────────────

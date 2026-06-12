@@ -209,4 +209,34 @@ class DataServiceProxy(
 
         return downloadFlow
     }
+
+    suspend fun downloadBackup(serverId: String, backupId: String): Flow<ByteArray> {
+        val nodeId = lookupNodeId(serverId)
+        val transferId = UUID.randomUUID().toString()
+        val reqId = UUID.randomUUID().toString()
+
+        val downloadFlow = bulkService.registerDownload(transferId)
+
+        val response = runCatching {
+            controlService.sendAndAwait(nodeId, reqId, masterMessage {
+                downloadBackup = downloadBackupCommand {
+                    requestId = reqId
+                    this.serverId = serverId
+                    this.backupId = backupId
+                    this.transferId = transferId
+                }
+            })
+        }.getOrElse { ex ->
+            bulkService.cancelDownload(transferId)
+            throw ex
+        }
+
+        val r = response.downloadFileResponse
+        if (!r.success) {
+            bulkService.cancelDownload(transferId)
+            error(r.errorMessage.ifBlank { "Backup file not found" })
+        }
+
+        return downloadFlow
+    }
 }

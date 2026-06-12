@@ -177,8 +177,9 @@ message MasterMessage {
     CopyFileRequest     copy_file     = 23;
 
     // Bulk transfer triggers — agent dials BulkDataService on receipt
-    DownloadFileCommand download_file = 24;
-    UploadFileCommand   upload_file   = 25;
+    DownloadFileCommand   download_file   = 24;
+    UploadFileCommand     upload_file     = 25;
+    DownloadBackupCommand download_backup = 26;
   }
 }
 
@@ -544,6 +545,15 @@ message UploadFileCommand {
   string path         = 3;
   // UUID master uses to correlate the incoming BulkDataService connection.
   string transfer_id  = 4;
+}
+
+// Master → Agent: command agent to open a BulkDataService UploadToMaster connection
+// to stream a completed backup file identified by backup_id.
+message DownloadBackupCommand {
+  string request_id  = 1;
+  string server_id   = 2;
+  string backup_id   = 3;
+  string transfer_id = 4;
 }
 
 // Agent → Master: result of a BulkDataService download transfer.
