@@ -369,6 +369,17 @@ class ServerService(
                 .onFailure { log.warn("Failed to delete DNS record $recordId during server delete", it) }
         }
 
+        val nodeId = existing[Servers.nodeId].toString()
+        sendToNode(
+            nodeId, masterMessage {
+                removeContainer = removeContainerCommand {
+                    serverId = id.toString()
+                    containerName = "$containerNamePrefix-$id"
+                    force = true
+                }
+            }
+        )
+
         transaction {
             PortRegistry.deleteWhere { PortRegistry.serverId eq id }
             Servers.deleteWhere { Servers.id eq id }

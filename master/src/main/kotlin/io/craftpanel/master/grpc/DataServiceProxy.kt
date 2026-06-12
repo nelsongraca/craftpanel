@@ -5,6 +5,7 @@ import com.google.protobuf.ByteString
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.util.toKotlinUuid
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.map
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -35,6 +36,21 @@ class DataServiceProxy(
         server[Servers.nodeId].toString()
     }
 
+    private data class ServerLookup(val nodeId: String, val status: String)
+
+    private fun lookupServer(serverId: String): ServerLookup = transaction {
+        val id = runCatching {
+            UUID.fromString(serverId)
+                .toKotlinUuid()
+        }.getOrElse {
+            error("Invalid server ID: $serverId")
+        }
+        val server = Servers.selectAll()
+            .where { Servers.id eq id }
+            .firstOrNull() ?: error("Server $serverId not found")
+        ServerLookup(server[Servers.nodeId].toString(), server[Servers.status])
+    }
+
     // ── Console ───────────────────────────────────────────────────────────────
 
     /**
@@ -43,7 +59,8 @@ class DataServiceProxy(
      * Returns a flow of raw bytes to be sent to the browser.
      */
     fun console(serverId: String, input: Flow<ByteArray>): Flow<ByteArray> {
-        val nodeId = lookupNodeId(serverId)
+        val (nodeId, status) = lookupServer(serverId)
+        if (status == "STOPPED") return kotlinx.coroutines.flow.emptyFlow()
         return controlService.openConsole(nodeId, serverId, input)
             .map { output -> output.data.toByteArray() }
     }

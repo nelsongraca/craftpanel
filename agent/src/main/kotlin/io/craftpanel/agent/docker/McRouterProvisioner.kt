@@ -1,6 +1,7 @@
 package io.craftpanel.agent.docker
 
 import com.github.dockerjava.api.DockerClient
+import com.github.dockerjava.api.command.InspectContainerResponse
 import com.github.dockerjava.api.command.PullImageResultCallback
 import com.github.dockerjava.api.exception.ConflictException
 import com.github.dockerjava.api.exception.NotModifiedException
@@ -62,20 +63,24 @@ class McRouterProvisioner(
                 .exec().id
         }
         catch (e: ConflictException) {
-            // Race: another agent created the container between our list-check and create.
-            // Use inspectContainerCmd (exact name lookup) — listContainersCmd name-filter
-            // can miss a container that was just created due to Docker's eventual-consistent list.
-            val inspected = runCatching {
-                docker.inspectContainerCmd(containerName)
-                    .exec()
-            }.getOrNull()
-                ?: throw e
-            if (inspected.state?.running == true) {
+            // Race: another agent created the container between our inspect-check and create.
+            // Retry inspect with backoff — Docker may not immediately reflect the new container
+            // on a subsequent API call even though it rejected the create with a conflict.
+            var inspected: InspectContainerResponse? = null
+            for (i in 1..5) {
+                inspected = runCatching {
+                    docker.inspectContainerCmd(containerName).exec()
+                }.getOrNull()
+                if (inspected != null) break
+                Thread.sleep(200)
+            }
+            val container = inspected ?: throw e
+            if (container.state?.running == true) {
                 log.info("mc-router already running (lost create race)")
-                connectToNetwork(inspected.id)
+                connectToNetwork(container.id)
                 return
             }
-            inspected.id
+            container.id
         }
         runCatching {
             docker.startContainerCmd(id)
