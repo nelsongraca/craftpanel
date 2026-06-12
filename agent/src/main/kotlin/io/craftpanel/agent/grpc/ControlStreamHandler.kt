@@ -161,7 +161,16 @@ class ControlStreamHandler(
                     }
                 })
             }
-            .onFailure { log.error("Failed to create container ${cmd.containerName}", it) }
+            .onFailure { e ->
+                log.error("Failed to create container ${cmd.containerName}", e)
+                outbound.send(agentMessage {
+                    nodeId = identity.nodeId
+                    serverStatus = serverStatusUpdate {
+                        serverId = cmd.serverId
+                        status = ServerStatusUpdate.ServerStatus.UNHEALTHY
+                    }
+                })
+            }
     }
 
     internal suspend fun handleStart(cmd: StartContainerCommand, outbound: SendChannel<AgentMessage>) {
@@ -845,8 +854,10 @@ class ControlStreamHandler(
             withContext(Dispatchers.IO) {
                 if (!cmd.backupId.matches(Regex("^[0-9a-fA-F-]{36}$")))
                     error("Invalid backup id")
-                val backupsRoot = Paths.get(config.dataBasePath, "backups").normalize()
-                val filePath = backupsRoot.resolve("${cmd.backupId}.tar.gz").normalize()
+                val backupsRoot = Paths.get(config.dataBasePath, "backups")
+                    .normalize()
+                val filePath = backupsRoot.resolve("${cmd.backupId}.tar.gz")
+                    .normalize()
                 if (!filePath.startsWith(backupsRoot)) error("Invalid backup id")
                 if (!Files.exists(filePath)) error("Backup file not found: ${cmd.backupId}")
                 filePath
