@@ -32,11 +32,13 @@ class ServerUpgradeTest : BaseSystemTest() {
                     api.updateServer(serverId, UpdateServerRequest(mcVersion = "1.21.5"))
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, "HEALTHY")
-                    val info = docker.inspectContainerCmd(containerName(serverId)).exec()
+                    val info = docker.inspectContainerCmd(containerName(serverId))
+                        .exec()
                     val env = info.config?.env?.associate {
                         val parts = it.split("=", limit = 2)
                         parts[0] to parts.getOrElse(1) { "" }
-                    }.orEmpty()
+                    }
+                        .orEmpty()
                     env["VERSION"] shouldBe "1.21.5"
                 }
 
@@ -48,11 +50,13 @@ class ServerUpgradeTest : BaseSystemTest() {
                     api.updateServer(serverId, UpdateServerRequest(mcVersion = "1.21.5"))
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, "HEALTHY")
-                    val info = docker.inspectContainerCmd(containerName(serverId)).exec()
+                    val info = docker.inspectContainerCmd(containerName(serverId))
+                        .exec()
                     val env = info.config?.env?.associate {
                         val parts = it.split("=", limit = 2)
                         parts[0] to parts.getOrElse(1) { "" }
-                    }.orEmpty()
+                    }
+                        .orEmpty()
                     env["VERSION"] shouldBe "1.21.5"
                 }
             }

@@ -68,7 +68,8 @@ class PermissionResolutionTest : BaseSystemTest() {
                         vApi.stopServer(serverId)
                         helper.awaitStoppedOrGone(serverId)
                     }
-                } finally {
+                }
+                finally {
                     runCatching { api.stopServer(serverId) }
                     helper.awaitStoppedOrGone(serverId)
                     api.deleteGroup(group.id)
@@ -78,7 +79,8 @@ class PermissionResolutionTest : BaseSystemTest() {
 
             should("wildcard * grants all permissions") {
                 val email = "wild-all-${System.currentTimeMillis()}@test.com"
-                val superAdminGroup = api.listGroups().first { it.name == "Super Admin" }
+                val superAdminGroup = api.listGroups()
+                    .first { it.name == "Super Admin" }
                 val user = api.createUser(
                     CreateUserRequest(
                         username = "wild-all-${System.currentTimeMillis()}", email = email, password = "pw"
@@ -94,7 +96,8 @@ class PermissionResolutionTest : BaseSystemTest() {
                         vApi.getSystemSettings()
                         vApi.listServers()
                     }
-                } finally {
+                }
+                finally {
                     cleanupUser(email)
                 }
             }
@@ -136,14 +139,17 @@ class PermissionResolutionTest : BaseSystemTest() {
 
                         shouldThrow<ClientException> { vApi.startServer(otherServer) }.statusCode shouldBe 403
                     }
-                } finally {
+                }
+                finally {
                     runCatching { api.stopServer(serverId) }
                     helper.awaitStoppedOrGone(serverId)
                     api.deleteGroup(
-                        api.listGroups().first { it.name.startsWith("scope-union-view-") }.id
+                        api.listGroups()
+                            .first { it.name.startsWith("scope-union-view-") }.id
                     )
                     api.deleteGroup(
-                        api.listGroups().first { it.name.startsWith("scope-union-start-") }.id
+                        api.listGroups()
+                            .first { it.name.startsWith("scope-union-start-") }.id
                     )
                     cleanupUser(email)
                     runCatching { api.deleteServer(otherServer) }
@@ -193,7 +199,8 @@ class PermissionResolutionTest : BaseSystemTest() {
                         val serversAfterMove = vApi.listServers()
                         serversAfterMove.map { it.id } shouldNotContain movedServer.id
                     }
-                } finally {
+                }
+                finally {
                     api.deleteGroup(group.id)
                     cleanupUser(email)
                     runCatching { api.deleteServer(movedServer.id) }
@@ -238,7 +245,8 @@ class PermissionResolutionTest : BaseSystemTest() {
                         vApi.stopServer(serverId)
                         helper.awaitStoppedOrGone(serverId)
                     }
-                } finally {
+                }
+                finally {
                     api.deleteGroup(groupA.id)
                     api.deleteGroup(groupB.id)
                     cleanupUser(email)
@@ -251,7 +259,9 @@ class PermissionResolutionTest : BaseSystemTest() {
         try {
             val user = api.listUsers().users.first { it.email == email }
             runCatching { api.deleteUser(user.id) }
-        } catch (_: Exception) { }
+        }
+        catch (_: Exception) {
+        }
     }
 
     private suspend fun <T> withViewerApi(email: String, password: String, block: suspend (DefaultApi) -> T): T {
@@ -260,7 +270,8 @@ class PermissionResolutionTest : BaseSystemTest() {
             val viewerApi = DefaultApi(basePath = masterApiUrl)
             AuthHelper(viewerApi).login(email = email, password = password)
             return block(viewerApi)
-        } finally {
+        }
+        finally {
             ApiClient.accessToken = savedToken
         }
     }
