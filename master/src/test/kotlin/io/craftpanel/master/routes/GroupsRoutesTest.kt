@@ -167,7 +167,7 @@ class GroupsRoutesTest {
     }
 
     @Test
-    fun `createGroup returns 422 for duplicate name`() = testApplication {
+    fun `createGroup returns 409 for duplicate name`() = testApplication {
         application { configureTest() }
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
@@ -178,7 +178,7 @@ class GroupsRoutesTest {
             contentType(ContentType.Application.Json)
             setBody("""{"name":"Duped"}""")
         }
-        assertEquals(HttpStatusCode.UnprocessableEntity, response.status)
+        assertEquals(HttpStatusCode.Conflict, response.status)
     }
 
     // ── PATCH /api/groups/{id} ────────────────────────────────────────────────

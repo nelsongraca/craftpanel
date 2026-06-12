@@ -298,6 +298,7 @@ Singleton H2 in-memory DB shared across all tests. Call `initIfNeeded()` once an
 - Server/client `ContentNegotiation` are disambiguated with `as` import aliases
 - Generate JWTs directly with `jwtManager.generate(TokenClaims(...))` — no need to go through the login endpoint
 - Inject lambdas for dependencies that require external state (e.g. `sendToNode: (String, MasterMessage) -> Boolean`)
+- `startServer()` sends **3** gRPC messages when `containerId` is null or `needsRecreate` is true: `pullImage` → `createContainer` → `startContainer`. Tests asserting `sentCommands.size` must account for all three.
 
 ### System tests (`system-tests/`)
 
@@ -367,3 +368,16 @@ Schema migrations via `exposed-migration-jdbc`.
 - Don't use `respondBytesWriter` before verifying file existence — it commits HTTP 200 immediately; call `proxy.downloadFile` (throws on 404) before opening the writer
 - Don't return `application/octet-stream` binary bodies from endpoints consumed by the system-test generated client (jvm-okhttp4+Gson maps binary response as `body.bytes() as? T` → null → NPE) — return JSON `List<Int>` for byte arrays instead, or a typed DTO
 - Don't conflate `itzgImageTag` (Docker image tag e.g. `"1.21.5"`) with `mcVersion` (the `VERSION` env var passed to `itzg/minecraft-server`) — they are separate fields with separate meanings
+## Agent skills
+
+### Issue tracker
+
+Issues live as local markdown files under `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Default label vocabulary (needs-triage, needs-info, ready-for-agent, ready-for-human, wontfix). See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context — one `CONTEXT.md` + `docs/adr/` at repo root. See `docs/agents/domain.md`.
