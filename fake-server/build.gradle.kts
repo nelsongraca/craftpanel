@@ -40,21 +40,37 @@ val imageRegistry: String? = findProperty("imageRegistry") as String?
 fun imageTag(suffix: String) =
     if (imageRegistry != null) "$imageRegistry/$suffix:test" else "$suffix:latest"
 
+val stageDocker by tasks.registering(Copy::class) {
+    group = "docker"
+    description = "Stages files for Docker build"
+    dependsOn(tasks.jar)
+    from(layout.buildDirectory.dir("libs")) { include("craftpanel-fake-server-test.jar") }
+    from(layout.projectDirectory.file("docker-entrypoint.sh"))
+    from(layout.projectDirectory.file("Dockerfile"))
+    into(layout.buildDirectory.dir("docker"))
+}
+
 val dockerBuildFakeServer by tasks.registering(DockerBuildImage::class) {
-    dependsOn(tasks.named("assemble"))
+    dependsOn(stageDocker)
     mustRunAfter(tasks.named("check"))
-    inputDir.set(projectDir)
-    dockerFile.set(file("Dockerfile"))
+    inputDir.set(layout.buildDirectory.dir("docker"))
+    dockerFile.set(layout.buildDirectory.file("docker/Dockerfile"))
     images.add(imageTag("craftpanel-fake-server"))
 }
 
 val dockerBuildFakeProxy by tasks.registering(DockerBuildImage::class) {
-    dependsOn(tasks.named("assemble"))
+    dependsOn(stageDocker)
     mustRunAfter(tasks.named("check"))
     mustRunAfter(dockerBuildFakeServer)
-    inputDir.set(projectDir)
-    dockerFile.set(file("Dockerfile.proxy"))
+    inputDir.set(layout.buildDirectory.dir("docker"))
+    dockerFile.set(layout.buildDirectory.file("docker/Dockerfile"))
     images.add(imageTag("craftpanel-fake-proxy"))
+    buildArgs.set(mapOf(
+        "SERVER_NAME" to "CraftPanel Fake Proxy",
+        "MOTD" to "A fake Minecraft proxy",
+        "MAX_PLAYERS" to "100",
+        "STOP_COMMAND" to "end"
+    ))
 }
 
 // Single entry point picked up by root dockerBuildAll aggregation

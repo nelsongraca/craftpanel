@@ -47,14 +47,14 @@ The agent should prefer UDP query when it needs a complete list.
 | `MOTD` | `A fake Minecraft server` | MOTD in ping and query responses |
 | `MAX_PLAYERS` | `20` | Reported max player count |
 | `ONLINE_PLAYERS` | _(empty)_ | Comma-separated fake online player names e.g. `Notch,jeb_` |
-| `STOP_COMMAND` | `stop` | Command that triggers clean shutdown. Use `end` for proxy image. |
+| `STOP_COMMAND` | `stop` | Command that triggers clean shutdown. Override via build arg `STOP_COMMAND=end` for proxy image. |
 
 ## Images
 
-Two images are built from the same jar, differing only in `STOP_COMMAND` default:
+Two images are built from the same jar and single `Dockerfile`, differing only in build args:
 
-- `craftpanel-fake-server:test` — game server, `STOP_COMMAND=stop`
-- `craftpanel-fake-proxy:test` — proxy server, `STOP_COMMAND=end`
+- `craftpanel-fake-server:test` — game server (default build args)
+- `craftpanel-fake-proxy:test` — proxy server (`--build-arg SERVER_NAME="..." MOTD="..." MAX_PLAYERS=100 STOP_COMMAND=end`)
 
 ## Agent image override
 
