@@ -4,6 +4,7 @@ import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.MetricsCollector
+import io.craftpanel.agent.grpc.handlers.ContainerHandler
 import io.craftpanel.proto.*
 import io.mockk.*
 import kotlinx.coroutines.channels.Channel
@@ -41,7 +42,8 @@ class ControlStreamHandlerTest {
         masterHttpPort = 80,
         privateIpOverride = ""
     )
-    private val handler = ControlStreamHandler(identity, config, containerManager, metricsCollector, docker)
+    private val containerHandler = ContainerHandler(containerManager, config)
+    private val handler = ControlStreamHandler(identity, config, containerManager, metricsCollector, docker, containerHandler)
 
     private lateinit var tempDir: File
 
@@ -91,15 +93,15 @@ class ControlStreamHandlerTest {
     fun `handleCreate emits STOPPED status on success`() = runBlocking {
         every { containerManager.pullImage(any()) } just Runs
         every { containerManager.createContainer(any()) } returns "new-container-id"
-        val outbound = channel()
+        val outbound = newOutbound()
 
-        handler.handleCreate(createContainerCommand {
+        containerHandler.handleCreate(createContainerCommand {
             serverId = "srv-create"
             containerName = "craftpanel-create"
             image = "itzg/minecraft-server:latest"
         }, outbound)
 
-        val msg = outbound.messages()
+        val msg = outboundChannel.messages()
             .single()
         assertTrue(msg.hasServerStatus())
         assertEquals("srv-create", msg.serverStatus.serverId)
@@ -111,15 +113,15 @@ class ControlStreamHandlerTest {
     fun `handleCreate emits UNHEALTHY on failure`() = runBlocking {
         every { containerManager.pullImage(any()) } just Runs
         every { containerManager.createContainer(any()) } throws RuntimeException("docker error")
-        val outbound = channel()
+        val outbound = newOutbound()
 
-        handler.handleCreate(createContainerCommand {
+        containerHandler.handleCreate(createContainerCommand {
             serverId = "srv-fail"
             containerName = "craftpanel-fail"
             image = "itzg/minecraft-server:latest"
         }, outbound)
 
-        val msg = outbound.messages()
+        val msg = outboundChannel.messages()
             .single()
         assertTrue(msg.hasServerStatus())
         assertEquals("srv-fail", msg.serverStatus.serverId)
@@ -134,14 +136,14 @@ class ControlStreamHandlerTest {
     fun `handleStart emits HEALTHY on success`() = runBlocking {
         every { containerManager.getContainerDataPath(any()) } returns null
         every { containerManager.startContainer(any()) } just Runs
-        val outbound = channel()
+        val outbound = newOutbound()
 
-        handler.handleStart(startContainerCommand {
+        containerHandler.handleStart(startContainerCommand {
             serverId = "srv-start"
             containerName = "craftpanel-start"
         }, outbound)
 
-        val msg = outbound.messages()
+        val msg = outboundChannel.messages()
             .single()
         assertEquals(ServerStatusUpdate.ServerStatus.HEALTHY, msg.serverStatus.status)
         assertEquals("srv-start", msg.serverStatus.serverId)
@@ -151,16 +153,16 @@ class ControlStreamHandlerTest {
     fun `handleStart emits UNHEALTHY on failure`() = runBlocking {
         every { containerManager.getContainerDataPath(any()) } returns null
         every { containerManager.startContainer(any()) } throws RuntimeException("start failed")
-        val outbound = channel()
+        val outbound = newOutbound()
 
-        handler.handleStart(startContainerCommand {
+        containerHandler.handleStart(startContainerCommand {
             serverId = "srv-start-fail"
             containerName = "craftpanel-start-fail"
         }, outbound)
 
         assertEquals(
             ServerStatusUpdate.ServerStatus.UNHEALTHY,
-            outbound.messages()
+            outboundChannel.messages()
                 .single().serverStatus.status
         )
     }
@@ -172,15 +174,15 @@ class ControlStreamHandlerTest {
     @Test
     fun `handleStop emits STOPPED on success`() = runBlocking {
         every { containerManager.stopContainer(any(), any(), any()) } just Runs
-        val outbound = channel()
+        val outbound = newOutbound()
 
-        handler.handleStop(stopContainerCommand {
+        containerHandler.handleStop(stopContainerCommand {
             serverId = "srv-stop"
             containerName = "craftpanel-stop"
             timeoutSeconds = 10
         }, outbound)
 
-        val msg = outbound.messages()
+        val msg = outboundChannel.messages()
             .single()
         assertEquals(ServerStatusUpdate.ServerStatus.STOPPED, msg.serverStatus.status)
         assertEquals("srv-stop", msg.serverStatus.serverId)
@@ -189,16 +191,16 @@ class ControlStreamHandlerTest {
     @Test
     fun `handleStop emits UNHEALTHY on failure`() = runBlocking {
         every { containerManager.stopContainer(any(), any(), any()) } throws RuntimeException("stop failed")
-        val outbound = channel()
+        val outbound = newOutbound()
 
-        handler.handleStop(stopContainerCommand {
+        containerHandler.handleStop(stopContainerCommand {
             serverId = "srv-stop-fail"
             containerName = "craftpanel-stop-fail"
         }, outbound)
 
         assertEquals(
             ServerStatusUpdate.ServerStatus.UNHEALTHY,
-            outbound.messages()
+            outboundChannel.messages()
                 .single().serverStatus.status
         )
     }
@@ -211,9 +213,9 @@ class ControlStreamHandlerTest {
     fun `handleRestart emits HEALTHY after stop then start`() = runBlocking {
         every { containerManager.stopContainer(any(), any(), any()) } just Runs
         every { containerManager.startContainer(any()) } just Runs
-        val outbound = channel()
+        val outbound = newOutbound()
 
-        handler.handleRestart(restartContainerCommand {
+        containerHandler.handleRestart(restartContainerCommand {
             serverId = "srv-restart"
             containerName = "craftpanel-restart"
             timeoutSeconds = 10
@@ -221,7 +223,7 @@ class ControlStreamHandlerTest {
 
         assertEquals(
             ServerStatusUpdate.ServerStatus.HEALTHY,
-            outbound.messages()
+            outboundChannel.messages()
                 .single().serverStatus.status
         )
         verify { containerManager.stopContainer("craftpanel-restart", 10, "") }
@@ -231,16 +233,16 @@ class ControlStreamHandlerTest {
     @Test
     fun `handleRestart emits UNHEALTHY when stop fails`() = runBlocking {
         every { containerManager.stopContainer(any(), any(), any()) } throws RuntimeException("stop failed")
-        val outbound = channel()
+        val outbound = newOutbound()
 
-        handler.handleRestart(restartContainerCommand {
+        containerHandler.handleRestart(restartContainerCommand {
             serverId = "srv-restart-fail"
             containerName = "craftpanel-restart-fail"
         }, outbound)
 
         assertEquals(
             ServerStatusUpdate.ServerStatus.UNHEALTHY,
-            outbound.messages()
+            outboundChannel.messages()
                 .single().serverStatus.status
         )
     }
@@ -253,7 +255,7 @@ class ControlStreamHandlerTest {
     fun `handleRemove calls containerManager removeContainer`() = runBlocking {
         every { containerManager.removeContainer(any(), any()) } just Runs
 
-        handler.handleRemove(removeContainerCommand {
+        containerHandler.handleRemove(removeContainerCommand {
             containerName = "craftpanel-remove"
             force = true
         })
@@ -265,7 +267,7 @@ class ControlStreamHandlerTest {
     fun `handleRemove does not throw on docker error`() = runBlocking {
         every { containerManager.removeContainer(any(), any()) } throws RuntimeException("rm failed")
 
-        handler.handleRemove(removeContainerCommand {
+        containerHandler.handleRemove(removeContainerCommand {
             containerName = "craftpanel-rm-fail"
             force = false
         })
@@ -278,11 +280,11 @@ class ControlStreamHandlerTest {
     @Test
     fun `handleShutdown emits shutdownAcknowledge with container counts`() = runBlocking {
         every { containerManager.shutdownAll(any()) } returns Pair(3, 1)
-        val outbound = channel()
+        val outbound = newOutbound()
 
-        handler.handleShutdown(shutdownCommand { timeoutSeconds = 30 }, outbound)
+        containerHandler.handleShutdown(shutdownCommand { timeoutSeconds = 30 }, outbound)
 
-        val msg = outbound.messages()
+        val msg = outboundChannel.messages()
             .single()
         assertTrue(msg.hasShutdownAcknowledge())
         assertEquals(3, msg.shutdownAcknowledge.gracefulCount)
@@ -313,7 +315,7 @@ class ControlStreamHandlerTest {
 
     @Test
     fun `handleTriggerBackup emits failure when server data dir does not exist`() = runBlocking {
-        val outbound = channel()
+        val outbound = newOutbound()
 
         handler.handleTriggerBackup(triggerBackupCommand {
             backupId = "bk-1"
@@ -321,7 +323,7 @@ class ControlStreamHandlerTest {
             containerName = "craftpanel-mc"
         }, outbound)
 
-        val messages = outbound.messages()
+        val messages = outboundChannel.messages()
         val complete = messages.last { it.hasBackupComplete() }
         assertEquals("bk-1", complete.backupComplete.backupId)
         assertFalse(complete.backupComplete.success)
@@ -334,7 +336,7 @@ class ControlStreamHandlerTest {
         val serverId = "srv-bk-2"
         File(tempDir, "servers/$serverId").also { it.mkdirs() }
             .let { File(it, "world").writeText("level data") }
-        val outbound = channel()
+        val outbound = newOutbound()
 
         bkHandler.handleTriggerBackup(triggerBackupCommand {
             backupId = "bk-2"
@@ -342,7 +344,7 @@ class ControlStreamHandlerTest {
             containerName = "craftpanel-mc"
         }, outbound)
 
-        val messages = outbound.messages()
+        val messages = outboundChannel.messages()
         assertTrue(messages.any { it.hasBackupProgress() }, "Expected progress updates")
         assertTrue(messages.any { it.hasBackupComplete() }, "Expected completion message")
         assertTrue(messages.last { it.hasBackupComplete() }.backupComplete.success)
@@ -353,20 +355,25 @@ class ControlStreamHandlerTest {
     // helpers
     // -------------------------------------------------------------------------
 
-    private fun channel() = Channel<AgentMessage>(Channel.UNLIMITED)
+    private lateinit var outboundChannel: Channel<AgentMessage>
+    private lateinit var outbound: AgentOutbound
 
-    private fun handlerWithDataPath(path: String) = ControlStreamHandler(
-        identity,
-        config.copy(dataBasePath = path, hostDataBasePath = path),
-        containerManager,
-        metricsCollector,
-        docker,
-    )
+    private fun newOutbound(): AgentOutbound {
+        outboundChannel = Channel(Channel.UNLIMITED)
+        outbound = AgentOutbound(outboundChannel, identity.nodeId)
+        return outbound
+    }
 
     private fun Channel<AgentMessage>.messages(): List<AgentMessage> = buildList {
         while (true) {
             val r = tryReceive()
             if (r.isSuccess) add(r.getOrThrow()) else break
         }
+    }
+
+    private fun handlerWithDataPath(path: String): ControlStreamHandler {
+        val cfg = config.copy(dataBasePath = path, hostDataBasePath = path)
+        val ch = ContainerHandler(containerManager, cfg)
+        return ControlStreamHandler(identity, cfg, containerManager, metricsCollector, docker, ch)
     }
 }

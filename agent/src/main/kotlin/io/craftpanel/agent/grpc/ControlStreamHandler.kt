@@ -12,7 +12,6 @@ import io.craftpanel.proto.*
 import io.grpc.ManagedChannel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.flow.receiveAsFlow
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -33,6 +32,7 @@ class ControlStreamHandler(
     private val containerManager: ContainerManager,
     private val metricsCollector: MetricsCollector,
     private val docker: DockerClient,
+    private val container: io.craftpanel.agent.grpc.handlers.ContainerHandler,
 ) {
 
     private val log = LoggerFactory.getLogger(ControlStreamHandler::class.java)
@@ -43,13 +43,14 @@ class ControlStreamHandler(
     suspend fun run(channel: ManagedChannel): Unit = coroutineScope {
         val stub = ControlServiceGrpcKt.ControlServiceCoroutineStub(channel)
         val bulkClient = BulkDataClient(channel)
-        val outbound = Channel<AgentMessage>(capacity = 64)
+        val outboundChannel = Channel<AgentMessage>(capacity = 64)
+        val out = AgentOutbound(outboundChannel, identity.nodeId)
 
-        val stream = stub.control(outbound.receiveAsFlow())
+        val stream = stub.control(outboundChannel.receiveAsFlow())
 
         // Send NodeStateSnapshot as the first message
         val snapshot = buildStateSnapshot()
-        outbound.send(agentMessage {
+        outboundChannel.send(agentMessage {
             nodeId = identity.nodeId
             nodeState = snapshot
         })
@@ -61,27 +62,14 @@ class ControlStreamHandler(
             while (true) {
                 delay(metricsInterval)
                 val metrics = metricsCollector.collect()
-                outbound.send(agentMessage {
-                    nodeId = identity.nodeId
-                    nodeMetrics = metrics
-                })
+                out.send { nodeMetrics = metrics }
 
                 containerManager.listRunningContainerIds()
                     .forEach { (serverId, containerId) ->
                         metricsCollector.collectContainerMetrics(serverId, containerId)
-                            ?.let { cm ->
-                                outbound.send(agentMessage {
-                                    nodeId = identity.nodeId
-                                    containerMetrics = cm
-                                })
-                            }
+                            ?.let { cm -> out.send { containerMetrics = cm } }
                         metricsCollector.collectPlayerCount(serverId, containerId)
-                            ?.let { pu ->
-                                outbound.send(agentMessage {
-                                    nodeId = identity.nodeId
-                                    playerUpdate = pu
-                                })
-                            }
+                            ?.let { pu -> out.send { playerUpdate = pu } }
                     }
             }
         }
@@ -90,37 +78,42 @@ class ControlStreamHandler(
         stream.collect { msg ->
             log.debug("Received master command: {}", msg.payloadCase)
             when {
-                msg.hasCreateContainer()     -> handleCreate(msg.createContainer, outbound)
-                msg.hasStartContainer()      -> handleStart(msg.startContainer, outbound)
-                msg.hasStopContainer()       -> launch { handleStop(msg.stopContainer, outbound) }
-                msg.hasRestartContainer()    -> launch { handleRestart(msg.restartContainer, outbound) }
-                msg.hasRemoveContainer()     -> handleRemove(msg.removeContainer)
-                msg.hasPullImage()           -> handlePullImage(msg.pullImage)
-                msg.hasShutdown()            -> handleShutdown(msg.shutdown, outbound)
-                msg.hasTriggerBackup()       -> launch { handleTriggerBackup(msg.triggerBackup, outbound) }
-                msg.hasDeleteBackup()        -> launch { handleDeleteBackup(msg.deleteBackup) }
-                msg.hasPrepareRsyncReceive() -> launch { handlePrepareRsyncReceive(msg.prepareRsyncReceive, outbound) }
-                msg.hasStartRsync()          -> launch { handleStartRsync(msg.startRsync, outbound) }
-                msg.hasSendRcon()            -> launch { handleSendRcon(msg.sendRcon) }
+                msg.hasCreateContainer()     -> dispatch { container.handleCreate(msg.createContainer, out) }
+                msg.hasStartContainer()      -> dispatch { container.handleStart(msg.startContainer, out) }
+                msg.hasStopContainer()       -> launch { dispatch { container.handleStop(msg.stopContainer, out) } }
+                msg.hasRestartContainer()    -> launch { dispatch { container.handleRestart(msg.restartContainer, out) } }
+                msg.hasRemoveContainer()     -> dispatch { container.handleRemove(msg.removeContainer) }
+                msg.hasPullImage()           -> dispatch { container.handlePullImage(msg.pullImage) }
+                msg.hasShutdown()            -> dispatch { container.handleShutdown(msg.shutdown, out) }
+                msg.hasTriggerBackup()       -> launch { dispatch { handleTriggerBackup(msg.triggerBackup, out) } }
+                msg.hasDeleteBackup()        -> launch { dispatch { handleDeleteBackup(msg.deleteBackup) } }
+                msg.hasPrepareRsyncReceive() -> launch { dispatch { handlePrepareRsyncReceive(msg.prepareRsyncReceive, out) } }
+                msg.hasStartRsync()          -> launch { dispatch { handleStartRsync(msg.startRsync, out) } }
+                msg.hasSendRcon()            -> launch { dispatch { handleSendRcon(msg.sendRcon) } }
                 // Console
-                msg.hasConsoleAttach()       -> launch { handleConsoleAttach(msg.consoleAttach, outbound) }
-                msg.hasConsoleInput()        -> handleConsoleInput(msg.consoleInput)
-                msg.hasConsoleDetach()       -> handleConsoleDetach(msg.consoleDetach)
+                msg.hasConsoleAttach()       -> launch { dispatch { handleConsoleAttach(msg.consoleAttach, out) } }
+                msg.hasConsoleInput()        -> dispatch { handleConsoleInput(msg.consoleInput) }
+                msg.hasConsoleDetach()       -> dispatch { handleConsoleDetach(msg.consoleDetach) }
                 // File ops (unary) — each in its own coroutine so it does not block the stream
-                msg.hasListFiles()           -> launch { handleListFiles(msg.listFiles, outbound) }
-                msg.hasReadFile()            -> launch { handleReadFile(msg.readFile, outbound) }
-                msg.hasWriteFile()           -> launch { handleWriteFile(msg.writeFile, outbound) }
-                msg.hasDeleteFile()          -> launch { handleDeleteFile(msg.deleteFile, outbound) }
-                msg.hasMakeDirectory()       -> launch { handleMakeDirectory(msg.makeDirectory, outbound) }
-                msg.hasMoveFile()            -> launch { handleMoveFile(msg.moveFile, outbound) }
-                msg.hasCopyFile()            -> launch { handleCopyFile(msg.copyFile, outbound) }
+                msg.hasListFiles()           -> launch { dispatch { handleListFiles(msg.listFiles, out) } }
+                msg.hasReadFile()            -> launch { dispatch { handleReadFile(msg.readFile, out) } }
+                msg.hasWriteFile()           -> launch { dispatch { handleWriteFile(msg.writeFile, out) } }
+                msg.hasDeleteFile()          -> launch { dispatch { handleDeleteFile(msg.deleteFile, out) } }
+                msg.hasMakeDirectory()       -> launch { dispatch { handleMakeDirectory(msg.makeDirectory, out) } }
+                msg.hasMoveFile()            -> launch { dispatch { handleMoveFile(msg.moveFile, out) } }
+                msg.hasCopyFile()            -> launch { dispatch { handleCopyFile(msg.copyFile, out) } }
                 // Bulk transfers — agent dials master's BulkDataService
-                msg.hasDownloadFile()        -> launch { handleDownloadFile(msg.downloadFile, bulkClient, outbound) }
-                msg.hasUploadFile()          -> launch { handleUploadFile(msg.uploadFile, bulkClient, outbound) }
-                msg.hasDownloadBackup()      -> launch { handleDownloadBackup(msg.downloadBackup, bulkClient, outbound) }
+                msg.hasDownloadFile()        -> launch { dispatch { handleDownloadFile(msg.downloadFile, bulkClient, out) } }
+                msg.hasUploadFile()          -> launch { dispatch { handleUploadFile(msg.uploadFile, bulkClient, out) } }
+                msg.hasDownloadBackup()      -> launch { dispatch { handleDownloadBackup(msg.downloadBackup, bulkClient, out) } }
                 else                         -> log.warn("Unhandled master message: ${msg.payloadCase}")
             }
         }
+    }
+
+    private suspend fun dispatch(block: suspend () -> Unit) {
+        runCatching { block() }
+            .onFailure { if (it is CancellationException) throw it else log.error("Unexpected handler failure", it) }
     }
 
     internal fun buildStateSnapshot(): NodeStateSnapshot {
@@ -131,172 +124,20 @@ class ControlStreamHandler(
         }
     }
 
-    // ─── Container lifecycle ──────────────────────────────────────────────────
-
-    internal suspend fun handleCreate(cmd: CreateContainerCommand, outbound: SendChannel<AgentMessage>) {
-        log.info("Creating container ${cmd.containerName} for server ${cmd.serverId}")
-        runCatching {
-            withContext(Dispatchers.IO) { containerManager.pullImage(cmd.image) }
-            val cmdWithMount = cmd.toBuilder()
-                .addMounts(volumeMount {
-                    hostPath = "${config.hostDataBasePath}/servers/${cmd.serverId}"
-                    containerPath = "/data"
-                    readOnly = false
-                })
-                .build()
-            containerManager.createContainer(cmdWithMount)
-        }
-            .onSuccess { dockerContainerId ->
-                outbound.send(agentMessage {
-                    nodeId = identity.nodeId
-                    serverStatus = serverStatusUpdate {
-                        serverId = cmd.serverId
-                        status = ServerStatusUpdate.ServerStatus.STOPPED
-                        containerId = dockerContainerId
-                    }
-                })
-            }
-            .onFailure { e ->
-                log.error("Failed to create container ${cmd.containerName}", e)
-                outbound.send(agentMessage {
-                    nodeId = identity.nodeId
-                    serverStatus = serverStatusUpdate {
-                        serverId = cmd.serverId
-                        status = ServerStatusUpdate.ServerStatus.UNHEALTHY
-                    }
-                })
-            }
-    }
-
-    internal suspend fun handleStart(cmd: StartContainerCommand, outbound: SendChannel<AgentMessage>) {
-        log.info("Starting container ${cmd.containerName}")
-        val expectedDataPath = "${config.hostDataBasePath}/servers/${cmd.serverId}"
-        val currentDataPath = containerManager.getContainerDataPath(cmd.containerName)
-        if (currentDataPath != null && currentDataPath != expectedDataPath) {
-            log.warn("Container ${cmd.containerName} has stale data mount '$currentDataPath' (expected '$expectedDataPath') — removing for recreate")
-            runCatching { withContext(Dispatchers.IO) { containerManager.removeContainer(cmd.containerName, force = true) } }
-                .onFailure { log.error("Failed to remove stale container ${cmd.containerName}", it) }
-            outbound.send(agentMessage {
-                nodeId = identity.nodeId
-                serverStatus = serverStatusUpdate {
-                    serverId = cmd.serverId
-                    status = ServerStatusUpdate.ServerStatus.UNHEALTHY
-                }
-            })
-            return
-        }
-        runCatching { containerManager.startContainer(cmd.containerName) }
-            .onSuccess {
-                outbound.send(agentMessage {
-                    nodeId = identity.nodeId
-                    serverStatus = serverStatusUpdate {
-                        serverId = cmd.serverId
-                        status = ServerStatusUpdate.ServerStatus.HEALTHY
-                    }
-                })
-            }
-            .onFailure {
-                log.error("Failed to start container ${cmd.containerName}", it)
-                outbound.send(agentMessage {
-                    nodeId = identity.nodeId
-                    serverStatus = serverStatusUpdate {
-                        serverId = cmd.serverId
-                        status = ServerStatusUpdate.ServerStatus.UNHEALTHY
-                    }
-                })
-            }
-    }
-
-    internal suspend fun handleStop(cmd: StopContainerCommand, outbound: SendChannel<AgentMessage>) {
-        log.info("Stopping container ${cmd.containerName}")
-        runCatching { containerManager.stopContainer(cmd.containerName, cmd.timeoutSeconds, cmd.stopCommand) }
-            .onSuccess {
-                outbound.send(agentMessage {
-                    nodeId = identity.nodeId
-                    serverStatus = serverStatusUpdate {
-                        serverId = cmd.serverId
-                        status = ServerStatusUpdate.ServerStatus.STOPPED
-                    }
-                })
-            }
-            .onFailure {
-                log.error("Failed to stop container ${cmd.containerName}", it)
-                outbound.send(agentMessage {
-                    nodeId = identity.nodeId
-                    serverStatus = serverStatusUpdate {
-                        serverId = cmd.serverId
-                        status = ServerStatusUpdate.ServerStatus.UNHEALTHY
-                    }
-                })
-            }
-    }
-
-    internal suspend fun handleRestart(cmd: RestartContainerCommand, outbound: SendChannel<AgentMessage>) {
-        log.info("Restarting container ${cmd.containerName}")
-        runCatching {
-            containerManager.stopContainer(cmd.containerName, cmd.timeoutSeconds, cmd.stopCommand)
-            containerManager.startContainer(cmd.containerName)
-        }
-            .onSuccess {
-                outbound.send(agentMessage {
-                    nodeId = identity.nodeId
-                    serverStatus = serverStatusUpdate {
-                        serverId = cmd.serverId
-                        status = ServerStatusUpdate.ServerStatus.HEALTHY
-                    }
-                })
-            }
-            .onFailure {
-                log.error("Failed to restart container ${cmd.containerName}", it)
-                outbound.send(agentMessage {
-                    nodeId = identity.nodeId
-                    serverStatus = serverStatusUpdate {
-                        serverId = cmd.serverId
-                        status = ServerStatusUpdate.ServerStatus.UNHEALTHY
-                    }
-                })
-            }
-    }
-
-    internal fun handleRemove(cmd: RemoveContainerCommand) {
-        log.info("Removing container ${cmd.containerName} (force=${cmd.force})")
-        runCatching { containerManager.removeContainer(cmd.containerName, cmd.force) }
-            .onFailure { log.error("Failed to remove container ${cmd.containerName}", it) }
-    }
-
-    internal suspend fun handlePullImage(cmd: PullImageCommand) {
-        log.info("Pulling image ${cmd.image} for server ${cmd.serverId}")
-        runCatching { withContext(Dispatchers.IO) { containerManager.pullImage(cmd.image) } }
-            .onFailure { log.error("Failed to pull image ${cmd.image}", it) }
-    }
-
-    internal suspend fun handleShutdown(cmd: ShutdownCommand, outbound: SendChannel<AgentMessage>) {
-        log.info("Shutdown requested — stopping all containers gracefully")
-        val (graceful, forced) = containerManager.shutdownAll(cmd.timeoutSeconds)
-        outbound.send(agentMessage {
-            nodeId = identity.nodeId
-            shutdownAcknowledge = shutdownAcknowledgeUpdate {
-                gracefulCount = graceful
-                forcedCount = forced
-            }
-        })
-    }
-
     // ─── Backup ───────────────────────────────────────────────────────────────
 
-    internal suspend fun handleTriggerBackup(cmd: TriggerBackupCommand, outbound: SendChannel<AgentMessage>) {
+    internal suspend fun handleTriggerBackup(cmd: TriggerBackupCommand, out: AgentOutbound) {
         val sourceDir = "${config.dataBasePath}/servers/${cmd.serverId}"
         val destPath = "${config.dataBasePath}/backups/${cmd.backupId}.tar.gz"
         log.info("Backup ${cmd.backupId}: starting for server ${cmd.serverId} → $destPath")
 
-        outbound.send(agentMessage {
-            nodeId = identity.nodeId
+        out.send {
             backupProgress = backupProgressUpdate {
                 backupId = cmd.backupId
                 serverId = cmd.serverId
                 percentComplete = 0
             }
-        })
+        }
 
         runCatching {
             withContext(Dispatchers.IO) {
@@ -307,14 +148,13 @@ class ControlStreamHandler(
                     .redirectErrorStream(true)
                     .start()
 
-                outbound.send(agentMessage {
-                    nodeId = identity.nodeId
+                out.send {
                     backupProgress = backupProgressUpdate {
                         backupId = cmd.backupId
                         serverId = cmd.serverId
                         percentComplete = 50
                     }
-                })
+                }
 
                 val exitCode = process.waitFor()
                 if (exitCode != 0) {
@@ -327,8 +167,7 @@ class ControlStreamHandler(
             }
         }.onSuccess { sizeBytes ->
             log.info("Backup ${cmd.backupId}: completed, size=$sizeBytes bytes")
-            outbound.send(agentMessage {
-                nodeId = identity.nodeId
+            out.send {
                 backupComplete = backupCompleteUpdate {
                     backupId = cmd.backupId
                     serverId = cmd.serverId
@@ -337,12 +176,11 @@ class ControlStreamHandler(
                     this.sizeBytes = sizeBytes
                     completedAt = nowTimestamp()
                 }
-            })
+            }
         }
             .onFailure { ex ->
                 log.error("Backup ${cmd.backupId}: failed", ex)
-                outbound.send(agentMessage {
-                    nodeId = identity.nodeId
+                out.send {
                     backupComplete = backupCompleteUpdate {
                         backupId = cmd.backupId
                         serverId = cmd.serverId
@@ -350,7 +188,7 @@ class ControlStreamHandler(
                         errorMessage = ex.message ?: "Unknown error"
                         completedAt = nowTimestamp()
                     }
-                })
+                }
             }
     }
 
@@ -365,7 +203,7 @@ class ControlStreamHandler(
 
     internal suspend fun handlePrepareRsyncReceive(
         cmd: PrepareRsyncReceiveCommand,
-        outbound: SendChannel<AgentMessage>,
+        out: AgentOutbound,
     ) {
         val destPath = "${config.dataBasePath}/servers/${cmd.serverId}"
         log.info("Migration ${cmd.migrationId}: preparing rsync receiver on port ${cmd.port} → $destPath")
@@ -384,13 +222,12 @@ class ControlStreamHandler(
                 password
             }
         }.onSuccess { password ->
-            outbound.send(agentMessage {
-                nodeId = identity.nodeId
+            out.send {
                 rsyncReady = rsyncReadyUpdate {
                     migrationId = cmd.migrationId
                     rsyncPassword = password
                 }
-            })
+            }
             log.info("Migration ${cmd.migrationId}: rsyncd ready")
         }
             .onFailure { ex ->
@@ -400,7 +237,7 @@ class ControlStreamHandler(
 
     internal suspend fun handleStartRsync(
         cmd: StartRsyncCommand,
-        outbound: SendChannel<AgentMessage>,
+        out: AgentOutbound,
     ) {
         val sourcePath = "${config.dataBasePath}/servers/${cmd.serverId}"
         log.info("Migration ${cmd.migrationId}: starting rsync transfer (final=${cmd.isFinalPass})")
@@ -417,8 +254,7 @@ class ControlStreamHandler(
                     isFinalPass = cmd.isFinalPass,
                     rsyncImage = rsyncImage,
                     onProgress = { bytes, total, pct, phase ->
-                        outbound.trySend(agentMessage {
-                            nodeId = identity.nodeId
+                        out.trySend {
                             rsyncProgress = rsyncProgressUpdate {
                                 migrationId = cmd.migrationId
                                 isFinalPass = cmd.isFinalPass
@@ -428,13 +264,12 @@ class ControlStreamHandler(
                                 this.phase = phase
                                 recordedAt = nowTimestamp()
                             }
-                        })
+                        }
                     },
                 )
             }
         }.onSuccess { success ->
-            outbound.send(agentMessage {
-                nodeId = identity.nodeId
+            out.send {
                 rsyncComplete = rsyncCompleteUpdate {
                     migrationId = cmd.migrationId
                     isFinalPass = cmd.isFinalPass
@@ -442,13 +277,12 @@ class ControlStreamHandler(
                     if (!success) errorMessage = "rsync exited with non-zero code"
                     completedAt = nowTimestamp()
                 }
-            })
+            }
             log.info("Migration ${cmd.migrationId}: rsync transfer complete (success=$success)")
         }
             .onFailure { ex ->
                 log.error("Migration ${cmd.migrationId}: rsync transfer error", ex)
-                outbound.send(agentMessage {
-                    nodeId = identity.nodeId
+                out.send {
                     rsyncComplete = rsyncCompleteUpdate {
                         migrationId = cmd.migrationId
                         isFinalPass = cmd.isFinalPass
@@ -456,7 +290,7 @@ class ControlStreamHandler(
                         errorMessage = ex.message ?: "Unknown error"
                         completedAt = nowTimestamp()
                     }
-                })
+                }
             }
     }
 
@@ -467,7 +301,7 @@ class ControlStreamHandler(
 
     // ─── Console ──────────────────────────────────────────────────────────────
 
-    internal suspend fun handleConsoleAttach(cmd: ConsoleAttach, outbound: SendChannel<AgentMessage>) {
+    internal suspend fun handleConsoleAttach(cmd: ConsoleAttach, out: AgentOutbound) {
         val reqId = cmd.requestId
         if (consoleSessions.containsKey(reqId)) {
             log.warn("Console attach for already-active session $reqId — ignoring")
@@ -477,26 +311,14 @@ class ControlStreamHandler(
         val containers = containerManager.listContainers()
         val container = containers.find { it.serverId == cmd.serverId }
         if (container == null) {
-            outbound.send(agentMessage {
-                nodeId = identity.nodeId
-                consoleOutput = consoleOutput {
-                    requestId = reqId
-                    closed = true
-                }
-            })
+            out.send { consoleOutput = consoleOutput { requestId = reqId; closed = true } }
             log.warn("Console attach: server ${cmd.serverId} not found")
             return
         }
 
         if (container.runState != ContainerState.RunState.RUNNING) {
             log.warn("Console attach: server ${cmd.serverId} container is ${container.runState}, not RUNNING")
-            outbound.send(agentMessage {
-                nodeId = identity.nodeId
-                consoleOutput = consoleOutput {
-                    requestId = reqId
-                    closed = true
-                }
-            })
+            out.send { consoleOutput = consoleOutput { requestId = reqId; closed = true } }
             return
         }
 
@@ -512,45 +334,21 @@ class ControlStreamHandler(
                     override fun onNext(frame: Frame) {
                         frame.payload?.takeIf { it.isNotEmpty() }
                             ?.let { payload ->
-                                outbound.trySend(agentMessage {
-                                    nodeId = identity.nodeId
-                                    consoleOutput = consoleOutput {
-                                        requestId = reqId
-                                        data = ByteString.copyFrom(payload)
-                                    }
-                                })
+                                out.tryConsoleOutput(reqId) { data = ByteString.copyFrom(payload) }
                             }
                     }
 
                     override fun onComplete() {
-                        outbound.trySend(agentMessage {
-                            nodeId = identity.nodeId
-                            consoleOutput = consoleOutput {
-                                requestId = reqId
-                                closed = true
-                            }
-                        })
+                        out.tryConsoleOutput(reqId) { closed = true }
                         if (!detached.get()) {
-                            outbound.trySend(agentMessage {
-                                nodeId = identity.nodeId
-                                serverStatus = serverStatusUpdate {
-                                    serverId = cmd.serverId
-                                    status = ServerStatusUpdate.ServerStatus.STOPPED
-                                }
-                            })
+                            out.tryServerStatus(cmd.serverId, ServerStatusUpdate.ServerStatus.STOPPED)
                         }
                         consoleSessions.remove(reqId)
                     }
 
                     override fun onError(t: Throwable) {
                         log.warn("Console attach error (session=$reqId): ${t.message}")
-                        outbound.trySend(agentMessage {
-                            nodeId = identity.nodeId
-                            consoleOutput = consoleOutput {
-                                requestId = reqId
-                                closed = true
-                            }
-                        })
+                        out.tryConsoleOutput(reqId) { closed = true }
                         consoleSessions.remove(reqId)
                     }
                 }
@@ -567,13 +365,7 @@ class ControlStreamHandler(
                         .awaitCompletion()
                 }.onFailure { e ->
                     log.warn("Console attach failed (session=$reqId): ${e.message}")
-                    outbound.trySend(agentMessage {
-                        nodeId = identity.nodeId
-                        consoleOutput = consoleOutput {
-                            requestId = reqId
-                            closed = true
-                        }
-                    })
+                    out.tryConsoleOutput(reqId) { closed = true }
                 }
             }
             finally {
@@ -605,7 +397,7 @@ class ControlStreamHandler(
 
     // ─── File operations ──────────────────────────────────────────────────────
 
-    internal suspend fun handleListFiles(cmd: ListFilesRequest, outbound: SendChannel<AgentMessage>) {
+    internal suspend fun handleListFiles(cmd: ListFilesRequest, out: AgentOutbound) {
         val result = runCatching {
             withContext(Dispatchers.IO) {
                 val root = serverDataRoot(cmd.serverId)
@@ -634,8 +426,7 @@ class ControlStreamHandler(
                     }
             }
         }
-        outbound.send(agentMessage {
-            nodeId = identity.nodeId
+        out.send {
             listFilesResponse = listFilesResponse {
                 requestId = cmd.requestId
                 result.onSuccess { entries.addAll(it) }
@@ -644,10 +435,10 @@ class ControlStreamHandler(
                     log.debug(errorMessage, it)
                 }
             }
-        })
+        }
     }
 
-    internal suspend fun handleReadFile(cmd: ReadFileRequest, outbound: SendChannel<AgentMessage>) {
+    internal suspend fun handleReadFile(cmd: ReadFileRequest, out: AgentOutbound) {
         val result = runCatching {
             withContext(Dispatchers.IO) {
                 val root = serverDataRoot(cmd.serverId)
@@ -658,8 +449,7 @@ class ControlStreamHandler(
                 Pair(bytes, if (isTextContent(bytes)) "utf-8" else "binary")
             }
         }
-        outbound.send(agentMessage {
-            nodeId = identity.nodeId
+        out.send {
             readFileResponse = readFileResponse {
                 requestId = cmd.requestId
                 result.onSuccess { (bytes, enc) ->
@@ -668,10 +458,10 @@ class ControlStreamHandler(
                 }
                 result.onFailure { errorMessage = it.message ?: "Unknown error" }
             }
-        })
+        }
     }
 
-    internal suspend fun handleWriteFile(cmd: WriteFileRequest, outbound: SendChannel<AgentMessage>) {
+    internal suspend fun handleWriteFile(cmd: WriteFileRequest, out: AgentOutbound) {
         val result = runCatching {
             withContext(Dispatchers.IO) {
                 val root = serverDataRoot(cmd.serverId)
@@ -680,17 +470,16 @@ class ControlStreamHandler(
                 Files.write(target, cmd.content.toByteArray())
             }
         }
-        outbound.send(agentMessage {
-            nodeId = identity.nodeId
+        out.send {
             writeFileResponse = writeFileResponse {
                 requestId = cmd.requestId
                 success = result.isSuccess
                 result.onFailure { errorMessage = it.message ?: "Unknown error" }
             }
-        })
+        }
     }
 
-    internal suspend fun handleDeleteFile(cmd: DeleteFileRequest, outbound: SendChannel<AgentMessage>) {
+    internal suspend fun handleDeleteFile(cmd: DeleteFileRequest, out: AgentOutbound) {
         val result = runCatching {
             withContext(Dispatchers.IO) {
                 val root = serverDataRoot(cmd.serverId)
@@ -712,17 +501,16 @@ class ControlStreamHandler(
                 }
             }
         }
-        outbound.send(agentMessage {
-            nodeId = identity.nodeId
+        out.send {
             deleteFileResponse = deleteFileResponse {
                 requestId = cmd.requestId
                 success = result.isSuccess
                 result.onFailure { errorMessage = it.message ?: "Unknown error" }
             }
-        })
+        }
     }
 
-    internal suspend fun handleMakeDirectory(cmd: MakeDirectoryRequest, outbound: SendChannel<AgentMessage>) {
+    internal suspend fun handleMakeDirectory(cmd: MakeDirectoryRequest, out: AgentOutbound) {
         val result = runCatching {
             withContext(Dispatchers.IO) {
                 val root = serverDataRoot(cmd.serverId)
@@ -730,17 +518,16 @@ class ControlStreamHandler(
                 Files.createDirectories(target)
             }
         }
-        outbound.send(agentMessage {
-            nodeId = identity.nodeId
+        out.send {
             makeDirectoryResponse = makeDirectoryResponse {
                 requestId = cmd.requestId
                 success = result.isSuccess
                 result.onFailure { errorMessage = it.message ?: "Unknown error" }
             }
-        })
+        }
     }
 
-    internal suspend fun handleMoveFile(cmd: MoveFileRequest, outbound: SendChannel<AgentMessage>) {
+    internal suspend fun handleMoveFile(cmd: MoveFileRequest, out: AgentOutbound) {
         val result = runCatching {
             withContext(Dispatchers.IO) {
                 val root = serverDataRoot(cmd.serverId)
@@ -752,17 +539,16 @@ class ControlStreamHandler(
                 Files.move(src, dst, StandardCopyOption.ATOMIC_MOVE)
             }
         }
-        outbound.send(agentMessage {
-            nodeId = identity.nodeId
+        out.send {
             moveFileResponse = moveFileResponse {
                 requestId = cmd.requestId
                 success = result.isSuccess
                 result.onFailure { errorMessage = it.message ?: "Unknown error" }
             }
-        })
+        }
     }
 
-    internal suspend fun handleCopyFile(cmd: CopyFileRequest, outbound: SendChannel<AgentMessage>) {
+    internal suspend fun handleCopyFile(cmd: CopyFileRequest, out: AgentOutbound) {
         val result = runCatching {
             withContext(Dispatchers.IO) {
                 val root = serverDataRoot(cmd.serverId)
@@ -779,14 +565,13 @@ class ControlStreamHandler(
                 }
             }
         }
-        outbound.send(agentMessage {
-            nodeId = identity.nodeId
+        out.send {
             copyFileResponse = copyFileResponse {
                 requestId = cmd.requestId
                 success = result.isSuccess
                 result.onFailure { errorMessage = it.message ?: "Unknown error" }
             }
-        })
+        }
     }
 
     // ─── Bulk transfers ───────────────────────────────────────────────────────
@@ -794,7 +579,7 @@ class ControlStreamHandler(
     internal suspend fun handleDownloadFile(
         cmd: DownloadFileCommand,
         bulkClient: BulkDataClient,
-        outbound: SendChannel<AgentMessage>,
+        out: AgentOutbound,
     ) {
         val fileResult = runCatching {
             withContext(Dispatchers.IO) {
@@ -805,14 +590,13 @@ class ControlStreamHandler(
             }
         }
 
-        outbound.send(agentMessage {
-            nodeId = identity.nodeId
+        out.send {
             downloadFileResponse = downloadFileResponse {
                 requestId = cmd.requestId
                 success = fileResult.isSuccess
                 fileResult.onFailure { errorMessage = it.message ?: "Unknown error" }
             }
-        })
+        }
 
         if (fileResult.isSuccess) {
             runCatching { bulkClient.uploadToMaster(identity.nodeKey, cmd.transferId, fileResult.getOrThrow()) }
@@ -823,27 +607,26 @@ class ControlStreamHandler(
     internal suspend fun handleUploadFile(
         cmd: UploadFileCommand,
         bulkClient: BulkDataClient,
-        outbound: SendChannel<AgentMessage>,
+        out: AgentOutbound,
     ) {
         val result = runCatching {
             val root = serverDataRoot(cmd.serverId)
             val destPath = safeResolve(root, cmd.path)
             bulkClient.receiveFromMaster(identity.nodeKey, cmd.transferId, destPath)
         }
-        outbound.send(agentMessage {
-            nodeId = identity.nodeId
+        out.send {
             uploadFileResponse = uploadFileResponse {
                 requestId = cmd.requestId
                 success = result.isSuccess
                 result.onFailure { errorMessage = it.message ?: "Unknown error" }
             }
-        })
+        }
     }
 
     internal suspend fun handleDownloadBackup(
         cmd: DownloadBackupCommand,
         bulkClient: BulkDataClient,
-        outbound: SendChannel<AgentMessage>,
+        out: AgentOutbound,
     ) {
         val fileResult = runCatching {
             withContext(Dispatchers.IO) {
@@ -858,14 +641,13 @@ class ControlStreamHandler(
                 filePath
             }
         }
-        outbound.send(agentMessage {
-            nodeId = identity.nodeId
+        out.send {
             downloadFileResponse = downloadFileResponse {
                 requestId = cmd.requestId
                 success = fileResult.isSuccess
                 fileResult.onFailure { errorMessage = it.message ?: "Unknown error" }
             }
-        })
+        }
         if (fileResult.isSuccess) {
             runCatching { bulkClient.uploadToMaster(identity.nodeKey, cmd.transferId, fileResult.getOrThrow()) }
                 .onFailure { log.error("Download transfer ${cmd.transferId}: bulk upload failed", it) }
