@@ -63,7 +63,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                 .where { Servers.id eq kId }
                 .firstOrNull()
                 ?.get(Servers.networkId)
-    }
+        }
 
         // ── Initial snapshot ──────────────────────────────────────────────────
         val snapshot = transaction {

@@ -2,8 +2,8 @@ package io.craftpanel.master.auth
 
 import kotlin.uuid.Uuid
 import java.security.SecureRandom
+import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.io.encoding.Base64
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
@@ -34,6 +34,7 @@ class WsTicketService {
     }
 
     private fun generateRaw(): String {
-        return Base64.encode(ByteArray(48).also { random.nextBytes(it) })
+        val bytes = ByteArray(48).also { random.nextBytes(it) }
+        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
     }
 }
