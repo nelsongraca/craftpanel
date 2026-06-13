@@ -35,21 +35,6 @@ data class PutProxyBackendsRequest(val backends: List<BackendInput>)
 
 class ProxyBackendService {
 
-    data class ServerScope(val serverId: Uuid, val networkId: Uuid?)
-
-    fun getServerScope(serverId: Uuid): ServerScope? =
-        transaction {
-            Servers.selectAll()
-                .where { Servers.id eq serverId }
-                .firstOrNull()
-                ?.let {
-                    ServerScope(
-                        serverId = serverId,
-                        networkId = it[Servers.networkId],
-                    )
-                }
-        }
-
     fun listBackends(proxyServerId: Uuid): ProxyBackendListResponse {
         val serverRow = transaction {
             Servers.selectAll()

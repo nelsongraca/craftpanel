@@ -2,7 +2,7 @@ package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.JWT_AUTH
-import io.craftpanel.master.auth.PermissionResolver
+import io.craftpanel.master.auth.requirePermission
 import io.craftpanel.master.service.*
 import io.github.smiley4.ktoropenapi.*
 import io.ktor.http.*
@@ -25,9 +25,7 @@ fun Route.groupsRoutes(groupService: GroupService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
-                    return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                call.requirePermission(Permission.SYSTEM_USERS)
                 call.respond(groupService.listGroups())
             }
 
@@ -42,9 +40,7 @@ fun Route.groupsRoutes(groupService: GroupService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
-                    return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                call.requirePermission(Permission.SYSTEM_USERS)
                 val req = call.receive<CreateGroupRequest>()
                 call.respond(HttpStatusCode.Created, groupService.createGroup(req))
             }
@@ -60,9 +56,7 @@ fun Route.groupsRoutes(groupService: GroupService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
-                    return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                call.requirePermission(Permission.SYSTEM_USERS)
                 val targetId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("Group not found"))
                 call.respond(groupService.getGroup(targetId))
@@ -80,9 +74,7 @@ fun Route.groupsRoutes(groupService: GroupService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
-                    return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                call.requirePermission(Permission.SYSTEM_USERS)
                 val targetId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@patch call.respond(HttpStatusCode.NotFound, ErrorResponse("Group not found"))
                 val req = call.receive<PatchGroupRequest>()
@@ -101,9 +93,7 @@ fun Route.groupsRoutes(groupService: GroupService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
-                    return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                call.requirePermission(Permission.SYSTEM_USERS)
                 val targetId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@delete call.respond(HttpStatusCode.NotFound, ErrorResponse("Group not found"))
                 groupService.deleteGroup(targetId)
@@ -123,9 +113,7 @@ fun Route.groupsRoutes(groupService: GroupService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
-                    return@put call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                call.requirePermission(Permission.SYSTEM_USERS)
                 val targetId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@put call.respond(HttpStatusCode.NotFound, ErrorResponse("Group not found"))
                 val req = call.receive<PutGroupPermissionsRequest>()

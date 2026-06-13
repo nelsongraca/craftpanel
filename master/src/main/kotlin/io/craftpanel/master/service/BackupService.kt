@@ -60,16 +60,6 @@ class BackupService(
 
     private val log = org.slf4j.LoggerFactory.getLogger(BackupService::class.java)
 
-    data class ServerScope(val networkId: Uuid?)
-
-    fun getServerScope(serverId: Uuid): ServerScope? =
-        transaction {
-            Servers.selectAll()
-                .where { Servers.id eq serverId }
-                .firstOrNull()
-                ?.let { ServerScope(it[Servers.networkId]) }
-        }
-
     fun listBackups(serverId: kotlin.uuid.Uuid): List<BackupResponse> =
         transaction {
             Backups.selectAll()

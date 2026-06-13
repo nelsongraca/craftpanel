@@ -2,7 +2,7 @@ package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.Permission
-import io.craftpanel.master.auth.PermissionResolver
+import io.craftpanel.master.auth.requireServerPermission
 import io.craftpanel.master.service.CreateModRequest
 import io.craftpanel.master.service.ModResponse
 import io.craftpanel.master.service.ModService
@@ -29,14 +29,6 @@ class ModsRoutes(val modService: ModService) {
 
     private val log = LoggerFactory.getLogger(ModsRoutes::class.java)
 
-    private fun parseModServerId(raw: String?): Uuid? =
-        raw?.let {
-            runCatching {
-                Uuid.parse(it)
-                    
-            }.getOrNull()
-        }
-
     fun Route.register() {
         authenticate(JWT_AUTH) {
             route("/api/servers/{id}/mods") {
@@ -52,15 +44,8 @@ class ModsRoutes(val modService: ModService) {
                         code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                     }
                 }) {
-                    val userId = call.userId()
-                    val id = parseModServerId(call.parameters["id"])
-                        ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
-                    val scope = modService.getServerScope(id)
-                        ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                    val serverId = id
-                    if (!PermissionResolver.hasPermission(userId, Permission.SERVER_MODS, serverId = serverId, networkId = scope.networkId))
-                        return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                    call.respond(ModsListResponse(modService.listMods(id)))
+                    val auth = call.requireServerPermission(Permission.SERVER_MODS)
+                    call.respond(ModsListResponse(modService.listMods(auth.serverId)))
                 }
 
                 post("", {
@@ -76,16 +61,9 @@ class ModsRoutes(val modService: ModService) {
                         code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                     }
                 }) {
-                    val userId = call.userId()
-                    val id = parseModServerId(call.parameters["id"])
-                        ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
-                    val scope = modService.getServerScope(id)
-                        ?: return@post call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                    val serverId = id
-                    if (!PermissionResolver.hasPermission(userId, Permission.SERVER_MODS, serverId = serverId, networkId = scope.networkId))
-                        return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                    val auth = call.requireServerPermission(Permission.SERVER_MODS)
                     val req = call.receive<CreateModRequest>()
-                    call.respond(HttpStatusCode.Created, modService.addMod(id, req))
+                    call.respond(HttpStatusCode.Created, modService.addMod(auth.serverId, req))
                 }
 
                 patch("/{modId}", {
@@ -100,23 +78,16 @@ class ModsRoutes(val modService: ModService) {
                         code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                     }
                 }) {
-                    val userId = call.userId()
-                    val id = parseModServerId(call.parameters["id"])
-                        ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
+                    val auth = call.requireServerPermission(Permission.SERVER_MODS)
                     val modId = call.parameters["modId"]?.let {
                         runCatching {
                             Uuid.parse(it)
-                                
+
                         }.getOrNull()
                     }
                         ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid mod ID"))
-                    val scope = modService.getServerScope(id)
-                        ?: return@patch call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                    val serverId = id
-                    if (!PermissionResolver.hasPermission(userId, Permission.SERVER_MODS, serverId = serverId, networkId = scope.networkId))
-                        return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                     val req = call.receive<PatchModRequest>()
-                    call.respond(modService.updateMod(id, modId, req))
+                    call.respond(modService.updateMod(auth.serverId, modId, req))
                 }
 
                 delete("/{modId}", {
@@ -130,22 +101,15 @@ class ModsRoutes(val modService: ModService) {
                         code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                     }
                 }) {
-                    val userId = call.userId()
-                    val id = parseModServerId(call.parameters["id"])
-                        ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
+                    val auth = call.requireServerPermission(Permission.SERVER_MODS)
                     val modId = call.parameters["modId"]?.let {
                         runCatching {
                             Uuid.parse(it)
-                                
+
                         }.getOrNull()
                     }
                         ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid mod ID"))
-                    val scope = modService.getServerScope(id)
-                        ?: return@delete call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                    val serverId = id
-                    if (!PermissionResolver.hasPermission(userId, Permission.SERVER_MODS, serverId = serverId, networkId = scope.networkId))
-                        return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                    modService.deleteMod(id, modId)
+                    modService.deleteMod(auth.serverId, modId)
                     call.respond(HttpStatusCode.NoContent)
                 }
 
@@ -161,14 +125,7 @@ class ModsRoutes(val modService: ModService) {
                         code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                     }
                 }) {
-                    val userId = call.userId()
-                    val id = parseModServerId(call.parameters["id"])
-                        ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
-                    val scope = modService.getServerScope(id)
-                        ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                    val serverId = id
-                    if (!PermissionResolver.hasPermission(userId, Permission.SERVER_MODS, serverId = serverId, networkId = scope.networkId))
-                        return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                    call.requireServerPermission(Permission.SERVER_MODS)
                     val query = call.request.queryParameters["query"]?.takeIf { it.isNotBlank() } ?: ""
                     val limit = call.request.queryParameters["limit"]?.toIntOrNull()
                         ?.coerceIn(1, 20) ?: 10

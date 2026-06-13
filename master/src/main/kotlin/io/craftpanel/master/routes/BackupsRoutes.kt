@@ -2,7 +2,7 @@ package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.JWT_AUTH
-import io.craftpanel.master.auth.PermissionResolver
+import io.craftpanel.master.auth.requireServerPermission
 import io.craftpanel.master.service.BackupResponse
 import io.craftpanel.master.service.BackupScheduleResponse
 import io.craftpanel.master.service.BackupService
@@ -17,7 +17,6 @@ import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import io.ktor.utils.io.writeFully
 import kotlin.uuid.Uuid
 
 @Serializable
@@ -38,15 +37,8 @@ fun Route.backupsRoutes(backupService: BackupService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                val id = parseBackupServerId(call.parameters["id"])
-                    ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
-                val scope = backupService.getServerScope(id)
-                    ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                val serverId = id
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_BACKUP, serverId = serverId, networkId = scope.networkId))
-                    return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                call.respond(BackupsListResponse(backupService.listBackups(id)))
+                val auth = call.requireServerPermission(Permission.SERVER_BACKUP)
+                call.respond(BackupsListResponse(backupService.listBackups(auth.serverId)))
             }
 
             post("", {
@@ -61,15 +53,8 @@ fun Route.backupsRoutes(backupService: BackupService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                val id = parseBackupServerId(call.parameters["id"])
-                    ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
-                val scope = backupService.getServerScope(id)
-                    ?: return@post call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                val serverId = id
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_BACKUP, serverId = serverId, networkId = scope.networkId))
-                    return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                call.respond(HttpStatusCode.Accepted, backupService.triggerBackup(id))
+                val auth = call.requireServerPermission(Permission.SERVER_BACKUP)
+                call.respond(HttpStatusCode.Accepted, backupService.triggerBackup(auth.serverId))
             }
 
             delete("/{backupId}", {
@@ -84,22 +69,12 @@ fun Route.backupsRoutes(backupService: BackupService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                val id = parseBackupServerId(call.parameters["id"])
-                    ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
+                val auth = call.requireServerPermission(Permission.SERVER_BACKUP)
                 val backupId = call.parameters["backupId"]?.let {
-                    runCatching {
-                        Uuid.parse(it)
-                            
-                    }.getOrNull()
+                    runCatching { Uuid.parse(it) }.getOrNull()
                 }
                     ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid backup ID"))
-                val scope = backupService.getServerScope(id)
-                    ?: return@delete call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                val serverId = id
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_BACKUP, serverId = serverId, networkId = scope.networkId))
-                    return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                backupService.deleteBackup(id, backupId)
+                backupService.deleteBackup(auth.serverId, backupId)
                 call.respond(HttpStatusCode.NoContent)
             }
 
@@ -115,22 +90,12 @@ fun Route.backupsRoutes(backupService: BackupService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                val id = parseBackupServerId(call.parameters["id"])
-                    ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
+                val auth = call.requireServerPermission(Permission.SERVER_EXPORT)
                 val backupId = call.parameters["backupId"]?.let {
-                    runCatching {
-                        Uuid.parse(it)
-                            
-                    }.getOrNull()
+                    runCatching { Uuid.parse(it) }.getOrNull()
                 }
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid backup ID"))
-                val scope = backupService.getServerScope(id)
-                    ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                val serverId = id
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_EXPORT, serverId = serverId, networkId = scope.networkId))
-                    return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                val info = backupService.resolveDownload(id, backupId)
+                val info = backupService.resolveDownload(auth.serverId, backupId)
                 val byteList = mutableListOf<Int>()
                 backupService.downloadStream(info).collect { chunk ->
                     chunk.forEach { byte -> byteList.add(byte.toInt() and 0xFF) }
@@ -152,15 +117,8 @@ fun Route.backupsRoutes(backupService: BackupService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                val id = parseBackupServerId(call.parameters["id"])
-                    ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
-                val scope = backupService.getServerScope(id)
-                    ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                val serverId = id
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_BACKUP, serverId = serverId, networkId = scope.networkId))
-                    return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                call.respond(backupService.getSchedule(id))
+                val auth = call.requireServerPermission(Permission.SERVER_BACKUP)
+                call.respond(backupService.getSchedule(auth.serverId))
             }
 
             put("", {
@@ -175,26 +133,11 @@ fun Route.backupsRoutes(backupService: BackupService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                val id = parseBackupServerId(call.parameters["id"])
-                    ?: return@put call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
-                val scope = backupService.getServerScope(id)
-                    ?: return@put call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                val serverId = id
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_BACKUP, serverId = serverId, networkId = scope.networkId))
-                    return@put call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                val auth = call.requireServerPermission(Permission.SERVER_BACKUP)
                 val req = call.receive<PutBackupScheduleRequest>()
-                backupService.updateSchedule(id, req)
-                call.respond(HttpStatusCode.OK, backupService.getSchedule(id))
+                backupService.updateSchedule(auth.serverId, req)
+                call.respond(HttpStatusCode.OK, backupService.getSchedule(auth.serverId))
             }
         }
     }
 }
-
-private fun parseBackupServerId(raw: String?): Uuid? =
-    raw?.let {
-        runCatching {
-            Uuid.parse(it)
-                
-        }.getOrNull()
-    }

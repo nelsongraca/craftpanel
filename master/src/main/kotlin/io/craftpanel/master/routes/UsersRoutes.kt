@@ -2,7 +2,7 @@ package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.JWT_AUTH
-import io.craftpanel.master.auth.PermissionResolver
+import io.craftpanel.master.auth.requirePermission
 import io.craftpanel.master.service.*
 import io.github.smiley4.ktoropenapi.delete
 import io.github.smiley4.ktoropenapi.get
@@ -28,9 +28,7 @@ fun Route.usersRoutes(userService: UserService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
-                    return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                call.requirePermission(Permission.SYSTEM_USERS)
                 call.respond(userService.listUsers())
             }
 
@@ -45,9 +43,7 @@ fun Route.usersRoutes(userService: UserService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
-                    return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                call.requirePermission(Permission.SYSTEM_USERS)
                 val req = call.receive<CreateUserRequest>()
                 call.respond(HttpStatusCode.Created, userService.createUser(req))
             }
@@ -63,9 +59,7 @@ fun Route.usersRoutes(userService: UserService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
-                    return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                call.requirePermission(Permission.SYSTEM_USERS)
                 val targetId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
                 call.respond(userService.getUser(targetId))
@@ -83,9 +77,7 @@ fun Route.usersRoutes(userService: UserService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
-                    return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                call.requirePermission(Permission.SYSTEM_USERS)
                 val targetId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@patch call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
                 val req = call.receive<PatchUserRequest>()
@@ -104,9 +96,8 @@ fun Route.usersRoutes(userService: UserService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
+                call.requirePermission(Permission.SYSTEM_USERS)
                 val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
-                    return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val targetId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@delete call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
                 if (userId == targetId)

@@ -2,7 +2,7 @@ package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.JWT_AUTH
-import io.craftpanel.master.auth.PermissionResolver
+import io.craftpanel.master.auth.requirePermission
 import io.craftpanel.master.service.AlertEventResponse
 import io.craftpanel.master.service.AlertService
 import io.craftpanel.master.service.AlertThresholdResponse
@@ -37,15 +37,13 @@ fun Route.alertsRoutes(alertService: AlertService) {
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_SETTINGS))
-                    return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                call.requirePermission(Permission.SYSTEM_SETTINGS)
                 val scopeType = call.request.queryParameters["scope_type"]
                 val scopeId = call.request.queryParameters["scope_id"]
                     ?.let {
                         runCatching {
                             Uuid.parse(it)
-                                
+
                         }.getOrNull()
                     }
                 call.respond(AlertThresholdsResponse(alertService.listThresholds(scopeType, scopeId)))
@@ -61,9 +59,7 @@ fun Route.alertsRoutes(alertService: AlertService) {
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_SETTINGS))
-                    return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                call.requirePermission(Permission.SYSTEM_SETTINGS)
                 val req = call.receive<CreateAlertThresholdRequest>()
                 call.respond(HttpStatusCode.Created, alertService.createThreshold(req))
             }
@@ -78,14 +74,12 @@ fun Route.alertsRoutes(alertService: AlertService) {
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_SETTINGS))
-                    return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                call.requirePermission(Permission.SYSTEM_SETTINGS)
                 val id = call.parameters["id"]
                     ?.let {
                         runCatching {
                             Uuid.parse(it)
-                                
+
                         }.getOrNull()
                     }
                     ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid threshold ID"))
@@ -101,15 +95,13 @@ fun Route.alertsRoutes(alertService: AlertService) {
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_SETTINGS))
-                    return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                call.requirePermission(Permission.SYSTEM_SETTINGS)
                 val scopeType = call.request.queryParameters["scope_type"]
                 val scopeId = call.request.queryParameters["scope_id"]
                     ?.let {
                         runCatching {
                             Uuid.parse(it)
-                                
+
                         }.getOrNull()
                     }
                 val activeOnly = call.request.queryParameters["active_only"] == "true"

@@ -55,16 +55,6 @@ data class ModrinthSearchResult(val statusCode: Int, val body: String)
 
 class ModService {
 
-    data class ServerScope(val networkId: Uuid?)
-
-    fun getServerScope(serverId: Uuid): ServerScope? =
-        transaction {
-            Servers.selectAll()
-                .where { Servers.id eq serverId }
-                .firstOrNull()
-                ?.let { ServerScope(it[Servers.networkId]) }
-        }
-
     fun listMods(serverId: kotlin.uuid.Uuid): List<ModResponse> =
         transaction {
             ServerMods.selectAll()

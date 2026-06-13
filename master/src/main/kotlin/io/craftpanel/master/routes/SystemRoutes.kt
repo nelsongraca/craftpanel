@@ -2,7 +2,7 @@ package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.JWT_AUTH
-import io.craftpanel.master.auth.PermissionResolver
+import io.craftpanel.master.auth.requirePermission
 import io.craftpanel.master.service.PatchSettingsRequest
 import io.craftpanel.master.service.SystemService
 import io.craftpanel.master.service.SystemSettingsResponse
@@ -27,9 +27,7 @@ fun Route.systemRoutes(systemService: SystemService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_SETTINGS))
-                    return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                call.requirePermission(Permission.SYSTEM_SETTINGS)
                 call.respond(systemService.getSettings())
             }
 
@@ -44,9 +42,8 @@ fun Route.systemRoutes(systemService: SystemService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
+                call.requirePermission(Permission.SYSTEM_SETTINGS)
                 val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_SETTINGS))
-                    return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val req = call.receive<PatchSettingsRequest>()
                 call.respond(systemService.updateSettings(userId, req))
             }

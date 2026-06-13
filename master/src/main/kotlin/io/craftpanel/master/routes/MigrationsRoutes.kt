@@ -4,7 +4,7 @@ package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.JWT_AUTH
-import io.craftpanel.master.auth.PermissionResolver
+import io.craftpanel.master.auth.requireServerPermission
 import io.craftpanel.master.service.MigrateRequest
 import io.craftpanel.master.service.MigrationEvent
 import io.craftpanel.master.service.MigrationResponse
@@ -46,15 +46,8 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                val id = parseMigrationServerId(call.parameters["id"])
-                    ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
-                val scope = migrationService.getServerScope(id)
-                    ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                val serverId = id
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_MIGRATE, serverId = serverId, networkId = scope.networkId))
-                    return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                call.respond(MigrationsListResponse(migrationService.listMigrations(id)))
+                val auth = call.requireServerPermission(Permission.SERVER_MIGRATE)
+                call.respond(MigrationsListResponse(migrationService.listMigrations(auth.serverId)))
             }
 
             post("", {
@@ -70,16 +63,9 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                val id = parseMigrationServerId(call.parameters["id"])
-                    ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
-                val scope = migrationService.getServerScope(id)
-                    ?: return@post call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                val serverId = id
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_MIGRATE, serverId = serverId, networkId = scope.networkId))
-                    return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                val auth = call.requireServerPermission(Permission.SERVER_MIGRATE)
                 val req = call.receive<MigrateRequest>()
-                call.respond(HttpStatusCode.Accepted, migrationService.startMigration(id, req))
+                call.respond(HttpStatusCode.Accepted, migrationService.startMigration(auth.serverId, req))
             }
         }
 
@@ -100,7 +86,7 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
                     ?.let {
                         runCatching {
                             Uuid.parse(it)
-                                
+
                         }.getOrNull()
                     }
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid migration ID"))
@@ -135,11 +121,3 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
         }
     }
 }
-
-private fun parseMigrationServerId(raw: String?): Uuid? =
-    raw?.let {
-        runCatching {
-            Uuid.parse(it)
-                
-        }.getOrNull()
-    }

@@ -2,7 +2,7 @@ package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.JWT_AUTH
-import io.craftpanel.master.auth.PermissionResolver
+import io.craftpanel.master.auth.requirePermission
 import io.craftpanel.master.service.AssignmentResponse
 import io.craftpanel.master.service.AssignmentService
 import io.craftpanel.master.service.AssignmentsListResponse
@@ -32,9 +32,7 @@ fun Route.assignmentsRoutes(assignmentService: AssignmentService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val callerId = call.userId()
-                if (!PermissionResolver.hasPermission(callerId, Permission.SYSTEM_USERS))
-                    return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                call.requirePermission(Permission.SYSTEM_USERS)
                 val targetId = call.parameters["userId"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
                 call.respond(assignmentService.listAssignments(targetId))
@@ -53,9 +51,7 @@ fun Route.assignmentsRoutes(assignmentService: AssignmentService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val callerId = call.userId()
-                if (!PermissionResolver.hasPermission(callerId, Permission.SYSTEM_USERS))
-                    return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                call.requirePermission(Permission.SYSTEM_USERS)
                 val targetId = call.parameters["userId"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@post call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
                 val req = call.receive<CreateAssignmentRequest>()
@@ -73,9 +69,7 @@ fun Route.assignmentsRoutes(assignmentService: AssignmentService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val callerId = call.userId()
-                if (!PermissionResolver.hasPermission(callerId, Permission.SYSTEM_USERS))
-                    return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                call.requirePermission(Permission.SYSTEM_USERS)
                 val targetId = call.parameters["userId"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@delete call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
                 val assignmentId = call.parameters["assignmentId"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }

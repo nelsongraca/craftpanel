@@ -3,6 +3,7 @@ package io.craftpanel.master.routes
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.PermissionResolver
+import io.craftpanel.master.auth.requirePermission
 import io.craftpanel.master.service.*
 import io.github.smiley4.ktoropenapi.delete
 import io.github.smiley4.ktoropenapi.get
@@ -28,9 +29,8 @@ fun Route.networksRoutes(networkService: NetworkService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
+                call.requirePermission(Permission.SERVER_VIEW)
                 val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW))
-                    return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 call.respond(networkService.listNetworks(userId))
             }
 
@@ -45,9 +45,7 @@ fun Route.networksRoutes(networkService: NetworkService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CREATE))
-                    return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                call.requirePermission(Permission.SERVER_CREATE)
                 val req = call.receive<CreateNetworkRequest>()
                 call.respond(HttpStatusCode.Created, networkService.createNetwork(req))
             }
@@ -63,9 +61,7 @@ fun Route.networksRoutes(networkService: NetworkService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW))
-                    return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                call.requirePermission(Permission.SERVER_VIEW)
                 val id = parseNetworkId(call.parameters["id"])
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid network ID"))
                 call.respond(networkService.getNetwork(id))
@@ -122,6 +118,6 @@ private fun parseNetworkId(raw: String?): Uuid? =
     raw?.let {
         runCatching {
             Uuid.parse(it)
-                
+
         }.getOrNull()
     }

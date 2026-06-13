@@ -29,21 +29,6 @@ data class PatchStopCommandRequest(@SerialName("stop_command") val stopCommand: 
 
 class EnvVarsService {
 
-    data class ServerScope(val serverId: Uuid, val networkId: Uuid?)
-
-    fun getServerScope(serverId: Uuid): ServerScope? =
-        transaction {
-            Servers.selectAll()
-                .where { Servers.id eq serverId }
-                .firstOrNull()
-                ?.let {
-                    ServerScope(
-                        serverId = serverId,
-                        networkId = it[Servers.networkId],
-                    )
-                }
-        }
-
     fun getEnvVars(serverId: Uuid): EnvVarsResponse {
         transaction {
             Servers.selectAll()

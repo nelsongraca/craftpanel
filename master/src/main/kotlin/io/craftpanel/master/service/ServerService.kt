@@ -106,8 +106,6 @@ data class ContainerMetricsSeries(
     @SerialName("net_out_bytes") val netOutBytes: List<ContainerMetricsPointLong>,
 )
 
-data class ServerAuthInfo(val networkId: Uuid?)
-
 class ServerService(
     private val sendToNode: (String, MasterMessage) -> Boolean,
     private val modService: ModService,
@@ -118,13 +116,6 @@ class ServerService(
 
     private val log = LoggerFactory.getLogger(ServerService::class.java)
 
-
-    fun authInfo(id: Uuid): ServerAuthInfo? = transaction {
-        Servers.selectAll()
-            .where { Servers.id eq id }
-            .firstOrNull()
-            ?.let { ServerAuthInfo(it[Servers.networkId]) }
-    }
 
     fun listServers(userId: Uuid): List<ServerResponse> {
         val visibility = resolveServerVisibility(userId)

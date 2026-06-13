@@ -81,16 +81,6 @@ class MigrationService(
         }
     }
 
-    data class ServerScope(val networkId: Uuid?)
-
-    fun getServerScope(serverId: Uuid): ServerScope? =
-        transaction {
-            Servers.selectAll()
-                .where { Servers.id eq serverId }
-                .firstOrNull()
-                ?.let { ServerScope(it[Servers.networkId]) }
-        }
-
     fun startMigration(serverId: Uuid, req: MigrateRequest): MigrationResponse {
         val serverRow = transaction {
             Servers.selectAll()
