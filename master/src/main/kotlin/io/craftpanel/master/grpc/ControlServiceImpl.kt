@@ -35,6 +35,7 @@ import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 import io.craftpanel.master.util.toUtcString
+import io.craftpanel.master.domain.ServerStatus
 import kotlin.uuid.Uuid
 
 data class AlertEventNotification(
@@ -202,7 +203,7 @@ class ControlServiceImpl(
                         Nodes.selectAll()
                             .where {
                                 Nodes.id eq Uuid.parse(nodeId)
-                                    
+
                             }
                             .firstOrNull()
                             ?.get(Nodes.status)
@@ -447,7 +448,7 @@ class ControlServiceImpl(
     internal fun reconcileNodeState(nodeId: String, snapshot: NodeStateSnapshot): Boolean? {
         val kotlinNodeId = runCatching {
             Uuid.parse(nodeId)
-                
+
         }.getOrNull() ?: return null
         val now = Clock.System.now()
             .toLocalDateTime(TimeZone.UTC)
@@ -466,25 +467,20 @@ class ControlServiceImpl(
                 .where { Servers.nodeId eq kotlinNodeId }
                 .forEach { server ->
                     val serverId = server[Servers.id]
-                    val dbStatus = server[Servers.status]
+                    val dbStatus = ServerStatus.fromDb(server[Servers.status])
                     val container = byServerId[serverId.toString()]
 
-                    val newStatus: String? = when {
-                        container == null                                                               ->
-                            if (dbStatus in setOf("HEALTHY", "STARTING", "STOPPING", "UNHEALTHY")) "STOPPED" else null
-
-                        container.runState == ContainerState.RunState.RUNNING && dbStatus != "HEALTHY"  -> "HEALTHY"
-                        container.runState == ContainerState.RunState.STOPPED &&
-                                dbStatus in setOf("HEALTHY", "STARTING", "UNHEALTHY")                   -> "STOPPED"
-
-                        container.runState == ContainerState.RunState.EXITED && dbStatus != "UNHEALTHY" -> "UNHEALTHY"
-                        else                                                                            -> null
+                    val newStatus: ServerStatus? = if (container == null) {
+                        mapMissingContainer(dbStatus)
+                    }
+                    else {
+                        mapContainerState(container.runState, dbStatus)
                     }
 
                     if (newStatus != null) {
                         log.info("Node $nodeId reconcile: server $serverId $dbStatus → $newStatus")
                         Servers.update({ Servers.id eq serverId }) {
-                            it[Servers.status] = newStatus
+                            it[Servers.status] = newStatus.toDb()
                             container?.containerId?.takeIf { s -> s.isNotEmpty() }
                                 ?.let { cid -> it[Servers.containerId] = cid }
                             it[Servers.lastSeenAt] = now
@@ -511,7 +507,7 @@ class ControlServiceImpl(
     internal fun markNodeDegraded(nodeId: String) {
         val kotlinNodeId = runCatching {
             Uuid.parse(nodeId)
-                
+
         }.getOrElse {
             log.warn("markNodeDegraded: invalid nodeId format: $nodeId")
             return
@@ -562,7 +558,7 @@ class ControlServiceImpl(
     private fun persistNodeMetrics(nodeId: String, metrics: NodeMetricsUpdate) {
         val kotlinNodeId = runCatching {
             Uuid.parse(nodeId)
-                
+
         }.getOrNull() ?: return
         val recordedAt = if (metrics.hasRecordedAt()) {
             Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong())
@@ -596,7 +592,7 @@ class ControlServiceImpl(
     private fun persistContainerMetrics(metrics: ContainerMetricsUpdate) {
         val kotlinServerId = runCatching {
             Uuid.parse(metrics.serverId)
-                
+
         }.getOrNull() ?: return
         val recordedAt = if (metrics.hasRecordedAt()) {
             Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong())
@@ -622,7 +618,7 @@ class ControlServiceImpl(
     private fun persistServerStatus(update: ServerStatusUpdate) {
         val serverId = runCatching {
             Uuid.parse(update.serverId)
-                
+
         }.getOrNull() ?: return
         val dbStatus = when (update.status) {
             ServerStatusUpdate.ServerStatus.STARTING  -> "STARTING"
@@ -645,7 +641,7 @@ class ControlServiceImpl(
     private fun persistPlayerUpdate(update: PlayerUpdate) {
         val serverId = runCatching {
             Uuid.parse(update.serverId)
-                
+
         }.getOrNull() ?: return
         val now = Clock.System.now()
             .toLocalDateTime(TimeZone.UTC)
@@ -662,7 +658,7 @@ class ControlServiceImpl(
     private fun persistBackupComplete(update: BackupCompleteUpdate) {
         val backupId = runCatching {
             Uuid.parse(update.backupId)
-                
+
         }.getOrNull() ?: return
         val completedAt = if (update.hasCompletedAt()) {
             Instant.fromEpochSeconds(update.completedAt.seconds, update.completedAt.nanos.toLong())
@@ -694,7 +690,7 @@ class ControlServiceImpl(
     private suspend fun evaluateNodeAlerts(nodeId: String, metrics: NodeMetricsUpdate) {
         val kotlinNodeId = runCatching {
             Uuid.parse(nodeId)
-                
+
         }.getOrNull() ?: return
         val now = Clock.System.now()
             .toLocalDateTime(TimeZone.UTC)
@@ -757,7 +753,7 @@ class ControlServiceImpl(
     private suspend fun evaluateServerAlerts(metrics: ContainerMetricsUpdate) {
         val kotlinServerId = runCatching {
             Uuid.parse(metrics.serverId)
-                
+
         }.getOrNull() ?: return
         val now = Clock.System.now()
             .toLocalDateTime(TimeZone.UTC)

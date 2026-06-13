@@ -5,6 +5,7 @@ import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.config.ImagesConfig
+import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.dns.DnsProvider
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.slf4j.LoggerFactory
@@ -115,6 +116,7 @@ class ServerService(
 ) {
 
     private val log = LoggerFactory.getLogger(ServerService::class.java)
+    private val lifecycle = ServerLifecycle(sendToNode, modService, images, containerNamePrefix)
 
 
     fun listServers(userId: Uuid): List<ServerResponse> {
@@ -430,43 +432,15 @@ class ServerService(
                 .firstOrNull()
         }
             ?: throw NotFoundException("Server not found")
-        val currentStatus = serverRow[Servers.status]
-        if (currentStatus == "HEALTHY" || currentStatus == "STARTING")
+        val status = ServerStatus.fromDb(serverRow[Servers.status])
+        if (status == ServerStatus.HEALTHY || status == ServerStatus.STARTING)
             throw ConflictException("Server is already running")
-        val nodeKotlinId = serverRow[Servers.nodeId]
-        val serverType = serverRow[Servers.serverType]
-        val serverImage = images.deriveImage(serverType, serverRow[Servers.itzgImageTag])
-        val allVars = buildAllVars(id, serverRow)
-        val nodeId = nodeKotlinId.toString()
         val publicHostname = serverRow[Servers.dnsRecordName]
             ?: if (serverRow[Servers.exposedExternally] && serverRow[Servers.publicSubdomain] != null) {
                 resolvePublicHostname(serverRow[Servers.publicSubdomain]!!, serverRow[Servers.networkId])
             }
             else null
-
-        val shouldRecreate = serverRow[Servers.needsRecreate]
-        if (serverRow[Servers.containerId] == null || shouldRecreate) {
-            val pullCmd = masterMessage { pullImage = pullImageCommand { serverId = id.toString(); image = serverImage } }
-            if (!sendToNode(nodeId, pullCmd)) throw BadGatewayException("Agent not connected")
-            if (serverRow[Servers.containerId] != null) {
-                val removeCmd = masterMessage { removeContainer = removeContainerCommand { serverId = id.toString(); containerName = "$containerNamePrefix-$id"; force = false } }
-                if (!sendToNode(nodeId, removeCmd)) throw BadGatewayException("Agent not connected")
-            }
-            val createCmd = buildCreateContainerCommand(id, serverRow, serverImage, allVars, publicHostname)
-            if (!sendToNode(nodeId, createCmd)) throw BadGatewayException("Agent not connected")
-        }
-
-        val startCmd = masterMessage { startContainer = startContainerCommand { serverId = id.toString(); containerName = "$containerNamePrefix-$id" } }
-        if (!sendToNode(nodeId, startCmd)) throw BadGatewayException("Agent not connected")
-
-        transaction {
-            Servers.update({ Servers.id eq id }) {
-                it[status] = "STARTING"
-                it[needsRecreate] = false
-                it[updatedAt] = Clock.System.now()
-                    .toLocalDateTime(TimeZone.UTC)
-            }
-        }
+        lifecycle.start(serverRow, pull = serverRow[Servers.needsRecreate] || serverRow[Servers.containerId] == null, publicHostname = publicHostname)
     }
 
     fun stopServer(id: kotlin.uuid.Uuid) {
@@ -500,35 +474,10 @@ class ServerService(
                 .firstOrNull()
         }
             ?: throw NotFoundException("Server not found")
-        if (serverRow[Servers.status] == "STOPPED") throw ConflictException("Server is not running")
+        if (ServerStatus.fromDb(serverRow[Servers.status]).isStopped) throw ConflictException("Server is not running")
         val nodeId = serverRow[Servers.nodeId].toString()
         if (serverRow[Servers.needsRecreate]) {
-            val serverImage = images.deriveImage(serverRow[Servers.serverType], serverRow[Servers.itzgImageTag])
-            val allVars = buildAllVars(id, serverRow)
-            val publicHostname = serverRow[Servers.dnsRecordName]
-            val stopCmd = masterMessage {
-                stopContainer = stopContainerCommand {
-                    serverId = id.toString(); containerName = "$containerNamePrefix-$id"
-                    timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand]
-                }
-            }
-            if (!sendToNode(nodeId, stopCmd)) throw BadGatewayException("Agent not connected")
-            val removeCmd = masterMessage {
-                removeContainer = removeContainerCommand { serverId = id.toString(); containerName = "$containerNamePrefix-$id"; force = false }
-            }
-            if (!sendToNode(nodeId, removeCmd)) throw BadGatewayException("Agent not connected")
-            val createCmd = buildCreateContainerCommand(id, serverRow, serverImage, allVars, publicHostname)
-            if (!sendToNode(nodeId, createCmd)) throw BadGatewayException("Agent not connected")
-            val startCmd = masterMessage { startContainer = startContainerCommand { serverId = id.toString(); containerName = "$containerNamePrefix-$id" } }
-            if (!sendToNode(nodeId, startCmd)) throw BadGatewayException("Agent not connected")
-            transaction {
-                Servers.update({ Servers.id eq id }) {
-                    it[needsRecreate] = false
-                    it[status] = "STOPPING"
-                    it[updatedAt] = Clock.System.now()
-                        .toLocalDateTime(TimeZone.UTC)
-                }
-            }
+            lifecycle.recreateInPlace(serverRow, hostnameOverride = null)
         }
         else {
             val restartCmd = masterMessage {
@@ -660,20 +609,15 @@ class ServerService(
             }
         }
 
-        val isRunning = serverRow[Servers.status] in listOf("HEALTHY", "STARTING", "UNHEALTHY")
-        if (isRunning) {
-            val nodeId = serverRow[Servers.nodeId].toString()
-            val allVars = buildAllVars(id, serverRow)
-            val serverImage = images.deriveImage(serverRow[Servers.serverType], serverRow[Servers.itzgImageTag])
+        val currentStatus = ServerStatus.fromDb(serverRow[Servers.status])
+        if (currentStatus.isRunning) {
             val hostname = if (req.exposedExternally && req.publicSubdomain != null) newHostname else null
-            sendToNode(
-                nodeId,
-                masterMessage {
-                    stopContainer = stopContainerCommand { serverId = id.toString(); containerName = "$containerNamePrefix-$id"; timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand] }
-                })
-            sendToNode(nodeId, masterMessage { removeContainer = removeContainerCommand { serverId = id.toString(); containerName = "$containerNamePrefix-$id"; force = false } })
-            sendToNode(nodeId, buildCreateContainerCommand(id, serverRow, serverImage, allVars, hostname))
-            sendToNode(nodeId, masterMessage { startContainer = startContainerCommand { serverId = id.toString(); containerName = "$containerNamePrefix-$id" } })
+            val freshRow = transaction {
+                Servers.selectAll()
+                    .where { Servers.id eq id }
+                    .first()
+            }
+            lifecycle.recreateInPlace(freshRow, hostnameOverride = hostname)
         }
     }
 
@@ -689,45 +633,6 @@ class ServerService(
                 val suffix = row[ServerNetworks.cfDomainSuffix] ?: return@let null
                 NetworkDns(zoneId, suffix)
             }
-    }
-
-    private fun buildAllVars(id: kotlin.uuid.Uuid, serverRow: ResultRow): Map<String, String> {
-        val serverType = serverRow[Servers.serverType]
-        val modrinthProjects = modService.buildModrinthEnvVar(id)
-        val dbEnvVars = transaction {
-            ServerEnvVars.selectAll()
-                .where { ServerEnvVars.serverId eq id }
-                .associate { it[ServerEnvVars.key] to it[ServerEnvVars.value] }
-        }
-        val systemVars = buildMap {
-            put("EULA", "TRUE"); put("TYPE", serverType)
-            put("VERSION", serverRow[Servers.mcVersion]); put("MEMORY", "${serverRow[Servers.memoryMb]}M")
-            put("ENABLE_QUERY", "TRUE")
-            if (modrinthProjects.isNotEmpty()) put("MODRINTH_PROJECTS", modrinthProjects)
-        }
-        return systemVars + dbEnvVars
-    }
-
-    private fun buildCreateContainerCommand(
-        serverId: kotlin.uuid.Uuid,
-        serverRow: ResultRow,
-        image: String,
-        allVars: Map<String, String>,
-        publicHostname: String?,
-    ): MasterMessage = masterMessage {
-        createContainer = createContainerCommand {
-            this.serverId = serverId.toString()
-            containerName = "$containerNamePrefix-$serverId"
-            this.image = image
-            ramMb = serverRow[Servers.memoryMb]
-            cpuShares = serverRow[Servers.cpuShares]
-            hostPort = serverRow[Servers.hostPort]
-            envVars.putAll(allVars)
-            dockerNetwork = serverRow[Servers.networkId]?.let { "$containerNamePrefix-net-$it" } ?: ""
-            restartPolicy = "unless-stopped"
-            stopCommand = serverRow[Servers.stopCommand]
-            mcRouterHostname = publicHostname ?: ""
-        }
     }
 
     private fun resolvePublicHostname(subdomain: String, networkId: kotlin.uuid.Uuid?): String? {

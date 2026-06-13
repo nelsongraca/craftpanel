@@ -56,6 +56,7 @@ class MigrationsRoutesTest {
         serverStatusFlow = MutableSharedFlow(),
         dnsProvider = null,
         scope = testScope,
+        lifecycle = ServerLifecycle(noopSend, ModService()),
     )
 
     @BeforeTest
@@ -128,7 +129,8 @@ class MigrationsRoutesTest {
                 it[Nodes.hostname] = "node1.test"
                 it[Nodes.publicIp] = "1.2.3.4"
                 it[Nodes.privateIp] = "10.0.0.1"
-                it[Nodes.tokenHash] = Uuid.random().toString()
+                it[Nodes.tokenHash] = Uuid.random()
+                    .toString()
                 it[Nodes.status] = status
             }[Nodes.id]
         }

@@ -89,6 +89,7 @@ fun Application.module() {
     val alertService = AlertService()
     val modService = ModService()
     val containerNamePrefix = System.getenv("CRAFTPANEL_CONTAINER_PREFIX") ?: "craftpanel"
+    val serverLifecycle = ServerLifecycle(controlService::sendToNode, modService, appConfig.images, containerNamePrefix)
     val serverService = ServerService(controlService::sendToNode, modService, dnsProvider, appConfig.images, containerNamePrefix)
     val backupService = BackupService(controlService::sendToNode, dataServiceProxy)
     val proxyBackendService = ProxyBackendService()
@@ -101,7 +102,7 @@ fun Application.module() {
         serverStatusFlow = controlService.serverStatusFlow,
         dnsProvider = dnsProvider,
         scope = this,
-        images = appConfig.images,
+        lifecycle = serverLifecycle,
         containerNamePrefix = containerNamePrefix,
     )
 
@@ -237,27 +238,29 @@ fun Application.module() {
         get("health") { call.respond(mapOf("status" to "ok")) }
         route("openapi.json") { openApi() }
         route("swagger") { swaggerUI("/openapi.json") }
-        registerAppRoutes(AppServices(
-            jwtManager = jwtManager,
-            refreshTokenService = refreshTokenService,
-            wsTicketService = wsTicketService,
-            nodeService = nodeService,
-            networkService = networkService,
-            serverService = serverService,
-            userService = userService,
-            groupService = groupService,
-            assignmentService = assignmentService,
-            systemService = systemService,
-            backupService = backupService,
-            proxyBackendService = proxyBackendService,
-            envVarsService = envVarsService,
-            modService = modService,
-            alertService = alertService,
-            migrationService = migrationService,
-            dataServiceProxy = dataServiceProxy,
-            controlService = controlService,
-            rateLimitConfig = appConfig.rateLimit,
-            secureCookies = appConfig.auth.secureCookies,
-        ))
+        registerAppRoutes(
+            AppServices(
+                jwtManager = jwtManager,
+                refreshTokenService = refreshTokenService,
+                wsTicketService = wsTicketService,
+                nodeService = nodeService,
+                networkService = networkService,
+                serverService = serverService,
+                userService = userService,
+                groupService = groupService,
+                assignmentService = assignmentService,
+                systemService = systemService,
+                backupService = backupService,
+                proxyBackendService = proxyBackendService,
+                envVarsService = envVarsService,
+                modService = modService,
+                alertService = alertService,
+                migrationService = migrationService,
+                dataServiceProxy = dataServiceProxy,
+                controlService = controlService,
+                rateLimitConfig = appConfig.rateLimit,
+                secureCookies = appConfig.auth.secureCookies,
+            )
+        )
     }
 }
