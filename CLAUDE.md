@@ -36,15 +36,15 @@ craftpanel/
 ## Key Versions
 
 ```toml
-kotlin = "2.3.20"
-ktor = "3.4.0"
-exposed = "1.2.0"          # NOTE: 1.0+ uses org.jetbrains.exposed.v1.* imports
-grpc = "1.75.0"
-grpc-kotlin = "1.4.3"
-protobuf = "4.32.0"
-coroutines = "1.10.2"
-hikari = "6.3.0"
-postgresql = "42.7.5"
+kotlin = "2.4.0"
+ktor = "3.5.0"
+exposed = "1.3.0"          # NOTE: 1.0+ uses org.jetbrains.exposed.v1.* imports
+grpc = "1.82.0"
+grpc-kotlin = "1.5.0"
+protobuf = "4.35.0"
+coroutines = "1.11.0"
+hikari = "7.0.2"
+postgresql = "42.7.11"
 jdk = "25"
 node = "22.14.0"
 next = "16"
@@ -313,7 +313,8 @@ Requires Docker daemon running. Tests spin up PostgreSQL, master, agent, and fak
 
 - `CraftPanelStack` — singleton that starts/stops the full stack via Testcontainers
 - `BaseSystemTest` — Kotest `ShouldSpec` base; handles `CraftPanelStack.start()`, auth login, and trusting first pending node in `beforeSpec`/`afterSpec`
-- Helper classes: `AuthHelper`, `NodeHelper`, `ServerHelper` in `harness/`
+- Helper classes: `AuthHelper`, `NodeHelper`, `ServerHelper`, `MultiNodeHelper` in `harness/`
+- `MultiNodeHelper.trustAllPendingNodes(n)` — used by `SystemTestConfig` when stack starts with 2 agents
 - `listMods` returns `Map<String, List<ModResponse>>` (bucketed by loader); `.isEmpty()` checks map keys, not entries — use `.values.flatten().isEmpty()`
 - **Kotest 6.x: all lifecycle hooks must be registered at the `init {}` level**, never inside a `context {}` lambda — `beforeSpec`, `afterSpec`, `beforeContainer`, `beforeEach`, etc. are silently ignored when registered inside a container scope. Declare `lateinit var` state and hooks directly in `init`, then reference them from nested `context`/`should` lambdas via closure.
 - Shared servers in system tests: use `beforeSpec`/`afterSpec` with `lateinit var serverId` (and `serverId2` if two configs are needed) rather than per-test `try/finally` creation — reduces container spin-up count significantly.
@@ -369,6 +370,7 @@ Schema migrations via `exposed-migration-jdbc`.
 - Don't return `application/octet-stream` binary bodies from endpoints consumed by the system-test generated client (jvm-okhttp4+Gson maps binary response as `body.bytes() as? T` → null → NPE) — return JSON `List<Int>` for byte arrays instead, or a typed DTO
 - Don't conflate `itzgImageTag` (Docker image tag e.g. `"1.21.5"`) with `mcVersion` (the `VERSION` env var passed to `itzg/minecraft-server`) — they are separate fields with separate meanings
 - Don't use `java.util.UUID` — use `kotlin.uuid.Uuid` (`Uuid.random()`, `Uuid.parse()`, no `.toJavaUuid()`/`.toKotlinUuid()` conversions; Exposed 1.3.0 `uuid()` columns return `Uuid` natively)
+- Don't use `kotlin.io.encoding.Base64.encode()` for WS ticket tokens — produces standard base64 with `+`/`/`/`=` that are URL-unsafe in `?ticket=` query params; use `java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)`
 ## Agent skills
 
 ### Issue tracker
