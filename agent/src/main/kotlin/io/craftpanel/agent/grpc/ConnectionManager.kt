@@ -6,6 +6,7 @@ import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.MetricsCollector
 import io.craftpanel.agent.grpc.handlers.BackupHandler
 import io.craftpanel.agent.grpc.handlers.ContainerHandler
+import io.craftpanel.agent.grpc.handlers.ConsoleHandler
 import io.craftpanel.agent.grpc.handlers.FileHandler
 import io.craftpanel.agent.grpc.handlers.MigrationHandler
 import kotlinx.coroutines.delay
@@ -39,9 +40,10 @@ class ConnectionManager(
                     val backupHandler = BackupHandler(config)
                     val migrationHandler = MigrationHandler(config, containerManager)
                     val fileHandler = FileHandler(config, identity.nodeKey)
+                    val consoleHandler = ConsoleHandler(containerManager, docker)
                     ControlStreamHandler(
                         identity, config, containerManager, metricsCollector, docker,
-                        containerHandler, backupHandler, migrationHandler, fileHandler,
+                        containerHandler, backupHandler, migrationHandler, fileHandler, consoleHandler,
                     ).run(channel)
                 }
                 finally {
