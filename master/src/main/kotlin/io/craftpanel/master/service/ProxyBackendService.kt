@@ -10,7 +10,6 @@ import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.UUID
 import kotlin.uuid.Uuid
 
 @Serializable
@@ -36,7 +35,7 @@ data class PutProxyBackendsRequest(val backends: List<BackendInput>)
 
 class ProxyBackendService {
 
-    data class ServerScope(val serverIdJava: UUID, val networkId: UUID?)
+    data class ServerScope(val serverId: Uuid, val networkId: Uuid?)
 
     fun getServerScope(serverId: Uuid): ServerScope? =
         transaction {
@@ -45,8 +44,8 @@ class ProxyBackendService {
                 .firstOrNull()
                 ?.let {
                     ServerScope(
-                        serverIdJava = UUID.fromString(serverId.toString()),
-                        networkId = it[Servers.networkId]?.let { nid -> UUID.fromString(nid.toString()) },
+                        serverId = serverId,
+                        networkId = it[Servers.networkId],
                     )
                 }
         }

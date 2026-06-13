@@ -4,13 +4,13 @@ import com.auth0.jwt.JWT
 import com.auth0.jwt.JWTVerifier
 import com.auth0.jwt.algorithms.Algorithm
 import io.craftpanel.master.config.JwtConfig
+import kotlin.uuid.Uuid
 import java.time.Instant
-import java.util.UUID
 
 const val JWT_AUTH = "auth-jwt"
 
 data class TokenClaims(
-    val userId: UUID,
+    val userId: Uuid,
     val name: String,
     val email: String,
     val groups: List<String>,

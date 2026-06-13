@@ -11,7 +11,6 @@ import io.craftpanel.master.service.ProxyBackendListResponse
 import io.craftpanel.master.service.ProxyBackendService
 import io.craftpanel.master.service.PutEnvVarsRequest
 import io.craftpanel.master.service.PutProxyBackendsRequest
-import io.craftpanel.master.util.toKotlinUuid
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.patch
 import io.github.smiley4.ktoropenapi.put
@@ -20,7 +19,7 @@ import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import java.util.UUID
+import kotlin.uuid.Uuid
 
 fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService: EnvVarsService) {
     authenticate(JWT_AUTH) {
@@ -43,7 +42,7 @@ fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService:
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                 val scope = proxyBackendService.getServerScope(id)
                     ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, serverId = scope.serverIdJava, networkId = scope.networkId))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, serverId = scope.serverId, networkId = scope.networkId))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 call.respond(proxyBackendService.listBackends(id))
             }
@@ -69,7 +68,7 @@ fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService:
                     ?: return@put call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                 val scope = proxyBackendService.getServerScope(id)
                     ?: return@put call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, serverId = scope.serverIdJava, networkId = scope.networkId))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, serverId = scope.serverId, networkId = scope.networkId))
                     return@put call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val req = call.receive<PutProxyBackendsRequest>()
                 call.respond(proxyBackendService.replaceBackends(id, req))
@@ -91,7 +90,7 @@ fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService:
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                 val scope = envVarsService.getServerScope(id)
                     ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, serverId = scope.serverIdJava, networkId = scope.networkId))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, serverId = scope.serverId, networkId = scope.networkId))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 call.respond(envVarsService.getEnvVars(id))
             }
@@ -116,7 +115,7 @@ fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService:
                     ?: return@put call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                 val scope = envVarsService.getServerScope(id)
                     ?: return@put call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, serverId = scope.serverIdJava, networkId = scope.networkId))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, serverId = scope.serverId, networkId = scope.networkId))
                     return@put call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val req = call.receive<PutEnvVarsRequest>()
                 call.respond(envVarsService.replaceEnvVars(id, req))
@@ -142,7 +141,7 @@ fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService:
                     ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                 val scope = envVarsService.getServerScope(id)
                     ?: return@patch call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, serverId = scope.serverIdJava, networkId = scope.networkId))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, serverId = scope.serverId, networkId = scope.networkId))
                     return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val req = call.receive<PatchStopCommandRequest>()
                 envVarsService.updateStopCommand(id, req)
@@ -169,7 +168,7 @@ fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService:
                     ?: return@put call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                 val scope = envVarsService.getServerScope(id)
                     ?: return@put call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, serverId = scope.serverIdJava, networkId = scope.networkId))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, serverId = scope.serverId, networkId = scope.networkId))
                     return@put call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val req = call.receive<PatchConfigModeRequest>()
                 call.respond(envVarsService.updateConfigMode(id, req))
@@ -178,10 +177,7 @@ fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService:
     }
 }
 
-private fun parseConfigServerId(raw: String?): kotlin.uuid.Uuid? =
+private fun parseConfigServerId(raw: String?): Uuid? =
     raw?.let {
-        runCatching {
-            UUID.fromString(it)
-                .toKotlinUuid()
-        }.getOrNull()
+        runCatching { Uuid.parse(it) }.getOrNull()
     }

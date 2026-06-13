@@ -7,7 +7,7 @@ import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.*
-import io.craftpanel.master.util.toKotlinUuid
+import kotlin.uuid.Uuid
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
@@ -26,7 +26,6 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.*
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -81,30 +80,30 @@ class AlertsRoutesTest {
         install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
 
-    private fun createUser(email: String = "admin@example.com"): UUID = transaction {
+    private fun createUser(email: String = "admin@example.com"): Uuid = transaction {
         Users.insert {
             it[Users.username] = email.substringBefore("@")
             it[Users.email] = email
             it[Users.passwordHash] = Argon2Hasher.hash("hunter2")
             it[Users.isActive] = true
-        }[Users.id].let { UUID.fromString(it.toString()) }
+        }[Users.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun assignGlobalGroup(userId: UUID, groupName: String) = transaction {
+    private fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
         UserGroupAssignments.insert {
-            it[UserGroupAssignments.userId] = userId.toKotlinUuid()
+            it[UserGroupAssignments.userId] = userId
             it[UserGroupAssignments.groupId] = groupId
             it[UserGroupAssignments.scopeType] = "GLOBAL"
         }
     }
 
-    private fun tokenFor(userId: UUID): String =
+    private fun tokenFor(userId: Uuid): String =
         jwtManager.generate(TokenClaims(userId = userId, name = "admin", email = "admin@example.com", groups = emptyList()))
 
-    private fun createNode(hostname: String = "node-1"): UUID = transaction {
+    private fun createNode(hostname: String = "node-1"): Uuid = transaction {
         Nodes.insert {
             it[Nodes.hostname] = hostname
             it[Nodes.displayName] = hostname
@@ -114,7 +113,7 @@ class AlertsRoutesTest {
             it[Nodes.status] = "ACTIVE"
             it[Nodes.totalRamMb] = 8192
             it[Nodes.totalCpuShares] = 1024
-        }[Nodes.id].let { UUID.fromString(it.toString()) }
+        }[Nodes.id].let { Uuid.parse(it.toString()) }
     }
 
     // ── List thresholds ───────────────────────────────────────────────────────
@@ -238,7 +237,7 @@ class AlertsRoutesTest {
         val thresholdId = transaction {
             AlertThresholds.insert {
                 it[AlertThresholds.scopeType] = "NODE"
-                it[AlertThresholds.scopeId] = nodeId.toKotlinUuid()
+                it[AlertThresholds.scopeId] = nodeId
                 it[AlertThresholds.metric] = "cpu_percent"
                 it[AlertThresholds.thresholdValue] = 90.0
             }[AlertThresholds.id]
@@ -284,7 +283,7 @@ class AlertsRoutesTest {
         assignGlobalGroup(userId, "Super Admin")
         val token = tokenFor(userId)
 
-        val res = client.delete("/api/alerts/thresholds/${UUID.randomUUID()}") {
+        val res = client.delete("/api/alerts/thresholds/${Uuid.random()}") {
             header("Authorization", "Bearer $token")
         }
         assertEquals(HttpStatusCode.NotFound, res.status)
@@ -306,7 +305,7 @@ class AlertsRoutesTest {
         val thresholdId = transaction {
             AlertThresholds.insert {
                 it[AlertThresholds.scopeType] = "NODE"
-                it[AlertThresholds.scopeId] = nodeId.toKotlinUuid()
+                it[AlertThresholds.scopeId] = nodeId
                 it[AlertThresholds.metric] = "ram_percent"
                 it[AlertThresholds.thresholdValue] = 85.0
             }[AlertThresholds.id]
@@ -346,7 +345,7 @@ class AlertsRoutesTest {
         val thresholdId = transaction {
             AlertThresholds.insert {
                 it[AlertThresholds.scopeType] = "NODE"
-                it[AlertThresholds.scopeId] = nodeId.toKotlinUuid()
+                it[AlertThresholds.scopeId] = nodeId
                 it[AlertThresholds.metric] = "cpu_percent"
                 it[AlertThresholds.thresholdValue] = 80.0
             }[AlertThresholds.id]

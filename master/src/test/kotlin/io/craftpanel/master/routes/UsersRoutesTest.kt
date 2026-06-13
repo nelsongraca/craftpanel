@@ -9,7 +9,7 @@ import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.service.*
-import io.craftpanel.master.util.toKotlinUuid
+import kotlin.uuid.Uuid
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
@@ -26,7 +26,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.*
+
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -85,27 +85,27 @@ class UsersRoutesTest {
         email: String = "admin@example.com",
         password: String = "hunter2",
         isActive: Boolean = true,
-    ): UUID = transaction {
+    ): Uuid = transaction {
         Users.insert {
             it[Users.username] = username
             it[Users.email] = email
             it[Users.passwordHash] = Argon2Hasher.hash(password)
             it[Users.isActive] = isActive
-        }[Users.id].let { UUID.fromString(it.toString()) }
+        }[Users.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun assignGlobalGroup(userId: UUID, groupName: String) = transaction {
+    private fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
         UserGroupAssignments.insert {
-            it[UserGroupAssignments.userId] = userId.toKotlinUuid()
+            it[UserGroupAssignments.userId] = userId
             it[UserGroupAssignments.groupId] = groupId
             it[UserGroupAssignments.scopeType] = "GLOBAL"
         }
     }
 
-    private fun tokenFor(userId: UUID, username: String = "admin"): String =
+    private fun tokenFor(userId: Uuid, username: String = "admin"): String =
         jwtManager.generate(TokenClaims(userId = userId, name = username, email = "$username@example.com", groups = emptyList()))
 
     // ── GET /api/users ────────────────────────────────────────────────────────
@@ -190,7 +190,7 @@ class UsersRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.NotFound, client.get("/api/users/${UUID.randomUUID()}") { bearerAuth(tokenFor(userId)) }.status)
+        assertEquals(HttpStatusCode.NotFound, client.get("/api/users/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }.status)
     }
 
     @Test
@@ -260,7 +260,7 @@ class UsersRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
 
-        val response = client.patch("/api/users/${UUID.randomUUID()}") {
+        val response = client.patch("/api/users/${Uuid.random()}") {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
             setBody("""{"username":"x"}""")
@@ -289,7 +289,7 @@ class UsersRoutesTest {
 
         val exists = transaction {
             Users.selectAll()
-                .where { Users.id eq targetId.toKotlinUuid() }
+                .where { Users.id eq targetId }
                 .firstOrNull() != null
         }
         assertEquals(false, exists)
@@ -301,6 +301,6 @@ class UsersRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.NotFound, client.delete("/api/users/${UUID.randomUUID()}") { bearerAuth(tokenFor(userId)) }.status)
+        assertEquals(HttpStatusCode.NotFound, client.delete("/api/users/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }.status)
     }
 }

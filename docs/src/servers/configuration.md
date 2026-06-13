@@ -6,7 +6,8 @@ Each server operates in one of two configuration modes, switchable by a user wit
 
 ### Managed Mode (default)
 
-`server.properties` values are driven by **itzg environment variables**. The UI presents labelled form fields — users never interact with raw env var names. Master stores the current configuration in the `server_env_vars` table and injects the full set into the container spec on every create or restart.
+`server.properties` values are driven by **itzg environment variables**. The UI presents labelled form fields — users never interact with raw env var names. Master stores the current configuration in
+the `server_env_vars` table and injects the full set into the container spec on every create or restart.
 
 When a managed-mode container starts, itzg rewrites `server.properties` from the injected env vars. This is itzg's default behaviour — env vars always win over any existing file content.
 
@@ -14,27 +15,33 @@ This is the recommended mode for most users.
 
 ### Manual Mode
 
-Disables itzg's env var → `server.properties` translation. Master injects `OVERRIDE_SERVER_PROPERTIES=false` into the container spec alongside all other env vars. With this flag set, itzg leaves `server.properties` exactly as it exists on disk. The panel provides direct file editor access to `server.properties` (and any other config file) via the [File Explorer](./files-console.md). The user is responsible for file correctness.
+Disables itzg's env var → `server.properties` translation. Master injects `OVERRIDE_SERVER_PROPERTIES=false` into the container spec alongside all other env vars. With this flag set, itzg leaves
+`server.properties` exactly as it exists on disk. The panel provides direct file editor access to `server.properties` (and any other config file) via the [File Explorer](./files-console.md). The user
+is responsible for file correctness.
 
 `OVERRIDE_SERVER_PROPERTIES` is a master-owned internal variable. It is not stored in `server_env_vars` and is never user-editable — its value is derived from `config_mode`.
 
-Switching from managed to manual mode presents a confirmation warning. Managed mode settings are preserved in the database and continue to be injected into the container spec — they simply have no effect on `server.properties` while `OVERRIDE_SERVER_PROPERTIES=false` is set. Re-enabling managed mode restores full env var control on the next restart.
+Switching from managed to manual mode presents a confirmation warning. Managed mode settings are preserved in the database and continue to be injected into the container spec — they simply have no
+effect on `server.properties` while `OVERRIDE_SERVER_PROPERTIES=false` is set. Re-enabling managed mode restores full env var control on the next restart.
 
 !!! warning
-    Switching to manual mode does not migrate the current managed settings into `server.properties`. The file on disk reflects whatever itzg last wrote during the previous managed-mode start. Verify the file contents after switching.
+Switching to manual mode does not migrate the current managed settings into `server.properties`. The file on disk reflects whatever itzg last wrote during the previous managed-mode start. Verify the
+file contents after switching.
 
 ---
 
 ## Variable Injection Model
 
-Master always injects the complete `server_env_vars` set into every container spec, regardless of `config_mode`. `OVERRIDE_SERVER_PROPERTIES` is the single switch that determines whether itzg applies those vars to `server.properties` — master has no conditional logic about which vars to include based on mode.
+Master always injects the complete `server_env_vars` set into every container spec, regardless of `config_mode`. `OVERRIDE_SERVER_PROPERTIES` is the single switch that determines whether itzg applies
+those vars to `server.properties` — master has no conditional logic about which vars to include based on mode.
 
 This means:
 
 - **`server.properties`-mapped vars** (difficulty, max players, MOTD, etc.) — applied to the file when managed, ignored when manual
 - **Non-`server.properties` vars** (JVM flags, etc.) — always applied by itzg regardless of `OVERRIDE_SERVER_PROPERTIES`, since they have no `server.properties` equivalent
 
-The UI shows all configuration fields in both modes. In manual mode, `server.properties`-mapped fields are shown with a notice that they will not be applied to the file until managed mode is re-enabled. JVM option fields are always active.
+The UI shows all configuration fields in both modes. In manual mode, `server.properties`-mapped fields are shown with a notice that they will not be applied to the file until managed mode is
+re-enabled. JVM option fields are always active.
 
 ### Empty vs unset
 
@@ -43,27 +50,28 @@ itzg treats an **unset variable** (absent from the container spec) and an **empt
 - **Unset** — itzg leaves the existing `server.properties` entry unchanged
 - **Empty string** — itzg explicitly clears that property in `server.properties`
 
-Master never injects a var with an empty string unless the user has explicitly chosen to clear it. Fields that the user leaves blank are omitted from the container spec entirely. A small number of fields (e.g. `RESOURCE_PACK`) expose an explicit "clear" action in the UI for this purpose.
+Master never injects a var with an empty string unless the user has explicitly chosen to clear it. Fields that the user leaves blank are omitted from the container spec entirely. A small number of
+fields (e.g. `RESOURCE_PACK`) expose an explicit "clear" action in the UI for this purpose.
 
 ### What master always injects
 
 The following vars are always injected by master and are **never** stored in `server_env_vars`. They are not user-editable:
 
-| Variable | Source | Notes |
-|---|---|---|
-| `TYPE` | `server_type` column | Derived from server type at creation |
-| `VERSION` | `mc_version` column | Changed via the version field, not the env var table |
-| `EULA` | Always `TRUE` | Non-negotiable |
-| `MEMORY` / `MAX_MEMORY` | `memory_mb` column | Derived from resource allocation |
-| `SERVER_PORT` | Port registry | Assigned by master; never user-configurable |
-| `ENABLE_RCON` | Always `true` | Master requires RCON for backup save-all/save-off |
-| `RCON_PASSWORD` | Generated by master | Stored as a secret; never shown to users |
-| `RCON_PORT` | Always `25575` | Fixed; master manages RCON targeting internally |
-| `ENABLE_QUERY` | Always `true` | Master uses the query protocol for player count |
-| `QUERY_PORT` | Always `25565` (in-container) | Fixed; master maps externally via Docker |
-| `ENABLE_ROLLING_LOGS` | Always `true` | Log files are always rolled to prevent unbounded disk growth |
-| `MODRINTH_PROJECTS` | `server_mods` table | Generated from the Mods tab |
-| `OVERRIDE_SERVER_PROPERTIES` | `config_mode` column | `false` in manual mode; omitted (itzg default `true`) in managed mode |
+| Variable                     | Source                        | Notes                                                                 |
+|------------------------------|-------------------------------|-----------------------------------------------------------------------|
+| `TYPE`                       | `server_type` column          | Derived from server type at creation                                  |
+| `VERSION`                    | `mc_version` column           | Changed via the version field, not the env var table                  |
+| `EULA`                       | Always `TRUE`                 | Non-negotiable                                                        |
+| `MEMORY` / `MAX_MEMORY`      | `memory_mb` column            | Derived from resource allocation                                      |
+| `SERVER_PORT`                | Port registry                 | Assigned by master; never user-configurable                           |
+| `ENABLE_RCON`                | Always `true`                 | Master requires RCON for backup save-all/save-off                     |
+| `RCON_PASSWORD`              | Generated by master           | Stored as a secret; never shown to users                              |
+| `RCON_PORT`                  | Always `25575`                | Fixed; master manages RCON targeting internally                       |
+| `ENABLE_QUERY`               | Always `true`                 | Master uses the query protocol for player count                       |
+| `QUERY_PORT`                 | Always `25565` (in-container) | Fixed; master maps externally via Docker                              |
+| `ENABLE_ROLLING_LOGS`        | Always `true`                 | Log files are always rolled to prevent unbounded disk growth          |
+| `MODRINTH_PROJECTS`          | `server_mods` table           | Generated from the Mods tab                                           |
+| `OVERRIDE_SERVER_PROPERTIES` | `config_mode` column          | `false` in manual mode; omitted (itzg default `true`) in managed mode |
 
 ---
 
@@ -73,144 +81,146 @@ The Configuration tab groups settings into logical sections. Each field maps to 
 
 ### Defaults
 
-All fields are pre-populated at server creation time. Master generates the initial `server_env_vars` rows from the defaults below; users can change any value before or after the first start. Fields marked *(omit)* are not written to `server_env_vars` at creation — they are only injected if the user explicitly sets them.
+All fields are pre-populated at server creation time. Master generates the initial `server_env_vars` rows from the defaults below; users can change any value before or after the first start. Fields
+marked *(omit)* are not written to `server_env_vars` at creation — they are only injected if the user explicitly sets them.
 
-| Variable | Default | Notes |
-|---|---|---|
-| `MOTD` | `{mc_version} {Server Type} powered by {platform_name}` | Generated at creation from `mc_version`, server type display name, and the `CRAFTPANEL_PLATFORM_NAME` deployment config value (default `CraftPanel`). User can edit or blank it post-creation. Blank = omitted from spec, itzg generates its own MOTD. |
-| `DIFFICULTY` | `easy` | |
-| `MODE` | `survival` | |
-| `HARDCORE` | `false` | |
-| `PVP` | `true` | |
-| `ALLOW_NETHER` | `true` | |
-| `FORCE_GAMEMODE` | `false` | |
-| `SPAWN_ANIMALS` | `true` | |
-| `SPAWN_MONSTERS` | `true` | |
-| `SPAWN_NPCS` | `true` | |
-| `SPAWN_PROTECTION` | `16` | |
-| `ALLOW_FLIGHT` | `false` | |
-| `LEVEL` | `world` | |
-| `LEVEL_TYPE` | `DEFAULT` | |
-| `GENERATE_STRUCTURES` | `true` | |
-| `MAX_WORLD_SIZE` | `29999984` | |
-| `MAX_PLAYERS` | `20` | |
-| `ONLINE_MODE` | `true` | |
-| `ENABLE_WHITELIST` | `false` | |
-| `EXISTING_WHITELIST_FILE` | `SYNCHRONIZE` | Keeps the whitelist file in sync with the `WHITELIST` var on every start |
-| `EXISTING_OPS_FILE` | `SYNCHRONIZE` | Keeps the ops file in sync with the `OPS` var on every start |
-| `PLAYER_IDLE_TIMEOUT` | `0` | Disabled |
-| `ENFORCE_SECURE_PROFILE` | `true` | |
-| `PREVENT_PROXY_CONNECTIONS` | `false` | |
-| `VIEW_DISTANCE` | `10` | |
-| `SIMULATION_DISTANCE` | `10` | |
-| `MAX_TICK_TIME` | `60000` | |
-| `NETWORK_COMPRESSION_THRESHOLD` | `256` | |
-| `SYNC_CHUNK_WRITES` | `true` | |
-| `ENABLE_COMMAND_BLOCK` | `false` | |
-| `OP_PERMISSION_LEVEL` | `4` | |
-| `FUNCTION_PERMISSION_LEVEL` | `2` | |
-| `BROADCAST_CONSOLE_TO_OPS` | `true` | |
-| `TZ` | `UTC` | |
-| `USE_AIKAR_FLAGS` | `true` | Recommended for all production servers |
-| `SEED` | *(omit)* | Omitted so Minecraft generates a random seed; set explicitly if needed |
-| `WHITELIST` | *(omit)* | Only injected if populated |
-| `OPS` | *(omit)* | Only injected if populated |
-| `RESOURCE_PACK` | *(omit)* | Only injected if set |
-| `RESOURCE_PACK_SHA1` | *(omit)* | Only injected if set |
-| `RESOURCE_PACK_ENFORCE` | *(omit)* | Only injected when `RESOURCE_PACK` is also set |
-| `ICON` | *(omit)* | Only injected if set |
-| `CUSTOM_SERVER_PROPERTIES` | *(omit)* | Only injected if non-empty |
-| `GENERATOR_SETTINGS` | *(omit)* | Only injected when `LEVEL_TYPE` is `FLAT` |
-| `JVM_OPTS` | *(omit)* | Only injected if user has set a value |
-| `JVM_XX_OPTS` | *(omit)* | Only injected if user has set a value |
-| `USE_MEOWICE_FLAGS` | *(omit)* | Mutually exclusive with `USE_AIKAR_FLAGS`; omitted unless explicitly enabled |
+| Variable                        | Default                                                 | Notes                                                                                                                                                                                                                                                  |
+|---------------------------------|---------------------------------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `MOTD`                          | `{mc_version} {Server Type} powered by {platform_name}` | Generated at creation from `mc_version`, server type display name, and the `CRAFTPANEL_PLATFORM_NAME` deployment config value (default `CraftPanel`). User can edit or blank it post-creation. Blank = omitted from spec, itzg generates its own MOTD. |
+| `DIFFICULTY`                    | `easy`                                                  |                                                                                                                                                                                                                                                        |
+| `MODE`                          | `survival`                                              |                                                                                                                                                                                                                                                        |
+| `HARDCORE`                      | `false`                                                 |                                                                                                                                                                                                                                                        |
+| `PVP`                           | `true`                                                  |                                                                                                                                                                                                                                                        |
+| `ALLOW_NETHER`                  | `true`                                                  |                                                                                                                                                                                                                                                        |
+| `FORCE_GAMEMODE`                | `false`                                                 |                                                                                                                                                                                                                                                        |
+| `SPAWN_ANIMALS`                 | `true`                                                  |                                                                                                                                                                                                                                                        |
+| `SPAWN_MONSTERS`                | `true`                                                  |                                                                                                                                                                                                                                                        |
+| `SPAWN_NPCS`                    | `true`                                                  |                                                                                                                                                                                                                                                        |
+| `SPAWN_PROTECTION`              | `16`                                                    |                                                                                                                                                                                                                                                        |
+| `ALLOW_FLIGHT`                  | `false`                                                 |                                                                                                                                                                                                                                                        |
+| `LEVEL`                         | `world`                                                 |                                                                                                                                                                                                                                                        |
+| `LEVEL_TYPE`                    | `DEFAULT`                                               |                                                                                                                                                                                                                                                        |
+| `GENERATE_STRUCTURES`           | `true`                                                  |                                                                                                                                                                                                                                                        |
+| `MAX_WORLD_SIZE`                | `29999984`                                              |                                                                                                                                                                                                                                                        |
+| `MAX_PLAYERS`                   | `20`                                                    |                                                                                                                                                                                                                                                        |
+| `ONLINE_MODE`                   | `true`                                                  |                                                                                                                                                                                                                                                        |
+| `ENABLE_WHITELIST`              | `false`                                                 |                                                                                                                                                                                                                                                        |
+| `EXISTING_WHITELIST_FILE`       | `SYNCHRONIZE`                                           | Keeps the whitelist file in sync with the `WHITELIST` var on every start                                                                                                                                                                               |
+| `EXISTING_OPS_FILE`             | `SYNCHRONIZE`                                           | Keeps the ops file in sync with the `OPS` var on every start                                                                                                                                                                                           |
+| `PLAYER_IDLE_TIMEOUT`           | `0`                                                     | Disabled                                                                                                                                                                                                                                               |
+| `ENFORCE_SECURE_PROFILE`        | `true`                                                  |                                                                                                                                                                                                                                                        |
+| `PREVENT_PROXY_CONNECTIONS`     | `false`                                                 |                                                                                                                                                                                                                                                        |
+| `VIEW_DISTANCE`                 | `10`                                                    |                                                                                                                                                                                                                                                        |
+| `SIMULATION_DISTANCE`           | `10`                                                    |                                                                                                                                                                                                                                                        |
+| `MAX_TICK_TIME`                 | `60000`                                                 |                                                                                                                                                                                                                                                        |
+| `NETWORK_COMPRESSION_THRESHOLD` | `256`                                                   |                                                                                                                                                                                                                                                        |
+| `SYNC_CHUNK_WRITES`             | `true`                                                  |                                                                                                                                                                                                                                                        |
+| `ENABLE_COMMAND_BLOCK`          | `false`                                                 |                                                                                                                                                                                                                                                        |
+| `OP_PERMISSION_LEVEL`           | `4`                                                     |                                                                                                                                                                                                                                                        |
+| `FUNCTION_PERMISSION_LEVEL`     | `2`                                                     |                                                                                                                                                                                                                                                        |
+| `BROADCAST_CONSOLE_TO_OPS`      | `true`                                                  |                                                                                                                                                                                                                                                        |
+| `TZ`                            | `UTC`                                                   |                                                                                                                                                                                                                                                        |
+| `USE_AIKAR_FLAGS`               | `true`                                                  | Recommended for all production servers                                                                                                                                                                                                                 |
+| `SEED`                          | *(omit)*                                                | Omitted so Minecraft generates a random seed; set explicitly if needed                                                                                                                                                                                 |
+| `WHITELIST`                     | *(omit)*                                                | Only injected if populated                                                                                                                                                                                                                             |
+| `OPS`                           | *(omit)*                                                | Only injected if populated                                                                                                                                                                                                                             |
+| `RESOURCE_PACK`                 | *(omit)*                                                | Only injected if set                                                                                                                                                                                                                                   |
+| `RESOURCE_PACK_SHA1`            | *(omit)*                                                | Only injected if set                                                                                                                                                                                                                                   |
+| `RESOURCE_PACK_ENFORCE`         | *(omit)*                                                | Only injected when `RESOURCE_PACK` is also set                                                                                                                                                                                                         |
+| `ICON`                          | *(omit)*                                                | Only injected if set                                                                                                                                                                                                                                   |
+| `CUSTOM_SERVER_PROPERTIES`      | *(omit)*                                                | Only injected if non-empty                                                                                                                                                                                                                             |
+| `GENERATOR_SETTINGS`            | *(omit)*                                                | Only injected when `LEVEL_TYPE` is `FLAT`                                                                                                                                                                                                              |
+| `JVM_OPTS`                      | *(omit)*                                                | Only injected if user has set a value                                                                                                                                                                                                                  |
+| `JVM_XX_OPTS`                   | *(omit)*                                                | Only injected if user has set a value                                                                                                                                                                                                                  |
+| `USE_MEOWICE_FLAGS`             | *(omit)*                                                | Mutually exclusive with `USE_AIKAR_FLAGS`; omitted unless explicitly enabled                                                                                                                                                                           |
 
 ### Gameplay
 
-| Field | Env var | Type |
-|---|---|---|
-| Difficulty | `DIFFICULTY` | Select: `peaceful` / `easy` / `normal` / `hard` |
-| Default Game Mode | `MODE` | Select: `survival` / `creative` / `adventure` / `spectator` |
-| Hardcore Mode | `HARDCORE` | Toggle |
-| PvP | `PVP` | Toggle |
-| Allow Nether | `ALLOW_NETHER` | Toggle |
-| Force Game Mode on Join | `FORCE_GAMEMODE` | Toggle |
-| Spawn Animals | `SPAWN_ANIMALS` | Toggle |
-| Spawn Monsters | `SPAWN_MONSTERS` | Toggle |
-| Spawn Villagers | `SPAWN_NPCS` | Toggle |
-| Spawn Protection Radius | `SPAWN_PROTECTION` | Number |
-| Allow Flight | `ALLOW_FLIGHT` | Toggle |
+| Field                   | Env var            | Type                                                        |
+|-------------------------|--------------------|-------------------------------------------------------------|
+| Difficulty              | `DIFFICULTY`       | Select: `peaceful` / `easy` / `normal` / `hard`             |
+| Default Game Mode       | `MODE`             | Select: `survival` / `creative` / `adventure` / `spectator` |
+| Hardcore Mode           | `HARDCORE`         | Toggle                                                      |
+| PvP                     | `PVP`              | Toggle                                                      |
+| Allow Nether            | `ALLOW_NETHER`     | Toggle                                                      |
+| Force Game Mode on Join | `FORCE_GAMEMODE`   | Toggle                                                      |
+| Spawn Animals           | `SPAWN_ANIMALS`    | Toggle                                                      |
+| Spawn Monsters          | `SPAWN_MONSTERS`   | Toggle                                                      |
+| Spawn Villagers         | `SPAWN_NPCS`       | Toggle                                                      |
+| Spawn Protection Radius | `SPAWN_PROTECTION` | Number                                                      |
+| Allow Flight            | `ALLOW_FLIGHT`     | Toggle                                                      |
 
 ### World
 
-| Field | Env var | Type | Notes |
-|---|---|---|---|
-| World Seed | `SEED` | Text | Omitted by default so Minecraft generates a random seed. Changing after world creation has no effect on the existing world |
-| World Save Name | `LEVEL` | Text | Switches between world saves on restart |
-| World Type | `LEVEL_TYPE` | Select | `DEFAULT` / `FLAT` / `AMPLIFIED` / etc. |
-| Generator Settings | `GENERATOR_SETTINGS` | Textarea | Only shown when World Type is `FLAT` |
-| Generate Structures | `GENERATE_STRUCTURES` | Toggle | |
-| Max World Size | `MAX_WORLD_SIZE` | Number | |
-| Max Build Height | `MAX_BUILD_HEIGHT` | Number | |
+| Field               | Env var               | Type     | Notes                                                                                                                      |
+|---------------------|-----------------------|----------|----------------------------------------------------------------------------------------------------------------------------|
+| World Seed          | `SEED`                | Text     | Omitted by default so Minecraft generates a random seed. Changing after world creation has no effect on the existing world |
+| World Save Name     | `LEVEL`               | Text     | Switches between world saves on restart                                                                                    |
+| World Type          | `LEVEL_TYPE`          | Select   | `DEFAULT` / `FLAT` / `AMPLIFIED` / etc.                                                                                    |
+| Generator Settings  | `GENERATOR_SETTINGS`  | Textarea | Only shown when World Type is `FLAT`                                                                                       |
+| Generate Structures | `GENERATE_STRUCTURES` | Toggle   |                                                                                                                            |
+| Max World Size      | `MAX_WORLD_SIZE`      | Number   |                                                                                                                            |
+| Max Build Height    | `MAX_BUILD_HEIGHT`    | Number   |                                                                                                                            |
 
 ### Players & Access
 
-| Field | Env var | Type | Notes |
-|---|---|---|---|
-| Message of the Day | `MOTD` | Text | Pre-populated at creation; blank to omit and let itzg generate |
-| Max Players | `MAX_PLAYERS` | Number | |
-| Online Mode | `ONLINE_MODE` | Toggle | Disabling bypasses Mojang auth — shown with a prominent warning |
-| Enable Whitelist | `ENABLE_WHITELIST` | Toggle | |
-| Whitelisted Players | `WHITELIST` | Tag input | Comma-separated usernames or UUIDs |
-| Operator Players | `OPS` | Tag input | Comma-separated usernames or UUIDs |
-| Player Idle Timeout | `PLAYER_IDLE_TIMEOUT` | Number | Minutes; `0` = disabled |
-| Enforce Secure Chat | `ENFORCE_SECURE_PROFILE` | Toggle | 1.19+ |
-| Prevent Proxy Connections | `PREVENT_PROXY_CONNECTIONS` | Toggle | |
+| Field                     | Env var                     | Type      | Notes                                                           |
+|---------------------------|-----------------------------|-----------|-----------------------------------------------------------------|
+| Message of the Day        | `MOTD`                      | Text      | Pre-populated at creation; blank to omit and let itzg generate  |
+| Max Players               | `MAX_PLAYERS`               | Number    |                                                                 |
+| Online Mode               | `ONLINE_MODE`               | Toggle    | Disabling bypasses Mojang auth — shown with a prominent warning |
+| Enable Whitelist          | `ENABLE_WHITELIST`          | Toggle    |                                                                 |
+| Whitelisted Players       | `WHITELIST`                 | Tag input | Comma-separated usernames or UUIDs                              |
+| Operator Players          | `OPS`                       | Tag input | Comma-separated usernames or UUIDs                              |
+| Player Idle Timeout       | `PLAYER_IDLE_TIMEOUT`       | Number    | Minutes; `0` = disabled                                         |
+| Enforce Secure Chat       | `ENFORCE_SECURE_PROFILE`    | Toggle    | 1.19+                                                           |
+| Prevent Proxy Connections | `PREVENT_PROXY_CONNECTIONS` | Toggle    |                                                                 |
 
 ### Performance
 
-| Field | Env var | Type | Notes |
-|---|---|---|---|
-| View Distance | `VIEW_DISTANCE` | Number | Chunks |
-| Simulation Distance | `SIMULATION_DISTANCE` | Number | Chunks |
-| Max Tick Time | `MAX_TICK_TIME` | Number | ms; `-1` to disable watchdog |
-| Network Compression Threshold | `NETWORK_COMPRESSION_THRESHOLD` | Number | Bytes; `-1` to disable |
-| Sync Chunk Writes | `SYNC_CHUNK_WRITES` | Toggle | |
+| Field                         | Env var                         | Type   | Notes                        |
+|-------------------------------|---------------------------------|--------|------------------------------|
+| View Distance                 | `VIEW_DISTANCE`                 | Number | Chunks                       |
+| Simulation Distance           | `SIMULATION_DISTANCE`           | Number | Chunks                       |
+| Max Tick Time                 | `MAX_TICK_TIME`                 | Number | ms; `-1` to disable watchdog |
+| Network Compression Threshold | `NETWORK_COMPRESSION_THRESHOLD` | Number | Bytes; `-1` to disable       |
+| Sync Chunk Writes             | `SYNC_CHUNK_WRITES`             | Toggle |                              |
 
 ### Resource Pack
 
-| Field | Env var | Notes |
-|---|---|---|
-| Resource Pack URL | `RESOURCE_PACK` | Set to empty string via the "Clear" action to explicitly remove a previously set pack |
-| Resource Pack SHA1 | `RESOURCE_PACK_SHA1` | |
-| Enforce Resource Pack | `RESOURCE_PACK_ENFORCE` | Only injected when `RESOURCE_PACK` is set |
+| Field                 | Env var                 | Notes                                                                                 |
+|-----------------------|-------------------------|---------------------------------------------------------------------------------------|
+| Resource Pack URL     | `RESOURCE_PACK`         | Set to empty string via the "Clear" action to explicitly remove a previously set pack |
+| Resource Pack SHA1    | `RESOURCE_PACK_SHA1`    |                                                                                       |
+| Enforce Resource Pack | `RESOURCE_PACK_ENFORCE` | Only injected when `RESOURCE_PACK` is set                                             |
 
 ### Advanced
 
 Shown under an expandable section.
 
-| Field | Env var | Type | Notes |
-|---|---|---|---|
-| Enable Command Blocks | `ENABLE_COMMAND_BLOCK` | Toggle | |
-| Op Permission Level | `OP_PERMISSION_LEVEL` | Number | 1–4 |
-| Function Permission Level | `FUNCTION_PERMISSION_LEVEL` | Number | |
-| Broadcast Console to Ops | `BROADCAST_CONSOLE_TO_OPS` | Toggle | |
-| Server Icon URL | `ICON` | Text | Downloaded and scaled by itzg on start |
-| Timezone | `TZ` | Text | e.g. `Europe/London` |
-| Custom Server Properties | `CUSTOM_SERVER_PROPERTIES` | Textarea | Newline-delimited `key=value` pairs for plugin-specific properties not covered by the fields above; available without switching to manual mode |
+| Field                     | Env var                     | Type     | Notes                                                                                                                                          |
+|---------------------------|-----------------------------|----------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| Enable Command Blocks     | `ENABLE_COMMAND_BLOCK`      | Toggle   |                                                                                                                                                |
+| Op Permission Level       | `OP_PERMISSION_LEVEL`       | Number   | 1–4                                                                                                                                            |
+| Function Permission Level | `FUNCTION_PERMISSION_LEVEL` | Number   |                                                                                                                                                |
+| Broadcast Console to Ops  | `BROADCAST_CONSOLE_TO_OPS`  | Toggle   |                                                                                                                                                |
+| Server Icon URL           | `ICON`                      | Text     | Downloaded and scaled by itzg on start                                                                                                         |
+| Timezone                  | `TZ`                        | Text     | e.g. `Europe/London`                                                                                                                           |
+| Custom Server Properties  | `CUSTOM_SERVER_PROPERTIES`  | Textarea | Newline-delimited `key=value` pairs for plugin-specific properties not covered by the fields above; available without switching to manual mode |
 
 ---
 
 ## JVM Options
 
-These variables have no `server.properties` equivalent — they affect how the JVM is launched. As a result they are **always applied by itzg regardless of `config_mode`**; `OVERRIDE_SERVER_PROPERTIES` has no effect on them. They are stored in `server_env_vars` and editable in both managed and manual mode.
+These variables have no `server.properties` equivalent — they affect how the JVM is launched. As a result they are **always applied by itzg regardless of `config_mode`**; `OVERRIDE_SERVER_PROPERTIES`
+has no effect on them. They are stored in `server_env_vars` and editable in both managed and manual mode.
 
-| Field | Env var | Notes |
-|---|---|---|
-| Aikar's GC Flags | `USE_AIKAR_FLAGS` | Recommended for production; mutually exclusive with MeowIce flags |
-| MeowIce JVM Flags | `USE_MEOWICE_FLAGS` | Aikar's flags updated for Java 21+; mutually exclusive with Aikar's flags |
-| Extra JVM Arguments | `JVM_OPTS` | Space-delimited raw JVM flags |
-| Extra JVM -XX Arguments | `JVM_XX_OPTS` | Space-delimited `-XX` options only |
+| Field                   | Env var             | Notes                                                                     |
+|-------------------------|---------------------|---------------------------------------------------------------------------|
+| Aikar's GC Flags        | `USE_AIKAR_FLAGS`   | Recommended for production; mutually exclusive with MeowIce flags         |
+| MeowIce JVM Flags       | `USE_MEOWICE_FLAGS` | Aikar's flags updated for Java 21+; mutually exclusive with Aikar's flags |
+| Extra JVM Arguments     | `JVM_OPTS`          | Space-delimited raw JVM flags                                             |
+| Extra JVM -XX Arguments | `JVM_XX_OPTS`       | Space-delimited `-XX` options only                                        |
 
 ---
 
@@ -218,24 +228,24 @@ These variables have no `server.properties` equivalent — they affect how the J
 
 The following itzg variables are not available through the UI in either mode:
 
-| Variable(s) | Reason |
-|---|---|
-| `TYPE`, `VERSION`, `EULA`, `MEMORY`, `SERVER_PORT`, `RCON_*`, `ENABLE_QUERY`, `QUERY_PORT`, `ENABLE_ROLLING_LOGS`, `MODRINTH_PROJECTS`, `OVERRIDE_SERVER_PROPERTIES` | Master-owned; see above |
-| `UID` / `GID` | Infrastructure concern set at deployment time |
-| `SETUP_ONLY` | Not applicable to CraftPanel's container lifecycle |
-| `PROXY` / `PROXY_HOST` / `PROXY_PORT` | Infrastructure concern |
-| `CONSOLE` / `GUI` | Internal itzg quirks for old Spigot versions |
-| `LOG_LEVEL`, `LOG_CONSOLE_FORMAT`, `LOG_FILE_FORMAT`, `LOG_TIMESTAMP` | Container log formatting; not relevant in a panel context |
-| `ENABLE_JMX` / `JMX_HOST` | Developer tooling; out of scope for v1 |
-| `USE_FLARE_FLAGS` / `USE_SIMD_FLAGS` | Niche profiling flags; power users can set via `JVM_OPTS` |
-| `JVM_DD_OPTS` | Available via `JVM_OPTS` for power users |
-| `EXTRA_ARGS` | Available in manual mode |
-| `RCON_CMDS_STARTUP`, `RCON_CMDS_ON_CONNECT`, etc. | Deferred; candidate for a future startup commands feature |
-| `CF_*` | CurseForge modpack support; outside CraftPanel's mod management model |
-| `ACCEPTS_TRANSFERS` | 1.20.5+ transfer protocol; niche; available in manual mode |
-| `MANAGEMENT_SERVER_*` | Minecraft's built-in management server; conflicts with CraftPanel's management layer |
-| `ANNOUNCE_PLAYER_ACHIEVEMENTS` | Legacy; removed before 1.9 |
-| `SNOOPER_ENABLED` | Removed in 1.18 |
+| Variable(s)                                                                                                                                                          | Reason                                                                               |
+|----------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------|
+| `TYPE`, `VERSION`, `EULA`, `MEMORY`, `SERVER_PORT`, `RCON_*`, `ENABLE_QUERY`, `QUERY_PORT`, `ENABLE_ROLLING_LOGS`, `MODRINTH_PROJECTS`, `OVERRIDE_SERVER_PROPERTIES` | Master-owned; see above                                                              |
+| `UID` / `GID`                                                                                                                                                        | Infrastructure concern set at deployment time                                        |
+| `SETUP_ONLY`                                                                                                                                                         | Not applicable to CraftPanel's container lifecycle                                   |
+| `PROXY` / `PROXY_HOST` / `PROXY_PORT`                                                                                                                                | Infrastructure concern                                                               |
+| `CONSOLE` / `GUI`                                                                                                                                                    | Internal itzg quirks for old Spigot versions                                         |
+| `LOG_LEVEL`, `LOG_CONSOLE_FORMAT`, `LOG_FILE_FORMAT`, `LOG_TIMESTAMP`                                                                                                | Container log formatting; not relevant in a panel context                            |
+| `ENABLE_JMX` / `JMX_HOST`                                                                                                                                            | Developer tooling; out of scope for v1                                               |
+| `USE_FLARE_FLAGS` / `USE_SIMD_FLAGS`                                                                                                                                 | Niche profiling flags; power users can set via `JVM_OPTS`                            |
+| `JVM_DD_OPTS`                                                                                                                                                        | Available via `JVM_OPTS` for power users                                             |
+| `EXTRA_ARGS`                                                                                                                                                         | Available in manual mode                                                             |
+| `RCON_CMDS_STARTUP`, `RCON_CMDS_ON_CONNECT`, etc.                                                                                                                    | Deferred; candidate for a future startup commands feature                            |
+| `CF_*`                                                                                                                                                               | CurseForge modpack support; outside CraftPanel's mod management model                |
+| `ACCEPTS_TRANSFERS`                                                                                                                                                  | 1.20.5+ transfer protocol; niche; available in manual mode                           |
+| `MANAGEMENT_SERVER_*`                                                                                                                                                | Minecraft's built-in management server; conflicts with CraftPanel's management layer |
+| `ANNOUNCE_PLAYER_ACHIEVEMENTS`                                                                                                                                       | Legacy; removed before 1.9                                                           |
+| `SNOOPER_ENABLED`                                                                                                                                                    | Removed in 1.18                                                                      |
 
 ---
 
@@ -243,10 +253,10 @@ The following itzg variables are not available through the UI in either mode:
 
 The `stop_command` field on the `servers` table stores the command written to container stdin on graceful stop or restart. It is not an itzg env var.
 
-| Type | Default |
-|---|---|
-| `VANILLA`, `PAPER`, `FABRIC`, `FOLIA`, `FORGE`, `NEOFORGE`, `QUILT`, `SPIGOT`, `LIMBO` | `stop` |
-| `VELOCITY`, `BUNGEECORD`, `WATERFALL` | `end` |
+| Type                                                                                   | Default |
+|----------------------------------------------------------------------------------------|---------|
+| `VANILLA`, `PAPER`, `FABRIC`, `FOLIA`, `FORGE`, `NEOFORGE`, `QUILT`, `SPIGOT`, `LIMBO` | `stop`  |
+| `VELOCITY`, `BUNGEECORD`, `WATERFALL`                                                  | `end`   |
 
 Set to an empty string to skip the stdin command and go straight to Docker stop.
 
@@ -258,7 +268,8 @@ Proxy server configuration follows the same two-mode pattern.
 
 ### Easy Mode
 
-The UI presents a list of backend servers available in the same Server Network. The user selects which servers the proxy connects to and assigns internal names. Master generates the correct `velocity.toml` or `config.yml` from this data.
+The UI presents a list of backend servers available in the same Server Network. The user selects which servers the proxy connects to and assigns internal names. Master generates the correct
+`velocity.toml` or `config.yml` from this data.
 
 Backend address resolution is automatic:
 
@@ -269,17 +280,21 @@ Backend address resolution is automatic:
 
 Full file editor access to the proxy config file. Easy mode backend selections are ignored. The administrator is responsible for keeping the config consistent with the actual server topology.
 
-Migration does not require special handling for proxy config files in either mode. The rsync-based migration copies the entire data directory including all config files — manual mode configs arrive intact on the destination node. In easy mode, master regenerates the proxy config from the current backend topology on first start at the destination, so addressing is always correct.
+Migration does not require special handling for proxy config files in either mode. The rsync-based migration copies the entire data directory including all config files — manual mode configs arrive
+intact on the destination node. In easy mode, master regenerates the proxy config from the current backend topology on first start at the destination, so addressing is always correct.
 
 !!! warning
-    When a server that a proxy references is migrated to a different node, master automatically updates easy-mode proxy configs with the new backend address. Manual-mode proxy configs are not updated — master will display a warning that the config references the old address and must be updated manually before the proxy is restarted.
+When a server that a proxy references is migrated to a different node, master automatically updates easy-mode proxy configs with the new backend address. Manual-mode proxy configs are not updated —
+master will display a warning that the config references the old address and must be updated manually before the proxy is restarted.
 
 ---
 
 ## Minecraft Version
 
-The Minecraft version is set at server creation and stored in the `mc_version` column, injected as the `VERSION` itzg env var. It can be changed via `server.configure` permission. The change takes effect on the next restart.
+The Minecraft version is set at server creation and stored in the `mc_version` column, injected as the `VERSION` itzg env var. It can be changed via `server.configure` permission. The change takes
+effect on the next restart.
 
 ## itzg Image Version
 
-The itzg image tag used for the container is set at creation and can be changed via `PATCH /servers/{id}` with the `server.configure` permission. The change is deferred — master sets a `needs_recreate` flag and pulls the new image tag when the server is next started or restarted.
+The itzg image tag used for the container is set at creation and can be changed via `PATCH /servers/{id}` with the `server.configure` permission. The change is deferred — master sets a
+`needs_recreate` flag and pulls the new image tag when the server is next started or restarted.

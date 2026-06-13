@@ -5,7 +5,7 @@ import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import java.util.*
+import kotlin.uuid.Uuid
 
 @Serializable
 data class ErrorResponse(val message: String)
@@ -16,4 +16,4 @@ data class MessageResponse(val message: String)
 @Serializable
 data class NodeKeyResponse(@SerialName("node_key") val nodeKey: String)
 
-fun ApplicationCall.userId(): UUID = UUID.fromString(principal<JWTPrincipal>()!!.payload.subject)
+fun ApplicationCall.userId(): Uuid = Uuid.parse(principal<JWTPrincipal>()!!.payload.subject)

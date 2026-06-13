@@ -10,7 +10,7 @@ import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.service.*
-import io.craftpanel.master.util.toKotlinUuid
+import kotlin.uuid.Uuid
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
@@ -30,7 +30,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.*
+
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -84,51 +84,51 @@ class NetworksRoutesTest {
         install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
 
-    private fun createUser(username: String = "admin", email: String = "admin@example.com"): UUID = transaction {
+    private fun createUser(username: String = "admin", email: String = "admin@example.com"): Uuid = transaction {
         Users.insert {
             it[Users.username] = username
             it[Users.email] = email
             it[Users.passwordHash] = Argon2Hasher.hash("hunter2")
             it[Users.isActive] = true
-        }[Users.id].let { UUID.fromString(it.toString()) }
+        }[Users.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun assignGlobalGroup(userId: UUID, groupName: String) = transaction {
+    private fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
         UserGroupAssignments.insert {
-            it[UserGroupAssignments.userId] = userId.toKotlinUuid()
+            it[UserGroupAssignments.userId] = userId
             it[UserGroupAssignments.groupId] = groupId
             it[UserGroupAssignments.scopeType] = "GLOBAL"
         }
     }
 
-    private fun assignNetworkGroup(userId: UUID, groupName: String, networkId: UUID) = transaction {
+    private fun assignNetworkGroup(userId: Uuid, groupName: String, networkId: Uuid) = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
         UserGroupAssignments.insert {
-            it[UserGroupAssignments.userId] = userId.toKotlinUuid()
+            it[UserGroupAssignments.userId] = userId
             it[UserGroupAssignments.groupId] = groupId
             it[UserGroupAssignments.scopeType] = "NETWORK"
-            it[UserGroupAssignments.scopeId] = networkId.toKotlinUuid()
+            it[UserGroupAssignments.scopeId] = networkId
         }
     }
 
-    private fun tokenFor(userId: UUID, username: String = "admin"): String =
+    private fun tokenFor(userId: Uuid, username: String = "admin"): String =
         jwtManager.generate(TokenClaims(userId = userId, name = username, email = "$username@example.com", groups = emptyList()))
 
     private fun createNetwork(
         name: String = "test-network",
         type: String = "VANILLA",
         description: String? = null,
-    ): UUID = transaction {
+    ): Uuid = transaction {
         ServerNetworks.insert {
             it[ServerNetworks.name] = name
             it[ServerNetworks.type] = type
             it[ServerNetworks.description] = description
-        }[ServerNetworks.id].let { UUID.fromString(it.toString()) }
+        }[ServerNetworks.id].let { Uuid.parse(it.toString()) }
     }
 
     // ── GET /networks ────────────────────────────────────────────────────────
@@ -242,7 +242,7 @@ class NetworksRoutesTest {
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Viewer")
-        val resp = client.get("/api/networks/${UUID.randomUUID()}") { bearerAuth(tokenFor(userId)) }
+        val resp = client.get("/api/networks/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.NotFound, resp.status)
     }
 
@@ -303,7 +303,7 @@ class NetworksRoutesTest {
         assertEquals(HttpStatusCode.NoContent, resp.status)
         val updated = transaction {
             ServerNetworks.selectAll()
-                .where { ServerNetworks.id eq netId.toKotlinUuid() }
+                .where { ServerNetworks.id eq netId }
                 .first()
         }
         assertEquals("new-name", updated[ServerNetworks.name])
@@ -347,7 +347,7 @@ class NetworksRoutesTest {
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
-        val resp = client.patch("/api/networks/${UUID.randomUUID()}") {
+        val resp = client.patch("/api/networks/${Uuid.random()}") {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
             setBody("""{"name":"x"}""")
@@ -379,7 +379,7 @@ class NetworksRoutesTest {
         assertEquals(HttpStatusCode.NoContent, resp.status)
         val exists = transaction {
             ServerNetworks.selectAll()
-                .where { ServerNetworks.id eq netId.toKotlinUuid() }
+                .where { ServerNetworks.id eq netId }
                 .firstOrNull() != null
         }
         assertEquals(false, exists)
@@ -391,7 +391,7 @@ class NetworksRoutesTest {
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
-        val resp = client.delete("/api/networks/${UUID.randomUUID()}") { bearerAuth(tokenFor(userId)) }
+        val resp = client.delete("/api/networks/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.NotFound, resp.status)
     }
 }

@@ -1,6 +1,5 @@
 package io.craftpanel.agent.grpc
 
-import io.craftpanel.proto.*
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.model.Frame
@@ -9,6 +8,7 @@ import com.google.protobuf.timestamp
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.MetricsCollector
+import io.craftpanel.proto.*
 import io.grpc.ManagedChannel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
@@ -16,15 +16,10 @@ import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.flow.receiveAsFlow
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.io.IOException
 import java.io.PipedInputStream
 import java.io.PipedOutputStream
-import java.io.IOException
-import java.nio.file.FileVisitResult
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.Paths
-import java.nio.file.SimpleFileVisitor
-import java.nio.file.StandardCopyOption
+import java.nio.file.*
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.PosixFilePermission
 import java.time.Instant

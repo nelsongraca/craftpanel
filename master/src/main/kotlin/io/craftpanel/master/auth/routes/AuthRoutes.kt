@@ -8,8 +8,7 @@ import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.routes.ErrorResponse
-import io.craftpanel.master.util.toJavaUuid
-import io.craftpanel.master.util.toKotlinUuid
+import io.craftpanel.master.routes.userId
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.post
 import io.ktor.http.*
@@ -25,7 +24,7 @@ import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.*
+import kotlin.uuid.Uuid
 
 @Serializable
 data class LoginRequest(val email: String, val password: String)
@@ -52,7 +51,7 @@ data class MeResponse(
 )
 
 private data class UserRecord(
-    val userId: UUID,
+    val userId: Uuid,
     val username: String,
     val email: String,
     val passwordHash: String,
@@ -65,18 +64,18 @@ private fun lookupUser(email: String): UserRecord? = transaction {
         .where { Users.email eq email }
         .firstOrNull() ?: return@transaction null
 
-    val kotlinId = user[Users.id]
+    val userId = user[Users.id]
 
     val groups = (UserGroupAssignments innerJoin Groups)
         .selectAll()
         .where {
-            (UserGroupAssignments.userId eq kotlinId) and
+            (UserGroupAssignments.userId eq userId) and
                     (UserGroupAssignments.scopeType eq ScopeType.GLOBAL.name)
         }
         .map { it[Groups.name] }
 
     UserRecord(
-        userId = kotlinId.toJavaUuid(),
+        userId = userId,
         username = user[Users.username],
         email = user[Users.email],
         passwordHash = user[Users.passwordHash],
@@ -85,16 +84,15 @@ private fun lookupUser(email: String): UserRecord? = transaction {
     )
 }
 
-private fun lookupUserById(userId: UUID): Triple<String, String, List<String>>? = transaction {
-    val kotlinId = userId.toKotlinUuid()
+private fun lookupUserById(userId: Uuid): Triple<String, String, List<String>>? = transaction {
     val user = Users.selectAll()
-        .where { (Users.id eq kotlinId) and (Users.isActive eq true) }
+        .where { (Users.id eq userId) and (Users.isActive eq true) }
         .firstOrNull() ?: return@transaction null
 
     val groups = (UserGroupAssignments innerJoin Groups)
         .selectAll()
         .where {
-            (UserGroupAssignments.userId eq kotlinId) and
+            (UserGroupAssignments.userId eq userId) and
                     (UserGroupAssignments.scopeType eq ScopeType.GLOBAL.name)
         }
         .map { it[Groups.name] }
@@ -216,7 +214,7 @@ fun Route.authRoutes(
                 }
             }) {
                 val principal = call.principal<JWTPrincipal>()!!
-                val userId = UUID.fromString(principal.payload.subject)
+                val userId = call.userId()
                 refreshTokenService.revokeAll(userId)
                 call.response.cookies.append(
                     name = "refresh_token", value = "", httpOnly = true, secure = secureCookies,
@@ -233,8 +231,7 @@ fun Route.authRoutes(
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val principal = call.principal<JWTPrincipal>()!!
-                val userId = UUID.fromString(principal.payload.subject)
+                val userId = call.userId()
                 val (ticket, expiresIn) = wsTicketService.issue(userId)
                 call.respond(WsTicketResponse(ticket, expiresIn))
             }
@@ -247,8 +244,7 @@ fun Route.authRoutes(
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val principal = call.principal<JWTPrincipal>()!!
-                val userId = UUID.fromString(principal.payload.subject)
+                val userId = call.userId()
 
                 val (username, email, groupNames) = lookupUserById(userId)
                     ?: run { call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found or inactive")); return@get }

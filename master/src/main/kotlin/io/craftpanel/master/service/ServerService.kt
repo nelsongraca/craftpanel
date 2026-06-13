@@ -7,7 +7,6 @@ import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.config.ImagesConfig
 import io.craftpanel.master.dns.DnsProvider
 import org.jetbrains.exposed.v1.core.ResultRow
-import io.craftpanel.master.util.toKotlinUuid
 import org.slf4j.LoggerFactory
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -20,7 +19,7 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import java.util.*
+import kotlin.uuid.Uuid
 import kotlin.time.Clock
 import io.craftpanel.master.util.toUtcString
 
@@ -107,7 +106,7 @@ data class ContainerMetricsSeries(
     @SerialName("net_out_bytes") val netOutBytes: List<ContainerMetricsPointLong>,
 )
 
-data class ServerAuthInfo(val networkId: UUID?)
+data class ServerAuthInfo(val networkId: Uuid?)
 
 class ServerService(
     private val sendToNode: (String, MasterMessage) -> Boolean,
@@ -120,14 +119,14 @@ class ServerService(
     private val log = LoggerFactory.getLogger(ServerService::class.java)
 
 
-    fun authInfo(id: kotlin.uuid.Uuid): ServerAuthInfo? = transaction {
+    fun authInfo(id: Uuid): ServerAuthInfo? = transaction {
         Servers.selectAll()
             .where { Servers.id eq id }
             .firstOrNull()
-            ?.let { ServerAuthInfo(it[Servers.networkId]?.let { nid -> UUID.fromString(nid.toString()) }) }
+            ?.let { ServerAuthInfo(it[Servers.networkId]) }
     }
 
-    fun listServers(userId: UUID): List<ServerResponse> {
+    fun listServers(userId: Uuid): List<ServerResponse> {
         val visibility = resolveServerVisibility(userId)
         return transaction {
             val netIds = visibility.networkIds.toList()
@@ -765,14 +764,13 @@ internal data class ServerVisibility(
     val serverIds: Set<kotlin.uuid.Uuid>,
 )
 
-internal fun resolveServerVisibility(userId: UUID): ServerVisibility = transaction {
-    val kotlinUserId = userId.toKotlinUuid()
+internal fun resolveServerVisibility(userId: Uuid): ServerVisibility = transaction {
     val user = Users.selectAll()
-        .where { Users.id eq kotlinUserId }
+        .where { Users.id eq userId }
         .firstOrNull()
     if (user == null || !user[Users.isActive]) return@transaction ServerVisibility(false, emptySet(), emptySet())
     val assignments = UserGroupAssignments.selectAll()
-        .where { UserGroupAssignments.userId eq kotlinUserId }
+        .where { UserGroupAssignments.userId eq userId }
         .toList()
     val groupIds = assignments.map { it[UserGroupAssignments.groupId] }
         .toSet()
@@ -829,8 +827,7 @@ internal fun rowToServerResponse(row: ResultRow, isMigrating: Boolean) = ServerR
 internal val PROXY_SERVER_TYPES = setOf("VELOCITY", "BUNGEECORD", "WATERFALL")
 
 
-private fun parseUuid(raw: String): kotlin.uuid.Uuid? =
+private fun parseUuid(raw: String): Uuid? =
     runCatching {
-        UUID.fromString(raw)
-            .toKotlinUuid()
+        Uuid.parse(raw)
     }.getOrNull()

@@ -9,8 +9,7 @@ import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
-import io.craftpanel.master.util.toJavaUuid
-import io.craftpanel.master.util.toKotlinUuid
+import kotlin.uuid.Uuid
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -28,7 +27,6 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import java.util.*
 import kotlin.test.*
 import io.ktor.server.plugins.ratelimit.*
 import kotlin.time.Duration
@@ -82,21 +80,21 @@ class AuthRoutesTest {
         email: String = "alice@example.com",
         password: String = "hunter2",
         isActive: Boolean = true,
-    ): UUID = transaction {
+    ): Uuid = transaction {
         Users.insert {
             it[Users.username] = username
             it[Users.email] = email
             it[Users.passwordHash] = Argon2Hasher.hash(password)
             it[Users.isActive] = isActive
-        }[Users.id].toJavaUuid()
+        }[Users.id]
     }
 
-    private fun assignGlobalGroup(userId: UUID, groupName: String) = transaction {
+    private fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
         UserGroupAssignments.insert {
-            it[UserGroupAssignments.userId] = userId.toKotlinUuid()
+            it[UserGroupAssignments.userId] = userId
             it[UserGroupAssignments.groupId] = groupId
             it[UserGroupAssignments.scopeType] = "GLOBAL"
         }
@@ -388,7 +386,7 @@ class AuthRoutesTest {
         val (accessToken, _) = login()
 
         transaction {
-            Users.update({ Users.id eq userId.toKotlinUuid() }) { it[Users.isActive] = false }
+            Users.update({ Users.id eq userId }) { it[Users.isActive] = false }
         }
 
         assertEquals(HttpStatusCode.Unauthorized, client.get("/api/auth/me") { bearerAuth(accessToken) }.status)

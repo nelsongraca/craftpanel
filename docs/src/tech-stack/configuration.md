@@ -83,24 +83,24 @@ Supported `_FILE` variables:
 
 ## All configuration keys
 
-| Key                 | Env var                        | Required | Default   | Description                                |
-|---------------------|--------------------------------|----------|-----------|--------------------------------------------|
-| `database.url`      | `CRAFTPANEL_DATABASE_URL`      | Yes      | —         | JDBC connection string                     |
-| `database.user`     | `CRAFTPANEL_DATABASE_USER`     | Yes      | —         | Database user                              |
-| `database.password` | `CRAFTPANEL_DATABASE_PASSWORD` | Yes      | —         | Database password                          |
-| `http.host`         | `CRAFTPANEL_HTTP_HOST`         | No       | `0.0.0.0` | HTTP bind address                          |
-| `http.port`         | `CRAFTPANEL_HTTP_PORT`         | No       | `8080`    | HTTP bind port                             |
-| `grpc.host`         | `CRAFTPANEL_GRPC_HOST`         | No       | `0.0.0.0` | gRPC bind address                          |
-| `grpc.port`         | `CRAFTPANEL_GRPC_PORT`         | No       | `9090`    | gRPC bind port                             |
-| `GRPC_CERT_STORE_PATH` | `GRPC_CERT_STORE_PATH`      | No       | `/etc/craftpanel/certs` | Directory for auto-generated CA + server certs |
-| `GRPC_TLS_SANS`        | `GRPC_TLS_SANS`             | No       | —         | Comma-separated extra SANs (add server hostname/IP) |
-| `GRPC_TLS_CERT`        | `GRPC_TLS_CERT`             | No       | —         | BYOC: path to server cert (overrides auto-gen)      |
-| `GRPC_TLS_KEY`         | `GRPC_TLS_KEY`              | No       | —         | BYOC: path to private key (required with GRPC_TLS_CERT) |
-| `jwt.secret`        | `CRAFTPANEL_JWT_SECRET`        | Yes      | —         | JWT signing key (min 32 bytes)             |
-| `dns.provider`      | `CRAFTPANEL_DNS_PROVIDER`      | Yes      | —              | DNS provider identifier, e.g. `cloudflare` |
-| `dns.api_key`       | `CRAFTPANEL_DNS_API_KEY`       | Yes      | —              | DNS provider API key                       |
-| `dns.base_domain`   | `CRAFTPANEL_DNS_BASE_DOMAIN`   | Yes      | —              | Base domain, e.g. `mc.example.com`         |
-| `platform_name`     | `CRAFTPANEL_PLATFORM_NAME`     | No       | `CraftPanel`   | Platform name used in generated server MOTDs, e.g. `1.21.4 Paper powered by CraftPanel` |
+| Key                    | Env var                        | Required | Default                 | Description                                                                             |
+|------------------------|--------------------------------|----------|-------------------------|-----------------------------------------------------------------------------------------|
+| `database.url`         | `CRAFTPANEL_DATABASE_URL`      | Yes      | —                       | JDBC connection string                                                                  |
+| `database.user`        | `CRAFTPANEL_DATABASE_USER`     | Yes      | —                       | Database user                                                                           |
+| `database.password`    | `CRAFTPANEL_DATABASE_PASSWORD` | Yes      | —                       | Database password                                                                       |
+| `http.host`            | `CRAFTPANEL_HTTP_HOST`         | No       | `0.0.0.0`               | HTTP bind address                                                                       |
+| `http.port`            | `CRAFTPANEL_HTTP_PORT`         | No       | `8080`                  | HTTP bind port                                                                          |
+| `grpc.host`            | `CRAFTPANEL_GRPC_HOST`         | No       | `0.0.0.0`               | gRPC bind address                                                                       |
+| `grpc.port`            | `CRAFTPANEL_GRPC_PORT`         | No       | `9090`                  | gRPC bind port                                                                          |
+| `GRPC_CERT_STORE_PATH` | `GRPC_CERT_STORE_PATH`         | No       | `/etc/craftpanel/certs` | Directory for auto-generated CA + server certs                                          |
+| `GRPC_TLS_SANS`        | `GRPC_TLS_SANS`                | No       | —                       | Comma-separated extra SANs (add server hostname/IP)                                     |
+| `GRPC_TLS_CERT`        | `GRPC_TLS_CERT`                | No       | —                       | BYOC: path to server cert (overrides auto-gen)                                          |
+| `GRPC_TLS_KEY`         | `GRPC_TLS_KEY`                 | No       | —                       | BYOC: path to private key (required with GRPC_TLS_CERT)                                 |
+| `jwt.secret`           | `CRAFTPANEL_JWT_SECRET`        | Yes      | —                       | JWT signing key (min 32 bytes)                                                          |
+| `dns.provider`         | `CRAFTPANEL_DNS_PROVIDER`      | Yes      | —                       | DNS provider identifier, e.g. `cloudflare`                                              |
+| `dns.api_key`          | `CRAFTPANEL_DNS_API_KEY`       | Yes      | —                       | DNS provider API key                                                                    |
+| `dns.base_domain`      | `CRAFTPANEL_DNS_BASE_DOMAIN`   | Yes      | —                       | Base domain, e.g. `mc.example.com`                                                      |
+| `platform_name`        | `CRAFTPANEL_PLATFORM_NAME`     | No       | `CraftPanel`            | Platform name used in generated server MOTDs, e.g. `1.21.4 Paper powered by CraftPanel` |
 
 !!! warning
 Never store secrets in the config file in production. Use environment variables or the `_FILE` secret pattern instead.
@@ -109,13 +109,13 @@ Never store secrets in the config file in production. Use environment variables 
 
 On a fresh database (empty users table), master will seed a Super Admin account if these variables are set:
 
-| Variable                    | Default    | Description                          |
-|-----------------------------|------------|--------------------------------------|
-| `CRAFTPANEL_ADMIN_EMAIL`    | _(empty)_  | Email address for the initial admin  |
-| `CRAFTPANEL_ADMIN_PASSWORD` | _(empty)_  | Password — stored as Argon2id hash   |
-| `CRAFTPANEL_ADMIN_USERNAME` | `admin`    | Username for the initial admin       |
+| Variable                    | Default   | Description                         |
+|-----------------------------|-----------|-------------------------------------|
+| `CRAFTPANEL_ADMIN_EMAIL`    | _(empty)_ | Email address for the initial admin |
+| `CRAFTPANEL_ADMIN_PASSWORD` | _(empty)_ | Password — stored as Argon2id hash  |
+| `CRAFTPANEL_ADMIN_USERNAME` | `admin`   | Username for the initial admin      |
 
 The seed runs **once only**: if any user already exists, these variables are ignored and master starts normally. It is safe to leave them set across container restarts.
 
 !!! tip
-    Remove `CRAFTPANEL_ADMIN_EMAIL` and `CRAFTPANEL_ADMIN_PASSWORD` from your compose file after the first successful login.
+Remove `CRAFTPANEL_ADMIN_EMAIL` and `CRAFTPANEL_ADMIN_PASSWORD` from your compose file after the first successful login.

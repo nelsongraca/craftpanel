@@ -2,8 +2,6 @@ package io.craftpanel.master.auth
 
 import io.craftpanel.master.database.schema.RefreshTokens
 import io.craftpanel.master.database.schema.Users
-import io.craftpanel.master.util.toJavaUuid
-import io.craftpanel.master.util.toKotlinUuid
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -16,9 +14,10 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.security.MessageDigest
 import java.security.SecureRandom
-import java.util.*
+import java.util.Base64
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
+import kotlin.uuid.Uuid
 
 data class RefreshTokenResult(
     val rawToken: String,
@@ -30,7 +29,7 @@ class RefreshTokenService {
     private val random = SecureRandom()
     private val tokenLifetime = 30.days
 
-    fun issue(userId: UUID): RefreshTokenResult = transaction {
+    fun issue(userId: Uuid): RefreshTokenResult = transaction {
         val rawToken = generateRaw()
         val hash = sha256Hex(rawToken)
         val expiresAt = Clock.System.now()
@@ -38,7 +37,7 @@ class RefreshTokenService {
             .toLocalDateTime(TimeZone.UTC)
 
         RefreshTokens.insert {
-            it[RefreshTokens.userId] = userId.toKotlinUuid()
+            it[RefreshTokens.userId] = userId
             it[RefreshTokens.tokenHash] = hash
             it[RefreshTokens.expiresAt] = expiresAt
             it[RefreshTokens.revoked] = false
@@ -47,7 +46,7 @@ class RefreshTokenService {
         RefreshTokenResult(rawToken, expiresAt)
     }
 
-    fun rotate(rawToken: String): Pair<UUID, RefreshTokenResult>? = transaction {
+    fun rotate(rawToken: String): Pair<Uuid, RefreshTokenResult>? = transaction {
         val hash = sha256Hex(rawToken)
         val now = Clock.System.now()
             .toLocalDateTime(TimeZone.UTC)
@@ -60,10 +59,10 @@ class RefreshTokenService {
             }
             .firstOrNull() ?: return@transaction null
 
-        val userKotlinId = row[RefreshTokens.userId]
+        val userId = row[RefreshTokens.userId]
 
         val userActive = Users.selectAll()
-            .where { Users.id eq userKotlinId }
+            .where { Users.id eq userId }
             .firstOrNull()
             ?.get(Users.isActive) ?: false
 
@@ -73,7 +72,6 @@ class RefreshTokenService {
             it[RefreshTokens.revoked] = true
         }
 
-        val userId = userKotlinId.toJavaUuid()
         val newToken = issue(userId)
         Pair(userId, newToken)
     }
@@ -85,9 +83,8 @@ class RefreshTokenService {
         }
     }
 
-    fun revokeAll(userId: UUID): Unit = transaction {
-        val kotlinId = userId.toKotlinUuid()
-        RefreshTokens.update({ RefreshTokens.userId eq kotlinId }) {
+    fun revokeAll(userId: Uuid): Unit = transaction {
+        RefreshTokens.update({ RefreshTokens.userId eq userId }) {
             it[RefreshTokens.revoked] = true
         }
     }

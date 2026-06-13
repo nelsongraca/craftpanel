@@ -13,7 +13,7 @@ import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import java.util.*
+import kotlin.uuid.Uuid
 
 fun Route.usersRoutes(userService: UserService) {
     authenticate(JWT_AUTH) {
@@ -66,7 +66,7 @@ fun Route.usersRoutes(userService: UserService) {
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                val targetId = call.parameters["id"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                val targetId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
                 call.respond(userService.getUser(targetId))
             }
@@ -86,7 +86,7 @@ fun Route.usersRoutes(userService: UserService) {
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
                     return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                val targetId = call.parameters["id"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                val targetId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@patch call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
                 val req = call.receive<PatchUserRequest>()
                 call.respond(userService.updateUser(targetId, req))
@@ -107,7 +107,7 @@ fun Route.usersRoutes(userService: UserService) {
                 val userId = call.userId()
                 if (!PermissionResolver.hasPermission(userId, Permission.SYSTEM_USERS))
                     return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                val targetId = call.parameters["id"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                val targetId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@delete call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
                 if (userId == targetId)
                     return@delete call.respond(HttpStatusCode.Conflict, ErrorResponse("Cannot delete yourself"))

@@ -13,10 +13,10 @@ class NodeCleanupHelper(private val docker: DockerClient) {
         }.getOrDefault(false)
     }
 
-    fun getContainerExitCode(containerId: String): Int? {
+    fun getContainerExitCode(containerId: String): Long? {
         return runCatching {
             val inspect = docker.inspectContainerCmd(containerId).exec()
-            inspect.state?.exitCode
+            inspect.state?.exitCodeLong
         }.getOrNull()
     }
 

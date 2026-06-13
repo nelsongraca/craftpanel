@@ -10,7 +10,7 @@ import io.craftpanel.master.database.schema.Backups
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.ServerMigrations
 import io.craftpanel.master.database.schema.Servers
-import io.craftpanel.master.util.toKotlinUuid
+import kotlin.uuid.Uuid
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
@@ -20,7 +20,6 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.*
 import kotlin.test.*
 
 class ControlServiceImplTest {
@@ -37,82 +36,82 @@ class ControlServiceImplTest {
     // helpers
     // -------------------------------------------------------------------------
 
-    private fun createNode(status: String = "ACTIVE"): UUID = transaction {
+    private fun createNode(status: String = "ACTIVE"): Uuid = transaction {
         Nodes.insert {
-            it[Nodes.hostname] = "test-node-${UUID.randomUUID()}"
+            it[Nodes.hostname] = "test-node-${Uuid.random()}"
             it[Nodes.displayName] = "Test Node"
             it[Nodes.publicIp] = "1.2.3.4"
             it[Nodes.privateIp] = "10.0.0.1"
-            it[Nodes.tokenHash] = UUID.randomUUID()
+            it[Nodes.tokenHash] = Uuid.random()
                 .toString()
                 .replace("-", "")
                 .padEnd(64, '0')
             it[Nodes.status] = status
-        }[Nodes.id].let { UUID.fromString(it.toString()) }
+        }[Nodes.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun createServer(nodeId: UUID, status: String = "STOPPED", containerId: String? = null): UUID = transaction {
+    private fun createServer(nodeId: Uuid, status: String = "STOPPED", containerId: String? = null): Uuid = transaction {
         Servers.insert {
-            it[Servers.nodeId] = nodeId.toKotlinUuid()
-            it[Servers.name] = "srv-${UUID.randomUUID()}"
+            it[Servers.nodeId] = nodeId
+            it[Servers.name] = "srv-${Uuid.random()}"
             it[Servers.hostPort] = 25565
             it[Servers.memoryMb] = 1024
             it[Servers.status] = status
             it[Servers.containerId] = containerId
-        }[Servers.id].let { UUID.fromString(it.toString()) }
+        }[Servers.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun createMigration(nodeId: UUID, status: String): UUID = transaction {
+    private fun createMigration(nodeId: Uuid, status: String): Uuid = transaction {
         ServerMigrations.insert {
-            it[ServerMigrations.serverId] = createServer(nodeId).toKotlinUuid()
-            it[ServerMigrations.sourceNodeId] = nodeId.toKotlinUuid()
-            it[ServerMigrations.targetNodeId] = nodeId.toKotlinUuid()
+            it[ServerMigrations.serverId] = createServer(nodeId)
+            it[ServerMigrations.sourceNodeId] = nodeId
+            it[ServerMigrations.targetNodeId] = nodeId
             it[ServerMigrations.status] = status
-        }[ServerMigrations.id].let { UUID.fromString(it.toString()) }
+        }[ServerMigrations.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun createBackup(nodeId: UUID, serverId: UUID, status: String): UUID = transaction {
+    private fun createBackup(nodeId: Uuid, serverId: Uuid, status: String): Uuid = transaction {
         Backups.insert {
-            it[Backups.serverId] = serverId.toKotlinUuid()
-            it[Backups.nodeId] = nodeId.toKotlinUuid()
+            it[Backups.serverId] = serverId
+            it[Backups.nodeId] = nodeId
             it[Backups.trigger] = "MANUAL"
             it[Backups.status] = status
-        }[Backups.id].let { UUID.fromString(it.toString()) }
+        }[Backups.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun serverStatus(serverId: UUID): String = transaction {
+    private fun serverStatus(serverId: Uuid): String = transaction {
         Servers.selectAll()
-            .where { Servers.id eq serverId.toKotlinUuid() }
+            .where { Servers.id eq serverId }
             .first()[Servers.status]
     }
 
-    private fun nodeStatus(nodeId: UUID): String = transaction {
+    private fun nodeStatus(nodeId: Uuid): String = transaction {
         Nodes.selectAll()
-            .where { Nodes.id eq nodeId.toKotlinUuid() }
+            .where { Nodes.id eq nodeId }
             .first()[Nodes.status]
     }
 
-    private fun migrationStatus(migrationId: UUID): String = transaction {
+    private fun migrationStatus(migrationId: Uuid): String = transaction {
         ServerMigrations.selectAll()
-            .where { ServerMigrations.id eq migrationId.toKotlinUuid() }
+            .where { ServerMigrations.id eq migrationId }
             .first()[ServerMigrations.status]
     }
 
-    private fun migrationCompletedAt(migrationId: UUID) = transaction {
+    private fun migrationCompletedAt(migrationId: Uuid) = transaction {
         ServerMigrations.selectAll()
-            .where { ServerMigrations.id eq migrationId.toKotlinUuid() }
+            .where { ServerMigrations.id eq migrationId }
             .first()[ServerMigrations.completedAt]
     }
 
-    private fun backupStatus(backupId: UUID): String = transaction {
+    private fun backupStatus(backupId: Uuid): String = transaction {
         Backups.selectAll()
-            .where { Backups.id eq backupId.toKotlinUuid() }
+            .where { Backups.id eq backupId }
             .first()[Backups.status]
     }
 
-    private fun backupCompletedAt(backupId: UUID) = transaction {
+    private fun backupCompletedAt(backupId: Uuid) = transaction {
         Backups.selectAll()
-            .where { Backups.id eq backupId.toKotlinUuid() }
+            .where { Backups.id eq backupId }
             .first()[Backups.completedAt]
     }
 
@@ -430,7 +429,8 @@ class ControlServiceImplTest {
         }
 
         val ex = assertFailsWith<io.grpc.StatusException> {
-            service.control(agentMessages).collect { }
+            service.control(agentMessages)
+                .collect { }
         }
         assertEquals(io.grpc.Status.Code.PERMISSION_DENIED, ex.status.code)
         assertTrue(

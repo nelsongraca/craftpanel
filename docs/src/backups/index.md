@@ -26,13 +26,15 @@ Example expressions:
 | `0 */6 * * *` | Every 6 hours           |
 | `0 3 * * 0`   | Weekly, Sunday at 03:00 |
 
-The scheduler is handler-based — adding new job types (e.g. scheduled restarts, RCON commands) requires only implementing a handler and registering it; the tick loop and deduplication logic are shared.
+The scheduler is handler-based — adding new job types (e.g. scheduled restarts, RCON commands) requires only implementing a handler and registering it; the tick loop and deduplication logic are
+shared.
 
 ## Scheduled Jobs (Planned)
 
 The following scheduler features are planned but not yet implemented:
 
-- **User-defined jobs REST API** — `GET/POST/PATCH/DELETE /api/servers/{id}/jobs` allowing users with `server.configure` permission to create arbitrary scheduled jobs per server. Supported job types are backed by registered handlers; `GET /api/system/job-types` will enumerate available types.
+- **User-defined jobs REST API** — `GET/POST/PATCH/DELETE /api/servers/{id}/jobs` allowing users with `server.configure` permission to create arbitrary scheduled jobs per server. Supported job types
+  are backed by registered handlers; `GET /api/system/job-types` will enumerate available types.
 - **Additional built-in job types** — `RESTART` and `RCON_COMMAND` are the initial candidates beyond `BACKUP`.
 - **Per-job execution history** — audit log of last-run time, result, and duration per job row.
 - **Missed-fire recovery** — if master was offline during a scheduled window, jobs that were missed can optionally be fired on the next startup.

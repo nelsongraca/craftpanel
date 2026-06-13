@@ -11,7 +11,7 @@ import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.service.*
-import io.craftpanel.master.util.toKotlinUuid
+import kotlin.uuid.Uuid
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
@@ -34,7 +34,6 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import java.util.*
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -91,30 +90,30 @@ class BackupsRoutesTest {
         install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
 
-    private fun createUser(email: String = "admin@example.com"): UUID = transaction {
+    private fun createUser(email: String = "admin@example.com"): Uuid = transaction {
         Users.insert {
             it[Users.username] = email.substringBefore("@")
             it[Users.email] = email
             it[Users.passwordHash] = Argon2Hasher.hash("hunter2")
             it[Users.isActive] = true
-        }[Users.id].let { UUID.fromString(it.toString()) }
+        }[Users.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun assignGlobalGroup(userId: UUID, groupName: String) = transaction {
+    private fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
         UserGroupAssignments.insert {
-            it[UserGroupAssignments.userId] = userId.toKotlinUuid()
+            it[UserGroupAssignments.userId] = userId
             it[UserGroupAssignments.groupId] = groupId
             it[UserGroupAssignments.scopeType] = "GLOBAL"
         }
     }
 
-    private fun tokenFor(userId: UUID): String =
+    private fun tokenFor(userId: Uuid): String =
         jwtManager.generate(TokenClaims(userId = userId, name = "admin", email = "admin@example.com", groups = emptyList()))
 
-    private fun createNode(): UUID = transaction {
+    private fun createNode(): Uuid = transaction {
         Nodes.insert {
             it[Nodes.hostname] = "node-1"
             it[Nodes.displayName] = "node-1"
@@ -124,19 +123,19 @@ class BackupsRoutesTest {
             it[Nodes.status] = "ACTIVE"
             it[Nodes.totalRamMb] = 8192
             it[Nodes.totalCpuShares] = 1024
-        }[Nodes.id].let { UUID.fromString(it.toString()) }
+        }[Nodes.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun createServer(nodeId: UUID): UUID = transaction {
+    private fun createServer(nodeId: Uuid): Uuid = transaction {
         Servers.insert {
             it[Servers.name] = "test-server"
             it[Servers.displayName] = "Test Server"
-            it[Servers.nodeId] = nodeId.toKotlinUuid()
+            it[Servers.nodeId] = nodeId
             it[Servers.serverType] = "VANILLA"
             it[Servers.mcVersion] = "LATEST"
             it[Servers.memoryMb] = 1024
             it[Servers.hostPort] = 25565
-        }[Servers.id].let { UUID.fromString(it.toString()) }
+        }[Servers.id].let { Uuid.parse(it.toString()) }
     }
 
     // ── List backups ──────────────────────────────────────────────────────────
@@ -178,7 +177,7 @@ class BackupsRoutesTest {
         assignGlobalGroup(userId, "Super Admin")
         val token = tokenFor(userId)
 
-        val res = client.get("/api/servers/${UUID.randomUUID()}/backups") { header("Authorization", "Bearer $token") }
+        val res = client.get("/api/servers/${Uuid.random()}/backups") { header("Authorization", "Bearer $token") }
         assertEquals(HttpStatusCode.NotFound, res.status)
     }
 
@@ -204,7 +203,7 @@ class BackupsRoutesTest {
 
         val count = transaction {
             Backups.selectAll()
-                .where { Backups.serverId eq serverId.toKotlinUuid() }
+                .where { Backups.serverId eq serverId }
                 .count()
         }
         assertEquals(1, count)
@@ -222,7 +221,7 @@ class BackupsRoutesTest {
 
         // Set max count to 2
         transaction {
-            Servers.update({ Servers.id eq serverId.toKotlinUuid() }) {
+            Servers.update({ Servers.id eq serverId }) {
                 it[Servers.backupMaxCount] = 2
             }
         }
@@ -233,8 +232,8 @@ class BackupsRoutesTest {
         transaction {
             repeat(2) { i ->
                 Backups.insert {
-                    it[Backups.serverId] = serverId.toKotlinUuid()
-                    it[Backups.nodeId] = nodeId.toKotlinUuid()
+                    it[Backups.serverId] = serverId
+                    it[Backups.nodeId] = nodeId
                     it[Backups.trigger] = "MANUAL"
                     it[Backups.status] = "COMPLETED"
                     it[Backups.filePath] = "/data/backups/backup-$i.tar.gz"
@@ -251,7 +250,7 @@ class BackupsRoutesTest {
 
         val total = transaction {
             Backups.selectAll()
-                .where { Backups.serverId eq serverId.toKotlinUuid() }
+                .where { Backups.serverId eq serverId }
                 .count()
         }
         assertEquals(2, total)
@@ -273,8 +272,8 @@ class BackupsRoutesTest {
 
         val backupId = transaction {
             Backups.insert {
-                it[Backups.serverId] = serverId.toKotlinUuid()
-                it[Backups.nodeId] = nodeId.toKotlinUuid()
+                it[Backups.serverId] = serverId
+                it[Backups.nodeId] = nodeId
                 it[Backups.trigger] = "MANUAL"
                 it[Backups.status] = "COMPLETED"
                 it[Backups.filePath] = "/data/backups/test.tar.gz"
@@ -307,8 +306,8 @@ class BackupsRoutesTest {
 
         val backupId = transaction {
             Backups.insert {
-                it[Backups.serverId] = serverId.toKotlinUuid()
-                it[Backups.nodeId] = nodeId.toKotlinUuid()
+                it[Backups.serverId] = serverId
+                it[Backups.nodeId] = nodeId
                 it[Backups.trigger] = "MANUAL"
                 it[Backups.status] = "IN_PROGRESS"
             }[Backups.id]
@@ -359,7 +358,7 @@ class BackupsRoutesTest {
 
         val row = transaction {
             Servers.selectAll()
-                .where { Servers.id eq serverId.toKotlinUuid() }
+                .where { Servers.id eq serverId }
                 .first()
         }
         assertEquals("0 2 * * *", row[Servers.backupSchedule])

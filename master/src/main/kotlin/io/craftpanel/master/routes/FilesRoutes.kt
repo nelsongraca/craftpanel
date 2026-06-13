@@ -5,7 +5,7 @@ import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.grpc.DataServiceProxy
-import io.craftpanel.master.util.toKotlinUuid
+import kotlin.uuid.Uuid
 import io.github.smiley4.ktoropenapi.delete
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.post
@@ -26,7 +26,6 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.Instant
-import java.util.*
 
 // ── Response types ────────────────────────────────────────────────────────────
 
@@ -360,7 +359,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
     }
 }
 
-private data class AuthContext(val userId: UUID, val serverId: String, val networkId: UUID?)
+private data class AuthContext(val userId: Uuid, val serverId: String, val networkId: Uuid?)
 
 private suspend fun ApplicationCall.respondFileAgentError(e: Exception) {
     val msg = e.message ?: "Unknown agent error"
@@ -391,7 +390,7 @@ private suspend fun extractAndAuthorize(
     call: ApplicationCall,
 ): AuthContext? {
     val principal = call.principal<JWTPrincipal>()!!
-    val userId = UUID.fromString(principal.payload.subject)
+    val userId = call.userId()
 
     val rawId = call.parameters["id"] ?: run {
         call.respond(HttpStatusCode.BadRequest, ErrorResponse("Missing server ID"))
@@ -400,14 +399,14 @@ private suspend fun extractAndAuthorize(
 
     val info = transaction {
         val kotlinId = runCatching {
-            UUID.fromString(rawId)
-                .toKotlinUuid()
+            Uuid.parse(rawId)
+                
         }.getOrNull() ?: return@transaction null
         val row = Servers.selectAll()
             .where { Servers.id eq kotlinId }
             .firstOrNull() ?: return@transaction null
-        val serverId = UUID.fromString(kotlinId.toString())
-        val networkId = row[Servers.networkId]?.let { UUID.fromString(it.toString()) }
+        val serverId = kotlinId
+        val networkId = row[Servers.networkId]
         Triple(serverId, networkId, kotlinId)
     } ?: run {
         call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))

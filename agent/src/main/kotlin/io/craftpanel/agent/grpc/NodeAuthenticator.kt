@@ -1,13 +1,9 @@
 package io.craftpanel.agent.grpc
 
-import io.craftpanel.proto.ControlServiceGrpcKt
-import io.craftpanel.proto.IdentifyNodeResponse
-import io.craftpanel.proto.identifyNodeRequest
-import io.craftpanel.proto.nodeMetadata
-import io.craftpanel.proto.registerNodeRequest
 import io.craftpanel.agent.auth.NodeKeyStore
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.MetricsCollector
+import io.craftpanel.proto.*
 import io.grpc.ManagedChannel
 import org.slf4j.LoggerFactory
 import java.net.InetAddress
@@ -93,6 +89,10 @@ class NodeAuthenticator(
         val conn = url.openConnection()
         conn.connectTimeout = 3000
         conn.readTimeout = 3000
-        conn.getInputStream().bufferedReader().readText().trim().takeIf { it.isNotBlank() }
+        conn.getInputStream()
+            .bufferedReader()
+            .readText()
+            .trim()
+            .takeIf { it.isNotBlank() }
     }.getOrNull()
 }

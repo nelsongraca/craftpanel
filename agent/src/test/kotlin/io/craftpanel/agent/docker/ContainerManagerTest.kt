@@ -1,12 +1,12 @@
 package io.craftpanel.agent.docker
 
-import io.craftpanel.proto.ContainerState
-import io.craftpanel.proto.createContainerCommand
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.command.*
 import com.github.dockerjava.api.model.Container
 import com.github.dockerjava.api.model.ExposedPort
+import io.craftpanel.proto.ContainerState
+import io.craftpanel.proto.createContainerCommand
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify

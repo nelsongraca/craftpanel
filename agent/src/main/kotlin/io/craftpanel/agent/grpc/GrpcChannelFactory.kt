@@ -15,7 +15,7 @@ object GrpcChannelFactory {
 
         val certPem: String? = when {
             config.tlsEnabled -> File(config.tlsCertPath).readText()
-            else -> NodeKeyStore.readCaCert(config.caCertFilePath)
+            else              -> NodeKeyStore.readCaCert(config.caCertFilePath)
         }
 
         if (certPem != null) {
@@ -23,7 +23,8 @@ object GrpcChannelFactory {
                 .trustManager(ByteArrayInputStream(certPem.toByteArray()))
                 .build()
             builder.sslContext(sslContext)
-        } else {
+        }
+        else {
             check(config.profile == "dev") {
                 "gRPC TLS is required outside dev profile — set GRPC_TLS_CERT or mount master's grpc-ca.crt at ${config.caCertFilePath}"
             }

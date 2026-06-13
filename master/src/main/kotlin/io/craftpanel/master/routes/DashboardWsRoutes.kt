@@ -10,7 +10,7 @@ import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.grpc.ControlServiceImpl
-import io.craftpanel.master.util.toKotlinUuid
+import kotlin.uuid.Uuid
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
@@ -24,7 +24,6 @@ import kotlinx.serialization.json.encodeToJsonElement
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.*
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Instant
@@ -55,24 +54,23 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
 
         fun hasNodes() = PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES)
 
-        fun canViewServer(serverId: UUID, networkId: UUID?): Boolean =
+        fun canViewServer(serverId: Uuid, networkId: Uuid?): Boolean =
             PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW, serverId, networkId)
 
-        fun serverNetworkId(serverId: String): UUID? = transaction {
-            val kId = runCatching { UUID.fromString(serverId) }.getOrNull() ?: return@transaction null
+        fun serverNetworkId(serverId: String): Uuid? = transaction {
+            val kId = runCatching { Uuid.parse(serverId) }.getOrNull() ?: return@transaction null
             Servers.selectAll()
-                .where { Servers.id eq kId.toKotlinUuid() }
+                .where { Servers.id eq kId }
                 .firstOrNull()
                 ?.get(Servers.networkId)
-                ?.let { UUID.fromString(it.toString()) }
-        }
+    }
 
         // ── Initial snapshot ──────────────────────────────────────────────────
         val snapshot = transaction {
             val servers = Servers.selectAll()
                 .mapNotNull { row ->
-                    val sid = UUID.fromString(row[Servers.id].toString())
-                    val netId = row[Servers.networkId]?.let { UUID.fromString(it.toString()) }
+                    val sid = row[Servers.id]
+                    val netId = row[Servers.networkId]
                     if (!canViewServer(sid, netId)) return@mapNotNull null
                     ServerSnapshot(
                         sid.toString(),
@@ -136,7 +134,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
 
         val serverMetricsJob = launch {
             controlService.containerMetricsFlow.collect { (serverId, metrics) ->
-                val sid = runCatching { UUID.fromString(serverId) }.getOrNull() ?: return@collect
+                val sid = runCatching { Uuid.parse(serverId) }.getOrNull() ?: return@collect
                 val netId = serverNetworkId(serverId)
                 if (!canViewServer(sid, netId)) return@collect
                 sendWs(
@@ -158,7 +156,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
 
         val serverStatusJob = launch {
             controlService.serverStatusFlow.collect { (serverId, update) ->
-                val sid = runCatching { UUID.fromString(serverId) }.getOrNull() ?: return@collect
+                val sid = runCatching { Uuid.parse(serverId) }.getOrNull() ?: return@collect
                 val netId = serverNetworkId(serverId)
                 if (!canViewServer(sid, netId)) return@collect
                 val statusStr = when (update.status) {
@@ -183,7 +181,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
 
         val playerJob = launch {
             controlService.playerUpdateFlow.collect { (serverId, update) ->
-                val sid = runCatching { UUID.fromString(serverId) }.getOrNull() ?: return@collect
+                val sid = runCatching { Uuid.parse(serverId) }.getOrNull() ?: return@collect
                 val netId = serverNetworkId(serverId)
                 if (!canViewServer(sid, netId)) return@collect
                 sendWs(
@@ -203,7 +201,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
 
         val backupProgressJob = launch {
             controlService.backupProgressFlow.collect { update ->
-                val sid = runCatching { UUID.fromString(update.serverId) }.getOrNull() ?: return@collect
+                val sid = runCatching { Uuid.parse(update.serverId) }.getOrNull() ?: return@collect
                 val netId = serverNetworkId(update.serverId)
                 if (!canViewServer(sid, netId)) return@collect
                 sendWs(
@@ -221,7 +219,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
 
         val backupCompleteJob = launch {
             controlService.backupCompleteFlow.collect { update ->
-                val sid = runCatching { UUID.fromString(update.serverId) }.getOrNull() ?: return@collect
+                val sid = runCatching { Uuid.parse(update.serverId) }.getOrNull() ?: return@collect
                 val netId = serverNetworkId(update.serverId)
                 if (!canViewServer(sid, netId)) return@collect
                 val status = if (update.success) "COMPLETED" else "FAILED"
@@ -247,7 +245,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
                 val isResolved = alert.resolvedAt != null
                 if (alert.scopeType == ScopeType.NODE.name && !hasNodes()) return@collect
                 if (alert.scopeType == ScopeType.SERVER.name) {
-                    val sid = runCatching { UUID.fromString(alert.scopeId) }.getOrNull() ?: return@collect
+                    val sid = runCatching { Uuid.parse(alert.scopeId) }.getOrNull() ?: return@collect
                     val netId = serverNetworkId(alert.scopeId)
                     if (!canViewServer(sid, netId)) return@collect
                 }

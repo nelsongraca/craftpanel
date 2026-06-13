@@ -13,7 +13,6 @@ import kotlinx.serialization.Serializable
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
-import io.craftpanel.master.util.toKotlinUuid
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.post
 import io.ktor.http.*
@@ -25,7 +24,7 @@ import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.launch
-import java.util.*
+import kotlin.uuid.Uuid
 
 @Serializable
 data class MigrationsListResponse(val migrations: List<MigrationResponse>)
@@ -52,8 +51,8 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                 val scope = migrationService.getServerScope(id)
                     ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                val serverIdJava = UUID.fromString(id.toString())
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_MIGRATE, serverId = serverIdJava, networkId = scope.networkId))
+                val serverId = id
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_MIGRATE, serverId = serverId, networkId = scope.networkId))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 call.respond(MigrationsListResponse(migrationService.listMigrations(id)))
             }
@@ -76,8 +75,8 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
                     ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                 val scope = migrationService.getServerScope(id)
                     ?: return@post call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                val serverIdJava = UUID.fromString(id.toString())
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_MIGRATE, serverId = serverIdJava, networkId = scope.networkId))
+                val serverId = id
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_MIGRATE, serverId = serverId, networkId = scope.networkId))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val req = call.receive<MigrateRequest>()
                 call.respond(HttpStatusCode.Accepted, migrationService.startMigration(id, req))
@@ -100,8 +99,8 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
                 val migrationId = call.parameters["migrationId"]
                     ?.let {
                         runCatching {
-                            UUID.fromString(it)
-                                .toKotlinUuid()
+                            Uuid.parse(it)
+                                
                         }.getOrNull()
                     }
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid migration ID"))
@@ -137,10 +136,10 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
     }
 }
 
-private fun parseMigrationServerId(raw: String?): kotlin.uuid.Uuid? =
+private fun parseMigrationServerId(raw: String?): Uuid? =
     raw?.let {
         runCatching {
-            UUID.fromString(it)
-                .toKotlinUuid()
+            Uuid.parse(it)
+                
         }.getOrNull()
     }

@@ -4,7 +4,6 @@ import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.database.schema.RefreshTokens
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
-import io.craftpanel.master.util.toKotlinUuid
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.and
@@ -16,7 +15,7 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import java.util.*
+import kotlin.uuid.Uuid
 import io.craftpanel.master.util.toUtcString
 
 @Serializable
@@ -72,18 +71,18 @@ class UserService {
         }
     }
 
-    fun getUser(targetId: UUID): UserResponse =
+    fun getUser(targetId: Uuid): UserResponse =
         transaction {
             Users.selectAll()
-                .where { Users.id eq targetId.toKotlinUuid() }
+                .where { Users.id eq targetId }
                 .firstOrNull()
                 ?.toUserResponse()
         } ?: throw NotFoundException("User not found")
 
-    fun updateUser(targetId: UUID, req: PatchUserRequest): UserResponse {
+    fun updateUser(targetId: Uuid, req: PatchUserRequest): UserResponse {
         transaction {
             Users.selectAll()
-                .where { Users.id eq targetId.toKotlinUuid() }
+                .where { Users.id eq targetId }
                 .firstOrNull()
         }
             ?: throw NotFoundException("User not found")
@@ -95,14 +94,14 @@ class UserService {
                     if (req.email != null) add(Users.email eq req.email)
                 }
                 Users.selectAll()
-                    .where { conditions.reduce { a, b -> a or b } and (Users.id neq targetId.toKotlinUuid()) }
+                    .where { conditions.reduce { a, b -> a or b } and (Users.id neq targetId) }
                     .firstOrNull()
             }
             if (conflict != null) throw UnprocessableException("Username or email already taken")
         }
 
         transaction {
-            Users.update({ Users.id eq targetId.toKotlinUuid() }) {
+            Users.update({ Users.id eq targetId }) {
                 if (req.username != null) it[Users.username] = req.username
                 if (req.email != null) it[Users.email] = req.email
                 if (req.isActive != null) it[Users.isActive] = req.isActive
@@ -110,21 +109,21 @@ class UserService {
         }
         return transaction {
             Users.selectAll()
-                .where { Users.id eq targetId.toKotlinUuid() }
+                .where { Users.id eq targetId }
                 .first()
                 .toUserResponse()
         }
     }
 
-    fun deleteUser(targetId: UUID) {
+    fun deleteUser(targetId: Uuid) {
         val deleted = transaction {
             val exists = Users.selectAll()
-                .where { Users.id eq targetId.toKotlinUuid() }
+                .where { Users.id eq targetId }
                 .firstOrNull() != null
             if (!exists) return@transaction false
-            UserGroupAssignments.deleteWhere { UserGroupAssignments.userId eq targetId.toKotlinUuid() }
-            RefreshTokens.deleteWhere { RefreshTokens.userId eq targetId.toKotlinUuid() }
-            Users.deleteWhere { Users.id eq targetId.toKotlinUuid() }
+            UserGroupAssignments.deleteWhere { UserGroupAssignments.userId eq targetId }
+            RefreshTokens.deleteWhere { RefreshTokens.userId eq targetId }
+            Users.deleteWhere { Users.id eq targetId }
             true
         }
         if (!deleted) throw NotFoundException("User not found")

@@ -7,7 +7,7 @@ import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.*
-import io.craftpanel.master.util.toKotlinUuid
+import kotlin.uuid.Uuid
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
@@ -27,7 +27,6 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.*
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -80,30 +79,30 @@ class ModsRoutesTest {
         install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
 
-    private fun createUser(email: String = "admin@example.com"): UUID = transaction {
+    private fun createUser(email: String = "admin@example.com"): Uuid = transaction {
         Users.insert {
             it[Users.username] = email.substringBefore("@")
             it[Users.email] = email
             it[Users.passwordHash] = Argon2Hasher.hash("hunter2")
             it[Users.isActive] = true
-        }[Users.id].let { UUID.fromString(it.toString()) }
+        }[Users.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun assignGlobalGroup(userId: UUID, groupName: String) = transaction {
+    private fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
         UserGroupAssignments.insert {
-            it[UserGroupAssignments.userId] = userId.toKotlinUuid()
+            it[UserGroupAssignments.userId] = userId
             it[UserGroupAssignments.groupId] = groupId
             it[UserGroupAssignments.scopeType] = "GLOBAL"
         }
     }
 
-    private fun tokenFor(userId: UUID): String =
+    private fun tokenFor(userId: Uuid): String =
         jwtManager.generate(TokenClaims(userId = userId, name = "admin", email = "admin@example.com", groups = emptyList()))
 
-    private fun createNode(): UUID = transaction {
+    private fun createNode(): Uuid = transaction {
         Nodes.insert {
             it[Nodes.hostname] = "node-1"
             it[Nodes.displayName] = "node-1"
@@ -113,19 +112,19 @@ class ModsRoutesTest {
             it[Nodes.status] = "ACTIVE"
             it[Nodes.totalRamMb] = 8192
             it[Nodes.totalCpuShares] = 1024
-        }[Nodes.id].let { UUID.fromString(it.toString()) }
+        }[Nodes.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun createServer(nodeId: UUID): UUID = transaction {
+    private fun createServer(nodeId: Uuid): Uuid = transaction {
         Servers.insert {
             it[Servers.name] = "test-server"
             it[Servers.displayName] = "Test Server"
-            it[Servers.nodeId] = nodeId.toKotlinUuid()
+            it[Servers.nodeId] = nodeId
             it[Servers.serverType] = "VANILLA"
             it[Servers.mcVersion] = "LATEST"
             it[Servers.memoryMb] = 1024
             it[Servers.hostPort] = 25565
-        }[Servers.id].let { UUID.fromString(it.toString()) }
+        }[Servers.id].let { Uuid.parse(it.toString()) }
     }
 
     // ── List mods ─────────────────────────────────────────────────────────────
@@ -314,7 +313,7 @@ class ModsRoutesTest {
 
         val modId = transaction {
             ServerMods.insert {
-                it[ServerMods.serverId] = serverId.toKotlinUuid()
+                it[ServerMods.serverId] = serverId
                 it[ServerMods.modrinthProjectId] = "fabric-api"
                 it[ServerMods.displayName] = "Fabric API"
                 it[ServerMods.pinStrategy] = "LATEST"
@@ -346,7 +345,7 @@ class ModsRoutesTest {
 
         val modId = transaction {
             ServerMods.insert {
-                it[ServerMods.serverId] = serverId.toKotlinUuid()
+                it[ServerMods.serverId] = serverId
                 it[ServerMods.modrinthProjectId] = "fabric-api"
                 it[ServerMods.displayName] = "Fabric API"
                 it[ServerMods.pinStrategy] = "LATEST"
@@ -374,7 +373,7 @@ class ModsRoutesTest {
         val nodeId = createNode()
         val serverId = createServer(nodeId)
 
-        val res = client.delete("/api/servers/$serverId/mods/${UUID.randomUUID()}") {
+        val res = client.delete("/api/servers/$serverId/mods/${Uuid.random()}") {
             header("Authorization", "Bearer $token")
         }
         assertEquals(HttpStatusCode.NotFound, res.status)
@@ -388,13 +387,13 @@ class ModsRoutesTest {
         val serverId = createServer(nodeId)
         transaction {
             ServerMods.insert {
-                it[ServerMods.serverId] = serverId.toKotlinUuid()
+                it[ServerMods.serverId] = serverId
                 it[ServerMods.modrinthProjectId] = "fabric-api"
                 it[ServerMods.displayName] = "Fabric API"
                 it[ServerMods.pinStrategy] = "LATEST"
             }
         }
-        assertEquals("fabric-api", ModService().buildModrinthEnvVar(serverId.toKotlinUuid()))
+        assertEquals("fabric-api", ModService().buildModrinthEnvVar(serverId))
     }
 
     @Test
@@ -403,14 +402,14 @@ class ModsRoutesTest {
         val serverId = createServer(nodeId)
         transaction {
             ServerMods.insert {
-                it[ServerMods.serverId] = serverId.toKotlinUuid()
+                it[ServerMods.serverId] = serverId
                 it[ServerMods.modrinthProjectId] = "fabric-api"
                 it[ServerMods.displayName] = "Fabric API"
                 it[ServerMods.pinStrategy] = "PINNED"
                 it[ServerMods.pinnedVersionId] = "Oa9ZDzZq"
             }
         }
-        assertEquals("fabric-api:Oa9ZDzZq", ModService().buildModrinthEnvVar(serverId.toKotlinUuid()))
+        assertEquals("fabric-api:Oa9ZDzZq", ModService().buildModrinthEnvVar(serverId))
     }
 
     @Test
@@ -419,13 +418,13 @@ class ModsRoutesTest {
         val serverId = createServer(nodeId)
         transaction {
             ServerMods.insert {
-                it[ServerMods.serverId] = serverId.toKotlinUuid()
+                it[ServerMods.serverId] = serverId
                 it[ServerMods.modrinthProjectId] = "some-mod"
                 it[ServerMods.displayName] = "Some Mod"
                 it[ServerMods.pinStrategy] = "BETA"
             }
         }
-        assertEquals("some-mod:beta", ModService().buildModrinthEnvVar(serverId.toKotlinUuid()))
+        assertEquals("some-mod:beta", ModService().buildModrinthEnvVar(serverId))
     }
 
     @Test
@@ -434,13 +433,13 @@ class ModsRoutesTest {
         val serverId = createServer(nodeId)
         transaction {
             ServerMods.insert {
-                it[ServerMods.serverId] = serverId.toKotlinUuid()
+                it[ServerMods.serverId] = serverId
                 it[ServerMods.modrinthProjectId] = "some-mod"
                 it[ServerMods.displayName] = "Some Mod"
                 it[ServerMods.pinStrategy] = "ALPHA"
             }
         }
-        assertEquals("some-mod:alpha", ModService().buildModrinthEnvVar(serverId.toKotlinUuid()))
+        assertEquals("some-mod:alpha", ModService().buildModrinthEnvVar(serverId))
     }
 
     @Test
@@ -449,20 +448,20 @@ class ModsRoutesTest {
         val serverId = createServer(nodeId)
         transaction {
             ServerMods.insert {
-                it[ServerMods.serverId] = serverId.toKotlinUuid()
+                it[ServerMods.serverId] = serverId
                 it[ServerMods.modrinthProjectId] = "fabric-api"
                 it[ServerMods.displayName] = "Fabric API"
                 it[ServerMods.pinStrategy] = "LATEST"
             }
             ServerMods.insert {
-                it[ServerMods.serverId] = serverId.toKotlinUuid()
+                it[ServerMods.serverId] = serverId
                 it[ServerMods.modrinthProjectId] = "sodium"
                 it[ServerMods.displayName] = "Sodium"
                 it[ServerMods.pinStrategy] = "PINNED"
                 it[ServerMods.pinnedVersionId] = "abc123"
             }
         }
-        val result = ModService().buildModrinthEnvVar(serverId.toKotlinUuid())
+        val result = ModService().buildModrinthEnvVar(serverId)
         assert(result.contains("fabric-api")) { "Expected fabric-api in $result" }
         assert(result.contains("sodium:abc123")) { "Expected sodium:abc123 in $result" }
         assert(result.contains(",")) { "Expected comma separator in $result" }

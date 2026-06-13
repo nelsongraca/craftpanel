@@ -2,14 +2,14 @@
 
 ## Communication Boundaries
 
-| Channel                    | Protocol                                  | Authentication                                          |
-|----------------------------|-------------------------------------------|---------------------------------------------------------|
-| Browser → Master           | HTTPS + WSS (TLS)                         | JWT bearer token                                        |
-| Agent → Master (Control)   | gRPC over TLS                             | Node key (256-bit, stored hashed in DB)                 |
-| Agent → Master (BulkData)  | gRPC over TLS                             | Node key (same credential as Control)                   |
-| Agent → Docker             | Unix socket (local only)                  | Not exposed over network                                |
-| Players → mc-router        | Plain Minecraft protocol TCP (port 25565) | n/a                                                     |
-| mc-router → Container      | Docker bridge or host port                | n/a                                                     |
+| Channel                   | Protocol                                  | Authentication                          |
+|---------------------------|-------------------------------------------|-----------------------------------------|
+| Browser → Master          | HTTPS + WSS (TLS)                         | JWT bearer token                        |
+| Agent → Master (Control)  | gRPC over TLS                             | Node key (256-bit, stored hashed in DB) |
+| Agent → Master (BulkData) | gRPC over TLS                             | Node key (same credential as Control)   |
+| Agent → Docker            | Unix socket (local only)                  | Not exposed over network                |
+| Players → mc-router       | Plain Minecraft protocol TCP (port 25565) | n/a                                     |
+| mc-router → Container     | Docker bridge or host port                | n/a                                     |
 
 ---
 
@@ -50,7 +50,8 @@ All subsequent connections use the node's unique key, presented via `IdentifyNod
 
 All network communication between components uses TLS.
 
-- **Browser ↔ Master** — standard HTTPS certificate (Let's Encrypt or operator-provided). Master does **not** redirect HTTP → HTTPS itself; that redirect is the reverse proxy's responsibility (nginx, Caddy, Traefik, etc.). Master sets `Strict-Transport-Security` in non-dev profiles as a defence-in-depth header.
+- **Browser ↔ Master** — standard HTTPS certificate (Let's Encrypt or operator-provided). Master does **not** redirect HTTP → HTTPS itself; that redirect is the reverse proxy's responsibility (nginx,
+  Caddy, Traefik, etc.). Master sets `Strict-Transport-Security` in non-dev profiles as a defence-in-depth header.
 - **Master ↔ Agent** — TLS on the gRPC channel. The node key in `IdentifyNode` is the authentication mechanism; client certificates are not required. For nodes on a private network, self-signed
   certificates with the CA bundled into the agent config are acceptable. For nodes on the public internet, a wildcard or per-node certificate is recommended.
 

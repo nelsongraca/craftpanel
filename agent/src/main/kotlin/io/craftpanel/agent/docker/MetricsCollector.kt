@@ -1,11 +1,11 @@
 package io.craftpanel.agent.docker
 
-import io.craftpanel.proto.*
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.model.Statistics
 import com.google.protobuf.timestamp
 import io.craftpanel.agent.McQueryClient
+import io.craftpanel.proto.*
 import org.slf4j.LoggerFactory
 import java.io.Closeable
 import java.io.File

@@ -31,7 +31,7 @@ The following groups are pre-configured on installation. Administrators may crea
 | Group            | Permissions                                                        |
 |------------------|--------------------------------------------------------------------|
 | **Super Admin**  | All permission nodes                                               |
-| **Server Admin** | Everything except `system.*`, `server.resources`, `server.migrate`  |
+| **Server Admin** | Everything except `system.*`, `server.resources`, `server.migrate` |
 | **Operator**     | `server.restart`, `server.console`, `server.view`, `server.backup` |
 | **Viewer**       | `server.view`                                                      |
 

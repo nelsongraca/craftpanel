@@ -9,7 +9,6 @@ import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.service.*
-import io.craftpanel.master.util.toKotlinUuid
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
@@ -29,7 +28,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.*
+import kotlin.uuid.Uuid
 import kotlin.test.*
 import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
@@ -80,26 +79,26 @@ class SystemRoutesTest {
         install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
 
-    private fun createUser(username: String = "admin", email: String = "admin@example.com"): UUID = transaction {
+    private fun createUser(username: String = "admin", email: String = "admin@example.com"): Uuid = transaction {
         Users.insert {
             it[Users.username] = username
             it[Users.email] = email
             it[Users.passwordHash] = Argon2Hasher.hash("pass")
-        }[Users.id].let { UUID.fromString(it.toString()) }
+        }[Users.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun assignGlobalGroup(userId: UUID, groupName: String) = transaction {
+    private fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
         UserGroupAssignments.insert {
-            it[UserGroupAssignments.userId] = userId.toKotlinUuid()
+            it[UserGroupAssignments.userId] = userId
             it[UserGroupAssignments.groupId] = groupId
             it[UserGroupAssignments.scopeType] = "GLOBAL"
         }
     }
 
-    private fun tokenFor(userId: UUID): String =
+    private fun tokenFor(userId: Uuid): String =
         jwtManager.generate(TokenClaims(userId = userId, name = "admin", email = "admin@example.com", groups = emptyList()))
 
     // ── GET /api/system/settings ──────────────────────────────────────────────

@@ -9,7 +9,7 @@ import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.service.*
-import io.craftpanel.master.util.toKotlinUuid
+import kotlin.uuid.Uuid
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
@@ -29,7 +29,6 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.*
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -83,30 +82,30 @@ class GroupsRoutesTest {
         install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
 
-    private fun createUser(username: String = "admin", email: String = "admin@example.com"): UUID = transaction {
+    private fun createUser(username: String = "admin", email: String = "admin@example.com"): Uuid = transaction {
         Users.insert {
             it[Users.username] = username
             it[Users.email] = email
             it[Users.passwordHash] = Argon2Hasher.hash("pass")
-        }[Users.id].let { UUID.fromString(it.toString()) }
+        }[Users.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun assignGlobalGroup(userId: UUID, groupName: String) = transaction {
+    private fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
         UserGroupAssignments.insert {
-            it[UserGroupAssignments.userId] = userId.toKotlinUuid()
+            it[UserGroupAssignments.userId] = userId
             it[UserGroupAssignments.groupId] = groupId
             it[UserGroupAssignments.scopeType] = "GLOBAL"
         }
     }
 
-    private fun createGroup(name: String): UUID = transaction {
-        Groups.insert { it[Groups.name] = name }[Groups.id].let { UUID.fromString(it.toString()) }
+    private fun createGroup(name: String): Uuid = transaction {
+        Groups.insert { it[Groups.name] = name }[Groups.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun tokenFor(userId: UUID): String =
+    private fun tokenFor(userId: Uuid): String =
         jwtManager.generate(TokenClaims(userId = userId, name = "admin", email = "admin@example.com", groups = emptyList()))
 
     // ── GET /api/groups ───────────────────────────────────────────────────────
@@ -191,7 +190,7 @@ class GroupsRoutesTest {
         val superAdminId = transaction {
             Groups.selectAll()
                 .where { Groups.name eq "Super Admin" }
-                .first()[Groups.id].let { UUID.fromString(it.toString()) }
+                .first()[Groups.id].let { Uuid.parse(it.toString()) }
         }
 
         val response = client.patch("/api/groups/$superAdminId") {
@@ -226,7 +225,7 @@ class GroupsRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
 
-        val response = client.patch("/api/groups/${UUID.randomUUID()}") {
+        val response = client.patch("/api/groups/${Uuid.random()}") {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
             setBody("""{"name":"x"}""")
@@ -244,7 +243,7 @@ class GroupsRoutesTest {
         val superAdminId = transaction {
             Groups.selectAll()
                 .where { Groups.name eq "Super Admin" }
-                .first()[Groups.id].let { UUID.fromString(it.toString()) }
+                .first()[Groups.id].let { Uuid.parse(it.toString()) }
         }
 
         assertEquals(HttpStatusCode.Conflict, client.delete("/api/groups/$superAdminId") { bearerAuth(tokenFor(userId)) }.status)
@@ -261,7 +260,7 @@ class GroupsRoutesTest {
 
         val exists = transaction {
             Groups.selectAll()
-                .where { Groups.id eq groupId.toKotlinUuid() }
+                .where { Groups.id eq groupId }
                 .firstOrNull() != null
         }
         assertEquals(false, exists)
@@ -273,7 +272,7 @@ class GroupsRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.NotFound, client.delete("/api/groups/${UUID.randomUUID()}") { bearerAuth(tokenFor(userId)) }.status)
+        assertEquals(HttpStatusCode.NotFound, client.delete("/api/groups/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }.status)
     }
 
     // ── PUT /api/groups/{id}/permissions ──────────────────────────────────────
@@ -320,7 +319,7 @@ class GroupsRoutesTest {
         val viewerId = transaction {
             Groups.selectAll()
                 .where { Groups.name eq "Viewer" }
-                .first()[Groups.id].let { UUID.fromString(it.toString()) }
+                .first()[Groups.id].let { Uuid.parse(it.toString()) }
         }
 
         val response = client.put("/api/groups/$viewerId/permissions") {

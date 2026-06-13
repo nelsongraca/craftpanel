@@ -8,7 +8,7 @@ import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.*
-import io.craftpanel.master.util.toKotlinUuid
+import kotlin.uuid.Uuid
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
@@ -30,7 +30,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.*
+
 import kotlin.test.*
 import kotlin.time.Clock
 import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
@@ -86,27 +86,27 @@ class NodesRoutesTest {
         username: String = "admin",
         email: String = "admin@example.com",
         password: String = "hunter2",
-    ): UUID = transaction {
+    ): Uuid = transaction {
         Users.insert {
             it[Users.username] = username
             it[Users.email] = email
             it[Users.passwordHash] = Argon2Hasher.hash(password)
             it[Users.isActive] = true
-        }[Users.id].let { UUID.fromString(it.toString()) }
+        }[Users.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun assignGlobalGroup(userId: UUID, groupName: String) = transaction {
+    private fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
         UserGroupAssignments.insert {
-            it[UserGroupAssignments.userId] = userId.toKotlinUuid()
+            it[UserGroupAssignments.userId] = userId
             it[UserGroupAssignments.groupId] = groupId
             it[UserGroupAssignments.scopeType] = "GLOBAL"
         }
     }
 
-    private fun tokenFor(userId: UUID, username: String = "admin"): String =
+    private fun tokenFor(userId: Uuid, username: String = "admin"): String =
         jwtManager.generate(TokenClaims(userId = userId, name = username, email = "$username@example.com", groups = emptyList()))
 
     private fun createNode(
@@ -119,7 +119,7 @@ class NodesRoutesTest {
                 .toString(16)
                 .padStart(58, '0')
         }",
-    ): UUID = transaction {
+    ): Uuid = transaction {
         Nodes.insert {
             it[Nodes.hostname] = hostname
             it[Nodes.displayName] = hostname
@@ -130,24 +130,24 @@ class NodesRoutesTest {
             it[Nodes.status] = status
             it[Nodes.totalRamMb] = totalRamMb
             it[Nodes.totalCpuShares] = totalCpuShares
-        }[Nodes.id].let { UUID.fromString(it.toString()) }
+        }[Nodes.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun createServer(nodeId: UUID, memoryMb: Int = 1024, cpuShares: Int = 256): UUID = transaction {
+    private fun createServer(nodeId: Uuid, memoryMb: Int = 1024, cpuShares: Int = 256): Uuid = transaction {
         Servers.insert {
-            it[Servers.nodeId] = nodeId.toKotlinUuid()
-            it[Servers.name] = "server-${UUID.randomUUID()}"
+            it[Servers.nodeId] = nodeId
+            it[Servers.name] = "server-${Uuid.random()}"
             it[Servers.hostPort] = 25565
             it[Servers.memoryMb] = memoryMb
             it[Servers.cpuShares] = cpuShares
-        }[Servers.id].let { UUID.fromString(it.toString()) }
+        }[Servers.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun createNodeMetric(nodeId: UUID, cpuPercent: Double = 42.0, ramUsedMb: Int = 2048) = transaction {
+    private fun createNodeMetric(nodeId: Uuid, cpuPercent: Double = 42.0, ramUsedMb: Int = 2048) = transaction {
         val now = Clock.System.now()
             .toLocalDateTime(TimeZone.UTC)
         NodeMetrics.insert {
-            it[NodeMetrics.nodeId] = nodeId.toKotlinUuid()
+            it[NodeMetrics.nodeId] = nodeId
             it[NodeMetrics.recordedAt] = now
             it[NodeMetrics.cpuPercent] = cpuPercent
             it[NodeMetrics.ramUsedMb] = ramUsedMb
@@ -263,7 +263,7 @@ class NodesRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
 
-        val response = client.get("/api/nodes/${UUID.randomUUID()}") { bearerAuth(tokenFor(userId)) }
+        val response = client.get("/api/nodes/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }
 
         assertEquals(HttpStatusCode.NotFound, response.status)
     }
@@ -311,7 +311,7 @@ class NodesRoutesTest {
         assertEquals(HttpStatusCode.NoContent, response.status)
         val status = transaction {
             Nodes.selectAll()
-                .where { Nodes.id eq nodeId.toKotlinUuid() }
+                .where { Nodes.id eq nodeId }
                 .first()[Nodes.status]
         }
         assertEquals("ACTIVE", status)
@@ -323,7 +323,7 @@ class NodesRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.NotFound, client.post("/api/nodes/${UUID.randomUUID()}/trust") { bearerAuth(tokenFor(userId)) }.status)
+        assertEquals(HttpStatusCode.NotFound, client.post("/api/nodes/${Uuid.random()}/trust") { bearerAuth(tokenFor(userId)) }.status)
     }
 
     // -------------------------------------------------------------------------
@@ -342,7 +342,7 @@ class NodesRoutesTest {
         assertEquals(HttpStatusCode.NoContent, response.status)
         val status = transaction {
             Nodes.selectAll()
-                .where { Nodes.id eq nodeId.toKotlinUuid() }
+                .where { Nodes.id eq nodeId }
                 .first()[Nodes.status]
         }
         assertEquals("REJECTED", status)
@@ -354,7 +354,7 @@ class NodesRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.NotFound, client.post("/api/nodes/${UUID.randomUUID()}/reject") { bearerAuth(tokenFor(userId)) }.status)
+        assertEquals(HttpStatusCode.NotFound, client.post("/api/nodes/${Uuid.random()}/reject") { bearerAuth(tokenFor(userId)) }.status)
     }
 
     // -------------------------------------------------------------------------
@@ -390,7 +390,7 @@ class NodesRoutesTest {
 
         val newHash = transaction {
             Nodes.selectAll()
-                .where { Nodes.id eq nodeId.toKotlinUuid() }
+                .where { Nodes.id eq nodeId }
                 .first()[Nodes.tokenHash]
         }
         assertNotEquals(tokenHash, newHash)
@@ -402,7 +402,7 @@ class NodesRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.NotFound, client.post("/api/nodes/${UUID.randomUUID()}/token/rotate") { bearerAuth(tokenFor(userId)) }.status)
+        assertEquals(HttpStatusCode.NotFound, client.post("/api/nodes/${Uuid.random()}/token/rotate") { bearerAuth(tokenFor(userId)) }.status)
     }
 
     // -------------------------------------------------------------------------
@@ -448,7 +448,7 @@ class NodesRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.NotFound, client.post("/api/nodes/${UUID.randomUUID()}/shutdown") { bearerAuth(tokenFor(userId)) }.status)
+        assertEquals(HttpStatusCode.NotFound, client.post("/api/nodes/${Uuid.random()}/shutdown") { bearerAuth(tokenFor(userId)) }.status)
     }
 
     // -------------------------------------------------------------------------
@@ -472,7 +472,7 @@ class NodesRoutesTest {
         assertEquals(HttpStatusCode.NoContent, response.status)
         val name = transaction {
             Nodes.selectAll()
-                .where { Nodes.id eq nodeId.toKotlinUuid() }
+                .where { Nodes.id eq nodeId }
                 .first()[Nodes.displayName]
         }
         assertEquals("new-name", name)
@@ -520,7 +520,7 @@ class NodesRoutesTest {
         assignGlobalGroup(userId, "Super Admin")
         val client = jsonClient()
 
-        val response = client.patch("/api/nodes/${UUID.randomUUID()}") {
+        val response = client.patch("/api/nodes/${Uuid.random()}") {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
             setBody(PatchNodeRequest(displayName = "x"))
@@ -545,7 +545,7 @@ class NodesRoutesTest {
         assertEquals(HttpStatusCode.NoContent, response.status)
         val status = transaction {
             Nodes.selectAll()
-                .where { Nodes.id eq nodeId.toKotlinUuid() }
+                .where { Nodes.id eq nodeId }
                 .first()[Nodes.status]
         }
         assertEquals("DECOMMISSIONED", status)
@@ -557,7 +557,7 @@ class NodesRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.NotFound, client.delete("/api/nodes/${UUID.randomUUID()}") { bearerAuth(tokenFor(userId)) }.status)
+        assertEquals(HttpStatusCode.NotFound, client.delete("/api/nodes/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }.status)
     }
 
     // -------------------------------------------------------------------------
@@ -570,7 +570,7 @@ class NodesRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.NotFound, client.get("/api/nodes/${UUID.randomUUID()}/metrics") { bearerAuth(tokenFor(userId)) }.status)
+        assertEquals(HttpStatusCode.NotFound, client.get("/api/nodes/${Uuid.random()}/metrics") { bearerAuth(tokenFor(userId)) }.status)
     }
 
     @Test

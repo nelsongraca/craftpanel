@@ -13,7 +13,7 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import java.util.UUID
+import kotlin.uuid.Uuid
 import io.craftpanel.master.util.toUtcString
 
 @Serializable
@@ -82,7 +82,7 @@ data class PatchNetworkRequest(
 
 class NetworkService {
 
-    fun listNetworks(userId: UUID): List<NetworkResponse> {
+    fun listNetworks(userId: Uuid): List<NetworkResponse> {
         val visibility = resolveServerVisibility(userId)
         return transaction {
             val counts = Servers.selectAll()

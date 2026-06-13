@@ -5,7 +5,6 @@ import io.craftpanel.master.database.schema.AlertEvents
 import io.craftpanel.master.database.schema.AlertThresholds
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
-import io.craftpanel.master.util.toKotlinUuid
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -16,7 +15,7 @@ import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.*
+import kotlin.uuid.Uuid
 import io.craftpanel.master.util.toUtcString
 
 @Serializable
@@ -83,8 +82,7 @@ class AlertService {
         if (req.scopeType !in setOf(ScopeType.NODE.name, ScopeType.SERVER.name))
             throw UnprocessableException("scope_type must be NODE or SERVER")
         val scopeKotlinId = runCatching {
-            UUID.fromString(req.scopeId)
-                .toKotlinUuid()
+            Uuid.parse(req.scopeId)
         }.getOrNull()
             ?: throw UnprocessableException("Invalid scope_id")
         // Validate scopeId references an existing entity of the given scope type

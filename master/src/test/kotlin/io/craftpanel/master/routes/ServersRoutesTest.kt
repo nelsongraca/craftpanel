@@ -8,7 +8,7 @@ import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.*
-import io.craftpanel.master.util.toKotlinUuid
+import kotlin.uuid.Uuid
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
@@ -27,7 +27,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.*
+
 import kotlin.test.*
 import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
@@ -78,27 +78,27 @@ class ServersRoutesTest {
         install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
 
-    private fun createUser(username: String = "admin", email: String = "admin@example.com"): UUID = transaction {
+    private fun createUser(username: String = "admin", email: String = "admin@example.com"): Uuid = transaction {
         Users.insert {
             it[Users.username] = username
             it[Users.email] = email
             it[Users.passwordHash] = Argon2Hasher.hash("hunter2")
             it[Users.isActive] = true
-        }[Users.id].let { UUID.fromString(it.toString()) }
+        }[Users.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun assignGlobalGroup(userId: UUID, groupName: String) = transaction {
+    private fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
         UserGroupAssignments.insert {
-            it[UserGroupAssignments.userId] = userId.toKotlinUuid()
+            it[UserGroupAssignments.userId] = userId
             it[UserGroupAssignments.groupId] = groupId
             it[UserGroupAssignments.scopeType] = "GLOBAL"
         }
     }
 
-    private fun tokenFor(userId: UUID, username: String = "admin"): String =
+    private fun tokenFor(userId: Uuid, username: String = "admin"): String =
         jwtManager.generate(TokenClaims(userId = userId, name = username, email = "$username@example.com", groups = emptyList()))
 
     private fun createNode(
@@ -108,7 +108,7 @@ class ServersRoutesTest {
         totalCpuShares: Int = 0,
         portStart: Int = 25565,
         portEnd: Int = 25600,
-    ): UUID = transaction {
+    ): Uuid = transaction {
         Nodes.insert {
             it[Nodes.hostname] = hostname
             it[Nodes.displayName] = hostname
@@ -124,29 +124,29 @@ class ServersRoutesTest {
             it[Nodes.totalCpuShares] = totalCpuShares
             it[Nodes.portRangeStart] = portStart
             it[Nodes.portRangeEnd] = portEnd
-        }[Nodes.id].let { UUID.fromString(it.toString()) }
+        }[Nodes.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun createNetwork(name: String = "net-1"): UUID = transaction {
+    private fun createNetwork(name: String = "net-1"): Uuid = transaction {
         ServerNetworks.insert {
             it[ServerNetworks.name] = name
             it[ServerNetworks.type] = "VANILLA"
-        }[ServerNetworks.id].let { UUID.fromString(it.toString()) }
+        }[ServerNetworks.id].let { Uuid.parse(it.toString()) }
     }
 
     private fun createServer(
-        nodeId: UUID,
-        name: String = "server-${UUID.randomUUID()}",
-        networkId: UUID? = null,
+        nodeId: Uuid,
+        name: String = "server-${Uuid.random()}",
+        networkId: Uuid? = null,
         status: String = "STOPPED",
         memoryMb: Int = 1024,
         port: Int = 25565,
         containerId: String? = null,
         mcVersion: String = "1.21.4",
-    ): UUID = transaction {
+    ): Uuid = transaction {
         Servers.insert {
-            it[Servers.nodeId] = nodeId.toKotlinUuid()
-            it[Servers.networkId] = networkId?.toKotlinUuid()
+            it[Servers.nodeId] = nodeId
+            it[Servers.networkId] = networkId
             it[Servers.name] = name
             it[Servers.displayName] = name
             it[Servers.serverType] = "VANILLA"
@@ -156,7 +156,7 @@ class ServersRoutesTest {
             it[Servers.cpuShares] = 0
             it[Servers.status] = status
             it[Servers.containerId] = containerId
-        }[Servers.id].let { UUID.fromString(it.toString()) }
+        }[Servers.id].let { Uuid.parse(it.toString()) }
     }
 
     // ── GET /servers ─────────────────────────────────────────────────────────
@@ -208,9 +208,9 @@ class ServersRoutesTest {
         val serverId = createServer(nodeId, "migrating-server")
         transaction {
             ServerMigrations.insert {
-                it[ServerMigrations.serverId] = serverId.toKotlinUuid()
-                it[ServerMigrations.sourceNodeId] = nodeId.toKotlinUuid()
-                it[ServerMigrations.targetNodeId] = nodeId.toKotlinUuid()
+                it[ServerMigrations.serverId] = serverId
+                it[ServerMigrations.sourceNodeId] = nodeId
+                it[ServerMigrations.targetNodeId] = nodeId
                 it[ServerMigrations.status] = "RUNNING"
             }
         }
@@ -261,7 +261,7 @@ class ServersRoutesTest {
 
         val portCount = transaction {
             PortRegistry.selectAll()
-                .where { PortRegistry.nodeId eq nodeId.toKotlinUuid() }
+                .where { PortRegistry.nodeId eq nodeId }
                 .count()
         }
         assertEquals(1L, portCount)
@@ -354,7 +354,7 @@ class ServersRoutesTest {
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode()
-        val fakeNetId = UUID.randomUUID()
+        val fakeNetId = Uuid.random()
         val resp = client.post("/api/servers") {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
@@ -394,10 +394,10 @@ class ServersRoutesTest {
             setBody("""{"name":"proxy-srv","node_id":"$nodeId","server_type":"VELOCITY","memory_mb":512}""")
         }
         assertEquals(HttpStatusCode.Created, resp.status)
-        val id = resp.body<JsonObject>()["id"]!!.jsonPrimitive.content
+        val id = Uuid.parse(resp.body<JsonObject>()["id"]!!.jsonPrimitive.content)
         val row = transaction {
             Servers.selectAll()
-                .where { Servers.id eq id.toKotlinUuid() }
+                .where { Servers.id eq id }
                 .first()
         }
         assertEquals("end", row[Servers.stopCommand])
@@ -411,7 +411,7 @@ class ServersRoutesTest {
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Viewer")
-        val resp = client.get("/api/servers/${UUID.randomUUID()}") { bearerAuth(tokenFor(userId)) }
+        val resp = client.get("/api/servers/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.NotFound, resp.status)
     }
 
@@ -478,7 +478,7 @@ class ServersRoutesTest {
         assertEquals(HttpStatusCode.NoContent, resp.status)
         val row = transaction {
             Servers.selectAll()
-                .where { Servers.id eq serverId.toKotlinUuid() }
+                .where { Servers.id eq serverId }
                 .first()
         }
         assertEquals("Patched Name", row[Servers.displayName])
@@ -501,7 +501,7 @@ class ServersRoutesTest {
         assertEquals(HttpStatusCode.NoContent, resp.status)
         val row = transaction {
             Servers.selectAll()
-                .where { Servers.id eq serverId.toKotlinUuid() }
+                .where { Servers.id eq serverId }
                 .first()
         }
         assertEquals(null, row[Servers.networkId])
@@ -524,10 +524,10 @@ class ServersRoutesTest {
         assertEquals(HttpStatusCode.NoContent, resp.status)
         val row = transaction {
             Servers.selectAll()
-                .where { Servers.id eq serverId.toKotlinUuid() }
+                .where { Servers.id eq serverId }
                 .first()
         }
-        assertEquals(netId.toKotlinUuid(), row[Servers.networkId])
+        assertEquals(netId, row[Servers.networkId])
     }
 
     @Test
@@ -538,7 +538,7 @@ class ServersRoutesTest {
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode()
         val serverId = createServer(nodeId)
-        val fakeNetId = UUID.randomUUID()
+        val fakeNetId = Uuid.random()
         val resp = client.patch("/api/servers/$serverId") {
             bearerAuth(tokenFor(userId))
             contentType(ContentType.Application.Json)
@@ -571,10 +571,10 @@ class ServersRoutesTest {
         val serverId = createServer(nodeId, "to-delete", status = "STOPPED")
         transaction {
             PortRegistry.insert {
-                it[PortRegistry.nodeId] = nodeId.toKotlinUuid()
+                it[PortRegistry.nodeId] = nodeId
                 it[PortRegistry.port] = 25565
                 it[PortRegistry.protocol] = "TCP"
-                it[PortRegistry.serverId] = serverId.toKotlinUuid()
+                it[PortRegistry.serverId] = serverId
             }
         }
         val resp = client.delete("/api/servers/$serverId") { bearerAuth(tokenFor(userId)) }
@@ -582,13 +582,13 @@ class ServersRoutesTest {
 
         val serverExists = transaction {
             Servers.selectAll()
-                .where { Servers.id eq serverId.toKotlinUuid() }
+                .where { Servers.id eq serverId }
                 .firstOrNull() != null
         }
         assertEquals(false, serverExists)
         val portExists = transaction {
             PortRegistry.selectAll()
-                .where { PortRegistry.serverId eq serverId.toKotlinUuid() }
+                .where { PortRegistry.serverId eq serverId }
                 .firstOrNull() != null
         }
         assertEquals(false, portExists)
@@ -600,7 +600,7 @@ class ServersRoutesTest {
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
-        val resp = client.delete("/api/servers/${UUID.randomUUID()}") { bearerAuth(tokenFor(userId)) }
+        val resp = client.delete("/api/servers/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.NotFound, resp.status)
     }
 
@@ -638,7 +638,7 @@ class ServersRoutesTest {
         assertEquals(HttpStatusCode.NoContent, resp.status)
         val row = transaction {
             Servers.selectAll()
-                .where { Servers.id eq serverId.toKotlinUuid() }
+                .where { Servers.id eq serverId }
                 .first()
         }
         assertEquals(3000, row[Servers.memoryMb])
@@ -696,7 +696,7 @@ class ServersRoutesTest {
         assertEquals(HttpStatusCode.NoContent, resp.status)
         val row = transaction {
             Servers.selectAll()
-                .where { Servers.id eq serverId.toKotlinUuid() }
+                .where { Servers.id eq serverId }
                 .first()
         }
         assertEquals(true, row[Servers.exposedExternally])
@@ -770,7 +770,7 @@ class ServersRoutesTest {
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
-        val resp = client.post("/api/servers/${UUID.randomUUID()}/start") { bearerAuth(tokenFor(userId)) }
+        val resp = client.post("/api/servers/${Uuid.random()}/start") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.NotFound, resp.status)
     }
 
@@ -822,7 +822,7 @@ class ServersRoutesTest {
         assertEquals(HttpStatusCode.Accepted, resp.status)
         val row = transaction {
             Servers.selectAll()
-                .where { Servers.id eq serverId.toKotlinUuid() }
+                .where { Servers.id eq serverId }
                 .first()
         }
         assertEquals("STARTING", row[Servers.status])

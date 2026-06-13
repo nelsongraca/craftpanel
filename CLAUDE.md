@@ -368,6 +368,7 @@ Schema migrations via `exposed-migration-jdbc`.
 - Don't use `respondBytesWriter` before verifying file existence — it commits HTTP 200 immediately; call `proxy.downloadFile` (throws on 404) before opening the writer
 - Don't return `application/octet-stream` binary bodies from endpoints consumed by the system-test generated client (jvm-okhttp4+Gson maps binary response as `body.bytes() as? T` → null → NPE) — return JSON `List<Int>` for byte arrays instead, or a typed DTO
 - Don't conflate `itzgImageTag` (Docker image tag e.g. `"1.21.5"`) with `mcVersion` (the `VERSION` env var passed to `itzg/minecraft-server`) — they are separate fields with separate meanings
+- Don't use `java.util.UUID` — use `kotlin.uuid.Uuid` (`Uuid.random()`, `Uuid.parse()`, no `.toJavaUuid()`/`.toKotlinUuid()` conversions; Exposed 1.3.0 `uuid()` columns return `Uuid` natively)
 ## Agent skills
 
 ### Issue tracker

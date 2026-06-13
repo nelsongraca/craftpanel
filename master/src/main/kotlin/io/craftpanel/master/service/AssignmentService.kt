@@ -2,7 +2,6 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.database.schema.*
-import io.craftpanel.master.util.toKotlinUuid
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.and
@@ -12,7 +11,7 @@ import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.*
+import kotlin.uuid.Uuid
 
 @Serializable
 data class AssignmentResponse(
@@ -34,59 +33,59 @@ data class CreateAssignmentRequest(
 
 class AssignmentService {
 
-    fun listAssignments(targetId: UUID): AssignmentsListResponse {
+    fun listAssignments(targetId: Uuid): AssignmentsListResponse {
         val exists = transaction {
             Users.selectAll()
-                .where { Users.id eq targetId.toKotlinUuid() }
+                .where { Users.id eq targetId }
                 .firstOrNull() != null
         }
         if (!exists) throw NotFoundException("User not found")
         val assignments = transaction {
             UserGroupAssignments.selectAll()
-                .where { UserGroupAssignments.userId eq targetId.toKotlinUuid() }
+                .where { UserGroupAssignments.userId eq targetId }
                 .map { it.toAssignmentResponse() }
         }
         return AssignmentsListResponse(assignments)
     }
 
-    fun createAssignment(targetId: UUID, req: CreateAssignmentRequest): AssignmentResponse {
+    fun createAssignment(targetId: Uuid, req: CreateAssignmentRequest): AssignmentResponse {
         if (req.scopeType !in setOf(ScopeType.GLOBAL.name, ScopeType.SERVER.name, ScopeType.NETWORK.name))
             throw UnprocessableException("scope_type must be GLOBAL, SERVER, or NETWORK")
         if (req.scopeType != ScopeType.GLOBAL.name && req.scopeId == null)
             throw UnprocessableException("scope_id required for ${req.scopeType} scope")
 
-        val groupId = runCatching { UUID.fromString(req.groupId) }.getOrNull()
+        val groupId = runCatching { Uuid.parse(req.groupId) }.getOrNull()
             ?: throw UnprocessableException("Invalid group_id")
         val scopeId = req.scopeId?.let {
-            runCatching { UUID.fromString(it) }.getOrNull()
+            runCatching { Uuid.parse(it) }.getOrNull()
                 ?: throw UnprocessableException("Invalid scope_id")
         }
 
         val validation = transaction {
             val userExists = Users.selectAll()
-                .where { Users.id eq targetId.toKotlinUuid() }
+                .where { Users.id eq targetId }
                 .firstOrNull() != null
             val groupExists = Groups.selectAll()
-                .where { Groups.id eq groupId.toKotlinUuid() }
+                .where { Groups.id eq groupId }
                 .firstOrNull() != null
             val scopeExists = when {
                 scopeId == null                         -> true
                 req.scopeType == ScopeType.SERVER.name  -> Servers.selectAll()
-                    .where { Servers.id eq scopeId.toKotlinUuid() }
+                    .where { Servers.id eq scopeId }
                     .firstOrNull() != null
 
                 req.scopeType == ScopeType.NETWORK.name -> ServerNetworks.selectAll()
-                    .where { ServerNetworks.id eq scopeId.toKotlinUuid() }
+                    .where { ServerNetworks.id eq scopeId }
                     .firstOrNull() != null
 
                 else                                    -> true
             }
             val alreadyExists = UserGroupAssignments.selectAll()
                 .where {
-                    (UserGroupAssignments.userId eq targetId.toKotlinUuid()) and
-                            (UserGroupAssignments.groupId eq groupId.toKotlinUuid()) and
+                    (UserGroupAssignments.userId eq targetId) and
+                            (UserGroupAssignments.groupId eq groupId) and
                             (UserGroupAssignments.scopeType eq req.scopeType) and
-                            if (scopeId != null) (UserGroupAssignments.scopeId eq scopeId.toKotlinUuid()) else (UserGroupAssignments.scopeId.isNull())
+                            if (scopeId != null) (UserGroupAssignments.scopeId eq scopeId) else (UserGroupAssignments.scopeId.isNull())
                 }
                 .firstOrNull() != null
             Triple(userExists && groupExists && scopeExists, alreadyExists, userExists && groupExists)
@@ -98,10 +97,10 @@ class AssignmentService {
 
         val createdId = transaction {
             UserGroupAssignments.insert {
-                it[UserGroupAssignments.userId] = targetId.toKotlinUuid()
-                it[UserGroupAssignments.groupId] = groupId.toKotlinUuid()
+                it[UserGroupAssignments.userId] = targetId
+                it[UserGroupAssignments.groupId] = groupId
                 it[UserGroupAssignments.scopeType] = req.scopeType
-                it[UserGroupAssignments.scopeId] = scopeId?.toKotlinUuid()
+                it[UserGroupAssignments.scopeId] = scopeId
             }[UserGroupAssignments.id]
         }
         return transaction {
@@ -112,18 +111,18 @@ class AssignmentService {
         }
     }
 
-    fun deleteAssignment(targetId: UUID, assignmentId: UUID) {
+    fun deleteAssignment(targetId: Uuid, assignmentId: Uuid) {
         val deleted = transaction {
             val exists = UserGroupAssignments.selectAll()
                 .where {
-                    (UserGroupAssignments.id eq assignmentId.toKotlinUuid()) and
-                            (UserGroupAssignments.userId eq targetId.toKotlinUuid())
+                    (UserGroupAssignments.id eq assignmentId) and
+                            (UserGroupAssignments.userId eq targetId)
                 }
                 .firstOrNull() != null
             if (!exists) return@transaction false
             UserGroupAssignments.deleteWhere {
-                (UserGroupAssignments.id eq assignmentId.toKotlinUuid()) and
-                        (UserGroupAssignments.userId eq targetId.toKotlinUuid())
+                (UserGroupAssignments.id eq assignmentId) and
+                        (UserGroupAssignments.userId eq targetId)
             }
             true
         }

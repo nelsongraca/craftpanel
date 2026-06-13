@@ -3,14 +3,14 @@ package io.craftpanel.master.grpc
 import io.craftpanel.proto.*
 import com.google.protobuf.ByteString
 import io.craftpanel.master.database.schema.Servers
-import io.craftpanel.master.util.toKotlinUuid
+import kotlin.uuid.Uuid
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.map
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.*
+
 
 /**
  * Routes file and console operations from REST/WebSocket routes to the connected agent
@@ -25,8 +25,8 @@ class DataServiceProxy(
 
     private fun lookupNodeId(serverId: String): String = transaction {
         val id = runCatching {
-            UUID.fromString(serverId)
-                .toKotlinUuid()
+            Uuid.parse(serverId)
+                
         }.getOrElse {
             error("Invalid server ID: $serverId")
         }
@@ -40,8 +40,8 @@ class DataServiceProxy(
 
     private fun lookupServer(serverId: String): ServerLookup = transaction {
         val id = runCatching {
-            UUID.fromString(serverId)
-                .toKotlinUuid()
+            Uuid.parse(serverId)
+                
         }.getOrElse {
             error("Invalid server ID: $serverId")
         }
@@ -69,7 +69,7 @@ class DataServiceProxy(
 
     suspend fun listFiles(serverId: String, path: String): ListFilesResponse {
         val nodeId = lookupNodeId(serverId)
-        val reqId = UUID.randomUUID()
+        val reqId = Uuid.random()
             .toString()
         val response = controlService.sendAndAwait(nodeId, reqId, masterMessage {
             listFiles = listFilesRequest { requestId = reqId; this.serverId = serverId; this.path = path }
@@ -81,7 +81,7 @@ class DataServiceProxy(
 
     suspend fun readFile(serverId: String, path: String): ReadFileResponse {
         val nodeId = lookupNodeId(serverId)
-        val reqId = UUID.randomUUID()
+        val reqId = Uuid.random()
             .toString()
         val response = controlService.sendAndAwait(nodeId, reqId, masterMessage {
             readFile = readFileRequest { requestId = reqId; this.serverId = serverId; this.path = path }
@@ -93,7 +93,7 @@ class DataServiceProxy(
 
     suspend fun writeFile(serverId: String, path: String, content: ByteArray) {
         val nodeId = lookupNodeId(serverId)
-        val reqId = UUID.randomUUID()
+        val reqId = Uuid.random()
             .toString()
         val response = controlService.sendAndAwait(nodeId, reqId, masterMessage {
             writeFile = writeFileRequest {
@@ -107,7 +107,7 @@ class DataServiceProxy(
 
     suspend fun deleteFile(serverId: String, path: String, recursive: Boolean) {
         val nodeId = lookupNodeId(serverId)
-        val reqId = UUID.randomUUID()
+        val reqId = Uuid.random()
             .toString()
         val response = controlService.sendAndAwait(nodeId, reqId, masterMessage {
             deleteFile = deleteFileRequest {
@@ -120,7 +120,7 @@ class DataServiceProxy(
 
     suspend fun makeDirectory(serverId: String, path: String) {
         val nodeId = lookupNodeId(serverId)
-        val reqId = UUID.randomUUID()
+        val reqId = Uuid.random()
             .toString()
         val response = controlService.sendAndAwait(nodeId, reqId, masterMessage {
             makeDirectory = makeDirectoryRequest { requestId = reqId; this.serverId = serverId; this.path = path }
@@ -131,7 +131,7 @@ class DataServiceProxy(
 
     suspend fun moveFile(serverId: String, sourcePath: String, destinationPath: String) {
         val nodeId = lookupNodeId(serverId)
-        val reqId = UUID.randomUUID()
+        val reqId = Uuid.random()
             .toString()
         val response = controlService.sendAndAwait(nodeId, reqId, masterMessage {
             moveFile = moveFileRequest {
@@ -145,7 +145,7 @@ class DataServiceProxy(
 
     suspend fun copyFile(serverId: String, sourcePath: String, destinationPath: String, recursive: Boolean) {
         val nodeId = lookupNodeId(serverId)
-        val reqId = UUID.randomUUID()
+        val reqId = Uuid.random()
             .toString()
         val response = controlService.sendAndAwait(nodeId, reqId, masterMessage {
             copyFile = copyFileRequest {
@@ -165,9 +165,9 @@ class DataServiceProxy(
      */
     suspend fun uploadFile(serverId: String, path: String, content: ByteArray): Long {
         val nodeId = lookupNodeId(serverId)
-        val transferId = UUID.randomUUID()
+        val transferId = Uuid.random()
             .toString()
-        val reqId = UUID.randomUUID()
+        val reqId = Uuid.random()
             .toString()
 
         // Pre-fill the upload channel before signalling the agent so it's ready when agent connects.
@@ -199,9 +199,9 @@ class DataServiceProxy(
      */
     suspend fun downloadFile(serverId: String, path: String): Flow<ByteArray> {
         val nodeId = lookupNodeId(serverId)
-        val transferId = UUID.randomUUID()
+        val transferId = Uuid.random()
             .toString()
-        val reqId = UUID.randomUUID()
+        val reqId = Uuid.random()
             .toString()
 
         // Register the download channel before signalling the agent so BulkDataService is ready.
@@ -229,9 +229,9 @@ class DataServiceProxy(
 
     suspend fun downloadBackup(serverId: String, backupId: String): Flow<ByteArray> {
         val nodeId = lookupNodeId(serverId)
-        val transferId = UUID.randomUUID()
+        val transferId = Uuid.random()
             .toString()
-        val reqId = UUID.randomUUID()
+        val reqId = Uuid.random()
             .toString()
 
         val downloadFlow = bulkService.registerDownload(transferId)

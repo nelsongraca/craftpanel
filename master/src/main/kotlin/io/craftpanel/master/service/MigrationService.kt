@@ -20,7 +20,6 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
@@ -82,14 +81,14 @@ class MigrationService(
         }
     }
 
-    data class ServerScope(val networkId: UUID?)
+    data class ServerScope(val networkId: Uuid?)
 
     fun getServerScope(serverId: Uuid): ServerScope? =
         transaction {
             Servers.selectAll()
                 .where { Servers.id eq serverId }
                 .firstOrNull()
-                ?.let { ServerScope(it[Servers.networkId]?.let { nid -> UUID.fromString(nid.toString()) }) }
+                ?.let { ServerScope(it[Servers.networkId]) }
         }
 
     fun startMigration(serverId: Uuid, req: MigrateRequest): MigrationResponse {

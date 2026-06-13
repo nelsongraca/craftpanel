@@ -7,7 +7,6 @@ import io.craftpanel.master.service.NodeMetricsResponse
 import io.craftpanel.master.service.NodeResponse
 import io.craftpanel.master.service.NodeService
 import io.craftpanel.master.service.PatchNodeRequest
-import io.craftpanel.master.util.toKotlinUuid
 import io.github.smiley4.ktoropenapi.delete
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.patch
@@ -17,7 +16,7 @@ import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import java.util.*
+import kotlin.uuid.Uuid
 
 fun Route.nodesRoutes(nodeService: NodeService) {
     authenticate(JWT_AUTH) {
@@ -204,10 +203,10 @@ fun Route.nodesRoutes(nodeService: NodeService) {
     }
 }
 
-private fun parseNodeId(raw: String?): kotlin.uuid.Uuid? =
+private fun parseNodeId(raw: String?): Uuid? =
     raw?.let {
         runCatching {
-            UUID.fromString(it)
-                .toKotlinUuid()
+            Uuid.parse(it)
+                
         }.getOrNull()
     }

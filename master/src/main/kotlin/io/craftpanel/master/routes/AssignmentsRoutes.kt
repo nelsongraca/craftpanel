@@ -15,7 +15,7 @@ import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import java.util.*
+import kotlin.uuid.Uuid
 
 fun Route.assignmentsRoutes(assignmentService: AssignmentService) {
     authenticate(JWT_AUTH) {
@@ -35,7 +35,7 @@ fun Route.assignmentsRoutes(assignmentService: AssignmentService) {
                 val callerId = call.userId()
                 if (!PermissionResolver.hasPermission(callerId, Permission.SYSTEM_USERS))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                val targetId = call.parameters["userId"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                val targetId = call.parameters["userId"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
                 call.respond(assignmentService.listAssignments(targetId))
             }
@@ -56,7 +56,7 @@ fun Route.assignmentsRoutes(assignmentService: AssignmentService) {
                 val callerId = call.userId()
                 if (!PermissionResolver.hasPermission(callerId, Permission.SYSTEM_USERS))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                val targetId = call.parameters["userId"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                val targetId = call.parameters["userId"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@post call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
                 val req = call.receive<CreateAssignmentRequest>()
                 call.respond(HttpStatusCode.Created, assignmentService.createAssignment(targetId, req))
@@ -76,9 +76,9 @@ fun Route.assignmentsRoutes(assignmentService: AssignmentService) {
                 val callerId = call.userId()
                 if (!PermissionResolver.hasPermission(callerId, Permission.SYSTEM_USERS))
                     return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                val targetId = call.parameters["userId"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                val targetId = call.parameters["userId"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@delete call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
-                val assignmentId = call.parameters["assignmentId"]?.let { runCatching { UUID.fromString(it) }.getOrNull() }
+                val assignmentId = call.parameters["assignmentId"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@delete call.respond(HttpStatusCode.NotFound, ErrorResponse("Assignment not found"))
                 assignmentService.deleteAssignment(targetId, assignmentId)
                 call.respond(HttpStatusCode.NoContent)

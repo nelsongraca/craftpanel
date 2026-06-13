@@ -1,7 +1,6 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.database.schema.SystemSettings
-import io.craftpanel.master.util.toKotlinUuid
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerialName
@@ -9,7 +8,7 @@ import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.upsert
-import java.util.*
+import kotlin.uuid.Uuid
 import kotlin.time.Clock
 
 @Serializable
@@ -39,7 +38,7 @@ class SystemService {
 
     fun getSettings(): SystemSettingsResponse = transaction { loadSettings() }
 
-    fun updateSettings(updatedBy: UUID, req: PatchSettingsRequest): SystemSettingsResponse {
+    fun updateSettings(updatedBy: Uuid, req: PatchSettingsRequest): SystemSettingsResponse {
         val portStart = req.defaultPortRangeStart
         val portEnd = req.defaultPortRangeEnd
         if (portStart != null && portEnd != null && portStart >= portEnd)
@@ -49,7 +48,7 @@ class SystemService {
         if (req.defaultBackupMaxCount != null && req.defaultBackupMaxCount < 1)
             throw UnprocessableException("default_backup_max_count must be at least 1")
 
-        val updatedByKotlin = updatedBy.toKotlinUuid()
+        val updatedByKotlin = updatedBy
         transaction {
             val updates = buildMap {
                 if (req.metricRetentionDays != null) put("metric_retention_days", req.metricRetentionDays.toString())

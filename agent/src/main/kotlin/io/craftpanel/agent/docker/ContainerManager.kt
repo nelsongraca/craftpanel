@@ -1,15 +1,15 @@
 package io.craftpanel.agent.docker
 
-import io.craftpanel.proto.ContainerState
-import io.craftpanel.proto.CreateContainerCommand
-import io.craftpanel.proto.containerState
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.command.PullImageResultCallback
 import com.github.dockerjava.api.model.*
+import io.craftpanel.proto.ContainerState
+import io.craftpanel.proto.CreateContainerCommand
+import io.craftpanel.proto.containerState
 import org.slf4j.LoggerFactory
-import java.io.File
 import java.io.ByteArrayInputStream
+import java.io.File
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 

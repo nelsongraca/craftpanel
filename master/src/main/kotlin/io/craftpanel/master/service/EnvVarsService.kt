@@ -10,7 +10,6 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import java.util.UUID
 import kotlin.uuid.Uuid
 
 @Serializable
@@ -30,7 +29,7 @@ data class PatchStopCommandRequest(@SerialName("stop_command") val stopCommand: 
 
 class EnvVarsService {
 
-    data class ServerScope(val serverIdJava: UUID, val networkId: UUID?)
+    data class ServerScope(val serverId: Uuid, val networkId: Uuid?)
 
     fun getServerScope(serverId: Uuid): ServerScope? =
         transaction {
@@ -39,8 +38,8 @@ class EnvVarsService {
                 .firstOrNull()
                 ?.let {
                     ServerScope(
-                        serverIdJava = UUID.fromString(serverId.toString()),
-                        networkId = it[Servers.networkId]?.let { nid -> UUID.fromString(nid.toString()) },
+                        serverId = serverId,
+                        networkId = it[Servers.networkId],
                     )
                 }
         }

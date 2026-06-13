@@ -7,7 +7,7 @@ import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.*
-import io.craftpanel.master.util.toKotlinUuid
+import kotlin.uuid.Uuid
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
@@ -27,7 +27,6 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.util.*
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -107,14 +106,14 @@ class MigrationsRoutesTest {
                 it[Users.email] = "admin@test.com"
                 it[Users.passwordHash] = "hash"
                 it[Users.isActive] = true
-            }[Users.id].let { UUID.fromString(it.toString()) }
+            }[Users.id].let { Uuid.parse(it.toString()) }
         }
         transaction {
             val groupId = Groups.selectAll()
                 .where { Groups.name eq "Super Admin" }
                 .first()[Groups.id]
             UserGroupAssignments.insert {
-                it[UserGroupAssignments.userId] = userId.toKotlinUuid()
+                it[UserGroupAssignments.userId] = userId
                 it[UserGroupAssignments.groupId] = groupId
                 it[UserGroupAssignments.scopeType] = "GLOBAL"
             }
@@ -122,24 +121,24 @@ class MigrationsRoutesTest {
         return jwtManager.generate(TokenClaims(userId = userId, name = "Admin", email = "admin@test.com", groups = listOf("Super Admin")))
     }
 
-    private fun insertNode(status: String = "ACTIVE"): Pair<UUID, kotlin.uuid.Uuid> {
+    private fun insertNode(status: String = "ACTIVE"): Pair<Uuid, Uuid> {
         val nodeId = transaction {
             Nodes.insert {
                 it[Nodes.displayName] = "Test Node"
                 it[Nodes.hostname] = "node1.test"
                 it[Nodes.publicIp] = "1.2.3.4"
                 it[Nodes.privateIp] = "10.0.0.1"
-                it[Nodes.tokenHash] = UUID.randomUUID().toString()
+                it[Nodes.tokenHash] = Uuid.random().toString()
                 it[Nodes.status] = status
             }[Nodes.id]
         }
-        return UUID.fromString(nodeId.toString()) to nodeId
+        return Uuid.parse(nodeId.toString()) to nodeId
     }
 
-    private fun insertServer(nodeId: kotlin.uuid.Uuid): Pair<UUID, kotlin.uuid.Uuid> {
+    private fun insertServer(nodeId: Uuid): Pair<Uuid, Uuid> {
         val serverId = transaction {
             Servers.insert {
-                it[Servers.name] = "test-server-${UUID.randomUUID()}"
+                it[Servers.name] = "test-server-${Uuid.random()}"
                 it[Servers.displayName] = "Test Server"
                 it[Servers.nodeId] = nodeId
                 it[Servers.hostPort] = 25565
@@ -147,7 +146,7 @@ class MigrationsRoutesTest {
                 it[Servers.status] = "HEALTHY"
             }[Servers.id]
         }
-        return UUID.fromString(serverId.toString()) to serverId
+        return Uuid.parse(serverId.toString()) to serverId
     }
 
     @Test
@@ -172,10 +171,10 @@ class MigrationsRoutesTest {
         application { configureTest() }
         val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
 
-        val response = client.post("/api/servers/${UUID.randomUUID()}/migrations") {
+        val response = client.post("/api/servers/${Uuid.random()}/migrations") {
             bearerAuth(token)
             contentType(ContentType.Application.Json)
-            setBody("""{"target_node_id":"${UUID.randomUUID()}"}""")
+            setBody("""{"target_node_id":"${Uuid.random()}"}""")
         }
         assertEquals(HttpStatusCode.NotFound, response.status)
     }
@@ -207,7 +206,7 @@ class MigrationsRoutesTest {
         val response = client.post("/api/servers/$serverJavaId/migrations") {
             bearerAuth(token)
             contentType(ContentType.Application.Json)
-            setBody("""{"target_node_id":"${UUID.randomUUID()}"}""")
+            setBody("""{"target_node_id":"${Uuid.random()}"}""")
         }
         assertEquals(HttpStatusCode.NotFound, response.status)
     }
@@ -264,7 +263,7 @@ class MigrationsRoutesTest {
         application { configureTest() }
         val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
 
-        val response = client.get("/api/migrations/${UUID.randomUUID()}") {
+        val response = client.get("/api/migrations/${Uuid.random()}") {
             bearerAuth(token)
         }
         assertEquals(HttpStatusCode.NotFound, response.status)

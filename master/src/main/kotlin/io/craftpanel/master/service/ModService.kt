@@ -18,8 +18,8 @@ import java.net.URLEncoder
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
-import java.util.*
 import kotlin.time.Clock
+import kotlin.uuid.Uuid
 import io.craftpanel.master.util.toUtcString
 
 private val VALID_PIN_STRATEGIES = setOf("PINNED", "LATEST", "BETA", "ALPHA")
@@ -55,14 +55,14 @@ data class ModrinthSearchResult(val statusCode: Int, val body: String)
 
 class ModService {
 
-    data class ServerScope(val networkId: UUID?)
+    data class ServerScope(val networkId: Uuid?)
 
-    fun getServerScope(serverId: kotlin.uuid.Uuid): ServerScope? =
+    fun getServerScope(serverId: Uuid): ServerScope? =
         transaction {
             Servers.selectAll()
                 .where { Servers.id eq serverId }
                 .firstOrNull()
-                ?.let { ServerScope(it[Servers.networkId]?.let { nid -> UUID.fromString(nid.toString()) }) }
+                ?.let { ServerScope(it[Servers.networkId]) }
         }
 
     fun listMods(serverId: kotlin.uuid.Uuid): List<ModResponse> =

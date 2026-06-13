@@ -4,7 +4,6 @@ import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.service.*
-import io.craftpanel.master.util.toKotlinUuid
 import io.github.smiley4.ktoropenapi.delete
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.patch
@@ -14,7 +13,7 @@ import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import java.util.*
+import kotlin.uuid.Uuid
 
 fun Route.networksRoutes(networkService: NetworkService) {
     authenticate(JWT_AUTH) {
@@ -87,8 +86,8 @@ fun Route.networksRoutes(networkService: NetworkService) {
                 val userId = call.userId()
                 val id = parseNetworkId(call.parameters["id"])
                     ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid network ID"))
-                val networkIdJava = UUID.fromString(id.toString())
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, networkId = networkIdJava))
+                val networkId = id
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, networkId = networkId))
                     return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val req = call.receive<PatchNetworkRequest>()
                 networkService.updateNetwork(id, req)
@@ -109,8 +108,8 @@ fun Route.networksRoutes(networkService: NetworkService) {
                 val userId = call.userId()
                 val id = parseNetworkId(call.parameters["id"])
                     ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid network ID"))
-                val networkIdJava = UUID.fromString(id.toString())
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_DELETE, networkId = networkIdJava))
+                val networkId = id
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_DELETE, networkId = networkId))
                     return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 networkService.deleteNetwork(id)
                 call.respond(HttpStatusCode.NoContent)
@@ -119,10 +118,10 @@ fun Route.networksRoutes(networkService: NetworkService) {
     }
 }
 
-private fun parseNetworkId(raw: String?): kotlin.uuid.Uuid? =
+private fun parseNetworkId(raw: String?): Uuid? =
     raw?.let {
         runCatching {
-            UUID.fromString(it)
-                .toKotlinUuid()
+            Uuid.parse(it)
+                
         }.getOrNull()
     }

@@ -2,19 +2,19 @@
 
 Base path: `/api/servers`
 
-| Method | Path                      | Permission         | Description                                                                    |
-|--------|---------------------------|--------------------|--------------------------------------------------------------------------------|
-| GET    | `/servers`                | authenticated      | List servers the caller has `server.view` on                                   |
-| POST   | `/servers`                | `server.create`    | Create a server                                                                |
-| GET    | `/servers/{id}`           | `server.view`      | Get server details                                                             |
+| Method | Path                      | Permission         | Description                                                                     |
+|--------|---------------------------|--------------------|---------------------------------------------------------------------------------|
+| GET    | `/servers`                | authenticated      | List servers the caller has `server.view` on                                    |
+| POST   | `/servers`                | `server.create`    | Create a server                                                                 |
+| GET    | `/servers/{id}`           | `server.view`      | Get server details                                                              |
 | PATCH  | `/servers/{id}`           | `server.configure` | Update display name, description, network, Minecraft version, or itzg image tag |
-| DELETE | `/servers/{id}`           | `server.delete`    | Delete server and its data                                                     |
-| POST   | `/servers/{id}/start`     | `server.start`     | Start the server                                                               |
-| POST   | `/servers/{id}/stop`      | `server.stop`      | Stop the server                                                                |
-| POST   | `/servers/{id}/restart`   | `server.restart`   | Restart the server                                                             |
-| PATCH  | `/servers/{id}/resources` | `server.resources` | Update RAM and CPU allocation (requires Super Admin)                           |
-| PATCH  | `/servers/{id}/exposure`  | `server.configure` | Toggle external exposure and subdomain                                         |
-| GET    | `/servers/{id}/metrics`   | `server.view`      | Query historical container metrics                                             |
+| DELETE | `/servers/{id}`           | `server.delete`    | Delete server and its data                                                      |
+| POST   | `/servers/{id}/start`     | `server.start`     | Start the server                                                                |
+| POST   | `/servers/{id}/stop`      | `server.stop`      | Stop the server                                                                 |
+| POST   | `/servers/{id}/restart`   | `server.restart`   | Restart the server                                                              |
+| PATCH  | `/servers/{id}/resources` | `server.resources` | Update RAM and CPU allocation (requires Super Admin)                            |
+| PATCH  | `/servers/{id}/exposure`  | `server.configure` | Toggle external exposure and subdomain                                          |
+| GET    | `/servers/{id}/metrics`   | `server.view`      | Query historical container metrics                                              |
 
 ---
 
@@ -79,7 +79,8 @@ The UI populates the `mc_version` picker from the Mojang version manifest:
     Filter to entries where `type == "release"` and present them sorted newest-first. The `id` field (e.g. `"1.21.4"`) is the value stored in the database and passed to itzg as the `VERSION` environment variable.
 
 !!! note "itzg image tags"
-The `itzg_image_tag` field refers to the [itzg/minecraft-server](https://hub.docker.com/r/itzg/minecraft-server/tags) Docker image tag — these are date-stamped tooling releases (e.g. `2024-11-01`, `java21`) or `latest`, **not** Minecraft version numbers. The Minecraft version is controlled separately by `mc_version`.
+The `itzg_image_tag` field refers to the [itzg/minecraft-server](https://hub.docker.com/r/itzg/minecraft-server/tags) Docker image tag — these are date-stamped tooling releases (e.g. `2024-11-01`,
+`java21`) or `latest`, **not** Minecraft version numbers. The Minecraft version is controlled separately by `mc_version`.
 
 ---
 
@@ -138,7 +139,8 @@ All fields optional. Requires `server.configure`.
 
 Set `network_id` to `null` to remove the server from its network.
 
-`display_name`, `description`, and `network_id` take effect immediately. `mc_version` and `itzg_image_tag` are persisted but take effect on the **next container start** — master sets a `needs_recreate` flag and rebuilds the container spec on the next start or restart. The UI shows a "Restart required" banner after saving either field, with an option to restart immediately or defer.
+`display_name`, `description`, and `network_id` take effect immediately. `mc_version` and `itzg_image_tag` are persisted but take effect on the **next container start** — master sets a
+`needs_recreate` flag and rebuilds the container spec on the next start or restart. The UI shows a "Restart required" banner after saving either field, with an option to restart immediately or defer.
 
 **Response `204`.**
 
@@ -176,7 +178,8 @@ No request body. Master sends the server's configured `stop_command` to containe
 
 ## `POST /servers/{id}/restart`
 
-No request body. Equivalent to stop then start, using the configured `stop_command`. If `needs_recreate` is set (due to a pending `mc_version` or `itzg_image_tag` change), the container is removed and recreated before starting.
+No request body. Equivalent to stop then start, using the configured `stop_command`. If `needs_recreate` is set (due to a pending `mc_version` or `itzg_image_tag` change), the container is removed and
+recreated before starting.
 
 **Response `202`.**
 

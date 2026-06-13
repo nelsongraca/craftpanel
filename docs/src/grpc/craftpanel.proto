@@ -106,24 +106,24 @@ message NodeMetadata {
 message BulkTransferInit {
   string transfer_id = 1;
   // Raw node key — master hashes and verifies against DB.
-  string node_key    = 2;
+  string node_key = 2;
 }
 
 message BulkChunk {
   // Required in the first message of StreamToMaster; empty in subsequent chunks.
-  string transfer_id   = 1;
+  string transfer_id = 1;
   // Required in the first message of StreamToMaster; empty in subsequent chunks.
-  string node_key      = 2;
-  bytes  data          = 3;
+  string node_key = 2;
+  bytes  data = 3;
   // Set true on the final chunk.
-  bool   is_last       = 4;
+  bool   is_last = 4;
   // Non-empty signals an error; master/agent closes the transfer on receipt.
   string error_message = 5;
 }
 
 message BulkTransferAck {
-  bool   success       = 1;
-  int64  size_bytes    = 2;
+  bool   success = 1;
+  int64  size_bytes = 2;
   string error_message = 3;
 }
 
@@ -163,22 +163,22 @@ message MasterMessage {
     SendRconCommand send_rcon = 13;
 
     // Console (multiplexed over control stream)
-    ConsoleAttach  console_attach  = 14;
-    ConsoleInput   console_input   = 15;
-    ConsoleDetach  console_detach  = 16;
+    ConsoleAttach  console_attach = 14;
+    ConsoleInput   console_input = 15;
+    ConsoleDetach  console_detach = 16;
 
     // File operations (unary, multiplexed over control stream)
-    ListFilesRequest    list_files    = 17;
-    ReadFileRequest     read_file     = 18;
-    WriteFileRequest    write_file    = 19;
-    DeleteFileRequest   delete_file   = 20;
+    ListFilesRequest    list_files = 17;
+    ReadFileRequest     read_file = 18;
+    WriteFileRequest    write_file = 19;
+    DeleteFileRequest   delete_file = 20;
     MakeDirectoryRequest make_directory = 21;
-    MoveFileRequest     move_file     = 22;
-    CopyFileRequest     copy_file     = 23;
+    MoveFileRequest     move_file = 22;
+    CopyFileRequest     copy_file = 23;
 
     // Bulk transfer triggers — agent dials BulkDataService on receipt
     DownloadFileCommand download_file = 24;
-    UploadFileCommand   upload_file   = 25;
+    UploadFileCommand   upload_file = 25;
   }
 }
 
@@ -213,17 +213,17 @@ message AgentMessage {
     ConsoleOutput console_output = 13;
 
     // File operation responses (multiplexed over control stream)
-    ListFilesResponse    list_files_response    = 14;
-    ReadFileResponse     read_file_response     = 15;
-    WriteFileResponse    write_file_response    = 16;
-    DeleteFileResponse   delete_file_response   = 17;
+    ListFilesResponse    list_files_response = 14;
+    ReadFileResponse     read_file_response = 15;
+    WriteFileResponse    write_file_response = 16;
+    DeleteFileResponse   delete_file_response = 17;
     MakeDirectoryResponse make_directory_response = 18;
-    MoveFileResponse     move_file_response     = 19;
-    CopyFileResponse     copy_file_response     = 20;
+    MoveFileResponse     move_file_response = 19;
+    CopyFileResponse     copy_file_response = 20;
 
     // Bulk transfer responses (sent after agent completes BulkDataService transfer)
     DownloadFileResponse download_file_response = 21;
-    UploadFileResponse   upload_file_response   = 22;
+    UploadFileResponse   upload_file_response = 22;
   }
 }
 
@@ -387,7 +387,7 @@ message PullImageCommand {
 // Master → Agent: open a console session for the given server.
 message ConsoleAttach {
   string request_id = 1;
-  string server_id  = 2;
+  string server_id = 2;
 }
 
 // Master → Agent: send input bytes to an active console session.
@@ -529,35 +529,35 @@ message CopyFileResponse {
 // Master → Agent: command agent to open a BulkDataService StreamToMaster connection
 // and stream the file at the given path up to master.
 message DownloadFileCommand {
-  string request_id   = 1;
-  string server_id    = 2;
-  string path         = 3;
+  string request_id = 1;
+  string server_id = 2;
+  string path = 3;
   // UUID master uses to correlate the incoming BulkDataService connection.
-  string transfer_id  = 4;
+  string transfer_id = 4;
 }
 
 // Master → Agent: command agent to open a BulkDataService ReceiveFromMaster connection
 // to receive an uploaded file and write it to the given path.
 message UploadFileCommand {
-  string request_id   = 1;
-  string server_id    = 2;
-  string path         = 3;
+  string request_id = 1;
+  string server_id = 2;
+  string path = 3;
   // UUID master uses to correlate the incoming BulkDataService connection.
-  string transfer_id  = 4;
+  string transfer_id = 4;
 }
 
 // Agent → Master: result of a BulkDataService download transfer.
 message DownloadFileResponse {
-  string request_id    = 1;
-  bool   success       = 2;
+  string request_id = 1;
+  bool   success = 2;
   string error_message = 3;
 }
 
 // Agent → Master: result of a BulkDataService upload transfer.
 message UploadFileResponse {
-  string request_id    = 1;
-  bool   success       = 2;
-  int64  size_bytes    = 3;
+  string request_id = 1;
+  bool   success = 2;
+  int64  size_bytes = 3;
   string error_message = 4;
 }
 

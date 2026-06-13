@@ -19,8 +19,8 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import java.util.*
 import kotlin.time.Clock
+import kotlin.uuid.Uuid
 import io.craftpanel.master.util.toUtcString
 
 private val CRON_REGEX = Regex("""^(\*|[0-9,\-*/]+)\s+(\*|[0-9,\-*/]+)\s+(\*|[0-9,\-*/]+)\s+(\*|[0-9,\-*/]+)\s+(\*|[0-9,\-*/]+)$""")
@@ -60,14 +60,14 @@ class BackupService(
 
     private val log = org.slf4j.LoggerFactory.getLogger(BackupService::class.java)
 
-    data class ServerScope(val networkId: UUID?)
+    data class ServerScope(val networkId: Uuid?)
 
-    fun getServerScope(serverId: kotlin.uuid.Uuid): ServerScope? =
+    fun getServerScope(serverId: Uuid): ServerScope? =
         transaction {
             Servers.selectAll()
                 .where { Servers.id eq serverId }
                 .firstOrNull()
-                ?.let { ServerScope(it[Servers.networkId]?.let { nid -> UUID.fromString(nid.toString()) }) }
+                ?.let { ServerScope(it[Servers.networkId]) }
         }
 
     fun listBackups(serverId: kotlin.uuid.Uuid): List<BackupResponse> =

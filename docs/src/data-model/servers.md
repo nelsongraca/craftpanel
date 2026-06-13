@@ -108,7 +108,8 @@ Stores the managed-mode configuration for a server. Each row represents one itzg
 **Primary key:** `(server_id, key)`
 
 !!! note
-    Master always injects the full contents of this table into the container spec regardless of `config_mode`. In manual mode, master additionally injects `OVERRIDE_SERVER_PROPERTIES=false`, which tells itzg to leave `server.properties` on disk unchanged. The stored values are therefore always preserved and take effect immediately when managed mode is re-enabled — no data loss on mode switch.
+Master always injects the full contents of this table into the container spec regardless of `config_mode`. In manual mode, master additionally injects `OVERRIDE_SERVER_PROPERTIES=false`, which tells
+itzg to leave `server.properties` on disk unchanged. The stored values are therefore always preserved and take effect immediately when managed mode is re-enabled — no data loss on mode switch.
 
     `OVERRIDE_SERVER_PROPERTIES` itself is never stored in this table; it is derived from `config_mode` at spec-build time.
 

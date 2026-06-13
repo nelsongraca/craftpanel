@@ -7,7 +7,7 @@ import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.grpc.DataServiceProxy
-import io.craftpanel.master.util.toKotlinUuid
+import kotlin.uuid.Uuid
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
@@ -23,7 +23,6 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
-import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration.Companion.minutes
 
@@ -72,7 +71,7 @@ private class ConsoleSessionManager(private val proxy: DataServiceProxy, private
 
 }
 
-private data class ServerInfo(val serverId: UUID, val networkId: UUID?)
+private data class ServerInfo(val serverId: Uuid, val networkId: Uuid?)
 
 fun Route.consoleRoutes(wsTicketService: WsTicketService, proxy: DataServiceProxy) = with(ConsoleRoutes(wsTicketService, proxy)) { register() }
 
@@ -86,15 +85,15 @@ class ConsoleRoutes(
 
     private fun lookupServer(rawId: String): ServerInfo? = transaction {
         val id = runCatching {
-            UUID.fromString(rawId)
-                .toKotlinUuid()
+            Uuid.parse(rawId)
+                
         }.getOrNull() ?: return@transaction null
         val row = Servers.selectAll()
             .where { Servers.id eq id }
             .firstOrNull() ?: return@transaction null
         ServerInfo(
-            serverId = UUID.fromString(id.toString()),
-            networkId = row[Servers.networkId]?.let { UUID.fromString(it.toString()) },
+            serverId = id,
+            networkId = row[Servers.networkId],
         )
     }
 

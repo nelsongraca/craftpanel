@@ -1,10 +1,10 @@
 package io.craftpanel.agent.grpc
 
-import io.craftpanel.proto.*
 import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.MetricsCollector
+import io.craftpanel.proto.*
 import io.mockk.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking

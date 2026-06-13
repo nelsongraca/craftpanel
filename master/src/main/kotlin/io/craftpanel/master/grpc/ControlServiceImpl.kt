@@ -4,7 +4,6 @@ import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.proto.*
 import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.database.schema.*
-import io.craftpanel.master.util.toKotlinUuid
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlinx.coroutines.CancellationException
@@ -29,13 +28,14 @@ import org.jetbrains.exposed.v1.jdbc.update
 import org.slf4j.LoggerFactory
 import java.security.MessageDigest
 import java.security.SecureRandom
-import java.util.*
+import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 import io.craftpanel.master.util.toUtcString
+import kotlin.uuid.Uuid
 
 data class AlertEventNotification(
     val eventId: String,
@@ -201,8 +201,8 @@ class ControlServiceImpl(
                     val nodeStatus = transaction {
                         Nodes.selectAll()
                             .where {
-                                Nodes.id eq UUID.fromString(nodeId)
-                                    .toKotlinUuid()
+                                Nodes.id eq Uuid.parse(nodeId)
+                                    
                             }
                             .firstOrNull()
                             ?.get(Nodes.status)
@@ -391,7 +391,7 @@ class ControlServiceImpl(
     /** Open a multiplexed console session over the control stream. */
     internal fun openConsole(nodeId: String, serverId: String, input: Flow<ByteArray>): Flow<ConsoleOutput> =
         channelFlow {
-            val reqId = UUID.randomUUID()
+            val reqId = Uuid.random()
                 .toString()
             val outputChannel = Channel<ConsoleOutput>(Channel.BUFFERED)
             consoleOutputChannels["$nodeId/$reqId"] = outputChannel
@@ -446,8 +446,8 @@ class ControlServiceImpl(
 
     internal fun reconcileNodeState(nodeId: String, snapshot: NodeStateSnapshot): Boolean? {
         val kotlinNodeId = runCatching {
-            UUID.fromString(nodeId)
-                .toKotlinUuid()
+            Uuid.parse(nodeId)
+                
         }.getOrNull() ?: return null
         val now = Clock.System.now()
             .toLocalDateTime(TimeZone.UTC)
@@ -510,8 +510,8 @@ class ControlServiceImpl(
 
     internal fun markNodeDegraded(nodeId: String) {
         val kotlinNodeId = runCatching {
-            UUID.fromString(nodeId)
-                .toKotlinUuid()
+            Uuid.parse(nodeId)
+                
         }.getOrElse {
             log.warn("markNodeDegraded: invalid nodeId format: $nodeId")
             return
@@ -561,8 +561,8 @@ class ControlServiceImpl(
 
     private fun persistNodeMetrics(nodeId: String, metrics: NodeMetricsUpdate) {
         val kotlinNodeId = runCatching {
-            UUID.fromString(nodeId)
-                .toKotlinUuid()
+            Uuid.parse(nodeId)
+                
         }.getOrNull() ?: return
         val recordedAt = if (metrics.hasRecordedAt()) {
             Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong())
@@ -595,8 +595,8 @@ class ControlServiceImpl(
 
     private fun persistContainerMetrics(metrics: ContainerMetricsUpdate) {
         val kotlinServerId = runCatching {
-            UUID.fromString(metrics.serverId)
-                .toKotlinUuid()
+            Uuid.parse(metrics.serverId)
+                
         }.getOrNull() ?: return
         val recordedAt = if (metrics.hasRecordedAt()) {
             Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong())
@@ -621,8 +621,8 @@ class ControlServiceImpl(
 
     private fun persistServerStatus(update: ServerStatusUpdate) {
         val serverId = runCatching {
-            UUID.fromString(update.serverId)
-                .toKotlinUuid()
+            Uuid.parse(update.serverId)
+                
         }.getOrNull() ?: return
         val dbStatus = when (update.status) {
             ServerStatusUpdate.ServerStatus.STARTING  -> "STARTING"
@@ -644,8 +644,8 @@ class ControlServiceImpl(
 
     private fun persistPlayerUpdate(update: PlayerUpdate) {
         val serverId = runCatching {
-            UUID.fromString(update.serverId)
-                .toKotlinUuid()
+            Uuid.parse(update.serverId)
+                
         }.getOrNull() ?: return
         val now = Clock.System.now()
             .toLocalDateTime(TimeZone.UTC)
@@ -661,8 +661,8 @@ class ControlServiceImpl(
 
     private fun persistBackupComplete(update: BackupCompleteUpdate) {
         val backupId = runCatching {
-            UUID.fromString(update.backupId)
-                .toKotlinUuid()
+            Uuid.parse(update.backupId)
+                
         }.getOrNull() ?: return
         val completedAt = if (update.hasCompletedAt()) {
             Instant.fromEpochSeconds(update.completedAt.seconds, update.completedAt.nanos.toLong())
@@ -693,8 +693,8 @@ class ControlServiceImpl(
 
     private suspend fun evaluateNodeAlerts(nodeId: String, metrics: NodeMetricsUpdate) {
         val kotlinNodeId = runCatching {
-            UUID.fromString(nodeId)
-                .toKotlinUuid()
+            Uuid.parse(nodeId)
+                
         }.getOrNull() ?: return
         val now = Clock.System.now()
             .toLocalDateTime(TimeZone.UTC)
@@ -756,8 +756,8 @@ class ControlServiceImpl(
 
     private suspend fun evaluateServerAlerts(metrics: ContainerMetricsUpdate) {
         val kotlinServerId = runCatching {
-            UUID.fromString(metrics.serverId)
-                .toKotlinUuid()
+            Uuid.parse(metrics.serverId)
+                
         }.getOrNull() ?: return
         val now = Clock.System.now()
             .toLocalDateTime(TimeZone.UTC)

@@ -4,7 +4,6 @@ import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.service.*
-import io.craftpanel.master.util.toKotlinUuid
 import io.github.smiley4.ktoropenapi.delete
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.patch
@@ -15,7 +14,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlin.time.Instant
-import java.util.*
+import kotlin.uuid.Uuid
 
 fun Route.serversRoutes(serverService: ServerService) {
     authenticate(JWT_AUTH) {
@@ -68,7 +67,7 @@ fun Route.serversRoutes(serverService: ServerService) {
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                 val info = serverService.authInfo(id)
                     ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW, serverId = UUID.fromString(id.toString()), networkId = info.networkId))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW, serverId = id, networkId = info.networkId))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 call.respond(serverService.getServer(id))
             }
@@ -90,7 +89,7 @@ fun Route.serversRoutes(serverService: ServerService) {
                     ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                 val info = serverService.authInfo(id)
                     ?: return@patch call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, serverId = UUID.fromString(id.toString()), networkId = info.networkId))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, serverId = id, networkId = info.networkId))
                     return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val body = call.receive<UpdateServerRequest>()
                 serverService.updateServer(id, body)
@@ -114,7 +113,7 @@ fun Route.serversRoutes(serverService: ServerService) {
                     ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                 val info = serverService.authInfo(id)
                     ?: return@delete call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_DELETE, serverId = UUID.fromString(id.toString()), networkId = info.networkId))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_DELETE, serverId = id, networkId = info.networkId))
                     return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 serverService.deleteServer(id)
                 call.respond(HttpStatusCode.NoContent)
@@ -138,7 +137,7 @@ fun Route.serversRoutes(serverService: ServerService) {
                     ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                 val info = serverService.authInfo(id)
                     ?: return@patch call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_RESOURCES, serverId = UUID.fromString(id.toString()), networkId = info.networkId))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_RESOURCES, serverId = id, networkId = info.networkId))
                     return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val req = call.receive<PatchResourcesRequest>()
                 serverService.updateResources(id, req)
@@ -163,7 +162,7 @@ fun Route.serversRoutes(serverService: ServerService) {
                     ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                 val info = serverService.authInfo(id)
                     ?: return@post call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_START, serverId = UUID.fromString(id.toString()), networkId = info.networkId))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_START, serverId = id, networkId = info.networkId))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 serverService.startServer(id)
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Server start initiated"))
@@ -187,7 +186,7 @@ fun Route.serversRoutes(serverService: ServerService) {
                     ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                 val info = serverService.authInfo(id)
                     ?: return@post call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_STOP, serverId = UUID.fromString(id.toString()), networkId = info.networkId))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_STOP, serverId = id, networkId = info.networkId))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 serverService.stopServer(id)
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Server stop initiated"))
@@ -210,7 +209,7 @@ fun Route.serversRoutes(serverService: ServerService) {
                     ?: return@post call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                 val info = serverService.authInfo(id)
                     ?: return@post call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_RESTART, serverId = UUID.fromString(id.toString()), networkId = info.networkId))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_RESTART, serverId = id, networkId = info.networkId))
                     return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 serverService.restartServer(id)
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Server restart initiated"))
@@ -237,7 +236,7 @@ fun Route.serversRoutes(serverService: ServerService) {
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                 val info = serverService.authInfo(id)
                     ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW, serverId = UUID.fromString(id.toString()), networkId = info.networkId))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW, serverId = id, networkId = info.networkId))
                     return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val from = call.request.queryParameters["from"]?.let {
                     runCatching { Instant.parse(it) }.getOrNull()
@@ -265,7 +264,7 @@ fun Route.serversRoutes(serverService: ServerService) {
                     ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid server ID"))
                 val info = serverService.authInfo(id)
                     ?: return@patch call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, serverId = UUID.fromString(id.toString()), networkId = info.networkId))
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, serverId = id, networkId = info.networkId))
                     return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 val req = call.receive<PatchExposureRequest>()
                 serverService.updateExposure(id, req)
@@ -275,10 +274,10 @@ fun Route.serversRoutes(serverService: ServerService) {
     }
 }
 
-private fun parseServerId(raw: String?): kotlin.uuid.Uuid? =
+private fun parseServerId(raw: String?): Uuid? =
     raw?.let {
         runCatching {
-            UUID.fromString(it)
-                .toKotlinUuid()
+            Uuid.parse(it)
+                
         }.getOrNull()
     }

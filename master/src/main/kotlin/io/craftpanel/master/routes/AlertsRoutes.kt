@@ -7,7 +7,7 @@ import io.craftpanel.master.service.AlertEventResponse
 import io.craftpanel.master.service.AlertService
 import io.craftpanel.master.service.AlertThresholdResponse
 import io.craftpanel.master.service.CreateAlertThresholdRequest
-import io.craftpanel.master.util.toKotlinUuid
+import kotlin.uuid.Uuid
 import kotlinx.serialization.Serializable
 import io.github.smiley4.ktoropenapi.delete
 import io.github.smiley4.ktoropenapi.get
@@ -17,7 +17,7 @@ import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import java.util.*
+
 
 @Serializable
 data class AlertThresholdsResponse(val thresholds: List<AlertThresholdResponse>)
@@ -44,8 +44,8 @@ fun Route.alertsRoutes(alertService: AlertService) {
                 val scopeId = call.request.queryParameters["scope_id"]
                     ?.let {
                         runCatching {
-                            UUID.fromString(it)
-                                .toKotlinUuid()
+                            Uuid.parse(it)
+                                
                         }.getOrNull()
                     }
                 call.respond(AlertThresholdsResponse(alertService.listThresholds(scopeType, scopeId)))
@@ -84,8 +84,8 @@ fun Route.alertsRoutes(alertService: AlertService) {
                 val id = call.parameters["id"]
                     ?.let {
                         runCatching {
-                            UUID.fromString(it)
-                                .toKotlinUuid()
+                            Uuid.parse(it)
+                                
                         }.getOrNull()
                     }
                     ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid threshold ID"))
@@ -108,8 +108,8 @@ fun Route.alertsRoutes(alertService: AlertService) {
                 val scopeId = call.request.queryParameters["scope_id"]
                     ?.let {
                         runCatching {
-                            UUID.fromString(it)
-                                .toKotlinUuid()
+                            Uuid.parse(it)
+                                
                         }.getOrNull()
                     }
                 val activeOnly = call.request.queryParameters["active_only"] == "true"

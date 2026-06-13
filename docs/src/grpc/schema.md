@@ -39,11 +39,13 @@ failed container start appears as `UNHEALTHY` in a `ServerStatusUpdate`, not as 
 
 ### Data operations (multiplexed over control stream)
 
-Console sessions and small file operations (list, read, write, delete, move, copy, make directory) are multiplexed over the existing control stream using a `request_id` correlation field. Each request carries a UUID; the agent echoes it in the response so master can route the reply back to the waiting caller.
+Console sessions and small file operations (list, read, write, delete, move, copy, make directory) are multiplexed over the existing control stream using a `request_id` correlation field. Each request
+carries a UUID; the agent echoes it in the response so master can route the reply back to the waiting caller.
 
 ### Bulk transfers (BulkDataService — agent-initiated)
 
-Large file transfers (upload and download) use a dedicated `BulkDataService` hosted on master. The agent dials master — preserving the agent-always-initiates invariant — on an on-demand basis when commanded via the control stream. This isolates multi-GB transfers from the control stream and prevents head-of-line blocking on metrics and console I/O.
+Large file transfers (upload and download) use a dedicated `BulkDataService` hosted on master. The agent dials master — preserving the agent-always-initiates invariant — on an on-demand basis when
+commanded via the control stream. This isolates multi-GB transfers from the control stream and prevents head-of-line blocking on metrics and console I/O.
 
 **Operations:**
 
@@ -84,7 +86,8 @@ clear the local key file and restart — agent falls back to `RegisterNode` with
 
 ### BulkDataService authentication
 
-Bulk transfer connections are authenticated using the node key. On `StreamToMaster` and `ReceiveFromMaster`, the agent presents its raw node key in the first message; master hashes it and verifies against the stored hash in the database — the same credential used by `IdentifyNode`. No separate per-node token is required.
+Bulk transfer connections are authenticated using the node key. On `StreamToMaster` and `ReceiveFromMaster`, the agent presents its raw node key in the first message; master hashes it and verifies
+against the stored hash in the database — the same credential used by `IdentifyNode`. No separate per-node token is required.
 
 ---
 
