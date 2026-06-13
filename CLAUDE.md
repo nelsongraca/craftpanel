@@ -142,6 +142,32 @@ Registered on first message inside `channelFlow`, deregistered in `finally` usin
 
 Any uncaught exception inside `requests.collect { }` in `ControlServiceImpl.control()` propagates through `channelFlow` and tears down the entire bidirectional stream. Wrap every handler branch in `runCatching { }.onFailure { log.error(...) }`. Re-throw `CancellationException` if catching `Exception` in a `launch {}` body.
 
+### Agent handler architecture (`agent/src/main/kotlin/io/craftpanel/agent/grpc/`)
+
+`ControlStreamHandler` is a **pure dispatcher** — constructor + `run()` + `dispatch()` + `buildStateSnapshot()` only.
+All logic lives in `handlers/` subpackage, one class per domain:
+
+| Class | Handles |
+|---|---|
+| `ContainerHandler` | create/start/stop/restart/remove/pullImage/shutdown |
+| `BackupHandler` | triggerBackup/deleteBackup |
+| `MigrationHandler` | prepareRsyncReceive/startRsync/sendRcon |
+| `FileHandler` | all file ops + bulk transfers (download/upload) |
+| `ConsoleHandler` | stateful console session lifecycle (owns `consoleSessions` map + `DockerClient`) |
+| `AgentUtils` | shared `nowTimestamp()` and `generateRsyncPassword()` helpers (package-internal) |
+
+**`AgentOutbound`** wraps `SendChannel<AgentMessage>` + `nodeId`. Use:
+- `out.send { ... }` — suspend send with nodeId pre-filled
+- `out.trySend { ... }` — non-blocking send
+- `out.tryConsoleOutput(reqId) { ... }` — non-blocking console frame
+- `out.serverStatus(...)` / `out.tryServerStatus(...)` — server status updates
+
+**Two-layer error handling in agent handlers (load-bearing):**
+- Inner `runCatching` in each handler: `onSuccess` emits HEALTHY/STOPPED, `onFailure` emits UNHEALTHY
+- Outer `dispatch { }` in `ControlStreamHandler`: catches unexpected throws, re-throws `CancellationException`
+
+`ConsoleHandler` must be **per-connection** (not singleton) — owns `consoleSessions` map scoped to one gRPC stream.
+
 ## Console WebSocket
 
 - Auth happens **after** WS upgrade (ticket query param checked post-handshake) — rejection uses WS close code **1008**, not HTTP 401. Never expect HTTP 401 in `onFailure`.
