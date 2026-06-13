@@ -43,74 +43,6 @@ class NodeOperationsTest : ShouldSpec() {
             }
         }
 
-        context("rejectNode") {
-            val stack = CraftPanelStack()
-
-            beforeTest {
-                stack.start()
-                AuthHelper(DefaultApi(basePath = stack.masterApiUrl)).login()
-            }
-
-            afterTest {
-                stack.stop()
-            }
-
-            should("rejects a PENDING node and transitions it to REJECTED") {
-                val api = DefaultApi(basePath = stack.masterApiUrl)
-                AuthHelper(api).login()
-                val pending = NodeHelper(api).awaitPendingNode()
-                pending.status shouldBe "PENDING"
-
-                api.rejectNode(pending.id)
-                val rejected = api.getNode(pending.id)
-                rejected.status shouldBe "REJECTED"
-            }
-
-            should("rejecting an ACTIVE node returns 409") {
-                val api = DefaultApi(basePath = stack.masterApiUrl)
-                AuthHelper(api).login()
-                val nodeId = NodeHelper(api).trustFirstPendingNode()
-
-                val ex = shouldThrow<ClientException> { api.rejectNode(nodeId) }
-                ex.statusCode shouldBe 409
-            }
-        }
-
-        context("rotateNodeToken") {
-            val stack = CraftPanelStack()
-
-            beforeTest {
-                stack.start()
-                val api = DefaultApi(basePath = stack.masterApiUrl)
-                AuthHelper(api).login()
-                val nodeId = NodeHelper(api).trustFirstPendingNode()
-                stack.storeNodeId(nodeId)
-            }
-
-            afterTest {
-                stack.stop()
-            }
-
-            should("rotates the node token and returns a new key") {
-                val api = DefaultApi(basePath = stack.masterApiUrl)
-                AuthHelper(api).login()
-
-                val keyResponse = api.rotateNodeToken(stack.nodeId)
-                keyResponse.nodeKey.shouldNotBeEmpty()
-
-                val node = api.getNode(stack.nodeId)
-                node.status shouldBe "ACTIVE"
-            }
-
-            should("agent with old token is rejected after rotation") {
-                val api = DefaultApi(basePath = stack.masterApiUrl)
-                AuthHelper(api).login()
-
-                val keyResponse = api.rotateNodeToken(stack.nodeId)
-                keyResponse.nodeKey.shouldNotBeEmpty()
-            }
-        }
-
         context("updateNode") {
 
             beforeTest {
@@ -138,77 +70,97 @@ class NodeOperationsTest : ShouldSpec() {
             }
         }
 
-        context("decommissionNode") {
-            val stack = CraftPanelStack()
+        context("2 agent stack") {
+            lateinit var stack: CraftPanelStack
+            lateinit var api: DefaultApi
 
-            beforeTest {
-                stack.start()
-                val api = DefaultApi(basePath = stack.masterApiUrl)
+            beforeContainer {
+                stack = CraftPanelStack()
+                stack.start(nodeCount = 2)
+                api = DefaultApi(basePath = stack.masterApiUrl)
                 AuthHelper(api).login()
             }
-
-            afterTest {
+            afterContainer {
                 stack.stop()
             }
+            context("rejectNode") {
 
-            should("decommissions a node without active servers") {
-                val api = DefaultApi(basePath = stack.masterApiUrl)
-                AuthHelper(api).login()
+                should("rejects a PENDING node and transitions it to REJECTED") {
+                    val pending = NodeHelper(api).awaitPendingNode()
+                    pending.status shouldBe "PENDING"
 
-                val helper = NodeHelper(api)
-                val nodeId = helper.trustFirstPendingNode()
+                    api.rejectNode(pending.id)
+                    val rejected = api.getNode(pending.id)
+                    rejected.status shouldBe "REJECTED"
+                }
 
-                api.decommissionNode(nodeId)
-                val node = api.getNode(nodeId)
-                node.status shouldBe "DECOMMISSIONED"
-            }
-        }
+                should("rejecting an ACTIVE node returns 409") {
+                    val nodeId = NodeHelper(api).trustFirstPendingNode()
 
-        context("decommissionNode guards") {
-            val stack = CraftPanelStack()
-
-            beforeTest {
-                stack.start()
-                val api = DefaultApi(basePath = stack.masterApiUrl)
-                AuthHelper(api).login()
-                val nodeId = NodeHelper(api).trustFirstPendingNode()
-                stack.storeNodeId(nodeId)
-            }
-
-            afterTest {
-                stack.stop()
-            }
-
-            should("decommissioning a node with active servers returns 409") {
-                val api = DefaultApi(basePath = stack.masterApiUrl)
-                AuthHelper(api).login()
-
-                val helper = ServerHelper(api)
-                val serverId = helper.createTestServer(stack.nodeId)
-                try {
-                    api.startServer(serverId)
-                    // Server status changes to STARTING immediately from the REST handler
-                    // No need to wait for HEALTHY (fake-server may not reach it)
-                    runCatching {
-                        var attempts = 0
-                        while (attempts < 30) {
-                            val s = api.getServer(serverId)
-                            if (s.status != "STOPPED") return@runCatching
-                            Thread.sleep(500)
-                            attempts++
-                        }
-                    }
-
-                    val ex = shouldThrow<ClientException> {
-                        api.decommissionNode(stack.nodeId)
-                    }
+                    val ex = shouldThrow<ClientException> { api.rejectNode(nodeId) }
                     ex.statusCode shouldBe 409
                 }
-                finally {
-                    runCatching { api.stopServer(serverId) }
-                    runCatching { api.deleteServer(serverId) }
+            }
+
+            context("rotateNodeToken") {
+
+                should("rotates the node token and returns a new key") {
+                    val nodeId = NodeHelper(api).trustFirstPendingNode()
+                    val keyResponse = api.rotateNodeToken(nodeId)
+                    keyResponse.nodeKey.shouldNotBeEmpty()
+
+                    val node = api.getNode(nodeId)
+                    node.status shouldBe "ACTIVE"
+                }
+
+                should("agent with old token is rejected after rotation") {
+                    val nodeId = NodeHelper(api).trustFirstPendingNode()
+                    val keyResponse = api.rotateNodeToken(nodeId)
+                    keyResponse.nodeKey.shouldNotBeEmpty()
+                }
+            }
+
+            context("decommissionNode") {
+
+                should("decommissions a node without active servers") {
+                  val helper = NodeHelper(api)
+                    val nodeId = helper.trustFirstPendingNode()
+
+                    api.decommissionNode(nodeId)
+                    val node = api.getNode(nodeId)
+                    node.status shouldBe "DECOMMISSIONED"
+                }
+
+                should("decommissioning a node with active servers returns 409") {
+                    val nodeId = NodeHelper(api).trustFirstPendingNode()
+                    val helper = ServerHelper(api)
+                    val serverId = helper.createTestServer(nodeId)
+                    try {
+                        api.startServer(serverId)
+                        // Server status changes to STARTING immediately from the REST handler
+                        // No need to wait for HEALTHY (fake-server may not reach it)
+                        runCatching {
+                            var attempts = 0
+                            while (attempts < 30) {
+                                val s = api.getServer(serverId)
+                                if (s.status != "STOPPED") return@runCatching
+                                Thread.sleep(500)
+                                attempts++
+                            }
+                        }
+
+                        val ex = shouldThrow<ClientException> {
+                            api.decommissionNode(nodeId)
+                        }
+                        ex.statusCode shouldBe 409
+                    }
+                    finally {
+                        runCatching { api.stopServer(serverId) }
+                        runCatching { api.deleteServer(serverId) }
+                    }
                 }
             }
         }
     }
+
 }

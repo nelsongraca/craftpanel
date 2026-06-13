@@ -20,12 +20,13 @@ object SystemTestConfig : AbstractProjectConfig() {
             coverageEnabled = coverageEnabled,
             agentJar = agentJar,
             coverageDir = outputDir,
+            nodeCount = 2,
         )
 
         val api = DefaultApi(basePath = SharedStack.masterApiUrl)
         AuthHelper(api).login()
-        val nodeId = NodeHelper(api).trustFirstPendingNode()
-        SharedStack.storeNodeId(nodeId)
+        val ids = MultiNodeHelper(api).trustAllPendingNodes(2)
+        SharedStack.storeNodeIds(ids)
     }
 
     override suspend fun afterProject() {

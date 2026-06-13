@@ -4,7 +4,7 @@ import {useCallback, useEffect, useState} from "react";
 import {useParams, useRouter} from "next/navigation";
 import Link from "next/link";
 import {ArrowUpCircle, ChevronRight, MoreHorizontal, Play, RotateCcw, Shuffle, Square, Trash2, X,} from "lucide-react";
-import {deleteServer, getNetwork, getNode, getServer, listNetworks, restartServer, startServer, stopServer, updateServer, updateServerResources, upgradeServer} from "@/lib/generated/sdk.gen";
+import {deleteServer, getNetwork, getNode, getServer, listNetworks, restartServer, startServer, stopServer, updateServer, updateServerResources} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import type {Network, Node, Server} from "@/lib/types";
@@ -427,22 +427,7 @@ export default function ServerDetailPage() {
     }
 
     async function doUpgrade() {
-        const tag = window.prompt(
-            "Enter itzg image tag to upgrade to (e.g. latest, 2024.9.1):",
-            "latest"
-        );
-        if (!tag?.trim()) return;
-        setActionError(null);
-        try {
-            const {error} = await upgradeServer({path: {id}, body: {itzg_image_tag: tag.trim()}});
-            if (error) {
-                setActionError(error.message ?? "Failed to upgrade server");
-            } else {
-                await fetchServer();
-            }
-        } catch {
-            setActionError("Failed to upgrade server");
-        }
+       //todo: remove
     }
 
     // ── Loading / not-found guards ─────────────────────────────────────────────

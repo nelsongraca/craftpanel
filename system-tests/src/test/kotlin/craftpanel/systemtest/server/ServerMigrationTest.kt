@@ -4,12 +4,11 @@ import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.client.model.MigrateRequest
 import craftpanel.systemtest.client.model.MigrationResponse
 import craftpanel.systemtest.harness.AuthHelper
-import craftpanel.systemtest.harness.CraftPanelStack
-import craftpanel.systemtest.harness.MultiNodeHelper
+import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.ServerHelper
+import craftpanel.systemtest.harness.SharedStack
 import craftpanel.systemtest.harness.pollUntilNotNull
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
@@ -22,30 +21,22 @@ import org.openapitools.client.infrastructure.ClientException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-class ServerMigrationTest : ShouldSpec() {
+class ServerMigrationTest : BaseSystemTest() {
 
-    private val stack = CraftPanelStack()
-    private val api: DefaultApi by lazy { DefaultApi(basePath = stack.masterApiUrl) }
     private val helper: ServerHelper by lazy { ServerHelper(api) }
     private val serverIds = mutableListOf<String>()
-    private lateinit var sourceNodeId: String
-    private lateinit var targetNodeId: String
+    private val sourceNodeId: String = SharedStack.nodeIds[0]
+    private val targetNodeId: String = SharedStack.nodeIds[1]
 
-    private val wsClient = OkHttpClient.Builder().build()
+    private val wsClient = OkHttpClient.Builder()
+        .build()
 
     init {
         beforeSpec {
-            stack.start(nodeCount = 2)
             AuthHelper(api).login()
-            val ids = MultiNodeHelper(api).trustAllPendingNodes(2)
-            sourceNodeId = ids[0]
-            targetNodeId = ids[1]
-            stack.storeNodeIds(ids)
         }
 
         afterEach {
-            // Delete all servers between tests — clears PortRegistry entries on both nodes
-            // so the next test's migration can allocate the same port on target without conflict.
             serverIds.forEach { id ->
                 runCatching { api.stopServer(id) }
                 runCatching { helper.awaitStoppedOrGone(id) }
@@ -58,13 +49,13 @@ class ServerMigrationTest : ShouldSpec() {
             serverIds.forEach { id ->
                 runCatching { api.deleteServer(id) }
             }
-            stack.stop()
         }
 
         context("Server migration") {
 
             should("migrates a STOPPED server to target node and reaches terminal state") {
-                val serverId = helper.createTestServer(sourceNodeId).also { serverIds.add(it) }
+                val serverId = helper.createTestServer(sourceNodeId)
+                    .also { serverIds.add(it) }
 
                 val response = api.startMigration(
                     serverId,
@@ -90,7 +81,8 @@ class ServerMigrationTest : ShouldSpec() {
             }
 
             should("server can start on target node after migration") {
-                val serverId = helper.createTestServer(sourceNodeId).also { serverIds.add(it) }
+                val serverId = helper.createTestServer(sourceNodeId)
+                    .also { serverIds.add(it) }
 
                 val migrateResp = api.startMigration(
                     serverId,
@@ -103,8 +95,6 @@ class ServerMigrationTest : ShouldSpec() {
 
                 pollMigrationStatus(api, migrateResp.id, 180_000)
 
-                // Migration step 7 starts the container on target — server may already be HEALTHY.
-                // Stop and restart to verify the server is independently startable on target.
                 api.stopServer(serverId)
                 helper.awaitStatus(serverId, "STOPPED", timeoutMs = 60_000)
                 api.startServer(serverId)
@@ -112,7 +102,8 @@ class ServerMigrationTest : ShouldSpec() {
             }
 
             should("receives migration progress events via WebSocket") {
-                val serverId = helper.createTestServer(sourceNodeId).also { serverIds.add(it) }
+                val serverId = helper.createTestServer(sourceNodeId)
+                    .also { serverIds.add(it) }
 
                 val migration = api.startMigration(
                     serverId,
@@ -123,7 +114,7 @@ class ServerMigrationTest : ShouldSpec() {
                     )
                 )
 
-                val wsUrl = stack.masterApiUrl.replace("http://", "ws://")
+                val wsUrl = masterApiUrl.replace("http://", "ws://")
                 val events = mutableListOf<String>()
                 val latch = CountDownLatch(1)
 
@@ -158,7 +149,8 @@ class ServerMigrationTest : ShouldSpec() {
             }
 
             should("listMigrations returns non-empty after migration") {
-                val serverId = helper.createTestServer(sourceNodeId).also { serverIds.add(it) }
+                val serverId = helper.createTestServer(sourceNodeId)
+                    .also { serverIds.add(it) }
 
                 val migrateResp = api.startMigration(
                     serverId,
@@ -172,11 +164,13 @@ class ServerMigrationTest : ShouldSpec() {
                 pollMigrationStatus(api, migrateResp.id, 180_000)
 
                 val migrations = api.listMigrations(serverId)
-                migrations["migrations"].orEmpty().shouldNotBeEmpty()
+                migrations["migrations"].orEmpty()
+                    .shouldNotBeEmpty()
             }
 
             should("migrate HEALTHY server is allowed (server is stopped as part of migration)") {
-                val serverId = helper.createTestServer(sourceNodeId).also { serverIds.add(it) }
+                val serverId = helper.createTestServer(sourceNodeId)
+                    .also { serverIds.add(it) }
                 api.startServer(serverId)
                 helper.awaitStatus(serverId, "HEALTHY")
 
@@ -195,7 +189,8 @@ class ServerMigrationTest : ShouldSpec() {
             }
 
             should("migrate to non-existent node returns 404") {
-                val serverId = helper.createTestServer(sourceNodeId).also { serverIds.add(it) }
+                val serverId = helper.createTestServer(sourceNodeId)
+                    .also { serverIds.add(it) }
 
                 shouldThrow<ClientException> {
                     api.startMigration(

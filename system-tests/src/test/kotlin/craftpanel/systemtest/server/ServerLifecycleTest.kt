@@ -10,57 +10,45 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.string.shouldContain as stringContain
 import org.openapitools.client.infrastructure.ClientException
+import io.kotest.matchers.string.shouldContain as stringContain
 
 class ServerLifecycleTest : BaseSystemTest() {
 
     init {
-        lateinit var creationServerId: String
-        lateinit var startServerId: String
-        lateinit var stopServerId: String
-        lateinit var deleteServerId1: String
-        lateinit var deleteServerId2: String
-        lateinit var deleteServerId3: String
+
         val helper = ServerHelper(api)
-        val startHelper = ServerHelper(api)
-        val stopHelper = ServerHelper(api)
-        val deleteHelper = ServerHelper(api)
-
-        beforeSpec {
-            creationServerId = helper.createTestServer(nodeId)
-            startServerId = startHelper.createTestServer(nodeId)
-            stopServerId = stopHelper.createTestServer(nodeId)
-            deleteServerId1 = deleteHelper.createTestServer(nodeId)
-            deleteServerId2 = deleteHelper.createTestServer(nodeId)
-            deleteServerId3 = deleteHelper.createTestServer(nodeId)
-        }
-
-        afterSpec {
-            runCatching { api.stopServer(deleteServerId3) }
-            deleteHelper.awaitStoppedOrGone(deleteServerId3)
-            listOf(creationServerId, startServerId, stopServerId, deleteServerId1, deleteServerId2, deleteServerId3).forEach {
-                runCatching { api.deleteServer(it) }
-            }
-        }
 
         context("Server lifecycle") {
+            lateinit var serverId: String
 
+            beforeContainer {
+                serverId = helper.createTestServer(nodeId)
+            }
+
+            afterContainer {
+                runCatching {
+                    api.stopServer(serverId)
+                    helper.awaitStatus(serverId, "STOPPED")
+                    api.deleteServer(serverId)
+                }
+                helper.awaitStoppedOrGone(serverId)
+            }
             context("creation") {
 
                 should("creates a server and returns it with status STOPPED") {
-                    val server = api.getServer(creationServerId)
+                    val server = api.getServer(serverId)
                     server.status shouldBe "STOPPED"
                 }
 
                 should("created server appears in GET /servers list") {
                     val servers = api.listServers()
-                    servers.map { it.id } shouldContain creationServerId
+                    servers.map { it.id } shouldContain serverId
                 }
 
                 should("container does not exist on the node before first start") {
                     shouldThrow<NotFoundException> {
-                        docker.inspectContainerCmd(containerName(creationServerId))
+                        docker.inspectContainerCmd(containerName(serverId))
                             .exec()
                     }
                 }
@@ -68,29 +56,21 @@ class ServerLifecycleTest : BaseSystemTest() {
 
             context("start") {
 
-                afterEach {
-                    runCatching { api.stopServer(startServerId) }
-                    startHelper.awaitStoppedOrGone(startServerId)
-                }
-
                 should("starting a STOPPED server transitions it to STARTING then HEALTHY") {
-                    api.startServer(startServerId)
-                    val server = startHelper.awaitStatus(startServerId, "HEALTHY")
+                    api.startServer(serverId)
+                    val server = helper.awaitStatus(serverId, "HEALTHY")
+                    helper.awaitContainerLog(containerName(serverId), "stdin listener ready", docker, 15_000)
                     server.status shouldBe "HEALTHY"
                 }
 
                 should("container exists on node after start") {
-                    api.startServer(startServerId)
-                    startHelper.awaitStatus(startServerId, "HEALTHY")
-                    val info = docker.inspectContainerCmd(containerName(startServerId))
+                    val info = docker.inspectContainerCmd(containerName(serverId))
                         .exec()
                     info.state?.running shouldBe true
                 }
 
                 should("container has correct env vars") {
-                    api.startServer(startServerId)
-                    startHelper.awaitStatus(startServerId, "HEALTHY")
-                    val info = docker.inspectContainerCmd(containerName(startServerId))
+                    val info = docker.inspectContainerCmd(containerName(serverId))
                         .exec()
                     val env = info.config?.env?.toList()
                         .orEmpty()
@@ -100,63 +80,52 @@ class ServerLifecycleTest : BaseSystemTest() {
                 }
 
                 should("starting an already HEALTHY server returns 409") {
-                    api.startServer(startServerId)
-                    startHelper.awaitStatus(startServerId, "HEALTHY")
-                    val ex = shouldThrow<ClientException> { api.startServer(startServerId) }
-                    ex.statusCode shouldBe 409
-                }
-            }
-
-            context("stop") {
-
-                beforeEach {
-                    api.startServer(stopServerId)
-                    stopHelper.awaitStatus(stopServerId, "HEALTHY")
-                    stopHelper.awaitContainerLog(containerName(stopServerId), "stdin listener ready", docker, 15_000)
-                }
-
-                afterEach {
-                    runCatching { api.stopServer(stopServerId) }
-                    stopHelper.awaitStoppedOrGone(stopServerId)
-                }
-
-                should("stopping a HEALTHY server transitions it to STOPPED") {
-                    api.stopServer(stopServerId)
-                    val server = stopHelper.awaitStatus(stopServerId, "STOPPED")
-                    server.status shouldBe "STOPPED"
-                }
-
-                should("stop command was sent to container stdin") {
-                    api.stopServer(stopServerId)
-                    stopHelper.awaitStatus(stopServerId, "STOPPED")
-                    val logs = docker.collectLogs(containerName(stopServerId))
-                    logs stringContain "[fake-server] stdin received: stop"
-                }
-
-                should("stopping an already STOPPED server returns 409") {
-                    api.stopServer(stopServerId)
-                    stopHelper.awaitStatus(stopServerId, "STOPPED")
-                    val ex = shouldThrow<ClientException> { api.stopServer(stopServerId) }
+                    val ex = shouldThrow<ClientException> { api.startServer(serverId) }
                     ex.statusCode shouldBe 409
                 }
             }
 
             context("delete") {
 
+                should("deleting a RUNNING server returns 409") {
+                    api.startServer(serverId)
+                    helper.awaitStatus(serverId, "HEALTHY")
+                    val ex = shouldThrow<ClientException> { api.deleteServer(serverId) }
+                    ex.statusCode shouldBe 409
+                }
+
                 should("deleting a STOPPED server returns 204") {
-                    api.deleteServer(deleteServerId1)
+                    api.stopServer(serverId)
+                    helper.awaitStoppedOrGone(serverId)
+                    api.deleteServer(serverId)
                 }
 
                 should("deleted server no longer appears in GET /servers") {
-                    api.deleteServer(deleteServerId2)
                     val servers = api.listServers()
-                    servers.map { it.id } shouldNotContain deleteServerId2
+                    servers.map { it.id } shouldNotContain serverId
                 }
 
-                should("deleting a RUNNING server returns 409") {
-                    api.startServer(deleteServerId3)
-                    deleteHelper.awaitStatus(deleteServerId3, "HEALTHY")
-                    val ex = shouldThrow<ClientException> { api.deleteServer(deleteServerId3) }
+            }
+
+            context("stop") {
+
+                should("stopping a HEALTHY server transitions it to STOPPED") {
+                    api.startServer(serverId)
+                    val response = helper.awaitStatus(serverId, "HEALTHY")
+                    response.status shouldBe "HEALTHY"
+                    api.stopServer(serverId)
+                    helper.awaitStoppedOrGone(serverId)
+                    val server = api.getServer(serverId)
+                    server.status shouldBe "STOPPED"
+                }
+
+                should("stop command was sent to container stdin") {
+                    val logs = docker.collectLogs(containerName(serverId))
+                    logs stringContain "[fake-server] stdin received: stop"
+                }
+
+                should("stopping an already STOPPED server returns 409") {
+                    val ex = shouldThrow<ClientException> { api.stopServer(serverId) }
                     ex.statusCode shouldBe 409
                 }
             }
