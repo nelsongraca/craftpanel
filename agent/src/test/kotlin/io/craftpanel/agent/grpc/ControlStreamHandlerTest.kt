@@ -4,6 +4,7 @@ import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.MetricsCollector
+import io.craftpanel.agent.grpc.handlers.BackupHandler
 import io.craftpanel.agent.grpc.handlers.ContainerHandler
 import io.craftpanel.proto.*
 import io.mockk.*
@@ -43,6 +44,7 @@ class ControlStreamHandlerTest {
         privateIpOverride = ""
     )
     private val containerHandler = ContainerHandler(containerManager, config)
+    private val backupHandler = BackupHandler(config)
     private val handler = ControlStreamHandler(identity, config, containerManager, metricsCollector, docker, containerHandler)
 
     private lateinit var tempDir: File
@@ -299,14 +301,14 @@ class ControlStreamHandlerTest {
     fun `handleDeleteBackup deletes the file`() = runBlocking {
         val file = File(tempDir, "backup.tar.gz").also { it.writeText("dummy") }
 
-        handler.handleDeleteBackup(deleteBackupCommand { filePath = file.absolutePath })
+        backupHandler.handleDeleteBackup(deleteBackupCommand { filePath = file.absolutePath })
 
         assertFalse(file.exists())
     }
 
     @Test
     fun `handleDeleteBackup does not throw when file does not exist`() = runBlocking {
-        handler.handleDeleteBackup(deleteBackupCommand { filePath = "/nonexistent/backup.tar.gz" })
+        backupHandler.handleDeleteBackup(deleteBackupCommand { filePath = "/nonexistent/backup.tar.gz" })
     }
 
     // -------------------------------------------------------------------------
@@ -317,7 +319,7 @@ class ControlStreamHandlerTest {
     fun `handleTriggerBackup emits failure when server data dir does not exist`() = runBlocking {
         val outbound = newOutbound()
 
-        handler.handleTriggerBackup(triggerBackupCommand {
+        backupHandler.handleTriggerBackup(triggerBackupCommand {
             backupId = "bk-1"
             serverId = "srv-bk"
             containerName = "craftpanel-mc"
@@ -332,13 +334,12 @@ class ControlStreamHandlerTest {
 
     @Test
     fun `handleTriggerBackup emits progress and success for valid source directory`() = runBlocking {
-        val bkHandler = handlerWithDataPath(tempDir.absolutePath)
         val serverId = "srv-bk-2"
         File(tempDir, "servers/$serverId").also { it.mkdirs() }
             .let { File(it, "world").writeText("level data") }
         val outbound = newOutbound()
 
-        bkHandler.handleTriggerBackup(triggerBackupCommand {
+        BackupHandler(config.copy(dataBasePath = tempDir.absolutePath)).handleTriggerBackup(triggerBackupCommand {
             backupId = "bk-2"
             this.serverId = serverId
             containerName = "craftpanel-mc"
@@ -371,9 +372,4 @@ class ControlStreamHandlerTest {
         }
     }
 
-    private fun handlerWithDataPath(path: String): ControlStreamHandler {
-        val cfg = config.copy(dataBasePath = path, hostDataBasePath = path)
-        val ch = ContainerHandler(containerManager, cfg)
-        return ControlStreamHandler(identity, cfg, containerManager, metricsCollector, docker, ch)
-    }
 }

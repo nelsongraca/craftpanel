@@ -4,7 +4,10 @@ import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.MetricsCollector
+import io.craftpanel.agent.grpc.handlers.BackupHandler
 import io.craftpanel.agent.grpc.handlers.ContainerHandler
+import io.craftpanel.agent.grpc.handlers.FileHandler
+import io.craftpanel.agent.grpc.handlers.MigrationHandler
 import kotlinx.coroutines.delay
 import org.slf4j.LoggerFactory
 import kotlin.math.min
@@ -33,7 +36,13 @@ class ConnectionManager(
                     backoffSeconds = 5L  // reset on successful auth
 
                     val containerHandler = ContainerHandler(containerManager, config)
-                    ControlStreamHandler(identity, config, containerManager, metricsCollector, docker, containerHandler).run(channel)
+                    val backupHandler = BackupHandler(config)
+                    val migrationHandler = MigrationHandler(config, containerManager)
+                    val fileHandler = FileHandler(config, identity.nodeKey)
+                    ControlStreamHandler(
+                        identity, config, containerManager, metricsCollector, docker,
+                        containerHandler, backupHandler, migrationHandler, fileHandler,
+                    ).run(channel)
                 }
                 finally {
                     channel.shutdown()
