@@ -17,9 +17,7 @@ import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import kotlinx.coroutines.delay
 import kotlin.time.Clock
-import kotlin.time.Duration
 import kotlin.uuid.Uuid
 
 class ServerLifecycle(
@@ -105,18 +103,14 @@ class ServerLifecycle(
         writeStatus(id, ServerStatus.STOPPING, clearNeedsRecreate = true)
     }
 
-    suspend fun relocate(
-        server: ResultRow,
-        fromNode: String,
-        toNode: String,
-        interCmdDelay: Duration,
-        awaitHealthy: suspend () -> Boolean,
-    ): Boolean {
-        val id = server[Servers.id]
-        val image = deriveImage(server[Servers.serverType], server[Servers.itzgImageTag])
-        val allVars = buildAllVars(id, server)
-        val publicHostname = server[Servers.dnsRecordName]
+    /**
+     * Relocation primitives. Migration orchestrates the ordered sequence itself
+     * (stop → final rsync → remove → create → start) so it can interleave the
+     * post-stop rsync pass and await each cross-node completion signal.
+     */
 
+    fun sendStop(server: ResultRow, fromNode: String) {
+        val id = server[Servers.id]
         sendOrThrow(fromNode, masterMessage {
             stopContainer = stopContainerCommand {
                 serverId = id.toString()
@@ -125,27 +119,35 @@ class ServerLifecycle(
                 stopCommand = server[Servers.stopCommand]
             }
         })
-        delay(interCmdDelay)
+    }
 
-        sendOrThrow(fromNode, masterMessage {
-            removeContainer = removeContainerCommand {
-                containerName = "$containerNamePrefix-$id"
-                force = false
-            }
-        })
-        delay(interCmdDelay)
-
-        sendOrThrow(toNode, buildCreate(id, server, image, allVars, publicHostname))
-        delay(interCmdDelay)
-
-        sendOrThrow(toNode, masterMessage {
+    fun sendStart(server: ResultRow, node: String) {
+        val id = server[Servers.id]
+        sendOrThrow(node, masterMessage {
             startContainer = startContainerCommand {
                 serverId = id.toString()
                 containerName = "$containerNamePrefix-$id"
             }
         })
+    }
 
-        return awaitHealthy()
+    fun sendRemove(server: ResultRow, fromNode: String, force: Boolean = false) {
+        val id = server[Servers.id]
+        sendOrThrow(fromNode, masterMessage {
+            removeContainer = removeContainerCommand {
+                serverId = id.toString()
+                containerName = "$containerNamePrefix-$id"
+                this.force = force
+            }
+        })
+    }
+
+    fun sendCreate(server: ResultRow, toNode: String) {
+        val id = server[Servers.id]
+        val image = deriveImage(server[Servers.serverType], server[Servers.itzgImageTag])
+        val allVars = buildAllVars(id, server)
+        val publicHostname = server[Servers.dnsRecordName]
+        sendOrThrow(toNode, buildCreate(id, server, image, allVars, publicHostname))
     }
 
     fun buildAllVars(id: Uuid, server: ResultRow): Map<String, String> {

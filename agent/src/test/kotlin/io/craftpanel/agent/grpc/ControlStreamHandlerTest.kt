@@ -254,25 +254,40 @@ class ControlStreamHandlerTest {
     // -------------------------------------------------------------------------
 
     @Test
-    fun `handleRemove calls containerManager removeContainer`() = runBlocking {
+    fun `handleRemove calls containerManager removeContainer and emits STOPPED`() = runBlocking {
         every { containerManager.removeContainer(any(), any()) } just Runs
+        val outbound = newOutbound()
 
         containerHandler.handleRemove(removeContainerCommand {
+            serverId = "srv-remove"
             containerName = "craftpanel-remove"
             force = true
-        })
+        }, outbound)
 
         verify { containerManager.removeContainer("craftpanel-remove", true) }
+        assertEquals(
+            ServerStatusUpdate.ServerStatus.STOPPED,
+            outboundChannel.messages()
+                .single().serverStatus.status
+        )
     }
 
     @Test
-    fun `handleRemove does not throw on docker error`() = runBlocking {
+    fun `handleRemove emits UNHEALTHY on docker error`() = runBlocking {
         every { containerManager.removeContainer(any(), any()) } throws RuntimeException("rm failed")
+        val outbound = newOutbound()
 
         containerHandler.handleRemove(removeContainerCommand {
+            serverId = "srv-rm-fail"
             containerName = "craftpanel-rm-fail"
             force = false
-        })
+        }, outbound)
+
+        assertEquals(
+            ServerStatusUpdate.ServerStatus.UNHEALTHY,
+            outboundChannel.messages()
+                .single().serverStatus.status
+        )
     }
 
     // -------------------------------------------------------------------------

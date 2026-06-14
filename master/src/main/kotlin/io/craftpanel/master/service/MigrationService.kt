@@ -21,7 +21,6 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Clock
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 import io.craftpanel.master.util.toUtcString
@@ -245,6 +244,37 @@ class MigrationService(
             emit(MigrationEvent.Failed(error))
         }
 
+        // Subscribe to this server's status flow, run [trigger], then await the
+        // first matching [status]. Used to sequence the stop → final-rsync →
+        // remove → create cutover: the source must report STOPPED after both the
+        // stop and the remove before the next step runs, otherwise the
+        // (shared-namespace) target create races the source removal.
+        //
+        // The collector is started before [trigger] fires — serverStatusFlow has
+        // replay=0, so subscribing after the emission would miss it.
+        suspend fun triggerAndAwaitStatus(
+            status: ServerStatusUpdate.ServerStatus,
+            timeout: kotlin.time.Duration,
+            trigger: () -> Unit,
+        ): Boolean {
+            val channel = Channel<Unit>(1)
+            val job = scope.launch {
+                serverStatusFlow.collect { (sId, update) ->
+                    if (sId == serverIdStr && update.status == status) channel.trySend(Unit)
+                }
+            }
+            // Give the collector a tick to register before triggering the action.
+            yield()
+            return try {
+                trigger()
+                withTimeoutOrNull(timeout) { channel.receive() } != null
+            }
+            finally {
+                job.cancel()
+                channel.close()
+            }
+        }
+
         // ── Collect source/target node data ──────────────────────────────────
         val sourceNodeIdStr = sourceNodeId.toString()
         val targetNodeIdStr = targetNodeId.toString()
@@ -387,38 +417,36 @@ class MigrationService(
 
             delay(2.seconds)
 
-            // ── Step 5: save-all then save-off via RCON ──────────────────────────
+            // ── Step 5: Stop source container (a clean stop flushes world data) ──
+            // The container is kept (not removed) so the final rsync below reads a
+            // consistent, on-disk snapshot. If a later step fails before removal we
+            // restart the source so the server is not left dead.
+            var sourceStopped = false
             run {
-                val stepId = startStep(5, "Flush and disable auto-save via RCON")
-                val saveAllSent = sendToNode(sourceNodeIdStr, masterMessage {
-                    sendRcon = sendRconCommand {
-                        this.serverId = serverIdStr
-                        command = "save-all"
-                    }
-                })
-                if (!saveAllSent) {
-                    completeStep(stepId, false, "Agent disconnected before save-all")
-                    failMigration("Failed to send save-all RCON: agent disconnected")
+                val stepId = startStep(5, "Stop source server container")
+                val stopped = triggerAndAwaitStatus(
+                    ServerStatusUpdate.ServerStatus.STOPPED,
+                    60.seconds,
+                ) {
+                    lifecycle.sendStop(serverRow, sourceNodeIdStr)
+                }
+                if (!stopped) {
+                    completeStep(stepId, false, "Timeout waiting for source to stop")
+                    failMigration("Source server did not stop within timeout")
                     return
                 }
-                delay(500.milliseconds)
-                val saveOffSent = sendToNode(sourceNodeIdStr, masterMessage {
-                    sendRcon = sendRconCommand {
-                        this.serverId = serverIdStr
-                        command = "save-off"
-                    }
-                })
-                if (!saveOffSent) {
-                    completeStep(stepId, false, "Agent disconnected before save-off")
-                    failMigration("Failed to send save-off RCON: agent disconnected")
-                    return
-                }
+                sourceStopped = true
                 completeStep(stepId, true)
             }
 
-            // ── Step 6: Final rsync pass (delta only, server still up) ───────────
+            // Restart the source container — used on rollback while it still exists.
+            fun restartSource() {
+                if (sourceStopped) runCatching { lifecycle.sendStart(serverRow, sourceNodeIdStr) }
+            }
+
+            // ── Step 6: Final rsync pass (source stopped → consistent snapshot) ──
             run {
-                val stepId = startStep(6, "Final rsync pass (delta sync)")
+                val stepId = startStep(6, "Final rsync pass (delta sync, source stopped)")
                 val completeChannel = Channel<RsyncCompleteUpdate>(1)
                 val progressJob = scope.launch {
                     rsyncProgressFlow.collect { u ->
@@ -448,6 +476,7 @@ class MigrationService(
                     if (complete == null || !complete.success) {
                         val err = complete?.errorMessage ?: "Timeout waiting for final rsync"
                         completeStep(stepId, false, err)
+                        restartSource()
                         failMigration("Final rsync failed: $err")
                         return
                     }
@@ -462,49 +491,51 @@ class MigrationService(
 
             updateStatus("CUTTING_OVER")
 
-            // ── Step 7: Create and start container on target ─────────────────────
+            // ── Step 7: Remove source container ──────────────────────────────────
+            // Awaited (STOPPED ack) so the container name is freed before the
+            // target create — prevents a name collision on a shared Docker
+            // namespace and guarantees no two live containers for one server.
             run {
-                val stepId = startStep(7, "Create and start server container on target node")
-
-                val readyChannel = Channel<String>(1)
-                val statusJob = scope.launch {
-                    serverStatusFlow.collect { (sId, update) ->
-                        if (sId == serverIdStr && update.status == ServerStatusUpdate.ServerStatus.HEALTHY)
-                            readyChannel.trySend("HEALTHY")
-                    }
+                val stepId = startStep(7, "Remove source server container")
+                val removed = triggerAndAwaitStatus(
+                    ServerStatusUpdate.ServerStatus.STOPPED,
+                    60.seconds,
+                ) {
+                    lifecycle.sendRemove(serverRow, sourceNodeIdStr)
                 }
-                try {
-                    val healthy = lifecycle.relocate(
-                        server = serverRow,
-                        fromNode = sourceNodeIdStr,
-                        toNode = targetNodeIdStr,
-                        interCmdDelay = 1.seconds,
-                        awaitHealthy = {
-                            withTimeoutOrNull(120.seconds) { readyChannel.receive() } != null
-                        },
-                    )
-                    if (!healthy) {
-                        sendToNode(targetNodeIdStr, masterMessage {
-                            removeContainer = removeContainerCommand {
-                                containerName = "$containerNamePrefix-$serverId"
-                                force = true
-                            }
-                        })
-                        completeStep(stepId, false, "Timeout waiting for container to become HEALTHY")
-                        failMigration("New container failed to start on target")
-                        return
-                    }
-                    completeStep(stepId, true)
+                if (!removed) {
+                    completeStep(stepId, false, "Timeout waiting for source removal")
+                    restartSource()
+                    failMigration("Source container removal did not complete within timeout")
+                    return
                 }
-                finally {
-                    statusJob.cancel()
-                    readyChannel.close()
-                }
+                // Source is gone — rollback by restart is no longer possible past here.
+                sourceStopped = false
+                completeStep(stepId, true)
             }
 
-            // ── Step 8: Update DNS A record ──────────────────────────────────────
+            // ── Step 8: Create and start container on target ─────────────────────
             run {
-                val stepId = startStep(8, "Update DNS A record to target node IP")
+                val stepId = startStep(8, "Create and start server container on target node")
+                val healthy = triggerAndAwaitStatus(
+                    ServerStatusUpdate.ServerStatus.HEALTHY,
+                    120.seconds,
+                ) {
+                    lifecycle.sendCreate(serverRow, targetNodeIdStr)
+                    lifecycle.sendStart(serverRow, targetNodeIdStr)
+                }
+                if (!healthy) {
+                    lifecycle.sendRemove(serverRow, targetNodeIdStr, force = true)
+                    completeStep(stepId, false, "Timeout waiting for container to become HEALTHY")
+                    failMigration("New container failed to start on target")
+                    return
+                }
+                completeStep(stepId, true)
+            }
+
+            // ── Step 9: Update DNS A record ──────────────────────────────────────
+            run {
+                val stepId = startStep(9, "Update DNS A record to target node IP")
                 val recordId = serverRow[Servers.dnsRecordId]
                 val provider = dnsProvider
                 if (recordId != null && provider != null) {
@@ -523,10 +554,8 @@ class MigrationService(
                 completeStep(stepId, true)
             }
 
-            // ── Step 9: mc-router labels updated implicitly at container creation ─
-            // Nothing to do — labels set in step 7 CreateContainerCommand.
-
-            // ── Step 10: (removed — source container already stopped/removed in step 7) ─
+            // ── Step 10: mc-router labels updated implicitly at container creation ─
+            // Nothing to do — labels set in step 8 CreateContainerCommand.
 
             // ── Step 11: Update DB — node assignment + PortRegistry ──────────────
             run {

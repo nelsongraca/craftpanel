@@ -71,7 +71,7 @@ class ControlStreamHandler(
                 msg.hasStartContainer()      -> dispatch { container.handleStart(msg.startContainer, out) }
                 msg.hasStopContainer()       -> launch { dispatch { container.handleStop(msg.stopContainer, out) } }
                 msg.hasRestartContainer()    -> launch { dispatch { container.handleRestart(msg.restartContainer, out) } }
-                msg.hasRemoveContainer()     -> dispatch { container.handleRemove(msg.removeContainer) }
+                msg.hasRemoveContainer()     -> dispatch { container.handleRemove(msg.removeContainer, out) }
                 msg.hasPullImage()           -> dispatch { container.handlePullImage(msg.pullImage) }
                 msg.hasShutdown()            -> dispatch { container.handleShutdown(msg.shutdown, out) }
                 msg.hasTriggerBackup()       -> launch { dispatch { backup.handleTriggerBackup(msg.triggerBackup, out) } }

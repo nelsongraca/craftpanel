@@ -85,10 +85,18 @@ class ContainerHandler(
             }
     }
 
-    fun handleRemove(cmd: RemoveContainerCommand) {
+    suspend fun handleRemove(cmd: RemoveContainerCommand, out: AgentOutbound) {
         log.info("Removing container ${cmd.containerName} (force=${cmd.force})")
         runCatching { containerManager.removeContainer(cmd.containerName, cmd.force) }
-            .onFailure { log.error("Failed to remove container ${cmd.containerName}", it) }
+            .onSuccess {
+                // Signal removal completion so master can sequence cross-node relocation
+                // (target create must wait until the source container name is freed).
+                out.serverStatus(cmd.serverId, ServerStatusUpdate.ServerStatus.STOPPED)
+            }
+            .onFailure {
+                log.error("Failed to remove container ${cmd.containerName}", it)
+                out.serverStatus(cmd.serverId, ServerStatusUpdate.ServerStatus.UNHEALTHY)
+            }
     }
 
     suspend fun handlePullImage(cmd: PullImageCommand) {

@@ -3,6 +3,7 @@ package io.craftpanel.agent.docker
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.command.PullImageResultCallback
+import com.github.dockerjava.api.exception.NotFoundException
 import com.github.dockerjava.api.model.*
 import io.craftpanel.proto.ContainerState
 import io.craftpanel.proto.CreateContainerCommand
@@ -134,10 +135,17 @@ open class ContainerManager(
             log.warn("Container {} did not exit within {}s after stop command — force stopping", containerName, timeout)
         }
 
-        docker.stopContainerCmd(containerName)
-            .withTimeout(if (stopCommand.isNotEmpty()) 5 else timeout)
-            .exec()
-        log.info("Stopped container {}", containerName)
+        try {
+            docker.stopContainerCmd(containerName)
+                .withTimeout(if (stopCommand.isNotEmpty()) 5 else timeout)
+                .exec()
+            log.info("Stopped container {}", containerName)
+        }
+        catch (_: NotFoundException) {
+            // Container already gone (e.g. server was never started) — stopping is
+            // idempotent, the desired end state (not running) already holds.
+            log.info("Container {} does not exist — treating stop as already-stopped", containerName)
+        }
     }
 
     private fun sendStopCommandToStdin(containerName: String, command: String, timeoutSeconds: Int): Boolean =
@@ -161,10 +169,16 @@ open class ContainerManager(
         }
 
     fun removeContainer(containerName: String, force: Boolean) {
-        docker.removeContainerCmd(containerName)
-            .withForce(force)
-            .exec()
-        log.info("Removed container $containerName")
+        try {
+            docker.removeContainerCmd(containerName)
+                .withForce(force)
+                .exec()
+            log.info("Removed container $containerName")
+        }
+        catch (_: NotFoundException) {
+            // Container already gone — removal is idempotent.
+            log.info("Container {} does not exist — treating remove as already-removed", containerName)
+        }
     }
 
     fun getContainerDataPath(containerName: String): String? {
