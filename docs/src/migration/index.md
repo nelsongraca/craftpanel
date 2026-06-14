@@ -9,21 +9,30 @@ Requires `server.migrate` permission.
 | Step | Action                                                                                                                                               |
 |------|------------------------------------------------------------------------------------------------------------------------------------------------------|
 | 1    | Administrator initiates migration in the master UI, selecting the source and destination node                                                        |
-| 2    | Master instructs the source agent to begin a live `rsync` of the server's data directory to the destination node (server remains running throughout) |
-| 3    | `rsync` completes its initial pass; master waits for confirmation from the destination agent                                                         |
+| 2    | Master allocates an rsync port on the destination node and instructs the destination agent to start an rsync receiver                                |
+| 3    | Master instructs the source agent to begin a live `rsync` of the server's data directory to the destination (server remains running throughout)      |
 | 4    | Master broadcasts a configurable warning to in-game players via RCON (e.g. *"Server restarting in 60 seconds"*)                                      |
-| 5    | Master instructs source agent: send RCON `save-all`, then `save-off`                                                                                 |
-| 6    | Master instructs source agent to perform a final incremental `rsync` (delta only — fast)                                                             |
-| 7    | Master creates the new container spec on the destination node and starts the container                                                               |
-| 8    | Master updates the server's DNS A record to the destination node's IP via the DNS provider API                                                       |
-| 9    | The mc-router label is set on the new container; mc-router on the destination node begins accepting connections                                      |
-| 10   | Master stops and removes the old container on the source node                                                                                        |
-| 11   | Master updates the server's node assignment in the database                                                                                          |
+| 5    | Master **stops** the source container and waits for the `STOPPED` confirmation (a clean stop flushes world data to disk). The container is **kept**  |
+| 6    | Master instructs the source agent to perform a final incremental `rsync` — now from the **stopped** container, guaranteeing a consistent snapshot    |
+| 7    | Master **removes** the source container and waits for confirmation, freeing the container name before the destination container is created           |
+| 8    | Master creates the new container spec on the destination node, starts it, and waits for it to report `HEALTHY`                                        |
+| 9    | Master updates the server's DNS A record to the destination node's IP via the DNS provider API                                                       |
+| 10   | The mc-router label is set on the new container (at creation in step 8); mc-router on the destination node begins accepting connections              |
+| 11   | Master updates the server's node assignment and port registry in the database                                                                        |
+
+### Why stop before the final rsync
+
+The final `rsync` runs only **after** the source container has stopped. A running Minecraft server holds unflushed world state in memory; copying its data directory live can capture a torn snapshot. Stopping first
+(then syncing) guarantees the destination receives exactly the on-disk state the source had at shutdown — no writes are lost in the cutover window. The `save-all`/`save-off` RCON dance used by earlier versions is no
+longer needed, because a clean stop already flushes and quiesces the world.
+
+The source container is **stopped but not removed** until the final rsync completes, so the migration can restart it (rollback) if the rsync or destination start-up fails. Removal is awaited before the destination
+container is created so the two never hold the same container name simultaneously — this also guarantees a server is never live on two nodes at once.
 
 ## DNS Propagation
 
-DNS TTL for per-server A records is set to **60 seconds**. During the TTL window after step 8, some DNS resolvers may still return the old node IP. Players already in-game are disconnected at step 10
-regardless of DNS. Clients retrying will resolve the new IP within the TTL window. This is an acceptable trade-off that avoids any centralised traffic proxy.
+DNS TTL for per-server A records is set to **60 seconds**. During the TTL window after step 9, some DNS resolvers may still return the old node IP. Players already in-game are disconnected at step 5 when the source
+stops, regardless of DNS. Clients retrying will resolve the new IP within the TTL window. This is an acceptable trade-off that avoids any centralised traffic proxy.
 
 ## Server Network Impact
 
@@ -34,5 +43,5 @@ When a server that belongs to a Server Network is migrated to a different node:
 
 ## Downtime Window
 
-The expected player-visible downtime is the time between steps 5 and 9 — typically under 30 seconds for the final rsync delta plus container start time. Total migration time depends on the size of the
-data directory and network bandwidth between nodes.
+The expected player-visible downtime is the time between steps 5 and 8 — the source stop, the final rsync delta, the source removal, and the destination container start. Typically under a minute for a small delta.
+Total migration time depends on the size of the data directory and network bandwidth between nodes.

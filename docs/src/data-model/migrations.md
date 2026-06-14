@@ -52,16 +52,16 @@ Records a timestamped entry for each step as it completes (or fails). Useful for
 
 ### Migration steps reference
 
-| Step | Action                                                            |
-|------|-------------------------------------------------------------------|
-| 1    | Migration initiated; source and destination nodes selected        |
-| 2    | Initial rsync started (server remains running)                    |
-| 3    | Initial rsync complete; destination agent confirmed receipt       |
-| 4    | In-game warning broadcast via RCON                                |
-| 5    | RCON `save-all` + `save-off` sent to source server                |
-| 6    | Final incremental rsync (delta only)                              |
-| 7    | New container created and started on destination node             |
-| 8    | DNS A record updated to destination node IP                       |
-| 9    | mc-router label set on new container; ingress live on destination |
-| 10   | Old container stopped and removed on source node                  |
-| 11   | Server node assignment updated in database                        |
+| Step | Action                                                                   |
+|------|--------------------------------------------------------------------------|
+| 1    | Allocate rsync port on destination node                                  |
+| 2    | Prepare rsync receiver on destination node                               |
+| 3    | Initial rsync pass (server remains running)                              |
+| 4    | In-game warning broadcast via RCON                                       |
+| 5    | Source container stopped (awaits `STOPPED`); container retained for sync |
+| 6    | Final incremental rsync (source stopped → consistent snapshot)           |
+| 7    | Source container removed (awaits confirmation; frees container name)     |
+| 8    | New container created and started on destination node (awaits `HEALTHY`) |
+| 9    | DNS A record updated to destination node IP                              |
+| 10   | mc-router label set on new container (at creation); ingress live         |
+| 11   | Server node assignment and port registry updated in database             |

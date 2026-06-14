@@ -142,27 +142,27 @@ Migration flow initiated from the server detail page (··· menu → Migrate).
         </div>
         <div class="cp-step">
           <div class="cp-step-num cp-step-pending">5</div>
-          <div><div class="cp-step-title cp-muted">save-all + save-off via stdin</div></div>
+          <div><div class="cp-step-title cp-muted">Source container stopped on node-1</div></div>
         </div>
         <div class="cp-step">
           <div class="cp-step-num cp-step-pending">6</div>
-          <div><div class="cp-step-title cp-muted">Final delta rsync</div></div>
+          <div><div class="cp-step-title cp-muted">Final delta rsync (source stopped)</div></div>
         </div>
         <div class="cp-step">
           <div class="cp-step-num cp-step-pending">7</div>
-          <div><div class="cp-step-title cp-muted">New container started on node-2</div></div>
+          <div><div class="cp-step-title cp-muted">Source container removed from node-1</div></div>
         </div>
         <div class="cp-step">
           <div class="cp-step-num cp-step-pending">8</div>
-          <div><div class="cp-step-title cp-muted">DNS record updated</div></div>
+          <div><div class="cp-step-title cp-muted">New container started on node-2</div></div>
         </div>
         <div class="cp-step">
           <div class="cp-step-num cp-step-pending">9</div>
-          <div><div class="cp-step-title cp-muted">Ingress live on node-2</div></div>
+          <div><div class="cp-step-title cp-muted">DNS record updated</div></div>
         </div>
         <div class="cp-step">
           <div class="cp-step-num cp-step-pending">10</div>
-          <div><div class="cp-step-title cp-muted">Old container removed from node-1</div></div>
+          <div><div class="cp-step-title cp-muted">Ingress live on node-2</div></div>
         </div>
         <div class="cp-step">
           <div class="cp-step-num cp-step-pending">11</div>

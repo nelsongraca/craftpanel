@@ -3,6 +3,7 @@ package craftpanel.systemtest.node
 import craftpanel.systemtest.harness.AuthHelper
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.ServerHelper
+import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeEmpty
@@ -61,9 +62,11 @@ class MultiNodeTest : BaseSystemTest() {
                 api.getServer(serverA).nodeId shouldBe nodeA
                 api.getServer(serverB).nodeId shouldBe nodeB
 
+                // listServers() is global; under a shared stack other specs' servers
+                // may be present. Assert containment of the two we created, not count.
                 val allServers = api.listServers()
                 allServers.map { it.id }
-                    .shouldHaveSize(2)
+                    .shouldContainAll(listOf(serverA, serverB))
             }
 
             should("can start and stop servers on both nodes") {
