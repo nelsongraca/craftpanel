@@ -16,5 +16,6 @@ internal fun generateRsyncPassword(): String {
     // into a sh -c script; shell metacharacters would cause injection. Do not widen.
     val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
     val random = SecureRandom()
-    return (1..32).map { chars[random.nextInt(chars.length)] }.joinToString("")
+    return (1..32).map { chars[random.nextInt(chars.length)] }
+        .joinToString("")
 }

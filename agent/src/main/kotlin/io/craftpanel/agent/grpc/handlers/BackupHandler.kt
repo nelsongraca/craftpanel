@@ -44,7 +44,8 @@ class BackupHandler(private val config: AgentConfig) {
 
                 val exitCode = process.waitFor()
                 if (exitCode != 0) {
-                    val output = process.inputStream.bufferedReader().readText()
+                    val output = process.inputStream.bufferedReader()
+                        .readText()
                     error("tar exited with $exitCode: $output")
                 }
 
@@ -62,18 +63,19 @@ class BackupHandler(private val config: AgentConfig) {
                     completedAt = nowTimestamp()
                 }
             }
-        }.onFailure { ex ->
-            log.error("Backup ${cmd.backupId}: failed", ex)
-            out.send {
-                backupComplete = backupCompleteUpdate {
-                    backupId = cmd.backupId
-                    serverId = cmd.serverId
-                    success = false
-                    errorMessage = ex.message ?: "Unknown error"
-                    completedAt = nowTimestamp()
+        }
+            .onFailure { ex ->
+                log.error("Backup ${cmd.backupId}: failed", ex)
+                out.send {
+                    backupComplete = backupCompleteUpdate {
+                        backupId = cmd.backupId
+                        serverId = cmd.serverId
+                        success = false
+                        errorMessage = ex.message ?: "Unknown error"
+                        completedAt = nowTimestamp()
+                    }
                 }
             }
-        }
     }
 
     suspend fun handleDeleteBackup(cmd: DeleteBackupCommand) {

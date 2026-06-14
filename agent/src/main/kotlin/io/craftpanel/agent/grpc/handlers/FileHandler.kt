@@ -30,22 +30,25 @@ class FileHandler(
                 val target = safeResolve(root, cmd.path.ifEmpty { "/" })
                 log.debug("listFiles target={} exists={} isDir={}", target, Files.exists(target), Files.isDirectory(target))
                 if (!Files.isDirectory(target)) error("Path not found")
-                Files.list(target).use { stream ->
-                    stream.map { path ->
-                        val attrs = runCatching { Files.readAttributes(path, BasicFileAttributes::class.java) }.getOrNull()
-                        fileEntry {
-                            name = path.fileName.toString()
-                            isDirectory = Files.isDirectory(path)
-                            sizeBytes = attrs?.size() ?: 0L
-                            if (attrs != null) {
-                                modifiedAt = timestamp {
-                                    seconds = attrs.lastModifiedTime().toInstant().epochSecond
+                Files.list(target)
+                    .use { stream ->
+                        stream.map { path ->
+                            val attrs = runCatching { Files.readAttributes(path, BasicFileAttributes::class.java) }.getOrNull()
+                            fileEntry {
+                                name = path.fileName.toString()
+                                isDirectory = Files.isDirectory(path)
+                                sizeBytes = attrs?.size() ?: 0L
+                                if (attrs != null) {
+                                    modifiedAt = timestamp {
+                                        seconds = attrs.lastModifiedTime()
+                                            .toInstant().epochSecond
+                                    }
                                 }
+                                permissions = posixPermissions(path)
                             }
-                            permissions = posixPermissions(path)
                         }
-                    }.toList()
-                }
+                            .toList()
+                    }
             }
         }
         out.send {
@@ -109,13 +112,16 @@ class FileHandler(
                 if (!Files.exists(target)) error("Path not found")
                 if (Files.isDirectory(target)) {
                     if (!cmd.recursive) {
-                        val isEmpty = Files.list(target).use { it.findFirst().isEmpty }
+                        val isEmpty = Files.list(target)
+                            .use { it.findFirst().isEmpty }
                         if (!isEmpty) error("Directory is not empty; use recursive=true")
                         Files.delete(target)
-                    } else {
+                    }
+                    else {
                         deleteRecursively(target)
                     }
-                } else {
+                }
+                else {
                     Files.delete(target)
                 }
             }
@@ -230,8 +236,10 @@ class FileHandler(
         val fileResult = runCatching {
             withContext(Dispatchers.IO) {
                 if (!cmd.backupId.matches(Regex("^[0-9a-fA-F-]{36}$"))) error("Invalid backup id")
-                val backupsRoot = Paths.get(config.dataBasePath, "backups").normalize()
-                val filePath = backupsRoot.resolve("${cmd.backupId}.tar.gz").normalize()
+                val backupsRoot = Paths.get(config.dataBasePath, "backups")
+                    .normalize()
+                val filePath = backupsRoot.resolve("${cmd.backupId}.tar.gz")
+                    .normalize()
                 if (!filePath.startsWith(backupsRoot)) error("Invalid backup id")
                 if (!Files.exists(filePath)) error("Backup file not found: ${cmd.backupId}")
                 filePath
@@ -253,12 +261,14 @@ class FileHandler(
     // ─── Path helpers ─────────────────────────────────────────────────────────
 
     private fun serverDataRoot(serverId: String): Path =
-        Paths.get(config.dataBasePath, "servers", serverId).normalize()
+        Paths.get(config.dataBasePath, "servers", serverId)
+            .normalize()
 
     private fun safeResolve(root: Path, relativePath: String): Path {
         log.debug("safeResolve root={} relativePath={}", root, relativePath)
         val clean = relativePath.trimStart('/')
-        val resolved = root.resolve(clean).normalize()
+        val resolved = root.resolve(clean)
+            .normalize()
         log.debug("safeResolve resolved={} startsWithRoot={}", resolved, resolved.startsWith(root))
         if (!resolved.startsWith(root)) error("Path traversal detected")
         return resolved
@@ -282,10 +292,12 @@ class FileHandler(
     private fun copyRecursively(src: Path, dst: Path) {
         if (Files.isDirectory(src)) {
             Files.createDirectories(dst)
-            Files.list(src).use { stream ->
-                stream.forEach { child -> copyRecursively(child, dst.resolve(child.fileName)) }
-            }
-        } else {
+            Files.list(src)
+                .use { stream ->
+                    stream.forEach { child -> copyRecursively(child, dst.resolve(child.fileName)) }
+                }
+        }
+        else {
             Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING)
         }
     }

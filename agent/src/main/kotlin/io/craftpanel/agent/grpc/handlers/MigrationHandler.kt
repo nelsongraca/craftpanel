@@ -40,9 +40,10 @@ class MigrationHandler(
                 }
             }
             log.info("Migration ${cmd.migrationId}: rsyncd ready")
-        }.onFailure { ex ->
-            log.error("Migration ${cmd.migrationId}: failed to start rsyncd", ex)
         }
+            .onFailure { ex ->
+                log.error("Migration ${cmd.migrationId}: failed to start rsyncd", ex)
+            }
     }
 
     suspend fun handleStartRsync(cmd: StartRsyncCommand, out: AgentOutbound) {
@@ -86,18 +87,19 @@ class MigrationHandler(
                 }
             }
             log.info("Migration ${cmd.migrationId}: rsync transfer complete (success=$success)")
-        }.onFailure { ex ->
-            log.error("Migration ${cmd.migrationId}: rsync transfer error", ex)
-            out.send {
-                rsyncComplete = rsyncCompleteUpdate {
-                    migrationId = cmd.migrationId
-                    isFinalPass = cmd.isFinalPass
-                    success = false
-                    errorMessage = ex.message ?: "Unknown error"
-                    completedAt = nowTimestamp()
+        }
+            .onFailure { ex ->
+                log.error("Migration ${cmd.migrationId}: rsync transfer error", ex)
+                out.send {
+                    rsyncComplete = rsyncCompleteUpdate {
+                        migrationId = cmd.migrationId
+                        isFinalPass = cmd.isFinalPass
+                        success = false
+                        errorMessage = ex.message ?: "Unknown error"
+                        completedAt = nowTimestamp()
+                    }
                 }
             }
-        }
     }
 
     fun handleSendRcon(cmd: SendRconCommand) {

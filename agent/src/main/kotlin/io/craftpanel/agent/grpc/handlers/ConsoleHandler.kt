@@ -93,7 +93,8 @@ class ConsoleHandler(
                     log.warn("Console attach failed (session=$reqId): ${e.message}")
                     out.tryConsoleOutput(reqId) { closed = true }
                 }
-            } finally {
+            }
+            finally {
                 runCatching { inputPipe.close() }
                 consoleSessions.remove(reqId)
             }
