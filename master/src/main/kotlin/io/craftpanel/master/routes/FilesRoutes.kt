@@ -5,6 +5,12 @@ import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.grpc.DataServiceProxy
+import io.craftpanel.master.routes.dto.CopyRequest
+import io.craftpanel.master.routes.dto.ListFilesResponse
+import io.craftpanel.master.routes.dto.MkdirRequest
+import io.craftpanel.master.routes.dto.MoveRequest
+import io.craftpanel.master.routes.dto.ReadFileResponse
+import io.craftpanel.master.routes.dto.UploadResponse
 import kotlin.uuid.Uuid
 import io.github.smiley4.ktoropenapi.delete
 import io.github.smiley4.ktoropenapi.get
@@ -20,58 +26,9 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.utils.io.readTo
 import kotlinx.io.asSink
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.time.Instant
-
-// ── Response types ────────────────────────────────────────────────────────────
-
-@Serializable
-data class FileEntryResponse(
-    val name: String,
-    @SerialName("is_directory") val isDirectory: Boolean,
-    @SerialName("size_bytes") val sizeBytes: Long,
-    @SerialName("modified_at") val modifiedAt: String?,
-    val permissions: String,
-)
-
-@Serializable
-data class ListFilesResponse(
-    val path: String,
-    val entries: List<FileEntryResponse>,
-)
-
-@Serializable
-data class ReadFileResponse(
-    val path: String,
-    val content: String,
-    val encoding: String,
-)
-
-@Serializable
-data class UploadResponse(
-    val path: String,
-    @SerialName("size_bytes") val sizeBytes: Long,
-)
-
-@Serializable
-data class MoveRequest(
-    @SerialName("source_path") val sourcePath: String,
-    @SerialName("destination_path") val destinationPath: String,
-)
-
-@Serializable
-data class CopyRequest(
-    @SerialName("source_path") val sourcePath: String,
-    @SerialName("destination_path") val destinationPath: String,
-    val recursive: Boolean = false,
-)
-
-@Serializable
-data class MkdirRequest(val path: String)
 
 // ── Route setup ───────────────────────────────────────────────────────────────
 
@@ -93,22 +50,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                 val (_, serverId, _) = extractAndAuthorize(call) ?: return@get
                 val path = call.request.queryParameters["path"] ?: "/"
                 try {
-                    val result = proxy.listFiles(serverId, path)
-                    call.respond(
-                        ListFilesResponse(
-                            path = path,
-                            entries = result.entriesList.map { e ->
-                                FileEntryResponse(
-                                    name = e.name,
-                                    isDirectory = e.isDirectory,
-                                    sizeBytes = e.sizeBytes,
-                                    modifiedAt = if (e.hasModifiedAt()) Instant.ofEpochSecond(e.modifiedAt.seconds)
-                                        .toString()
-                                    else null,
-                                    permissions = e.permissions,
-                                )
-                            }
-                        ))
+                    call.respond(proxy.listFiles(serverId, path))
                 }
                 catch (e: Exception) {
                     call.respondFileAgentError(e)
@@ -138,7 +80,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                         call.respond(HttpStatusCode.Conflict, ErrorResponse("File is binary; use the download endpoint"))
                         return@get
                     }
-                    call.respond(ReadFileResponse(path = path, content = result.content.toStringUtf8(), encoding = result.encoding))
+                    call.respond(result)
                 }
                 catch (e: Exception) {
                     call.respondFileAgentError(e)

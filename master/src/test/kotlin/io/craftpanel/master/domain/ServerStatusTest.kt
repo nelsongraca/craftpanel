@@ -3,9 +3,11 @@ package io.craftpanel.master.domain
 import io.craftpanel.master.grpc.mapContainerState
 import io.craftpanel.master.grpc.mapMissingContainer
 import io.craftpanel.proto.ContainerState
+import io.craftpanel.proto.ServerStatusUpdate
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertFailsWith
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
@@ -92,5 +94,29 @@ class ServerStatusTest {
     @Test
     fun `missing container when already STOPPED → null`() {
         assertNull(mapMissingContainer(ServerStatus.STOPPED))
+    }
+
+    // ── fromProto mapping ────────────────────────────────────────────────────
+
+    @Test
+    fun `fromProto maps all 4 proto values to domain`() {
+        assertEquals(ServerStatus.STOPPED, ServerStatus.fromProto(ServerStatusUpdate.ServerStatus.STOPPED))
+        assertEquals(ServerStatus.STARTING, ServerStatus.fromProto(ServerStatusUpdate.ServerStatus.STARTING))
+        assertEquals(ServerStatus.HEALTHY, ServerStatus.fromProto(ServerStatusUpdate.ServerStatus.HEALTHY))
+        assertEquals(ServerStatus.UNHEALTHY, ServerStatus.fromProto(ServerStatusUpdate.ServerStatus.UNHEALTHY))
+    }
+
+    @Test
+    fun `fromProto throws on UNSPECIFIED`() {
+        assertFailsWith<IllegalStateException> {
+            ServerStatus.fromProto(ServerStatusUpdate.ServerStatus.SERVER_STATUS_UNSPECIFIED)
+        }
+    }
+
+    @Test
+    fun `fromProto throws on UNRECOGNIZED`() {
+        assertFailsWith<IllegalStateException> {
+            ServerStatus.fromProto(ServerStatusUpdate.ServerStatus.UNRECOGNIZED)
+        }
     }
 }

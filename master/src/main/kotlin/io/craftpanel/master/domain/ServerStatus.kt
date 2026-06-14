@@ -1,5 +1,7 @@
 package io.craftpanel.master.domain
 
+import io.craftpanel.proto.ServerStatusUpdate
+
 enum class ServerStatus {
     STOPPED, STARTING, HEALTHY, STOPPING, UNHEALTHY;
 
@@ -11,5 +13,13 @@ enum class ServerStatus {
     companion object {
 
         fun fromDb(s: String) = valueOf(s)
+
+        fun fromProto(p: ServerStatusUpdate.ServerStatus): ServerStatus = when (p) {
+            ServerStatusUpdate.ServerStatus.STOPPED -> STOPPED
+            ServerStatusUpdate.ServerStatus.STARTING -> STARTING
+            ServerStatusUpdate.ServerStatus.HEALTHY -> HEALTHY
+            ServerStatusUpdate.ServerStatus.UNHEALTHY -> UNHEALTHY
+            else -> error("Unspecified or unrecognized proto ServerStatus: $p")
+        }
     }
 }

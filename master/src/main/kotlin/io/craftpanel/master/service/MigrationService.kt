@@ -3,6 +3,7 @@ package io.craftpanel.master.service
 import io.craftpanel.proto.*
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.dns.DnsProvider
+import io.craftpanel.master.domain.ServerStatus
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
@@ -253,14 +254,14 @@ class MigrationService(
         // The collector is started before [trigger] fires — serverStatusFlow has
         // replay=0, so subscribing after the emission would miss it.
         suspend fun triggerAndAwaitStatus(
-            status: ServerStatusUpdate.ServerStatus,
+            status: ServerStatus,
             timeout: kotlin.time.Duration,
             trigger: () -> Unit,
         ): Boolean {
             val channel = Channel<Unit>(1)
             val job = scope.launch {
                 serverStatusFlow.collect { (sId, update) ->
-                    if (sId == serverIdStr && update.status == status) channel.trySend(Unit)
+                    if (sId == serverIdStr && ServerStatus.fromProto(update.status) == status) channel.trySend(Unit)
                 }
             }
             // Give the collector a tick to register before triggering the action.
@@ -425,7 +426,7 @@ class MigrationService(
             run {
                 val stepId = startStep(5, "Stop source server container")
                 val stopped = triggerAndAwaitStatus(
-                    ServerStatusUpdate.ServerStatus.STOPPED,
+                    ServerStatus.STOPPED,
                     60.seconds,
                 ) {
                     lifecycle.sendStop(serverRow, sourceNodeIdStr)
@@ -498,7 +499,7 @@ class MigrationService(
             run {
                 val stepId = startStep(7, "Remove source server container")
                 val removed = triggerAndAwaitStatus(
-                    ServerStatusUpdate.ServerStatus.STOPPED,
+                    ServerStatus.STOPPED,
                     60.seconds,
                 ) {
                     lifecycle.sendRemove(serverRow, sourceNodeIdStr)
@@ -518,7 +519,7 @@ class MigrationService(
             run {
                 val stepId = startStep(8, "Create and start server container on target node")
                 val healthy = triggerAndAwaitStatus(
-                    ServerStatusUpdate.ServerStatus.HEALTHY,
+                    ServerStatus.HEALTHY,
                     120.seconds,
                 ) {
                     lifecycle.sendCreate(serverRow, targetNodeIdStr)
