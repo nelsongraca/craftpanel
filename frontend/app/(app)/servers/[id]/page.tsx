@@ -17,6 +17,7 @@ import {ModsTab} from "./mods-tab";
 import {ConfigTab} from "./config-tab";
 import {MigrationTab} from "./migration-tab";
 import {ConfirmDialog} from "@/components/ui/confirm-dialog";
+import {ApiError, call, tryCall} from "@/lib/api";
 
 // ── Mojang version manifest ───────────────────────────────────────────────────
 
@@ -229,18 +230,22 @@ export default function ServerDetailPage() {
     // ── Data fetching ──────────────────────────────────────────────────────────
 
     const fetchServer = useCallback(async () => {
-        const {data, response} = await getServer({path: {id}});
-        if (response?.status === 404) {
-            setNotFound(true);
+        try {
+            const data = await call(() => getServer({path: {id}}));
+            setServer(data);
             setLoading(false);
-            return;
+        } catch (e) {
+            if (e instanceof ApiError && e.status === 404) {
+                setNotFound(true);
+            }
+            setLoading(false);
         }
-        if (data) setServer(data);
-        setLoading(false);
     }, [id]);
 
     useEffect(() => {
         void fetchServer();
+        const timer = setInterval(fetchServer, 30_000);
+        return () => clearInterval(timer);
     }, [fetchServer]);
 
     const nodeId = server?.node_id;
@@ -259,11 +264,6 @@ export default function ServerDetailPage() {
             if (data) setNetwork(data);
         });
     }, [networkId]);
-
-    useEffect(() => {
-        const timer = setInterval(fetchServer, 30_000);
-        return () => clearInterval(timer);
-    }, [fetchServer]);
 
     useEffect(() => {
         const close = () => setMenuOpen(false);
@@ -332,9 +332,9 @@ export default function ServerDetailPage() {
             if (editNetworkId !== (server.network_id ?? "")) body.network_id = editNetworkId || "";
             if (mcVersionChanged) body.mc_version = editMcVersion;
 
-            const {error} = await updateServer({path: {id}, body: body as Parameters<typeof updateServer>[0]["body"]});
-            if (error) {
-                setGeneralError(error.message ?? "Failed to save");
+            const res = await tryCall(() => updateServer({path: {id}, body: body as Parameters<typeof updateServer>[0]["body"]}));
+            if (!res.ok) {
+                setGeneralError(res.error);
                 return;
             }
             await fetchServer();
@@ -362,12 +362,12 @@ export default function ServerDetailPage() {
         setSavingResources(true);
         setResourcesError(null);
         try {
-            const {error} = await updateServerResources({
+            const res = await tryCall(() => updateServerResources({
                 path: {id},
                 body: {memory_mb: editRamMb, cpu_shares: editCpuShares, itzg_image_tag: editItzgTag || undefined},
-            });
-            if (error) {
-                setResourcesError(error.message ?? "Failed to save");
+            }));
+            if (!res.ok) {
+                setResourcesError(res.error);
                 return;
             }
             await fetchServer();
@@ -391,9 +391,9 @@ export default function ServerDetailPage() {
         setPending(action);
         setActionError(null);
         try {
-            const {error} = await ACTION_FNS[action]({path: {id}});
-            if (error) {
-                setActionError(error.message ?? `Failed to ${action} server`);
+            const res = await tryCall(() => ACTION_FNS[action]({path: {id}}));
+            if (!res.ok) {
+                setActionError(res.error);
             } else {
                 await fetchServer();
             }
@@ -413,9 +413,9 @@ export default function ServerDetailPage() {
             onConfirm: async () => {
                 setActionError(null);
                 try {
-                    const {error} = await deleteServer({path: {id}});
-                    if (error) {
-                        setActionError(error.message ?? "Failed to delete server");
+                    const res = await tryCall(() => deleteServer({path: {id}}));
+                    if (!res.ok) {
+                        setActionError(res.error);
                     } else {
                         router.push("/servers");
                     }

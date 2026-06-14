@@ -1,6 +1,6 @@
 "use client";
 
-import {useCallback, useEffect, useState} from "react";
+import {useEffect, useState} from "react";
 import {useRouter} from "next/navigation";
 import Link from "next/link";
 import {MoreHorizontal, Play, Plus, RotateCcw, Square, Trash2, X} from "lucide-react";
@@ -10,30 +10,9 @@ import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import type {Network, Node, Server} from "@/lib/types";
 import {ConfirmDialog} from "@/components/ui/confirm-dialog";
-
-type DisplayStatus = "HEALTHY" | "UNHEALTHY" | "STARTING" | "STOPPING" | "STOPPED";
-
-function toDisplayStatus(status: string): DisplayStatus {
-    return (["HEALTHY", "UNHEALTHY", "STARTING", "STOPPING", "STOPPED"].includes(status)
-        ? status
-        : "STOPPED") as DisplayStatus;
-}
-
-const DISPLAY_LABELS: Record<DisplayStatus, string> = {
-    HEALTHY: "Healthy",
-    UNHEALTHY: "Unhealthy",
-    STARTING: "Starting",
-    STOPPING: "Stopping",
-    STOPPED: "Stopped",
-};
-
-const DISPLAY_CLASSES: Record<DisplayStatus, string> = {
-    HEALTHY: "text-healthy  border border-healthy/30  bg-healthy/10",
-    UNHEALTHY: "text-error    border border-error/30    bg-error/10",
-    STARTING: "text-warning  border border-warning/30  bg-warning/10",
-    STOPPING: "text-warning  border border-warning/30  bg-warning/10",
-    STOPPED: "text-text-muted border border-border    bg-surface-high",
-};
+import {tryCall} from "@/lib/api";
+import {useApiData} from "@/lib/hooks/useApiData";
+import {serverStatusClass, serverStatusLabel} from "@/lib/status";
 
 // Filter option → backend statuses that match
 const FILTER_MATCHES: Record<string, string[]> = {
@@ -116,10 +95,13 @@ export default function ServersPage() {
     const {user} = useAuth();
     const permissions = user?.permissions ?? [];
 
-    const [servers, setServers] = useState<Server[]>([]);
+    const {data: servers = [], loading: initialLoad, reload: reloadServers} = useApiData(
+        () => listServers().then(r => r.data ?? []),
+        [],
+        {pollMs: 30_000},
+    );
     const [nodes, setNodes] = useState<Node[]>([]);
     const [networks, setNetworks] = useState<Network[]>([]);
-    const [initialLoad, setInitialLoad] = useState(true);
     const [actionError, setActionError] = useState<string | null>(null);
     const [pendingAction, setPendingAction] = useState<Record<string, string>>({});
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -135,31 +117,12 @@ export default function ServersPage() {
     const [filterNetwork, setFilterNetwork] = useState("");
     const [filterNode, setFilterNode] = useState("");
 
-    const fetchServers = useCallback(async () => {
-        const {data} = await listServers();
-        if (data) setServers(data);
-    }, []);
-
     useEffect(() => {
-        async function init() {
-            await fetchServers();
-            setInitialLoad(false);
-            // best-effort — non-admins may get 403
-            const [{data: nodeData}, {data: networkData}] = await Promise.all([
-                listNodes(),
-                listNetworks(),
-            ]);
+        Promise.all([listNodes(), listNetworks()]).then(([{data: nodeData}, {data: networkData}]) => {
             if (nodeData) setNodes(nodeData);
             if (networkData) setNetworks(networkData);
-        }
-
-        init();
-    }, [fetchServers]);
-
-    useEffect(() => {
-        const id = setInterval(fetchServers, 30_000);
-        return () => clearInterval(id);
-    }, [fetchServers]);
+        });
+    }, []);
 
     // Close ··· menu on any document click
     useEffect(() => {
@@ -170,7 +133,6 @@ export default function ServersPage() {
 
     const nodeMap = Object.fromEntries(nodes.map((n) => [n.id, n]));
 
-    // Subtitle: unique node_ids across the full (unfiltered) server list
     const uniqueNodeCount = new Set(servers.map((s) => s.node_id)).size;
     const subtitle = initialLoad
         ? undefined
@@ -203,22 +165,17 @@ export default function ServersPage() {
     async function doAction(serverId: string, action: "start" | "stop" | "restart") {
         setPendingAction((p) => ({...p, [serverId]: action}));
         setActionError(null);
-        try {
-            const {error} = await ACTION_FNS[action]({path: {id: serverId}});
-            if (error) {
-                setActionError(error.message ?? `Failed to ${action} server`);
-            } else {
-                await fetchServers();
-            }
-        } catch {
-            setActionError(`Failed to ${action} server`);
-        } finally {
-            setPendingAction((p) => {
-                const n = {...p};
-                delete n[serverId];
-                return n;
-            });
+        const res = await tryCall(() => ACTION_FNS[action]({path: {id: serverId}}));
+        if (!res.ok) {
+            setActionError(res.error);
+        } else {
+            reloadServers();
         }
+        setPendingAction((p) => {
+            const n = {...p};
+            delete n[serverId];
+            return n;
+        });
     }
 
     function doDelete(server: Server) {
@@ -228,15 +185,11 @@ export default function ServersPage() {
             destructive: true,
             onConfirm: async () => {
                 setActionError(null);
-                try {
-                    const {error} = await deleteServer({path: {id: server.id}});
-                    if (error) {
-                        setActionError(error.message ?? "Failed to delete server");
-                    } else {
-                        await fetchServers();
-                    }
-                } catch {
-                    setActionError("Failed to delete server");
+                const res = await tryCall(() => deleteServer({path: {id: server.id}}));
+                if (!res.ok) {
+                    setActionError(res.error);
+                } else {
+                    reloadServers();
                 }
             },
         });
@@ -352,9 +305,9 @@ export default function ServersPage() {
                             </thead>
                             <tbody>
                             {filteredServers.map((server) => {
-                                const ds = toDisplayStatus(server.status);
                                 const node = nodeMap[server.node_id];
                                 const pending = pendingAction[server.id];
+                                const status = server.status;
 
                                 return (
                                     <tr
@@ -392,9 +345,9 @@ export default function ServersPage() {
                                         {/* STATUS */}
                                         <td className="py-3 pr-4">
                       <span
-                          className={`text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${DISPLAY_CLASSES[ds]}`}
+                          className={`text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${serverStatusClass(status)}`}
                       >
-                        {DISPLAY_LABELS[ds]}
+                        {serverStatusLabel(status)}
                       </span>
                                         </td>
 
@@ -421,7 +374,7 @@ export default function ServersPage() {
                                             onClick={(e) => e.stopPropagation()}
                                         >
                                             <div className="flex items-center justify-end gap-1">
-                                                {ds === "STOPPED" && hasPermission(permissions, "server.start") && (
+                                                {status === "STOPPED" && hasPermission(permissions, "server.start") && (
                                                     <ActionButton
                                                         icon={<Play size={11} strokeWidth={2.5}/>}
                                                         label="Start"
@@ -429,7 +382,7 @@ export default function ServersPage() {
                                                         onClick={() => doAction(server.id, "start")}
                                                     />
                                                 )}
-                                                {(ds === "HEALTHY" || ds === "STARTING") && hasPermission(permissions, "server.stop") && (
+                                                {(status === "HEALTHY" || status === "STARTING") && hasPermission(permissions, "server.stop") && (
                                                     <ActionButton
                                                         icon={<Square size={11} strokeWidth={2.5}/>}
                                                         label="Stop"
@@ -438,7 +391,7 @@ export default function ServersPage() {
                                                         isStop
                                                     />
                                                 )}
-                                                {ds === "HEALTHY" && hasPermission(permissions, "server.restart") && (
+                                                {status === "HEALTHY" && hasPermission(permissions, "server.restart") && (
                                                     <ActionButton
                                                         icon={<RotateCcw size={11} strokeWidth={2.5}/>}
                                                         label="Restart"
@@ -446,7 +399,7 @@ export default function ServersPage() {
                                                         onClick={() => doAction(server.id, "restart")}
                                                     />
                                                 )}
-                                                {ds === "STOPPED" && hasPermission(permissions, "server.delete") && (
+                                                {status === "STOPPED" && hasPermission(permissions, "server.delete") && (
                                                     <div onClick={(e) => e.stopPropagation()}>
                                                         <ActionButton
                                                             icon={<Trash2 size={11} strokeWidth={2.5}/>}
@@ -482,7 +435,7 @@ export default function ServersPage() {
                                                             >
                                                                 View
                                                             </Link>
-                                                            {ds === "STOPPED" && hasPermission(permissions, "server.delete") && (
+                                                            {status === "STOPPED" && hasPermission(permissions, "server.delete") && (
                                                                 <button
                                                                     onClick={() => {
                                                                         setOpenMenuId(null);

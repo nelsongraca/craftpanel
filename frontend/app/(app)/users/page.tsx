@@ -5,6 +5,7 @@ import {Pencil, Plus, Trash2, Users2, X} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
 import {createAssignment, createUser, deleteAssignment, deleteUser, listGroups, listNetworks, listServers, listUserAssignments, listUsers, updateUser,} from "@/lib/generated/sdk.gen";
 import type {Assignment, Group, User} from "@/lib/types";
+import {tryCall} from "@/lib/api";
 
 const INPUT = "w-full bg-surface-high border border-border rounded px-3 py-2 text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent/60";
 const BTN_PRIMARY = "px-4 py-2 rounded text-[12px] font-heading font-bold uppercase tracking-wider bg-accent text-bg hover:bg-accent-bright transition-colors";
@@ -48,10 +49,10 @@ function CreateUserModal({onClose, onDone}: { onClose: () => void; onDone: () =>
         e.preventDefault();
         setError("");
         setSaving(true);
-        const res = await createUser({body: form});
+        const res = await tryCall(() => createUser({body: form}));
         setSaving(false);
-        if (res.error) {
-            setError((res.error as { message?: string }).message ?? "Failed");
+        if (!res.ok) {
+            setError(res.error);
             return;
         }
         onDone();
@@ -94,13 +95,13 @@ function EditUserModal({user, onClose, onDone}: { user: User; onClose: () => voi
         e.preventDefault();
         setError("");
         setSaving(true);
-        const res = await updateUser({
+        const res = await tryCall(() => updateUser({
             path: {id: user.id},
             body: {username: form.username, email: form.email, is_active: form.isActive},
-        });
+        }));
         setSaving(false);
-        if (res.error) {
-            setError((res.error as { message?: string }).message ?? "Failed");
+        if (!res.ok) {
+            setError(res.error);
             return;
         }
         onDone();
@@ -180,12 +181,12 @@ function AssignmentsModal({
             setAddError("Select a scope target");
             return;
         }
-        const res = await createAssignment({
+        const res = await tryCall(() => createAssignment({
             path: {userId: user.id},
             body: {group_id: newGroup, scope_type: newScope, scope_id: newScope !== "GLOBAL" ? newScopeId : undefined},
-        });
-        if (res.error) {
-            setAddError((res.error as { message?: string }).message ?? "Failed");
+        }));
+        if (!res.ok) {
+            setAddError(res.error);
             return;
         }
         setNewGroup("");
@@ -309,9 +310,9 @@ export default function UsersPage() {
     async function handleDelete() {
         if (!deleting) return;
         setDeleteError("");
-        const res = await deleteUser({path: {id: deleting.id}});
-        if (res.error) {
-            setDeleteError((res.error as { message?: string }).message ?? "Failed");
+        const res = await tryCall(() => deleteUser({path: {id: deleting.id}}));
+        if (!res.ok) {
+            setDeleteError(res.error);
             return;
         }
         setDeleting(null);

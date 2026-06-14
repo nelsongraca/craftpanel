@@ -14,38 +14,8 @@ import {timeAgo} from "@/lib/utils/format";
 import {TokenModal} from "@/components/nodes/TokenModal";
 import type {ServerResponse as Server} from "@/lib/generated/types.gen";
 import {ConfirmDialog} from "@/components/ui/confirm-dialog";
-
-// ── Status helpers ────────────────────────────────────────────────────────────
-
-type NodeStatus = "ACTIVE" | "PENDING" | "DEGRADED" | "REJECTED" | "DECOMMISSIONED";
-
-function toNodeStatus(s: string): NodeStatus {
-    return (["ACTIVE", "PENDING", "DEGRADED", "REJECTED", "DECOMMISSIONED"].includes(s)
-        ? s
-        : "PENDING") as NodeStatus;
-}
-
-const STATUS_LABELS: Record<NodeStatus, string> = {
-    ACTIVE: "Active", PENDING: "Pending", DEGRADED: "Degraded",
-    REJECTED: "Rejected", DECOMMISSIONED: "Decommissioned",
-};
-
-const STATUS_CLASSES: Record<NodeStatus, string> = {
-    ACTIVE: "text-healthy  border border-healthy/30  bg-healthy/10",
-    PENDING: "text-warning  border border-warning/30  bg-warning/10",
-    DEGRADED: "text-error    border border-error/30    bg-error/10",
-    REJECTED: "text-text-muted border border-border   bg-surface-high",
-    DECOMMISSIONED: "text-text-muted border border-border   bg-surface-high",
-};
-
-// Server status labels reused for the servers tab
-const SERVER_STATUS_CLASSES: Record<string, string> = {
-    HEALTHY: "text-healthy  border border-healthy/30  bg-healthy/10",
-    UNHEALTHY: "text-error    border border-error/30    bg-error/10",
-    STARTING: "text-warning  border border-warning/30  bg-warning/10",
-    STOPPING: "text-warning  border border-warning/30  bg-warning/10",
-    STOPPED: "text-text-muted border border-border   bg-surface-high",
-};
+import {ApiError, call, tryCall} from "@/lib/api";
+import {nodeStatusClass, nodeStatusLabel, serverStatusClass} from "@/lib/status";
 
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
@@ -147,26 +117,21 @@ function EditModal({node, onClose, onSaved}: { node: Node; onClose: () => void; 
     async function save() {
         setSaving(true);
         setError(null);
-        try {
-            const {error: e} = await updateNode({
-                path: {id: node.id},
-                body: {
-                    display_name: displayName || undefined,
-                    port_range_start: portStart ? parseInt(portStart) : undefined,
-                    port_range_end: portEnd ? parseInt(portEnd) : undefined,
-                },
-            });
-            if (e) {
-                setError(e.message ?? "Failed to save");
-            } else {
-                onSaved();
-                onClose();
-            }
-        } catch {
-            setError("Failed to save");
-        } finally {
-            setSaving(false);
+        const res = await tryCall(() => updateNode({
+            path: {id: node.id},
+            body: {
+                display_name: displayName || undefined,
+                port_range_start: portStart ? parseInt(portStart) : undefined,
+                port_range_end: portEnd ? parseInt(portEnd) : undefined,
+            },
+        }));
+        if (!res.ok) {
+            setError(res.error);
+        } else {
+            onSaved();
+            onClose();
         }
+        setSaving(false);
     }
 
     return (
@@ -221,7 +186,6 @@ type Tab = (typeof TABS)[number];
 // ── Overview tab ──────────────────────────────────────────────────────────────
 
 function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
-    const ns = toNodeStatus(node.status);
     const ramPct = node.total_ram_mb > 0 ? Math.min(100, (node.allocated_ram_mb / node.total_ram_mb) * 100) : 0;
     const cpuPct = node.total_cpu_shares > 0 ? Math.min(100, (node.allocated_cpu_shares / node.total_cpu_shares) * 100) : 0;
 
@@ -258,9 +222,9 @@ function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
                 </StatCard>
                 <StatCard label="Status">
           <span
-              className={`self-start text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${STATUS_CLASSES[ns]}`}
+              className={`self-start text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status)}`}
           >
-            {STATUS_LABELS[ns]}
+            {nodeStatusLabel(node.status)}
           </span>
                     {node.last_seen_at && (
                         <p className="text-[11px] text-text-muted">last seen {timeAgo(node.last_seen_at)}</p>
@@ -338,7 +302,7 @@ function ServersTab({servers}: { servers: Server[] }) {
                 </thead>
                 <tbody>
                 {servers.map((s) => {
-                    const sCls = SERVER_STATUS_CLASSES[s.status] ?? SERVER_STATUS_CLASSES["STOPPED"];
+                    const sCls = serverStatusClass(s.status);
                     return (
                         <tr key={s.id} className="border-b border-border hover:bg-surface transition-colors">
                             <td className="py-3 pr-4">
@@ -636,48 +600,33 @@ export default function NodeDetailPage() {
     const [tokenKey, setTokenKey] = useState<string | null>(null);
 
     const fetchNode = useCallback(async () => {
-        const {data, response} = await getNode({path: {id}});
-        if (response?.status === 404) {
-            setNotFound(true);
+        try {
+            const data = await call(() => getNode({path: {id}}));
+            setNode(data);
             setLoading(false);
-            return;
+        } catch (e) {
+            if (e instanceof ApiError && e.status === 404) setNotFound(true);
+            setLoading(false);
         }
-        if (data) setNode(data);
-        setLoading(false);
     }, [id]);
 
     useEffect(() => {
         void fetchNode();
-    }, [fetchNode]);
-
-    useEffect(() => {
-        listServers().then(({data}) => {
+        void listServers().then(({data}) => {
             if (data) setServers(data.filter((s) => s.node_id === id));
         });
-    }, [id]);
-
-    useEffect(() => {
         const timer = setInterval(fetchNode, 30_000);
         return () => clearInterval(timer);
-    }, [fetchNode]);
+    }, [fetchNode, id]);
 
     // ── Actions ────────────────────────────────────────────────────────────────
 
     async function doTrust() {
         setPending("trust");
         setActionError(null);
-        try {
-            const {error} = await trustNode({path: {id}});
-            if (error) {
-                setActionError(error.message ?? "Failed to trust node");
-            } else {
-                await fetchNode();
-            }
-        } catch {
-            setActionError("Failed to trust node");
-        } finally {
-            setPending(null);
-        }
+        const res = await tryCall(() => trustNode({path: {id}}));
+        if (!res.ok) setActionError(res.error); else await fetchNode();
+        setPending(null);
     }
 
     function doReject() {
@@ -688,18 +637,9 @@ export default function NodeDetailPage() {
             onConfirm: async () => {
                 setPending("reject");
                 setActionError(null);
-                try {
-                    const {error} = await rejectNode({path: {id}});
-                    if (error) {
-                        setActionError(error.message ?? "Failed to reject node");
-                    } else {
-                        await fetchNode();
-                    }
-                } catch {
-                    setActionError("Failed to reject node");
-                } finally {
-                    setPending(null);
-                }
+                const res = await tryCall(() => rejectNode({path: {id}}));
+                if (!res.ok) setActionError(res.error); else await fetchNode();
+                setPending(null);
             },
         });
     }
@@ -711,18 +651,9 @@ export default function NodeDetailPage() {
             onConfirm: async () => {
                 setPending("rotate");
                 setActionError(null);
-                try {
-                    const {data, error} = await rotateNodeToken({path: {id}});
-                    if (error) {
-                        setActionError(error.message ?? "Failed to rotate token");
-                    } else if (data) {
-                        setTokenKey(data.node_key);
-                    }
-                } catch {
-                    setActionError("Failed to rotate token");
-                } finally {
-                    setPending(null);
-                }
+                const res = await tryCall(() => rotateNodeToken({path: {id}}));
+                if (!res.ok) setActionError(res.error); else setTokenKey(res.data.node_key);
+                setPending(null);
             },
         });
     }
@@ -735,18 +666,9 @@ export default function NodeDetailPage() {
             onConfirm: async () => {
                 setPending("shutdown");
                 setActionError(null);
-                try {
-                    const {error} = await shutdownNode({path: {id}});
-                    if (error) {
-                        setActionError(error.message ?? "Failed to shutdown node");
-                    } else {
-                        await fetchNode();
-                    }
-                } catch {
-                    setActionError("Failed to shutdown node");
-                } finally {
-                    setPending(null);
-                }
+                const res = await tryCall(() => shutdownNode({path: {id}}));
+                if (!res.ok) setActionError(res.error); else await fetchNode();
+                setPending(null);
             },
         });
     }
@@ -760,18 +682,9 @@ export default function NodeDetailPage() {
             onConfirm: async () => {
                 setPending("decommission");
                 setActionError(null);
-                try {
-                    const {error} = await decommissionNode({path: {id}});
-                    if (error) {
-                        setActionError(error.message ?? "Failed to decommission node");
-                    } else {
-                        router.push("/nodes");
-                    }
-                } catch {
-                    setActionError("Failed to decommission node");
-                } finally {
-                    setPending(null);
-                }
+                const res = await tryCall(() => decommissionNode({path: {id}}));
+                if (!res.ok) setActionError(res.error); else router.push("/nodes");
+                setPending(null);
             },
         });
     }
@@ -797,7 +710,6 @@ export default function NodeDetailPage() {
         );
     }
 
-    const ns = toNodeStatus(node.status);
     const canManage = hasPermission(permissions, "system.nodes");
 
     // ── Render ─────────────────────────────────────────────────────────────────
@@ -819,14 +731,14 @@ export default function NodeDetailPage() {
                         <h1 className="text-[22px] font-heading font-bold uppercase tracking-wide text-text-primary leading-none">
                             {node.display_name}
                         </h1>
-                        <span className={`text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${STATUS_CLASSES[ns]}`}>
-              {STATUS_LABELS[ns]}
+                        <span className={`text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status)}`}>
+              {nodeStatusLabel(node.status)}
             </span>
                     </div>
 
                     {canManage && (
                         <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                            {ns === "PENDING" && (
+                            {node.status === "PENDING" && (
                                 <>
                                     <HeaderActionButton
                                         icon={<Check size={12} strokeWidth={2.5}/>}
@@ -858,7 +770,7 @@ export default function NodeDetailPage() {
                                 onClick={doRotateToken}
                                 variant="default"
                             />
-                            {ns === "ACTIVE" && (
+                            {node.status === "ACTIVE" && (
                                 <HeaderActionButton
                                     icon={<Power size={12} strokeWidth={2.5}/>}
                                     label="Shutdown"
@@ -867,7 +779,7 @@ export default function NodeDetailPage() {
                                     variant="amber"
                                 />
                             )}
-                            {servers.length === 0 && ns !== "DECOMMISSIONED" && (
+                            {servers.length === 0 && node.status !== "DECOMMISSIONED" && (
                                 <HeaderActionButton
                                     icon={<Trash2 size={12} strokeWidth={2.5}/>}
                                     label="Decommission"

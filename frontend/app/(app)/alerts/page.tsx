@@ -9,6 +9,7 @@ import {hasPermission} from "@/lib/permissions";
 import type {AlertEvent, AlertThreshold} from "@/lib/types";
 import {useWs} from "@/lib/ws-context";
 import {timeAgo} from "@/lib/utils/format";
+import {tryCall} from "@/lib/api";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -88,17 +89,14 @@ function CreateThresholdModal({
                 ? {threshold_value: parseFloat(thresholdValue)}
                 : {threshold_state: thresholdState}),
         };
-        try {
-            const {data, error: err} = await createAlertThreshold({body});
-            if (err || !data) {
-                setError((err as { message?: string })?.message ?? "Failed to create threshold");
-                return;
-            }
-            onCreate(data);
-            onClose();
-        } finally {
-            setSaving(false);
+        const res = await tryCall(() => createAlertThreshold({body}));
+        setSaving(false);
+        if (!res.ok || !res.data) {
+            setError(res.ok ? "Failed to create threshold" : res.error);
+            return;
         }
+        onCreate(res.data);
+        onClose();
     }
 
     return (
@@ -281,12 +279,12 @@ export default function AlertsPage() {
     async function confirmDelete(id: string) {
         setDeleteId(id);
         setDeleteError(null);
-        const {response} = await deleteAlertThreshold({path: {id}});
-        if (response?.status === 204) {
+        const res = await tryCall(() => deleteAlertThreshold({path: {id}}));
+        if (res.ok) {
             setThresholds((prev) => prev.filter((t) => t.id !== id));
             setEvents((prev) => prev.filter((e) => e.threshold_id !== id));
         } else {
-            setDeleteError("Failed to delete threshold");
+            setDeleteError(res.error);
         }
         setDeleteId(null);
     }

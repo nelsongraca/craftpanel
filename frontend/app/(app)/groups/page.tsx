@@ -5,6 +5,7 @@ import {Lock, Pencil, Plus, Trash2, X} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
 import {createGroup, deleteGroup, listGroups, setGroupPermissions, updateGroup} from "@/lib/generated/sdk.gen";
 import type {Group} from "@/lib/types";
+import {tryCall} from "@/lib/api";
 
 const INPUT = "w-full bg-surface-high border border-border rounded px-3 py-2 text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent/60";
 const BTN_PRIMARY = "px-4 py-2 rounded text-[12px] font-heading font-bold uppercase tracking-wider bg-accent text-bg hover:bg-accent-bright transition-colors";
@@ -183,9 +184,9 @@ export default function GroupsPage() {
     async function handleDelete() {
         if (!deleting) return;
         setDeleteError("");
-        const res = await deleteGroup({path: {id: deleting.id}});
-        if (res.error) {
-            setDeleteError((res.error as { message?: string }).message ?? "Failed");
+        const res = await tryCall(() => deleteGroup({path: {id: deleting.id}}));
+        if (!res.ok) {
+            setDeleteError(res.error);
             return;
         }
         setDeleting(null);

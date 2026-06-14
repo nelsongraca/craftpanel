@@ -1,6 +1,6 @@
 "use client";
 
-import {useCallback, useEffect, useState} from "react";
+import {useEffect, useState} from "react";
 import {useRouter} from "next/navigation";
 import Link from "next/link";
 import {Ban, Check, KeyRound, MoreHorizontal, Pencil, Power, Trash2, X} from "lucide-react";
@@ -13,32 +13,9 @@ import {timeAgo} from "@/lib/utils/format";
 import {TokenModal} from "@/components/nodes/TokenModal";
 import {ConfirmDialog} from "@/components/ui/confirm-dialog";
 import {useWs} from "@/lib/ws-context";
-
-// ── Status helpers ────────────────────────────────────────────────────────────
-
-type NodeStatus = "ACTIVE" | "PENDING" | "DEGRADED" | "REJECTED" | "DECOMMISSIONED";
-
-function toNodeStatus(status: string): NodeStatus {
-    return (["ACTIVE", "PENDING", "DEGRADED", "REJECTED", "DECOMMISSIONED"].includes(status)
-        ? status
-        : "PENDING") as NodeStatus;
-}
-
-const STATUS_LABELS: Record<NodeStatus, string> = {
-    ACTIVE: "Active",
-    PENDING: "Pending",
-    DEGRADED: "Degraded",
-    REJECTED: "Rejected",
-    DECOMMISSIONED: "Decommissioned",
-};
-
-const STATUS_CLASSES: Record<NodeStatus, string> = {
-    ACTIVE: "text-healthy  border border-healthy/30  bg-healthy/10",
-    PENDING: "text-warning  border border-warning/30  bg-warning/10",
-    DEGRADED: "text-error    border border-error/30    bg-error/10",
-    REJECTED: "text-text-muted border border-border   bg-surface-high",
-    DECOMMISSIONED: "text-text-muted border border-border   bg-surface-high",
-};
+import {tryCall} from "@/lib/api";
+import {useApiData} from "@/lib/hooks/useApiData";
+import {nodeStatusClass, nodeStatusLabel} from "@/lib/status";
 
 const STATUS_FILTER_OPTIONS = [
     {label: "All Statuses", value: ""},
@@ -211,9 +188,13 @@ export default function NodesPage() {
     const {subscribe} = useWs();
     const permissions = user?.permissions ?? [];
 
+    const {data: fetchedNodes = [], loading: initialLoad, reload: reloadNodes} = useApiData(
+        () => listNodes().then(r => r.data ?? []),
+        [],
+        {pollMs: 30_000},
+    );
     const [nodes, setNodes] = useState<Node[]>([]);
     const [serverCounts, setServerCounts] = useState<Record<string, number>>({});
-    const [initialLoad, setInitialLoad] = useState(true);
     const [actionError, setActionError] = useState<string | null>(null);
     const [pendingAction, setPendingAction] = useState<Record<string, string>>({});
     const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -230,16 +211,13 @@ export default function NodesPage() {
     const [editNode, setEditNode] = useState<Node | null>(null);
     const [tokenKey, setTokenKey] = useState<string | null>(null);
 
-    const fetchNodes = useCallback(async () => {
-        const {data} = await listNodes();
-        if (data) setNodes(data);
-    }, []);
+    // Sync fetched nodes into local state (so WS updates can still mutate it)
+    useEffect(() => {
+        setNodes(fetchedNodes);
+    }, [fetchedNodes]);
 
     useEffect(() => {
-        async function init() {
-            await fetchNodes();
-            setInitialLoad(false);
-            const {data: serverData} = await listServers();
+        listServers().then(({data: serverData}) => {
             if (serverData) {
                 const counts: Record<string, number> = {};
                 for (const s of serverData) {
@@ -247,15 +225,8 @@ export default function NodesPage() {
                 }
                 setServerCounts(counts);
             }
-        }
-
-        init();
-    }, [fetchNodes]);
-
-    useEffect(() => {
-        const id = setInterval(fetchNodes, 30_000);
-        return () => clearInterval(id);
-    }, [fetchNodes]);
+        });
+    }, []);
 
     useEffect(() => {
         const handler = () => setOpenMenuId(null);
@@ -277,22 +248,17 @@ export default function NodesPage() {
     async function doTrust(nodeId: string) {
         setPendingAction((p) => ({...p, [nodeId]: "trust"}));
         setActionError(null);
-        try {
-            const {error} = await trustNode({path: {id: nodeId}});
-            if (error) {
-                setActionError(error.message ?? "Failed to trust node");
-            } else {
-                await fetchNodes();
-            }
-        } catch {
-            setActionError("Failed to trust node");
-        } finally {
-            setPendingAction((p) => {
-                const n = {...p};
-                delete n[nodeId];
-                return n;
-            });
+        const res = await tryCall(() => trustNode({path: {id: nodeId}}));
+        if (!res.ok) {
+            setActionError(res.error);
+        } else {
+            reloadNodes();
         }
+        setPendingAction((p) => {
+            const n = {...p};
+            delete n[nodeId];
+            return n;
+        });
     }
 
     function doReject(nodeId: string) {
@@ -303,22 +269,17 @@ export default function NodesPage() {
             onConfirm: async () => {
                 setPendingAction((p) => ({...p, [nodeId]: "reject"}));
                 setActionError(null);
-                try {
-                    const {error} = await rejectNode({path: {id: nodeId}});
-                    if (error) {
-                        setActionError(error.message ?? "Failed to reject node");
-                    } else {
-                        await fetchNodes();
-                    }
-                } catch {
-                    setActionError("Failed to reject node");
-                } finally {
-                    setPendingAction((p) => {
-                        const n = {...p};
-                        delete n[nodeId];
-                        return n;
-                    });
+                const res = await tryCall(() => rejectNode({path: {id: nodeId}}));
+                if (!res.ok) {
+                    setActionError(res.error);
+                } else {
+                    reloadNodes();
                 }
+                setPendingAction((p) => {
+                    const n = {...p};
+                    delete n[nodeId];
+                    return n;
+                });
             },
         });
     }
@@ -330,22 +291,17 @@ export default function NodesPage() {
             onConfirm: async () => {
                 setPendingAction((p) => ({...p, [nodeId]: "rotate"}));
                 setActionError(null);
-                try {
-                    const {data, error} = await rotateNodeToken({path: {id: nodeId}});
-                    if (error) {
-                        setActionError(error.message ?? "Failed to rotate token");
-                    } else if (data) {
-                        setTokenKey(data.node_key);
-                    }
-                } catch {
-                    setActionError("Failed to rotate token");
-                } finally {
-                    setPendingAction((p) => {
-                        const n = {...p};
-                        delete n[nodeId];
-                        return n;
-                    });
+                const res = await tryCall(() => rotateNodeToken({path: {id: nodeId}}));
+                if (!res.ok) {
+                    setActionError(res.error);
+                } else if (res.data?.node_key) {
+                    setTokenKey(res.data.node_key);
                 }
+                setPendingAction((p) => {
+                    const n = {...p};
+                    delete n[nodeId];
+                    return n;
+                });
             },
         });
     }
@@ -357,22 +313,17 @@ export default function NodesPage() {
             onConfirm: async () => {
                 setPendingAction((p) => ({...p, [nodeId]: "shutdown"}));
                 setActionError(null);
-                try {
-                    const {error} = await shutdownNode({path: {id: nodeId}});
-                    if (error) {
-                        setActionError(error.message ?? "Failed to shutdown node");
-                    } else {
-                        await fetchNodes();
-                    }
-                } catch {
-                    setActionError("Failed to shutdown node");
-                } finally {
-                    setPendingAction((p) => {
-                        const n = {...p};
-                        delete n[nodeId];
-                        return n;
-                    });
+                const res = await tryCall(() => shutdownNode({path: {id: nodeId}}));
+                if (!res.ok) {
+                    setActionError(res.error);
+                } else {
+                    reloadNodes();
                 }
+                setPendingAction((p) => {
+                    const n = {...p};
+                    delete n[nodeId];
+                    return n;
+                });
             },
         });
     }
@@ -385,22 +336,17 @@ export default function NodesPage() {
             onConfirm: async () => {
                 setPendingAction((p) => ({...p, [node.id]: "decommission"}));
                 setActionError(null);
-                try {
-                    const {error} = await decommissionNode({path: {id: node.id}});
-                    if (error) {
-                        setActionError(error.message ?? "Failed to decommission node");
-                    } else {
-                        await fetchNodes();
-                    }
-                } catch {
-                    setActionError("Failed to decommission node");
-                } finally {
-                    setPendingAction((p) => {
-                        const n = {...p};
-                        delete n[node.id];
-                        return n;
-                    });
+                const res = await tryCall(() => decommissionNode({path: {id: node.id}}));
+                if (!res.ok) {
+                    setActionError(res.error);
+                } else {
+                    reloadNodes();
                 }
+                setPendingAction((p) => {
+                    const n = {...p};
+                    delete n[node.id];
+                    return n;
+                });
             },
         });
     }
@@ -493,7 +439,6 @@ export default function NodesPage() {
                         </thead>
                         <tbody>
                         {filtered.map((node) => {
-                            const ns = toNodeStatus(node.status);
                             const pending = pendingAction[node.id];
                             const servers = serverCounts[node.id] ?? 0;
                             const lastSeen = node.last_seen_at;
@@ -520,9 +465,9 @@ export default function NodesPage() {
                                     {/* STATUS */}
                                     <td className="py-3 pr-4">
                       <span
-                          className={`text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${STATUS_CLASSES[ns]}`}
+                          className={`text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status)}`}
                       >
-                        {STATUS_LABELS[ns]}
+                        {nodeStatusLabel(node.status)}
                       </span>
                                     </td>
 
@@ -558,7 +503,7 @@ export default function NodesPage() {
                                         <div className="flex items-center justify-end gap-1">
 
                                             {/* PENDING: Trust + Reject */}
-                                            {ns === "PENDING" && canManage && (
+                                            {node.status === "PENDING" && canManage && (
                                                 <>
                                                     <button
                                                         onClick={() => doTrust(node.id)}
@@ -590,7 +535,7 @@ export default function NodesPage() {
                                             )}
 
                                             {/* Non-PENDING: View + ··· menu */}
-                                            {ns !== "PENDING" && (
+                                            {node.status !== "PENDING" && (
                                                 <>
                                                     <Link
                                                         href={`/nodes/${node.id}`}
@@ -636,7 +581,7 @@ export default function NodesPage() {
                                                                     <KeyRound size={11} strokeWidth={2}/>
                                                                     Rotate Key
                                                                 </button>
-                                                                {ns === "ACTIVE" && (
+                                                                {node.status === "ACTIVE" && (
                                                                     <button
                                                                         onClick={() => {
                                                                             setOpenMenuId(null);

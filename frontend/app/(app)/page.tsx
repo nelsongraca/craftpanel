@@ -7,27 +7,19 @@ import PageHeader from "@/app/components/PageHeader";
 import {listNodes, listServers} from "@/lib/generated/sdk.gen";
 import type {Node, Server} from "@/lib/types";
 import {timeAgo} from "@/lib/utils/format";
+import {nodeStatusClass, serverStatusClass} from "@/lib/status";
 
-const NODE_STATUS_CLASSES: Record<string, string> = {
-    ACTIVE: "text-healthy  border border-healthy/30  bg-healthy/10",
-    PENDING: "text-warning  border border-warning/30  bg-warning/10",
-    DEGRADED: "text-error    border border-error/30    bg-error/10",
-    REJECTED: "text-text-muted border border-border   bg-surface-high",
-    DECOMMISSIONED: "text-text-muted border border-border   bg-surface-high",
-};
-
-const SERVER_STATUS_CLASSES: Record<string, string> = {
-    HEALTHY: "text-healthy  border border-healthy/30  bg-healthy/10",
-    UNHEALTHY: "text-error    border border-error/30    bg-error/10",
-    STARTING: "text-warning  border border-warning/30  bg-warning/10",
-    STOPPING: "text-warning  border border-warning/30  bg-warning/10",
-    STOPPED: "text-text-muted border border-border   bg-surface-high",
-};
-
-function StatusBadge({status, classes}: { status: string; classes: Record<string, string> }) {
-    const cls = classes[status] ?? "text-text-muted border border-border bg-surface-high";
+function NodeStatusBadge({status}: { status: string }) {
     return (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-heading font-bold uppercase tracking-wider ${cls}`}>
+        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-heading font-bold uppercase tracking-wider ${nodeStatusClass(status)}`}>
+      {status}
+    </span>
+    );
+}
+
+function ServerStatusBadge({status}: { status: string }) {
+    return (
+        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-heading font-bold uppercase tracking-wider ${serverStatusClass(status)}`}>
       {status}
     </span>
     );
@@ -137,7 +129,7 @@ export default function Dashboard() {
                                             </Link>
                                         </td>
                                         <td className="px-3 py-2.5">
-                                            <StatusBadge status={node.status} classes={NODE_STATUS_CLASSES}/>
+                                            <NodeStatusBadge status={node.status}/>
                                         </td>
                                         <td className="px-3 py-2.5">
                                             <RamBar used={node.allocated_ram_mb} total={node.total_ram_mb}/>
@@ -174,7 +166,7 @@ export default function Dashboard() {
                                             </Link>
                                         </div>
                                         <div className="flex items-center gap-3 shrink-0 ml-3">
-                                            <StatusBadge status={s.status} classes={SERVER_STATUS_CLASSES}/>
+                                            <ServerStatusBadge status={s.status}/>
                                             <span className="flex items-center gap-1 text-[10px] text-text-muted font-mono">
                         <Clock size={10}/>
                                                 {timeAgo(s.updated_at)}
