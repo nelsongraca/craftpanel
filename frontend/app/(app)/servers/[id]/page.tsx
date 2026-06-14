@@ -9,7 +9,7 @@ import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import type {Network, Node, Server} from "@/lib/types";
 import {useWs} from "@/lib/ws-context";
-import {timeAgo, fmtBytes} from "@/lib/utils/format";
+import {fmtBytes, timeAgo} from "@/lib/utils/format";
 import {ConsoleTab} from "./console-tab";
 import {FilesTab} from "./files-tab";
 import {BackupsTab} from "./backups-tab";
@@ -427,7 +427,7 @@ export default function ServerDetailPage() {
     }
 
     async function doUpgrade() {
-       //todo: remove
+        //todo: remove
     }
 
     // ── Loading / not-found guards ─────────────────────────────────────────────

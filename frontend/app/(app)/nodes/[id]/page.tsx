@@ -847,7 +847,8 @@ export default function NodeDetailPage() {
                 title={confirmDialog?.title ?? ""}
                 description={confirmDialog?.description ?? ""}
                 destructive={confirmDialog?.destructive}
-                onConfirm={confirmDialog?.onConfirm ?? (() => {})}
+                onConfirm={confirmDialog?.onConfirm ?? (() => {
+                })}
             />
         </div>
     );

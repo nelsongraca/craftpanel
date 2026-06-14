@@ -58,7 +58,7 @@ class DataServiceProxyTest {
     // ── DB lookup errors ──────────────────────────────────────────────────────
 
     @Test
-    fun `listFiles throws for unknown serverId`() = runBlocking {
+    fun `listFiles throws for unknown serverId`(): Unit = runBlocking {
         assertFailsWith<IllegalStateException> {
             proxy.listFiles(
                 Uuid.random()
@@ -68,7 +68,7 @@ class DataServiceProxyTest {
     }
 
     @Test
-    fun `listFiles throws for invalid serverId`() = runBlocking {
+    fun `listFiles throws for invalid serverId`(): Unit = runBlocking {
         assertFailsWith<IllegalStateException> {
             proxy.listFiles("not-a-uuid", "/")
         }
