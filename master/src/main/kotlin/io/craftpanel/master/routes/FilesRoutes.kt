@@ -306,7 +306,7 @@ private data class AuthContext(val userId: Uuid, val serverId: String, val netwo
 private suspend fun ApplicationCall.respondFileAgentError(e: Exception) {
     val msg = e.message ?: "Unknown agent error"
     when {
-        msg.contains("not found", ignoreCase = true) -> respond(
+        msg.contains("not found", ignoreCase = true)                                                                                                      -> respond(
             HttpStatusCode.NotFound,
             ErrorResponse(msg)
         )
@@ -316,12 +316,12 @@ private suspend fun ApplicationCall.respondFileAgentError(e: Exception) {
             ErrorResponse(msg)
         )
 
-        msg.contains("not connected", ignoreCase = true) || msg.contains("timed out", ignoreCase = true) || msg.contains("timeout", ignoreCase = true) -> respond(
+        msg.contains("not connected", ignoreCase = true) || msg.contains("timed out", ignoreCase = true) || msg.contains("timeout", ignoreCase = true)    -> respond(
             HttpStatusCode.ServiceUnavailable,
             ErrorResponse("Agent unavailable: $msg")
         )
 
-        else -> respond(
+        else                                                                                                                                              -> respond(
             HttpStatusCode.InternalServerError,
             ErrorResponse("Agent error: $msg")
         )
@@ -342,7 +342,7 @@ private suspend fun extractAndAuthorize(
     val info = transaction {
         val kotlinId = runCatching {
             Uuid.parse(rawId)
-                
+
         }.getOrNull() ?: return@transaction null
         val row = Servers.selectAll()
             .where { Servers.id eq kotlinId }

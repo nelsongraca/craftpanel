@@ -15,11 +15,11 @@ enum class ServerStatus {
         fun fromDb(s: String) = valueOf(s)
 
         fun fromProto(p: ServerStatusUpdate.ServerStatus): ServerStatus = when (p) {
-            ServerStatusUpdate.ServerStatus.STOPPED -> STOPPED
-            ServerStatusUpdate.ServerStatus.STARTING -> STARTING
-            ServerStatusUpdate.ServerStatus.HEALTHY -> HEALTHY
+            ServerStatusUpdate.ServerStatus.STOPPED   -> STOPPED
+            ServerStatusUpdate.ServerStatus.STARTING  -> STARTING
+            ServerStatusUpdate.ServerStatus.HEALTHY   -> HEALTHY
             ServerStatusUpdate.ServerStatus.UNHEALTHY -> UNHEALTHY
-            else -> error("Unspecified or unrecognized proto ServerStatus: $p")
+            else                                      -> error("Unspecified or unrecognized proto ServerStatus: $p")
         }
     }
 }

@@ -31,7 +31,7 @@ class DataServiceProxy(
     private fun lookupNodeId(serverId: String): String = transaction {
         val id = runCatching {
             Uuid.parse(serverId)
-                
+
         }.getOrElse {
             error("Invalid server ID: $serverId")
         }
@@ -46,7 +46,7 @@ class DataServiceProxy(
     private fun lookupServer(serverId: String): ServerLookup = transaction {
         val id = runCatching {
             Uuid.parse(serverId)
-                
+
         }.getOrElse {
             error("Invalid server ID: $serverId")
         }
@@ -79,7 +79,8 @@ class DataServiceProxy(
         err: (R) -> String,
     ): R {
         val nodeId = lookupNodeId(serverId)
-        val reqId = Uuid.random().toString()
+        val reqId = Uuid.random()
+            .toString()
         val response = controlService.sendAndAwait(nodeId, reqId, build(reqId))
         val r = extract(response)
         if (err(r).isNotBlank()) error(err(r))
@@ -100,7 +101,9 @@ class DataServiceProxy(
                         name = e.name,
                         isDirectory = e.isDirectory,
                         sizeBytes = e.sizeBytes,
-                        modifiedAt = if (e.hasModifiedAt()) Instant.ofEpochSecond(e.modifiedAt.seconds).toString() else null,
+                        modifiedAt = if (e.hasModifiedAt()) Instant.ofEpochSecond(e.modifiedAt.seconds)
+                            .toString()
+                        else null,
                         permissions = e.permissions,
                     )
                 },
@@ -152,7 +155,11 @@ class DataServiceProxy(
     suspend fun copyFile(serverId: String, sourcePath: String, destinationPath: String, recursive: Boolean): Unit =
         correlate(
             serverId,
-            build = { reqId -> masterMessage { copyFile = copyFileRequest { requestId = reqId; this.serverId = serverId; this.sourcePath = sourcePath; this.destinationPath = destinationPath; this.recursive = recursive } } },
+            build = { reqId ->
+                masterMessage {
+                    copyFile = copyFileRequest { requestId = reqId; this.serverId = serverId; this.sourcePath = sourcePath; this.destinationPath = destinationPath; this.recursive = recursive }
+                }
+            },
             extract = { it.copyFileResponse },
             err = { it.errorMessage },
         ).let {}

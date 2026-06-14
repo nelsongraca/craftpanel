@@ -60,7 +60,10 @@ class DataServiceProxyTest {
     @Test
     fun `listFiles throws for unknown serverId`() = runBlocking {
         assertFailsWith<IllegalStateException> {
-            proxy.listFiles(Uuid.random().toString(), "/")
+            proxy.listFiles(
+                Uuid.random()
+                    .toString(), "/"
+            )
         }
     }
 
