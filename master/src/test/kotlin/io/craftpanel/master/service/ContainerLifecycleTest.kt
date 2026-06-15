@@ -35,7 +35,7 @@ class ContainerLifecycleTest {
         TestDatabase.initIfNeeded()
         TestDatabase.reset()
         sent.clear()
-        nodeId = transaction {
+        val resolvedNodeId = transaction {
             Nodes.insert {
                 it[Nodes.hostname] = "test-node"
                 it[Nodes.displayName] = "test-node"
@@ -49,9 +49,10 @@ class ContainerLifecycleTest {
                 it[Nodes.portRangeEnd] = 25600
             }[Nodes.id].let { Uuid.parse(it.toString()) }
         }
+        nodeId = resolvedNodeId
         serverId = transaction {
             Servers.insert {
-                it[Servers.nodeId] = nodeId
+                it[Servers.nodeId] = resolvedNodeId
                 it[Servers.name] = "test-server"
                 it[Servers.displayName] = "test-server"
                 it[Servers.serverType] = "VANILLA"

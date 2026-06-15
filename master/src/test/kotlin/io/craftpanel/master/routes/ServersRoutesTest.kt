@@ -4,11 +4,7 @@ import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.proto.MasterMessage
 import io.craftpanel.master.TestDatabase
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.launch
 import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.TokenClaims
@@ -829,19 +825,24 @@ class ServersRoutesTest {
     @Test
     fun `POST start returns 202 and updates status to STARTING`() = testApplication {
         val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
-        application { configureTest(agentEvents = events) }
+        var sid: Uuid? = null
+        application {
+            configureTest(
+                sendToNode = { _, msg ->
+                    when {
+                        msg.hasCreateContainer() -> events.tryEmit(AgentEvent.ServerStatusEvent(sid.toString(), ServerStatus.STOPPED, "cid"))
+                        msg.hasStartContainer()  -> events.tryEmit(AgentEvent.ServerStatusEvent(sid.toString(), ServerStatus.HEALTHY, "cid"))
+                    }
+                    true
+                },
+                agentEvents = events,
+            )
+        }
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "STOPPED")
-        // Emit events in background so lifecycle.start() can proceed
-        CoroutineScope(Dispatchers.IO).launch {
-            kotlinx.coroutines.delay(50)
-            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STOPPED, "cid"))
-            kotlinx.coroutines.delay(50)
-            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY, "cid"))
-        }
+        val serverId = createServer(nodeId, status = "STOPPED").also { sid = it }
         val resp = client.post("/api/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.Accepted, resp.status)
         val row = transaction {
@@ -856,16 +857,22 @@ class ServersRoutesTest {
     fun `POST start sends only StartContainerCommand when container already exists`() = testApplication {
         val sentCommands = mutableListOf<MasterMessage>()
         val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
-        application { configureTest(sendToNode = { _, msg -> sentCommands.add(msg); true }, agentEvents = events) }
+        var sid: Uuid? = null
+        application {
+            configureTest(
+                sendToNode = { _, msg ->
+                    sentCommands.add(msg)
+                    if (msg.hasStartContainer()) events.tryEmit(AgentEvent.ServerStatusEvent(sid.toString(), ServerStatus.HEALTHY, "abc123"))
+                    true
+                },
+                agentEvents = events,
+            )
+        }
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "STOPPED", containerId = "abc123")
-        CoroutineScope(Dispatchers.IO).launch {
-            kotlinx.coroutines.delay(50)
-            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY, "abc123"))
-        }
+        val serverId = createServer(nodeId, status = "STOPPED", containerId = "abc123").also { sid = it }
         val resp = client.post("/api/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.Accepted, resp.status)
         assertEquals(1, sentCommands.size)
@@ -876,18 +883,25 @@ class ServersRoutesTest {
     fun `POST start sends CreateContainerCommand then StartContainerCommand when no container`() = testApplication {
         val sentCommands = mutableListOf<MasterMessage>()
         val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
-        application { configureTest(sendToNode = { _, msg -> sentCommands.add(msg); true }, agentEvents = events) }
+        var sid: Uuid? = null
+        application {
+            configureTest(
+                sendToNode = { _, msg ->
+                    sentCommands.add(msg)
+                    when {
+                        msg.hasCreateContainer() -> events.tryEmit(AgentEvent.ServerStatusEvent(sid.toString(), ServerStatus.STOPPED, "cid"))
+                        msg.hasStartContainer()  -> events.tryEmit(AgentEvent.ServerStatusEvent(sid.toString(), ServerStatus.HEALTHY, "cid"))
+                    }
+                    true
+                },
+                agentEvents = events,
+            )
+        }
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "STOPPED")
-        CoroutineScope(Dispatchers.IO).launch {
-            kotlinx.coroutines.delay(50)
-            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STOPPED, "cid"))
-            kotlinx.coroutines.delay(50)
-            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY, "cid"))
-        }
+        val serverId = createServer(nodeId, status = "STOPPED").also { sid = it }
         val resp = client.post("/api/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.Accepted, resp.status)
         assertEquals(2, sentCommands.size)
