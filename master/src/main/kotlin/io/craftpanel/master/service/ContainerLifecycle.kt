@@ -76,27 +76,29 @@ class ContainerLifecycle(
 
     suspend fun stop(server: ResultRow, nodeId: String) {
         val id = server[Servers.id]
-        sendOrThrow(nodeId, masterMessage {
-            stopContainer = stopContainerCommand {
-                serverId = id.toString()
-                containerName = "$containerNamePrefix-$id"
-                timeoutSeconds = 30
-                stopCommand = server[Servers.stopCommand]
-            }
-        })
-        awaitStatus(id.toString(), ServerStatus.STOPPED, stopTimeout)
+        awaitStatus(id.toString(), ServerStatus.STOPPED, stopTimeout) {
+            sendOrThrow(nodeId, masterMessage {
+                stopContainer = stopContainerCommand {
+                    serverId = id.toString()
+                    containerName = "$containerNamePrefix-$id"
+                    timeoutSeconds = 30
+                    stopCommand = server[Servers.stopCommand]
+                }
+            })
+        }
     }
 
     suspend fun remove(server: ResultRow, nodeId: String, force: Boolean = false) {
         val id = server[Servers.id]
-        sendOrThrow(nodeId, masterMessage {
-            removeContainer = removeContainerCommand {
-                serverId = id.toString()
-                containerName = "$containerNamePrefix-$id"
-                this.force = force
-            }
-        })
-        awaitStatus(id.toString(), ServerStatus.STOPPED, removeTimeout)
+        awaitStatus(id.toString(), ServerStatus.STOPPED, removeTimeout) {
+            sendOrThrow(nodeId, masterMessage {
+                removeContainer = removeContainerCommand {
+                    serverId = id.toString()
+                    containerName = "$containerNamePrefix-$id"
+                    this.force = force
+                }
+            })
+        }
     }
 
     suspend fun create(server: ResultRow, nodeId: String, publicHostname: String? = null) {
@@ -104,19 +106,21 @@ class ContainerLifecycle(
         val image = deriveImage(server[Servers.serverType], server[Servers.itzgImageTag])
         val allVars = buildAllVars(id, server)
         val resolvedHostname = publicHostname ?: server[Servers.dnsRecordName]
-        sendOrThrow(nodeId, buildCreate(id, server, image, allVars, resolvedHostname))
-        awaitStatus(id.toString(), ServerStatus.STOPPED, createTimeout)
+        awaitStatus(id.toString(), ServerStatus.STOPPED, createTimeout) {
+            sendOrThrow(nodeId, buildCreate(id, server, image, allVars, resolvedHostname))
+        }
     }
 
     suspend fun sendStart(server: ResultRow, nodeId: String) {
         val id = server[Servers.id]
-        sendOrThrow(nodeId, masterMessage {
-            startContainer = startContainerCommand {
-                serverId = id.toString()
-                containerName = "$containerNamePrefix-$id"
-            }
-        })
-        awaitStatus(id.toString(), ServerStatus.HEALTHY, startTimeout)
+        awaitStatus(id.toString(), ServerStatus.HEALTHY, startTimeout) {
+            sendOrThrow(nodeId, masterMessage {
+                startContainer = startContainerCommand {
+                    serverId = id.toString()
+                    containerName = "$containerNamePrefix-$id"
+                }
+            })
+        }
     }
 
     // ── Build helpers ─────────────────────────────────────────────────────────
@@ -178,6 +182,7 @@ class ContainerLifecycle(
         serverId: String,
         expected: ServerStatus,
         timeout: Duration,
+        sendCommand: () -> Unit,
     ): Unit = coroutineScope {
         val found = CompletableDeferred<Unit>()
         val job = launch {
@@ -199,6 +204,7 @@ class ContainerLifecycle(
                 }
         }
         yield()
+        sendCommand()
         try {
             withTimeoutOrNull(timeout) { found.await() }
                 ?: throw ContainerLifecycleException(
