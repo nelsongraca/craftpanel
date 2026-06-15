@@ -380,6 +380,7 @@ class ServerService(
                 ServerMigrations.deleteWhere { ServerMigrations.serverId eq id }
             }
             PortRegistry.deleteWhere { PortRegistry.serverId eq id }
+            Backups.deleteWhere { Backups.serverId eq id }
             Servers.deleteWhere { Servers.id eq id }
         }
     }

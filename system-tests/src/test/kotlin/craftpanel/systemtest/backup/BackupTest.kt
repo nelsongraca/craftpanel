@@ -3,11 +3,9 @@ package craftpanel.systemtest.backup
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.ServerHelper
 import craftpanel.systemtest.client.model.PutBackupScheduleRequest
-import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.string.shouldNotBeEmpty
-import org.openapitools.client.infrastructure.ClientException
 
 class BackupTest : BaseSystemTest() {
 
@@ -30,7 +28,8 @@ class BackupTest : BaseSystemTest() {
 
             should("list backups returns empty for new server") {
                 val backups = api.listBackups(serverId)
-                backups.getOrDefault("backups", emptyList()).shouldBeEmpty()
+                backups.getOrDefault("backups", emptyList())
+                    .shouldBeEmpty()
             }
 
             should("get backup schedule returns defaults") {
@@ -62,7 +61,7 @@ class BackupTest : BaseSystemTest() {
 
             should("triggers and then deletes a backup") {
                 val backup = api.triggerBackup(serverId)
-                helper.awaitStatus(serverId, "HEALTHY")
+                helper.awaitBackupCompleted(serverId, backup.id)
 
                 api.deleteBackup(serverId, backup.id)
             }

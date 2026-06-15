@@ -79,6 +79,15 @@ class ServerHelper(private val api: DefaultApi) {
         )
     }
 
+
+    suspend fun awaitBackupCompleted(serverId: String, backupId: String, timeoutMs: Long = 60_000) {
+        pollUntilNotNull(timeoutMs) {
+            api.listBackups(serverId)
+                .getOrDefault("backups", emptyList())
+                .firstOrNull { it.id == backupId && it.status in setOf("COMPLETED", "FAILED") }
+        } ?: error("Backup $backupId did not complete within ${timeoutMs}ms")
+    }
+
     suspend fun awaitStoppedOrGone(id: String, timeoutMs: Long = 30_000) {
         val deadline = System.currentTimeMillis() + timeoutMs
         var interval = 100L
@@ -87,8 +96,9 @@ class ServerHelper(private val api: DefaultApi) {
             val result = runCatching { api.getServer(id) }
             when {
                 result.exceptionOrNull() is ClientException
-                    && (result.exceptionOrNull() as ClientException).statusCode == 404 -> return
-                result.getOrNull()?.status.also { lastStatus = it } == "STOPPED" -> return
+                        && (result.exceptionOrNull() as ClientException).statusCode == 404 -> return
+
+                result.getOrNull()?.status.also { lastStatus = it } == "STOPPED"           -> return
             }
             val jitter = Random.nextLong(-(interval / 5), interval / 5 + 1)
             delay((interval + jitter).coerceAtLeast(50).milliseconds)
