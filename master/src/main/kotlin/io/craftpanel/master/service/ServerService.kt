@@ -23,6 +23,7 @@ import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.uuid.Uuid
 import kotlin.time.Clock
 import io.craftpanel.master.util.toUtcString
+import kotlinx.coroutines.flow.MutableSharedFlow
 
 @Serializable
 data class ServerResponse(
@@ -113,10 +114,16 @@ class ServerService(
     private val dnsProvider: DnsProvider? = null,
     private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
     private val containerNamePrefix: String = "craftpanel",
+    private val lifecycle: ContainerLifecycle = ContainerLifecycle(
+        sendToNode = sendToNode,
+        agentEvents = MutableSharedFlow(),
+        modService = modService,
+        images = images,
+        containerNamePrefix = containerNamePrefix,
+    ),
 ) {
 
     private val log = LoggerFactory.getLogger(ServerService::class.java)
-    private val lifecycle = ServerLifecycle(sendToNode, modService, images, containerNamePrefix)
 
 
     fun listServers(userId: Uuid): List<ServerResponse> {
@@ -426,7 +433,7 @@ class ServerService(
         }
     }
 
-    fun startServer(id: kotlin.uuid.Uuid) {
+    suspend fun startServer(id: kotlin.uuid.Uuid) {
         val serverRow = transaction {
             Servers.selectAll()
                 .where { Servers.id eq id }
@@ -468,7 +475,7 @@ class ServerService(
         }
     }
 
-    fun restartServer(id: kotlin.uuid.Uuid) {
+    suspend fun restartServer(id: kotlin.uuid.Uuid) {
         val serverRow = transaction {
             Servers.selectAll()
                 .where { Servers.id eq id }
@@ -478,7 +485,7 @@ class ServerService(
         if (ServerStatus.fromDb(serverRow[Servers.status]).isStopped) throw ConflictException("Server is not running")
         val nodeId = serverRow[Servers.nodeId].toString()
         if (serverRow[Servers.needsRecreate]) {
-            lifecycle.recreateInPlace(serverRow, hostnameOverride = null)
+            lifecycle.recreate(serverRow, hostnameOverride = null)
         }
         else {
             val restartCmd = masterMessage {
@@ -521,7 +528,7 @@ class ServerService(
         )
     }
 
-    fun updateExposure(id: kotlin.uuid.Uuid, req: PatchExposureRequest) {
+    suspend fun updateExposure(id: kotlin.uuid.Uuid, req: PatchExposureRequest) {
         val serverRow = transaction {
             Servers.selectAll()
                 .where { Servers.id eq id }
@@ -618,7 +625,7 @@ class ServerService(
                     .where { Servers.id eq id }
                     .first()
             }
-            lifecycle.recreateInPlace(freshRow, hostnameOverride = hostname)
+            lifecycle.recreate(freshRow, hostnameOverride = hostname)
         }
     }
 

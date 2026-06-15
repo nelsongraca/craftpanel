@@ -1,7 +1,14 @@
 package io.craftpanel.master.routes
 
+import io.craftpanel.master.domain.AgentEvent
+import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.proto.MasterMessage
 import io.craftpanel.master.TestDatabase
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.launch
 import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.TokenClaims
@@ -49,7 +56,10 @@ class ServersRoutesTest {
         TestDatabase.reset()
     }
 
-    private fun Application.configureTest(sendToNode: (String, MasterMessage) -> Boolean = { _, _ -> true }) {
+    private fun Application.configureTest(
+        sendToNode: (String, MasterMessage) -> Boolean = { _, _ -> true },
+        agentEvents: MutableSharedFlow<AgentEvent> = MutableSharedFlow(extraBufferCapacity = 16),
+    ) {
         install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         install(StatusPages) {
             exception<NotFoundException> { call, ex -> call.respond(HttpStatusCode.NotFound, mapOf("error" to (ex.message ?: "Not found"))) }
@@ -58,6 +68,7 @@ class ServersRoutesTest {
             exception<UnprocessableException> { call, ex -> call.respond(HttpStatusCode.UnprocessableEntity, mapOf("error" to (ex.message ?: "Unprocessable"))) }
             exception<BadGatewayException> { call, ex -> call.respond(HttpStatusCode.BadGateway, mapOf("error" to (ex.message ?: "Bad gateway"))) }
             exception<BadRequestException> { call, ex -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to (ex.message ?: "Bad request"))) }
+            exception<ContainerLifecycleException> { call, ex -> call.respond(HttpStatusCode.BadGateway, mapOf("error" to (ex.message ?: "Lifecycle error"))) }
         }
         install(Authentication) {
             jwt("auth-jwt") {
@@ -71,7 +82,12 @@ class ServersRoutesTest {
                 }
             }
         }
-        routing { serversRoutes(ServerService(sendToNode, ModService())) }
+        val lifecycle = ContainerLifecycle(
+            sendToNode = sendToNode,
+            agentEvents = agentEvents,
+            modService = ModService(),
+        )
+        routing { serversRoutes(ServerService(sendToNode, ModService(), lifecycle = lifecycle)) }
     }
 
     private fun ApplicationTestBuilder.jsonClient() = createClient {
@@ -812,12 +828,20 @@ class ServersRoutesTest {
 
     @Test
     fun `POST start returns 202 and updates status to STARTING`() = testApplication {
-        application { configureTest() }
+        val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
+        application { configureTest(agentEvents = events) }
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode()
         val serverId = createServer(nodeId, status = "STOPPED")
+        // Emit events in background so lifecycle.start() can proceed
+        CoroutineScope(Dispatchers.IO).launch {
+            kotlinx.coroutines.delay(50)
+            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STOPPED, "cid"))
+            kotlinx.coroutines.delay(50)
+            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY, "cid"))
+        }
         val resp = client.post("/api/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.Accepted, resp.status)
         val row = transaction {
@@ -831,12 +855,17 @@ class ServersRoutesTest {
     @Test
     fun `POST start sends only StartContainerCommand when container already exists`() = testApplication {
         val sentCommands = mutableListOf<MasterMessage>()
-        application { configureTest(sendToNode = { _, msg -> sentCommands.add(msg); true }) }
+        val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
+        application { configureTest(sendToNode = { _, msg -> sentCommands.add(msg); true }, agentEvents = events) }
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode()
         val serverId = createServer(nodeId, status = "STOPPED", containerId = "abc123")
+        CoroutineScope(Dispatchers.IO).launch {
+            kotlinx.coroutines.delay(50)
+            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY, "abc123"))
+        }
         val resp = client.post("/api/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.Accepted, resp.status)
         assertEquals(1, sentCommands.size)
@@ -846,19 +875,25 @@ class ServersRoutesTest {
     @Test
     fun `POST start sends CreateContainerCommand then StartContainerCommand when no container`() = testApplication {
         val sentCommands = mutableListOf<MasterMessage>()
-        application { configureTest(sendToNode = { _, msg -> sentCommands.add(msg); true }) }
+        val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
+        application { configureTest(sendToNode = { _, msg -> sentCommands.add(msg); true }, agentEvents = events) }
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode()
         val serverId = createServer(nodeId, status = "STOPPED")
+        CoroutineScope(Dispatchers.IO).launch {
+            kotlinx.coroutines.delay(50)
+            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STOPPED, "cid"))
+            kotlinx.coroutines.delay(50)
+            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY, "cid"))
+        }
         val resp = client.post("/api/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.Accepted, resp.status)
-        assertEquals(3, sentCommands.size)
-        assertTrue(sentCommands[0].hasPullImage())
-        assertTrue(sentCommands[1].hasCreateContainer())
-        assertTrue(sentCommands[2].hasStartContainer())
-        val create = sentCommands[1].createContainer
+        assertEquals(2, sentCommands.size)
+        assertTrue(sentCommands[0].hasCreateContainer())
+        assertTrue(sentCommands[1].hasStartContainer())
+        val create = sentCommands[0].createContainer
         assertEquals("craftpanel-$serverId", create.containerName)
         assertEquals("itzg/minecraft-server:latest", create.image)
         assertEquals("TRUE", create.envVarsMap["EULA"])

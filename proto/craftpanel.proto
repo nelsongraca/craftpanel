@@ -156,9 +156,6 @@ message MasterMessage {
     // Node lifecycle
     ShutdownCommand shutdown = 11;
 
-    // Image management
-    PullImageCommand pull_image = 12;
-
     // RCON
     SendRconCommand send_rcon = 13;
 
@@ -373,12 +370,6 @@ message SendRconCommand {
 message ShutdownCommand {
   // Seconds to wait per container for graceful stdin stop before Docker stop.
   int32 timeout_seconds = 1;
-}
-
-message PullImageCommand {
-  string server_id = 1;
-  // Full image reference, e.g. "itzg/minecraft-server:1.21".
-  string image = 2;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

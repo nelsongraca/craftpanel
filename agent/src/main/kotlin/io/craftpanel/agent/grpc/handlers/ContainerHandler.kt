@@ -99,12 +99,6 @@ class ContainerHandler(
             }
     }
 
-    suspend fun handlePullImage(cmd: PullImageCommand) {
-        log.info("Pulling image ${cmd.image} for server ${cmd.serverId}")
-        runCatching { withContext(Dispatchers.IO) { containerManager.pullImage(cmd.image) } }
-            .onFailure { log.error("Failed to pull image ${cmd.image}", it) }
-    }
-
     suspend fun handleShutdown(cmd: ShutdownCommand, out: AgentOutbound) {
         log.info("Shutdown requested — stopping all containers gracefully")
         val (graceful, forced) = containerManager.shutdownAll(cmd.timeoutSeconds)

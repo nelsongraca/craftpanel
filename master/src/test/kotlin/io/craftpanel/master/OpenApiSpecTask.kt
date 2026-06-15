@@ -117,7 +117,11 @@ class OpenApiSpecTask {
                             agentEvents = MutableSharedFlow<AgentEvent>(),
                             dnsProvider = null,
                             scope = migrationScope,
-                            lifecycle = ServerLifecycle({ _, _ -> false }, modService),
+                            lifecycle = ContainerLifecycle(
+                                sendToNode = { _, _ -> false },
+                                agentEvents = MutableSharedFlow(),
+                                modService = modService,
+                            ),
                         ),
                         dataServiceProxy = proxy,
                         controlService = controlSvc,

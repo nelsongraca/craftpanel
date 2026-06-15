@@ -62,7 +62,7 @@ class MigrationService(
     private val agentEvents: SharedFlow<AgentEvent>,
     private val dnsProvider: DnsProvider?,
     private val scope: CoroutineScope,
-    private val lifecycle: ServerLifecycle,
+    private val lifecycle: ContainerLifecycle,
     private val containerNamePrefix: String = "craftpanel",
 ) {
 
@@ -244,37 +244,6 @@ class MigrationService(
             emit(MigrationEvent.Failed(error))
         }
 
-        // Subscribe to this server's status flow, run [trigger], then await the
-        // first matching [status]. Used to sequence the stop → final-rsync →
-        // remove → create cutover: the source must report STOPPED after both the
-        // stop and the remove before the next step runs, otherwise the
-        // (shared-namespace) target create races the source removal.
-        //
-        // The collector is started before [trigger] fires — agentEvents has
-        // replay=0, so subscribing after the emission would miss it.
-        suspend fun triggerAndAwaitStatus(
-            status: ServerStatus,
-            timeout: kotlin.time.Duration,
-            trigger: () -> Unit,
-        ): Boolean {
-            val channel = Channel<Unit>(1)
-            val job = scope.launch {
-                agentEvents.filterIsInstance<AgentEvent.ServerStatusEvent>().collect { event ->
-                    if (event.serverId == serverIdStr && event.status == status) channel.trySend(Unit)
-                }
-            }
-            // Give the collector a tick to register before triggering the action.
-            yield()
-            return try {
-                trigger()
-                withTimeoutOrNull(timeout) { channel.receive() } != null
-            }
-            finally {
-                job.cancel()
-                channel.close()
-            }
-        }
-
         // ── Collect source/target node data ──────────────────────────────────
         val sourceNodeIdStr = sourceNodeId.toString()
         val targetNodeIdStr = targetNodeId.toString()
@@ -425,24 +394,21 @@ class MigrationService(
             var sourceStopped = false
             run {
                 val stepId = startStep(5, "Stop source server container")
-                val stopped = triggerAndAwaitStatus(
-                    ServerStatus.STOPPED,
-                    60.seconds,
-                ) {
-                    lifecycle.sendStop(serverRow, sourceNodeIdStr)
-                }
-                if (!stopped) {
-                    completeStep(stepId, false, "Timeout waiting for source to stop")
-                    failMigration("Source server did not stop within timeout")
-                    return
-                }
+                runCatching { lifecycle.stop(serverRow, sourceNodeIdStr) }
+                    .onFailure { e ->
+                        completeStep(stepId, false, e.message)
+                        failMigration("Source server did not stop: ${e.message}")
+                        return
+                    }
                 sourceStopped = true
                 completeStep(stepId, true)
             }
 
             // Restart the source container — used on rollback while it still exists.
             fun restartSource() {
-                if (sourceStopped) runCatching { lifecycle.sendStart(serverRow, sourceNodeIdStr) }
+                if (sourceStopped) scope.launch {
+                    runCatching { lifecycle.sendStart(serverRow, sourceNodeIdStr) }
+                }
             }
 
             // ── Step 6: Final rsync pass (source stopped → consistent snapshot) ──
@@ -498,18 +464,13 @@ class MigrationService(
             // namespace and guarantees no two live containers for one server.
             run {
                 val stepId = startStep(7, "Remove source server container")
-                val removed = triggerAndAwaitStatus(
-                    ServerStatus.STOPPED,
-                    60.seconds,
-                ) {
-                    lifecycle.sendRemove(serverRow, sourceNodeIdStr)
-                }
-                if (!removed) {
-                    completeStep(stepId, false, "Timeout waiting for source removal")
-                    restartSource()
-                    failMigration("Source container removal did not complete within timeout")
-                    return
-                }
+                runCatching { lifecycle.remove(serverRow, sourceNodeIdStr) }
+                    .onFailure { e ->
+                        completeStep(stepId, false, e.message)
+                        restartSource()
+                        failMigration("Source container removal failed: ${e.message}")
+                        return
+                    }
                 // Source is gone — rollback by restart is no longer possible past here.
                 sourceStopped = false
                 completeStep(stepId, true)
@@ -518,17 +479,13 @@ class MigrationService(
             // ── Step 8: Create and start container on target ─────────────────────
             run {
                 val stepId = startStep(8, "Create and start server container on target node")
-                val healthy = triggerAndAwaitStatus(
-                    ServerStatus.HEALTHY,
-                    120.seconds,
-                ) {
-                    lifecycle.sendCreate(serverRow, targetNodeIdStr)
+                runCatching {
+                    lifecycle.create(serverRow, targetNodeIdStr)
                     lifecycle.sendStart(serverRow, targetNodeIdStr)
-                }
-                if (!healthy) {
-                    lifecycle.sendRemove(serverRow, targetNodeIdStr, force = true)
-                    completeStep(stepId, false, "Timeout waiting for container to become HEALTHY")
-                    failMigration("New container failed to start on target")
+                }.onFailure { e ->
+                    runCatching { lifecycle.remove(serverRow, targetNodeIdStr, force = true) }
+                    completeStep(stepId, false, e.message)
+                    failMigration("New container failed to start on target: ${e.message}")
                     return
                 }
                 completeStep(stepId, true)

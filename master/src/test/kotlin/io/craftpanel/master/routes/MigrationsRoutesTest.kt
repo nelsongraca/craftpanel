@@ -54,7 +54,11 @@ class MigrationsRoutesTest {
         agentEvents = MutableSharedFlow<AgentEvent>(),
         dnsProvider = null,
         scope = testScope,
-        lifecycle = ServerLifecycle(noopSend, ModService()),
+        lifecycle = ContainerLifecycle(
+            sendToNode = noopSend,
+            agentEvents = MutableSharedFlow(),
+            modService = ModService(),
+        ),
     )
 
     @BeforeTest

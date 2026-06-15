@@ -89,8 +89,21 @@ fun Application.module() {
     val alertService = AlertService()
     val modService = ModService()
     val containerNamePrefix = System.getenv("CRAFTPANEL_CONTAINER_PREFIX") ?: "craftpanel"
-    val serverLifecycle = ServerLifecycle(controlService::sendToNode, modService, appConfig.images, containerNamePrefix)
-    val serverService = ServerService(controlService::sendToNode, modService, dnsProvider, appConfig.images, containerNamePrefix)
+    val containerLifecycle = ContainerLifecycle(
+        sendToNode = controlService::sendToNode,
+        agentEvents = controlService.agentEvents,
+        modService = modService,
+        images = appConfig.images,
+        containerNamePrefix = containerNamePrefix,
+    )
+    val serverService = ServerService(
+        sendToNode = controlService::sendToNode,
+        modService = modService,
+        dnsProvider = dnsProvider,
+        images = appConfig.images,
+        containerNamePrefix = containerNamePrefix,
+        lifecycle = containerLifecycle,
+    )
     val backupService = BackupService(controlService::sendToNode, dataServiceProxy)
     val proxyBackendService = ProxyBackendService()
     val envVarsService = EnvVarsService()
@@ -99,7 +112,7 @@ fun Application.module() {
         agentEvents = controlService.agentEvents,
         dnsProvider = dnsProvider,
         scope = this,
-        lifecycle = serverLifecycle,
+        lifecycle = containerLifecycle,
         containerNamePrefix = containerNamePrefix,
     )
 
