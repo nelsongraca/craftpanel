@@ -94,7 +94,7 @@ class OpenApiSpecTask {
                     val wsTicketService = WsTicketService()
                     val controlSvc = ControlServiceImpl(NodeConfig(bootstrapToken = "test", agentDataPort = 50052))
                     val proxy = DataServiceProxy(controlSvc, BulkDataServiceImpl(controlSvc))
-                    val noopSend: (String, com.craftpanel.agent.v1.MasterMessage) -> Boolean = { _, _ -> false }
+                    val noopSend: (String, io.craftpanel.proto.MasterMessage) -> Boolean = { _, _ -> false }
                     val modService = ModService()
                     registerAppRoutes(AppServices(
                         jwtManager = jwtManager,
@@ -117,6 +117,7 @@ class OpenApiSpecTask {
                             agentEvents = MutableSharedFlow<AgentEvent>(),
                             dnsProvider = null,
                             scope = migrationScope,
+                            lifecycle = ServerLifecycle({ _, _ -> false }, modService),
                         ),
                         dataServiceProxy = proxy,
                         controlService = controlSvc,

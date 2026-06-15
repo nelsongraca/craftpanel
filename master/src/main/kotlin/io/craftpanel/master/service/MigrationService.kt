@@ -2,17 +2,16 @@ package io.craftpanel.master.service
 
 import io.craftpanel.proto.*
 import io.craftpanel.master.database.schema.*
-import io.craftpanel.master.config.ImagesConfig
 import io.craftpanel.master.dns.DnsProvider
+import io.craftpanel.master.domain.AgentEvent
+import io.craftpanel.master.domain.ServerStatus
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
-import io.craftpanel.master.domain.AgentEvent
-import io.craftpanel.master.domain.ServerStatus
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerialName
@@ -23,10 +22,8 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Clock
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 import io.craftpanel.master.util.toUtcString
@@ -65,7 +62,7 @@ class MigrationService(
     private val agentEvents: SharedFlow<AgentEvent>,
     private val dnsProvider: DnsProvider?,
     private val scope: CoroutineScope,
-    private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
+    private val lifecycle: ServerLifecycle,
     private val containerNamePrefix: String = "craftpanel",
 ) {
 
@@ -81,16 +78,6 @@ class MigrationService(
                 .toLocalDateTime(TimeZone.UTC)
         }
     }
-
-    data class ServerScope(val networkId: UUID?)
-
-    fun getServerScope(serverId: Uuid): ServerScope? =
-        transaction {
-            Servers.selectAll()
-                .where { Servers.id eq serverId }
-                .firstOrNull()
-                ?.let { ServerScope(it[Servers.networkId]?.let { nid -> UUID.fromString(nid.toString()) }) }
-        }
 
     fun startMigration(serverId: Uuid, req: MigrateRequest): MigrationResponse {
         val serverRow = transaction {
@@ -257,6 +244,37 @@ class MigrationService(
             emit(MigrationEvent.Failed(error))
         }
 
+        // Subscribe to this server's status flow, run [trigger], then await the
+        // first matching [status]. Used to sequence the stop → final-rsync →
+        // remove → create cutover: the source must report STOPPED after both the
+        // stop and the remove before the next step runs, otherwise the
+        // (shared-namespace) target create races the source removal.
+        //
+        // The collector is started before [trigger] fires — agentEvents has
+        // replay=0, so subscribing after the emission would miss it.
+        suspend fun triggerAndAwaitStatus(
+            status: ServerStatus,
+            timeout: kotlin.time.Duration,
+            trigger: () -> Unit,
+        ): Boolean {
+            val channel = Channel<Unit>(1)
+            val job = scope.launch {
+                agentEvents.filterIsInstance<AgentEvent.ServerStatusEvent>().collect { event ->
+                    if (event.serverId == serverIdStr && event.status == status) channel.trySend(Unit)
+                }
+            }
+            // Give the collector a tick to register before triggering the action.
+            yield()
+            return try {
+                trigger()
+                withTimeoutOrNull(timeout) { channel.receive() } != null
+            }
+            finally {
+                job.cancel()
+                channel.close()
+            }
+        }
+
         // ── Collect source/target node data ──────────────────────────────────
         val sourceNodeIdStr = sourceNodeId.toString()
         val targetNodeIdStr = targetNodeId.toString()
@@ -291,323 +309,322 @@ class MigrationService(
             }
         }
 
-        // ── Step 2: PrepareRsyncReceive → target, await RsyncReadyUpdate ─────
-        val rsyncPassword: String
-        run {
-            val stepId = startStep(2, "Prepare rsync receiver on target node")
-            val readyChannel = Channel<AgentEvent.RsyncReadyEvent>(1)
-            val job = scope.launch {
-                agentEvents.filterIsInstance<AgentEvent.RsyncReadyEvent>()
-                    .collect { if (it.migrationId == migrationIdStr) readyChannel.trySend(it) }
-            }
-            try {
-                val sent = sendToNode(targetNodeIdStr, masterMessage {
-                    prepareRsyncReceive = prepareRsyncReceiveCommand {
-                        this.migrationId = migrationIdStr
-                        this.serverId = serverIdStr
-                        port = rsyncPort
-                        this.rsyncImage = rsyncImage
-                    }
-                })
-                if (!sent) {
-                    completeStep(stepId, false, "Target agent not connected")
-                    failMigration("Target agent not connected")
-                    return
+        try {
+            // ── Step 2: PrepareRsyncReceive → target, await RsyncReadyUpdate ─────
+            val rsyncPassword: String
+            run {
+                val stepId = startStep(2, "Prepare rsync receiver on target node")
+                val readyChannel = Channel<AgentEvent.RsyncReadyEvent>(1)
+                val job = scope.launch {
+                    agentEvents.filterIsInstance<AgentEvent.RsyncReadyEvent>()
+                        .collect { if (it.migrationId == migrationIdStr) readyChannel.trySend(it) }
                 }
-                val ready = withTimeoutOrNull(60.seconds) { readyChannel.receive() }
-                if (ready == null) {
-                    completeStep(stepId, false, "Timeout waiting for rsync receiver")
-                    failMigration("Timeout waiting for rsync receiver on target")
-                    return
-                }
-                rsyncPassword = ready.rsyncPassword
-                completeStep(stepId, true)
-            }
-            finally {
-                job.cancel()
-                readyChannel.close()
-            }
-        }
-
-        // ── Step 3: Initial rsync pass (server still running) ────────────────
-        run {
-            val stepId = startStep(3, "Initial rsync pass (live data sync)")
-            val completeChannel = Channel<AgentEvent.RsyncCompleteEvent>(1)
-            val progressJob = scope.launch {
-                agentEvents.filterIsInstance<AgentEvent.RsyncProgressEvent>()
-                    .collect { u ->
-                        if (u.migrationId == migrationIdStr && !u.isFinalPass)
-                            emit(MigrationEvent.RsyncProgress(false, u.percentComplete, u.bytesTransferred, u.phase))
-                    }
-            }
-            val completeJob = scope.launch {
-                agentEvents.filterIsInstance<AgentEvent.RsyncCompleteEvent>()
-                    .collect { u ->
-                        if (u.migrationId == migrationIdStr && !u.isFinalPass) completeChannel.trySend(u)
-                    }
-            }
-            try {
-                val sent = sendToNode(sourceNodeIdStr, masterMessage {
-                    startRsync = startRsyncCommand {
-                        this.migrationId = migrationIdStr
-                        this.serverId = serverIdStr
-                        destinationIp = targetPrivateIp
-                        destinationPort = rsyncPort
-                        this.rsyncPassword = rsyncPassword
-                        this.rsyncImage = rsyncImage
-                        isFinalPass = false
-                    }
-                })
-                if (!sent) {
-                    completeStep(stepId, false, "Source agent not connected")
-                    failMigration("Source agent not connected")
-                    return
-                }
-                val complete = withTimeoutOrNull(3600.seconds) { completeChannel.receive() }
-                if (complete == null || !complete.success) {
-                    val err = complete?.errorMessage ?: "Timeout waiting for initial rsync"
-                    completeStep(stepId, false, err)
-                    failMigration("Initial rsync failed: $err")
-                    return
-                }
-                completeStep(stepId, true)
-            }
-            finally {
-                progressJob.cancel()
-                completeJob.cancel()
-                completeChannel.close()
-            }
-        }
-
-        updateStatus("SYNCING")
-
-        // ── Step 4: Player warning via RCON ──────────────────────────────────
-        run {
-            val stepId = startStep(4, "Broadcast player warning via RCON")
-            val safeMsg = playerWarningMessage
-                .replace('\n', ' ')
-                .replace('\r', ' ')
-                .replace("\"", "")
-                .take(255)
-            sendToNode(sourceNodeIdStr, masterMessage {
-                sendRcon = sendRconCommand {
-                    this.serverId = serverIdStr
-                    command = "say $safeMsg"
-                }
-            })
-            completeStep(stepId, true)
-        }
-
-        delay(2.seconds)
-
-        // ── Step 5: save-all then save-off via RCON ──────────────────────────
-        run {
-            val stepId = startStep(5, "Flush and disable auto-save via RCON")
-            val saveAllSent = sendToNode(sourceNodeIdStr, masterMessage {
-                sendRcon = sendRconCommand {
-                    this.serverId = serverIdStr
-                    command = "save-all"
-                }
-            })
-            if (!saveAllSent) {
-                completeStep(stepId, false, "Agent disconnected before save-all")
-                failMigration("Failed to send save-all RCON: agent disconnected")
-                return
-            }
-            delay(500.milliseconds)
-            val saveOffSent = sendToNode(sourceNodeIdStr, masterMessage {
-                sendRcon = sendRconCommand {
-                    this.serverId = serverIdStr
-                    command = "save-off"
-                }
-            })
-            if (!saveOffSent) {
-                completeStep(stepId, false, "Agent disconnected before save-off")
-                failMigration("Failed to send save-off RCON: agent disconnected")
-                return
-            }
-            completeStep(stepId, true)
-        }
-
-        // ── Step 6: Final rsync pass (delta only, server still up) ───────────
-        run {
-            val stepId = startStep(6, "Final rsync pass (delta sync)")
-            val completeChannel = Channel<AgentEvent.RsyncCompleteEvent>(1)
-            val progressJob = scope.launch {
-                agentEvents.filterIsInstance<AgentEvent.RsyncProgressEvent>()
-                    .collect { u ->
-                        if (u.migrationId == migrationIdStr && u.isFinalPass)
-                            emit(MigrationEvent.RsyncProgress(true, u.percentComplete, u.bytesTransferred, u.phase))
-                    }
-            }
-            val completeJob = scope.launch {
-                agentEvents.filterIsInstance<AgentEvent.RsyncCompleteEvent>()
-                    .collect { u ->
-                        if (u.migrationId == migrationIdStr && u.isFinalPass) completeChannel.trySend(u)
-                    }
-            }
-            try {
-                sendToNode(sourceNodeIdStr, masterMessage {
-                    startRsync = startRsyncCommand {
-                        this.migrationId = migrationIdStr
-                        this.serverId = serverIdStr
-                        destinationIp = targetPrivateIp
-                        destinationPort = rsyncPort
-                        this.rsyncPassword = rsyncPassword
-                        this.rsyncImage = rsyncImage
-                        isFinalPass = true
-                    }
-                })
-                val complete = withTimeoutOrNull(600.seconds) { completeChannel.receive() }
-                if (complete == null || !complete.success) {
-                    val err = complete?.errorMessage ?: "Timeout waiting for final rsync"
-                    completeStep(stepId, false, err)
-                    failMigration("Final rsync failed: $err")
-                    return
-                }
-                completeStep(stepId, true)
-            }
-            finally {
-                progressJob.cancel()
-                completeJob.cancel()
-                completeChannel.close()
-            }
-        }
-
-        updateStatus("CUTTING_OVER")
-
-        // ── Step 7: Create and start container on target ─────────────────────
-        run {
-            val stepId = startStep(7, "Create and start server container on target node")
-
-            val serverImage = images.deriveImage(serverRow[Servers.serverType], serverRow[Servers.itzgImageTag])
-            val allVars = buildAllVarsForMigration(serverId, serverRow)
-            val publicHostname = serverRow[Servers.dnsRecordName]
-
-            val readyChannel = Channel<String>(1)
-            val statusJob = scope.launch {
-                agentEvents.filterIsInstance<AgentEvent.ServerStatusEvent>()
-                    .collect { event ->
-                        if (event.serverId == serverIdStr && event.status == ServerStatus.HEALTHY)
-                            readyChannel.trySend("HEALTHY")
-                    }
-            }
-            try {
-                val createMsg = buildMigrationCreateCommand(serverId, serverRow, serverImage, allVars, publicHostname)
-                sendToNode(targetNodeIdStr, createMsg)
-                delay(1.seconds)
-                sendToNode(targetNodeIdStr, masterMessage {
-                    startContainer = startContainerCommand {
-                        this.serverId = serverIdStr
-                        containerName = "$containerNamePrefix-$serverId"
-                    }
-                })
-
-                val result = withTimeoutOrNull(120.seconds) { readyChannel.receive() }
-                if (result == null) {
-                    sendToNode(targetNodeIdStr, masterMessage {
-                        removeContainer = removeContainerCommand {
-                            containerName = "$containerNamePrefix-$serverId"
-                            force = true
+                try {
+                    val sent = sendToNode(targetNodeIdStr, masterMessage {
+                        prepareRsyncReceive = prepareRsyncReceiveCommand {
+                            this.migrationId = migrationIdStr
+                            this.serverId = serverIdStr
+                            port = rsyncPort
+                            this.rsyncImage = rsyncImage
                         }
                     })
+                    if (!sent) {
+                        completeStep(stepId, false, "Target agent not connected")
+                        failMigration("Target agent not connected")
+                        return
+                    }
+                    val ready = withTimeoutOrNull(60.seconds) { readyChannel.receive() }
+                    if (ready == null) {
+                        completeStep(stepId, false, "Timeout waiting for rsync receiver")
+                        failMigration("Timeout waiting for rsync receiver on target")
+                        return
+                    }
+                    rsyncPassword = ready.rsyncPassword
+                    completeStep(stepId, true)
+                }
+                finally {
+                    job.cancel()
+                    readyChannel.close()
+                }
+            }
+
+            // ── Step 3: Initial rsync pass (server still running) ────────────────
+            run {
+                val stepId = startStep(3, "Initial rsync pass (live data sync)")
+                val completeChannel = Channel<AgentEvent.RsyncCompleteEvent>(1)
+                val progressJob = scope.launch {
+                    agentEvents.filterIsInstance<AgentEvent.RsyncProgressEvent>().collect { u ->
+                        if (u.migrationId == migrationIdStr && !u.isFinalPass) {
+                            emit(MigrationEvent.RsyncProgress(false, u.percentComplete, u.bytesTransferred, u.phase))
+                        }
+                    }
+                }
+                val completeJob = scope.launch {
+                    agentEvents.filterIsInstance<AgentEvent.RsyncCompleteEvent>().collect { u ->
+                        if (u.migrationId == migrationIdStr && !u.isFinalPass) completeChannel.trySend(u)
+                    }
+                }
+                try {
+                    val sent = sendToNode(sourceNodeIdStr, masterMessage {
+                        startRsync = startRsyncCommand {
+                            this.migrationId = migrationIdStr
+                            this.serverId = serverIdStr
+                            destinationIp = targetPrivateIp
+                            destinationPort = rsyncPort
+                            this.rsyncPassword = rsyncPassword
+                            this.rsyncImage = rsyncImage
+                            isFinalPass = false
+                        }
+                    })
+                    if (!sent) {
+                        completeStep(stepId, false, "Source agent not connected")
+                        failMigration("Source agent not connected")
+                        return
+                    }
+                    val complete = withTimeoutOrNull(3600.seconds) { completeChannel.receive() }
+                    if (complete == null || !complete.success) {
+                        val err = complete?.errorMessage ?: "Timeout waiting for initial rsync"
+                        completeStep(stepId, false, err)
+                        failMigration("Initial rsync failed: $err")
+                        return
+                    }
+                    completeStep(stepId, true)
+                }
+                finally {
+                    progressJob.cancel()
+                    completeJob.cancel()
+                    completeChannel.close()
+                }
+            }
+
+            updateStatus("SYNCING")
+
+            // ── Step 4: Player warning via RCON ──────────────────────────────────
+            run {
+                val stepId = startStep(4, "Broadcast player warning via RCON")
+                val safeMsg = playerWarningMessage
+                    .replace('\n', ' ')
+                    .replace('\r', ' ')
+                    .replace("\"", "")
+                    .take(255)
+                sendToNode(sourceNodeIdStr, masterMessage {
+                    sendRcon = sendRconCommand {
+                        this.serverId = serverIdStr
+                        command = "say $safeMsg"
+                    }
+                })
+                completeStep(stepId, true)
+            }
+
+            delay(2.seconds)
+
+            // ── Step 5: Stop source container (a clean stop flushes world data) ──
+            // The container is kept (not removed) so the final rsync below reads a
+            // consistent, on-disk snapshot. If a later step fails before removal we
+            // restart the source so the server is not left dead.
+            var sourceStopped = false
+            run {
+                val stepId = startStep(5, "Stop source server container")
+                val stopped = triggerAndAwaitStatus(
+                    ServerStatus.STOPPED,
+                    60.seconds,
+                ) {
+                    lifecycle.sendStop(serverRow, sourceNodeIdStr)
+                }
+                if (!stopped) {
+                    completeStep(stepId, false, "Timeout waiting for source to stop")
+                    failMigration("Source server did not stop within timeout")
+                    return
+                }
+                sourceStopped = true
+                completeStep(stepId, true)
+            }
+
+            // Restart the source container — used on rollback while it still exists.
+            fun restartSource() {
+                if (sourceStopped) runCatching { lifecycle.sendStart(serverRow, sourceNodeIdStr) }
+            }
+
+            // ── Step 6: Final rsync pass (source stopped → consistent snapshot) ──
+            run {
+                val stepId = startStep(6, "Final rsync pass (delta sync, source stopped)")
+                val completeChannel = Channel<AgentEvent.RsyncCompleteEvent>(1)
+                val progressJob = scope.launch {
+                    agentEvents.filterIsInstance<AgentEvent.RsyncProgressEvent>().collect { u ->
+                        if (u.migrationId == migrationIdStr && u.isFinalPass) {
+                            emit(MigrationEvent.RsyncProgress(true, u.percentComplete, u.bytesTransferred, u.phase))
+                        }
+                    }
+                }
+                val completeJob = scope.launch {
+                    agentEvents.filterIsInstance<AgentEvent.RsyncCompleteEvent>().collect { u ->
+                        if (u.migrationId == migrationIdStr && u.isFinalPass) completeChannel.trySend(u)
+                    }
+                }
+                try {
+                    sendToNode(sourceNodeIdStr, masterMessage {
+                        startRsync = startRsyncCommand {
+                            this.migrationId = migrationIdStr
+                            this.serverId = serverIdStr
+                            destinationIp = targetPrivateIp
+                            destinationPort = rsyncPort
+                            this.rsyncPassword = rsyncPassword
+                            this.rsyncImage = rsyncImage
+                            isFinalPass = true
+                        }
+                    })
+                    val complete = withTimeoutOrNull(600.seconds) { completeChannel.receive() }
+                    if (complete == null || !complete.success) {
+                        val err = complete?.errorMessage ?: "Timeout waiting for final rsync"
+                        completeStep(stepId, false, err)
+                        restartSource()
+                        failMigration("Final rsync failed: $err")
+                        return
+                    }
+                    completeStep(stepId, true)
+                }
+                finally {
+                    progressJob.cancel()
+                    completeJob.cancel()
+                    completeChannel.close()
+                }
+            }
+
+            updateStatus("CUTTING_OVER")
+
+            // ── Step 7: Remove source container ──────────────────────────────────
+            // Awaited (STOPPED ack) so the container name is freed before the
+            // target create — prevents a name collision on a shared Docker
+            // namespace and guarantees no two live containers for one server.
+            run {
+                val stepId = startStep(7, "Remove source server container")
+                val removed = triggerAndAwaitStatus(
+                    ServerStatus.STOPPED,
+                    60.seconds,
+                ) {
+                    lifecycle.sendRemove(serverRow, sourceNodeIdStr)
+                }
+                if (!removed) {
+                    completeStep(stepId, false, "Timeout waiting for source removal")
+                    restartSource()
+                    failMigration("Source container removal did not complete within timeout")
+                    return
+                }
+                // Source is gone — rollback by restart is no longer possible past here.
+                sourceStopped = false
+                completeStep(stepId, true)
+            }
+
+            // ── Step 8: Create and start container on target ─────────────────────
+            run {
+                val stepId = startStep(8, "Create and start server container on target node")
+                val healthy = triggerAndAwaitStatus(
+                    ServerStatus.HEALTHY,
+                    120.seconds,
+                ) {
+                    lifecycle.sendCreate(serverRow, targetNodeIdStr)
+                    lifecycle.sendStart(serverRow, targetNodeIdStr)
+                }
+                if (!healthy) {
+                    lifecycle.sendRemove(serverRow, targetNodeIdStr, force = true)
                     completeStep(stepId, false, "Timeout waiting for container to become HEALTHY")
                     failMigration("New container failed to start on target")
                     return
                 }
                 completeStep(stepId, true)
             }
-            finally {
-                statusJob.cancel()
-                readyChannel.close()
-            }
-        }
 
-        // ── Step 8: Update DNS A record ──────────────────────────────────────
-        run {
-            val stepId = startStep(8, "Update DNS A record to target node IP")
-            val recordId = serverRow[Servers.dnsRecordId]
-            val provider = dnsProvider
-            if (recordId != null && provider != null) {
-                val networkId = serverRow[Servers.networkId]
-                val dns = resolveNetworkDnsForMigration(networkId)
-                if (dns != null) {
-                    runCatching {
-                        provider.updateARecord(dns.zoneId, recordId, targetNodeRow[Nodes.publicIp])
-                    }.onFailure { ex ->
-                        completeStep(stepId, false, ex.message)
-                        failMigration("DNS update failed: ${ex.message}")
-                        return
+            // ── Step 9: Update DNS A record ──────────────────────────────────────
+            run {
+                val stepId = startStep(9, "Update DNS A record to target node IP")
+                val recordId = serverRow[Servers.dnsRecordId]
+                val provider = dnsProvider
+                if (recordId != null && provider != null) {
+                    val networkId = serverRow[Servers.networkId]
+                    val dns = resolveNetworkDnsForMigration(networkId)
+                    if (dns != null) {
+                        runCatching {
+                            provider.updateARecord(dns.zoneId, recordId, targetNodeRow[Nodes.publicIp])
+                        }.onFailure { ex ->
+                            completeStep(stepId, false, ex.message)
+                            failMigration("DNS update failed: ${ex.message}")
+                            return
+                        }
                     }
                 }
+                completeStep(stepId, true)
             }
-            completeStep(stepId, true)
-        }
 
-        // ── Step 9: mc-router labels updated implicitly at container creation ─
-        // Nothing to do — labels set in step 7 CreateContainerCommand.
+            // ── Step 10: mc-router labels updated implicitly at container creation ─
+            // Nothing to do — labels set in step 8 CreateContainerCommand.
 
-        // ── Step 10: Stop and remove old container on source ─────────────────
-        run {
-            val stepId = startStep(10, "Stop and remove old container on source node")
-            sendToNode(sourceNodeIdStr, masterMessage {
-                stopContainer = stopContainerCommand {
-                    this.serverId = serverIdStr
-                    containerName = "$containerNamePrefix-$serverId"
-                    timeoutSeconds = 30
-                    stopCommand = serverRow[Servers.stopCommand]
+            // ── Step 11: Update DB — node assignment + PortRegistry ──────────────
+            run {
+                val stepId = startStep(11, "Update server node assignment in database")
+                try {
+                    transaction {
+                        Servers.update({ Servers.id eq serverId }) {
+                            it[Servers.nodeId] = targetNodeId
+                            it[Servers.updatedAt] = now()
+                        }
+                        // Move the server's port entry to the target node
+                        val serverPort = serverRow[Servers.hostPort]
+                        PortRegistry.deleteWhere { (PortRegistry.serverId eq serverId) }
+                        PortRegistry.insert {
+                            it[PortRegistry.nodeId] = targetNodeId
+                            it[PortRegistry.port] = serverPort
+                            it[PortRegistry.protocol] = "TCP"
+                            it[PortRegistry.serverId] = serverId
+                        }
+                        // Release rsync ephemeral port
+                        PortRegistry.deleteWhere {
+                            (PortRegistry.nodeId eq targetNodeId) and
+                                    (PortRegistry.port eq rsyncPort) and
+                                    (PortRegistry.serverId.isNull())
+                        }
+                    }
+                    completeStep(stepId, true)
                 }
-            })
-            delay(5.seconds)
-            sendToNode(sourceNodeIdStr, masterMessage {
-                removeContainer = removeContainerCommand {
-                    containerName = "$containerNamePrefix-$serverId"
-                    force = false
+                catch (e: Exception) {
+                    completeStep(stepId, false, e.message)
+                    failMigration("DB update failed: ${e.message}")
+                    return
                 }
-            })
-            completeStep(stepId, true)
-        }
+            }
 
-        // ── Step 11: Update DB — node assignment + PortRegistry ──────────────
-        run {
-            val stepId = startStep(11, "Update server node assignment in database")
+            // ── Step 12: Update proxy backends for networks ───────────────────────
+            run {
+                val stepId = startStep(12, "Update proxy backends")
+                runCatching {
+                    updateProxyBackendsAfterMigration(serverId, targetNodeRow[Nodes.privateIp], serverRow[Servers.hostPort])
+                }.onFailure { ex ->
+                    log.warn("Proxy backend update failed after migration $migrationIdStr: ${ex.message}")
+                }
+                completeStep(stepId, true)
+            }
+
+            updateStatus("COMPLETED")
+            emit(MigrationEvent.Completed)
+        }
+        finally {
+            // Always clean up rsync-recv container and release the ephemeral rsync port.
+            // On success path the port was already freed in step 11 — the deleteWhere is a no-op.
+            runCatching {
+                sendToNode(targetNodeIdStr, masterMessage {
+                    removeContainer = removeContainerCommand {
+                        containerName = "$containerNamePrefix-rsync-recv-$migrationIdStr"
+                        force = true
+                    }
+                })
+            }
             transaction {
-                Servers.update({ Servers.id eq serverId }) {
-                    it[Servers.nodeId] = targetNodeId
-                    it[Servers.updatedAt] = now()
-                }
-                // Move the server's port entry to the target node
-                val serverPort = serverRow[Servers.hostPort]
-                PortRegistry.deleteWhere { (PortRegistry.serverId eq serverId) }
-                PortRegistry.insert {
-                    it[PortRegistry.nodeId] = targetNodeId
-                    it[PortRegistry.port] = serverPort
-                    it[PortRegistry.protocol] = "TCP"
-                    it[PortRegistry.serverId] = serverId
-                }
-                // Release rsync ephemeral port
                 PortRegistry.deleteWhere {
                     (PortRegistry.nodeId eq targetNodeId) and
                             (PortRegistry.port eq rsyncPort) and
                             (PortRegistry.serverId.isNull())
                 }
             }
-            completeStep(stepId, true)
         }
-
-        // ── Step 12: Update proxy backends for networks ───────────────────────
-        run {
-            val stepId = startStep(12, "Update proxy backends")
-            runCatching {
-                updateProxyBackendsAfterMigration(serverId, targetNodeRow[Nodes.privateIp], serverRow[Servers.hostPort])
-            }.onFailure { ex ->
-                log.warn("Proxy backend update failed after migration $migrationIdStr: ${ex.message}")
-            }
-            completeStep(stepId, true)
-        }
-
-        updateStatus("COMPLETED")
-        emit(MigrationEvent.Completed)
     }
 
     private fun allocateRsyncPort(targetNodeId: Uuid): Int = transaction {
@@ -629,46 +646,6 @@ class MigrationService(
             it[PortRegistry.serverId] = null
         }
         port
-    }
-
-    private fun buildAllVarsForMigration(
-        serverId: Uuid,
-        serverRow: ResultRow,
-    ): Map<String, String> {
-        val dbEnvVars = transaction {
-            ServerEnvVars.selectAll()
-                .where { ServerEnvVars.serverId eq serverId }
-                .associate { it[ServerEnvVars.key] to it[ServerEnvVars.value] }
-        }
-        val systemVars = mapOf(
-            "EULA" to "TRUE",
-            "TYPE" to serverRow[Servers.serverType],
-            "VERSION" to serverRow[Servers.mcVersion],
-            "MEMORY" to "${serverRow[Servers.memoryMb]}M",
-        )
-        return systemVars + dbEnvVars
-    }
-
-    private fun buildMigrationCreateCommand(
-        serverId: Uuid,
-        serverRow: ResultRow,
-        image: String,
-        allVars: Map<String, String>,
-        publicHostname: String?,
-    ): MasterMessage = masterMessage {
-        createContainer = createContainerCommand {
-            this.serverId = serverId.toString()
-            containerName = "$containerNamePrefix-$serverId"
-            this.image = image
-            ramMb = serverRow[Servers.memoryMb]
-            cpuShares = serverRow[Servers.cpuShares]
-            hostPort = serverRow[Servers.hostPort]
-            envVars.putAll(allVars)
-            dockerNetwork = serverRow[Servers.networkId]?.let { "$containerNamePrefix-net-$it" } ?: ""
-            restartPolicy = "unless-stopped"
-            stopCommand = serverRow[Servers.stopCommand]
-            mcRouterHostname = publicHostname ?: ""
-        }
     }
 
     private fun resolveNetworkDnsForMigration(networkId: Uuid?): NetworkDns? {
