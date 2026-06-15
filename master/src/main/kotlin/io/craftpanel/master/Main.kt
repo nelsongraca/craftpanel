@@ -96,10 +96,7 @@ fun Application.module() {
     val envVarsService = EnvVarsService()
     val migrationService = MigrationService(
         sendToNode = controlService::sendToNode,
-        rsyncReadyFlow = controlService.rsyncReadyFlow,
-        rsyncProgressFlow = controlService.rsyncProgressFlow,
-        rsyncCompleteFlow = controlService.rsyncCompleteFlow,
-        serverStatusFlow = controlService.serverStatusFlow,
+        agentEvents = controlService.agentEvents,
         dnsProvider = dnsProvider,
         scope = this,
         lifecycle = serverLifecycle,

@@ -4,13 +4,15 @@ package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.ScopeType
-import io.craftpanel.proto.ServerStatusUpdate
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
-import io.craftpanel.master.grpc.ControlServiceImpl
-import kotlin.uuid.Uuid
+import io.craftpanel.master.domain.AgentEvent
+import io.craftpanel.master.domain.AgentMetricEvent
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.filterIsInstance
+import io.craftpanel.master.util.toKotlinUuid
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
@@ -24,9 +26,9 @@ import kotlinx.serialization.json.encodeToJsonElement
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.util.*
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
-import kotlin.time.Instant
 
 private val wsJson = Json { ignoreUnknownKeys = true; namingStrategy = JsonNamingStrategy.SnakeCase }
 
@@ -38,7 +40,11 @@ private fun DefaultWebSocketSession.sendWsRaw(envelope: WsEnvelope) {
     outgoing.trySend(Frame.Text(wsJson.encodeToString(envelope)))
 }
 
-fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: ControlServiceImpl) {
+fun Route.dashboardWsRoutes(
+    wsTicketService: WsTicketService,
+    agentEvents: SharedFlow<AgentEvent>,
+    agentMetricsFlow: SharedFlow<AgentMetricEvent>,
+) {
     // operationId: dashboardWebSocket
     // Requires: ?ticket=<ws-ticket> (from POST /api/auth/ws-ticket)
     // Emits server/node status, metrics, alerts, and player updates as JSON envelopes.
@@ -54,23 +60,24 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
 
         fun hasNodes() = PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES)
 
-        fun canViewServer(serverId: Uuid, networkId: Uuid?): Boolean =
+        fun canViewServer(serverId: UUID, networkId: UUID?): Boolean =
             PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW, serverId, networkId)
 
-        fun serverNetworkId(serverId: String): Uuid? = transaction {
-            val kId = runCatching { Uuid.parse(serverId) }.getOrNull() ?: return@transaction null
+        fun serverNetworkId(serverId: String): UUID? = transaction {
+            val kId = runCatching { UUID.fromString(serverId) }.getOrNull() ?: return@transaction null
             Servers.selectAll()
-                .where { Servers.id eq kId }
+                .where { Servers.id eq kId.toKotlinUuid() }
                 .firstOrNull()
                 ?.get(Servers.networkId)
+                ?.let { UUID.fromString(it.toString()) }
         }
 
         // ── Initial snapshot ──────────────────────────────────────────────────
         val snapshot = transaction {
             val servers = Servers.selectAll()
                 .mapNotNull { row ->
-                    val sid = row[Servers.id]
-                    val netId = row[Servers.networkId]
+                    val sid = UUID.fromString(row[Servers.id].toString())
+                    val netId = row[Servers.networkId]?.let { UUID.fromString(it.toString()) }
                     if (!canViewServer(sid, netId)) return@mapNotNull null
                     ServerSnapshot(
                         sid.toString(),
@@ -95,157 +102,131 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, controlService: Co
         // ── Subscriptions ─────────────────────────────────────────────────────
 
         val nodeMetricsJob = launch {
-            controlService.nodeMetricsFlow.collect { (nodeId, metrics) ->
+            agentMetricsFlow.filterIsInstance<AgentMetricEvent.NodeMetricsEvent>().collect { event ->
                 if (!hasNodes()) return@collect
                 sendWs(
                     WsEventType.NODE_METRICS, NodeMetricsPayload(
-                        nodeId,
-                        metrics.cpuPercent,
-                        metrics.ramUsedMb,
-                        metrics.ramTotalMb,
-                        metrics.netInBytes,
-                        metrics.netOutBytes,
-                        metrics.diskUsedBytes,
-                        metrics.diskTotalBytes,
-                        if (metrics.hasRecordedAt())
-                            Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong())
-                                .toString()
-                        else Clock.System.now()
-                            .toString(),
+                        event.nodeId,
+                        event.cpuPercent.toDouble(),
+                        event.ramUsedMb.toInt(),
+                        event.ramTotalMb.toInt(),
+                        event.netInBytes,
+                        event.netOutBytes,
+                        event.diskUsedBytes,
+                        event.diskTotalBytes,
+                        event.recordedAt.toString(),
                     )
                 )
             }
         }
 
         val nodeStatusJob = launch {
-            controlService.nodeStatusFlow.collect { (nodeId, status) ->
+            agentEvents.filterIsInstance<AgentEvent.NodeStatusEvent>().collect { event ->
                 if (!hasNodes()) return@collect
                 sendWs(
                     WsEventType.NODE_STATUS,
                     NodeStatusPayload(
-                        nodeId,
-                        status,
-                        Clock.System.now()
-                            .toString()
+                        event.nodeId,
+                        event.status.name,
+                        Clock.System.now().toString()
                     )
                 )
             }
         }
 
         val serverMetricsJob = launch {
-            controlService.containerMetricsFlow.collect { (serverId, metrics) ->
-                val sid = runCatching { Uuid.parse(serverId) }.getOrNull() ?: return@collect
-                val netId = serverNetworkId(serverId)
+            agentMetricsFlow.filterIsInstance<AgentMetricEvent.ContainerMetricsEvent>().collect { event ->
+                val sid = runCatching { UUID.fromString(event.serverId) }.getOrNull() ?: return@collect
+                val netId = serverNetworkId(event.serverId)
                 if (!canViewServer(sid, netId)) return@collect
                 sendWs(
                     WsEventType.SERVER_METRICS, ServerMetricsPayload(
-                        serverId,
-                        metrics.cpuPercent,
-                        metrics.ramUsedMb,
-                        metrics.netInBytes,
-                        metrics.netOutBytes,
-                        if (metrics.hasRecordedAt())
-                            Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong())
-                                .toString()
-                        else Clock.System.now()
-                            .toString(),
+                        event.serverId,
+                        event.cpuPercent.toDouble(),
+                        event.ramUsedMb.toInt(),
+                        event.netInBytes,
+                        event.netOutBytes,
+                        event.recordedAt.toString(),
                     )
                 )
             }
         }
 
         val serverStatusJob = launch {
-            controlService.serverStatusFlow.collect { (serverId, update) ->
-                val sid = runCatching { Uuid.parse(serverId) }.getOrNull() ?: return@collect
-                val netId = serverNetworkId(serverId)
+            agentEvents.filterIsInstance<AgentEvent.ServerStatusEvent>().collect { event ->
+                val sid = runCatching { UUID.fromString(event.serverId) }.getOrNull() ?: return@collect
+                val netId = serverNetworkId(event.serverId)
                 if (!canViewServer(sid, netId)) return@collect
-                val statusStr = when (update.status) {
-                    ServerStatusUpdate.ServerStatus.HEALTHY -> "HEALTHY"
-                    ServerStatusUpdate.ServerStatus.UNHEALTHY -> "UNHEALTHY"
-                    ServerStatusUpdate.ServerStatus.STARTING -> "STARTING"
-                    ServerStatusUpdate.ServerStatus.STOPPED -> "STOPPED"
-                    else -> return@collect
-                }
                 sendWs(
                     WsEventType.SERVER_STATUS,
                     ServerStatusPayload(
-                        serverId,
-                        statusStr,
-                        update.containerId,
-                        Clock.System.now()
-                            .toString()
+                        event.serverId,
+                        event.status.toDb(),
+                        event.containerId,
+                        Clock.System.now().toString()
                     )
                 )
             }
         }
 
         val playerJob = launch {
-            controlService.playerUpdateFlow.collect { (serverId, update) ->
-                val sid = runCatching { Uuid.parse(serverId) }.getOrNull() ?: return@collect
-                val netId = serverNetworkId(serverId)
+            agentMetricsFlow.filterIsInstance<AgentMetricEvent.PlayerUpdateEvent>().collect { event ->
+                val sid = runCatching { UUID.fromString(event.serverId) }.getOrNull() ?: return@collect
+                val netId = serverNetworkId(event.serverId)
                 if (!canViewServer(sid, netId)) return@collect
                 sendWs(
                     WsEventType.SERVER_PLAYERS, ServerPlayersPayload(
-                        serverId,
-                        update.playerCount,
-                        update.playerNamesList,
-                        if (update.hasRecordedAt())
-                            Instant.fromEpochSeconds(update.recordedAt.seconds, update.recordedAt.nanos.toLong())
-                                .toString()
-                        else Clock.System.now()
-                            .toString(),
+                        event.serverId,
+                        event.playerCount,
+                        event.playerNames,
+                        event.recordedAt.toString(),
                     )
                 )
             }
         }
 
         val backupProgressJob = launch {
-            controlService.backupProgressFlow.collect { update ->
-                val sid = runCatching { Uuid.parse(update.serverId) }.getOrNull() ?: return@collect
-                val netId = serverNetworkId(update.serverId)
+            agentEvents.filterIsInstance<AgentEvent.BackupProgressEvent>().collect { event ->
+                val sid = runCatching { UUID.fromString(event.serverId) }.getOrNull() ?: return@collect
+                val netId = serverNetworkId(event.serverId)
                 if (!canViewServer(sid, netId)) return@collect
                 sendWs(
                     WsEventType.SERVER_BACKUP_PROGRESS,
                     BackupProgressPayload(
-                        update.serverId,
-                        update.backupId,
-                        update.percentComplete,
-                        Clock.System.now()
-                            .toString()
+                        event.serverId,
+                        event.backupId,
+                        event.percentComplete,
+                        Clock.System.now().toString()
                     )
                 )
             }
         }
 
         val backupCompleteJob = launch {
-            controlService.backupCompleteFlow.collect { update ->
-                val sid = runCatching { Uuid.parse(update.serverId) }.getOrNull() ?: return@collect
-                val netId = serverNetworkId(update.serverId)
+            agentEvents.filterIsInstance<AgentEvent.BackupCompleteEvent>().collect { event ->
+                val sid = runCatching { UUID.fromString(event.serverId) }.getOrNull() ?: return@collect
+                val netId = serverNetworkId(event.serverId)
                 if (!canViewServer(sid, netId)) return@collect
-                val status = if (update.success) "COMPLETED" else "FAILED"
+                val status = if (event.success) "COMPLETED" else "FAILED"
                 sendWs(
                     WsEventType.SERVER_BACKUP_COMPLETE, BackupCompletePayload(
-                        update.serverId,
-                        update.backupId,
+                        event.serverId,
+                        event.backupId,
                         status,
-                        update.sizeBytes,
-                        if (!update.success) update.errorMessage else null,
-                        if (update.hasCompletedAt())
-                            Instant.fromEpochSeconds(update.completedAt.seconds, update.completedAt.nanos.toLong())
-                                .toString()
-                        else Clock.System.now()
-                            .toString(),
+                        event.sizeBytes,
+                        if (!event.success) event.errorMessage else null,
+                        event.completedAt.toString(),
                     )
                 )
             }
         }
 
         val alertJob = launch {
-            controlService.alertEventFlow.collect { alert ->
+            agentEvents.filterIsInstance<AgentEvent.AlertFiredEvent>().collect { alert ->
                 val isResolved = alert.resolvedAt != null
                 if (alert.scopeType == ScopeType.NODE.name && !hasNodes()) return@collect
                 if (alert.scopeType == ScopeType.SERVER.name) {
-                    val sid = runCatching { Uuid.parse(alert.scopeId) }.getOrNull() ?: return@collect
+                    val sid = runCatching { UUID.fromString(alert.scopeId) }.getOrNull() ?: return@collect
                     val netId = serverNetworkId(alert.scopeId)
                     if (!canViewServer(sid, netId)) return@collect
                 }

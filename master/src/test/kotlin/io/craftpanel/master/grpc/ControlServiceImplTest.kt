@@ -12,6 +12,9 @@ import io.craftpanel.master.database.schema.ServerMigrations
 import io.craftpanel.master.database.schema.Servers
 import kotlin.uuid.Uuid
 import kotlinx.coroutines.delay
+import io.craftpanel.master.domain.AgentEvent
+import io.craftpanel.master.domain.NodeConnectionStatus
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
@@ -414,7 +417,7 @@ class ControlServiceImplTest {
     }
 
     // -------------------------------------------------------------------------
-    // control stream — PENDING node should not emit ACTIVE to nodeStatusFlow
+    // control stream — PENDING node should not emit ACTIVE to agentEvents
     // -------------------------------------------------------------------------
 
     @Test
@@ -442,10 +445,10 @@ class ControlServiceImplTest {
     @Test
     fun `control stream emits ACTIVE to nodeStatusFlow for ACTIVE node`() = runBlocking {
         val nodeId = createNode(status = "ACTIVE")
-        val emitted = mutableListOf<Pair<String, String>>()
+        val emitted = mutableListOf<AgentEvent.NodeStatusEvent>()
 
         val collectJob = launch {
-            service.nodeStatusFlow.collect { emitted.add(it) }
+            service.agentEvents.filterIsInstance<AgentEvent.NodeStatusEvent>().collect { emitted.add(it) }
         }
 
         val agentMessages = flow {
@@ -462,18 +465,18 @@ class ControlServiceImplTest {
         collectJob.cancel()
 
         assertTrue(
-            emitted.any { it.first == nodeId.toString() && it.second == "ACTIVE" },
-            "ACTIVE node should emit ACTIVE to nodeStatusFlow after sending snapshot"
+            emitted.any { it.nodeId == nodeId.toString() && it.status == NodeConnectionStatus.ACTIVE },
+            "ACTIVE node should emit ACTIVE to agentEvents after sending snapshot"
         )
     }
 
     @Test
     fun `control stream emits ACTIVE to nodeStatusFlow for DEGRADED node on reconnect`() = runBlocking {
         val nodeId = createNode(status = "DEGRADED")
-        val emitted = mutableListOf<Pair<String, String>>()
+        val emitted = mutableListOf<AgentEvent.NodeStatusEvent>()
 
         val collectJob = launch {
-            service.nodeStatusFlow.collect { emitted.add(it) }
+            service.agentEvents.filterIsInstance<AgentEvent.NodeStatusEvent>().collect { emitted.add(it) }
         }
 
         val agentMessages = flow {
@@ -490,8 +493,8 @@ class ControlServiceImplTest {
         collectJob.cancel()
 
         assertTrue(
-            emitted.any { it.first == nodeId.toString() && it.second == "ACTIVE" },
-            "DEGRADED node should emit ACTIVE to nodeStatusFlow on reconnect"
+            emitted.any { it.nodeId == nodeId.toString() && it.status == NodeConnectionStatus.ACTIVE },
+            "DEGRADED node should emit ACTIVE to agentEvents on reconnect"
         )
     }
 }

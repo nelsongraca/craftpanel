@@ -35,19 +35,11 @@ import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 import io.craftpanel.master.util.toUtcString
+import io.craftpanel.master.domain.AgentEvent
+import io.craftpanel.master.domain.AgentMetricEvent
+import io.craftpanel.master.domain.NodeConnectionStatus
 import io.craftpanel.master.domain.ServerStatus
 import kotlin.uuid.Uuid
-
-data class AlertEventNotification(
-    val eventId: String,
-    val thresholdId: String,
-    val scopeType: String,
-    val scopeId: String,
-    val metric: String,
-    val message: String,
-    val firedAt: String,
-    val resolvedAt: String? = null,
-)
 
 class ControlServiceImpl(
     private val nodeConfig: NodeConfig,
@@ -63,29 +55,11 @@ class ControlServiceImpl(
     private val consoleOutputChannels = ConcurrentHashMap<String, Channel<ConsoleOutput>>()
 
     // ── Observability flows ───────────────────────────────────────────────────
-    private val _nodeMetricsFlow = MutableSharedFlow<Pair<String, NodeMetricsUpdate>>(extraBufferCapacity = 256)
-    private val _containerMetricsFlow = MutableSharedFlow<Pair<String, ContainerMetricsUpdate>>(extraBufferCapacity = 256)
-    private val _serverStatusFlow = MutableSharedFlow<Pair<String, ServerStatusUpdate>>(extraBufferCapacity = 256)
-    private val _playerUpdateFlow = MutableSharedFlow<Pair<String, PlayerUpdate>>(extraBufferCapacity = 256)
-    private val _nodeStatusFlow = MutableSharedFlow<Pair<String, String>>(extraBufferCapacity = 64)
-    private val _alertEventFlow = MutableSharedFlow<AlertEventNotification>(extraBufferCapacity = 64)
-    private val _backupProgressFlow = MutableSharedFlow<BackupProgressUpdate>(extraBufferCapacity = 128)
-    private val _backupCompleteFlow = MutableSharedFlow<BackupCompleteUpdate>(extraBufferCapacity = 64)
-    private val _rsyncReadyFlow = MutableSharedFlow<RsyncReadyUpdate>(extraBufferCapacity = 64)
-    private val _rsyncProgressFlow = MutableSharedFlow<RsyncProgressUpdate>(extraBufferCapacity = 256)
-    private val _rsyncCompleteFlow = MutableSharedFlow<RsyncCompleteUpdate>(extraBufferCapacity = 64)
+    private val _agentEvents = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 512)
+    private val _agentMetricsFlow = MutableSharedFlow<AgentMetricEvent>(extraBufferCapacity = 1024)
 
-    val nodeMetricsFlow = _nodeMetricsFlow.asSharedFlow()
-    val containerMetricsFlow = _containerMetricsFlow.asSharedFlow()
-    val serverStatusFlow = _serverStatusFlow.asSharedFlow()
-    val playerUpdateFlow = _playerUpdateFlow.asSharedFlow()
-    val nodeStatusFlow = _nodeStatusFlow.asSharedFlow()
-    val alertEventFlow = _alertEventFlow.asSharedFlow()
-    val backupProgressFlow = _backupProgressFlow.asSharedFlow()
-    val backupCompleteFlow = _backupCompleteFlow.asSharedFlow()
-    val rsyncReadyFlow = _rsyncReadyFlow.asSharedFlow()
-    val rsyncProgressFlow = _rsyncProgressFlow.asSharedFlow()
-    val rsyncCompleteFlow = _rsyncCompleteFlow.asSharedFlow()
+    val agentEvents = _agentEvents.asSharedFlow()
+    val agentMetricsFlow = _agentMetricsFlow.asSharedFlow()
 
     fun sendToNode(nodeId: String, msg: MasterMessage): Boolean {
         val channel = connectedAgents[nodeId]
@@ -188,7 +162,7 @@ class ControlServiceImpl(
                     connectedNodeId?.let { nodeId ->
                         log.warn("Node $nodeId: no metrics for ${elapsed.inWholeSeconds}s — marking degraded")
                         markNodeDegraded(nodeId)
-                        _nodeStatusFlow.emit(nodeId to "DEGRADED")
+                        _agentEvents.emit(AgentEvent.NodeStatusEvent(nodeId, NodeConnectionStatus.DEGRADED))
                     }
                 }
             }
@@ -230,7 +204,7 @@ class ControlServiceImpl(
                             .onSuccess { result ->
                                 if (result != null) {
                                     log.debug("Node ${msg.nodeId}: reconcileNodeState ok, wasRestored=$result — emitting ACTIVE")
-                                    _nodeStatusFlow.emit(msg.nodeId to "ACTIVE")
+                                    _agentEvents.emit(AgentEvent.NodeStatusEvent(msg.nodeId, NodeConnectionStatus.ACTIVE))
                                 }
                                 else {
                                     log.debug("Node ${msg.nodeId}: reconcileNodeState ok but node is PENDING — skipping ACTIVE emit")
@@ -241,58 +215,127 @@ class ControlServiceImpl(
 
                     msg.hasNodeMetrics()           -> {
                         lastMetricsAt.set(Clock.System.now())
-                        runCatching { persistNodeMetrics(msg.nodeId, msg.nodeMetrics) }
+                        val recordedAt = if (msg.nodeMetrics.hasRecordedAt())
+                            Instant.fromEpochSeconds(msg.nodeMetrics.recordedAt.seconds, msg.nodeMetrics.recordedAt.nanos.toLong())
+                        else Clock.System.now()
+                        val nodeMetricEvent = AgentMetricEvent.NodeMetricsEvent(
+                            nodeId = msg.nodeId,
+                            cpuPercent = msg.nodeMetrics.cpuPercent,
+                            ramUsedMb = msg.nodeMetrics.ramUsedMb,
+                            ramTotalMb = msg.nodeMetrics.ramTotalMb,
+                            netInBytes = msg.nodeMetrics.netInBytes,
+                            netOutBytes = msg.nodeMetrics.netOutBytes,
+                            diskUsedBytes = msg.nodeMetrics.diskUsedBytes,
+                            diskTotalBytes = msg.nodeMetrics.diskTotalBytes,
+                            recordedAt = recordedAt,
+                        )
+                        runCatching { persistNodeMetrics(nodeMetricEvent) }
                             .onFailure { e -> log.warn("Node ${msg.nodeId}: persistNodeMetrics failed — ${e.message}") }
-                        _nodeMetricsFlow.emit(msg.nodeId to msg.nodeMetrics)
+                        _agentMetricsFlow.emit(nodeMetricEvent)
                         launch {
-                            try {
-                                evaluateNodeAlerts(msg.nodeId, msg.nodeMetrics)
-                            }
-                            catch (e: Exception) {
-                                if (e is CancellationException) throw e
-                                log.warn("Node ${msg.nodeId}: evaluateNodeAlerts failed — ${e.message}")
-                            }
+                            runCatching { evaluateNodeAlerts(msg.nodeId, msg.nodeMetrics) }
+                                .onFailure { e -> if (e is CancellationException) throw e; log.warn("Node ${msg.nodeId}: evaluateNodeAlerts failed — ${e.message}") }
                         }
                     }
 
                     msg.hasContainerMetrics()      -> {
-                        runCatching { persistContainerMetrics(msg.containerMetrics) }
+                        val recordedAt = if (msg.containerMetrics.hasRecordedAt())
+                            Instant.fromEpochSeconds(msg.containerMetrics.recordedAt.seconds, msg.containerMetrics.recordedAt.nanos.toLong())
+                        else Clock.System.now()
+                        val containerMetricEvent = AgentMetricEvent.ContainerMetricsEvent(
+                            serverId = msg.containerMetrics.serverId,
+                            cpuPercent = msg.containerMetrics.cpuPercent,
+                            ramUsedMb = msg.containerMetrics.ramUsedMb,
+                            netInBytes = msg.containerMetrics.netInBytes,
+                            netOutBytes = msg.containerMetrics.netOutBytes,
+                            recordedAt = recordedAt,
+                        )
+                        runCatching { persistContainerMetrics(containerMetricEvent) }
                             .onFailure { e -> log.warn("Node ${msg.nodeId}: persistContainerMetrics failed — ${e.message}") }
-                        _containerMetricsFlow.emit(msg.containerMetrics.serverId to msg.containerMetrics)
+                        _agentMetricsFlow.emit(containerMetricEvent)
                         launch {
-                            try {
-                                evaluateServerAlerts(msg.containerMetrics)
-                            }
-                            catch (e: Exception) {
-                                if (e is CancellationException) throw e
-                                log.warn("Node ${msg.nodeId}: evaluateServerAlerts failed — ${e.message}")
-                            }
+                            runCatching { evaluateServerAlerts(msg.containerMetrics) }
+                                .onFailure { e -> if (e is CancellationException) throw e; log.warn("Node ${msg.nodeId}: evaluateServerAlerts failed — ${e.message}") }
                         }
                     }
 
                     msg.hasServerStatus()          -> {
-                        runCatching { persistServerStatus(msg.serverStatus) }
+                        val domainStatus = ServerStatus.fromProto(msg.serverStatus.status)
+                        val serverStatusEvent = AgentEvent.ServerStatusEvent(
+                            serverId = msg.serverStatus.serverId,
+                            status = domainStatus,
+                            containerId = msg.serverStatus.containerId,
+                        )
+                        runCatching { persistServerStatus(serverStatusEvent) }
                             .onFailure { e -> log.warn("Node ${msg.nodeId}: persistServerStatus failed — ${e.message}") }
-                        _serverStatusFlow.emit(msg.serverStatus.serverId to msg.serverStatus)
+                        _agentEvents.emit(serverStatusEvent)
                     }
 
                     msg.hasPlayerUpdate()          -> {
+                        val recordedAt = if (msg.playerUpdate.hasRecordedAt())
+                            Instant.fromEpochSeconds(msg.playerUpdate.recordedAt.seconds, msg.playerUpdate.recordedAt.nanos.toLong())
+                        else Clock.System.now()
+                        val playerUpdateEvent = AgentMetricEvent.PlayerUpdateEvent(
+                            serverId = msg.playerUpdate.serverId,
+                            playerCount = msg.playerUpdate.playerCount,
+                            playerNames = msg.playerUpdate.playerNamesList,
+                            recordedAt = recordedAt,
+                        )
                         runCatching { persistPlayerUpdate(msg.playerUpdate) }
                             .onFailure { e -> log.error("Node ${msg.nodeId}: persistPlayerUpdate failed — ${e.message}", e) }
-                        _playerUpdateFlow.emit(msg.playerUpdate.serverId to msg.playerUpdate)
+                        _agentMetricsFlow.emit(playerUpdateEvent)
                     }
 
-                    msg.hasBackupProgress()        -> _backupProgressFlow.emit(msg.backupProgress)
+                    msg.hasBackupProgress()        -> _agentEvents.emit(
+                        AgentEvent.BackupProgressEvent(
+                            serverId = msg.backupProgress.serverId,
+                            backupId = msg.backupProgress.backupId,
+                            percentComplete = msg.backupProgress.percentComplete,
+                        )
+                    )
 
                     msg.hasBackupComplete()        -> {
+                        val completedAt = if (msg.backupComplete.hasCompletedAt())
+                            Instant.fromEpochSeconds(msg.backupComplete.completedAt.seconds, msg.backupComplete.completedAt.nanos.toLong())
+                        else Clock.System.now()
+                        val backupCompleteEvent = AgentEvent.BackupCompleteEvent(
+                            serverId = msg.backupComplete.serverId,
+                            backupId = msg.backupComplete.backupId,
+                            success = msg.backupComplete.success,
+                            sizeBytes = msg.backupComplete.sizeBytes,
+                            errorMessage = if (!msg.backupComplete.success) msg.backupComplete.errorMessage else "",
+                            completedAt = completedAt,
+                        )
                         runCatching { persistBackupComplete(msg.backupComplete) }
                             .onFailure { e -> log.error("Node ${msg.nodeId}: persistBackupComplete failed — ${e.message}", e) }
-                        _backupCompleteFlow.emit(msg.backupComplete)
+                        _agentEvents.emit(backupCompleteEvent)
                     }
 
-                    msg.hasRsyncReady()            -> _rsyncReadyFlow.emit(msg.rsyncReady)
-                    msg.hasRsyncProgress()         -> _rsyncProgressFlow.emit(msg.rsyncProgress)
-                    msg.hasRsyncComplete()         -> _rsyncCompleteFlow.emit(msg.rsyncComplete)
+                    msg.hasRsyncReady()            -> _agentEvents.emit(
+                        AgentEvent.RsyncReadyEvent(
+                            migrationId = msg.rsyncReady.migrationId,
+                            rsyncPassword = msg.rsyncReady.rsyncPassword,
+                        )
+                    )
+
+                    msg.hasRsyncProgress()         -> _agentEvents.emit(
+                        AgentEvent.RsyncProgressEvent(
+                            migrationId = msg.rsyncProgress.migrationId,
+                            isFinalPass = msg.rsyncProgress.isFinalPass,
+                            percentComplete = msg.rsyncProgress.percentComplete,
+                            bytesTransferred = msg.rsyncProgress.bytesTransferred,
+                            phase = msg.rsyncProgress.phase,
+                        )
+                    )
+
+                    msg.hasRsyncComplete()         -> _agentEvents.emit(
+                        AgentEvent.RsyncCompleteEvent(
+                            migrationId = msg.rsyncComplete.migrationId,
+                            isFinalPass = msg.rsyncComplete.isFinalPass,
+                            success = msg.rsyncComplete.success,
+                            errorMessage = msg.rsyncComplete.errorMessage,
+                        )
+                    )
 
                     // Data op responses — route to waiting callers
                     msg.hasConsoleOutput()         -> routeConsoleOutput(msg.nodeId, msg.consoleOutput)
@@ -325,7 +368,7 @@ class ControlServiceImpl(
                 if (wasOwner && !watchdogFired && !connectedAgents.containsKey(nodeId)) {
                     log.warn("Node $nodeId: control stream disconnected — marking degraded")
                     markNodeDegraded(nodeId)
-                    _nodeStatusFlow.emit(nodeId to "DEGRADED")
+                    _agentEvents.emit(AgentEvent.NodeStatusEvent(nodeId, NodeConnectionStatus.DEGRADED))
                 }
                 else if (wasOwner && connectedAgents.containsKey(nodeId)) {
                     log.info("Node $nodeId: stream ended but new connection is already active — skipping degrade")
@@ -555,84 +598,60 @@ class ControlServiceImpl(
 
     // ── Metrics persistence ───────────────────────────────────────────────────
 
-    private fun persistNodeMetrics(nodeId: String, metrics: NodeMetricsUpdate) {
+    private fun persistNodeMetrics(event: AgentMetricEvent.NodeMetricsEvent) {
         val kotlinNodeId = runCatching {
-            Uuid.parse(nodeId)
-
+            Uuid.parse(event.nodeId)
         }.getOrNull() ?: return
-        val recordedAt = if (metrics.hasRecordedAt()) {
-            Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong())
-                .toLocalDateTime(TimeZone.UTC)
-        }
-        else {
-            Clock.System.now()
-                .toLocalDateTime(TimeZone.UTC)
-        }
+        val recordedAt = event.recordedAt.toLocalDateTime(TimeZone.UTC)
 
         transaction {
             NodeMetrics.insert {
                 it[NodeMetrics.nodeId] = kotlinNodeId
                 it[NodeMetrics.recordedAt] = recordedAt
-                it[NodeMetrics.cpuPercent] = metrics.cpuPercent
-                it[NodeMetrics.ramUsedMb] = metrics.ramUsedMb
-                it[NodeMetrics.ramTotalMb] = metrics.ramTotalMb
-                it[NodeMetrics.netInBytes] = metrics.netInBytes
-                it[NodeMetrics.netOutBytes] = metrics.netOutBytes
-                it[NodeMetrics.diskUsedBytes] = metrics.diskUsedBytes
-                it[NodeMetrics.diskTotalBytes] = metrics.diskTotalBytes
+                it[NodeMetrics.cpuPercent] = event.cpuPercent
+                it[NodeMetrics.ramUsedMb] = event.ramUsedMb
+                it[NodeMetrics.ramTotalMb] = event.ramTotalMb
+                it[NodeMetrics.netInBytes] = event.netInBytes
+                it[NodeMetrics.netOutBytes] = event.netOutBytes
+                it[NodeMetrics.diskUsedBytes] = event.diskUsedBytes
+                it[NodeMetrics.diskTotalBytes] = event.diskTotalBytes
             }
-            if (metrics.ramUsedMb > 0) {
+            if (event.ramUsedMb > 0) {
                 Nodes.update({ Nodes.id eq kotlinNodeId }) {
-                    it[Nodes.systemRamUsedMb] = metrics.ramUsedMb
+                    it[Nodes.systemRamUsedMb] = event.ramUsedMb
                 }
             }
         }
     }
 
-    private fun persistContainerMetrics(metrics: ContainerMetricsUpdate) {
+    private fun persistContainerMetrics(event: AgentMetricEvent.ContainerMetricsEvent) {
         val kotlinServerId = runCatching {
-            Uuid.parse(metrics.serverId)
-
+            Uuid.parse(event.serverId)
         }.getOrNull() ?: return
-        val recordedAt = if (metrics.hasRecordedAt()) {
-            Instant.fromEpochSeconds(metrics.recordedAt.seconds, metrics.recordedAt.nanos.toLong())
-                .toLocalDateTime(TimeZone.UTC)
-        }
-        else {
-            Clock.System.now()
-                .toLocalDateTime(TimeZone.UTC)
-        }
+        val recordedAt = event.recordedAt.toLocalDateTime(TimeZone.UTC)
 
         transaction {
             ContainerMetrics.insert {
                 it[ContainerMetrics.serverId] = kotlinServerId
                 it[ContainerMetrics.recordedAt] = recordedAt
-                it[ContainerMetrics.cpuPercent] = metrics.cpuPercent
-                it[ContainerMetrics.ramUsedMb] = metrics.ramUsedMb
-                it[ContainerMetrics.netInBytes] = metrics.netInBytes
-                it[ContainerMetrics.netOutBytes] = metrics.netOutBytes
+                it[ContainerMetrics.cpuPercent] = event.cpuPercent
+                it[ContainerMetrics.ramUsedMb] = event.ramUsedMb
+                it[ContainerMetrics.netInBytes] = event.netInBytes
+                it[ContainerMetrics.netOutBytes] = event.netOutBytes
             }
         }
     }
 
-    private fun persistServerStatus(update: ServerStatusUpdate) {
+    private fun persistServerStatus(event: AgentEvent.ServerStatusEvent) {
         val serverId = runCatching {
-            Uuid.parse(update.serverId)
-
+            Uuid.parse(event.serverId)
         }.getOrNull() ?: return
-        val dbStatus = when (update.status) {
-            ServerStatusUpdate.ServerStatus.STARTING  -> "STARTING"
-            ServerStatusUpdate.ServerStatus.HEALTHY   -> "HEALTHY"
-            ServerStatusUpdate.ServerStatus.STOPPED   -> "STOPPED"
-            ServerStatusUpdate.ServerStatus.UNHEALTHY -> "UNHEALTHY"
-            else                                      -> return
-        }
         val now = Clock.System.now()
             .toLocalDateTime(TimeZone.UTC)
         transaction {
             Servers.update({ Servers.id eq serverId }) {
-                it[Servers.status] = dbStatus
-                if (update.containerId.isNotEmpty()) it[Servers.containerId] = update.containerId
+                it[Servers.status] = event.status.toDb()
+                if (event.containerId.isNotEmpty()) it[Servers.containerId] = event.containerId
                 it[Servers.lastSeenAt] = now
             }
         }
@@ -704,7 +723,7 @@ class ControlServiceImpl(
         }
 
         val notifications = transaction {
-            val result = mutableListOf<AlertEventNotification>()
+            val result = mutableListOf<AgentEvent.AlertFiredEvent>()
             val thresholds = AlertThresholds.selectAll()
                 .where { (AlertThresholds.scopeType eq ScopeType.NODE.name) and (AlertThresholds.scopeId eq kotlinNodeId) and AlertThresholds.thresholdValue.isNotNull() }
                 .toList()
@@ -726,13 +745,13 @@ class ControlServiceImpl(
                         it[AlertEvents.firedAt] = now
                         it[AlertEvents.message] = msg
                     }[AlertEvents.id]
-                    result += AlertEventNotification(eventId.toString(), thresholdId.toString(), ScopeType.NODE.name, nodeId, metric, msg, now.toUtcString())
+                    result += AgentEvent.AlertFiredEvent(eventId.toString(), thresholdId.toString(), ScopeType.NODE.name, nodeId, metric, msg, now.toUtcString(), null)
                 }
                 else if (!triggered && openEvent != null) {
                     val eventId = openEvent[AlertEvents.id]
                     AlertEvents.update({ AlertEvents.id eq eventId }) { it[AlertEvents.resolvedAt] = now }
                     val msg = "Node $nodeId: $metric normalised"
-                    result += AlertEventNotification(
+                    result += AgentEvent.AlertFiredEvent(
                         eventId.toString(),
                         thresholdId.toString(),
                         ScopeType.NODE.name,
@@ -747,13 +766,12 @@ class ControlServiceImpl(
             result
         }
 
-        notifications.forEach { _alertEventFlow.emit(it) }
+        notifications.forEach { _agentEvents.emit(it) }
     }
 
     private suspend fun evaluateServerAlerts(metrics: ContainerMetricsUpdate) {
         val kotlinServerId = runCatching {
             Uuid.parse(metrics.serverId)
-
         }.getOrNull() ?: return
         val now = Clock.System.now()
             .toLocalDateTime(TimeZone.UTC)
@@ -772,7 +790,7 @@ class ControlServiceImpl(
         }
 
         val notifications = transaction {
-            val result = mutableListOf<AlertEventNotification>()
+            val result = mutableListOf<AgentEvent.AlertFiredEvent>()
             val thresholds = AlertThresholds.selectAll()
                 .where { (AlertThresholds.scopeType eq ScopeType.SERVER.name) and (AlertThresholds.scopeId eq kotlinServerId) and AlertThresholds.thresholdValue.isNotNull() }
                 .toList()
@@ -794,13 +812,13 @@ class ControlServiceImpl(
                         it[AlertEvents.firedAt] = now
                         it[AlertEvents.message] = msg
                     }[AlertEvents.id]
-                    result += AlertEventNotification(eventId.toString(), thresholdId.toString(), ScopeType.SERVER.name, metrics.serverId, metric, msg, now.toUtcString())
+                    result += AgentEvent.AlertFiredEvent(eventId.toString(), thresholdId.toString(), ScopeType.SERVER.name, metrics.serverId, metric, msg, now.toUtcString(), null)
                 }
                 else if (!triggered && openEvent != null) {
                     val eventId = openEvent[AlertEvents.id]
                     AlertEvents.update({ AlertEvents.id eq eventId }) { it[AlertEvents.resolvedAt] = now }
                     val msg = "Server ${metrics.serverId}: $metric normalised"
-                    result += AlertEventNotification(
+                    result += AgentEvent.AlertFiredEvent(
                         eventId.toString(), thresholdId.toString(), ScopeType.SERVER.name,
                         metrics.serverId, metric, msg,
                         openEvent[AlertEvents.firedAt].toUtcString(), now.toUtcString()
@@ -810,7 +828,7 @@ class ControlServiceImpl(
             result
         }
 
-        notifications.forEach { _alertEventFlow.emit(it) }
+        notifications.forEach { _agentEvents.emit(it) }
     }
 
     // ── Utility ───────────────────────────────────────────────────────────────

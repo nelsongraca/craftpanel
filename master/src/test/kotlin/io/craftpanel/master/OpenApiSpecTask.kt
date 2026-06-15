@@ -13,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import io.craftpanel.master.domain.AgentEvent
 import kotlinx.coroutines.flow.MutableSharedFlow
 import io.github.smiley4.ktoropenapi.OpenApi
 import io.github.smiley4.ktoropenapi.config.AuthScheme
@@ -93,39 +94,33 @@ class OpenApiSpecTask {
                     val wsTicketService = WsTicketService()
                     val controlSvc = ControlServiceImpl(NodeConfig(bootstrapToken = "test", agentDataPort = 50052))
                     val proxy = DataServiceProxy(controlSvc, BulkDataServiceImpl(controlSvc))
-                    val noopSend: (String, io.craftpanel.proto.MasterMessage) -> Boolean = { _, _ -> false }
+                    val noopSend: (String, com.craftpanel.agent.v1.MasterMessage) -> Boolean = { _, _ -> false }
                     val modService = ModService()
-                    registerAppRoutes(
-                        AppServices(
-                            jwtManager = jwtManager,
-                            refreshTokenService = refreshTokenService,
-                            wsTicketService = wsTicketService,
-                            nodeService = NodeService(noopSend),
-                            networkService = NetworkService(),
-                            serverService = ServerService(noopSend, modService),
-                            userService = UserService(),
-                            groupService = GroupService(),
-                            assignmentService = AssignmentService(),
-                            systemService = SystemService(),
-                            backupService = BackupService(noopSend, proxy),
-                            proxyBackendService = ProxyBackendService(),
-                            envVarsService = EnvVarsService(),
-                            modService = modService,
-                            alertService = AlertService(),
-                            migrationService = MigrationService(
-                                sendToNode = { _, _ -> false },
-                                rsyncReadyFlow = MutableSharedFlow(),
-                                rsyncProgressFlow = MutableSharedFlow(),
-                                rsyncCompleteFlow = MutableSharedFlow(),
-                                serverStatusFlow = MutableSharedFlow(),
-                                dnsProvider = null,
-                                scope = migrationScope,
-                                lifecycle = ServerLifecycle(noopSend, modService),
-                            ),
-                            dataServiceProxy = proxy,
-                            controlService = controlSvc,
-                        )
-                    )
+                    registerAppRoutes(AppServices(
+                        jwtManager = jwtManager,
+                        refreshTokenService = refreshTokenService,
+                        wsTicketService = wsTicketService,
+                        nodeService = NodeService(noopSend),
+                        networkService = NetworkService(),
+                        serverService = ServerService(noopSend, modService),
+                        userService = UserService(),
+                        groupService = GroupService(),
+                        assignmentService = AssignmentService(),
+                        systemService = SystemService(),
+                        backupService = BackupService(noopSend, proxy),
+                        proxyBackendService = ProxyBackendService(),
+                        envVarsService = EnvVarsService(),
+                        modService = modService,
+                        alertService = AlertService(),
+                        migrationService = MigrationService(
+                            sendToNode = { _, _ -> false },
+                            agentEvents = MutableSharedFlow<AgentEvent>(),
+                            dnsProvider = null,
+                            scope = migrationScope,
+                        ),
+                        dataServiceProxy = proxy,
+                        controlService = controlSvc,
+                    ))
                 }
             }
 
@@ -136,8 +131,7 @@ class OpenApiSpecTask {
             val outputFile = File(output)
             outputFile.parentFile.mkdirs()
             outputFile.writeText(spec)
-        }
-        finally {
+        } finally {
             migrationScope.cancel()
         }
     }

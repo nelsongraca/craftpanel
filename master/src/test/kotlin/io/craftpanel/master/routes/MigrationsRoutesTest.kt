@@ -6,6 +6,7 @@ import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
+import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.service.*
 import kotlin.uuid.Uuid
 import io.ktor.client.call.*
@@ -50,10 +51,7 @@ class MigrationsRoutesTest {
 
     private fun buildMigrationService(): MigrationService = MigrationService(
         sendToNode = noopSend,
-        rsyncReadyFlow = MutableSharedFlow(),
-        rsyncProgressFlow = MutableSharedFlow(),
-        rsyncCompleteFlow = MutableSharedFlow(),
-        serverStatusFlow = MutableSharedFlow(),
+        agentEvents = MutableSharedFlow<AgentEvent>(),
         dnsProvider = null,
         scope = testScope,
         lifecycle = ServerLifecycle(noopSend, ModService()),

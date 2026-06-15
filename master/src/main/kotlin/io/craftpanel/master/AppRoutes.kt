@@ -49,7 +49,7 @@ fun Route.registerAppRoutes(svc: AppServices) {
     backupsRoutes(svc.backupService)
     configRoutes(svc.proxyBackendService, svc.envVarsService)
     modsRoutes(svc.modService)
-    dashboardWsRoutes(svc.wsTicketService, svc.controlService)
+    dashboardWsRoutes(svc.wsTicketService, svc.controlService.agentEvents, svc.controlService.agentMetricsFlow)
     alertsRoutes(svc.alertService)
     migrationsRoutes(svc.migrationService)
 }
