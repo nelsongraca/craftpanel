@@ -11,6 +11,50 @@ import java.nio.file.attribute.PosixFilePermission
 import java.util.EnumSet
 import kotlin.random.Random
 
+/**
+ * Force-removes ALL containers whose name starts with `craftpanel-` and removes all networks
+ * named `craftpanel-*`. Called from SystemTestConfig.afterProject() as a backstop for cross-spec
+ * leaks that per-instance cleanup cannot reach (each CraftPanelStack.start() only matches its own
+ * random suffix).
+ */
+fun globalCraftpanelCleanup() {
+    val client = DockerClientFactory.instance().client()
+    var removedContainers = 0
+    var removedNetworks = 0
+
+    runCatching {
+        val containers = client.listContainersCmd()
+            .withShowAll(true)
+            .withNameFilter(listOf("craftpanel-"))
+            .exec()
+        for (container in containers) {
+            runCatching {
+                client.removeContainerCmd(container.id)
+                    .withForce(true)
+                    .exec()
+                removedContainers++
+            }
+        }
+    }
+
+    runCatching {
+        val networks = client.listNetworksCmd()
+            .exec()
+            .filter { it.name?.startsWith("craftpanel-") == true }
+        for (net in networks) {
+            runCatching {
+                client.removeNetworkCmd(net.id)
+                    .exec()
+                removedNetworks++
+            }
+        }
+    }
+
+    if (removedContainers > 0 || removedNetworks > 0) {
+        System.err.println("[global-cleanup] Removed $removedContainers craftpanel container(s) and $removedNetworks network(s)")
+    }
+}
+
 // Self-referential subclasses — standard Kotlin idiom for Testcontainers to avoid
 // the Nothing/wildcard type-parameter issues with the fluent builder API.
 private class PgContainer : GenericContainer<PgContainer>("postgres:16")
@@ -82,7 +126,24 @@ class CraftPanelStack {
         coverageMode = coverageEnabled
         // All containers share the craftpanel network so the agent self-check passes at startup
         // and game server containers are reachable from the agent without post-start hacks.
+        try {
+            startInternal(coverageEnabled, agentJar, coverageDir, nodeCount)
+        } catch (t: Throwable) {
+            // Self-clean on partial start so that spec afterSpec skips (Kotest 6.1 afterSpec is
+            // skipped when beforeSpec throws) do not leak partially-started containers.
+            runCatching { stop() }.onFailure { stopErr ->
+                System.err.println("[start-cleanup] stop() after failed start threw: ${stopErr.message}")
+            }
+            throw t
+        }
+    }
 
+    private fun startInternal(
+        coverageEnabled: Boolean,
+        agentJar: File?,
+        coverageDir: File?,
+        nodeCount: Int,
+    ) {
         // Remove any orphaned agent-managed containers from previous runs that might hold
         // stale port bindings.
         cleanupAgentContainers()
@@ -243,8 +304,10 @@ class CraftPanelStack {
     }
 
     fun stop() {
-        agents.forEach { gracefulStop(it) }
+        // Explicitly stop agent-managed containers (mc-router, game servers) before removing them.
+        // These may have restart policies (e.g. unless-stopped) that fight a plain remove.
         stopAllPrefixedContainers()
+        agents.forEach { gracefulStop(it) }
         cleanupAgentContainers()
         if (::master.isInitialized) gracefulStop(master)
         if (::postgres.isInitialized) postgres.stop()
@@ -254,6 +317,7 @@ class CraftPanelStack {
                     .exec()
             }
         }
+        verifyContainersRemoved()
         testDataDirs.forEach { dir ->
             runCatching {
                 dir.deleteRecursively()
@@ -261,6 +325,38 @@ class CraftPanelStack {
             }
         }
         agents.clear()
+    }
+
+    /**
+     * After issuing removes, poll until all containers matching our prefix are gone.
+     * Bounded to 5 attempts × 500 ms. Logs to System.err if any remain — does NOT throw.
+     */
+    private fun verifyContainersRemoved(attempts: Int = 5, delayMs: Long = 500) {
+        repeat(attempts) { attempt ->
+            val remaining = runCatching {
+                dockerClient.listContainersCmd()
+                    .withShowAll(true)
+                    .withNameFilter(listOf("$containerPrefix-"))
+                    .exec()
+            }.getOrElse { return }
+            if (remaining.isEmpty()) return
+            if (attempt < attempts - 1) {
+                Thread.sleep(delayMs)
+                // Force-remove any survivors before checking again
+                remaining.forEach { container ->
+                    runCatching {
+                        dockerClient.removeContainerCmd(container.id)
+                            .withForce(true)
+                            .exec()
+                    }
+                }
+            } else {
+                System.err.println(
+                    "[cleanup] WARNING: ${remaining.size} container(s) still present after $attempts attempts: " +
+                        remaining.joinToString { it.names.firstOrNull() ?: it.id }
+                )
+            }
+        }
     }
 
     private fun stopAllPrefixedContainers() {

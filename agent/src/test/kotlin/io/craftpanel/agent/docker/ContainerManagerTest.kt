@@ -128,7 +128,14 @@ class ContainerManagerTest {
             image = "itzg/minecraft-server:latest"
         })
 
-        verify { createCmd.withLabels(mapOf("craftpanel.server.id" to "srv-label-test")) }
+        verify {
+            createCmd.withLabels(
+                mapOf(
+                    "craftpanel.managed" to "true",
+                    "craftpanel.server.id" to "srv-label-test",
+                )
+            )
+        }
     }
 
     // -------------------------------------------------------------------------
@@ -251,7 +258,7 @@ class ContainerManagerTest {
         serverId: String? = "server-id",
     ): Container {
         val labelsJson = if (serverId != null)
-            """{"craftpanel.server.id":"$serverId"}"""
+            """{"craftpanel.managed":"true","craftpanel.server.id":"$serverId"}"""
         else "{}"
         val json = """{"Id":"$id","Names":["$name"],"State":"$state","Status":"$status","Labels":$labelsJson}"""
         return objectMapper.readValue(json, Container::class.java)

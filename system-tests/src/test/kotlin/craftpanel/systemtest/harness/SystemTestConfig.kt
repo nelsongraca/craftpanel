@@ -31,5 +31,8 @@ object SystemTestConfig : AbstractProjectConfig() {
 
     override suspend fun afterProject() {
         SharedStack.stop()
+        // Backstop: force-remove any craftpanel-* containers/networks that survived per-stack
+        // cleanup (e.g. from specs whose afterSpec was skipped because beforeSpec threw).
+        globalCraftpanelCleanup()
     }
 }

@@ -60,6 +60,7 @@ class McRouterProvisioner(
             docker.createContainerCmd(image)
                 .withName(containerName)
                 .withHostConfig(hostConfig)
+                .withLabels(mapOf("craftpanel.managed" to "true"))
                 .exec().id
         }
         catch (e: ConflictException) {

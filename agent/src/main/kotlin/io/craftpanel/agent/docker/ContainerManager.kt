@@ -86,6 +86,7 @@ open class ContainerManager(
             .withExposedPorts(minecraftPort)
             .withHostConfig(hostConfig)
             .withLabels(buildMap {
+                put("craftpanel.managed", "true")
                 put("craftpanel.server.id", cmd.serverId)
                 if (cmd.publicHostname.isNotEmpty()) {
                     put("mc-router.hostname", cmd.publicHostname)
@@ -333,7 +334,7 @@ CONF
         val containers = docker.listContainersCmd()
             .withShowAll(false)
             .exec()
-            .filter { it.labels.containsKey("craftpanel.server.id") }
+            .filter { it.labels.containsKey("craftpanel.managed") }
 
         var graceful = 0
         var forced = 0
