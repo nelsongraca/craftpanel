@@ -2,20 +2,20 @@ package io.craftpanel.agent.grpc
 
 import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.config.AgentConfig
+import io.craftpanel.agent.di.ConnectionScope
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.MetricsCollector
-import io.craftpanel.agent.grpc.handlers.BackupHandler
-import io.craftpanel.agent.grpc.handlers.ContainerHandler
-import io.craftpanel.agent.grpc.handlers.ConsoleHandler
-import io.craftpanel.agent.grpc.handlers.FileHandler
-import io.craftpanel.agent.grpc.handlers.MigrationHandler
 import kotlinx.coroutines.delay
+import org.koin.core.Koin
+import org.koin.core.parameter.parametersOf
+import org.koin.core.qualifier.named
 import org.slf4j.LoggerFactory
 import kotlin.math.min
 import kotlin.system.exitProcess
 import kotlin.time.Duration.Companion.seconds
 
 class ConnectionManager(
+    private val koin: Koin,
     private val config: AgentConfig,
     private val containerManager: ContainerManager,
     private val metricsCollector: MetricsCollector,
@@ -32,21 +32,25 @@ class ConnectionManager(
                 log.info("Connecting to master at ${config.masterAddress}:${config.masterPort}")
                 val channel = GrpcChannelFactory.create(config)
 
+                val scope = koin.createScope(
+                    scopeId = "connection-" + System.nanoTime(),
+                    qualifier = named<ConnectionScope>(),
+                )
                 try {
                     val identity = NodeAuthenticator(config, metricsCollector).authenticate(channel)
                     backoffSeconds = 5L  // reset on successful auth
 
-                    val containerHandler = ContainerHandler(containerManager, config)
-                    val backupHandler = BackupHandler(config)
-                    val migrationHandler = MigrationHandler(config, containerManager)
-                    val fileHandler = FileHandler(config, identity.nodeKey)
-                    val consoleHandler = ConsoleHandler(containerManager, docker)
                     ControlStreamHandler(
                         identity, config, containerManager, metricsCollector, docker,
-                        containerHandler, backupHandler, migrationHandler, fileHandler, consoleHandler,
+                        container = scope.get(),
+                        backup = scope.get(),
+                        migration = scope.get(),
+                        file = scope.get { parametersOf(identity.nodeKey) },
+                        console = scope.get(),
                     ).run(channel)
                 }
                 finally {
+                    scope.close()
                     channel.shutdown()
                 }
             }

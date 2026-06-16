@@ -1,23 +1,25 @@
 package io.craftpanel.agent
 
+import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.config.AgentConfig
+import io.craftpanel.agent.di.agentModule
 import io.craftpanel.agent.docker.ContainerManager
-import io.craftpanel.agent.docker.DockerClientFactory
 import io.craftpanel.agent.docker.McRouterProvisioner
 import io.craftpanel.agent.docker.MetricsCollector
 import io.craftpanel.agent.grpc.ConnectionManager
 import kotlinx.coroutines.runBlocking
+import org.koin.core.context.startKoin
 import org.slf4j.LoggerFactory
 
 fun main(): Unit = runBlocking {
     val log = LoggerFactory.getLogger("io.craftpanel.agent.Main")
     log.info("CraftPanel Agent starting")
 
-    val config = AgentConfig.fromEnv()
-    config.validate()
+    val koin = startKoin { modules(agentModule) }.koin
+    val config = koin.get<AgentConfig>()
     log.info("Master: ${config.masterAddress}:${config.masterPort} | TLS: ${config.tlsConfigured} | profile: ${config.profile} | dataPath: ${config.dataBasePath} | hostDataPath: ${config.hostDataBasePath}")
 
-    val docker = DockerClientFactory.create(config.dockerSocketPath)
+    val docker = koin.get<DockerClient>()
 
     check(
         docker.listNetworksCmd()
@@ -45,10 +47,10 @@ fun main(): Unit = runBlocking {
     }
     log.info("Docker network: ${config.craftpanelNetwork}")
 
-    val containerManager = ContainerManager(docker, config.craftpanelNetwork, config.containerNamePrefix)
-    val metricsCollector = MetricsCollector(docker, config.craftpanelNetwork)
+    val containerManager = koin.get<ContainerManager>()
+    val metricsCollector = koin.get<MetricsCollector>()
 
     McRouterProvisioner(docker, config.mcRouterImage, config.mcRouterUpdateOnStart, config.craftpanelNetwork, config.containerNamePrefix).ensureRunning()
 
-    ConnectionManager(config, containerManager, metricsCollector, docker).run()
+    ConnectionManager(koin, config, containerManager, metricsCollector, docker).run()
 }

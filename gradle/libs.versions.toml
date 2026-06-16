@@ -26,6 +26,7 @@ okhttp = "5.4.0"
 gson = "2.14.0"
 ktor-openapi-tools = "5.7.0"
 schema-kenerator = "2.7.2"
+koin = "4.2.2"
 
 [libraries]
 # Ktor server
@@ -88,6 +89,12 @@ bcpkix-jdk18on = { module = "org.bouncycastle:bcpkix-jdk18on", version.ref = "bo
 
 cron-utils = { module = "com.cronutils:cron-utils", version.ref = "cron-utils" }
 
+# Koin dependency injection
+koin-core = { module = "io.insert-koin:koin-core", version.ref = "koin" }
+koin-ktor = { module = "io.insert-koin:koin-ktor", version.ref = "koin" }
+koin-logger-slf4j = { module = "io.insert-koin:koin-logger-slf4j", version.ref = "koin" }
+koin-test = { module = "io.insert-koin:koin-test", version.ref = "koin" }
+
 # OpenAPI (smiley4 ktor-openapi)
 ktor-openapi = { module = "io.github.smiley4:ktor-openapi", version.ref = "ktor-openapi-tools" }
 ktor-swagger-ui = { module = "io.github.smiley4:ktor-swagger-ui", version.ref = "ktor-openapi-tools" }
@@ -143,6 +150,10 @@ grpc-server = [
     "grpc-stub",
     "grpc-kotlin-stub",
     "protobuf-kotlin",
+]
+koin-ktor = [
+    "koin-ktor",
+    "koin-logger-slf4j",
 ]
 
 [plugins]

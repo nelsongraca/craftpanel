@@ -148,7 +148,8 @@ class ControlStreamHandlerTest {
         verify { containerManager.removeContainer("craftpanel-recreate", force = true) }
         assertEquals(
             ServerStatusUpdate.ServerStatus.HEALTHY,
-            outboundChannel.messages().single().serverStatus.status
+            outboundChannel.messages()
+                .single().serverStatus.status
         )
     }
 

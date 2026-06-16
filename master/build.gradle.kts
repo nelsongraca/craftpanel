@@ -44,9 +44,11 @@ dependencies {
     implementation(libs.bcprov.jdk18on)
     implementation(libs.bcpkix.jdk18on)
     implementation(libs.logback.classic)
+    implementation(libs.bundles.koin.ktor)
     testImplementation(kotlin("test"))
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.h2)
+    testImplementation(libs.koin.test)
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>()

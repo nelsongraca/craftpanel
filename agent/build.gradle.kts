@@ -40,9 +40,11 @@ dependencies {
     implementation(libs.docker.java.core)
     implementation(libs.docker.java.transport.httpclient5)
     implementation(libs.logback.classic)
+    implementation(libs.koin.core)
     testImplementation(kotlin("test"))
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)
+    testImplementation(libs.koin.test)
 }
 
 sourceSets.main {

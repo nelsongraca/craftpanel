@@ -2,23 +2,25 @@ package io.craftpanel.master
 
 import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.JwtManager
-import io.craftpanel.master.auth.RefreshTokenService
-import io.craftpanel.master.auth.WsTicketService
-import io.craftpanel.master.auth.routes.authRoutes
 import io.craftpanel.master.config.AppConfig
 import io.craftpanel.master.database.DatabaseFactory
 import io.craftpanel.master.database.migrations.seedAdminUser
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import io.craftpanel.master.grpc.ControlServiceImpl
-import io.craftpanel.master.grpc.BulkDataServiceImpl
-import io.craftpanel.master.grpc.DataServiceProxy
-import io.craftpanel.master.grpc.GrpcServer
+import io.craftpanel.master.di.DnsProviderHolder
+import io.craftpanel.master.di.appModule
+import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.dns.DnsProviderFactory
-import io.craftpanel.master.routes.*
-import io.craftpanel.master.service.MigrationService
-import io.craftpanel.master.scheduler.BackupJobHandler
+import io.craftpanel.master.grpc.GrpcServer
+import io.craftpanel.master.routes.ErrorResponse
 import io.craftpanel.master.scheduler.ServerScheduler
-import io.craftpanel.master.service.*
+import io.craftpanel.master.service.BadGatewayException
+import io.craftpanel.master.service.BadRequestException
+import io.craftpanel.master.service.ConflictException
+import io.craftpanel.master.service.ForbiddenException
+import io.craftpanel.master.service.MigrationService
+import io.craftpanel.master.service.NotFoundException
+import io.craftpanel.master.service.PortExhaustedException
+import io.craftpanel.master.service.UnprocessableException
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
@@ -43,7 +45,13 @@ import io.github.smiley4.ktoropenapi.config.SchemaGenerator
 import io.github.smiley4.schemakenerator.swagger.data.RefType
 import io.github.smiley4.ktoropenapi.openApi
 import io.github.smiley4.ktorswaggerui.swaggerUI
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.serialization.json.Json
+import org.koin.core.qualifier.named
+import org.koin.dsl.module
+import org.koin.ktor.ext.get
+import org.koin.ktor.plugin.Koin
+import org.koin.logger.slf4jLogger
 import org.slf4j.LoggerFactory
 import org.slf4j.event.Level
 import kotlin.time.Duration.Companion.minutes
@@ -67,63 +75,31 @@ fun Application.module() {
         transaction { seedAdminUser(appConfig.adminSeed.email, appConfig.adminSeed.password, appConfig.adminSeed.username) }
     }
 
-    val controlService = ControlServiceImpl(appConfig.node)
-    val bulkDataService = BulkDataServiceImpl(controlService)
-    val dataServiceProxy = DataServiceProxy(controlService, bulkDataService)
-    val grpcServer = GrpcServer(appConfig, controlService, bulkDataService).start()
-    monitor.subscribe(ApplicationStopped) { grpcServer.stop() }
-
-    val jwtManager = JwtManager(appConfig.jwt)
-    val refreshTokenService = RefreshTokenService()
-    val wsTicketService = WsTicketService()
-
-    val dnsProvider = DnsProviderFactory.create(appConfig.dns)
+    val appScope: CoroutineScope = this
+    val dnsProvider: DnsProvider? = DnsProviderFactory.create(appConfig.dns)
     if (dnsProvider != null) log.info("DNS provider: ${dnsProvider.type}")
 
-    val userService = UserService()
-    val nodeService = NodeService(controlService::sendToNode)
-    val networkService = NetworkService()
-    val groupService = GroupService()
-    val assignmentService = AssignmentService()
-    val systemService = SystemService()
-    val alertService = AlertService()
-    val modService = ModService()
-    val containerNamePrefix = System.getenv("CRAFTPANEL_CONTAINER_PREFIX") ?: "craftpanel"
-    val containerLifecycle = ContainerLifecycle(
-        sendToNode = controlService::sendToNode,
-        agentEvents = controlService.agentEvents,
-        modService = modService,
-        images = appConfig.images,
-        containerNamePrefix = containerNamePrefix,
-    )
-    val serverService = ServerService(
-        sendToNode = controlService::sendToNode,
-        modService = modService,
-        dnsProvider = dnsProvider,
-        images = appConfig.images,
-        containerNamePrefix = containerNamePrefix,
-        lifecycle = containerLifecycle,
-    )
-    val backupService = BackupService(controlService::sendToNode, dataServiceProxy)
-    val proxyBackendService = ProxyBackendService()
-    val envVarsService = EnvVarsService()
-    val migrationService = MigrationService(
-        sendToNode = controlService::sendToNode,
-        agentEvents = controlService.agentEvents,
-        dnsProvider = dnsProvider,
-        scope = this,
-        lifecycle = containerLifecycle,
-        containerNamePrefix = containerNamePrefix,
-    )
+    install(Koin) {
+        slf4jLogger()
+        modules(
+            module {
+                single { appConfig }
+                single(named("appScope")) { appScope }
+                single(named("containerPrefix")) { System.getenv("CRAFTPANEL_CONTAINER_PREFIX") ?: "craftpanel" }
+                single { DnsProviderHolder(dnsProvider) }
+                single { GrpcServer(get(), get(), get()) }
+            },
+            appModule,
+        )
+    }
 
-    migrationService.failStuckMigrations()
+    val jwtManager = get<JwtManager>()
+    val grpcServer = get<GrpcServer>().start()
+    monitor.subscribe(ApplicationStopped) { grpcServer.stop() }
 
-    val scheduler = ServerScheduler(
-        handlers = mapOf("BACKUP" to BackupJobHandler(backupService)),
-        scope = this,
-    )
-    scheduler.start()
-    monitor.subscribe(ApplicationStopped) { scheduler.stop() }
+    get<MigrationService>().failStuckMigrations()
+    get<ServerScheduler>().start()
+    monitor.subscribe(ApplicationStopped) { get<ServerScheduler>().stop() }
 
     install(ContentNegotiation) {
         json(Json { ignoreUnknownKeys = true })
@@ -248,29 +224,6 @@ fun Application.module() {
         get("health") { call.respond(mapOf("status" to "ok")) }
         route("openapi.json") { openApi() }
         route("swagger") { swaggerUI("/openapi.json") }
-        registerAppRoutes(
-            AppServices(
-                jwtManager = jwtManager,
-                refreshTokenService = refreshTokenService,
-                wsTicketService = wsTicketService,
-                nodeService = nodeService,
-                networkService = networkService,
-                serverService = serverService,
-                userService = userService,
-                groupService = groupService,
-                assignmentService = assignmentService,
-                systemService = systemService,
-                backupService = backupService,
-                proxyBackendService = proxyBackendService,
-                envVarsService = envVarsService,
-                modService = modService,
-                alertService = alertService,
-                migrationService = migrationService,
-                dataServiceProxy = dataServiceProxy,
-                controlService = controlService,
-                rateLimitConfig = appConfig.rateLimit,
-                secureCookies = appConfig.auth.secureCookies,
-            )
-        )
+        registerAppRoutes()
     }
 }
