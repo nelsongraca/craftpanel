@@ -448,7 +448,7 @@ class ServerService(
                 resolvePublicHostname(serverRow[Servers.publicSubdomain]!!, serverRow[Servers.networkId])
             }
             else null
-        lifecycle.start(serverRow, pull = serverRow[Servers.needsRecreate] || serverRow[Servers.containerId] == null, publicHostname = publicHostname)
+        lifecycle.start(serverRow, needsRecreate = serverRow[Servers.needsRecreate], publicHostname = publicHostname)
     }
 
     fun stopServer(id: kotlin.uuid.Uuid) {
@@ -485,7 +485,7 @@ class ServerService(
         if (ServerStatus.fromDb(serverRow[Servers.status]).isStopped) throw ConflictException("Server is not running")
         val nodeId = serverRow[Servers.nodeId].toString()
         if (serverRow[Servers.needsRecreate]) {
-            lifecycle.recreate(serverRow, hostnameOverride = null)
+            lifecycle.start(serverRow, needsRecreate = true)
         }
         else {
             val restartCmd = masterMessage {
@@ -625,7 +625,7 @@ class ServerService(
                     .where { Servers.id eq id }
                     .first()
             }
-            lifecycle.recreate(freshRow, hostnameOverride = hostname)
+            lifecycle.start(freshRow, needsRecreate = true, publicHostname = hostname)
         }
     }
 

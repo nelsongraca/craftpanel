@@ -6,7 +6,7 @@ import com.github.dockerjava.api.command.PullImageResultCallback
 import com.github.dockerjava.api.exception.NotFoundException
 import com.github.dockerjava.api.model.*
 import io.craftpanel.proto.ContainerState
-import io.craftpanel.proto.CreateContainerCommand
+import io.craftpanel.proto.StartContainerCommand
 import io.craftpanel.proto.containerState
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
@@ -53,7 +53,7 @@ open class ContainerManager(
             }
     }
 
-    fun createContainer(cmd: CreateContainerCommand): String {
+    fun createContainer(cmd: StartContainerCommand): String {
         val minecraftPort = ExposedPort.tcp(25565)
         val portBindings = Ports()
         if (cmd.hostPort > 0) {
@@ -69,9 +69,9 @@ open class ContainerManager(
         val hostConfig = HostConfig.newHostConfig()
             .withPortBindings(portBindings)
             .withBinds(binds)
-            .withRestartPolicy(RestartPolicy.parse(cmd.restartPolicy.ifEmpty { "unless-stopped" }))
+            .withRestartPolicy(RestartPolicy.parse("unless-stopped"))
             .let { cfg ->
-                if (cmd.ramMb > 0) cfg.withMemory(cmd.ramMb.toLong() * 1024 * 1024) else cfg
+                if (cmd.memoryMb > 0) cfg.withMemory(cmd.memoryMb.toLong() * 1024 * 1024) else cfg
             }
             .let { cfg ->
                 if (cmd.cpuShares > 0) cfg.withCpuShares(cmd.cpuShares) else cfg
@@ -87,8 +87,8 @@ open class ContainerManager(
             .withHostConfig(hostConfig)
             .withLabels(buildMap {
                 put("craftpanel.server.id", cmd.serverId)
-                if (cmd.mcRouterHostname.isNotEmpty()) {
-                    put("mc-router.hostname", cmd.mcRouterHostname)
+                if (cmd.publicHostname.isNotEmpty()) {
+                    put("mc-router.hostname", cmd.publicHostname)
                 }
             })
             .withStdinOpen(true)
@@ -105,6 +105,13 @@ open class ContainerManager(
         log.info("Created container ${cmd.containerName} (server ${cmd.serverId})")
         return response.id
     }
+
+    fun containerExists(containerName: String): Boolean =
+        runCatching {
+            docker.inspectContainerCmd(containerName)
+                .exec()
+            true
+        }.getOrDefault(false)
 
     fun pullImage(image: String) {
         runCatching {

@@ -8,7 +8,6 @@ sealed class AgentEvent {
     data class ServerStatusEvent(
         val serverId: String,
         val status: ServerStatus,
-        val containerId: String,
     ) : AgentEvent()
 
     data class NodeStatusEvent(

@@ -11,7 +11,6 @@ class AgentOutbound(
     suspend fun serverStatus(
         serverId: String,
         status: ServerStatusUpdate.ServerStatus,
-        containerId: String? = null,
     ) {
         val id = nodeId
         out.send(agentMessage {
@@ -19,7 +18,6 @@ class AgentOutbound(
             serverStatus = serverStatusUpdate {
                 this.serverId = serverId
                 this.status = status
-                if (containerId != null) this.containerId = containerId
             }
         })
     }

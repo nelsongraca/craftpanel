@@ -141,7 +141,6 @@ class RouteAuthorizationTest {
             it[Servers.memoryMb] = 1024
             it[Servers.cpuShares] = 0
             it[Servers.status] = "STOPPED"
-            it[Servers.containerId] = null
         }[Servers.id].let { Uuid.parse(it.toString()) }
     }
 

@@ -4,7 +4,6 @@ import io.craftpanel.proto.*
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.AgentEvent
-import io.craftpanel.master.domain.ServerStatus
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
@@ -407,7 +406,7 @@ class MigrationService(
             // Restart the source container — used on rollback while it still exists.
             fun restartSource() {
                 if (sourceStopped) scope.launch {
-                    runCatching { lifecycle.sendStart(serverRow, sourceNodeIdStr) }
+                    runCatching { lifecycle.start(serverRow, needsRecreate = false, nodeId = sourceNodeIdStr) }
                 }
             }
 
@@ -480,8 +479,7 @@ class MigrationService(
             run {
                 val stepId = startStep(8, "Create and start server container on target node")
                 runCatching {
-                    lifecycle.create(serverRow, targetNodeIdStr)
-                    lifecycle.sendStart(serverRow, targetNodeIdStr)
+                    lifecycle.start(serverRow, needsRecreate = true, nodeId = targetNodeIdStr)
                 }.onFailure { e ->
                     runCatching { lifecycle.remove(serverRow, targetNodeIdStr, force = true) }
                     completeStep(stepId, false, e.message)

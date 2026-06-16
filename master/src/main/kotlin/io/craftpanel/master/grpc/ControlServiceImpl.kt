@@ -264,7 +264,6 @@ class ControlServiceImpl(
                         val serverStatusEvent = AgentEvent.ServerStatusEvent(
                             serverId = msg.serverStatus.serverId,
                             status = domainStatus,
-                            containerId = msg.serverStatus.containerId,
                         )
                         runCatching { persistServerStatus(serverStatusEvent) }
                             .onFailure { e -> log.warn("Node ${msg.nodeId}: persistServerStatus failed — ${e.message}") }
@@ -524,8 +523,6 @@ class ControlServiceImpl(
                         log.info("Node $nodeId reconcile: server $serverId $dbStatus → $newStatus")
                         Servers.update({ Servers.id eq serverId }) {
                             it[Servers.status] = newStatus.toDb()
-                            container?.containerId?.takeIf { s -> s.isNotEmpty() }
-                                ?.let { cid -> it[Servers.containerId] = cid }
                             it[Servers.lastSeenAt] = now
                         }
                     }
@@ -651,7 +648,6 @@ class ControlServiceImpl(
         transaction {
             Servers.update({ Servers.id eq serverId }) {
                 it[Servers.status] = event.status.toDb()
-                if (event.containerId.isNotEmpty()) it[Servers.containerId] = event.containerId
                 it[Servers.lastSeenAt] = now
             }
         }

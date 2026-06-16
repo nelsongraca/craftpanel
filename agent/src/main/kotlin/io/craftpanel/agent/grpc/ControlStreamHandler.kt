@@ -67,7 +67,6 @@ class ControlStreamHandler(
         stream.collect { msg ->
             log.debug("Received master command: {}", msg.payloadCase)
             when {
-                msg.hasCreateContainer()     -> dispatch { container.handleCreate(msg.createContainer, out) }
                 msg.hasStartContainer()      -> dispatch { container.handleStart(msg.startContainer, out) }
                 msg.hasStopContainer()       -> launch { dispatch { container.handleStop(msg.stopContainer, out) } }
                 msg.hasRestartContainer()    -> launch { dispatch { container.handleRestart(msg.restartContainer, out) } }

@@ -96,148 +96,158 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, agentEvents: Share
         // ── Subscriptions ─────────────────────────────────────────────────────
 
         val nodeMetricsJob = launch {
-            agentMetricsFlow.filterIsInstance<AgentMetricEvent.NodeMetricsEvent>().collect { event ->
-                if (!hasNodes()) return@collect
-                sendWs(
-                    WsEventType.NODE_METRICS, NodeMetricsPayload(
-                        event.nodeId,
-                        event.cpuPercent,
-                        event.ramUsedMb,
-                        event.ramTotalMb,
-                        event.netInBytes,
-                        event.netOutBytes,
-                        event.diskUsedBytes,
-                        event.diskTotalBytes,
-                        event.recordedAt.toString(),
+            agentMetricsFlow.filterIsInstance<AgentMetricEvent.NodeMetricsEvent>()
+                .collect { event ->
+                    if (!hasNodes()) return@collect
+                    sendWs(
+                        WsEventType.NODE_METRICS, NodeMetricsPayload(
+                            event.nodeId,
+                            event.cpuPercent,
+                            event.ramUsedMb,
+                            event.ramTotalMb,
+                            event.netInBytes,
+                            event.netOutBytes,
+                            event.diskUsedBytes,
+                            event.diskTotalBytes,
+                            event.recordedAt.toString(),
+                        )
                     )
-                )
-            }
+                }
         }
 
         val nodeStatusJob = launch {
-            agentEvents.filterIsInstance<AgentEvent.NodeStatusEvent>().collect { event ->
-                if (!hasNodes()) return@collect
-                sendWs(
-                    WsEventType.NODE_STATUS,
-                    NodeStatusPayload(
-                        event.nodeId,
-                        event.status.name,
-                        Clock.System.now().toString()
+            agentEvents.filterIsInstance<AgentEvent.NodeStatusEvent>()
+                .collect { event ->
+                    if (!hasNodes()) return@collect
+                    sendWs(
+                        WsEventType.NODE_STATUS,
+                        NodeStatusPayload(
+                            event.nodeId,
+                            event.status.name,
+                            Clock.System.now()
+                                .toString()
+                        )
                     )
-                )
-            }
+                }
         }
 
         val serverMetricsJob = launch {
-            agentMetricsFlow.filterIsInstance<AgentMetricEvent.ContainerMetricsEvent>().collect { event ->
-                val sid = runCatching { Uuid.parse(event.serverId) }.getOrNull() ?: return@collect
-                val netId = serverNetworkId(event.serverId)
-                if (!canViewServer(sid, netId)) return@collect
-                sendWs(
-                    WsEventType.SERVER_METRICS, ServerMetricsPayload(
-                        event.serverId,
-                        event.cpuPercent,
-                        event.ramUsedMb,
-                        event.netInBytes,
-                        event.netOutBytes,
-                        event.recordedAt.toString(),
+            agentMetricsFlow.filterIsInstance<AgentMetricEvent.ContainerMetricsEvent>()
+                .collect { event ->
+                    val sid = runCatching { Uuid.parse(event.serverId) }.getOrNull() ?: return@collect
+                    val netId = serverNetworkId(event.serverId)
+                    if (!canViewServer(sid, netId)) return@collect
+                    sendWs(
+                        WsEventType.SERVER_METRICS, ServerMetricsPayload(
+                            event.serverId,
+                            event.cpuPercent,
+                            event.ramUsedMb,
+                            event.netInBytes,
+                            event.netOutBytes,
+                            event.recordedAt.toString(),
+                        )
                     )
-                )
-            }
+                }
         }
 
         val serverStatusJob = launch {
-            agentEvents.filterIsInstance<AgentEvent.ServerStatusEvent>().collect { event ->
-                val sid = runCatching { Uuid.parse(event.serverId) }.getOrNull() ?: return@collect
-                val netId = serverNetworkId(event.serverId)
-                if (!canViewServer(sid, netId)) return@collect
-                sendWs(
-                    WsEventType.SERVER_STATUS,
-                    ServerStatusPayload(
-                        event.serverId,
-                        event.status.name,
-                        event.containerId,
-                        Clock.System.now().toString()
+            agentEvents.filterIsInstance<AgentEvent.ServerStatusEvent>()
+                .collect { event ->
+                    val sid = runCatching { Uuid.parse(event.serverId) }.getOrNull() ?: return@collect
+                    val netId = serverNetworkId(event.serverId)
+                    if (!canViewServer(sid, netId)) return@collect
+                    sendWs(
+                        WsEventType.SERVER_STATUS,
+                        ServerStatusPayload(
+                            event.serverId,
+                            event.status.name,
+                            Clock.System.now()
+                                .toString()
+                        )
                     )
-                )
-            }
+                }
         }
 
         val playerJob = launch {
-            agentMetricsFlow.filterIsInstance<AgentMetricEvent.PlayerUpdateEvent>().collect { event ->
-                val sid = runCatching { Uuid.parse(event.serverId) }.getOrNull() ?: return@collect
-                val netId = serverNetworkId(event.serverId)
-                if (!canViewServer(sid, netId)) return@collect
-                sendWs(
-                    WsEventType.SERVER_PLAYERS, ServerPlayersPayload(
-                        event.serverId,
-                        event.playerCount,
-                        event.playerNames,
-                        event.recordedAt.toString(),
+            agentMetricsFlow.filterIsInstance<AgentMetricEvent.PlayerUpdateEvent>()
+                .collect { event ->
+                    val sid = runCatching { Uuid.parse(event.serverId) }.getOrNull() ?: return@collect
+                    val netId = serverNetworkId(event.serverId)
+                    if (!canViewServer(sid, netId)) return@collect
+                    sendWs(
+                        WsEventType.SERVER_PLAYERS, ServerPlayersPayload(
+                            event.serverId,
+                            event.playerCount,
+                            event.playerNames,
+                            event.recordedAt.toString(),
+                        )
                     )
-                )
-            }
+                }
         }
 
         val backupProgressJob = launch {
-            agentEvents.filterIsInstance<AgentEvent.BackupProgressEvent>().collect { event ->
-                val sid = runCatching { Uuid.parse(event.serverId) }.getOrNull() ?: return@collect
-                val netId = serverNetworkId(event.serverId)
-                if (!canViewServer(sid, netId)) return@collect
-                sendWs(
-                    WsEventType.SERVER_BACKUP_PROGRESS,
-                    BackupProgressPayload(
-                        event.serverId,
-                        event.backupId,
-                        event.percentComplete,
-                        Clock.System.now().toString()
+            agentEvents.filterIsInstance<AgentEvent.BackupProgressEvent>()
+                .collect { event ->
+                    val sid = runCatching { Uuid.parse(event.serverId) }.getOrNull() ?: return@collect
+                    val netId = serverNetworkId(event.serverId)
+                    if (!canViewServer(sid, netId)) return@collect
+                    sendWs(
+                        WsEventType.SERVER_BACKUP_PROGRESS,
+                        BackupProgressPayload(
+                            event.serverId,
+                            event.backupId,
+                            event.percentComplete,
+                            Clock.System.now()
+                                .toString()
+                        )
                     )
-                )
-            }
+                }
         }
 
         val backupCompleteJob = launch {
-            agentEvents.filterIsInstance<AgentEvent.BackupCompleteEvent>().collect { event ->
-                val sid = runCatching { Uuid.parse(event.serverId) }.getOrNull() ?: return@collect
-                val netId = serverNetworkId(event.serverId)
-                if (!canViewServer(sid, netId)) return@collect
-                val status = if (event.success) "COMPLETED" else "FAILED"
-                sendWs(
-                    WsEventType.SERVER_BACKUP_COMPLETE, BackupCompletePayload(
-                        event.serverId,
-                        event.backupId,
-                        status,
-                        event.sizeBytes,
-                        if (!event.success) event.errorMessage else null,
-                        event.completedAt.toString(),
+            agentEvents.filterIsInstance<AgentEvent.BackupCompleteEvent>()
+                .collect { event ->
+                    val sid = runCatching { Uuid.parse(event.serverId) }.getOrNull() ?: return@collect
+                    val netId = serverNetworkId(event.serverId)
+                    if (!canViewServer(sid, netId)) return@collect
+                    val status = if (event.success) "COMPLETED" else "FAILED"
+                    sendWs(
+                        WsEventType.SERVER_BACKUP_COMPLETE, BackupCompletePayload(
+                            event.serverId,
+                            event.backupId,
+                            status,
+                            event.sizeBytes,
+                            if (!event.success) event.errorMessage else null,
+                            event.completedAt.toString(),
+                        )
                     )
-                )
-            }
+                }
         }
 
         val alertJob = launch {
-            agentEvents.filterIsInstance<AgentEvent.AlertFiredEvent>().collect { alert ->
-                val isResolved = alert.resolvedAt != null
-                if (alert.scopeType == ScopeType.NODE.name && !hasNodes()) return@collect
-                if (alert.scopeType == ScopeType.SERVER.name) {
-                    val sid = runCatching { Uuid.parse(alert.scopeId) }.getOrNull() ?: return@collect
-                    val netId = serverNetworkId(alert.scopeId)
-                    if (!canViewServer(sid, netId)) return@collect
-                }
-                val type = if (isResolved) WsEventType.ALERT_RESOLVED else WsEventType.ALERT_FIRED
-                sendWs(
-                    type, AlertPayload(
-                        alert.eventId,
-                        alert.thresholdId,
-                        alert.scopeType,
-                        alert.scopeId,
-                        alert.metric,
-                        alert.message,
-                        if (!isResolved) alert.firedAt else null,
-                        if (isResolved) alert.resolvedAt else null,
+            agentEvents.filterIsInstance<AgentEvent.AlertFiredEvent>()
+                .collect { alert ->
+                    val isResolved = alert.resolvedAt != null
+                    if (alert.scopeType == ScopeType.NODE.name && !hasNodes()) return@collect
+                    if (alert.scopeType == ScopeType.SERVER.name) {
+                        val sid = runCatching { Uuid.parse(alert.scopeId) }.getOrNull() ?: return@collect
+                        val netId = serverNetworkId(alert.scopeId)
+                        if (!canViewServer(sid, netId)) return@collect
+                    }
+                    val type = if (isResolved) WsEventType.ALERT_RESOLVED else WsEventType.ALERT_FIRED
+                    sendWs(
+                        type, AlertPayload(
+                            alert.eventId,
+                            alert.thresholdId,
+                            alert.scopeType,
+                            alert.scopeId,
+                            alert.metric,
+                            alert.message,
+                            if (!isResolved) alert.firedAt else null,
+                            if (isResolved) alert.resolvedAt else null,
+                        )
                     )
-                )
-            }
+                }
         }
 
         // ── 5-min permission revalidation ─────────────────────────────────────

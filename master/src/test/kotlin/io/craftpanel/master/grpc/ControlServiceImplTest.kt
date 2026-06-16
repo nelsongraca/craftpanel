@@ -53,14 +53,13 @@ class ControlServiceImplTest {
         }[Nodes.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun createServer(nodeId: Uuid, status: String = "STOPPED", containerId: String? = null): Uuid = transaction {
+    private fun createServer(nodeId: Uuid, status: String = "STOPPED"): Uuid = transaction {
         Servers.insert {
             it[Servers.nodeId] = nodeId
             it[Servers.name] = "srv-${Uuid.random()}"
             it[Servers.hostPort] = 25565
             it[Servers.memoryMb] = 1024
             it[Servers.status] = status
-            it[Servers.containerId] = containerId
         }[Servers.id].let { Uuid.parse(it.toString()) }
     }
 
@@ -125,7 +124,7 @@ class ControlServiceImplTest {
     @Test
     fun `reconcile RUNNING in snapshot against STOPPED in DB updates to HEALTHY`() {
         val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "STOPPED", containerId = "abc123")
+        val serverId = createServer(nodeId, status = "STOPPED")
 
         val snapshot = nodeStateSnapshot {
             containers.add(containerState {
@@ -448,7 +447,8 @@ class ControlServiceImplTest {
         val emitted = mutableListOf<AgentEvent.NodeStatusEvent>()
 
         val collectJob = launch {
-            service.agentEvents.filterIsInstance<AgentEvent.NodeStatusEvent>().collect { emitted.add(it) }
+            service.agentEvents.filterIsInstance<AgentEvent.NodeStatusEvent>()
+                .collect { emitted.add(it) }
         }
 
         val agentMessages = flow {
@@ -476,7 +476,8 @@ class ControlServiceImplTest {
         val emitted = mutableListOf<AgentEvent.NodeStatusEvent>()
 
         val collectJob = launch {
-            service.agentEvents.filterIsInstance<AgentEvent.NodeStatusEvent>().collect { emitted.add(it) }
+            service.agentEvents.filterIsInstance<AgentEvent.NodeStatusEvent>()
+                .collect { emitted.add(it) }
         }
 
         val agentMessages = flow {

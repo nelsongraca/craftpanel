@@ -14,7 +14,6 @@ import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -62,17 +61,17 @@ class ContainerLifecycleTest {
                 it[Servers.memoryMb] = 1024
                 it[Servers.cpuShares] = 0
                 it[Servers.status] = "STOPPED"
-                it[Servers.containerId] = null
             }[Servers.id].let { Uuid.parse(it.toString()) }
         }
     }
 
     private fun serverRow(): ResultRow = transaction {
-        Servers.selectAll().where { Servers.id eq serverId }.first()
+        Servers.selectAll()
+            .where { Servers.id eq serverId }
+            .first()
     }
 
     private fun lifecycle(
-        createTimeout: kotlin.time.Duration = 2.seconds,
         startTimeout: kotlin.time.Duration = 2.seconds,
         stopTimeout: kotlin.time.Duration = 2.seconds,
         removeTimeout: kotlin.time.Duration = 2.seconds,
@@ -80,99 +79,64 @@ class ContainerLifecycleTest {
         sendToNode = { nId, msg -> sent.add(nId to msg); true },
         agentEvents = events,
         modService = ModService(),
-        createTimeout = createTimeout,
         startTimeout = startTimeout,
         stopTimeout = stopTimeout,
         removeTimeout = removeTimeout,
     )
 
     @Test
-    fun `start - no existing container - sends create then start`() = runTest {
+    fun `start - needsRecreate false - sends single StartContainerCommand`() = runTest {
         val server = serverRow()
         val lc = lifecycle()
         launch {
             delay(50.milliseconds)
-            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STOPPED, "cid-1"))
-            delay(50.milliseconds)
-            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY, "cid-1"))
+            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY))
         }
-        lc.start(server, pull = false)
-        assertEquals(2, sent.size)
-        assert(sent[0].second.hasCreateContainer())
-        assert(sent[1].second.hasStartContainer())
+        lc.start(server, needsRecreate = false)
+        assertEquals(1, sent.size)
+        assert(sent[0].second.hasStartContainer())
+        val cmd = sent[0].second.startContainer
+        assert(!cmd.needsRecreate)
+        assertEquals("craftpanel-$serverId", cmd.containerName)
+        assertEquals("itzg/minecraft-server:latest", cmd.image)
+        assertEquals("TRUE", cmd.envVarsMap["EULA"])
     }
 
     @Test
-    fun `start - existing container and pull true - sends remove create start`() = runTest {
-        transaction {
-            Servers.update({ Servers.id eq serverId }) {
-                it[Servers.containerId] = "old-cid"
-            }
-        }
+    fun `start - needsRecreate true - sends StartContainerCommand with needsRecreate=true`() = runTest {
         val server = serverRow()
         val lc = lifecycle()
         launch {
             delay(50.milliseconds)
-            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STOPPED, ""))
-            delay(50.milliseconds)
-            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STOPPED, "new-cid"))
-            delay(50.milliseconds)
-            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY, "new-cid"))
+            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY))
         }
-        lc.start(server, pull = true)
-        assertEquals(3, sent.size)
-        assert(sent[0].second.hasRemoveContainer())
-        assert(sent[1].second.hasCreateContainer())
-        assert(sent[2].second.hasStartContainer())
+        lc.start(server, needsRecreate = true)
+        assertEquals(1, sent.size)
+        assert(sent[0].second.hasStartContainer())
+        val cmd = sent[0].second.startContainer
+        assert(cmd.needsRecreate)
     }
 
     @Test
-    fun `start - UNHEALTHY on create - throws ContainerLifecycleException`() = runTest {
+    fun `start - UNHEALTHY response - throws ContainerLifecycleException`() = runTest {
         val server = serverRow()
         val lc = lifecycle()
         launch {
             delay(50.milliseconds)
-            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.UNHEALTHY, ""))
+            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.UNHEALTHY))
         }
         assertFailsWith<ContainerLifecycleException> {
-            lc.start(server, pull = false)
+            lc.start(server, needsRecreate = false)
         }
     }
 
     @Test
-    fun `start - timeout on create - throws ContainerLifecycleException`() = runTest {
+    fun `start - timeout - throws ContainerLifecycleException`() = runTest {
         val server = serverRow()
-        val lc = lifecycle(createTimeout = 100.milliseconds)
+        val lc = lifecycle(startTimeout = 100.milliseconds)
         assertFailsWith<ContainerLifecycleException> {
-            lc.start(server, pull = false)
+            lc.start(server, needsRecreate = false)
         }
-    }
-
-    @Test
-    fun `recreate - sends stop remove create start in order`() = runTest {
-        transaction {
-            Servers.update({ Servers.id eq serverId }) {
-                it[Servers.containerId] = "existing-cid"
-            }
-        }
-        val server = serverRow()
-        val lc = lifecycle()
-        launch {
-            delay(50.milliseconds)
-            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STOPPED, ""))
-            delay(50.milliseconds)
-            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STOPPED, ""))
-            delay(50.milliseconds)
-            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STOPPED, "new-cid"))
-            delay(50.milliseconds)
-            events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY, "new-cid"))
-        }
-        lc.recreate(server, hostnameOverride = null)
-        assertEquals(4, sent.size)
-        assert(sent[0].second.hasStopContainer())
-        assert(sent[1].second.hasRemoveContainer())
-        assert(sent[2].second.hasCreateContainer())
-        assert(sent[3].second.hasStartContainer())
     }
 
     @Test

@@ -52,7 +52,6 @@ data class ServerMetricsPayload(
 data class ServerStatusPayload(
     val serverId: String,
     val status: String,
-    val containerId: String,
     val recordedAt: String,
 )
 

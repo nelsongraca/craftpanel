@@ -28,7 +28,6 @@ object Servers : Table("servers") {
     val stopCommand = varchar("stop_command", 50).default("stop")
     val itzgImageTag = varchar("itzg_image_tag", 100).default("latest")
     val needsRecreate = bool("needs_recreate").default(false)
-    val containerId = varchar("container_id", 64).nullable()
     val backupSchedule = varchar("backup_schedule", 64).nullable()
     val backupMaxCount = integer("backup_max_count").default(10)
     val backupScheduleLastFired = datetime("backup_schedule_last_fired").nullable()

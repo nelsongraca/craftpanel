@@ -15,45 +15,31 @@ class ContainerHandler(
 
     private val log = LoggerFactory.getLogger(ContainerHandler::class.java)
 
-    suspend fun handleCreate(cmd: CreateContainerCommand, out: AgentOutbound) {
-        log.info("Creating container ${cmd.containerName} for server ${cmd.serverId}")
-        runCatching {
-            withContext(Dispatchers.IO) { containerManager.pullImage(cmd.image) }
-            val cmdWithMount = cmd.toBuilder()
-                .addMounts(volumeMount {
-                    hostPath = "${config.hostDataBasePath}/servers/${cmd.serverId}"
-                    containerPath = "/data"
-                    readOnly = false
-                })
-                .build()
-            containerManager.createContainer(cmdWithMount)
-        }
-            .onSuccess { dockerContainerId ->
-                out.serverStatus(cmd.serverId, ServerStatusUpdate.ServerStatus.STOPPED, dockerContainerId)
-            }
-            .onFailure { e ->
-                log.error("Failed to create container ${cmd.containerName}", e)
-                out.serverStatus(cmd.serverId, ServerStatusUpdate.ServerStatus.UNHEALTHY)
-            }
-    }
-
     suspend fun handleStart(cmd: StartContainerCommand, out: AgentOutbound) {
-        log.info("Starting container ${cmd.containerName}")
-        val expectedDataPath = "${config.hostDataBasePath}/servers/${cmd.serverId}"
-        val currentDataPath = containerManager.getContainerDataPath(cmd.containerName)
-        if (currentDataPath != null && currentDataPath != expectedDataPath) {
-            log.warn("Container ${cmd.containerName} has stale data mount '$currentDataPath' (expected '$expectedDataPath') — removing for recreate")
-            runCatching { withContext(Dispatchers.IO) { containerManager.removeContainer(cmd.containerName, force = true) } }
-                .onFailure { log.error("Failed to remove stale container ${cmd.containerName}", it) }
-            out.serverStatus(cmd.serverId, ServerStatusUpdate.ServerStatus.UNHEALTHY)
-            return
+        val needsCreate = cmd.needsRecreate || !withContext(Dispatchers.IO) { containerManager.containerExists(cmd.containerName) }
+        log.info("Starting container ${cmd.containerName} (needsRecreate=${cmd.needsRecreate}, needsCreate=$needsCreate)")
+        runCatching {
+            if (needsCreate) {
+                if (withContext(Dispatchers.IO) { containerManager.containerExists(cmd.containerName) }) {
+                    withContext(Dispatchers.IO) { containerManager.removeContainer(cmd.containerName, force = true) }
+                }
+                withContext(Dispatchers.IO) { containerManager.pullImage(cmd.image) }
+                val cmdWithMount = cmd.toBuilder()
+                    .addMounts(volumeMount {
+                        hostPath = "${config.hostDataBasePath}/servers/${cmd.serverId}"
+                        containerPath = "/data"
+                        readOnly = false
+                    })
+                    .build()
+                withContext(Dispatchers.IO) { containerManager.createContainer(cmdWithMount) }
+            }
+            containerManager.startContainer(cmd.containerName)
         }
-        runCatching { containerManager.startContainer(cmd.containerName) }
             .onSuccess {
                 out.serverStatus(cmd.serverId, ServerStatusUpdate.ServerStatus.HEALTHY)
             }
-            .onFailure {
-                log.error("Failed to start container ${cmd.containerName}", it)
+            .onFailure { e ->
+                log.error("Failed to start container ${cmd.containerName}", e)
                 out.serverStatus(cmd.serverId, ServerStatusUpdate.ServerStatus.UNHEALTHY)
             }
     }

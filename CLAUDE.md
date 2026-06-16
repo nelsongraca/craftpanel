@@ -324,7 +324,7 @@ Singleton H2 in-memory DB shared across all tests. Call `initIfNeeded()` once an
 - Server/client `ContentNegotiation` are disambiguated with `as` import aliases
 - Generate JWTs directly with `jwtManager.generate(TokenClaims(...))` — no need to go through the login endpoint
 - Inject lambdas for dependencies that require external state (e.g. `sendToNode: (String, MasterMessage) -> Boolean`)
-- `startServer()` sends **3** gRPC messages when `containerId` is null or `needsRecreate` is true: `pullImage` → `createContainer` → `startContainer`. Tests asserting `sentCommands.size` must account for all three.
+- `startServer()` sends **1** gRPC message: a single `StartContainerCommand` with `needsRecreate: bool`. The agent owns create/pull logic — master never sends `CreateContainerCommand` (deleted in C5). Tests asserting `sentCommands.size` expect 1.
 
 ### System tests (`system-tests/`)
 

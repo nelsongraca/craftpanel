@@ -6,7 +6,6 @@ import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.proto.MasterMessage
-import io.craftpanel.proto.createContainerCommand
 import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.removeContainerCommand
 import io.craftpanel.proto.startContainerCommand
@@ -26,7 +25,6 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.time.Clock
 import kotlin.time.Duration
-import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 
@@ -37,7 +35,6 @@ class ContainerLifecycle(
     private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
     private val containerNamePrefix: String = "craftpanel",
     private val clock: Clock = Clock.System,
-    private val createTimeout: Duration = 10.minutes,
     private val stopTimeout: Duration = 45.seconds,
     private val startTimeout: Duration = 30.seconds,
     private val removeTimeout: Duration = 10.seconds,
@@ -45,31 +42,29 @@ class ContainerLifecycle(
 
     // ── Public compound operations ────────────────────────────────────────────
 
-    suspend fun start(server: ResultRow, pull: Boolean, publicHostname: String? = null) {
+    suspend fun start(server: ResultRow, needsRecreate: Boolean, publicHostname: String? = null, nodeId: String = server[Servers.nodeId].toString()) {
         val id = server[Servers.id]
-        val nodeId = server[Servers.nodeId].toString()
-
-        if (pull || server[Servers.containerId] == null) {
-            if (server[Servers.containerId] != null) {
-                remove(server, nodeId)
-            }
-            create(server, nodeId, publicHostname)
+        val image = deriveImage(server[Servers.serverType], server[Servers.itzgImageTag])
+        val allVars = buildAllVars(id, server)
+        val resolvedHostname = publicHostname ?: server[Servers.dnsRecordName]
+        awaitStatus(id.toString(), ServerStatus.HEALTHY, startTimeout) {
+            sendOrThrow(nodeId, masterMessage {
+                startContainer = startContainerCommand {
+                    serverId = id.toString()
+                    containerName = "$containerNamePrefix-$id"
+                    stopCommand = server[Servers.stopCommand]
+                    this.needsRecreate = needsRecreate
+                    this.image = image
+                    envVars.putAll(allVars)
+                    resolvedHostname?.let { this.publicHostname = it }
+                    hostPort = server[Servers.hostPort]
+                    memoryMb = server[Servers.memoryMb]
+                    cpuShares = server[Servers.cpuShares]
+                    dockerNetwork = server[Servers.networkId]?.let { "$containerNamePrefix-net-$it" } ?: ""
+                }
+            })
         }
-
-        sendStart(server, nodeId)
-        writeStatus(id, ServerStatus.STARTING, clearNeedsRecreate = true)
-    }
-
-    suspend fun recreate(server: ResultRow, hostnameOverride: String?) {
-        val id = server[Servers.id]
-        val nodeId = server[Servers.nodeId].toString()
-
-        stop(server, nodeId)
-        remove(server, nodeId)
-        create(server, nodeId, hostnameOverride)
-        sendStart(server, nodeId)
-
-        writeStatus(id, ServerStatus.STOPPING, clearNeedsRecreate = true)
+        writeStatus(id, ServerStatus.HEALTHY, clearNeedsRecreate = true)
     }
 
     // ── Public primitives (used by MigrationService for cross-node relocation) ─
@@ -101,28 +96,6 @@ class ContainerLifecycle(
         }
     }
 
-    suspend fun create(server: ResultRow, nodeId: String, publicHostname: String? = null) {
-        val id = server[Servers.id]
-        val image = deriveImage(server[Servers.serverType], server[Servers.itzgImageTag])
-        val allVars = buildAllVars(id, server)
-        val resolvedHostname = publicHostname ?: server[Servers.dnsRecordName]
-        awaitStatus(id.toString(), ServerStatus.STOPPED, createTimeout) {
-            sendOrThrow(nodeId, buildCreate(id, server, image, allVars, resolvedHostname))
-        }
-    }
-
-    suspend fun sendStart(server: ResultRow, nodeId: String) {
-        val id = server[Servers.id]
-        awaitStatus(id.toString(), ServerStatus.HEALTHY, startTimeout) {
-            sendOrThrow(nodeId, masterMessage {
-                startContainer = startContainerCommand {
-                    serverId = id.toString()
-                    containerName = "$containerNamePrefix-$id"
-                }
-            })
-        }
-    }
-
     // ── Build helpers ─────────────────────────────────────────────────────────
 
     fun buildAllVars(id: Uuid, server: ResultRow): Map<String, String> {
@@ -144,34 +117,13 @@ class ContainerLifecycle(
         return systemVars + dbEnvVars
     }
 
-    fun buildCreate(
-        id: Uuid,
-        server: ResultRow,
-        image: String,
-        allVars: Map<String, String>,
-        publicHostname: String?,
-    ): MasterMessage = masterMessage {
-        createContainer = createContainerCommand {
-            serverId = id.toString()
-            containerName = "$containerNamePrefix-$id"
-            this.image = image
-            ramMb = server[Servers.memoryMb]
-            cpuShares = server[Servers.cpuShares]
-            hostPort = server[Servers.hostPort]
-            envVars.putAll(allVars)
-            dockerNetwork = server[Servers.networkId]?.let { "$containerNamePrefix-net-$it" } ?: ""
-            restartPolicy = "unless-stopped"
-            stopCommand = server[Servers.stopCommand]
-            mcRouterHostname = publicHostname ?: ""
-        }
-    }
-
     fun writeStatus(id: Uuid, status: ServerStatus, clearNeedsRecreate: Boolean = false) {
         transaction {
             Servers.update({ Servers.id eq id }) {
                 it[Servers.status] = status.toDb()
                 if (clearNeedsRecreate) it[Servers.needsRecreate] = false
-                it[Servers.updatedAt] = clock.now().toLocalDateTime(TimeZone.UTC)
+                it[Servers.updatedAt] = clock.now()
+                    .toLocalDateTime(TimeZone.UTC)
             }
         }
     }
@@ -191,8 +143,9 @@ class ContainerLifecycle(
                 .collect { event ->
                     if (event.serverId == serverId) {
                         when {
-                            event.status == expected ->
+                            event.status == expected               ->
                                 found.complete(Unit)
+
                             event.status == ServerStatus.UNHEALTHY ->
                                 found.completeExceptionally(
                                     ContainerLifecycleException(
@@ -210,7 +163,8 @@ class ContainerLifecycle(
                 ?: throw ContainerLifecycleException(
                     "step timed out after $timeout waiting for $expected (server $serverId)"
                 )
-        } finally {
+        }
+        finally {
             job.cancel()
         }
     }
