@@ -18,7 +18,7 @@ class ContainerHandler(
     suspend fun handleStart(cmd: StartContainerCommand, out: AgentOutbound) {
         val needsCreate = cmd.needsRecreate || !withContext(Dispatchers.IO) { containerManager.containerExists(cmd.containerName) }
         log.info("Starting container ${cmd.containerName} (needsRecreate=${cmd.needsRecreate}, needsCreate=$needsCreate)")
-        runCatching {
+        withStatus(out, cmd.serverId, ServerStatusUpdate.ServerStatus.HEALTHY, log, "Failed to start container ${cmd.containerName}") {
             if (needsCreate) {
                 if (withContext(Dispatchers.IO) { containerManager.containerExists(cmd.containerName) }) {
                     withContext(Dispatchers.IO) { containerManager.removeContainer(cmd.containerName, force = true) }
@@ -35,54 +35,30 @@ class ContainerHandler(
             }
             containerManager.startContainer(cmd.containerName)
         }
-            .onSuccess {
-                out.serverStatus(cmd.serverId, ServerStatusUpdate.ServerStatus.HEALTHY)
-            }
-            .onFailure { e ->
-                log.error("Failed to start container ${cmd.containerName}", e)
-                out.serverStatus(cmd.serverId, ServerStatusUpdate.ServerStatus.UNHEALTHY)
-            }
     }
 
     suspend fun handleStop(cmd: StopContainerCommand, out: AgentOutbound) {
         log.info("Stopping container ${cmd.containerName}")
-        runCatching { containerManager.stopContainer(cmd.containerName, cmd.timeoutSeconds, cmd.stopCommand) }
-            .onSuccess {
-                out.serverStatus(cmd.serverId, ServerStatusUpdate.ServerStatus.STOPPED)
-            }
-            .onFailure {
-                log.error("Failed to stop container ${cmd.containerName}", it)
-                out.serverStatus(cmd.serverId, ServerStatusUpdate.ServerStatus.UNHEALTHY)
-            }
+        withStatus(out, cmd.serverId, ServerStatusUpdate.ServerStatus.STOPPED, log, "Failed to stop container ${cmd.containerName}") {
+            containerManager.stopContainer(cmd.containerName, cmd.timeoutSeconds, cmd.stopCommand)
+        }
     }
 
     suspend fun handleRestart(cmd: RestartContainerCommand, out: AgentOutbound) {
         log.info("Restarting container ${cmd.containerName}")
-        runCatching {
+        withStatus(out, cmd.serverId, ServerStatusUpdate.ServerStatus.HEALTHY, log, "Failed to restart container ${cmd.containerName}") {
             containerManager.stopContainer(cmd.containerName, cmd.timeoutSeconds, cmd.stopCommand)
             containerManager.startContainer(cmd.containerName)
         }
-            .onSuccess {
-                out.serverStatus(cmd.serverId, ServerStatusUpdate.ServerStatus.HEALTHY)
-            }
-            .onFailure {
-                log.error("Failed to restart container ${cmd.containerName}", it)
-                out.serverStatus(cmd.serverId, ServerStatusUpdate.ServerStatus.UNHEALTHY)
-            }
     }
 
     suspend fun handleRemove(cmd: RemoveContainerCommand, out: AgentOutbound) {
         log.info("Removing container ${cmd.containerName} (force=${cmd.force})")
-        runCatching { containerManager.removeContainer(cmd.containerName, cmd.force) }
-            .onSuccess {
-                // Signal removal completion so master can sequence cross-node relocation
-                // (target create must wait until the source container name is freed).
-                out.serverStatus(cmd.serverId, ServerStatusUpdate.ServerStatus.STOPPED)
-            }
-            .onFailure {
-                log.error("Failed to remove container ${cmd.containerName}", it)
-                out.serverStatus(cmd.serverId, ServerStatusUpdate.ServerStatus.UNHEALTHY)
-            }
+        // Signal removal completion so master can sequence cross-node relocation
+        // (target create must wait until the source container name is freed).
+        withStatus(out, cmd.serverId, ServerStatusUpdate.ServerStatus.STOPPED, log, "Failed to remove container ${cmd.containerName}") {
+            containerManager.removeContainer(cmd.containerName, cmd.force)
+        }
     }
 
     suspend fun handleShutdown(cmd: ShutdownCommand, out: AgentOutbound) {

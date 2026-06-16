@@ -6,7 +6,7 @@ import com.github.dockerjava.api.command.*
 import com.github.dockerjava.api.model.Container
 import com.github.dockerjava.api.model.ExposedPort
 import io.craftpanel.proto.ContainerState
-import io.craftpanel.proto.createContainerCommand
+import io.craftpanel.proto.startContainerCommand
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
@@ -108,7 +108,7 @@ class ContainerManagerTest {
     fun `createContainer returns container id from docker response`() {
         stubCreate("new-container-id")
 
-        val id = manager.createContainer(createContainerCommand {
+        val id = manager.createContainer(startContainerCommand {
             containerName = "craftpanel-test"
             serverId = "srv-1"
             image = "itzg/minecraft-server:latest"
@@ -122,7 +122,7 @@ class ContainerManagerTest {
     fun `createContainer sets server id label`() {
         val createCmd = stubCreate("c1")
 
-        manager.createContainer(createContainerCommand {
+        manager.createContainer(startContainerCommand {
             containerName = "craftpanel-srv"
             serverId = "srv-label-test"
             image = "itzg/minecraft-server:latest"

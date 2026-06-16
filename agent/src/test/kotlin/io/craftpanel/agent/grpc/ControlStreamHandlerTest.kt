@@ -88,61 +88,19 @@ class ControlStreamHandlerTest {
     }
 
     // -------------------------------------------------------------------------
-    // handleCreate
-    // -------------------------------------------------------------------------
-
-    @Test
-    fun `handleCreate emits STOPPED status on success`() = runBlocking {
-        every { containerManager.pullImage(any()) } just Runs
-        every { containerManager.createContainer(any()) } returns "new-container-id"
-        val outbound = newOutbound()
-
-        containerHandler.handleCreate(createContainerCommand {
-            serverId = "srv-create"
-            containerName = "craftpanel-create"
-            image = "itzg/minecraft-server:latest"
-        }, outbound)
-
-        val msg = outboundChannel.messages()
-            .single()
-        assertTrue(msg.hasServerStatus())
-        assertEquals("srv-create", msg.serverStatus.serverId)
-        assertEquals(ServerStatusUpdate.ServerStatus.STOPPED, msg.serverStatus.status)
-        assertEquals("new-container-id", msg.serverStatus.containerId)
-    }
-
-    @Test
-    fun `handleCreate emits UNHEALTHY on failure`() = runBlocking {
-        every { containerManager.pullImage(any()) } just Runs
-        every { containerManager.createContainer(any()) } throws RuntimeException("docker error")
-        val outbound = newOutbound()
-
-        containerHandler.handleCreate(createContainerCommand {
-            serverId = "srv-fail"
-            containerName = "craftpanel-fail"
-            image = "itzg/minecraft-server:latest"
-        }, outbound)
-
-        val msg = outboundChannel.messages()
-            .single()
-        assertTrue(msg.hasServerStatus())
-        assertEquals("srv-fail", msg.serverStatus.serverId)
-        assertEquals(ServerStatusUpdate.ServerStatus.UNHEALTHY, msg.serverStatus.status)
-    }
-
-    // -------------------------------------------------------------------------
     // handleStart
     // -------------------------------------------------------------------------
 
     @Test
     fun `handleStart emits HEALTHY on success`() = runBlocking {
-        every { containerManager.getContainerDataPath(any()) } returns null
+        every { containerManager.containerExists(any()) } returns true
         every { containerManager.startContainer(any()) } just Runs
         val outbound = newOutbound()
 
         containerHandler.handleStart(startContainerCommand {
             serverId = "srv-start"
             containerName = "craftpanel-start"
+            needsRecreate = false
         }, outbound)
 
         val msg = outboundChannel.messages()
@@ -153,19 +111,44 @@ class ControlStreamHandlerTest {
 
     @Test
     fun `handleStart emits UNHEALTHY on failure`() = runBlocking {
-        every { containerManager.getContainerDataPath(any()) } returns null
+        every { containerManager.containerExists(any()) } returns true
         every { containerManager.startContainer(any()) } throws RuntimeException("start failed")
         val outbound = newOutbound()
 
         containerHandler.handleStart(startContainerCommand {
             serverId = "srv-start-fail"
             containerName = "craftpanel-start-fail"
+            needsRecreate = false
         }, outbound)
 
         assertEquals(
             ServerStatusUpdate.ServerStatus.UNHEALTHY,
             outboundChannel.messages()
                 .single().serverStatus.status
+        )
+    }
+
+    @Test
+    fun `handleStart with needsRecreate pulls image and recreates container`() = runBlocking {
+        every { containerManager.containerExists(any()) } returns true
+        every { containerManager.removeContainer(any(), any()) } just Runs
+        every { containerManager.pullImage(any()) } just Runs
+        every { containerManager.createContainer(any()) } returns "new-id"
+        every { containerManager.startContainer(any()) } just Runs
+        val outbound = newOutbound()
+
+        containerHandler.handleStart(startContainerCommand {
+            serverId = "srv-recreate"
+            containerName = "craftpanel-recreate"
+            image = "itzg/minecraft-server:latest"
+            needsRecreate = true
+        }, outbound)
+
+        verify { containerManager.pullImage("itzg/minecraft-server:latest") }
+        verify { containerManager.removeContainer("craftpanel-recreate", force = true) }
+        assertEquals(
+            ServerStatusUpdate.ServerStatus.HEALTHY,
+            outboundChannel.messages().single().serverStatus.status
         )
     }
 
