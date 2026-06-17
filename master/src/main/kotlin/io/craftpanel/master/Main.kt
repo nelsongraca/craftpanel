@@ -9,6 +9,7 @@ import io.craftpanel.master.di.DnsProviderHolder
 import io.craftpanel.master.di.appModule
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.dns.DnsProviderFactory
+import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.GrpcServer
 import io.craftpanel.master.routes.ErrorResponse
 import io.craftpanel.master.scheduler.ServerScheduler
@@ -113,7 +114,7 @@ fun Application.module() {
     monitor.subscribe(ApplicationStopped) { get<ServerScheduler>().stop() }
 
     launch {
-        val control = get<io.craftpanel.master.grpc.ControlServiceImpl>()
+        val control = get<ControlServiceImpl>()
         control.agentEvents
             .filterIsInstance<AgentEvent.ServerStatusEvent>()
             .collect { event ->

@@ -448,7 +448,9 @@ class ServerService(
                 resolvePublicHostname(serverRow[Servers.publicSubdomain]!!, serverRow[Servers.networkId])
             }
             else null
-        lifecycle.sendStart(serverRow, needsRecreate = serverRow[Servers.needsRecreate], publicHostname = publicHostname)
+        // Write STARTING before dispatching to the agent: the background ServerStatusEvent
+        // consumer may write HEALTHY as soon as the agent reports, and a late STARTING write
+        // would clobber it, leaving the server stuck STARTING.
         transaction {
             Servers.update({ Servers.id eq id }) {
                 it[Servers.status] = "STARTING"
@@ -456,6 +458,7 @@ class ServerService(
                     .toLocalDateTime(TimeZone.UTC)
             }
         }
+        lifecycle.sendStart(serverRow, needsRecreate = serverRow[Servers.needsRecreate], publicHostname = publicHostname)
     }
 
     fun stopServer(id: kotlin.uuid.Uuid) {
@@ -467,13 +470,15 @@ class ServerService(
             ?: throw NotFoundException("Server not found")
         if (serverRow[Servers.status] == "STOPPED") throw ConflictException("Server is already stopped")
         val nodeId = serverRow[Servers.nodeId].toString()
-        lifecycle.sendStop(serverRow, nodeId)
+        // Write STOPPING before dispatching: the background consumer may write STOPPED as soon
+        // as the agent reports, and a late STOPPING write would clobber it.
         transaction {
             Servers.update({ Servers.id eq id }) {
                 it[status] = "STOPPING"; it[updatedAt] = Clock.System.now()
                 .toLocalDateTime(TimeZone.UTC)
             }
         }
+        lifecycle.sendStop(serverRow, nodeId)
     }
 
     fun restartServer(id: kotlin.uuid.Uuid) {
@@ -485,6 +490,15 @@ class ServerService(
             ?: throw NotFoundException("Server not found")
         if (ServerStatus.fromDb(serverRow[Servers.status]).isStopped) throw ConflictException("Server is not running")
         val nodeId = serverRow[Servers.nodeId].toString()
+        // Write STARTING before dispatching so the restart is reflected in the DB and a late write
+        // cannot clobber a HEALTHY/STOPPED status reported by the background consumer.
+        transaction {
+            Servers.update({ Servers.id eq id }) {
+                it[Servers.status] = "STARTING"
+                it[Servers.updatedAt] = Clock.System.now()
+                    .toLocalDateTime(TimeZone.UTC)
+            }
+        }
         if (serverRow[Servers.needsRecreate]) {
             lifecycle.sendStart(serverRow, needsRecreate = true)
         }
@@ -625,6 +639,15 @@ class ServerService(
                 Servers.selectAll()
                     .where { Servers.id eq id }
                     .first()
+            }
+            // Recreate transitions the container through a restart; mark STARTING before dispatch
+            // so the DB reflects it and a late write cannot clobber the consumer's HEALTHY.
+            transaction {
+                Servers.update({ Servers.id eq id }) {
+                    it[Servers.status] = "STARTING"
+                    it[Servers.updatedAt] = Clock.System.now()
+                        .toLocalDateTime(TimeZone.UTC)
+                }
             }
             lifecycle.sendStart(freshRow, needsRecreate = true, publicHostname = hostname)
         }
