@@ -9,6 +9,7 @@ import java.io.File
 import java.nio.file.Files
 import java.nio.file.attribute.PosixFilePermission
 import java.util.EnumSet
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 
 fun globalCraftpanelCleanup() {
@@ -77,6 +78,7 @@ class CraftPanelStack {
     private lateinit var postgres: PgContainer
     private lateinit var master: MasterContainer
     private val agents = mutableListOf<AgentContainer>()
+    private val agentAliasCounter = AtomicInteger(0)
     private var craftpanelNetworkId: String? = null
     private val testDataDirs = mutableListOf<File>()
     private var coverageMode = false
@@ -218,8 +220,9 @@ class CraftPanelStack {
 
         master.start()
 
-        for (i in 0 until nodeCount) {
-            val container = createAgentContainer(i, networkName, gatewayIp)
+        repeat(nodeCount) {
+            val index = agentAliasCounter.getAndIncrement()
+            val container = createAgentContainer(index, networkName, gatewayIp)
             container.start()
             agents.add(container)
         }
@@ -295,7 +298,7 @@ class CraftPanelStack {
     }
 
     fun addAgent(): String {
-        val index = agents.size
+        val index = agentAliasCounter.getAndIncrement()
         val gatewayIp = computeGatewayIp()
         val container = createAgentContainer(index, networkName, gatewayIp)
         container.start()

@@ -13,7 +13,7 @@ class MultiNodeHelper(private val api: DefaultApi) {
 
     suspend fun trustAllPendingNodes(count: Int, timeoutMs: Long = 60_000): List<String> {
         val nodeIds = mutableListOf<String>()
-        for (i in 0 until count) {
+        repeat(count) {
             val node = awaitPendingNode(timeoutMs)
             api.trustNode(node.id)
 
@@ -23,8 +23,7 @@ class MultiNodeHelper(private val api: DefaultApi) {
             } ?: error("Node ${node.id} did not transition to ACTIVE within ${timeoutMs}ms")
 
             // Assign non-overlapping port ranges so multi-node tests don't conflict
-            val portStart = 30000 + i * 1000
-            val portEnd = portStart + 499
+            val (portStart, portEnd) = PortBandAllocator.next()
             api.updateNode(node.id, PatchNodeRequest(portRangeStart = portStart, portRangeEnd = portEnd))
 
             waitForAgentConnection(node.id, timeoutMs)

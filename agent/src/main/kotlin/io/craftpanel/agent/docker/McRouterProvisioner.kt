@@ -64,17 +64,20 @@ class McRouterProvisioner(
                 .exec().id
         }
         catch (e: ConflictException) {
-            // Race: another agent created the container between our inspect-check and create.
-            // Retry inspect with backoff — Docker may not immediately reflect the new container
-            // on a subsequent API call even though it rejected the create with a conflict.
+            // Race: another colocated agent created the container between our inspect-check
+            // and create. The name conflict is itself proof the container exists, so we
+            // reuse it rather than rethrow. The winner may still be mid-provisioning, so
+            // poll inspect generously — its create can lag several seconds behind the
+            // conflict response on a busy daemon.
             var inspected: InspectContainerResponse? = null
-            for (i in 1..5) {
+            var attempts = 0
+            while (inspected == null && attempts < 75) {
                 inspected = runCatching {
                     docker.inspectContainerCmd(containerName)
                         .exec()
                 }.getOrNull()
-                if (inspected != null) break
-                Thread.sleep(200)
+                if (inspected == null) Thread.sleep(200)
+                attempts++
             }
             val container = inspected ?: throw e
             if (container.state?.running == true) {
@@ -82,7 +85,15 @@ class McRouterProvisioner(
                 connectToNetwork(container.id)
                 return
             }
-            container.id
+            // Exists but not yet started — start it (idempotent) and reuse.
+            runCatching {
+                docker.startContainerCmd(container.id)
+                    .exec()
+            }
+                .onFailure { if (it !is NotModifiedException) throw it }
+            log.info("mc-router reused after losing create race")
+            connectToNetwork(container.id)
+            return
         }
         runCatching {
             docker.startContainerCmd(id)

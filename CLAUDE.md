@@ -16,6 +16,10 @@ Before starting any task, assess complexity:
 - Ambiguous architecture, cross-module coordination, new proto changes,
   state machine logic: pause and flag for advisor review before proceeding
 
+**Be cost-conscious about who does edits.** Inline edits on the main (Opus/Sonnet) thread are not always cheapest — for bounded mechanical edits prefer a cheaper executor: `cavecrew-builder` (1-2 file
+surgical edits) or a Haiku/Sonnet sub-agent. Reserve the main thread for orientation, design, and judgement. (One-or-two-line edits to a file already open in context are fine inline; spawning then
+costs more than it saves.)
+
 **Advisor calls require user confirmation.** Before calling `advisor()`, always ask the user: "Call advisor for [reason]?" and wait for approval. Never call advisor silently.
 
 ## Module Structure
@@ -342,9 +346,17 @@ Requires Docker daemon running. Tests spin up PostgreSQL, master, agent, and fak
 - Helper classes: `AuthHelper`, `NodeHelper`, `ServerHelper`, `MultiNodeHelper` in `harness/`
 - `MultiNodeHelper.trustAllPendingNodes(n)` — used by `SystemTestConfig` when stack starts with 2 agents
 - `listMods` returns `Map<String, List<ModResponse>>` (bucketed by loader); `.isEmpty()` checks map keys, not entries — use `.values.flatten().isEmpty()`
-- **Kotest 6.x: all lifecycle hooks must be registered at the `init {}` level**, never inside a `context {}` lambda — `beforeSpec`, `afterSpec`, `beforeContainer`, `beforeEach`, etc. are silently ignored when registered inside a container scope. Declare `lateinit var` state and hooks directly in `init`, then reference them from nested `context`/`should` lambdas via closure.
+- **Kotest 6.x: register spec-level lifecycle hooks at the `init {}` level.** `beforeSpec`/`afterSpec` are spec-global — registering them inside a `context {}` does NOT scope them to that container and is a footgun; declare them in `init`. `beforeContainer`/`afterContainer`/`beforeEach`/`beforeTest` registered inside a `context {}` DO run (verified empirically), scoped to that container's descendants and firing once per child container — which is itself a trap: a `beforeContainer` in a `context` with N nested sub-contexts fires N times (e.g. spinning up N stacks instead of one). Prefer `init`-level hooks, or for per-test resource lifecycle use inline `try/finally` inside each `should`. Declare `lateinit var` state in `init` and reference it from nested `context`/`should` lambdas via closure.
 - Shared servers in system tests: use `beforeSpec`/`afterSpec` with `lateinit var serverId` (and `serverId2` if two configs are needed) rather than per-test `try/finally` creation — reduces container spin-up count significantly.
 - `system-tests/build/generated/` is regenerated at build time via `:master:generateOpenApiSpec` → `:system-tests:generateApiClient`. Manual edits there survive until the next build that re-runs codegen.
+- **Reading system-test failures:** container `[master]`/`[agent-N]` logs go to `System.err` → they land in the test report (`build/reports/tests/test/*.html`) and the XML `<system-err>` block, NOT
+  gradle stdout. Per-spec setup logs (`[setup] Agent N`, `[cleanup] ...`) are in the XML `<system-out>`. Don't expect to `tee` them from the gradle run.
+- `pull access denied for craftpanel-fake-server ... repository does not exist` is EXPECTED — fake-server/fake-proxy are local-only images, never pullable. Not a root cause; ignore it when triaging.
+- Trust the XML failures/errors scan, not the gradle process exit, when running via background/`tee` — a backgrounded `tee` can report exit 0 while gradle BUILD FAILED.
+- Disjoint host-port bands across stacks come from `PortBandAllocator` (JVM-wide, random per-run start); both `MultiNodeHelper` and `NodeHelper` draw from it. Per-test agents use
+  `CraftPanelStack.addAgent()`/`removeAgent()` (monotonic alias counter — safe for repeated add/remove within one spec).
+- mc-router is one-per-host, shared by co-located agents (name `<containerPrefix>-mc-router`, binds host 25565). `McRouterProvisioner` treats a name-conflict as proof the container exists and reuses
+  it — never fatal on a lost create race.
 
 #### System test coverage (`-PwithCoverage`)
 
@@ -365,6 +377,8 @@ Schema migrations via `exposed-migration-jdbc`.
 
 ## What NOT to Do
 
+- Don't assume `grep` is GNU grep — on this host it's aliased to `ugrep` (different regex/flag behavior, warns on missing files). Prefer the Grep tool, or `command grep`/`rg` when the shell `grep`
+  misbehaves.
 - Don't add a Makefile
 - Don't use multi-stage Dockerfiles
 - Don't put build logic inside Docker

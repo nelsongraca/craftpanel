@@ -2,6 +2,7 @@ package craftpanel.systemtest.harness
 
 import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.client.model.NodeResponse
+import craftpanel.systemtest.client.model.PatchNodeRequest
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 import org.openapitools.client.infrastructure.ServerException
@@ -26,6 +27,11 @@ class NodeHelper(private val api: DefaultApi) {
             api.getNode(node.id)
                 .takeIf { it.status == "ACTIVE" }
         } ?: error("Node ${node.id} did not transition to ACTIVE within ${timeoutMs}ms")
+
+        // Assign a unique, non-overlapping port band to avoid host-port collisions
+        // between stacks when containers from a previous run are still shutting down.
+        val (portStart, portEnd) = PortBandAllocator.next()
+        api.updateNode(node.id, PatchNodeRequest(portRangeStart = portStart, portRangeEnd = portEnd))
 
         // Wait until agent actually connects to the master.
         // We do this by creating a temp server and trying to start it.
