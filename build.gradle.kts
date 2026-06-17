@@ -33,6 +33,7 @@ val koverAggregateReport by tasks.registering(Exec::class) {
     description = "Merge .ic files from master, agent, and system-tests into aggregated report"
     dependsOn(":master:test", ":agent:test", ":master:installDist", ":agent:installDist")
     mustRunAfter(":system-tests:test")
+    onlyIf { project.hasProperty("withCoverage") }
     notCompatibleWithConfigurationCache(".ic files discovered at execution time")
 
     doFirst {

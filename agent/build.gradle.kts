@@ -87,6 +87,13 @@ tasks.register<DockerPushImage>("dockerPushImage") {
 }
 
 kover {
+    if (!project.hasProperty("withCoverage")) {
+        currentProject {
+            instrumentation {
+                disabledForTestTasks.add("test")
+            }
+        }
+    }
     reports {
         filters {
             excludes {

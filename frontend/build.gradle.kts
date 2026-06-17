@@ -42,6 +42,7 @@ val testCoverage by tasks.registering(Exec::class) {
     dependsOn("assembleFrontend")
     workingDir = projectDir
     commandLine(".node/bin/pnpm", "vitest", "run", "--coverage")
+    onlyIf { project.hasProperty("withCoverage") }
 }
 
 tasks.register<Exec>("generateApiTypes") {
