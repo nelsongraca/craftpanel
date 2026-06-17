@@ -10,7 +10,8 @@ Node list and node detail views.
 .cp-btn-trust { background: #d4edda; color: #155724; border: 1px solid #b8dfc4; }
 .cp-badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: bold; }
 .cp-badge-active { background: #d4edda; color: #155724; }
-.cp-badge-degraded { background: #fdecea; color: #721c24; }
+.cp-badge-degraded { background: #fff3e0; color: #856404; }
+.cp-badge-unreachable { background: #fdecea; color: #721c24; }
 .cp-badge-pending { background: #fff3e0; color: #856404; }
 .cp-badge-decommissioned { background: var(--md-default-fg-color--lightest); color: var(--md-default-fg-color--light); }
 .cp-muted { color: var(--md-default-fg-color--light); }

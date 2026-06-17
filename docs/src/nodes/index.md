@@ -131,6 +131,17 @@ environments where image pulls are restricted or where a pinned digest is baked 
 If the mc-router container is already running, the pull (if enabled) still executes so the local image cache is updated, but the running container is not restarted — the update takes effect on the
 next agent restart.
 
+### mc-router health and recovery
+
+mc-router provisioning runs in a background supervisor loop — agent startup is not blocked if mc-router is unavailable. If the provisioning fails (e.g. image pull error, Docker daemon transient fault), the agent retries with exponential backoff (starting at 5 seconds, capping at 120 seconds). The node's `health` field reflects the current mc-router state:
+
+| mc-router state | Node health  | Effect                                                              |
+|-----------------|--------------|---------------------------------------------------------------------|
+| Running         | `HEALTHY`    | Player connections routed normally                                  |
+| Down / starting | `DEGRADED`   | New player connections fail; existing server containers unaffected  |
+
+When mc-router recovers the agent reports `router_running = true` on the next metrics poll and master updates `health` to `HEALTHY`.
+
 ## Colocation with Master
 
 The master backend, PostgreSQL, and frontend may share hardware with a node agent. In this configuration the master node also hosts server containers alongside the management stack. Resource allocated

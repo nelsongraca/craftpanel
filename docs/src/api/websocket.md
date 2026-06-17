@@ -255,20 +255,23 @@ Fired when a migration reaches a terminal state.
 
 #### `node.status`
 
-Fired when a node's status changes. Only pushed to users with `system.nodes` permission.
+Fired when a node's runtime health changes. Only pushed to users with `system.nodes` permission.
 
 ```json
 {
   "type": "node.status",
   "payload": {
     "node_id": "<uuid>",
-    "status": "DEGRADED",
+    "health": "UNREACHABLE",
     "recorded_at": "2026-05-04T10:00:00Z"
   }
 }
 ```
 
-`status` values: `PENDING`, `ACTIVE`, `DEGRADED`, `DECOMMISSIONED`.
+`health` values: `HEALTHY`, `DEGRADED`, `UNREACHABLE`.
+
+!!! note
+This event carries `health` (runtime state), not `status` (admin lifecycle). For lifecycle status changes (trust, decommission) refresh via `GET /nodes/{id}` — these are infrequent admin actions that do not warrant a live push.
 
 ---
 

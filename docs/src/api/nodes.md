@@ -29,6 +29,7 @@ Base path: `/api/nodes`
       "public_ip": "1.2.3.4",
       "private_ip": "10.0.0.1",
       "status": "ACTIVE",
+      "health": "HEALTHY",
       "total_ram_mb": 32768,
       "allocated_ram_mb": 18432,
       "total_cpu_shares": 1024,
@@ -105,7 +106,7 @@ Sends a `ShutdownCommand` to the agent over the gRPC control stream. The agent s
 }
 ```
 
-**Response `202`.** Shutdown is async — the node will transition to `DEGRADED` once the agent disconnects.
+**Response `202`.** Shutdown is async — the node's `health` will transition to `UNREACHABLE` once the agent disconnects. The `status` remains `ACTIVE`.
 
 **Errors:** `502` if the agent is not currently connected.
 

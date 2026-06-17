@@ -70,7 +70,7 @@ commanded via the control stream. This isolates multi-GB transfers from the cont
 ### Subsequent connects (node key present)
 
 1. Agent calls `IdentifyNode` with the stored node key and current metadata
-2. If `ACTIVE` or `DEGRADED` — master accepts; agent opens the `Control` stream and sends `NodeStateSnapshot`
+2. If `ACTIVE` — master accepts; agent opens the `Control` stream and sends `NodeStateSnapshot`
 3. If `PENDING` — master refuses with `PERMISSION_DENIED`; agent must wait for admin approval before reconnecting
 4. If `REJECTED` or `DECOMMISSIONED` — master refuses; agent logs the error and halts
 
@@ -94,6 +94,13 @@ against the stored hash in the database — the same credential used by `Identif
 ## Node state snapshot
 
 The first `AgentMessage` on every `Control` stream after connect must be a `NodeStateSnapshot`. Master reconciles DB server statuses against what the agent reports before issuing any commands.
+
+`NodeStateSnapshot` includes a `router_running` boolean indicating whether the agent's mc-router container is up. Master uses this to derive the node's initial `health`:
+
+- `router_running = true` → `health = HEALTHY`
+- `router_running = false` → `health = DEGRADED`
+
+The same field is included in every subsequent `NodeMetricsUpdate`. Master emits a `node.status` WebSocket event only when the derived health value changes between polls.
 
 Container run states:
 
@@ -171,13 +178,13 @@ eliminate rsync entirely by decoupling data from the node running the container.
 Master on receiving `ShutdownAcknowledgeUpdate`:
 
 - Marks all servers on the node `STOPPED`
-- Marks node `DEGRADED`
+- Marks node `health = UNREACHABLE` (lifecycle `status` remains `ACTIVE`)
 
 ### Unplanned shutdown / agent crash
 
 Master detects liveness loss when the `Control` stream drops or when no `NodeMetricsUpdate` is received within 2 consecutive intervals (2 minutes). On detection:
 
-- Node marked `DEGRADED`
+- Node `health` marked `UNREACHABLE`
 - All servers on the node marked `UNHEALTHY`
 - Any in-progress migrations involving the node marked `FAILED`
 - Any in-progress backups on the node marked `FAILED`
