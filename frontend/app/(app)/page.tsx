@@ -7,12 +7,12 @@ import PageHeader from "@/app/components/PageHeader";
 import {listNodes, listServers} from "@/lib/generated/sdk.gen";
 import type {Node, Server} from "@/lib/types";
 import {timeAgo} from "@/lib/utils/format";
-import {nodeStatusClass, serverStatusClass} from "@/lib/status";
+import {nodeDisplayStatus, nodeStatusClass, serverStatusClass} from "@/lib/status";
 
-function NodeStatusBadge({status}: { status: string }) {
+function NodeStatusBadge({status, health}: { status: string; health?: string }) {
     return (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-heading font-bold uppercase tracking-wider ${nodeStatusClass(status)}`}>
-      {status}
+        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-heading font-bold uppercase tracking-wider ${nodeStatusClass(status, health)}`}>
+      {nodeDisplayStatus(status, health)}
     </span>
     );
 }
@@ -129,7 +129,7 @@ export default function Dashboard() {
                                             </Link>
                                         </td>
                                         <td className="px-3 py-2.5">
-                                            <NodeStatusBadge status={node.status}/>
+                                            <NodeStatusBadge status={node.status} health={node.health}/>
                                         </td>
                                         <td className="px-3 py-2.5">
                                             <RamBar used={node.allocated_ram_mb} total={node.total_ram_mb}/>

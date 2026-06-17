@@ -5,6 +5,7 @@ import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.di.ConnectionScope
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.MetricsCollector
+import io.craftpanel.agent.docker.RouterSupervisor
 import kotlinx.coroutines.delay
 import org.koin.core.Koin
 import org.koin.core.parameter.parametersOf
@@ -20,6 +21,7 @@ class ConnectionManager(
     private val containerManager: ContainerManager,
     private val metricsCollector: MetricsCollector,
     private val docker: DockerClient,
+    private val routerSupervisor: RouterSupervisor,
 ) {
 
     private val log = LoggerFactory.getLogger(ConnectionManager::class.java)
@@ -42,6 +44,7 @@ class ConnectionManager(
 
                     ControlStreamHandler(
                         identity, config, containerManager, metricsCollector, docker,
+                        routerSupervisor = routerSupervisor,
                         container = scope.get(),
                         backup = scope.get(),
                         migration = scope.get(),

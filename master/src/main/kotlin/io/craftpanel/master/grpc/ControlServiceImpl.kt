@@ -37,7 +37,7 @@ import kotlin.time.Instant
 import io.craftpanel.master.util.toUtcString
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.AgentMetricEvent
-import io.craftpanel.master.domain.NodeConnectionStatus
+import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.ServerStatus
 import kotlin.uuid.Uuid
 
@@ -130,9 +130,9 @@ class ControlServiceImpl(
         }
 
         val identifyStatus = when (row?.get(Nodes.status)) {
-            "ACTIVE", "DEGRADED" -> IdentifyNodeResponse.IdentifyStatus.ACTIVE
-            "PENDING"            -> IdentifyNodeResponse.IdentifyStatus.PENDING
-            else                 -> IdentifyNodeResponse.IdentifyStatus.REJECTED
+            "ACTIVE"  -> IdentifyNodeResponse.IdentifyStatus.ACTIVE
+            "PENDING" -> IdentifyNodeResponse.IdentifyStatus.PENDING
+            else      -> IdentifyNodeResponse.IdentifyStatus.REJECTED
         }
 
         val rowId = row?.get(Nodes.id)
@@ -152,6 +152,7 @@ class ControlServiceImpl(
         val outChannel = this.channel
         val lastMetricsAt = AtomicReference(Clock.System.now())
         var watchdogFired = false
+        var lastEmittedHealth: NodeHealth? = null
 
         launch {
             while (!watchdogFired) {
@@ -160,9 +161,9 @@ class ControlServiceImpl(
                 if (elapsed.inWholeSeconds > 120 && !watchdogFired) {
                     watchdogFired = true
                     connectedNodeId?.let { nodeId ->
-                        log.warn("Node $nodeId: no metrics for ${elapsed.inWholeSeconds}s — marking degraded")
-                        markNodeDegraded(nodeId)
-                        _agentEvents.emit(AgentEvent.NodeStatusEvent(nodeId, NodeConnectionStatus.DEGRADED))
+                        log.warn("Node $nodeId: no metrics for ${elapsed.inWholeSeconds}s — marking unreachable")
+                        markNodeUnreachable(nodeId)
+                        _agentEvents.emit(AgentEvent.NodeStatusEvent(nodeId, NodeHealth.UNREACHABLE))
                     }
                 }
             }
@@ -183,7 +184,7 @@ class ControlServiceImpl(
                             ?.get(Nodes.status)
                     }
                     log.info("Node $nodeId: first message, db status=$nodeStatus")
-                    if (nodeStatus !in setOf("ACTIVE", "DEGRADED")) {
+                    if (nodeStatus != "ACTIVE") {
                         val reason = when (nodeStatus) {
                             "PENDING"        -> "Node $nodeId is pending admin approval"
                             "REJECTED"       -> "Node $nodeId has been rejected"
@@ -203,11 +204,11 @@ class ControlServiceImpl(
                         runCatching { reconcileNodeState(msg.nodeId, msg.nodeState) }
                             .onSuccess { result ->
                                 if (result != null) {
-                                    log.debug("Node ${msg.nodeId}: reconcileNodeState ok, wasRestored=$result — emitting ACTIVE")
-                                    _agentEvents.emit(AgentEvent.NodeStatusEvent(msg.nodeId, NodeConnectionStatus.ACTIVE))
+                                    log.debug("Node {}: reconcileNodeState ok — emitting health={}", msg.nodeId, result.name)
+                                    _agentEvents.emit(AgentEvent.NodeStatusEvent(msg.nodeId, result))
                                 }
                                 else {
-                                    log.debug("Node ${msg.nodeId}: reconcileNodeState ok but node is PENDING — skipping ACTIVE emit")
+                                    log.debug("Node ${msg.nodeId}: reconcileNodeState ok but node is PENDING — skipping health emit")
                                 }
                             }
                             .onFailure { e -> log.error("Node ${msg.nodeId}: reconcileNodeState failed — ${e.message}", e) }
@@ -232,6 +233,14 @@ class ControlServiceImpl(
                         runCatching { persistNodeMetrics(nodeMetricEvent) }
                             .onFailure { e -> log.warn("Node ${msg.nodeId}: persistNodeMetrics failed — ${e.message}") }
                         _agentMetricsFlow.emit(nodeMetricEvent)
+                        // Router health derived from the periodic report; emit only on change
+                        val newHealth = if (msg.nodeMetrics.routerRunning) NodeHealth.HEALTHY else NodeHealth.DEGRADED
+                        if (newHealth != lastEmittedHealth) {
+                            lastEmittedHealth = newHealth
+                            runCatching { updateNodeHealth(msg.nodeId, newHealth) }
+                                .onFailure { e -> log.warn("Node ${msg.nodeId}: updateNodeHealth failed — ${e.message}") }
+                            _agentEvents.emit(AgentEvent.NodeStatusEvent(msg.nodeId, newHealth))
+                        }
                         launch {
                             runCatching { evaluateNodeAlerts(msg.nodeId, msg.nodeMetrics) }
                                 .onFailure { e -> if (e is CancellationException) throw e; log.warn("Node ${msg.nodeId}: evaluateNodeAlerts failed — ${e.message}") }
@@ -365,9 +374,9 @@ class ControlServiceImpl(
                 drainNodeRequests(nodeId)
                 onNodeDisconnect(nodeId)
                 if (wasOwner && !watchdogFired && !connectedAgents.containsKey(nodeId)) {
-                    log.warn("Node $nodeId: control stream disconnected — marking degraded")
-                    markNodeDegraded(nodeId)
-                    _agentEvents.emit(AgentEvent.NodeStatusEvent(nodeId, NodeConnectionStatus.DEGRADED))
+                    log.warn("Node $nodeId: control stream disconnected — marking unreachable")
+                    markNodeUnreachable(nodeId)
+                    _agentEvents.emit(AgentEvent.NodeStatusEvent(nodeId, NodeHealth.UNREACHABLE))
                 }
                 else if (wasOwner && connectedAgents.containsKey(nodeId)) {
                     log.info("Node $nodeId: stream ended but new connection is already active — skipping degrade")
@@ -487,14 +496,14 @@ class ControlServiceImpl(
 
     // ── Reconciliation & lifecycle ────────────────────────────────────────────
 
-    internal fun reconcileNodeState(nodeId: String, snapshot: NodeStateSnapshot): Boolean? {
+    internal fun reconcileNodeState(nodeId: String, snapshot: NodeStateSnapshot): NodeHealth? {
         val kotlinNodeId = runCatching {
             Uuid.parse(nodeId)
 
         }.getOrNull() ?: return null
         val now = Clock.System.now()
             .toLocalDateTime(TimeZone.UTC)
-        var wasRestored: Boolean? = null
+        var resultHealth: NodeHealth? = null
 
         transaction {
             val currentStatus = Nodes.selectAll()
@@ -528,28 +537,29 @@ class ControlServiceImpl(
                     }
                 }
 
-            if (currentStatus in setOf("ACTIVE", "DEGRADED")) {
+            if (currentStatus == "ACTIVE") {
+                val newHealth = if (snapshot.routerRunning) NodeHealth.HEALTHY else NodeHealth.DEGRADED
                 Nodes.update({ Nodes.id eq kotlinNodeId }) {
-                    it[Nodes.status] = "ACTIVE"
+                    it[Nodes.health] = newHealth.name
                     it[Nodes.lastSeenAt] = now
                 }
-                wasRestored = currentStatus == "DEGRADED"
-                log.debug("Node $nodeId: wrote status=ACTIVE (was $currentStatus), wasRestored=$wasRestored")
+                resultHealth = newHealth
+                log.debug("Node {}: reconciled health={} (routerRunning={})", nodeId, newHealth, snapshot.routerRunning)
             }
             else {
-                log.debug("Node $nodeId: status=$currentStatus — only updating lastSeenAt, not emitting ACTIVE")
+                log.debug("Node $nodeId: status=$currentStatus — only updating lastSeenAt")
                 Nodes.update({ Nodes.id eq kotlinNodeId }) { it[Nodes.lastSeenAt] = now }
             }
         }
-        return wasRestored
+        return resultHealth
     }
 
-    internal fun markNodeDegraded(nodeId: String) {
+    internal fun markNodeUnreachable(nodeId: String) {
         val kotlinNodeId = runCatching {
             Uuid.parse(nodeId)
 
         }.getOrElse {
-            log.warn("markNodeDegraded: invalid nodeId format: $nodeId")
+            log.warn("markNodeUnreachable: invalid nodeId format: $nodeId")
             return
         }
         val now = Clock.System.now()
@@ -557,20 +567,12 @@ class ControlServiceImpl(
 
         transaction {
             val updated = Nodes.update({
-                (Nodes.id eq kotlinNodeId) and (Nodes.status inList listOf("ACTIVE", "DEGRADED"))
-            }) { it[Nodes.status] = "DEGRADED" }
+                (Nodes.id eq kotlinNodeId) and (Nodes.status eq "ACTIVE")
+            }) { it[Nodes.health] = "UNREACHABLE" }
 
             if (updated == 0) {
-                log.debug("markNodeDegraded: node $nodeId is not ACTIVE/DEGRADED — skipping degrade")
+                log.debug("markNodeUnreachable: node $nodeId is not ACTIVE — skipping")
                 return@transaction
-            }
-
-            val serverCount = Servers.update({
-                (Servers.nodeId eq kotlinNodeId) and
-                        (Servers.status inList listOf("HEALTHY", "STARTING", "STOPPING"))
-            }) {
-                it[Servers.status] = "UNHEALTHY"
-                it[Servers.lastSeenAt] = now
             }
 
             val migrationCount = ServerMigrations.update({
@@ -589,7 +591,22 @@ class ControlServiceImpl(
                 it[Backups.completedAt] = now
             }
 
-            log.warn("Node $nodeId marked DEGRADED: $serverCount servers → ERROR, $migrationCount migrations → FAILED, $backupCount backups → FAILED")
+            log.warn("Node $nodeId marked UNREACHABLE: $migrationCount migrations → FAILED, $backupCount backups → FAILED")
+        }
+    }
+
+    internal fun updateNodeHealth(nodeId: String, health: NodeHealth) {
+        val kotlinNodeId = runCatching {
+            Uuid.parse(nodeId)
+
+        }.getOrElse {
+            log.warn("updateNodeHealth: invalid nodeId format: $nodeId")
+            return
+        }
+        transaction {
+            Nodes.update({ (Nodes.id eq kotlinNodeId) and (Nodes.status eq "ACTIVE") }) {
+                it[Nodes.health] = health.name
+            }
         }
     }
 

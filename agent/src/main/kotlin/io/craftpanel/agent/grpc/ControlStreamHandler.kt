@@ -4,6 +4,7 @@ import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.MetricsCollector
+import io.craftpanel.agent.docker.RouterSupervisor
 import io.craftpanel.agent.grpc.handlers.*
 import io.craftpanel.proto.*
 import io.grpc.ManagedChannel
@@ -19,6 +20,7 @@ class ControlStreamHandler(
     private val containerManager: ContainerManager,
     private val metricsCollector: MetricsCollector,
     private val docker: DockerClient,
+    private val routerSupervisor: RouterSupervisor,
     private val container: ContainerHandler,
     private val backup: BackupHandler = BackupHandler(config),
     private val migration: MigrationHandler = MigrationHandler(config, containerManager),
@@ -50,8 +52,12 @@ class ControlStreamHandler(
         launch {
             while (true) {
                 delay(metricsInterval)
+                val routerRunning = routerSupervisor.isRunning
                 val metrics = metricsCollector.collect()
-                out.send { nodeMetrics = metrics }
+                out.send { nodeMetrics = metrics.toBuilder()
+                    .setRouterRunning(routerRunning)
+                    .build()
+                }
 
                 containerManager.listRunningContainerIds()
                     .forEach { (serverId, containerId) ->
@@ -108,6 +114,7 @@ class ControlStreamHandler(
         return nodeStateSnapshot {
             this.containers.addAll(containers)
             recordedAt = nowTimestamp()
+            routerRunning = routerSupervisor.isRunning
         }
     }
 }

@@ -34,34 +34,48 @@ export function serverStatusClass(status: string): string {
 
 // ── Node status ───────────────────────────────────────────────────────────────
 
-type NodeStatus = 'ACTIVE' | 'PENDING' | 'DEGRADED' | 'REJECTED' | 'DECOMMISSIONED'
+type NodeLifecycleStatus = 'ACTIVE' | 'PENDING' | 'REJECTED' | 'DECOMMISSIONED'
+type NodeHealth = 'HEALTHY' | 'DEGRADED' | 'UNREACHABLE'
 
-const NODE_STATUS_LABELS: Record<NodeStatus, string> = {
+// Combined display status derived from lifecycle + health axes
+type NodeDisplayStatus = 'ACTIVE' | 'PENDING' | 'REJECTED' | 'DECOMMISSIONED' | 'DEGRADED' | 'UNREACHABLE'
+
+const NODE_DISPLAY_LABELS: Record<NodeDisplayStatus, string> = {
     ACTIVE: 'Active',
     PENDING: 'Pending',
-    DEGRADED: 'Degraded',
     REJECTED: 'Rejected',
     DECOMMISSIONED: 'Decommissioned',
+    DEGRADED: 'Degraded',
+    UNREACHABLE: 'Unreachable',
 }
 
-const NODE_STATUS_CLASSES: Record<NodeStatus, string> = {
+const NODE_DISPLAY_CLASSES: Record<NodeDisplayStatus, string> = {
     ACTIVE: 'text-healthy  border border-healthy/30  bg-healthy/10',
     PENDING: 'text-warning  border border-warning/30  bg-warning/10',
-    DEGRADED: 'text-error    border border-error/30    bg-error/10',
     REJECTED: 'text-text-muted border border-border   bg-surface-high',
     DECOMMISSIONED: 'text-text-muted border border-border   bg-surface-high',
+    DEGRADED: 'text-warning  border border-warning/30  bg-warning/10',
+    UNREACHABLE: 'text-error    border border-error/30    bg-error/10',
 }
 
-function toNodeStatus(status: string): NodeStatus {
-    return (['ACTIVE', 'PENDING', 'DEGRADED', 'REJECTED', 'DECOMMISSIONED'].includes(status)
-        ? status
-        : 'PENDING') as NodeStatus
+function toNodeDisplayStatus(status: string, health?: string): NodeDisplayStatus {
+    if (status === 'ACTIVE') {
+        if (health === 'DEGRADED') return 'DEGRADED'
+        if (health === 'UNREACHABLE') return 'UNREACHABLE'
+        return 'ACTIVE'
+    }
+    const lifecycle = ['PENDING', 'REJECTED', 'DECOMMISSIONED']
+    return (lifecycle.includes(status) ? status : 'PENDING') as NodeDisplayStatus
 }
 
-export function nodeStatusLabel(status: string): string {
-    return NODE_STATUS_LABELS[toNodeStatus(status)]
+export function nodeDisplayStatus(status: string, health?: string): NodeDisplayStatus {
+    return toNodeDisplayStatus(status, health)
 }
 
-export function nodeStatusClass(status: string): string {
-    return NODE_STATUS_CLASSES[toNodeStatus(status)]
+export function nodeStatusLabel(status: string, health?: string): string {
+    return NODE_DISPLAY_LABELS[toNodeDisplayStatus(status, health)]
+}
+
+export function nodeStatusClass(status: string, health?: string): string {
+    return NODE_DISPLAY_CLASSES[toNodeDisplayStatus(status, health)]
 }

@@ -222,9 +222,9 @@ function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
                 </StatCard>
                 <StatCard label="Status">
           <span
-              className={`self-start text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status)}`}
+              className={`self-start text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status, node.health)}`}
           >
-            {nodeStatusLabel(node.status)}
+            {nodeStatusLabel(node.status, node.health)}
           </span>
                     {node.last_seen_at && (
                         <p className="text-[11px] text-text-muted">last seen {timeAgo(node.last_seen_at)}</p>
@@ -731,8 +731,8 @@ export default function NodeDetailPage() {
                         <h1 className="text-[22px] font-heading font-bold uppercase tracking-wide text-text-primary leading-none">
                             {node.display_name}
                         </h1>
-                        <span className={`text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status)}`}>
-              {nodeStatusLabel(node.status)}
+                        <span className={`text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status, node.health)}`}>
+              {nodeStatusLabel(node.status, node.health)}
             </span>
                     </div>
 

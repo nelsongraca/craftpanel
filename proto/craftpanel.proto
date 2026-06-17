@@ -234,6 +234,7 @@ message AgentMessage {
 message NodeStateSnapshot {
   repeated ContainerState containers = 1;
   google.protobuf.Timestamp recorded_at = 2;
+  bool router_running = 3;
 }
 
 message ContainerState {
@@ -561,6 +562,7 @@ message NodeMetricsUpdate {
   int64  net_out_bytes = 7;
   int64  disk_used_bytes = 8;
   int64  disk_total_bytes = 9;
+  bool   router_running = 10;
 }
 
 message ContainerMetricsUpdate {

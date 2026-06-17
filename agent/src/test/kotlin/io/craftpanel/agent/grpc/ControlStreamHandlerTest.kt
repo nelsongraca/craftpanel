@@ -3,7 +3,9 @@ package io.craftpanel.agent.grpc
 import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerManager
+import io.craftpanel.agent.docker.McRouterProvisioner
 import io.craftpanel.agent.docker.MetricsCollector
+import io.craftpanel.agent.docker.RouterSupervisor
 import io.craftpanel.agent.grpc.handlers.BackupHandler
 import io.craftpanel.agent.grpc.handlers.ContainerHandler
 import io.craftpanel.proto.*
@@ -46,12 +48,14 @@ class ControlStreamHandlerTest : FunSpec({
     )
     val containerHandler = ContainerHandler(containerManager, config)
     val backupHandler = BackupHandler(config)
-    val handler = ControlStreamHandler(identity, config, containerManager, metricsCollector, docker, containerHandler)
+    val routerSupervisor = RouterSupervisor(mockk<McRouterProvisioner>(relaxed = true))
+    val handler = ControlStreamHandler(identity, config, containerManager, metricsCollector, docker, routerSupervisor, containerHandler)
 
     var tempDir: File = File("")
 
     beforeTest {
-        tempDir = Files.createTempDirectory("handler-test").toFile()
+        tempDir = Files.createTempDirectory("handler-test")
+            .toFile()
     }
 
     afterTest {
@@ -109,7 +113,8 @@ class ControlStreamHandlerTest : FunSpec({
                 needsRecreate = false
             }, outbound)
 
-            val msg = outboundChannel.messages().single()
+            val msg = outboundChannel.messages()
+                .single()
             msg.serverStatus.status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
             msg.serverStatus.serverId shouldBe "srv-start"
         }
@@ -127,8 +132,9 @@ class ControlStreamHandlerTest : FunSpec({
                 needsRecreate = false
             }, outbound)
 
-            outboundChannel.messages().single().serverStatus.status shouldBe
-                ServerStatusUpdate.ServerStatus.UNHEALTHY
+            outboundChannel.messages()
+                .single().serverStatus.status shouldBe
+                    ServerStatusUpdate.ServerStatus.UNHEALTHY
         }
     }
 
@@ -150,8 +156,9 @@ class ControlStreamHandlerTest : FunSpec({
 
             verify { containerManager.pullImage("itzg/minecraft-server:latest") }
             verify { containerManager.removeContainer("craftpanel-recreate", force = true) }
-            outboundChannel.messages().single().serverStatus.status shouldBe
-                ServerStatusUpdate.ServerStatus.HEALTHY
+            outboundChannel.messages()
+                .single().serverStatus.status shouldBe
+                    ServerStatusUpdate.ServerStatus.HEALTHY
         }
     }
 
@@ -167,7 +174,8 @@ class ControlStreamHandlerTest : FunSpec({
                 timeoutSeconds = 10
             }, outbound)
 
-            val msg = outboundChannel.messages().single()
+            val msg = outboundChannel.messages()
+                .single()
             msg.serverStatus.status shouldBe ServerStatusUpdate.ServerStatus.STOPPED
             msg.serverStatus.serverId shouldBe "srv-stop"
         }
@@ -183,8 +191,9 @@ class ControlStreamHandlerTest : FunSpec({
                 containerName = "craftpanel-stop-fail"
             }, outbound)
 
-            outboundChannel.messages().single().serverStatus.status shouldBe
-                ServerStatusUpdate.ServerStatus.UNHEALTHY
+            outboundChannel.messages()
+                .single().serverStatus.status shouldBe
+                    ServerStatusUpdate.ServerStatus.UNHEALTHY
         }
     }
 
@@ -201,8 +210,9 @@ class ControlStreamHandlerTest : FunSpec({
                 timeoutSeconds = 10
             }, outbound)
 
-            outboundChannel.messages().single().serverStatus.status shouldBe
-                ServerStatusUpdate.ServerStatus.HEALTHY
+            outboundChannel.messages()
+                .single().serverStatus.status shouldBe
+                    ServerStatusUpdate.ServerStatus.HEALTHY
             verify { containerManager.stopContainer("craftpanel-restart", 10, "") }
             verify { containerManager.startContainer("craftpanel-restart") }
         }
@@ -218,8 +228,9 @@ class ControlStreamHandlerTest : FunSpec({
                 containerName = "craftpanel-restart-fail"
             }, outbound)
 
-            outboundChannel.messages().single().serverStatus.status shouldBe
-                ServerStatusUpdate.ServerStatus.UNHEALTHY
+            outboundChannel.messages()
+                .single().serverStatus.status shouldBe
+                    ServerStatusUpdate.ServerStatus.UNHEALTHY
         }
     }
 
@@ -236,8 +247,9 @@ class ControlStreamHandlerTest : FunSpec({
             }, outbound)
 
             verify { containerManager.removeContainer("craftpanel-remove", true) }
-            outboundChannel.messages().single().serverStatus.status shouldBe
-                ServerStatusUpdate.ServerStatus.STOPPED
+            outboundChannel.messages()
+                .single().serverStatus.status shouldBe
+                    ServerStatusUpdate.ServerStatus.STOPPED
         }
     }
 
@@ -252,8 +264,9 @@ class ControlStreamHandlerTest : FunSpec({
                 force = false
             }, outbound)
 
-            outboundChannel.messages().single().serverStatus.status shouldBe
-                ServerStatusUpdate.ServerStatus.UNHEALTHY
+            outboundChannel.messages()
+                .single().serverStatus.status shouldBe
+                    ServerStatusUpdate.ServerStatus.UNHEALTHY
         }
     }
 
@@ -265,8 +278,10 @@ class ControlStreamHandlerTest : FunSpec({
 
             containerHandler.handleShutdown(shutdownCommand { timeoutSeconds = 30 }, outbound)
 
-            val msg = outboundChannel.messages().single()
-            msg.hasShutdownAcknowledge().shouldBeTrue()
+            val msg = outboundChannel.messages()
+                .single()
+            msg.hasShutdownAcknowledge()
+                .shouldBeTrue()
             msg.shutdownAcknowledge.gracefulCount shouldBe 3
             msg.shutdownAcknowledge.forcedCount shouldBe 1
         }

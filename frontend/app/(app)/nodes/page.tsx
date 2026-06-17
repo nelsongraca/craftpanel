@@ -15,7 +15,7 @@ import {ConfirmDialog} from "@/components/ui/confirm-dialog";
 import {useWs} from "@/lib/ws-context";
 import {tryCall} from "@/lib/api";
 import {useApiData} from "@/lib/hooks/useApiData";
-import {nodeStatusClass, nodeStatusLabel} from "@/lib/status";
+import {nodeDisplayStatus, nodeStatusClass, nodeStatusLabel} from "@/lib/status";
 
 const STATUS_FILTER_OPTIONS = [
     {label: "All Statuses", value: ""},
@@ -236,9 +236,9 @@ export default function NodesPage() {
 
     useEffect(() => {
         return subscribe("node.status", (payload) => {
-            const {node_id, status} = payload as { node_id: string; status: string };
+            const {node_id, health} = payload as { node_id: string; health: string };
             setNodes((prev) =>
-                prev.map((n) => n.id === node_id ? {...n, status} : n),
+                prev.map((n) => n.id === node_id ? {...n, health} : n),
             );
         });
     }, [subscribe]);
@@ -363,7 +363,7 @@ export default function NodesPage() {
         : `${nodes.length} node${nodes.length !== 1 ? "s" : ""} · ${activeCount} active · ${pendingNodes.length} pending`;
 
     const filtered = nodes.filter((n) => {
-        if (filterStatus && n.status !== filterStatus) return false;
+        if (filterStatus && nodeDisplayStatus(n.status, n.health) !== filterStatus) return false;
         return true;
     });
 
@@ -465,9 +465,9 @@ export default function NodesPage() {
                                     {/* STATUS */}
                                     <td className="py-3 pr-4">
                       <span
-                          className={`text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status)}`}
+                          className={`text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status, node.health)}`}
                       >
-                        {nodeStatusLabel(node.status)}
+                        {nodeStatusLabel(node.status, node.health)}
                       </span>
                                     </td>
 

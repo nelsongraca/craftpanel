@@ -2,7 +2,7 @@ package io.craftpanel.master.domain
 
 import kotlin.time.Instant
 
-enum class NodeConnectionStatus { ACTIVE, DEGRADED }
+enum class NodeHealth { HEALTHY, DEGRADED, UNREACHABLE }
 
 sealed class AgentEvent {
     data class ServerStatusEvent(
@@ -12,7 +12,7 @@ sealed class AgentEvent {
 
     data class NodeStatusEvent(
         val nodeId: String,
-        val status: NodeConnectionStatus,
+        val health: NodeHealth,
     ) : AgentEvent()
 
     data class BackupProgressEvent(

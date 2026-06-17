@@ -84,7 +84,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, agentEvents: Share
             val nodes = if (hasNodes()) {
                 Nodes.selectAll()
                     .map { row ->
-                        NodeSnapshot(row[Nodes.id].toString(), row[Nodes.displayName], row[Nodes.status])
+                        NodeSnapshot(row[Nodes.id].toString(), row[Nodes.displayName], row[Nodes.status], row[Nodes.health])
                     }
             }
             else emptyList()
@@ -123,7 +123,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, agentEvents: Share
                         WsEventType.NODE_STATUS,
                         NodeStatusPayload(
                             event.nodeId,
-                            event.status.name,
+                            event.health.name,
                             Clock.System.now()
                                 .toString()
                         )

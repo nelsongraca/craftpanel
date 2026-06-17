@@ -17,7 +17,7 @@ data class ServerSnapshot(
 )
 
 @Serializable
-data class NodeSnapshot(val id: String, val displayName: String, val status: String)
+data class NodeSnapshot(val id: String, val displayName: String, val status: String, val health: String)
 
 @Serializable
 data class SnapshotPayload(val servers: List<ServerSnapshot>, val nodes: List<NodeSnapshot>)
@@ -36,7 +36,7 @@ data class NodeMetricsPayload(
 )
 
 @Serializable
-data class NodeStatusPayload(val nodeId: String, val status: String, val recordedAt: String)
+data class NodeStatusPayload(val nodeId: String, val health: String, val recordedAt: String)
 
 @Serializable
 data class ServerMetricsPayload(

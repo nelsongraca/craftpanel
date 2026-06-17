@@ -7,7 +7,7 @@ import io.craftpanel.master.database.schema.ServerMigrations
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.domain.AgentEvent
-import io.craftpanel.master.domain.NodeConnectionStatus
+import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.proto.ContainerState
 import io.craftpanel.proto.agentMessage
 import io.craftpanel.proto.containerState
@@ -40,7 +40,7 @@ class ControlServiceImplTest : FunSpec({
     // helpers
     // -------------------------------------------------------------------------
 
-    fun createNode(status: String = "ACTIVE"): Uuid = transaction {
+    fun createNode(status: String = "ACTIVE", health: String = "HEALTHY"): Uuid = transaction {
         Nodes.insert {
             it[Nodes.hostname] = "test-node-${Uuid.random()}"
             it[Nodes.displayName] = "Test Node"
@@ -51,6 +51,7 @@ class ControlServiceImplTest : FunSpec({
                 .replace("-", "")
                 .padEnd(64, '0')
             it[Nodes.status] = status
+            it[Nodes.health] = health
         }[Nodes.id].let { Uuid.parse(it.toString()) }
     }
 
@@ -92,6 +93,12 @@ class ControlServiceImplTest : FunSpec({
         Nodes.selectAll()
             .where { Nodes.id eq nodeId }
             .first()[Nodes.status]
+    }
+
+    fun nodeHealth(nodeId: Uuid): String = transaction {
+        Nodes.selectAll()
+            .where { Nodes.id eq nodeId }
+            .first()[Nodes.health]
     }
 
     fun migrationStatus(migrationId: Uuid): String = transaction {
@@ -264,12 +271,22 @@ class ControlServiceImplTest : FunSpec({
         nodeStatus(nodeId) shouldBe "PENDING"
     }
 
-    test("reconcile promotes DEGRADED node to ACTIVE on reconnect") {
-        val nodeId = createNode(status = "DEGRADED")
+    test("reconcile clears UNREACHABLE health to HEALTHY on reconnect when router is running") {
+        val nodeId = createNode(status = "ACTIVE", health = "UNREACHABLE")
 
-        service.reconcileNodeState(nodeId.toString(), nodeStateSnapshot { })
+        service.reconcileNodeState(nodeId.toString(), nodeStateSnapshot { routerRunning = true })
 
         nodeStatus(nodeId) shouldBe "ACTIVE"
+        nodeHealth(nodeId) shouldBe "HEALTHY"
+    }
+
+    test("reconcile sets health to DEGRADED on reconnect when router is not running") {
+        val nodeId = createNode(status = "ACTIVE", health = "UNREACHABLE")
+
+        service.reconcileNodeState(nodeId.toString(), nodeStateSnapshot { routerRunning = false })
+
+        nodeStatus(nodeId) shouldBe "ACTIVE"
+        nodeHealth(nodeId) shouldBe "DEGRADED"
     }
 
     test("reconcile leaves ACTIVE node status unchanged") {
@@ -285,108 +302,117 @@ class ControlServiceImplTest : FunSpec({
     }
 
     // -------------------------------------------------------------------------
-    // markNodeDegraded
+    // markNodeUnreachable
     // -------------------------------------------------------------------------
 
-    test("markNodeDegraded sets node status to DEGRADED") {
+    test("markNodeUnreachable sets node health to UNREACHABLE, leaves status ACTIVE") {
         val nodeId = createNode(status = "ACTIVE")
 
-        service.markNodeDegraded(nodeId.toString())
+        service.markNodeUnreachable(nodeId.toString())
 
-        nodeStatus(nodeId) shouldBe "DEGRADED"
+        nodeStatus(nodeId) shouldBe "ACTIVE"
+        nodeHealth(nodeId) shouldBe "UNREACHABLE"
     }
 
-    test("markNodeDegraded sets HEALTHY servers to UNHEALTHY") {
+    test("markNodeUnreachable leaves HEALTHY servers unchanged") {
         val nodeId = createNode()
         val serverId = createServer(nodeId, status = "HEALTHY")
 
-        service.markNodeDegraded(nodeId.toString())
+        service.markNodeUnreachable(nodeId.toString())
 
-        serverStatus(serverId) shouldBe "UNHEALTHY"
+        serverStatus(serverId) shouldBe "HEALTHY"
     }
 
-    test("markNodeDegraded sets STARTING servers to UNHEALTHY") {
+    test("markNodeUnreachable leaves STARTING servers unchanged") {
         val nodeId = createNode()
         val serverId = createServer(nodeId, status = "STARTING")
 
-        service.markNodeDegraded(nodeId.toString())
+        service.markNodeUnreachable(nodeId.toString())
 
-        serverStatus(serverId) shouldBe "UNHEALTHY"
+        serverStatus(serverId) shouldBe "STARTING"
     }
 
-    test("markNodeDegraded leaves STOPPED servers unchanged") {
+    test("markNodeUnreachable leaves STOPPED servers unchanged") {
         val nodeId = createNode()
         val serverId = createServer(nodeId, status = "STOPPED")
 
-        service.markNodeDegraded(nodeId.toString())
+        service.markNodeUnreachable(nodeId.toString())
 
         serverStatus(serverId) shouldBe "STOPPED"
     }
 
-    test("markNodeDegraded sets PENDING migration to FAILED and sets completedAt") {
+    test("markNodeUnreachable sets PENDING migration to FAILED and sets completedAt") {
         val nodeId = createNode()
         val migrationId = createMigration(nodeId, status = "PENDING")
 
-        service.markNodeDegraded(nodeId.toString())
+        service.markNodeUnreachable(nodeId.toString())
 
         migrationStatus(migrationId) shouldBe "FAILED"
         migrationCompletedAt(migrationId) shouldNotBe null
     }
 
-    test("markNodeDegraded sets SYNCING migration to FAILED and sets completedAt") {
+    test("markNodeUnreachable sets SYNCING migration to FAILED and sets completedAt") {
         val nodeId = createNode()
         val migrationId = createMigration(nodeId, status = "SYNCING")
 
-        service.markNodeDegraded(nodeId.toString())
+        service.markNodeUnreachable(nodeId.toString())
 
         migrationStatus(migrationId) shouldBe "FAILED"
         migrationCompletedAt(migrationId) shouldNotBe null
     }
 
-    test("markNodeDegraded leaves COMPLETED migration unchanged") {
+    test("markNodeUnreachable leaves COMPLETED migration unchanged") {
         val nodeId = createNode()
         val migrationId = createMigration(nodeId, status = "COMPLETED")
 
-        service.markNodeDegraded(nodeId.toString())
+        service.markNodeUnreachable(nodeId.toString())
 
         migrationStatus(migrationId) shouldBe "COMPLETED"
         migrationCompletedAt(migrationId) shouldBe null
     }
 
-    test("markNodeDegraded sets IN_PROGRESS backup to FAILED and sets completedAt") {
+    test("markNodeUnreachable sets IN_PROGRESS backup to FAILED and sets completedAt") {
         val nodeId = createNode()
         val serverId = createServer(nodeId)
         val backupId = createBackup(nodeId, serverId, status = "IN_PROGRESS")
 
-        service.markNodeDegraded(nodeId.toString())
+        service.markNodeUnreachable(nodeId.toString())
 
         backupStatus(backupId) shouldBe "FAILED"
         backupCompletedAt(backupId) shouldNotBe null
     }
 
-    test("markNodeDegraded leaves COMPLETED backup unchanged") {
+    test("markNodeUnreachable leaves COMPLETED backup unchanged") {
         val nodeId = createNode()
         val serverId = createServer(nodeId)
         val backupId = createBackup(nodeId, serverId, status = "COMPLETED")
 
-        service.markNodeDegraded(nodeId.toString())
+        service.markNodeUnreachable(nodeId.toString())
 
         backupStatus(backupId) shouldBe "COMPLETED"
         backupCompletedAt(backupId) shouldBe null
     }
 
-    test("markNodeDegraded leaves FAILED backup unchanged") {
+    test("markNodeUnreachable leaves FAILED backup unchanged") {
         val nodeId = createNode()
         val serverId = createServer(nodeId)
         val backupId = createBackup(nodeId, serverId, status = "FAILED")
 
-        service.markNodeDegraded(nodeId.toString())
+        service.markNodeUnreachable(nodeId.toString())
 
         backupStatus(backupId) shouldBe "FAILED"
     }
 
-    test("markNodeDegraded ignores invalid node ID") {
-        service.markNodeDegraded("not-a-uuid")
+    test("markNodeUnreachable ignores invalid node ID") {
+        service.markNodeUnreachable("not-a-uuid")
+    }
+
+    test("markNodeUnreachable skips non-ACTIVE node") {
+        val nodeId = createNode(status = "PENDING")
+
+        service.markNodeUnreachable(nodeId.toString())
+
+        nodeHealth(nodeId) shouldBe "HEALTHY"
     }
 
     // -------------------------------------------------------------------------
@@ -413,7 +439,7 @@ class ControlServiceImplTest : FunSpec({
         }
     }
 
-    test("control stream emits ACTIVE to nodeStatusFlow for ACTIVE node") {
+    test("control stream emits HEALTHY to nodeStatusFlow for ACTIVE node when router is running") {
         runBlocking {
             val nodeId = createNode(status = "ACTIVE")
             val emitted = mutableListOf<AgentEvent.NodeStatusEvent>()
@@ -426,7 +452,7 @@ class ControlServiceImplTest : FunSpec({
             val agentMessages = flow {
                 emit(agentMessage {
                     this.nodeId = nodeId.toString()
-                    nodeState = nodeStateSnapshot { }
+                    nodeState = nodeStateSnapshot { routerRunning = true }
                 })
             }
 
@@ -436,13 +462,13 @@ class ControlServiceImplTest : FunSpec({
             delay(100.milliseconds)
             collectJob.cancel()
 
-            (emitted.any { it.nodeId == nodeId.toString() && it.status == NodeConnectionStatus.ACTIVE }) shouldBe true
+            (emitted.any { it.nodeId == nodeId.toString() && it.health == NodeHealth.HEALTHY }) shouldBe true
         }
     }
 
-    test("control stream emits ACTIVE to nodeStatusFlow for DEGRADED node on reconnect") {
+    test("control stream emits DEGRADED to nodeStatusFlow for ACTIVE node when router is not running") {
         runBlocking {
-            val nodeId = createNode(status = "DEGRADED")
+            val nodeId = createNode(status = "ACTIVE")
             val emitted = mutableListOf<AgentEvent.NodeStatusEvent>()
 
             val collectJob = launch {
@@ -453,7 +479,7 @@ class ControlServiceImplTest : FunSpec({
             val agentMessages = flow {
                 emit(agentMessage {
                     this.nodeId = nodeId.toString()
-                    nodeState = nodeStateSnapshot { }
+                    nodeState = nodeStateSnapshot { routerRunning = false }
                 })
             }
 
@@ -463,7 +489,34 @@ class ControlServiceImplTest : FunSpec({
             delay(100.milliseconds)
             collectJob.cancel()
 
-            (emitted.any { it.nodeId == nodeId.toString() && it.status == NodeConnectionStatus.ACTIVE }) shouldBe true
+            (emitted.any { it.nodeId == nodeId.toString() && it.health == NodeHealth.DEGRADED }) shouldBe true
+        }
+    }
+
+    test("control stream emits HEALTHY to nodeStatusFlow for UNREACHABLE node on reconnect") {
+        runBlocking {
+            val nodeId = createNode(status = "ACTIVE", health = "UNREACHABLE")
+            val emitted = mutableListOf<AgentEvent.NodeStatusEvent>()
+
+            val collectJob = launch {
+                service.agentEvents.filterIsInstance<AgentEvent.NodeStatusEvent>()
+                    .collect { emitted.add(it) }
+            }
+
+            val agentMessages = flow {
+                emit(agentMessage {
+                    this.nodeId = nodeId.toString()
+                    nodeState = nodeStateSnapshot { routerRunning = true }
+                })
+            }
+
+            service.control(agentMessages)
+                .collect { }
+
+            delay(100.milliseconds)
+            collectJob.cancel()
+
+            (emitted.any { it.nodeId == nodeId.toString() && it.health == NodeHealth.HEALTHY }) shouldBe true
         }
     }
 })
