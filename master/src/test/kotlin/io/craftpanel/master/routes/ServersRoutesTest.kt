@@ -822,23 +822,13 @@ class ServersRoutesTest {
     }
 
     @Test
-    fun `POST start returns 202 and updates status to HEALTHY`() = testApplication {
-        val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
-        var sid: Uuid? = null
-        application {
-            configureTest(
-                sendToNode = { _, msg ->
-                    if (msg.hasStartContainer()) events.tryEmit(AgentEvent.ServerStatusEvent(sid.toString(), ServerStatus.HEALTHY))
-                    true
-                },
-                agentEvents = events,
-            )
-        }
+    fun `POST start returns 202 and updates status to STARTING`() = testApplication {
+        application { configureTest() }
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "STOPPED").also { sid = it }
+        val serverId = createServer(nodeId, status = "STOPPED")
         val resp = client.post("/api/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.Accepted, resp.status)
         val row = transaction {
@@ -846,29 +836,25 @@ class ServersRoutesTest {
                 .where { Servers.id eq serverId }
                 .first()
         }
-        assertEquals("HEALTHY", row[Servers.status])
+        assertEquals("STARTING", row[Servers.status])
     }
 
     @Test
     fun `POST start sends single StartContainerCommand with needsRecreate=false`() = testApplication {
         val sentCommands = mutableListOf<MasterMessage>()
-        val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
-        var sid: Uuid? = null
         application {
             configureTest(
                 sendToNode = { _, msg ->
                     sentCommands.add(msg)
-                    if (msg.hasStartContainer()) events.tryEmit(AgentEvent.ServerStatusEvent(sid.toString(), ServerStatus.HEALTHY))
                     true
                 },
-                agentEvents = events,
             )
         }
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "STOPPED").also { sid = it }
+        val serverId = createServer(nodeId, status = "STOPPED")
         val resp = client.post("/api/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.Accepted, resp.status)
         assertEquals(1, sentCommands.size)
@@ -883,23 +869,19 @@ class ServersRoutesTest {
     @Test
     fun `POST start sends StartContainerCommand with needsRecreate=true when server needs recreate`() = testApplication {
         val sentCommands = mutableListOf<MasterMessage>()
-        val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
-        var sid: Uuid? = null
         application {
             configureTest(
                 sendToNode = { _, msg ->
                     sentCommands.add(msg)
-                    if (msg.hasStartContainer()) events.tryEmit(AgentEvent.ServerStatusEvent(sid.toString(), ServerStatus.HEALTHY))
                     true
                 },
-                agentEvents = events,
             )
         }
         val client = jsonClient()
         val userId = createUser()
         assignGlobalGroup(userId, "Super Admin")
         val nodeId = createNode()
-        val serverId = createServer(nodeId, status = "STOPPED").also { sid = it }
+        val serverId = createServer(nodeId, status = "STOPPED")
         transaction { Servers.update({ Servers.id eq serverId }) { it[Servers.needsRecreate] = true } }
         val resp = client.post("/api/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
         assertEquals(HttpStatusCode.Accepted, resp.status)

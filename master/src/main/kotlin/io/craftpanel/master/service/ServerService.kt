@@ -433,7 +433,7 @@ class ServerService(
         }
     }
 
-    suspend fun startServer(id: kotlin.uuid.Uuid) {
+    fun startServer(id: kotlin.uuid.Uuid) {
         val serverRow = transaction {
             Servers.selectAll()
                 .where { Servers.id eq id }
@@ -448,7 +448,14 @@ class ServerService(
                 resolvePublicHostname(serverRow[Servers.publicSubdomain]!!, serverRow[Servers.networkId])
             }
             else null
-        lifecycle.start(serverRow, needsRecreate = serverRow[Servers.needsRecreate], publicHostname = publicHostname)
+        lifecycle.sendStart(serverRow, needsRecreate = serverRow[Servers.needsRecreate], publicHostname = publicHostname)
+        transaction {
+            Servers.update({ Servers.id eq id }) {
+                it[Servers.status] = "STARTING"
+                it[Servers.updatedAt] = Clock.System.now()
+                    .toLocalDateTime(TimeZone.UTC)
+            }
+        }
     }
 
     fun stopServer(id: kotlin.uuid.Uuid) {
@@ -460,13 +467,7 @@ class ServerService(
             ?: throw NotFoundException("Server not found")
         if (serverRow[Servers.status] == "STOPPED") throw ConflictException("Server is already stopped")
         val nodeId = serverRow[Servers.nodeId].toString()
-        val stopCmd = masterMessage {
-            stopContainer = stopContainerCommand {
-                serverId = id.toString(); containerName = "$containerNamePrefix-$id"
-                timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand]
-            }
-        }
-        if (!sendToNode(nodeId, stopCmd)) throw BadGatewayException("Agent not connected")
+        lifecycle.sendStop(serverRow, nodeId)
         transaction {
             Servers.update({ Servers.id eq id }) {
                 it[status] = "STOPPING"; it[updatedAt] = Clock.System.now()
@@ -475,7 +476,7 @@ class ServerService(
         }
     }
 
-    suspend fun restartServer(id: kotlin.uuid.Uuid) {
+    fun restartServer(id: kotlin.uuid.Uuid) {
         val serverRow = transaction {
             Servers.selectAll()
                 .where { Servers.id eq id }
@@ -485,7 +486,7 @@ class ServerService(
         if (ServerStatus.fromDb(serverRow[Servers.status]).isStopped) throw ConflictException("Server is not running")
         val nodeId = serverRow[Servers.nodeId].toString()
         if (serverRow[Servers.needsRecreate]) {
-            lifecycle.start(serverRow, needsRecreate = true)
+            lifecycle.sendStart(serverRow, needsRecreate = true)
         }
         else {
             val restartCmd = masterMessage {
@@ -528,7 +529,7 @@ class ServerService(
         )
     }
 
-    suspend fun updateExposure(id: kotlin.uuid.Uuid, req: PatchExposureRequest) {
+    fun updateExposure(id: kotlin.uuid.Uuid, req: PatchExposureRequest) {
         val serverRow = transaction {
             Servers.selectAll()
                 .where { Servers.id eq id }
@@ -625,7 +626,7 @@ class ServerService(
                     .where { Servers.id eq id }
                     .first()
             }
-            lifecycle.start(freshRow, needsRecreate = true, publicHostname = hostname)
+            lifecycle.sendStart(freshRow, needsRecreate = true, publicHostname = hostname)
         }
     }
 

@@ -12,6 +12,9 @@ import io.craftpanel.master.dns.DnsProviderFactory
 import io.craftpanel.master.grpc.GrpcServer
 import io.craftpanel.master.routes.ErrorResponse
 import io.craftpanel.master.scheduler.ServerScheduler
+import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.domain.AgentEvent
+import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.BadGatewayException
 import io.craftpanel.master.service.BadRequestException
 import io.craftpanel.master.service.ConflictException
@@ -20,7 +23,9 @@ import io.craftpanel.master.service.MigrationService
 import io.craftpanel.master.service.NotFoundException
 import io.craftpanel.master.service.PortExhaustedException
 import io.craftpanel.master.service.UnprocessableException
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
@@ -46,8 +51,14 @@ import io.github.smiley4.schemakenerator.swagger.data.RefType
 import io.github.smiley4.ktoropenapi.openApi
 import io.github.smiley4.ktorswaggerui.swaggerUI
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.launch
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import kotlin.time.Clock
 import kotlinx.serialization.json.Json
 import org.koin.core.qualifier.named
+import kotlin.uuid.Uuid
 import org.koin.dsl.module
 import org.koin.ktor.ext.get
 import org.koin.ktor.plugin.Koin
@@ -100,6 +111,27 @@ fun Application.module() {
     get<MigrationService>().failStuckMigrations()
     get<ServerScheduler>().start()
     monitor.subscribe(ApplicationStopped) { get<ServerScheduler>().stop() }
+
+    launch {
+        val control = get<io.craftpanel.master.grpc.ControlServiceImpl>()
+        control.agentEvents
+            .filterIsInstance<AgentEvent.ServerStatusEvent>()
+            .collect { event ->
+                runCatching {
+                    val clearRecreate = event.status == ServerStatus.HEALTHY
+                    transaction {
+                        Servers.update({ Servers.id eq Uuid.parse(event.serverId) }) {
+                            it[Servers.status] = event.status.toDb()
+                            if (clearRecreate) it[Servers.needsRecreate] = false
+                            it[Servers.updatedAt] = Clock.System.now()
+                                .toLocalDateTime(TimeZone.UTC)
+                        }
+                    }
+                }.onFailure {
+                    log.error("Failed to update status for server {}", event.serverId, it)
+                }
+            }
+    }
 
     install(ContentNegotiation) {
         json(Json { ignoreUnknownKeys = true })

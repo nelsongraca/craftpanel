@@ -40,29 +40,41 @@ class ContainerLifecycle(
     private val removeTimeout: Duration = 10.seconds,
 ) {
 
-    // ── Public compound operations ────────────────────────────────────────────
+    // ── Fire-and-forget (used by ServerService route handlers) ────────────────
+
+    fun sendStart(server: ResultRow, needsRecreate: Boolean, publicHostname: String? = null, nodeId: String = server[Servers.nodeId].toString()) {
+        sendOrThrow(nodeId, buildStartMessage(server, needsRecreate, publicHostname, nodeId))
+    }
+
+    fun sendStop(server: ResultRow, nodeId: String) {
+        val id = server[Servers.id]
+        sendOrThrow(nodeId, masterMessage {
+            stopContainer = stopContainerCommand {
+                serverId = id.toString()
+                containerName = "$containerNamePrefix-$id"
+                timeoutSeconds = 30
+                stopCommand = server[Servers.stopCommand]
+            }
+        })
+    }
+
+    fun sendRemove(server: ResultRow, nodeId: String, force: Boolean = false) {
+        val id = server[Servers.id]
+        sendOrThrow(nodeId, masterMessage {
+            removeContainer = removeContainerCommand {
+                serverId = id.toString()
+                containerName = "$containerNamePrefix-$id"
+                this.force = force
+            }
+        })
+    }
+
+    // ── Public compound operations (with await, used by MigrationService) ─────
 
     suspend fun start(server: ResultRow, needsRecreate: Boolean, publicHostname: String? = null, nodeId: String = server[Servers.nodeId].toString()) {
         val id = server[Servers.id]
-        val image = deriveImage(server[Servers.serverType], server[Servers.itzgImageTag])
-        val allVars = buildAllVars(id, server)
-        val resolvedHostname = publicHostname ?: server[Servers.dnsRecordName]
         awaitStatus(id.toString(), ServerStatus.HEALTHY, startTimeout) {
-            sendOrThrow(nodeId, masterMessage {
-                startContainer = startContainerCommand {
-                    serverId = id.toString()
-                    containerName = "$containerNamePrefix-$id"
-                    stopCommand = server[Servers.stopCommand]
-                    this.needsRecreate = needsRecreate
-                    this.image = image
-                    envVars.putAll(allVars)
-                    resolvedHostname?.let { this.publicHostname = it }
-                    hostPort = server[Servers.hostPort]
-                    memoryMb = server[Servers.memoryMb]
-                    cpuShares = server[Servers.cpuShares]
-                    dockerNetwork = server[Servers.networkId]?.let { "$containerNamePrefix-net-$it" } ?: ""
-                }
-            })
+            sendStart(server, needsRecreate, publicHostname, nodeId)
         }
         writeStatus(id, ServerStatus.HEALTHY, clearNeedsRecreate = true)
     }
@@ -72,31 +84,40 @@ class ContainerLifecycle(
     suspend fun stop(server: ResultRow, nodeId: String) {
         val id = server[Servers.id]
         awaitStatus(id.toString(), ServerStatus.STOPPED, stopTimeout) {
-            sendOrThrow(nodeId, masterMessage {
-                stopContainer = stopContainerCommand {
-                    serverId = id.toString()
-                    containerName = "$containerNamePrefix-$id"
-                    timeoutSeconds = 30
-                    stopCommand = server[Servers.stopCommand]
-                }
-            })
+            sendStop(server, nodeId)
         }
     }
 
     suspend fun remove(server: ResultRow, nodeId: String, force: Boolean = false) {
         val id = server[Servers.id]
         awaitStatus(id.toString(), ServerStatus.STOPPED, removeTimeout) {
-            sendOrThrow(nodeId, masterMessage {
-                removeContainer = removeContainerCommand {
-                    serverId = id.toString()
-                    containerName = "$containerNamePrefix-$id"
-                    this.force = force
-                }
-            })
+            sendRemove(server, nodeId, force)
         }
     }
 
     // ── Build helpers ─────────────────────────────────────────────────────────
+
+    fun buildStartMessage(server: ResultRow, needsRecreate: Boolean, publicHostname: String? = null, nodeId: String = server[Servers.nodeId].toString()): MasterMessage {
+        val id = server[Servers.id]
+        val image = deriveImage(server[Servers.serverType], server[Servers.itzgImageTag])
+        val allVars = buildAllVars(id, server)
+        val resolvedHostname = publicHostname ?: server[Servers.dnsRecordName]
+        return masterMessage {
+            startContainer = startContainerCommand {
+                serverId = id.toString()
+                containerName = "$containerNamePrefix-$id"
+                stopCommand = server[Servers.stopCommand]
+                this.needsRecreate = needsRecreate
+                this.image = image
+                envVars.putAll(allVars)
+                resolvedHostname?.let { this.publicHostname = it }
+                hostPort = server[Servers.hostPort]
+                memoryMb = server[Servers.memoryMb]
+                cpuShares = server[Servers.cpuShares]
+                dockerNetwork = server[Servers.networkId]?.let { "$containerNamePrefix-net-$it" } ?: ""
+            }
+        }
+    }
 
     fun buildAllVars(id: Uuid, server: ResultRow): Map<String, String> {
         val serverType = server[Servers.serverType]

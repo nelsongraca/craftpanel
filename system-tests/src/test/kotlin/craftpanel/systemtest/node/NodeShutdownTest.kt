@@ -2,8 +2,8 @@ package craftpanel.systemtest.node
 
 import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.harness.AuthHelper
-import craftpanel.systemtest.harness.CraftPanelStack
-import craftpanel.systemtest.harness.MultiNodeHelper
+import craftpanel.systemtest.harness.NodeHelper
+import craftpanel.systemtest.harness.SharedStack
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.shouldBe
@@ -11,28 +11,29 @@ import org.openapitools.client.infrastructure.ClientException
 
 class NodeShutdownTest : ShouldSpec() {
 
-    private val stack = CraftPanelStack()
-    private val api: DefaultApi by lazy { DefaultApi(basePath = stack.masterApiUrl) }
+    private val api: DefaultApi by lazy { DefaultApi(basePath = SharedStack.masterApiUrl) }
+    private var agentNodeId = ""
+    private var agentContainerId = ""
 
     init {
         beforeSpec {
-            stack.start(nodeCount = 1)
             AuthHelper(api).login()
-            val ids = MultiNodeHelper(api).trustAllPendingNodes(1)
-            stack.storeNodeIds(ids)
+            agentContainerId = SharedStack.addAgent()
+            agentNodeId = NodeHelper(api).trustFirstPendingNode()
         }
 
         afterSpec {
-            stack.stop()
+            runCatching { api.decommissionNode(agentNodeId) }
+            SharedStack.removeAgent(agentContainerId)
         }
 
         context("Node shutdown") {
 
             should("shuts down agent container") {
-                val response = api.shutdownNode(stack.nodeId)
+                val response = api.shutdownNode(agentNodeId)
                 response.message shouldBe "Shutdown command sent"
 
-                val node = api.getNode(stack.nodeId)
+                val node = api.getNode(agentNodeId)
                 node.status shouldBe "ACTIVE"
             }
 

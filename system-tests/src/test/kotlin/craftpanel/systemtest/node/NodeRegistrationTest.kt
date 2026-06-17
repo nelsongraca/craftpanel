@@ -1,8 +1,8 @@
 package craftpanel.systemtest.node
 
 import craftpanel.systemtest.harness.AuthHelper
-import craftpanel.systemtest.harness.CraftPanelStack
 import craftpanel.systemtest.harness.NodeHelper
+import craftpanel.systemtest.harness.SharedStack
 import craftpanel.systemtest.client.api.DefaultApi
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.ShouldSpec
@@ -12,17 +12,19 @@ import org.openapitools.client.infrastructure.ClientException
 
 class NodeRegistrationTest : ShouldSpec() {
 
-    private val stack = CraftPanelStack()
-    private val api: DefaultApi by lazy { DefaultApi(basePath = stack.masterApiUrl) }
+    private val api: DefaultApi by lazy { DefaultApi(basePath = SharedStack.masterApiUrl) }
+    private var agentNodeId = ""
+    private var agentContainerId = ""
 
     init {
         beforeSpec {
-            stack.start()
             AuthHelper(api).login()
+            agentContainerId = SharedStack.addAgent()
         }
 
         afterSpec {
-            stack.stop()
+            runCatching { api.decommissionNode(agentNodeId) }
+            SharedStack.removeAgent(agentContainerId)
         }
 
         context("Node registration") {
@@ -31,24 +33,20 @@ class NodeRegistrationTest : ShouldSpec() {
             should("agent registers and appears as PENDING before trust") {
                 val node = NodeHelper(api).awaitPendingNode()
                 nodeId = node.id
+                agentNodeId = node.id
                 node.status shouldBe "PENDING"
             }
 
             should("PENDING node stays PENDING after agent connects and sends state snapshot") {
-                // By the time the stack is ready the agent has already sent NodeStateSnapshot.
-                // Reconciliation must NOT auto-promote a PENDING node to ACTIVE.
                 val node = api.getNode(nodeId)
                 node.status shouldBe "PENDING"
             }
 
             should("PENDING node stays PENDING after agent container restart") {
-                val docker = stack.dockerClient
-                val containerId = stack.agentContainerId
-
-                docker.restartContainerCmd(containerId)
+                val docker = SharedStack.dockerClient
+                docker.restartContainerCmd(agentContainerId)
                     .exec()
 
-                // Wait for agent to reconnect and reconcile without auto-promoting
                 kotlinx.coroutines.delay(5_000)
                 val node = api.getNode(nodeId)
                 node.status shouldNotBe "ACTIVE"

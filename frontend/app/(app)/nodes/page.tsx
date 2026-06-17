@@ -625,7 +625,7 @@ export default function NodesPage() {
                 <EditModal
                     node={editNode}
                     onClose={() => setEditNode(null)}
-                    onSaved={fetchNodes}
+                    onSaved={reloadNodes}
                 />
             )}
             {tokenKey && (

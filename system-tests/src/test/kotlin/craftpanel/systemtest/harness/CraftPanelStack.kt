@@ -11,12 +11,6 @@ import java.nio.file.attribute.PosixFilePermission
 import java.util.EnumSet
 import kotlin.random.Random
 
-/**
- * Force-removes ALL containers whose name starts with `craftpanel-` and removes all networks
- * named `craftpanel-*`. Called from SystemTestConfig.afterProject() as a backstop for cross-spec
- * leaks that per-instance cleanup cannot reach (each CraftPanelStack.start() only matches its own
- * random suffix).
- */
 fun globalCraftpanelCleanup() {
     val client = DockerClientFactory.instance().client()
     var removedContainers = 0
@@ -55,8 +49,6 @@ fun globalCraftpanelCleanup() {
     }
 }
 
-// Self-referential subclasses — standard Kotlin idiom for Testcontainers to avoid
-// the Nothing/wildcard type-parameter issues with the fluent builder API.
 private class PgContainer : GenericContainer<PgContainer>("postgres:16")
 private class MasterContainer : GenericContainer<MasterContainer>("ghcr.io/nelsongraca/craftpanel/master:latest")
 private class AgentContainer : GenericContainer<AgentContainer>("ghcr.io/nelsongraca/craftpanel/agent:latest")
@@ -80,6 +72,7 @@ class CraftPanelStack {
     }
 
     val containerPrefix: String = "craftpanel-$networkSuffix"
+    val networkName: String get() = "craftpanel-$networkSuffix"
 
     private lateinit var postgres: PgContainer
     private lateinit var master: MasterContainer
@@ -87,6 +80,10 @@ class CraftPanelStack {
     private var craftpanelNetworkId: String? = null
     private val testDataDirs = mutableListOf<File>()
     private var coverageMode = false
+    private var agentJar: File? = null
+    private var coverageDir: File? = null
+    private var _gatewayIp: String? = null
+    private val agentDataDirs = mutableMapOf<String, File>()
 
     var nodeId: String = ""
         private set
@@ -123,14 +120,12 @@ class CraftPanelStack {
         coverageDir: File? = null,
         nodeCount: Int = 1,
     ) {
-        coverageMode = coverageEnabled
-        // All containers share the craftpanel network so the agent self-check passes at startup
-        // and game server containers are reachable from the agent without post-start hacks.
+        this.coverageMode = coverageEnabled
+        this.agentJar = agentJar
+        this.coverageDir = coverageDir
         try {
-            startInternal(coverageEnabled, agentJar, coverageDir, nodeCount)
+            startInternal(nodeCount)
         } catch (t: Throwable) {
-            // Self-clean on partial start so that spec afterSpec skips (Kotest 6.1 afterSpec is
-            // skipped when beforeSpec throws) do not leak partially-started containers.
             runCatching { stop() }.onFailure { stopErr ->
                 System.err.println("[start-cleanup] stop() after failed start threw: ${stopErr.message}")
             }
@@ -138,18 +133,9 @@ class CraftPanelStack {
         }
     }
 
-    private fun startInternal(
-        coverageEnabled: Boolean,
-        agentJar: File?,
-        coverageDir: File?,
-        nodeCount: Int,
-    ) {
-        // Remove any orphaned agent-managed containers from previous runs that might hold
-        // stale port bindings.
+    private fun startInternal(nodeCount: Int) {
         cleanupAgentContainers()
 
-        // Remove any leftover network from a previous run to avoid ConflictException.
-        // First disconnect all containers from the network, then remove it.
         runCatching {
             val existingNetworks = dockerClient.listNetworksCmd()
                 .withNameFilter("craftpanel-$networkSuffix")
@@ -171,17 +157,13 @@ class CraftPanelStack {
         }
 
         craftpanelNetworkId = dockerClient.createNetworkCmd()
-            .withName("craftpanel-$networkSuffix")
+            .withName(networkName)
             .exec().id
 
-        val craftpanelGatewayIp = dockerClient.inspectNetworkCmd()
-            .withNetworkId(craftpanelNetworkId!!)
-            .exec()
-            .ipam?.config?.firstOrNull()?.gateway
-            ?: error("Could not determine craftpanel-$networkSuffix gateway IP")
+        val gatewayIp = computeGatewayIp()
 
         postgres = PgContainer()
-            .withNetworkMode("craftpanel-$networkSuffix")
+            .withNetworkMode(networkName)
             .withCreateContainerCmdModifier { cmd ->
                 cmd.withAliases("postgres")
                 cmd.withName("$containerPrefix-postgres")
@@ -194,8 +176,10 @@ class CraftPanelStack {
 
         postgres.start()
 
+        val jar = agentJar
+        val covDir = coverageDir
         master = MasterContainer()
-            .withNetworkMode("craftpanel-$networkSuffix")
+            .withNetworkMode(networkName)
             .withCreateContainerCmdModifier { cmd ->
                 cmd.withAliases("master")
                 cmd.withName("$containerPrefix-master")
@@ -216,17 +200,17 @@ class CraftPanelStack {
             .withEnv("RATE_LIMIT_REFRESH", "1000")
             .apply {
                 withLogConsumer { frame -> System.err.println("[master] ${frame.utf8String.trimEnd()}") }
-                if (coverageEnabled && agentJar != null && coverageDir != null) {
-                    coverageDir.mkdirs()
-                    coverageDir.setWritable(true, false)
-                    coverageDir.setReadable(true, false)
-                    coverageDir.setExecutable(true, false)
+                if (coverageMode && jar != null && covDir != null) {
+                    covDir.mkdirs()
+                    covDir.setWritable(true, false)
+                    covDir.setReadable(true, false)
+                    covDir.setExecutable(true, false)
                     val masterSuffix = containerPrefix.removePrefix("craftpanel-")
                     val masterReport = "master-$masterSuffix.ic"
                     val masterArgs = "master-$masterSuffix-kover.args"
-                    File(coverageDir, masterArgs).writeText("report.file=/tmp/coverage/$masterReport\ninclude=io.craftpanel.*")
-                    withFileSystemBind(agentJar.absolutePath, "/opt/kover/agent.jar", BindMode.READ_ONLY)
-                    withFileSystemBind(coverageDir.absolutePath, "/tmp/coverage", BindMode.READ_WRITE)
+                    File(covDir, masterArgs).writeText("report.file=/tmp/coverage/$masterReport\ninclude=io.craftpanel.*")
+                    withFileSystemBind(jar.absolutePath, "/opt/kover/agent.jar", BindMode.READ_ONLY)
+                    withFileSystemBind(covDir.absolutePath, "/tmp/coverage", BindMode.READ_WRITE)
                     withEnv("JAVA_TOOL_OPTIONS", "-javaagent:/opt/kover/agent.jar=file:/tmp/coverage/$masterArgs")
                 }
             }
@@ -235,65 +219,106 @@ class CraftPanelStack {
         master.start()
 
         for (i in 0 until nodeCount) {
-            val alias = if (i == 0) "agent" else "agent-$i"
-            val hostname = alias
+            val container = createAgentContainer(i, networkName, gatewayIp)
+            container.start()
+            agents.add(container)
+        }
+    }
 
-            val dataDir = Files.createTempDirectory("craftpanel-test-data-")
-                .toFile()
-            Files.setPosixFilePermissions(
-                dataDir.toPath(),
-                EnumSet.of(
-                    PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_EXECUTE,
-                    PosixFilePermission.GROUP_READ, PosixFilePermission.GROUP_EXECUTE,
-                    PosixFilePermission.OTHERS_READ, PosixFilePermission.OTHERS_EXECUTE,
-                )
+    private fun createAgentContainer(index: Int, networkName: String, gatewayIp: String): AgentContainer {
+        val alias = if (index == 0) "agent" else "agent-$index"
+
+        val dataDir = Files.createTempDirectory("craftpanel-test-data-")
+            .toFile()
+        Files.setPosixFilePermissions(
+            dataDir.toPath(),
+            EnumSet.of(
+                PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_EXECUTE,
+                PosixFilePermission.GROUP_READ, PosixFilePermission.GROUP_EXECUTE,
+                PosixFilePermission.OTHERS_READ, PosixFilePermission.OTHERS_EXECUTE,
             )
-            dataDir.deleteOnExit()
-            testDataDirs.add(dataDir)
-            println("[setup] Agent $i test data directory: ${dataDir.absolutePath}")
+        )
+        dataDir.deleteOnExit()
+        testDataDirs.add(dataDir)
+        println("[setup] Agent $index test data directory: ${dataDir.absolutePath}")
 
-            val agentContainer = AgentContainer()
-                .withNetworkMode("craftpanel-$networkSuffix")
-                .withCreateContainerCmdModifier { cmd ->
-                    cmd.withAliases(alias)
-                    cmd.withName("$containerPrefix-$alias")
+        return AgentContainer()
+            .withNetworkMode(networkName)
+            .withCreateContainerCmdModifier { cmd ->
+                cmd.withAliases(alias)
+                cmd.withName("$containerPrefix-$alias")
+            }
+            .withEnv("APP_PROFILE", "dev")
+            .withEnv("MASTER_HOST", "master")
+            .withEnv("MASTER_GRPC_PORT", "50051")
+            .withEnv("NODE_BOOTSTRAP_TOKEN", "test-bootstrap-token")
+            .withEnv("DATA_PATH", "/data")
+            .withEnv("CRAFTPANEL_CONTAINER_PREFIX", containerPrefix)
+            .withEnv("CRAFTPANEL_NETWORK", networkName)
+            .withEnv("NODE_PRIVATE_IP", gatewayIp)
+            .withEnv("HOST_DATA_PATH", dataDir.absolutePath)
+            .withEnv("NODE_HOSTNAME", alias)
+            .withEnv("METRICS_POLL_INTERVAL_SECONDS", "5")
+            .withFileSystemBind(dataDir.absolutePath, "/data", BindMode.READ_WRITE)
+            .withFileSystemBind("/var/run/docker.sock", "/var/run/docker.sock", BindMode.READ_WRITE)
+            .apply {
+                val jar = agentJar
+                val covDir = coverageDir
+                withLogConsumer { frame -> System.err.println("[agent-$index] ${frame.utf8String.trimEnd()}") }
+                if (coverageMode && jar != null && covDir != null) {
+                    val agentSuffix = containerPrefix.removePrefix("craftpanel-")
+                    val agentReport = "agent-$agentSuffix-$index.ic"
+                    val agentArgs = "agent-$agentSuffix-$index-kover.args"
+                    File(covDir, agentArgs).writeText("report.file=/tmp/coverage/$agentReport\ninclude=io.craftpanel.*")
+                    withFileSystemBind(jar.absolutePath, "/opt/kover/agent.jar", BindMode.READ_ONLY)
+                    withFileSystemBind(covDir.absolutePath, "/tmp/coverage", BindMode.READ_WRITE)
+                    withEnv("JAVA_TOOL_OPTIONS", "-javaagent:/opt/kover/agent.jar=file:/tmp/coverage/$agentArgs")
                 }
-                .withEnv("APP_PROFILE", "dev")
-                .withEnv("MASTER_HOST", "master")
-                .withEnv("MASTER_GRPC_PORT", "50051")
-                .withEnv("NODE_BOOTSTRAP_TOKEN", "test-bootstrap-token")
-                .withEnv("DATA_PATH", "/data")
-                .withEnv("CRAFTPANEL_CONTAINER_PREFIX", containerPrefix)
-                .withEnv("CRAFTPANEL_NETWORK", "craftpanel-$networkSuffix")
-                .withEnv("NODE_PRIVATE_IP", craftpanelGatewayIp)
-                .withEnv("HOST_DATA_PATH", dataDir.absolutePath)
-                .withEnv("NODE_HOSTNAME", hostname)
-                .withEnv("METRICS_POLL_INTERVAL_SECONDS", "5")
-                .withFileSystemBind(dataDir.absolutePath, "/data", BindMode.READ_WRITE)
-                .withFileSystemBind("/var/run/docker.sock", "/var/run/docker.sock", BindMode.READ_WRITE)
-                .apply {
-                    withLogConsumer { frame -> System.err.println("[agent-$i] ${frame.utf8String.trimEnd()}") }
-                    if (coverageEnabled && agentJar != null && coverageDir != null) {
-                        val agentSuffix = containerPrefix.removePrefix("craftpanel-")
-                        val agentReport = "agent-$agentSuffix-$i.ic"
-                        val agentArgs = "agent-$agentSuffix-$i-kover.args"
-                        File(coverageDir, agentArgs).writeText("report.file=/tmp/coverage/$agentReport\ninclude=io.craftpanel.*")
-                        withFileSystemBind(agentJar.absolutePath, "/opt/kover/agent.jar", BindMode.READ_ONLY)
-                        withFileSystemBind(coverageDir.absolutePath, "/tmp/coverage", BindMode.READ_WRITE)
-                        withEnv("JAVA_TOOL_OPTIONS", "-javaagent:/opt/kover/agent.jar=file:/tmp/coverage/$agentArgs")
-                    }
-                }
+            }
+            .also { agentDataDirs[it.containerId] = dataDir }
+    }
 
-            agentContainer.start()
-            agents.add(agentContainer)
+    private fun computeGatewayIp(): String {
+        if (_gatewayIp == null) {
+            val networkId = dockerClient.listNetworksCmd()
+                .withNameFilter(networkName)
+                .exec()
+                .firstOrNull()?.id
+                ?: error("Network '$networkName' not found")
+            _gatewayIp = dockerClient.inspectNetworkCmd()
+                .withNetworkId(networkId)
+                .exec()
+                .ipam?.config?.firstOrNull()?.gateway
+                ?: error("No gateway IP for network '$networkName'")
+        }
+        return _gatewayIp!!
+    }
+
+    fun addAgent(): String {
+        val index = agents.size
+        val gatewayIp = computeGatewayIp()
+        val container = createAgentContainer(index, networkName, gatewayIp)
+        container.start()
+        agents.add(container)
+        return container.containerId
+    }
+
+    fun removeAgent(containerId: String) {
+        val container = agents.find { it.containerId == containerId }
+        container?.let { gracefulStop(it) }
+        agents.removeAll { it.containerId == containerId }
+        agentDataDirs.remove(containerId)?.let { dir ->
+            runCatching { dir.deleteRecursively() }
+        }
+        runCatching {
+            dockerClient.removeContainerCmd(containerId)
+                .withForce(true)
+                .exec()
         }
     }
 
     private fun gracefulStop(container: GenericContainer<*>) {
         if (coverageMode) {
-            // Testcontainers 2.x ResourceReaper sends SIGKILL directly, so JVM shutdown hooks
-            // (including Kover's coverage flush) never run. Send SIGTERM first and wait up to
-            // 30 seconds for the JVM to flush coverage data before Testcontainers cleans up.
             runCatching {
                 dockerClient.stopContainerCmd(container.containerId)
                     .withTimeout(30)
@@ -304,8 +329,6 @@ class CraftPanelStack {
     }
 
     fun stop() {
-        // Explicitly stop agent-managed containers (mc-router, game servers) before removing them.
-        // These may have restart policies (e.g. unless-stopped) that fight a plain remove.
         stopAllPrefixedContainers()
         agents.forEach { gracefulStop(it) }
         cleanupAgentContainers()
@@ -327,10 +350,6 @@ class CraftPanelStack {
         agents.clear()
     }
 
-    /**
-     * After issuing removes, poll until all containers matching our prefix are gone.
-     * Bounded to 5 attempts × 500 ms. Logs to System.err if any remain — does NOT throw.
-     */
     private fun verifyContainersRemoved(attempts: Int = 5, delayMs: Long = 500) {
         repeat(attempts) { attempt ->
             val remaining = runCatching {
@@ -342,7 +361,6 @@ class CraftPanelStack {
             if (remaining.isEmpty()) return
             if (attempt < attempts - 1) {
                 Thread.sleep(delayMs)
-                // Force-remove any survivors before checking again
                 remaining.forEach { container ->
                     runCatching {
                         dockerClient.removeContainerCmd(container.id)
