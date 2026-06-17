@@ -41,10 +41,17 @@ dependencies {
     implementation(libs.docker.java.transport.httpclient5)
     implementation(libs.logback.classic)
     implementation(libs.koin.core)
-    testImplementation(kotlin("test"))
+    testImplementation(libs.kotest.runner.junit5)
+    testImplementation(libs.kotest.assertions.core)
+    testImplementation(libs.kotest.framework.engine)
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation(libs.mockk)
     testImplementation(libs.kotlinx.coroutines.test)
     testImplementation(libs.koin.test)
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
 }
 
 sourceSets.main {

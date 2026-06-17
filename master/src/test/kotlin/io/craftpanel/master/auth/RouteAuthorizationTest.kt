@@ -13,6 +13,8 @@ import io.craftpanel.master.service.ConflictException
 import io.craftpanel.master.service.ForbiddenException
 import io.craftpanel.master.service.NotFoundException
 import io.craftpanel.master.service.UnprocessableException
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
 import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.get
 import io.ktor.http.HttpStatusCode
@@ -31,33 +33,23 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
 import kotlin.uuid.Uuid
 
-/**
- * Direct test surface for the route authorization seam ([requireServerPermission] /
- * [requirePermission]) — the surface the 66 copy-pasted handler preludes hid. Drives
- * each throw path (400/404/403) and the success path through a minimal test route.
- */
-class RouteAuthorizationTest {
-
-    private val jwtConfig = JwtConfig(
+class RouteAuthorizationTest : FunSpec({
+    val jwtConfig = JwtConfig(
         secret = "test-secret-that-is-at-least-32-characters!!",
         issuer = "craftpanel-test",
         audience = "craftpanel-test",
         expirySeconds = 900,
     )
-    private val jwtManager = JwtManager(jwtConfig)
+    val jwtManager = JwtManager(jwtConfig)
 
-    @BeforeTest
-    fun setup() {
+    beforeTest {
         TestDatabase.initIfNeeded()
         TestDatabase.reset()
     }
 
-    private fun Application.configureTest() {
+    fun Application.configureTest() {
         install(StatusPages) {
             exception<NotFoundException> { call, ex -> call.respond(HttpStatusCode.NotFound, ex.message ?: "Not found") }
             exception<ForbiddenException> { call, ex -> call.respond(HttpStatusCode.Forbidden, ex.message ?: "Forbidden") }
@@ -87,7 +79,7 @@ class RouteAuthorizationTest {
         }
     }
 
-    private fun createUser(): Uuid = transaction {
+    fun createUser(): Uuid = transaction {
         Users.insert {
             it[Users.username] = "u"
             it[Users.email] = "u@example.com"
@@ -96,7 +88,7 @@ class RouteAuthorizationTest {
         }[Users.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
+    fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
@@ -107,7 +99,7 @@ class RouteAuthorizationTest {
         }
     }
 
-    private fun createNode(): Uuid = transaction {
+    fun createNode(): Uuid = transaction {
         Nodes.insert {
             it[Nodes.hostname] = "node-1"
             it[Nodes.displayName] = "node-1"
@@ -122,14 +114,14 @@ class RouteAuthorizationTest {
         }[Nodes.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun createNetwork(): Uuid = transaction {
+    fun createNetwork(): Uuid = transaction {
         ServerNetworks.insert {
             it[ServerNetworks.name] = "net-1"
             it[ServerNetworks.type] = "VANILLA"
         }[ServerNetworks.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun createServer(nodeId: Uuid, networkId: Uuid?): Uuid = transaction {
+    fun createServer(nodeId: Uuid, networkId: Uuid?): Uuid = transaction {
         Servers.insert {
             it[Servers.nodeId] = nodeId
             it[Servers.networkId] = networkId
@@ -144,63 +136,69 @@ class RouteAuthorizationTest {
         }[Servers.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun tokenFor(userId: Uuid): String =
+    fun tokenFor(userId: Uuid): String =
         jwtManager.generate(TokenClaims(userId = userId, name = "u", email = "u@example.com", groups = emptyList()))
 
-    @Test
-    fun `requireServerPermission returns 400 for malformed server id`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val resp = client.get("/probe/not-a-uuid") { bearerAuth(tokenFor(userId)) }
-        assertEquals(HttpStatusCode.BadRequest, resp.status)
+    test("requireServerPermission returns 400 for malformed server id") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val resp = client.get("/probe/not-a-uuid") { bearerAuth(tokenFor(userId)) }
+            resp.status shouldBe HttpStatusCode.BadRequest
+        }
     }
 
-    @Test
-    fun `requireServerPermission returns 404 for unknown server`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val resp = client.get("/probe/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }
-        assertEquals(HttpStatusCode.NotFound, resp.status)
+    test("requireServerPermission returns 404 for unknown server") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val resp = client.get("/probe/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }
+            resp.status shouldBe HttpStatusCode.NotFound
+        }
     }
 
-    @Test
-    fun `requireServerPermission returns 403 when permission missing`() = testApplication {
-        application { configureTest() }
-        val userId = createUser() // no group assignments → no permissions
-        val nodeId = createNode()
-        val serverId = createServer(nodeId, networkId = null)
-        val resp = client.get("/probe/$serverId") { bearerAuth(tokenFor(userId)) }
-        assertEquals(HttpStatusCode.Forbidden, resp.status)
+    test("requireServerPermission returns 403 when permission missing") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            val nodeId = createNode()
+            val serverId = createServer(nodeId, networkId = null)
+            val resp = client.get("/probe/$serverId") { bearerAuth(tokenFor(userId)) }
+            resp.status shouldBe HttpStatusCode.Forbidden
+        }
     }
 
-    @Test
-    fun `requireServerPermission succeeds and exposes server and network ids`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val nodeId = createNode()
-        val networkId = createNetwork()
-        val serverId = createServer(nodeId, networkId = networkId)
-        val resp = client.get("/probe/$serverId") { bearerAuth(tokenFor(userId)) }
-        assertEquals(HttpStatusCode.OK, resp.status)
+    test("requireServerPermission succeeds and exposes server and network ids") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val nodeId = createNode()
+            val networkId = createNetwork()
+            val serverId = createServer(nodeId, networkId = networkId)
+            val resp = client.get("/probe/$serverId") { bearerAuth(tokenFor(userId)) }
+            resp.status shouldBe HttpStatusCode.OK
+        }
     }
 
-    @Test
-    fun `requirePermission returns 403 when global permission missing`() = testApplication {
-        application { configureTest() }
-        val userId = createUser() // no permissions
-        val resp = client.get("/probe-global") { bearerAuth(tokenFor(userId)) }
-        assertEquals(HttpStatusCode.Forbidden, resp.status)
+    test("requirePermission returns 403 when global permission missing") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            val resp = client.get("/probe-global") { bearerAuth(tokenFor(userId)) }
+            resp.status shouldBe HttpStatusCode.Forbidden
+        }
     }
 
-    @Test
-    fun `requirePermission succeeds for permitted global action`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val resp = client.get("/probe-global") { bearerAuth(tokenFor(userId)) }
-        assertEquals(HttpStatusCode.OK, resp.status)
+    test("requirePermission succeeds for permitted global action") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val resp = client.get("/probe-global") { bearerAuth(tokenFor(userId)) }
+            resp.status shouldBe HttpStatusCode.OK
+        }
     }
-}
+})

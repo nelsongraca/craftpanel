@@ -10,6 +10,9 @@ import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.service.*
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import kotlin.uuid.Uuid
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -30,32 +33,25 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
 import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
-class NetworksRoutesTest {
-
-    private val jwtConfig = JwtConfig(
+class NetworksRoutesTest : FunSpec({
+    val jwtConfig = JwtConfig(
         secret = "test-secret-that-is-at-least-32-characters!!",
         issuer = "craftpanel-test",
         audience = "craftpanel-test",
         expirySeconds = 900,
     )
-    private val jwtManager = JwtManager(jwtConfig)
+    val jwtManager = JwtManager(jwtConfig)
 
-    @BeforeTest
-    fun setup() {
+    beforeTest {
         TestDatabase.initIfNeeded()
         TestDatabase.reset()
     }
 
-    private fun Application.configureTest() {
+    fun Application.configureTest() {
         install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         install(StatusPages) {
             exception<NotFoundException> { call, ex -> call.respond(HttpStatusCode.NotFound, mapOf("error" to (ex.message ?: "Not found"))) }
@@ -80,11 +76,11 @@ class NetworksRoutesTest {
         routing { networksRoutes(NetworkService()) }
     }
 
-    private fun ApplicationTestBuilder.jsonClient() = createClient {
+    fun ApplicationTestBuilder.jsonClient() = createClient {
         install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
 
-    private fun createUser(username: String = "admin", email: String = "admin@example.com"): Uuid = transaction {
+    fun createUser(username: String = "admin", email: String = "admin@example.com"): Uuid = transaction {
         Users.insert {
             it[Users.username] = username
             it[Users.email] = email
@@ -93,7 +89,7 @@ class NetworksRoutesTest {
         }[Users.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
+    fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
@@ -104,7 +100,7 @@ class NetworksRoutesTest {
         }
     }
 
-    private fun assignNetworkGroup(userId: Uuid, groupName: String, networkId: Uuid) = transaction {
+    fun assignNetworkGroup(userId: Uuid, groupName: String, networkId: Uuid) = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
@@ -116,10 +112,10 @@ class NetworksRoutesTest {
         }
     }
 
-    private fun tokenFor(userId: Uuid, username: String = "admin"): String =
+    fun tokenFor(userId: Uuid, username: String = "admin"): String =
         jwtManager.generate(TokenClaims(userId = userId, name = username, email = "$username@example.com", groups = emptyList()))
 
-    private fun createNetwork(
+    fun createNetwork(
         name: String = "test-network",
         type: String = "VANILLA",
         description: String? = null,
@@ -133,265 +129,283 @@ class NetworksRoutesTest {
 
     // ── GET /networks ────────────────────────────────────────────────────────
 
-    @Test
-    fun `GET networks returns 401 without token`() = testApplication {
-        application { configureTest() }
-        val resp = client.get("/api/networks")
-        assertEquals(HttpStatusCode.Unauthorized, resp.status)
-    }
-
-    @Test
-    fun `GET networks returns 403 without server-view permission`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        val resp = client.get("/api/networks") {
-            bearerAuth(tokenFor(userId))
+    test("GET networks returns 401 without token") {
+        testApplication {
+            application { configureTest() }
+            val resp = client.get("/api/networks")
+            resp.status shouldBe HttpStatusCode.Unauthorized
         }
-        assertEquals(HttpStatusCode.Forbidden, resp.status)
     }
 
-    @Test
-    fun `GET networks returns empty list`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Viewer")
-        val resp = client.get("/api/networks") { bearerAuth(tokenFor(userId)) }
-        assertEquals(HttpStatusCode.OK, resp.status)
-        assertEquals(0, resp.body<List<JsonObject>>().size)
+    test("GET networks returns 403 without server-view permission") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            val resp = client.get("/api/networks") {
+                bearerAuth(tokenFor(userId))
+            }
+            resp.status shouldBe HttpStatusCode.Forbidden
+        }
     }
 
-    @Test
-    fun `GET networks returns networks with server_count`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Viewer")
-        createNetwork("net-a")
-        createNetwork("net-b")
-        val resp = client.get("/api/networks") { bearerAuth(tokenFor(userId)) }
-        assertEquals(HttpStatusCode.OK, resp.status)
-        val body = resp.body<List<JsonObject>>()
-        assertEquals(2, body.size)
-        val names = body.map { it["name"]!!.jsonPrimitive.content }
-            .toSet()
-        assertEquals(setOf("net-a", "net-b"), names)
-        body.forEach { assertEquals(0, it["server_count"]!!.jsonPrimitive.content.toInt()) }
+    test("GET networks returns empty list") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Viewer")
+            val resp = client.get("/api/networks") { bearerAuth(tokenFor(userId)) }
+            resp.status shouldBe HttpStatusCode.OK
+            resp.body<List<JsonObject>>().size shouldBe 0
+        }
+    }
+
+    test("GET networks returns networks with server_count") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Viewer")
+            createNetwork("net-a")
+            createNetwork("net-b")
+            val resp = client.get("/api/networks") { bearerAuth(tokenFor(userId)) }
+            resp.status shouldBe HttpStatusCode.OK
+            val body = resp.body<List<JsonObject>>()
+            body.size shouldBe 2
+            val names = body.map { it["name"]!!.jsonPrimitive.content }
+                .toSet()
+            names shouldBe setOf("net-a", "net-b")
+            body.forEach { it["server_count"]!!.jsonPrimitive.content.toInt() shouldBe 0 }
+        }
     }
 
     // ── POST /networks ───────────────────────────────────────────────────────
 
-    @Test
-    fun `POST networks returns 403 without server-create`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Viewer")
-        val resp = client.post("/api/networks") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"name":"n","type":"VANILLA"}""")
+    test("POST networks returns 403 without server-create") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Viewer")
+            val resp = client.post("/api/networks") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"name":"n","type":"VANILLA"}""")
+            }
+            resp.status shouldBe HttpStatusCode.Forbidden
         }
-        assertEquals(HttpStatusCode.Forbidden, resp.status)
     }
 
-    @Test
-    fun `POST networks creates network and returns 201`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val resp = client.post("/api/networks") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"name":"lobby","type":"PROXY","proxy_type":"VELOCITY","proxy_port":25577,"description":"main lobby"}""")
+    test("POST networks creates network and returns 201") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val resp = client.post("/api/networks") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"name":"lobby","type":"PROXY","proxy_type":"VELOCITY","proxy_port":25577,"description":"main lobby"}""")
+            }
+            resp.status shouldBe HttpStatusCode.Created
+            val body = resp.body<JsonObject>()
+            body["name"]!!.jsonPrimitive.content shouldBe "lobby"
+            body["type"]!!.jsonPrimitive.content shouldBe "PROXY"
+            body["proxy_type"]!!.jsonPrimitive.content shouldBe "VELOCITY"
+            body["proxy_port"]!!.jsonPrimitive.content.toInt() shouldBe 25577
+            body["description"]!!.jsonPrimitive.content shouldBe "main lobby"
+            body["server_count"]!!.jsonPrimitive.content.toInt() shouldBe 0
+            body["id"] shouldNotBe null
+            body["created_at"] shouldNotBe null
         }
-        assertEquals(HttpStatusCode.Created, resp.status)
-        val body = resp.body<JsonObject>()
-        assertEquals("lobby", body["name"]!!.jsonPrimitive.content)
-        assertEquals("PROXY", body["type"]!!.jsonPrimitive.content)
-        assertEquals("VELOCITY", body["proxy_type"]!!.jsonPrimitive.content)
-        assertEquals(25577, body["proxy_port"]!!.jsonPrimitive.content.toInt())
-        assertEquals("main lobby", body["description"]!!.jsonPrimitive.content)
-        assertEquals(0, body["server_count"]!!.jsonPrimitive.content.toInt())
-        assertNotNull(body["id"])
-        assertNotNull(body["created_at"])
     }
 
-    @Test
-    fun `POST networks returns 409 on duplicate name`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        createNetwork("dup")
-        val resp = client.post("/api/networks") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"name":"dup","type":"VANILLA"}""")
+    test("POST networks returns 409 on duplicate name") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            createNetwork("dup")
+            val resp = client.post("/api/networks") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"name":"dup","type":"VANILLA"}""")
+            }
+            resp.status shouldBe HttpStatusCode.Conflict
         }
-        assertEquals(HttpStatusCode.Conflict, resp.status)
     }
 
     // ── GET /networks/{id} ───────────────────────────────────────────────────
 
-    @Test
-    fun `GET networks by id returns 404 for unknown`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Viewer")
-        val resp = client.get("/api/networks/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }
-        assertEquals(HttpStatusCode.NotFound, resp.status)
+    test("GET networks by id returns 404 for unknown") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Viewer")
+            val resp = client.get("/api/networks/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }
+            resp.status shouldBe HttpStatusCode.NotFound
+        }
     }
 
-    @Test
-    fun `GET networks by id returns detail with servers`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Viewer")
-        val netId = createNetwork("detail-net", "VANILLA")
-        val resp = client.get("/api/networks/$netId") { bearerAuth(tokenFor(userId)) }
-        assertEquals(HttpStatusCode.OK, resp.status)
-        val body = resp.body<JsonObject>()
-        assertEquals("detail-net", body["name"]!!.jsonPrimitive.content)
-        assertEquals(0, body["server_count"]!!.jsonPrimitive.content.toInt())
-        assertEquals(0, body["servers"]!!.jsonArray.size)
+    test("GET networks by id returns detail with servers") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Viewer")
+            val netId = createNetwork("detail-net", "VANILLA")
+            val resp = client.get("/api/networks/$netId") { bearerAuth(tokenFor(userId)) }
+            resp.status shouldBe HttpStatusCode.OK
+            val body = resp.body<JsonObject>()
+            body["name"]!!.jsonPrimitive.content shouldBe "detail-net"
+            body["server_count"]!!.jsonPrimitive.content.toInt() shouldBe 0
+            body["servers"]!!.jsonArray.size shouldBe 0
+        }
     }
 
-    @Test
-    fun `GET networks by id returns 400 for invalid UUID`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Viewer")
-        val resp = client.get("/api/networks/not-a-uuid") { bearerAuth(tokenFor(userId)) }
-        assertEquals(HttpStatusCode.BadRequest, resp.status)
+    test("GET networks by id returns 400 for invalid UUID") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Viewer")
+            val resp = client.get("/api/networks/not-a-uuid") { bearerAuth(tokenFor(userId)) }
+            resp.status shouldBe HttpStatusCode.BadRequest
+        }
     }
 
     // ── PATCH /networks/{id} ─────────────────────────────────────────────────
 
-    @Test
-    fun `PATCH networks returns 403 without server-configure on network`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Viewer")
-        val netId = createNetwork("to-patch")
-        val resp = client.patch("/api/networks/$netId") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"name":"new-name"}""")
+    test("PATCH networks returns 403 without server-configure on network") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Viewer")
+            val netId = createNetwork("to-patch")
+            val resp = client.patch("/api/networks/$netId") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"name":"new-name"}""")
+            }
+            resp.status shouldBe HttpStatusCode.Forbidden
         }
-        assertEquals(HttpStatusCode.Forbidden, resp.status)
     }
 
-    @Test
-    fun `PATCH networks updates name with global permission`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val netId = createNetwork("old-name")
-        val resp = client.patch("/api/networks/$netId") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"name":"new-name","description":"updated"}""")
+    test("PATCH networks updates name with global permission") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val netId = createNetwork("old-name")
+            val resp = client.patch("/api/networks/$netId") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"name":"new-name","description":"updated"}""")
+            }
+            resp.status shouldBe HttpStatusCode.NoContent
+            val updated = transaction {
+                ServerNetworks.selectAll()
+                    .where { ServerNetworks.id eq netId }
+                    .first()
+            }
+            updated[ServerNetworks.name] shouldBe "new-name"
+            updated[ServerNetworks.description] shouldBe "updated"
         }
-        assertEquals(HttpStatusCode.NoContent, resp.status)
-        val updated = transaction {
-            ServerNetworks.selectAll()
-                .where { ServerNetworks.id eq netId }
-                .first()
-        }
-        assertEquals("new-name", updated[ServerNetworks.name])
-        assertEquals("updated", updated[ServerNetworks.description])
     }
 
-    @Test
-    fun `PATCH networks updates name with network-scoped configure permission`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        val netId = createNetwork("net-scoped")
-        assignNetworkGroup(userId, "Server Admin", netId)
-        val resp = client.patch("/api/networks/$netId") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"name":"net-scoped-updated"}""")
+    test("PATCH networks updates name with network-scoped configure permission") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            val netId = createNetwork("net-scoped")
+            assignNetworkGroup(userId, "Server Admin", netId)
+            val resp = client.patch("/api/networks/$netId") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"name":"net-scoped-updated"}""")
+            }
+            resp.status shouldBe HttpStatusCode.NoContent
         }
-        assertEquals(HttpStatusCode.NoContent, resp.status)
     }
 
-    @Test
-    fun `PATCH networks returns 409 on name conflict`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        createNetwork("existing")
-        val netId = createNetwork("to-rename")
-        val resp = client.patch("/api/networks/$netId") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"name":"existing"}""")
+    test("PATCH networks returns 409 on name conflict") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            createNetwork("existing")
+            val netId = createNetwork("to-rename")
+            val resp = client.patch("/api/networks/$netId") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"name":"existing"}""")
+            }
+            resp.status shouldBe HttpStatusCode.Conflict
         }
-        assertEquals(HttpStatusCode.Conflict, resp.status)
     }
 
-    @Test
-    fun `PATCH networks returns 404 for unknown`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val resp = client.patch("/api/networks/${Uuid.random()}") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"name":"x"}""")
+    test("PATCH networks returns 404 for unknown") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val resp = client.patch("/api/networks/${Uuid.random()}") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"name":"x"}""")
+            }
+            resp.status shouldBe HttpStatusCode.NotFound
         }
-        assertEquals(HttpStatusCode.NotFound, resp.status)
     }
 
     // ── DELETE /networks/{id} ────────────────────────────────────────────────
 
-    @Test
-    fun `DELETE networks returns 403 without server-delete on network`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Viewer")
-        val netId = createNetwork("del-test")
-        val resp = client.delete("/api/networks/$netId") { bearerAuth(tokenFor(userId)) }
-        assertEquals(HttpStatusCode.Forbidden, resp.status)
-    }
-
-    @Test
-    fun `DELETE networks deletes network and nulls server network_id`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val netId = createNetwork("del-me")
-        val resp = client.delete("/api/networks/$netId") { bearerAuth(tokenFor(userId)) }
-        assertEquals(HttpStatusCode.NoContent, resp.status)
-        val exists = transaction {
-            ServerNetworks.selectAll()
-                .where { ServerNetworks.id eq netId }
-                .firstOrNull() != null
+    test("DELETE networks returns 403 without server-delete on network") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Viewer")
+            val netId = createNetwork("del-test")
+            val resp = client.delete("/api/networks/$netId") { bearerAuth(tokenFor(userId)) }
+            resp.status shouldBe HttpStatusCode.Forbidden
         }
-        assertEquals(false, exists)
     }
 
-    @Test
-    fun `DELETE networks returns 404 for unknown`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val resp = client.delete("/api/networks/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }
-        assertEquals(HttpStatusCode.NotFound, resp.status)
+    test("DELETE networks deletes network and nulls server network_id") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val netId = createNetwork("del-me")
+            val resp = client.delete("/api/networks/$netId") { bearerAuth(tokenFor(userId)) }
+            resp.status shouldBe HttpStatusCode.NoContent
+            val exists = transaction {
+                ServerNetworks.selectAll()
+                    .where { ServerNetworks.id eq netId }
+                    .firstOrNull() != null
+            }
+            exists shouldBe false
+        }
     }
-}
+
+    test("DELETE networks returns 404 for unknown") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val resp = client.delete("/api/networks/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }
+            resp.status shouldBe HttpStatusCode.NotFound
+        }
+    }
+})

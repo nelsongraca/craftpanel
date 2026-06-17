@@ -9,7 +9,9 @@ import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.service.*
-import kotlin.uuid.Uuid
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
@@ -26,31 +28,26 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
+import kotlin.uuid.Uuid
 import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
-class AssignmentsRoutesTest {
-
-    private val jwtConfig = JwtConfig(
+class AssignmentsRoutesTest : FunSpec({
+    val jwtConfig = JwtConfig(
         secret = "test-secret-that-is-at-least-32-characters!!",
         issuer = "craftpanel-test",
         audience = "craftpanel-test",
         expirySeconds = 900,
     )
-    private val jwtManager = JwtManager(jwtConfig)
+    val jwtManager = JwtManager(jwtConfig)
 
-    @BeforeTest
-    fun setup() {
+    beforeTest {
         TestDatabase.initIfNeeded()
         TestDatabase.reset()
     }
 
-    private fun Application.configureTest() {
+    fun Application.configureTest() {
         install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         install(StatusPages) {
             exception<NotFoundException> { call, ex -> call.respond(HttpStatusCode.NotFound, mapOf("error" to (ex.message ?: "Not found"))) }
@@ -75,11 +72,11 @@ class AssignmentsRoutesTest {
         routing { assignmentsRoutes(AssignmentService()) }
     }
 
-    private fun ApplicationTestBuilder.jsonClient() = createClient {
+    fun ApplicationTestBuilder.jsonClient() = createClient {
         install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
 
-    private fun createUser(username: String = "admin", email: String = "admin@example.com"): Uuid = transaction {
+    fun createUser(username: String = "admin", email: String = "admin@example.com"): Uuid = transaction {
         Users.insert {
             it[Users.username] = username
             it[Users.email] = email
@@ -87,7 +84,7 @@ class AssignmentsRoutesTest {
         }[Users.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun assignGlobalGroup(userId: Uuid, groupName: String): Uuid = transaction {
+    fun assignGlobalGroup(userId: Uuid, groupName: String): Uuid = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
@@ -98,156 +95,171 @@ class AssignmentsRoutesTest {
         }[UserGroupAssignments.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun groupId(name: String): Uuid = transaction {
+    fun groupId(name: String): Uuid = transaction {
         Groups.selectAll()
             .where { Groups.name eq name }
             .first()[Groups.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun tokenFor(userId: Uuid): String =
+    fun tokenFor(userId: Uuid): String =
         jwtManager.generate(TokenClaims(userId = userId, name = "admin", email = "admin@example.com", groups = emptyList()))
 
     // ── GET /api/users/{userId}/assignments ───────────────────────────────────
 
-    @Test
-    fun `listUserAssignments returns 403 without permission`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        val targetId = createUser(username = "target", email = "target@example.com")
+    test("listUserAssignments returns 403 without permission") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            val targetId = createUser(username = "target", email = "target@example.com")
 
-        assertEquals(HttpStatusCode.Forbidden, client.get("/api/users/$targetId/assignments") { bearerAuth(tokenFor(userId)) }.status)
+            client.get("/api/users/$targetId/assignments") { bearerAuth(tokenFor(userId)) }
+                .status shouldBe HttpStatusCode.Forbidden
+        }
     }
 
-    @Test
-    fun `listUserAssignments returns 404 for unknown user`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
+    test("listUserAssignments returns 404 for unknown user") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.NotFound, client.get("/api/users/${Uuid.random()}/assignments") { bearerAuth(tokenFor(userId)) }.status)
+            client.get("/api/users/${Uuid.random()}/assignments") { bearerAuth(tokenFor(userId)) }
+                .status shouldBe HttpStatusCode.NotFound
+        }
     }
 
-    @Test
-    fun `listUserAssignments returns assignments for user`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val targetId = createUser(username = "target", email = "target@example.com")
-        assignGlobalGroup(targetId, "Viewer")
-        val client = jsonClient()
+    test("listUserAssignments returns assignments for user") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val targetId = createUser(username = "target", email = "target@example.com")
+            assignGlobalGroup(targetId, "Viewer")
+            val client = jsonClient()
 
-        val body = client.get("/api/users/$targetId/assignments") { bearerAuth(tokenFor(userId)) }
-            .body<JsonObject>()
-        val assignments = body["assignments"]!!.jsonArray
-        assertEquals(1, assignments.size)
-        assertEquals("GLOBAL", assignments[0].jsonObject["scope_type"]!!.jsonPrimitive.content)
+            val body = client.get("/api/users/$targetId/assignments") { bearerAuth(tokenFor(userId)) }
+                .body<JsonObject>()
+            val assignments = body["assignments"]!!.jsonArray
+            assignments.size shouldBe 1
+            assignments[0].jsonObject["scope_type"]!!.jsonPrimitive.content shouldBe "GLOBAL"
+        }
     }
 
     // ── POST /api/users/{userId}/assignments ──────────────────────────────────
 
-    @Test
-    fun `createAssignment returns 403 without permission`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        val response = client.post("/api/users/$userId/assignments") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"group_id":"${Uuid.random()}","scope_type":"GLOBAL"}""")
+    test("createAssignment returns 403 without permission") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            val response = client.post("/api/users/$userId/assignments") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"group_id":"${Uuid.random()}","scope_type":"GLOBAL"}""")
+            }
+            response.status shouldBe HttpStatusCode.Forbidden
         }
-        assertEquals(HttpStatusCode.Forbidden, response.status)
     }
 
-    @Test
-    fun `createAssignment creates GLOBAL assignment`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val targetId = createUser(username = "target", email = "target@example.com")
-        val gId = groupId("Viewer")
-        val client = jsonClient()
+    test("createAssignment creates GLOBAL assignment") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val targetId = createUser(username = "target", email = "target@example.com")
+            val gId = groupId("Viewer")
+            val client = jsonClient()
 
-        val body = client.post("/api/users/$targetId/assignments") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"group_id":"$gId","scope_type":"GLOBAL"}""")
+            val body = client.post("/api/users/$targetId/assignments") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"group_id":"$gId","scope_type":"GLOBAL"}""")
+            }
+                .body<JsonObject>()
+
+            body["id"] shouldNotBe null
+            body["scope_type"]!!.jsonPrimitive.content shouldBe "GLOBAL"
+            body["group_id"]!!.jsonPrimitive.content shouldBe gId.toString()
         }
-            .body<JsonObject>()
-
-        assertNotNull(body["id"])
-        assertEquals("GLOBAL", body["scope_type"]!!.jsonPrimitive.content)
-        assertEquals(gId.toString(), body["group_id"]!!.jsonPrimitive.content)
     }
 
-    @Test
-    fun `createAssignment returns 409 for duplicate assignment`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val targetId = createUser(username = "target", email = "target@example.com")
-        val gId = groupId("Viewer")
-        assignGlobalGroup(targetId, "Viewer")
+    test("createAssignment returns 409 for duplicate assignment") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val targetId = createUser(username = "target", email = "target@example.com")
+            val gId = groupId("Viewer")
+            assignGlobalGroup(targetId, "Viewer")
 
-        val response = client.post("/api/users/$targetId/assignments") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"group_id":"$gId","scope_type":"GLOBAL"}""")
+            val response = client.post("/api/users/$targetId/assignments") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"group_id":"$gId","scope_type":"GLOBAL"}""")
+            }
+            response.status shouldBe HttpStatusCode.Conflict
         }
-        assertEquals(HttpStatusCode.Conflict, response.status)
     }
 
-    @Test
-    fun `createAssignment returns 422 for NETWORK scope without scope_id`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val targetId = createUser(username = "target", email = "target@example.com")
-        val gId = groupId("Viewer")
+    test("createAssignment returns 422 for NETWORK scope without scope_id") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val targetId = createUser(username = "target", email = "target@example.com")
+            val gId = groupId("Viewer")
 
-        val response = client.post("/api/users/$targetId/assignments") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"group_id":"$gId","scope_type":"NETWORK"}""")
+            val response = client.post("/api/users/$targetId/assignments") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"group_id":"$gId","scope_type":"NETWORK"}""")
+            }
+            response.status shouldBe HttpStatusCode.UnprocessableEntity
         }
-        assertEquals(HttpStatusCode.UnprocessableEntity, response.status)
     }
 
     // ── DELETE /api/users/{userId}/assignments/{assignmentId} ─────────────────
 
-    @Test
-    fun `deleteAssignment returns 403 without permission`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        val targetId = createUser(username = "target", email = "target@example.com")
-        val assignmentId = assignGlobalGroup(targetId, "Viewer")
+    test("deleteAssignment returns 403 without permission") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            val targetId = createUser(username = "target", email = "target@example.com")
+            val assignmentId = assignGlobalGroup(targetId, "Viewer")
 
-        assertEquals(HttpStatusCode.Forbidden, client.delete("/api/users/$targetId/assignments/$assignmentId") { bearerAuth(tokenFor(userId)) }.status)
-    }
-
-    @Test
-    fun `deleteAssignment removes assignment and returns 204`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val targetId = createUser(username = "target", email = "target@example.com")
-        val assignmentId = assignGlobalGroup(targetId, "Viewer")
-
-        assertEquals(HttpStatusCode.NoContent, client.delete("/api/users/$targetId/assignments/$assignmentId") { bearerAuth(tokenFor(userId)) }.status)
-
-        val exists = transaction {
-            UserGroupAssignments.selectAll()
-                .where { UserGroupAssignments.id eq assignmentId }
-                .firstOrNull() != null
+            client.delete("/api/users/$targetId/assignments/$assignmentId") { bearerAuth(tokenFor(userId)) }
+                .status shouldBe HttpStatusCode.Forbidden
         }
-        assertEquals(false, exists)
     }
 
-    @Test
-    fun `deleteAssignment returns 404 for unknown assignment`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val targetId = createUser(username = "target", email = "target@example.com")
+    test("deleteAssignment removes assignment and returns 204") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val targetId = createUser(username = "target", email = "target@example.com")
+            val assignmentId = assignGlobalGroup(targetId, "Viewer")
 
-        assertEquals(HttpStatusCode.NotFound, client.delete("/api/users/$targetId/assignments/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }.status)
+            client.delete("/api/users/$targetId/assignments/$assignmentId") { bearerAuth(tokenFor(userId)) }
+                .status shouldBe HttpStatusCode.NoContent
+
+            val exists = transaction {
+                UserGroupAssignments.selectAll()
+                    .where { UserGroupAssignments.id eq assignmentId }
+                    .firstOrNull() != null
+            }
+            exists shouldBe false
+        }
     }
-}
+
+    test("deleteAssignment returns 404 for unknown assignment") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val targetId = createUser(username = "target", email = "target@example.com")
+
+            client.delete("/api/users/$targetId/assignments/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }
+                .status shouldBe HttpStatusCode.NotFound
+        }
+    }
+})

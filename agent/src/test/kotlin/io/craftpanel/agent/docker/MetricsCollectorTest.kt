@@ -1,48 +1,37 @@
 package io.craftpanel.agent.docker
 
 import com.github.dockerjava.api.DockerClient
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.mockk.mockk
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
-import kotlin.test.assertTrue
 
-class MetricsCollectorTest {
+class MetricsCollectorTest : FunSpec({
+    val docker: DockerClient = mockk()
+    val collector = MetricsCollector(docker)
 
-    private val docker: DockerClient = mockk()
-    private val collector = MetricsCollector(docker)
-
-    @Test
-    fun `collectCapacity returns positive RAM`() {
+    test("collectCapacity returns positive RAM") {
         val (ramMb, _) = collector.collectCapacity()
-        assertTrue(ramMb > 0, "Expected positive RAM but got $ramMb")
+        (ramMb > 0) shouldBe true
     }
 
-    @Test
-    fun `collectCapacity cpu shares equal availableProcessors times 1024`() {
+    test("collectCapacity cpu shares equal availableProcessors times 1024") {
         val (_, cpuShares) = collector.collectCapacity()
-        assertEquals(
-            Runtime.getRuntime()
-                .availableProcessors() * 1024, cpuShares
-        )
+        cpuShares shouldBe Runtime.getRuntime().availableProcessors() * 1024
     }
 
-    @Test
-    fun `collect returns a non-null NodeMetricsUpdate`() {
-        assertNotNull(collector.collect())
+    test("collect returns a non-null NodeMetricsUpdate") {
+        collector.collect() shouldNotBe null
     }
 
-    @Test
-    fun `collect returns non-negative RAM metrics`() {
+    test("collect returns non-negative RAM metrics") {
         val result = collector.collect()
-        assertTrue(result.ramTotalMb >= 0)
-        assertTrue(result.ramUsedMb >= 0)
+        (result.ramTotalMb >= 0) shouldBe true
+        (result.ramUsedMb >= 0) shouldBe true
     }
 
-    @Test
-    fun `collectContainerMetrics handles unknown container id without throwing`() {
-        // Mock Docker returns nothing; latch times out → null returned gracefully
+    test("collectContainerMetrics handles unknown container id without throwing") {
         collector.collectContainerMetrics("server-1", "nonexistent-container-id")
-        assertNotNull(collector)
+        collector shouldNotBe null
     }
-}
+})

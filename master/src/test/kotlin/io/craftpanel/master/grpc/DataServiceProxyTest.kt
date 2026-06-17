@@ -7,29 +7,27 @@ import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.routes.dto.FileEntryResponse
 import io.craftpanel.master.routes.dto.ListFilesResponse
 import io.craftpanel.master.routes.dto.ReadFileResponse
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
+import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlin.uuid.Uuid
 
-class DataServiceProxyTest {
+class DataServiceProxyTest : FunSpec({
+    lateinit var controlSvc: ControlServiceImpl
+    lateinit var proxy: DataServiceProxy
 
-    private lateinit var controlSvc: ControlServiceImpl
-    private lateinit var proxy: DataServiceProxy
-
-    @BeforeTest
-    fun setup() {
+    beforeTest {
         TestDatabase.initIfNeeded()
         TestDatabase.reset()
         controlSvc = ControlServiceImpl(NodeConfig("test-token", 50052))
         proxy = DataServiceProxy(controlSvc, BulkDataServiceImpl(controlSvc))
     }
 
-    private fun createNode(): Uuid = transaction {
+    fun createNode(): Uuid = transaction {
         Nodes.insert {
             it[Nodes.hostname] = "proxy-test-node"
             it[Nodes.displayName] = "Proxy Test Node"
@@ -42,7 +40,7 @@ class DataServiceProxyTest {
         }[Nodes.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun createServer(nodeId: Uuid, status: String = "HEALTHY"): Uuid = transaction {
+    fun createServer(nodeId: Uuid, status: String = "HEALTHY"): Uuid = transaction {
         Servers.insert {
             it[Servers.name] = "proxy-test-server"
             it[Servers.displayName] = "Proxy Test Server"
@@ -57,27 +55,21 @@ class DataServiceProxyTest {
 
     // ── DB lookup errors ──────────────────────────────────────────────────────
 
-    @Test
-    fun `listFiles throws for unknown serverId`(): Unit = runBlocking {
-        assertFailsWith<IllegalStateException> {
-            proxy.listFiles(
-                Uuid.random()
-                    .toString(), "/"
-            )
+    test("listFiles throws for unknown serverId") {
+        shouldThrow<IllegalStateException> {
+            proxy.listFiles(Uuid.random().toString(), "/")
         }
     }
 
-    @Test
-    fun `listFiles throws for invalid serverId`(): Unit = runBlocking {
-        assertFailsWith<IllegalStateException> {
+    test("listFiles throws for invalid serverId") {
+        shouldThrow<IllegalStateException> {
             proxy.listFiles("not-a-uuid", "/")
         }
     }
 
     // ── DTO shape ─────────────────────────────────────────────────────────────
 
-    @Test
-    fun `ListFilesResponse has correct structure`() {
+    test("ListFilesResponse has correct structure") {
         val dto = ListFilesResponse(
             path = "/",
             entries = listOf(
@@ -90,34 +82,31 @@ class DataServiceProxyTest {
                 )
             ),
         )
-        assertEquals("/", dto.path)
-        assertEquals(1, dto.entries.size)
-        assertEquals("server.properties", dto.entries[0].name)
-        assertEquals(1024L, dto.entries[0].sizeBytes)
+        dto.path shouldBe "/"
+        dto.entries.size shouldBe 1
+        dto.entries[0].name shouldBe "server.properties"
+        dto.entries[0].sizeBytes shouldBe 1024L
     }
 
-    @Test
-    fun `ReadFileResponse has correct structure`() {
+    test("ReadFileResponse has correct structure") {
         val dto = ReadFileResponse(
             path = "/server.properties",
             content = "level-name=world\n",
             encoding = "utf-8",
         )
-        assertEquals("/server.properties", dto.path)
-        assertEquals("level-name=world\n", dto.content)
-        assertEquals("utf-8", dto.encoding)
+        dto.path shouldBe "/server.properties"
+        dto.content shouldBe "level-name=world\n"
+        dto.encoding shouldBe "utf-8"
     }
 
     // ── console STOPPED guard ─────────────────────────────────────────────────
 
-    @Test
-    fun `console returns emptyFlow when server is STOPPED`() {
+    test("console returns emptyFlow when server is STOPPED") {
         val nodeId = createNode()
         val serverId = createServer(nodeId, status = "STOPPED")
-        val result = proxy.console(serverId.toString(), kotlinx.coroutines.flow.emptyFlow())
-        // emptyFlow() returns immediately — just verify no exception
+        val result = proxy.console(serverId.toString(), emptyFlow())
         runBlocking {
-            result.collect {}
+            result.collect { }
         }
     }
-}
+})

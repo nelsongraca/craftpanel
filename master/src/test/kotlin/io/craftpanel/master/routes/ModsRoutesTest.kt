@@ -7,6 +7,8 @@ import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.*
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
 import kotlin.uuid.Uuid
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -27,30 +29,25 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
 import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
-class ModsRoutesTest {
-
-    private val jwtConfig = JwtConfig(
+class ModsRoutesTest : FunSpec({
+    val jwtConfig = JwtConfig(
         secret = "test-secret-that-is-at-least-32-characters!!",
         issuer = "craftpanel-test",
         audience = "craftpanel-test",
         expirySeconds = 900,
     )
-    private val jwtManager = JwtManager(jwtConfig)
+    val jwtManager = JwtManager(jwtConfig)
 
-    @BeforeTest
-    fun setup() {
+    beforeTest {
         TestDatabase.initIfNeeded()
         TestDatabase.reset()
     }
 
-    private fun Application.configureTest() {
+    fun Application.configureTest() {
         install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         install(StatusPages) {
             exception<NotFoundException> { call, ex -> call.respond(HttpStatusCode.NotFound, mapOf("error" to (ex.message ?: "Not found"))) }
@@ -75,11 +72,11 @@ class ModsRoutesTest {
         routing { modsRoutes(ModService()) }
     }
 
-    private fun ApplicationTestBuilder.jsonClient() = createClient {
+    fun ApplicationTestBuilder.jsonClient() = createClient {
         install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
 
-    private fun createUser(email: String = "admin@example.com"): Uuid = transaction {
+    fun createUser(email: String = "admin@example.com"): Uuid = transaction {
         Users.insert {
             it[Users.username] = email.substringBefore("@")
             it[Users.email] = email
@@ -88,7 +85,7 @@ class ModsRoutesTest {
         }[Users.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
+    fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
@@ -99,10 +96,10 @@ class ModsRoutesTest {
         }
     }
 
-    private fun tokenFor(userId: Uuid): String =
+    fun tokenFor(userId: Uuid): String =
         jwtManager.generate(TokenClaims(userId = userId, name = "admin", email = "admin@example.com", groups = emptyList()))
 
-    private fun createNode(): Uuid = transaction {
+    fun createNode(): Uuid = transaction {
         Nodes.insert {
             it[Nodes.hostname] = "node-1"
             it[Nodes.displayName] = "node-1"
@@ -115,7 +112,7 @@ class ModsRoutesTest {
         }[Nodes.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun createServer(nodeId: Uuid): Uuid = transaction {
+    fun createServer(nodeId: Uuid): Uuid = transaction {
         Servers.insert {
             it[Servers.name] = "test-server"
             it[Servers.displayName] = "Test Server"
@@ -129,260 +126,269 @@ class ModsRoutesTest {
 
     // ── List mods ─────────────────────────────────────────────────────────────
 
-    @Test
-    fun `list mods returns empty list when none exist`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
+    test("list mods returns empty list when none exist") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
 
-        val res = client.get("/api/servers/$serverId/mods") { header("Authorization", "Bearer $token") }
-        assertEquals(HttpStatusCode.OK, res.status)
-        assertEquals(0, res.body<JsonObject>()["mods"]!!.jsonArray.size)
+            val res = client.get("/api/servers/$serverId/mods") { header("Authorization", "Bearer $token") }
+            res.status shouldBe HttpStatusCode.OK
+            res.body<JsonObject>()["mods"]!!.jsonArray.size shouldBe 0
+        }
     }
 
-    @Test
-    fun `list mods requires server_mods permission`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Viewer")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
+    test("list mods requires server_mods permission") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Viewer")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
 
-        val res = client.get("/api/servers/$serverId/mods") { header("Authorization", "Bearer $token") }
-        assertEquals(HttpStatusCode.Forbidden, res.status)
+            val res = client.get("/api/servers/$serverId/mods") { header("Authorization", "Bearer $token") }
+            res.status shouldBe HttpStatusCode.Forbidden
+        }
     }
 
     // ── Add mod ───────────────────────────────────────────────────────────────
 
-    @Test
-    fun `add mod with LATEST strategy succeeds`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
+    test("add mod with LATEST strategy succeeds") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
 
-        val res = client.post("/api/servers/$serverId/mods") {
-            header("Authorization", "Bearer $token")
-            contentType(ContentType.Application.Json)
-            setBody("""{"modrinth_project_id":"fabric-api","display_name":"Fabric API","pin_strategy":"LATEST"}""")
+            val res = client.post("/api/servers/$serverId/mods") {
+                header("Authorization", "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody("""{"modrinth_project_id":"fabric-api","display_name":"Fabric API","pin_strategy":"LATEST"}""")
+            }
+            res.status shouldBe HttpStatusCode.Created
+            val body = res.body<JsonObject>()
+            body["modrinth_project_id"]!!.jsonPrimitive.content shouldBe "fabric-api"
+            body["pin_strategy"]!!.jsonPrimitive.content shouldBe "LATEST"
         }
-        assertEquals(HttpStatusCode.Created, res.status)
-        val body = res.body<JsonObject>()
-        assertEquals("fabric-api", body["modrinth_project_id"]!!.jsonPrimitive.content)
-        assertEquals("LATEST", body["pin_strategy"]!!.jsonPrimitive.content)
     }
 
-    @Test
-    fun `add mod with PINNED strategy requires pinned_version_id`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
+    test("add mod with PINNED strategy requires pinned_version_id") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
 
-        val res = client.post("/api/servers/$serverId/mods") {
-            header("Authorization", "Bearer $token")
-            contentType(ContentType.Application.Json)
-            setBody("""{"modrinth_project_id":"fabric-api","display_name":"Fabric API","pin_strategy":"PINNED"}""")
+            val res = client.post("/api/servers/$serverId/mods") {
+                header("Authorization", "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody("""{"modrinth_project_id":"fabric-api","display_name":"Fabric API","pin_strategy":"PINNED"}""")
+            }
+            res.status shouldBe HttpStatusCode.UnprocessableEntity
         }
-        assertEquals(HttpStatusCode.UnprocessableEntity, res.status)
     }
 
-    @Test
-    fun `add mod with PINNED strategy and version succeeds`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
+    test("add mod with PINNED strategy and version succeeds") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
 
-        val res = client.post("/api/servers/$serverId/mods") {
-            header("Authorization", "Bearer $token")
-            contentType(ContentType.Application.Json)
-            setBody("""{"modrinth_project_id":"fabric-api","display_name":"Fabric API","pin_strategy":"PINNED","pinned_version_id":"Oa9ZDzZq"}""")
+            val res = client.post("/api/servers/$serverId/mods") {
+                header("Authorization", "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody("""{"modrinth_project_id":"fabric-api","display_name":"Fabric API","pin_strategy":"PINNED","pinned_version_id":"Oa9ZDzZq"}""")
+            }
+            res.status shouldBe HttpStatusCode.Created
+            val body = res.body<JsonObject>()
+            body["pinned_version_id"]!!.jsonPrimitive.content shouldBe "Oa9ZDzZq"
         }
-        assertEquals(HttpStatusCode.Created, res.status)
-        val body = res.body<JsonObject>()
-        assertEquals("Oa9ZDzZq", body["pinned_version_id"]!!.jsonPrimitive.content)
     }
 
-    @Test
-    fun `add mod with BETA strategy succeeds`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
+    test("add mod with BETA strategy succeeds") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
 
-        val res = client.post("/api/servers/$serverId/mods") {
-            header("Authorization", "Bearer $token")
-            contentType(ContentType.Application.Json)
-            setBody("""{"modrinth_project_id":"fabric-api","display_name":"Fabric API","pin_strategy":"BETA"}""")
+            val res = client.post("/api/servers/$serverId/mods") {
+                header("Authorization", "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody("""{"modrinth_project_id":"fabric-api","display_name":"Fabric API","pin_strategy":"BETA"}""")
+            }
+            res.status shouldBe HttpStatusCode.Created
+            res.body<JsonObject>()["pin_strategy"]!!.jsonPrimitive.content shouldBe "BETA"
         }
-        assertEquals(HttpStatusCode.Created, res.status)
-        assertEquals("BETA", res.body<JsonObject>()["pin_strategy"]!!.jsonPrimitive.content)
     }
 
-    @Test
-    fun `add mod with ALPHA strategy succeeds`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
+    test("add mod with ALPHA strategy succeeds") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
 
-        val res = client.post("/api/servers/$serverId/mods") {
-            header("Authorization", "Bearer $token")
-            contentType(ContentType.Application.Json)
-            setBody("""{"modrinth_project_id":"fabric-api","display_name":"Fabric API","pin_strategy":"ALPHA"}""")
+            val res = client.post("/api/servers/$serverId/mods") {
+                header("Authorization", "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody("""{"modrinth_project_id":"fabric-api","display_name":"Fabric API","pin_strategy":"ALPHA"}""")
+            }
+            res.status shouldBe HttpStatusCode.Created
+            res.body<JsonObject>()["pin_strategy"]!!.jsonPrimitive.content shouldBe "ALPHA"
         }
-        assertEquals(HttpStatusCode.Created, res.status)
-        assertEquals("ALPHA", res.body<JsonObject>()["pin_strategy"]!!.jsonPrimitive.content)
     }
 
-    @Test
-    fun `add duplicate mod returns 409`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
+    test("add duplicate mod returns 409") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
 
-        val body = """{"modrinth_project_id":"fabric-api","display_name":"Fabric API","pin_strategy":"LATEST"}"""
-        client.post("/api/servers/$serverId/mods") {
-            header("Authorization", "Bearer $token")
-            contentType(ContentType.Application.Json)
-            setBody(body)
+            val body = """{"modrinth_project_id":"fabric-api","display_name":"Fabric API","pin_strategy":"LATEST"}"""
+            client.post("/api/servers/$serverId/mods") {
+                header("Authorization", "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+            val res = client.post("/api/servers/$serverId/mods") {
+                header("Authorization", "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody(body)
+            }
+            res.status shouldBe HttpStatusCode.Conflict
         }
-        val res = client.post("/api/servers/$serverId/mods") {
-            header("Authorization", "Bearer $token")
-            contentType(ContentType.Application.Json)
-            setBody(body)
-        }
-        assertEquals(HttpStatusCode.Conflict, res.status)
     }
 
-    @Test
-    fun `add mod with invalid pin_strategy returns 422`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
+    test("add mod with invalid pin_strategy returns 422") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
 
-        val res = client.post("/api/servers/$serverId/mods") {
-            header("Authorization", "Bearer $token")
-            contentType(ContentType.Application.Json)
-            setBody("""{"modrinth_project_id":"fabric-api","display_name":"Fabric API","pin_strategy":"NIGHTLY"}""")
+            val res = client.post("/api/servers/$serverId/mods") {
+                header("Authorization", "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody("""{"modrinth_project_id":"fabric-api","display_name":"Fabric API","pin_strategy":"NIGHTLY"}""")
+            }
+            res.status shouldBe HttpStatusCode.UnprocessableEntity
         }
-        assertEquals(HttpStatusCode.UnprocessableEntity, res.status)
     }
 
     // ── Patch mod ─────────────────────────────────────────────────────────────
 
-    @Test
-    fun `patch mod updates pin_strategy`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
+    test("patch mod updates pin_strategy") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
 
-        val modId = transaction {
-            ServerMods.insert {
-                it[ServerMods.serverId] = serverId
-                it[ServerMods.modrinthProjectId] = "fabric-api"
-                it[ServerMods.displayName] = "Fabric API"
-                it[ServerMods.pinStrategy] = "LATEST"
-            }[ServerMods.id]
-        }
+            val modId = transaction {
+                ServerMods.insert {
+                    it[ServerMods.serverId] = serverId
+                    it[ServerMods.modrinthProjectId] = "fabric-api"
+                    it[ServerMods.displayName] = "Fabric API"
+                    it[ServerMods.pinStrategy] = "LATEST"
+                }[ServerMods.id]
+            }
 
-        val res = client.patch("/api/servers/$serverId/mods/$modId") {
-            header("Authorization", "Bearer $token")
-            contentType(ContentType.Application.Json)
-            setBody("""{"pin_strategy":"PINNED","pinned_version_id":"Oa9ZDzZq"}""")
+            val res = client.patch("/api/servers/$serverId/mods/$modId") {
+                header("Authorization", "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody("""{"pin_strategy":"PINNED","pinned_version_id":"Oa9ZDzZq"}""")
+            }
+            res.status shouldBe HttpStatusCode.OK
+            val body = res.body<JsonObject>()
+            body["pin_strategy"]!!.jsonPrimitive.content shouldBe "PINNED"
+            body["pinned_version_id"]!!.jsonPrimitive.content shouldBe "Oa9ZDzZq"
         }
-        assertEquals(HttpStatusCode.OK, res.status)
-        val body = res.body<JsonObject>()
-        assertEquals("PINNED", body["pin_strategy"]!!.jsonPrimitive.content)
-        assertEquals("Oa9ZDzZq", body["pinned_version_id"]!!.jsonPrimitive.content)
     }
 
     // ── Delete mod ────────────────────────────────────────────────────────────
 
-    @Test
-    fun `delete mod removes it`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
+    test("delete mod removes it") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
 
-        val modId = transaction {
-            ServerMods.insert {
-                it[ServerMods.serverId] = serverId
-                it[ServerMods.modrinthProjectId] = "fabric-api"
-                it[ServerMods.displayName] = "Fabric API"
-                it[ServerMods.pinStrategy] = "LATEST"
-            }[ServerMods.id]
-        }
+            val modId = transaction {
+                ServerMods.insert {
+                    it[ServerMods.serverId] = serverId
+                    it[ServerMods.modrinthProjectId] = "fabric-api"
+                    it[ServerMods.displayName] = "Fabric API"
+                    it[ServerMods.pinStrategy] = "LATEST"
+                }[ServerMods.id]
+            }
 
-        val res = client.delete("/api/servers/$serverId/mods/$modId") { header("Authorization", "Bearer $token") }
-        assertEquals(HttpStatusCode.NoContent, res.status)
-        assertEquals(
-            0,
+            val res = client.delete("/api/servers/$serverId/mods/$modId") { header("Authorization", "Bearer $token") }
+            res.status shouldBe HttpStatusCode.NoContent
             transaction {
                 ServerMods.selectAll()
                     .where { ServerMods.id eq modId }
-                    .count()
-            })
+                    .count() shouldBe 0
+            }
+        }
     }
 
-    @Test
-    fun `delete nonexistent mod returns 404`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
+    test("delete nonexistent mod returns 404") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
 
-        val res = client.delete("/api/servers/$serverId/mods/${Uuid.random()}") {
-            header("Authorization", "Bearer $token")
+            val res = client.delete("/api/servers/$serverId/mods/${Uuid.random()}") {
+                header("Authorization", "Bearer $token")
+            }
+            res.status shouldBe HttpStatusCode.NotFound
         }
-        assertEquals(HttpStatusCode.NotFound, res.status)
     }
 
     // ── MODRINTH_PROJECTS serialization ───────────────────────────────────────
 
-    @Test
-    fun `modrinthProjectsEnvVar serializes LATEST correctly`() {
+    test("modrinthProjectsEnvVar serializes LATEST correctly") {
         val nodeId = createNode()
         val serverId = createServer(nodeId)
         transaction {
@@ -393,11 +399,10 @@ class ModsRoutesTest {
                 it[ServerMods.pinStrategy] = "LATEST"
             }
         }
-        assertEquals("fabric-api", ModService().buildModrinthEnvVar(serverId))
+        ModService().buildModrinthEnvVar(serverId) shouldBe "fabric-api"
     }
 
-    @Test
-    fun `modrinthProjectsEnvVar serializes PINNED correctly`() {
+    test("modrinthProjectsEnvVar serializes PINNED correctly") {
         val nodeId = createNode()
         val serverId = createServer(nodeId)
         transaction {
@@ -409,11 +414,10 @@ class ModsRoutesTest {
                 it[ServerMods.pinnedVersionId] = "Oa9ZDzZq"
             }
         }
-        assertEquals("fabric-api:Oa9ZDzZq", ModService().buildModrinthEnvVar(serverId))
+        ModService().buildModrinthEnvVar(serverId) shouldBe "fabric-api:Oa9ZDzZq"
     }
 
-    @Test
-    fun `modrinthProjectsEnvVar serializes BETA correctly`() {
+    test("modrinthProjectsEnvVar serializes BETA correctly") {
         val nodeId = createNode()
         val serverId = createServer(nodeId)
         transaction {
@@ -424,11 +428,10 @@ class ModsRoutesTest {
                 it[ServerMods.pinStrategy] = "BETA"
             }
         }
-        assertEquals("some-mod:beta", ModService().buildModrinthEnvVar(serverId))
+        ModService().buildModrinthEnvVar(serverId) shouldBe "some-mod:beta"
     }
 
-    @Test
-    fun `modrinthProjectsEnvVar serializes ALPHA correctly`() {
+    test("modrinthProjectsEnvVar serializes ALPHA correctly") {
         val nodeId = createNode()
         val serverId = createServer(nodeId)
         transaction {
@@ -439,11 +442,10 @@ class ModsRoutesTest {
                 it[ServerMods.pinStrategy] = "ALPHA"
             }
         }
-        assertEquals("some-mod:alpha", ModService().buildModrinthEnvVar(serverId))
+        ModService().buildModrinthEnvVar(serverId) shouldBe "some-mod:alpha"
     }
 
-    @Test
-    fun `modrinthProjectsEnvVar serializes multiple mods comma-separated`() {
+    test("modrinthProjectsEnvVar serializes multiple mods comma-separated") {
         val nodeId = createNode()
         val serverId = createServer(nodeId)
         transaction {
@@ -462,8 +464,8 @@ class ModsRoutesTest {
             }
         }
         val result = ModService().buildModrinthEnvVar(serverId)
-        assert(result.contains("fabric-api")) { "Expected fabric-api in $result" }
-        assert(result.contains("sodium:abc123")) { "Expected sodium:abc123 in $result" }
-        assert(result.contains(",")) { "Expected comma separator in $result" }
+        result.contains("fabric-api") shouldBe true
+        result.contains("sodium:abc123") shouldBe true
+        result.contains(",") shouldBe true
     }
-}
+})

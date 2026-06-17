@@ -9,6 +9,9 @@ import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.service.*
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
@@ -28,32 +31,26 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
 import kotlin.uuid.Uuid
 import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
-class GroupsRoutesTest {
-
-    private val jwtConfig = JwtConfig(
+class GroupsRoutesTest : FunSpec({
+    val jwtConfig = JwtConfig(
         secret = "test-secret-that-is-at-least-32-characters!!",
         issuer = "craftpanel-test",
         audience = "craftpanel-test",
         expirySeconds = 900,
     )
-    private val jwtManager = JwtManager(jwtConfig)
+    val jwtManager = JwtManager(jwtConfig)
 
-    @BeforeTest
-    fun setup() {
+    beforeTest {
         TestDatabase.initIfNeeded()
         TestDatabase.reset()
     }
 
-    private fun Application.configureTest() {
+    fun Application.configureTest() {
         install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         install(StatusPages) {
             exception<NotFoundException> { call, ex -> call.respond(HttpStatusCode.NotFound, mapOf("error" to (ex.message ?: "Not found"))) }
@@ -78,11 +75,11 @@ class GroupsRoutesTest {
         routing { groupsRoutes(GroupService()) }
     }
 
-    private fun ApplicationTestBuilder.jsonClient() = createClient {
+    fun ApplicationTestBuilder.jsonClient() = createClient {
         install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
 
-    private fun createUser(username: String = "admin", email: String = "admin@example.com"): Uuid = transaction {
+    fun createUser(username: String = "admin", email: String = "admin@example.com"): Uuid = transaction {
         Users.insert {
             it[Users.username] = username
             it[Users.email] = email
@@ -90,7 +87,7 @@ class GroupsRoutesTest {
         }[Users.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
+    fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
@@ -101,232 +98,246 @@ class GroupsRoutesTest {
         }
     }
 
-    private fun createGroup(name: String): Uuid = transaction {
+    fun createGroup(name: String): Uuid = transaction {
         Groups.insert { it[Groups.name] = name }[Groups.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun tokenFor(userId: Uuid): String =
+    fun tokenFor(userId: Uuid): String =
         jwtManager.generate(TokenClaims(userId = userId, name = "admin", email = "admin@example.com", groups = emptyList()))
 
     // ── GET /api/groups ───────────────────────────────────────────────────────
 
-    @Test
-    fun `listGroups returns 403 without system_users permission`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assertEquals(HttpStatusCode.Forbidden, client.get("/api/groups") { bearerAuth(tokenFor(userId)) }.status)
+    test("listGroups returns 403 without system_users permission") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            client.get("/api/groups") { bearerAuth(tokenFor(userId)) }.status shouldBe HttpStatusCode.Forbidden
+        }
     }
 
-    @Test
-    fun `listGroups returns groups with is_system and created_at`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val client = jsonClient()
+    test("listGroups returns groups with is_system and created_at") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val client = jsonClient()
 
-        val body = client.get("/api/groups") { bearerAuth(tokenFor(userId)) }
-            .body<List<JsonObject>>()
-        val superAdmin = body.first { it["name"]!!.jsonPrimitive.content == "Super Admin" }
-        assertEquals(true, superAdmin["is_system"]!!.jsonPrimitive.content.toBoolean())
-        assertNotNull(superAdmin["created_at"])
+            val body = client.get("/api/groups") { bearerAuth(tokenFor(userId)) }
+                .body<List<JsonObject>>()
+            val superAdmin = body.first { it["name"]!!.jsonPrimitive.content == "Super Admin" }
+            superAdmin["is_system"]!!.jsonPrimitive.content.toBoolean() shouldBe true
+            superAdmin["created_at"] shouldNotBe null
+        }
     }
 
     // ── POST /api/groups ──────────────────────────────────────────────────────
 
-    @Test
-    fun `createGroup returns 403 without permission`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        val response = client.post("/api/groups") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"name":"Mods"}""")
+    test("createGroup returns 403 without permission") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            val response = client.post("/api/groups") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"name":"Mods"}""")
+            }
+            response.status shouldBe HttpStatusCode.Forbidden
         }
-        assertEquals(HttpStatusCode.Forbidden, response.status)
     }
 
-    @Test
-    fun `createGroup returns full group object on 201`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val client = jsonClient()
+    test("createGroup returns full group object on 201") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val client = jsonClient()
 
-        val body = client.post("/api/groups") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"name":"Moderators"}""")
+            val body = client.post("/api/groups") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"name":"Moderators"}""")
+            }
+                .body<JsonObject>()
+
+            body["name"]!!.jsonPrimitive.content shouldBe "Moderators"
+            body["is_system"]!!.jsonPrimitive.content.toBoolean() shouldBe false
+            body["id"] shouldNotBe null
+            body["created_at"] shouldNotBe null
         }
-            .body<JsonObject>()
-
-        assertEquals("Moderators", body["name"]!!.jsonPrimitive.content)
-        assertEquals(false, body["is_system"]!!.jsonPrimitive.content.toBoolean())
-        assertNotNull(body["id"])
-        assertNotNull(body["created_at"])
     }
 
-    @Test
-    fun `createGroup returns 409 for duplicate name`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        createGroup("Duped")
+    test("createGroup returns 409 for duplicate name") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            createGroup("Duped")
 
-        val response = client.post("/api/groups") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"name":"Duped"}""")
+            val response = client.post("/api/groups") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"name":"Duped"}""")
+            }
+            response.status shouldBe HttpStatusCode.Conflict
         }
-        assertEquals(HttpStatusCode.Conflict, response.status)
     }
 
     // ── PATCH /api/groups/{id} ────────────────────────────────────────────────
 
-    @Test
-    fun `updateGroup returns 409 for system group`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val superAdminId = transaction {
-            Groups.selectAll()
-                .where { Groups.name eq "Super Admin" }
-                .first()[Groups.id].let { Uuid.parse(it.toString()) }
-        }
+    test("updateGroup returns 409 for system group") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val superAdminId = transaction {
+                Groups.selectAll()
+                    .where { Groups.name eq "Super Admin" }
+                    .first()[Groups.id].let { Uuid.parse(it.toString()) }
+            }
 
-        val response = client.patch("/api/groups/$superAdminId") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"name":"Hacked"}""")
+            val response = client.patch("/api/groups/$superAdminId") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"name":"Hacked"}""")
+            }
+            response.status shouldBe HttpStatusCode.Conflict
         }
-        assertEquals(HttpStatusCode.Conflict, response.status)
     }
 
-    @Test
-    fun `updateGroup renames non-system group`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val groupId = createGroup("OldName")
-        val client = jsonClient()
+    test("updateGroup renames non-system group") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val groupId = createGroup("OldName")
+            val client = jsonClient()
 
-        val body = client.patch("/api/groups/$groupId") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"name":"NewName"}""")
+            val body = client.patch("/api/groups/$groupId") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"name":"NewName"}""")
+            }
+                .body<JsonObject>()
+
+            body["name"]!!.jsonPrimitive.content shouldBe "NewName"
         }
-            .body<JsonObject>()
-
-        assertEquals("NewName", body["name"]!!.jsonPrimitive.content)
     }
 
-    @Test
-    fun `updateGroup returns 404 for unknown group`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
+    test("updateGroup returns 404 for unknown group") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
 
-        val response = client.patch("/api/groups/${Uuid.random()}") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"name":"x"}""")
+            val response = client.patch("/api/groups/${Uuid.random()}") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"name":"x"}""")
+            }
+            response.status shouldBe HttpStatusCode.NotFound
         }
-        assertEquals(HttpStatusCode.NotFound, response.status)
     }
 
     // ── DELETE /api/groups/{id} ───────────────────────────────────────────────
 
-    @Test
-    fun `deleteGroup returns 409 for system group`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val superAdminId = transaction {
-            Groups.selectAll()
-                .where { Groups.name eq "Super Admin" }
-                .first()[Groups.id].let { Uuid.parse(it.toString()) }
-        }
+    test("deleteGroup returns 409 for system group") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val superAdminId = transaction {
+                Groups.selectAll()
+                    .where { Groups.name eq "Super Admin" }
+                    .first()[Groups.id].let { Uuid.parse(it.toString()) }
+            }
 
-        assertEquals(HttpStatusCode.Conflict, client.delete("/api/groups/$superAdminId") { bearerAuth(tokenFor(userId)) }.status)
+            client.delete("/api/groups/$superAdminId") { bearerAuth(tokenFor(userId)) }.status shouldBe HttpStatusCode.Conflict
+        }
     }
 
-    @Test
-    fun `deleteGroup removes non-system group`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val groupId = createGroup("Deletable")
+    test("deleteGroup removes non-system group") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val groupId = createGroup("Deletable")
 
-        assertEquals(HttpStatusCode.NoContent, client.delete("/api/groups/$groupId") { bearerAuth(tokenFor(userId)) }.status)
+            client.delete("/api/groups/$groupId") { bearerAuth(tokenFor(userId)) }.status shouldBe HttpStatusCode.NoContent
 
-        val exists = transaction {
-            Groups.selectAll()
-                .where { Groups.id eq groupId }
-                .firstOrNull() != null
+            val exists = transaction {
+                Groups.selectAll()
+                    .where { Groups.id eq groupId }
+                    .firstOrNull() != null
+            }
+            exists shouldBe false
         }
-        assertEquals(false, exists)
     }
 
-    @Test
-    fun `deleteGroup returns 404 for unknown group`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
+    test("deleteGroup returns 404 for unknown group") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.NotFound, client.delete("/api/groups/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }.status)
+            client.delete("/api/groups/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }.status shouldBe HttpStatusCode.NotFound
+        }
     }
 
     // ── PUT /api/groups/{id}/permissions ──────────────────────────────────────
 
-    @Test
-    fun `setGroupPermissions replaces permission set`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val groupId = createGroup("Custom")
-        val client = jsonClient()
+    test("setGroupPermissions replaces permission set") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val groupId = createGroup("Custom")
+            val client = jsonClient()
 
-        val body = client.put("/api/groups/$groupId/permissions") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"permissions":["server.view","server.console"]}""")
+            val body = client.put("/api/groups/$groupId/permissions") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"permissions":["server.view","server.console"]}""")
+            }
+                .body<JsonObject>()
+
+            val perms = body["permissions"]!!.jsonArray.map { it.jsonPrimitive.content }
+            perms.toSet() shouldBe setOf("server.view", "server.console")
         }
-            .body<JsonObject>()
-
-        val perms = body["permissions"]!!.jsonArray.map { it.jsonPrimitive.content }
-        assertEquals(setOf("server.view", "server.console"), perms.toSet())
     }
 
-    @Test
-    fun `setGroupPermissions returns 400 for invalid permission node`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val groupId = createGroup("Custom")
+    test("setGroupPermissions returns 400 for invalid permission node") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val groupId = createGroup("Custom")
 
-        val response = client.put("/api/groups/$groupId/permissions") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"permissions":["server.view","not.a.real.perm"]}""")
+            val response = client.put("/api/groups/$groupId/permissions") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"permissions":["server.view","not.a.real.perm"]}""")
+            }
+            response.status shouldBe HttpStatusCode.BadRequest
         }
-        assertEquals(HttpStatusCode.BadRequest, response.status)
     }
 
-    @Test
-    fun `setGroupPermissions returns 409 for system group`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val viewerId = transaction {
-            Groups.selectAll()
-                .where { Groups.name eq "Viewer" }
-                .first()[Groups.id].let { Uuid.parse(it.toString()) }
-        }
+    test("setGroupPermissions returns 409 for system group") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val viewerId = transaction {
+                Groups.selectAll()
+                    .where { Groups.name eq "Viewer" }
+                    .first()[Groups.id].let { Uuid.parse(it.toString()) }
+            }
 
-        val response = client.put("/api/groups/$viewerId/permissions") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"permissions":["server.view"]}""")
+            val response = client.put("/api/groups/$viewerId/permissions") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"permissions":["server.view"]}""")
+            }
+            response.status shouldBe HttpStatusCode.Conflict
         }
-        assertEquals(HttpStatusCode.Conflict, response.status)
     }
-}
+})

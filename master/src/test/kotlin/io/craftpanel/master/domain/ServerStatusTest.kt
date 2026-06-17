@@ -4,119 +4,101 @@ import io.craftpanel.master.grpc.mapContainerState
 import io.craftpanel.master.grpc.mapMissingContainer
 import io.craftpanel.proto.ContainerState
 import io.craftpanel.proto.ServerStatusUpdate
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFalse
-import kotlin.test.assertFailsWith
-import kotlin.test.assertNull
-import kotlin.test.assertTrue
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 
-class ServerStatusTest {
-
+class ServerStatusTest : FunSpec({
     // ── Predicates ───────────────────────────────────────────────────────────
 
-    @Test
-    fun `isRunning true for HEALTHY STARTING UNHEALTHY`() {
-        assertTrue(ServerStatus.HEALTHY.isRunning)
-        assertTrue(ServerStatus.STARTING.isRunning)
-        assertTrue(ServerStatus.UNHEALTHY.isRunning)
+    test("isRunning true for HEALTHY STARTING UNHEALTHY") {
+        ServerStatus.HEALTHY.isRunning shouldBe true
+        ServerStatus.STARTING.isRunning shouldBe true
+        ServerStatus.UNHEALTHY.isRunning shouldBe true
     }
 
-    @Test
-    fun `isRunning false for STOPPED and STOPPING`() {
-        assertFalse(ServerStatus.STOPPED.isRunning)
-        assertFalse(ServerStatus.STOPPING.isRunning)
+    test("isRunning false for STOPPED and STOPPING") {
+        ServerStatus.STOPPED.isRunning shouldBe false
+        ServerStatus.STOPPING.isRunning shouldBe false
     }
 
-    @Test
-    fun `isStopped true only for STOPPED`() {
-        assertTrue(ServerStatus.STOPPED.isStopped)
+    test("isStopped true only for STOPPED") {
+        ServerStatus.STOPPED.isStopped shouldBe true
         ServerStatus.entries.filter { it != ServerStatus.STOPPED }
-            .forEach { assertFalse(it.isStopped) }
+            .forEach { it.isStopped shouldBe false }
     }
 
-    @Test
-    fun `toDb and fromDb round-trip`() {
+    test("toDb and fromDb round-trip") {
         ServerStatus.entries.forEach { status ->
-            assertEquals(status, ServerStatus.fromDb(status.toDb()))
+            ServerStatus.fromDb(status.toDb()) shouldBe status
         }
     }
 
     // ── Container→status mapper matrix ───────────────────────────────────────
 
-    @Test
-    fun `RUNNING container when not HEALTHY → HEALTHY`() {
+    test("RUNNING container when not HEALTHY → HEALTHY") {
         val nonHealthy = ServerStatus.entries.filter { it != ServerStatus.HEALTHY }
         nonHealthy.forEach { db ->
-            assertEquals(ServerStatus.HEALTHY, mapContainerState(ContainerState.RunState.RUNNING, db), "db=$db")
+            mapContainerState(ContainerState.RunState.RUNNING, db) shouldBe ServerStatus.HEALTHY
         }
     }
 
-    @Test
-    fun `RUNNING container when already HEALTHY → null`() {
-        assertNull(mapContainerState(ContainerState.RunState.RUNNING, ServerStatus.HEALTHY))
+    test("RUNNING container when already HEALTHY → null") {
+        mapContainerState(ContainerState.RunState.RUNNING, ServerStatus.HEALTHY) shouldBe null
     }
 
-    @Test
-    fun `STOPPED container when isRunning → STOPPED`() {
+    test("STOPPED container when isRunning → STOPPED") {
         listOf(ServerStatus.HEALTHY, ServerStatus.STARTING, ServerStatus.UNHEALTHY).forEach { db ->
-            assertEquals(ServerStatus.STOPPED, mapContainerState(ContainerState.RunState.STOPPED, db), "db=$db")
+            mapContainerState(ContainerState.RunState.STOPPED, db) shouldBe ServerStatus.STOPPED
         }
     }
 
-    @Test
-    fun `STOPPED container when already STOPPED or STOPPING → null`() {
-        assertNull(mapContainerState(ContainerState.RunState.STOPPED, ServerStatus.STOPPED))
-        assertNull(mapContainerState(ContainerState.RunState.STOPPED, ServerStatus.STOPPING))
+    test("STOPPED container when already STOPPED or STOPPING → null") {
+        mapContainerState(ContainerState.RunState.STOPPED, ServerStatus.STOPPED) shouldBe null
+        mapContainerState(ContainerState.RunState.STOPPED, ServerStatus.STOPPING) shouldBe null
     }
 
-    @Test
-    fun `EXITED container when not UNHEALTHY → UNHEALTHY`() {
+    test("EXITED container when not UNHEALTHY → UNHEALTHY") {
         val nonUnhealthy = ServerStatus.entries.filter { it != ServerStatus.UNHEALTHY }
         nonUnhealthy.forEach { db ->
-            assertEquals(ServerStatus.UNHEALTHY, mapContainerState(ContainerState.RunState.EXITED, db), "db=$db")
+            mapContainerState(ContainerState.RunState.EXITED, db) shouldBe ServerStatus.UNHEALTHY
         }
     }
 
-    @Test
-    fun `EXITED container when already UNHEALTHY → null`() {
-        assertNull(mapContainerState(ContainerState.RunState.EXITED, ServerStatus.UNHEALTHY))
+    test("EXITED container when already UNHEALTHY → null") {
+        mapContainerState(ContainerState.RunState.EXITED, ServerStatus.UNHEALTHY) shouldBe null
     }
 
-    @Test
-    fun `missing container when not STOPPED → STOPPED`() {
+    test("missing container when not STOPPED → STOPPED") {
         val nonStopped = ServerStatus.entries.filter { it != ServerStatus.STOPPED }
         nonStopped.forEach { db ->
-            assertEquals(ServerStatus.STOPPED, mapMissingContainer(db), "db=$db")
+            mapMissingContainer(db) shouldBe ServerStatus.STOPPED
         }
     }
 
-    @Test
-    fun `missing container when already STOPPED → null`() {
-        assertNull(mapMissingContainer(ServerStatus.STOPPED))
+    test("missing container when already STOPPED → null") {
+        mapMissingContainer(ServerStatus.STOPPED) shouldBe null
     }
 
     // ── fromProto mapping ────────────────────────────────────────────────────
 
-    @Test
-    fun `fromProto maps all 4 proto values to domain`() {
-        assertEquals(ServerStatus.STOPPED, ServerStatus.fromProto(ServerStatusUpdate.ServerStatus.STOPPED))
-        assertEquals(ServerStatus.STARTING, ServerStatus.fromProto(ServerStatusUpdate.ServerStatus.STARTING))
-        assertEquals(ServerStatus.HEALTHY, ServerStatus.fromProto(ServerStatusUpdate.ServerStatus.HEALTHY))
-        assertEquals(ServerStatus.UNHEALTHY, ServerStatus.fromProto(ServerStatusUpdate.ServerStatus.UNHEALTHY))
+    test("fromProto maps all 4 proto values to domain") {
+        ServerStatus.fromProto(ServerStatusUpdate.ServerStatus.STOPPED) shouldBe ServerStatus.STOPPED
+        ServerStatus.fromProto(ServerStatusUpdate.ServerStatus.STARTING) shouldBe ServerStatus.STARTING
+        ServerStatus.fromProto(ServerStatusUpdate.ServerStatus.HEALTHY) shouldBe ServerStatus.HEALTHY
+        ServerStatus.fromProto(ServerStatusUpdate.ServerStatus.UNHEALTHY) shouldBe ServerStatus.UNHEALTHY
     }
 
-    @Test
-    fun `fromProto throws on UNSPECIFIED`() {
-        assertFailsWith<IllegalStateException> {
+    test("fromProto throws on UNSPECIFIED") {
+        shouldThrow<IllegalStateException> {
             ServerStatus.fromProto(ServerStatusUpdate.ServerStatus.SERVER_STATUS_UNSPECIFIED)
         }
     }
 
-    @Test
-    fun `fromProto throws on UNRECOGNIZED`() {
-        assertFailsWith<IllegalStateException> {
+    test("fromProto throws on UNRECOGNIZED") {
+        shouldThrow<IllegalStateException> {
             ServerStatus.fromProto(ServerStatusUpdate.ServerStatus.UNRECOGNIZED)
         }
     }
-}
+})

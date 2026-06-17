@@ -45,7 +45,10 @@ dependencies {
     implementation(libs.bcpkix.jdk18on)
     implementation(libs.logback.classic)
     implementation(libs.bundles.koin.ktor)
-    testImplementation(kotlin("test"))
+    testImplementation(libs.kotest.runner.junit5)
+    testImplementation(libs.kotest.assertions.core)
+    testImplementation(libs.kotest.framework.engine)
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation(libs.ktor.server.test.host)
     testImplementation(libs.h2)
     testImplementation(libs.koin.test)
@@ -90,6 +93,10 @@ tasks.register<DockerPushImage>("dockerPushImage") {
 }
 
 val openApiOutputFile = rootProject.layout.buildDirectory.file("openapi.json")
+
+tasks.withType<Test> {
+    useJUnitPlatform()
+}
 
 tasks.named<Test>("test") {
     exclude("**/OpenApiSpecTask*")

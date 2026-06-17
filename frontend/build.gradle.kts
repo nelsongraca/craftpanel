@@ -36,6 +36,14 @@ tasks.named("check") {
     dependsOn("testFrontend")
 }
 
+val testCoverage by tasks.registering(Exec::class) {
+    group = "verification"
+    description = "Run frontend tests with coverage"
+    dependsOn("assembleFrontend")
+    workingDir = projectDir
+    commandLine(".node/bin/pnpm", "vitest", "run", "--coverage")
+}
+
 tasks.register<Exec>("generateApiTypes") {
     group = "build"
     description = "Generates lib/generated/api.ts from the backend OpenAPI spec"

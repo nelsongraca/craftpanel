@@ -9,6 +9,9 @@ import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.service.*
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
@@ -29,28 +32,25 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
-import kotlin.test.*
 import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
-class SystemRoutesTest {
-
-    private val jwtConfig = JwtConfig(
+class SystemRoutesTest : FunSpec({
+    val jwtConfig = JwtConfig(
         secret = "test-secret-that-is-at-least-32-characters!!",
         issuer = "craftpanel-test",
         audience = "craftpanel-test",
         expirySeconds = 900,
     )
-    private val jwtManager = JwtManager(jwtConfig)
+    val jwtManager = JwtManager(jwtConfig)
 
-    @BeforeTest
-    fun setup() {
+    beforeTest {
         TestDatabase.initIfNeeded()
         TestDatabase.reset()
     }
 
-    private fun Application.configureTest() {
+    fun Application.configureTest() {
         install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         install(StatusPages) {
             exception<NotFoundException> { call, ex -> call.respond(HttpStatusCode.NotFound, mapOf("error" to (ex.message ?: "Not found"))) }
@@ -75,11 +75,11 @@ class SystemRoutesTest {
         routing { systemRoutes(SystemService()) }
     }
 
-    private fun ApplicationTestBuilder.jsonClient() = createClient {
+    fun ApplicationTestBuilder.jsonClient() = createClient {
         install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
 
-    private fun createUser(username: String = "admin", email: String = "admin@example.com"): Uuid = transaction {
+    fun createUser(username: String = "admin", email: String = "admin@example.com"): Uuid = transaction {
         Users.insert {
             it[Users.username] = username
             it[Users.email] = email
@@ -87,7 +87,7 @@ class SystemRoutesTest {
         }[Users.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
+    fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
@@ -98,97 +98,103 @@ class SystemRoutesTest {
         }
     }
 
-    private fun tokenFor(userId: Uuid): String =
+    fun tokenFor(userId: Uuid): String =
         jwtManager.generate(TokenClaims(userId = userId, name = "admin", email = "admin@example.com", groups = emptyList()))
 
     // ── GET /api/system/settings ──────────────────────────────────────────────
 
-    @Test
-    fun `getSystemSettings returns 403 for non-super-admin`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Server Admin")
+    test("getSystemSettings returns 403 for non-super-admin") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Server Admin")
 
-        assertEquals(HttpStatusCode.Forbidden, client.get("/api/system/settings") { bearerAuth(tokenFor(userId)) }.status)
+            client.get("/api/system/settings") { bearerAuth(tokenFor(userId)) }.status shouldBe HttpStatusCode.Forbidden
+        }
     }
 
-    @Test
-    fun `getSystemSettings returns defaults when no settings stored`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val client = jsonClient()
+    test("getSystemSettings returns defaults when no settings stored") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val client = jsonClient()
 
-        val body = client.get("/api/system/settings") { bearerAuth(tokenFor(userId)) }
-            .body<JsonObject>()
-        val settings = body["settings"]!!.jsonObject
-        assertEquals("30", settings["metric_retention_days"]!!.jsonPrimitive.content)
-        assertEquals("10", settings["default_backup_max_count"]!!.jsonPrimitive.content)
-        assertTrue(body["updated_at"] == null || body["updated_at"].toString() == "null")
+            val body = client.get("/api/system/settings") { bearerAuth(tokenFor(userId)) }
+                .body<JsonObject>()
+            val settings = body["settings"]!!.jsonObject
+            settings["metric_retention_days"]!!.jsonPrimitive.content shouldBe "30"
+            settings["default_backup_max_count"]!!.jsonPrimitive.content shouldBe "10"
+            (body["updated_at"] == null || body["updated_at"].toString() == "null") shouldBe true
+        }
     }
 
     // ── PATCH /api/system/settings ────────────────────────────────────────────
 
-    @Test
-    fun `updateSystemSettings returns 403 for non-super-admin`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Server Admin")
+    test("updateSystemSettings returns 403 for non-super-admin") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Server Admin")
 
-        val response = client.patch("/api/system/settings") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"metric_retention_days":60}""")
+            val response = client.patch("/api/system/settings") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"metric_retention_days":60}""")
+            }
+            response.status shouldBe HttpStatusCode.Forbidden
         }
-        assertEquals(HttpStatusCode.Forbidden, response.status)
     }
 
-    @Test
-    fun `updateSystemSettings persists values and returns updated_by`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val client = jsonClient()
+    test("updateSystemSettings persists values and returns updated_by") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val client = jsonClient()
 
-        val body = client.patch("/api/system/settings") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"metric_retention_days":60,"default_backup_max_count":14}""")
+            val body = client.patch("/api/system/settings") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"metric_retention_days":60,"default_backup_max_count":14}""")
+            }
+                .body<JsonObject>()
+
+            val settings = body["settings"]!!.jsonObject
+            settings["metric_retention_days"]!!.jsonPrimitive.content shouldBe "60"
+            settings["default_backup_max_count"]!!.jsonPrimitive.content shouldBe "14"
+            body["updated_at"] shouldNotBe null
+            body["updated_by"]!!.jsonPrimitive.content shouldBe userId.toString()
         }
-            .body<JsonObject>()
-
-        val settings = body["settings"]!!.jsonObject
-        assertEquals("60", settings["metric_retention_days"]!!.jsonPrimitive.content)
-        assertEquals("14", settings["default_backup_max_count"]!!.jsonPrimitive.content)
-        assertNotNull(body["updated_at"])
-        assertEquals(userId.toString(), body["updated_by"]!!.jsonPrimitive.content)
     }
 
-    @Test
-    fun `updateSystemSettings returns 422 for invalid port range`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
+    test("updateSystemSettings returns 422 for invalid port range") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
 
-        val response = client.patch("/api/system/settings") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"default_port_range_start":26000,"default_port_range_end":25000}""")
+            val response = client.patch("/api/system/settings") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"default_port_range_start":26000,"default_port_range_end":25000}""")
+            }
+            response.status shouldBe HttpStatusCode.UnprocessableEntity
         }
-        assertEquals(HttpStatusCode.UnprocessableEntity, response.status)
     }
 
-    @Test
-    fun `updateSystemSettings returns 422 for metric_retention_days less than 1`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
+    test("updateSystemSettings returns 422 for metric_retention_days less than 1") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
 
-        val response = client.patch("/api/system/settings") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody("""{"metric_retention_days":0}""")
+            val response = client.patch("/api/system/settings") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody("""{"metric_retention_days":0}""")
+            }
+            response.status shouldBe HttpStatusCode.UnprocessableEntity
         }
-        assertEquals(HttpStatusCode.UnprocessableEntity, response.status)
     }
-}
+})

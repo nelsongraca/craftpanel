@@ -6,6 +6,9 @@ import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.proto.MasterMessage
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
@@ -14,23 +17,17 @@ import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 
-class ContainerLifecycleTest {
+class ContainerLifecycleTest : FunSpec({
+    val sent = mutableListOf<Pair<String, MasterMessage>>()
+    val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
+    lateinit var nodeId: Uuid
+    lateinit var serverId: Uuid
 
-    private val sent = mutableListOf<Pair<String, MasterMessage>>()
-    private val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
-    private lateinit var nodeId: Uuid
-    private lateinit var serverId: Uuid
-
-    @BeforeTest
-    fun setup() {
+    beforeTest {
         TestDatabase.initIfNeeded()
         TestDatabase.reset()
         sent.clear()
@@ -65,13 +62,13 @@ class ContainerLifecycleTest {
         }
     }
 
-    private fun serverRow(): ResultRow = transaction {
+    fun serverRow(): ResultRow = transaction {
         Servers.selectAll()
             .where { Servers.id eq serverId }
             .first()
     }
 
-    private fun lifecycle(
+    fun lifecycle(
         startTimeout: kotlin.time.Duration = 2.seconds,
         stopTimeout: kotlin.time.Duration = 2.seconds,
         removeTimeout: kotlin.time.Duration = 2.seconds,
@@ -84,8 +81,7 @@ class ContainerLifecycleTest {
         removeTimeout = removeTimeout,
     )
 
-    @Test
-    fun `start - needsRecreate false - sends single StartContainerCommand`() = runTest {
+    test("start - needsRecreate false - sends single StartContainerCommand") {
         val server = serverRow()
         val lc = lifecycle()
         launch {
@@ -93,17 +89,16 @@ class ContainerLifecycleTest {
             events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY))
         }
         lc.start(server, needsRecreate = false)
-        assertEquals(1, sent.size)
-        assert(sent[0].second.hasStartContainer())
+        sent.size shouldBe 1
+        sent[0].second.hasStartContainer() shouldBe true
         val cmd = sent[0].second.startContainer
-        assert(!cmd.needsRecreate)
-        assertEquals("craftpanel-$serverId", cmd.containerName)
-        assertEquals("itzg/minecraft-server:latest", cmd.image)
-        assertEquals("TRUE", cmd.envVarsMap["EULA"])
+        cmd.needsRecreate shouldBe false
+        cmd.containerName shouldBe "craftpanel-$serverId"
+        cmd.image shouldBe "itzg/minecraft-server:latest"
+        cmd.envVarsMap["EULA"] shouldBe "TRUE"
     }
 
-    @Test
-    fun `start - needsRecreate true - sends StartContainerCommand with needsRecreate=true`() = runTest {
+    test("start - needsRecreate true - sends StartContainerCommand with needsRecreate=true") {
         val server = serverRow()
         val lc = lifecycle()
         launch {
@@ -111,44 +106,41 @@ class ContainerLifecycleTest {
             events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY))
         }
         lc.start(server, needsRecreate = true)
-        assertEquals(1, sent.size)
-        assert(sent[0].second.hasStartContainer())
+        sent.size shouldBe 1
+        sent[0].second.hasStartContainer() shouldBe true
         val cmd = sent[0].second.startContainer
-        assert(cmd.needsRecreate)
+        cmd.needsRecreate shouldBe true
     }
 
-    @Test
-    fun `start - UNHEALTHY response - throws ContainerLifecycleException`() = runTest {
+    test("start - UNHEALTHY response - throws ContainerLifecycleException") {
         val server = serverRow()
         val lc = lifecycle()
         launch {
             delay(50.milliseconds)
             events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.UNHEALTHY))
         }
-        assertFailsWith<ContainerLifecycleException> {
+        shouldThrow<ContainerLifecycleException> {
             lc.start(server, needsRecreate = false)
         }
     }
 
-    @Test
-    fun `start - timeout - throws ContainerLifecycleException`() = runTest {
+    test("start - timeout - throws ContainerLifecycleException") {
         val server = serverRow()
         val lc = lifecycle(startTimeout = 100.milliseconds)
-        assertFailsWith<ContainerLifecycleException> {
+        shouldThrow<ContainerLifecycleException> {
             lc.start(server, needsRecreate = false)
         }
     }
 
-    @Test
-    fun `stop - agent not connected - throws BadGatewayException`() = runTest {
+    test("stop - agent not connected - throws BadGatewayException") {
         val server = serverRow()
         val lc = ContainerLifecycle(
             sendToNode = { _, _ -> false },
             agentEvents = events,
             modService = ModService(),
         )
-        assertFailsWith<BadGatewayException> {
+        shouldThrow<BadGatewayException> {
             lc.stop(server, nodeId.toString())
         }
     }
-}
+})

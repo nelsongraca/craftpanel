@@ -8,6 +8,9 @@ import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.*
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import kotlin.uuid.Uuid
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -31,29 +34,26 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
-import kotlin.test.*
 import kotlin.time.Clock
 import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
-class NodesRoutesTest {
-
-    private val jwtConfig = JwtConfig(
+class NodesRoutesTest : FunSpec({
+    val jwtConfig = JwtConfig(
         secret = "test-secret-that-is-at-least-32-characters!!",
         issuer = "craftpanel-test",
         audience = "craftpanel-test",
         expirySeconds = 900,
     )
-    private val jwtManager = JwtManager(jwtConfig)
+    val jwtManager = JwtManager(jwtConfig)
 
-    @BeforeTest
-    fun setup() {
+    beforeTest {
         TestDatabase.initIfNeeded()
         TestDatabase.reset()
     }
 
-    private fun Application.configureTest(sendToNode: (String, MasterMessage) -> Boolean = { _, _ -> false }) {
+    fun Application.configureTest(sendToNode: (String, MasterMessage) -> Boolean = { _, _ -> false }) {
         install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         install(StatusPages) {
             exception<NotFoundException> { call, ex -> call.respond(HttpStatusCode.NotFound, mapOf("error" to (ex.message ?: "Not found"))) }
@@ -78,11 +78,11 @@ class NodesRoutesTest {
         routing { nodesRoutes(NodeService(sendToNode)) }
     }
 
-    private fun ApplicationTestBuilder.jsonClient() = createClient {
+    fun ApplicationTestBuilder.jsonClient() = createClient {
         install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
 
-    private fun createUser(
+    fun createUser(
         username: String = "admin",
         email: String = "admin@example.com",
         password: String = "hunter2",
@@ -95,7 +95,7 @@ class NodesRoutesTest {
         }[Users.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
+    fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
@@ -106,10 +106,10 @@ class NodesRoutesTest {
         }
     }
 
-    private fun tokenFor(userId: Uuid, username: String = "admin"): String =
+    fun tokenFor(userId: Uuid, username: String = "admin"): String =
         jwtManager.generate(TokenClaims(userId = userId, name = username, email = "$username@example.com", groups = emptyList()))
 
-    private fun createNode(
+    fun createNode(
         hostname: String = "node-1",
         status: String = "PENDING",
         totalRamMb: Int = 8192,
@@ -133,7 +133,7 @@ class NodesRoutesTest {
         }[Nodes.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun createServer(nodeId: Uuid, memoryMb: Int = 1024, cpuShares: Int = 256): Uuid = transaction {
+    fun createServer(nodeId: Uuid, memoryMb: Int = 1024, cpuShares: Int = 256): Uuid = transaction {
         Servers.insert {
             it[Servers.nodeId] = nodeId
             it[Servers.name] = "server-${Uuid.random()}"
@@ -143,7 +143,7 @@ class NodesRoutesTest {
         }[Servers.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun createNodeMetric(nodeId: Uuid, cpuPercent: Double = 42.0, ramUsedMb: Int = 2048) = transaction {
+    fun createNodeMetric(nodeId: Uuid, cpuPercent: Double = 42.0, ramUsedMb: Int = 2048) = transaction {
         val now = Clock.System.now()
             .toLocalDateTime(TimeZone.UTC)
         NodeMetrics.insert {
@@ -163,464 +163,494 @@ class NodesRoutesTest {
     // authentication / authorization
     // -------------------------------------------------------------------------
 
-    @Test
-    fun `GET nodes without JWT returns 401`() = testApplication {
-        application { configureTest() }
+    test("GET nodes without JWT returns 401") {
+        testApplication {
+            application { configureTest() }
 
-        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/nodes").status)
+            client.get("/api/nodes").status shouldBe HttpStatusCode.Unauthorized
+        }
     }
 
-    @Test
-    fun `GET nodes without system_nodes permission returns 403`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Viewer")
+    test("GET nodes without system_nodes permission returns 403") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Viewer")
 
-        val response = client.get("/api/nodes") { bearerAuth(tokenFor(userId)) }
+            val response = client.get("/api/nodes") { bearerAuth(tokenFor(userId)) }
 
-        assertEquals(HttpStatusCode.Forbidden, response.status)
+            response.status shouldBe HttpStatusCode.Forbidden
+        }
     }
 
-    @Test
-    fun `GET nodes with system_nodes permission returns 200`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
+    test("GET nodes with system_nodes permission returns 200") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.OK, client.get("/api/nodes") { bearerAuth(tokenFor(userId)) }.status)
+            client.get("/api/nodes") { bearerAuth(tokenFor(userId)) }.status shouldBe HttpStatusCode.OK
+        }
     }
 
     // -------------------------------------------------------------------------
     // GET /nodes
     // -------------------------------------------------------------------------
 
-    @Test
-    fun `GET nodes returns empty list when no nodes exist`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val client = jsonClient()
+    test("GET nodes returns empty list when no nodes exist") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val client = jsonClient()
 
-        val body = client.get("/api/nodes") { bearerAuth(tokenFor(userId)) }
-            .body<List<JsonObject>>()
+            val body = client.get("/api/nodes") { bearerAuth(tokenFor(userId)) }
+                .body<List<JsonObject>>()
 
-        assertTrue(body.isEmpty())
+            body.isEmpty() shouldBe true
+        }
     }
 
-    @Test
-    fun `GET nodes returns node with snake_case fields`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        createNode(hostname = "alpha")
-        val client = jsonClient()
+    test("GET nodes returns node with snake_case fields") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            createNode(hostname = "alpha")
+            val client = jsonClient()
 
-        val body = client.get("/api/nodes") { bearerAuth(tokenFor(userId)) }
-            .body<List<JsonObject>>()
+            val body = client.get("/api/nodes") { bearerAuth(tokenFor(userId)) }
+                .body<List<JsonObject>>()
 
-        assertEquals(1, body.size)
-        val node = body[0]
-        assertNotNull(node["id"])
-        assertNotNull(node["display_name"])
-        assertNotNull(node["public_ip"])
-        assertNotNull(node["private_ip"])
-        assertNotNull(node["total_ram_mb"])
-        assertNotNull(node["total_cpu_shares"])
-        assertNotNull(node["allocated_ram_mb"])
-        assertNotNull(node["allocated_cpu_shares"])
-        assertNotNull(node["port_range_start"])
-        assertNotNull(node["port_range_end"])
-        assertNotNull(node["created_at"])
-        assertEquals("alpha", node["display_name"]!!.jsonPrimitive.content)
-        assertEquals("PENDING", node["status"]!!.jsonPrimitive.content)
+            body.size shouldBe 1
+            val node = body[0]
+            node["id"] shouldNotBe null
+            node["display_name"] shouldNotBe null
+            node["public_ip"] shouldNotBe null
+            node["private_ip"] shouldNotBe null
+            node["total_ram_mb"] shouldNotBe null
+            node["total_cpu_shares"] shouldNotBe null
+            node["allocated_ram_mb"] shouldNotBe null
+            node["allocated_cpu_shares"] shouldNotBe null
+            node["port_range_start"] shouldNotBe null
+            node["port_range_end"] shouldNotBe null
+            node["created_at"] shouldNotBe null
+            node["display_name"]!!.jsonPrimitive.content shouldBe "alpha"
+            node["status"]!!.jsonPrimitive.content shouldBe "PENDING"
+        }
     }
 
-    @Test
-    fun `GET nodes computes allocated_ram_mb from servers on that node`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val nodeId = createNode()
-        createServer(nodeId, memoryMb = 1024)
-        createServer(nodeId, memoryMb = 2048)
-        val client = jsonClient()
+    test("GET nodes computes allocated_ram_mb from servers on that node") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val nodeId = createNode()
+            createServer(nodeId, memoryMb = 1024)
+            createServer(nodeId, memoryMb = 2048)
+            val client = jsonClient()
 
-        val body = client.get("/api/nodes") { bearerAuth(tokenFor(userId)) }
-            .body<List<JsonObject>>()
+            val body = client.get("/api/nodes") { bearerAuth(tokenFor(userId)) }
+                .body<List<JsonObject>>()
 
-        assertEquals(1, body.size)
-        assertEquals(3072, body[0]["allocated_ram_mb"]!!.jsonPrimitive.content.toInt())
-        assertEquals(512, body[0]["allocated_cpu_shares"]!!.jsonPrimitive.content.toInt())
+            body.size shouldBe 1
+            body[0]["allocated_ram_mb"]!!.jsonPrimitive.content.toInt() shouldBe 3072
+            body[0]["allocated_cpu_shares"]!!.jsonPrimitive.content.toInt() shouldBe 512
+        }
     }
 
     // -------------------------------------------------------------------------
     // GET /nodes/{id}
     // -------------------------------------------------------------------------
 
-    @Test
-    fun `GET node by id returns 404 for unknown node`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
+    test("GET node by id returns 404 for unknown node") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
 
-        val response = client.get("/api/nodes/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }
+            val response = client.get("/api/nodes/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }
 
-        assertEquals(HttpStatusCode.NotFound, response.status)
+            response.status shouldBe HttpStatusCode.NotFound
+        }
     }
 
-    @Test
-    fun `GET node by id returns 400 for invalid UUID`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
+    test("GET node by id returns 400 for invalid UUID") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
 
-        val response = client.get("/api/nodes/not-a-uuid") { bearerAuth(tokenFor(userId)) }
+            val response = client.get("/api/nodes/not-a-uuid") { bearerAuth(tokenFor(userId)) }
 
-        assertEquals(HttpStatusCode.BadRequest, response.status)
+            response.status shouldBe HttpStatusCode.BadRequest
+        }
     }
 
-    @Test
-    fun `GET node by id returns correct node`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val nodeId = createNode(hostname = "beta", totalRamMb = 4096)
-        val client = jsonClient()
+    test("GET node by id returns correct node") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val nodeId = createNode(hostname = "beta", totalRamMb = 4096)
+            val client = jsonClient()
 
-        val body = client.get("/api/nodes/$nodeId") { bearerAuth(tokenFor(userId)) }
-            .body<JsonObject>()
+            val body = client.get("/api/nodes/$nodeId") { bearerAuth(tokenFor(userId)) }
+                .body<JsonObject>()
 
-        assertEquals(nodeId.toString(), body["id"]!!.jsonPrimitive.content)
-        assertEquals("beta", body["display_name"]!!.jsonPrimitive.content)
-        assertEquals(4096, body["total_ram_mb"]!!.jsonPrimitive.content.toInt())
+            body["id"]!!.jsonPrimitive.content shouldBe nodeId.toString()
+            body["display_name"]!!.jsonPrimitive.content shouldBe "beta"
+            body["total_ram_mb"]!!.jsonPrimitive.content.toInt() shouldBe 4096
+        }
     }
 
     // -------------------------------------------------------------------------
     // POST /nodes/{id}/trust
     // -------------------------------------------------------------------------
 
-    @Test
-    fun `trust sets node status to ACTIVE`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val nodeId = createNode(status = "PENDING")
+    test("trust sets node status to ACTIVE") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val nodeId = createNode(status = "PENDING")
 
-        val response = client.post("/api/nodes/$nodeId/trust") { bearerAuth(tokenFor(userId)) }
+            val response = client.post("/api/nodes/$nodeId/trust") { bearerAuth(tokenFor(userId)) }
 
-        assertEquals(HttpStatusCode.NoContent, response.status)
-        val status = transaction {
-            Nodes.selectAll()
-                .where { Nodes.id eq nodeId }
-                .first()[Nodes.status]
+            response.status shouldBe HttpStatusCode.NoContent
+            val status = transaction {
+                Nodes.selectAll()
+                    .where { Nodes.id eq nodeId }
+                    .first()[Nodes.status]
+            }
+            status shouldBe "ACTIVE"
         }
-        assertEquals("ACTIVE", status)
     }
 
-    @Test
-    fun `trust returns 404 for unknown node`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
+    test("trust returns 404 for unknown node") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.NotFound, client.post("/api/nodes/${Uuid.random()}/trust") { bearerAuth(tokenFor(userId)) }.status)
+            client.post("/api/nodes/${Uuid.random()}/trust") { bearerAuth(tokenFor(userId)) }.status shouldBe HttpStatusCode.NotFound
+        }
     }
 
     // -------------------------------------------------------------------------
     // POST /nodes/{id}/reject
     // -------------------------------------------------------------------------
 
-    @Test
-    fun `reject sets node status to REJECTED`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val nodeId = createNode(status = "PENDING")
+    test("reject sets node status to REJECTED") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val nodeId = createNode(status = "PENDING")
 
-        val response = client.post("/api/nodes/$nodeId/reject") { bearerAuth(tokenFor(userId)) }
+            val response = client.post("/api/nodes/$nodeId/reject") { bearerAuth(tokenFor(userId)) }
 
-        assertEquals(HttpStatusCode.NoContent, response.status)
-        val status = transaction {
-            Nodes.selectAll()
-                .where { Nodes.id eq nodeId }
-                .first()[Nodes.status]
+            response.status shouldBe HttpStatusCode.NoContent
+            val status = transaction {
+                Nodes.selectAll()
+                    .where { Nodes.id eq nodeId }
+                    .first()[Nodes.status]
+            }
+            status shouldBe "REJECTED"
         }
-        assertEquals("REJECTED", status)
     }
 
-    @Test
-    fun `reject returns 404 for unknown node`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
+    test("reject returns 404 for unknown node") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.NotFound, client.post("/api/nodes/${Uuid.random()}/reject") { bearerAuth(tokenFor(userId)) }.status)
+            client.post("/api/nodes/${Uuid.random()}/reject") { bearerAuth(tokenFor(userId)) }.status shouldBe HttpStatusCode.NotFound
+        }
     }
 
     // -------------------------------------------------------------------------
     // POST /nodes/{id}/token/rotate
     // -------------------------------------------------------------------------
 
-    @Test
-    fun `token rotate returns new node_key`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val nodeId = createNode()
-        val client = jsonClient()
+    test("token rotate returns new node_key") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val nodeId = createNode()
+            val client = jsonClient()
 
-        val response = client.post("/api/nodes/$nodeId/token/rotate") { bearerAuth(tokenFor(userId)) }
+            val response = client.post("/api/nodes/$nodeId/token/rotate") { bearerAuth(tokenFor(userId)) }
 
-        assertEquals(HttpStatusCode.OK, response.status)
-        val body = response.body<JsonObject>()
-        assertNotNull(body["node_key"])
-        assertTrue(body["node_key"]!!.jsonPrimitive.content.isNotBlank())
-    }
-
-    @Test
-    fun `token rotate changes the stored token hash`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val tokenHash = "a".repeat(64)
-        val nodeId = createNode(tokenHash = tokenHash)
-        val client = jsonClient()
-
-        client.post("/api/nodes/$nodeId/token/rotate") { bearerAuth(tokenFor(userId)) }
-
-        val newHash = transaction {
-            Nodes.selectAll()
-                .where { Nodes.id eq nodeId }
-                .first()[Nodes.tokenHash]
+            response.status shouldBe HttpStatusCode.OK
+            val body = response.body<JsonObject>()
+            body["node_key"] shouldNotBe null
+            body["node_key"]!!.jsonPrimitive.content.isNotBlank() shouldBe true
         }
-        assertNotEquals(tokenHash, newHash)
     }
 
-    @Test
-    fun `token rotate returns 404 for unknown node`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
+    test("token rotate changes the stored token hash") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val tokenHash = "a".repeat(64)
+            val nodeId = createNode(tokenHash = tokenHash)
+            val client = jsonClient()
 
-        assertEquals(HttpStatusCode.NotFound, client.post("/api/nodes/${Uuid.random()}/token/rotate") { bearerAuth(tokenFor(userId)) }.status)
+            client.post("/api/nodes/$nodeId/token/rotate") { bearerAuth(tokenFor(userId)) }
+
+            val newHash = transaction {
+                Nodes.selectAll()
+                    .where { Nodes.id eq nodeId }
+                    .first()[Nodes.tokenHash]
+            }
+            newHash shouldNotBe tokenHash
+        }
+    }
+
+    test("token rotate returns 404 for unknown node") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+
+            client.post("/api/nodes/${Uuid.random()}/token/rotate") { bearerAuth(tokenFor(userId)) }.status shouldBe HttpStatusCode.NotFound
+        }
     }
 
     // -------------------------------------------------------------------------
     // POST /nodes/{id}/shutdown
     // -------------------------------------------------------------------------
 
-    @Test
-    fun `shutdown returns 502 when agent not connected`() = testApplication {
-        application { configureTest(sendToNode = { _, _ -> false }) }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val nodeId = createNode()
+    test("shutdown returns 502 when agent not connected") {
+        testApplication {
+            application { configureTest(sendToNode = { _, _ -> false }) }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val nodeId = createNode()
 
-        assertEquals(HttpStatusCode.BadGateway, client.post("/api/nodes/$nodeId/shutdown") { bearerAuth(tokenFor(userId)) }.status)
+            client.post("/api/nodes/$nodeId/shutdown") { bearerAuth(tokenFor(userId)) }.status shouldBe HttpStatusCode.BadGateway
+        }
     }
 
-    @Test
-    fun `shutdown returns 202 when agent is connected`() = testApplication {
-        application { configureTest(sendToNode = { _, _ -> true }) }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val nodeId = createNode()
+    test("shutdown returns 202 when agent is connected") {
+        testApplication {
+            application { configureTest(sendToNode = { _, _ -> true }) }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val nodeId = createNode()
 
-        assertEquals(HttpStatusCode.Accepted, client.post("/api/nodes/$nodeId/shutdown") { bearerAuth(tokenFor(userId)) }.status)
+            client.post("/api/nodes/$nodeId/shutdown") { bearerAuth(tokenFor(userId)) }.status shouldBe HttpStatusCode.Accepted
+        }
     }
 
-    @Test
-    fun `shutdown sends message to the correct node id`() = testApplication {
-        var sentTo: String? = null
-        application { configureTest(sendToNode = { id, _ -> sentTo = id; true }) }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val nodeId = createNode()
+    test("shutdown sends message to the correct node id") {
+        testApplication {
+            var sentTo: String? = null
+            application { configureTest(sendToNode = { id, _ -> sentTo = id; true }) }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val nodeId = createNode()
 
-        client.post("/api/nodes/$nodeId/shutdown") { bearerAuth(tokenFor(userId)) }
+            client.post("/api/nodes/$nodeId/shutdown") { bearerAuth(tokenFor(userId)) }
 
-        assertEquals(nodeId.toString(), sentTo)
+            sentTo shouldBe nodeId.toString()
+        }
     }
 
-    @Test
-    fun `shutdown returns 404 for unknown node`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
+    test("shutdown returns 404 for unknown node") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.NotFound, client.post("/api/nodes/${Uuid.random()}/shutdown") { bearerAuth(tokenFor(userId)) }.status)
+            client.post("/api/nodes/${Uuid.random()}/shutdown") { bearerAuth(tokenFor(userId)) }.status shouldBe HttpStatusCode.NotFound
+        }
     }
 
     // -------------------------------------------------------------------------
     // PATCH /nodes/{id}
     // -------------------------------------------------------------------------
 
-    @Test
-    fun `patch updates display_name`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val nodeId = createNode(hostname = "old-name")
-        val client = jsonClient()
+    test("patch updates display_name") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val nodeId = createNode(hostname = "old-name")
+            val client = jsonClient()
 
-        val response = client.patch("/api/nodes/$nodeId") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody(PatchNodeRequest(displayName = "new-name"))
-        }
+            val response = client.patch("/api/nodes/$nodeId") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody(PatchNodeRequest(displayName = "new-name"))
+            }
 
-        assertEquals(HttpStatusCode.NoContent, response.status)
-        val name = transaction {
-            Nodes.selectAll()
-                .where { Nodes.id eq nodeId }
-                .first()[Nodes.displayName]
+            response.status shouldBe HttpStatusCode.NoContent
+            val name = transaction {
+                Nodes.selectAll()
+                    .where { Nodes.id eq nodeId }
+                    .first()[Nodes.displayName]
+            }
+            name shouldBe "new-name"
         }
-        assertEquals("new-name", name)
     }
 
-    @Test
-    fun `patch validates port range start must be less than end`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val nodeId = createNode()
-        val client = jsonClient()
+    test("patch validates port range start must be less than end") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val nodeId = createNode()
+            val client = jsonClient()
 
-        val response = client.patch("/api/nodes/$nodeId") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody(PatchNodeRequest(portRangeStart = 25600, portRangeEnd = 25565))
+            val response = client.patch("/api/nodes/$nodeId") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody(PatchNodeRequest(portRangeStart = 25600, portRangeEnd = 25565))
+            }
+
+            response.status shouldBe HttpStatusCode.UnprocessableEntity
         }
-
-        assertEquals(HttpStatusCode.UnprocessableEntity, response.status)
     }
 
-    @Test
-    fun `patch validates range using current db value for unspecified field`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val nodeId = createNode()  // defaults: start=25570, end=26070
-        val client = jsonClient()
+    test("patch validates range using current db value for unspecified field") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val nodeId = createNode()  // defaults: start=25570, end=26070
+            val client = jsonClient()
 
-        // setting start to 27000 would exceed the current end of 26070 — should fail
-        val response = client.patch("/api/nodes/$nodeId") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody(PatchNodeRequest(portRangeStart = 27000))
+            // setting start to 27000 would exceed the current end of 26070 — should fail
+            val response = client.patch("/api/nodes/$nodeId") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody(PatchNodeRequest(portRangeStart = 27000))
+            }
+
+            response.status shouldBe HttpStatusCode.UnprocessableEntity
         }
-
-        assertEquals(HttpStatusCode.UnprocessableEntity, response.status)
     }
 
-    @Test
-    fun `patch returns 404 for unknown node`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val client = jsonClient()
+    test("patch returns 404 for unknown node") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val client = jsonClient()
 
-        val response = client.patch("/api/nodes/${Uuid.random()}") {
-            bearerAuth(tokenFor(userId))
-            contentType(ContentType.Application.Json)
-            setBody(PatchNodeRequest(displayName = "x"))
+            val response = client.patch("/api/nodes/${Uuid.random()}") {
+                bearerAuth(tokenFor(userId))
+                contentType(ContentType.Application.Json)
+                setBody(PatchNodeRequest(displayName = "x"))
+            }
+
+            response.status shouldBe HttpStatusCode.NotFound
         }
-
-        assertEquals(HttpStatusCode.NotFound, response.status)
     }
 
     // -------------------------------------------------------------------------
     // DELETE /nodes/{id}
     // -------------------------------------------------------------------------
 
-    @Test
-    fun `delete sets node status to DECOMMISSIONED`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val nodeId = createNode(status = "ACTIVE")
+    test("delete sets node status to DECOMMISSIONED") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val nodeId = createNode(status = "ACTIVE")
 
-        val response = client.delete("/api/nodes/$nodeId") { bearerAuth(tokenFor(userId)) }
+            val response = client.delete("/api/nodes/$nodeId") { bearerAuth(tokenFor(userId)) }
 
-        assertEquals(HttpStatusCode.NoContent, response.status)
-        val status = transaction {
-            Nodes.selectAll()
-                .where { Nodes.id eq nodeId }
-                .first()[Nodes.status]
+            response.status shouldBe HttpStatusCode.NoContent
+            val status = transaction {
+                Nodes.selectAll()
+                    .where { Nodes.id eq nodeId }
+                    .first()[Nodes.status]
+            }
+            status shouldBe "DECOMMISSIONED"
         }
-        assertEquals("DECOMMISSIONED", status)
     }
 
-    @Test
-    fun `delete returns 404 for unknown node`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
+    test("delete returns 404 for unknown node") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.NotFound, client.delete("/api/nodes/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }.status)
+            client.delete("/api/nodes/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }.status shouldBe HttpStatusCode.NotFound
+        }
     }
 
     // -------------------------------------------------------------------------
     // GET /nodes/{id}/metrics
     // -------------------------------------------------------------------------
 
-    @Test
-    fun `metrics returns 404 for unknown node`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
+    test("metrics returns 404 for unknown node") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
 
-        assertEquals(HttpStatusCode.NotFound, client.get("/api/nodes/${Uuid.random()}/metrics") { bearerAuth(tokenFor(userId)) }.status)
+            client.get("/api/nodes/${Uuid.random()}/metrics") { bearerAuth(tokenFor(userId)) }.status shouldBe HttpStatusCode.NotFound
+        }
     }
 
-    @Test
-    fun `metrics returns empty columnar arrays when no data`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val nodeId = createNode()
-        val client = jsonClient()
+    test("metrics returns empty columnar arrays when no data") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val nodeId = createNode()
+            val client = jsonClient()
 
-        val body = client.get("/api/nodes/$nodeId/metrics") { bearerAuth(tokenFor(userId)) }
-            .body<JsonObject>()
+            val body = client.get("/api/nodes/$nodeId/metrics") { bearerAuth(tokenFor(userId)) }
+                .body<JsonObject>()
 
-        assertTrue(body["timestamps"]!!.jsonArray.isEmpty())
-        assertTrue(body["cpu_percent"]!!.jsonArray.isEmpty())
-        assertTrue(body["ram_used_mb"]!!.jsonArray.isEmpty())
+            body["timestamps"]!!.jsonArray.isEmpty() shouldBe true
+            body["cpu_percent"]!!.jsonArray.isEmpty() shouldBe true
+            body["ram_used_mb"]!!.jsonArray.isEmpty() shouldBe true
+        }
     }
 
-    @Test
-    fun `metrics returns columnar data for recorded metrics`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val nodeId = createNode()
-        createNodeMetric(nodeId, cpuPercent = 55.0, ramUsedMb = 3000)
-        createNodeMetric(nodeId, cpuPercent = 60.0, ramUsedMb = 3500)
-        val client = jsonClient()
+    test("metrics returns columnar data for recorded metrics") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val nodeId = createNode()
+            createNodeMetric(nodeId, cpuPercent = 55.0, ramUsedMb = 3000)
+            createNodeMetric(nodeId, cpuPercent = 60.0, ramUsedMb = 3500)
+            val client = jsonClient()
 
-        val body = client.get("/api/nodes/$nodeId/metrics") { bearerAuth(tokenFor(userId)) }
-            .body<JsonObject>()
+            val body = client.get("/api/nodes/$nodeId/metrics") { bearerAuth(tokenFor(userId)) }
+                .body<JsonObject>()
 
-        assertEquals(2, body["timestamps"]!!.jsonArray.size)
-        assertEquals(2, body["cpu_percent"]!!.jsonArray.size)
-        assertEquals(2, body["ram_used_mb"]!!.jsonArray.size)
-        assertEquals(2, body["net_in_bytes"]!!.jsonArray.size)
-        assertEquals(2, body["disk_used_bytes"]!!.jsonArray.size)
+            body["timestamps"]!!.jsonArray.size shouldBe 2
+            body["cpu_percent"]!!.jsonArray.size shouldBe 2
+            body["ram_used_mb"]!!.jsonArray.size shouldBe 2
+            body["net_in_bytes"]!!.jsonArray.size shouldBe 2
+            body["disk_used_bytes"]!!.jsonArray.size shouldBe 2
+        }
     }
 
-    @Test
-    fun `metrics limit parameter caps the number of returned rows`() = testApplication {
-        application { configureTest() }
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val nodeId = createNode()
-        repeat(10) { createNodeMetric(nodeId) }
-        val client = jsonClient()
+    test("metrics limit parameter caps the number of returned rows") {
+        testApplication {
+            application { configureTest() }
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val nodeId = createNode()
+            repeat(10) { createNodeMetric(nodeId) }
+            val client = jsonClient()
 
-        val body = client.get("/api/nodes/$nodeId/metrics?limit=5") { bearerAuth(tokenFor(userId)) }
-            .body<JsonObject>()
+            val body = client.get("/api/nodes/$nodeId/metrics?limit=5") { bearerAuth(tokenFor(userId)) }
+                .body<JsonObject>()
 
-        assertEquals(5, body["timestamps"]!!.jsonArray.size)
+            body["timestamps"]!!.jsonArray.size shouldBe 5
+        }
     }
-}
+})

@@ -30,6 +30,7 @@ import io.github.smiley4.ktoropenapi.config.AuthType
 import io.github.smiley4.ktoropenapi.config.SchemaGenerator
 import io.github.smiley4.ktoropenapi.openApi
 import io.github.smiley4.schemakenerator.swagger.data.RefType
+import io.kotest.core.spec.style.FunSpec
 import io.ktor.client.request.get
 import io.ktor.client.statement.bodyAsText
 import io.ktor.http.HttpStatusCode
@@ -56,12 +57,9 @@ import kotlinx.serialization.json.Json
 import org.koin.dsl.module
 import org.koin.ktor.plugin.KoinIsolated
 import java.io.File
-import kotlin.test.Test
 
-class OpenApiSpecTask {
-
-    @Test
-    fun generate() = testApplication {
+class OpenApiSpecTask : FunSpec({
+    test("generate") {
         val migrationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
         try {
             val jwtConfig = JwtConfig(
@@ -88,7 +86,8 @@ class OpenApiSpecTask {
                 )
             )
 
-            application {
+            testApplication {
+                application {
                 install(KoinIsolated) {
                     modules(
                         module {
@@ -184,9 +183,9 @@ class OpenApiSpecTask {
             val outputFile = File(output)
             outputFile.parentFile.mkdirs()
             outputFile.writeText(spec)
+            }
         } finally {
             migrationScope.cancel()
         }
     }
-}
-
+})

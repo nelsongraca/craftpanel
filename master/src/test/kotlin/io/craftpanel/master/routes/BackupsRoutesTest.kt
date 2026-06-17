@@ -11,7 +11,8 @@ import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.service.*
-import kotlin.uuid.Uuid
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
@@ -29,39 +30,35 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
+import kotlin.time.Clock
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.time.Clock
+import kotlin.uuid.Uuid
 import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
-class BackupsRoutesTest {
-
-    private val jwtConfig = JwtConfig(
+class BackupsRoutesTest : FunSpec({
+    val jwtConfig = JwtConfig(
         secret = "test-secret-that-is-at-least-32-characters!!",
         issuer = "craftpanel-test",
         audience = "craftpanel-test",
         expirySeconds = 900,
     )
-    private val jwtManager = JwtManager(jwtConfig)
-    private val noopControlSvc = ControlServiceImpl(NodeConfig("test-token", 50052))
-    private val noopProxy = DataServiceProxy(noopControlSvc, BulkDataServiceImpl(noopControlSvc))
-    private val noopSend: (String, io.craftpanel.proto.MasterMessage) -> Boolean = { _, _ -> true }
+    val jwtManager = JwtManager(jwtConfig)
+    val noopControlSvc = ControlServiceImpl(NodeConfig("test-token", 50052))
+    val noopProxy = DataServiceProxy(noopControlSvc, BulkDataServiceImpl(noopControlSvc))
+    val noopSend: (String, io.craftpanel.proto.MasterMessage) -> Boolean = { _, _ -> true }
 
-    @BeforeTest
-    fun setup() {
+    beforeTest {
         TestDatabase.initIfNeeded()
         TestDatabase.reset()
     }
 
-    private fun Application.configureTest() {
+    fun Application.configureTest() {
         install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         install(StatusPages) {
             exception<NotFoundException> { call, ex -> call.respond(HttpStatusCode.NotFound, mapOf("error" to (ex.message ?: "Not found"))) }
@@ -86,11 +83,11 @@ class BackupsRoutesTest {
         routing { backupsRoutes(BackupService(noopSend, noopProxy)) }
     }
 
-    private fun ApplicationTestBuilder.jsonClient() = createClient {
+    fun ApplicationTestBuilder.jsonClient() = createClient {
         install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
 
-    private fun createUser(email: String = "admin@example.com"): Uuid = transaction {
+    fun createUser(email: String = "admin@example.com"): Uuid = transaction {
         Users.insert {
             it[Users.username] = email.substringBefore("@")
             it[Users.email] = email
@@ -99,7 +96,7 @@ class BackupsRoutesTest {
         }[Users.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
+    fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
@@ -110,10 +107,10 @@ class BackupsRoutesTest {
         }
     }
 
-    private fun tokenFor(userId: Uuid): String =
+    fun tokenFor(userId: Uuid): String =
         jwtManager.generate(TokenClaims(userId = userId, name = "admin", email = "admin@example.com", groups = emptyList()))
 
-    private fun createNode(): Uuid = transaction {
+    fun createNode(): Uuid = transaction {
         Nodes.insert {
             it[Nodes.hostname] = "node-1"
             it[Nodes.displayName] = "node-1"
@@ -126,7 +123,7 @@ class BackupsRoutesTest {
         }[Nodes.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun createServer(nodeId: Uuid): Uuid = transaction {
+    fun createServer(nodeId: Uuid): Uuid = transaction {
         Servers.insert {
             it[Servers.name] = "test-server"
             it[Servers.displayName] = "Test Server"
@@ -140,264 +137,270 @@ class BackupsRoutesTest {
 
     // ── List backups ──────────────────────────────────────────────────────────
 
-    @Test
-    fun `list backups returns empty list when none exist`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
+    test("list backups returns empty list when none exist") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
 
-        val res = client.get("/api/servers/$serverId/backups") { header("Authorization", "Bearer $token") }
-        assertEquals(HttpStatusCode.OK, res.status)
-        assertEquals(0, res.body<JsonObject>()["backups"]!!.jsonArray.size)
+            val res = client.get("/api/servers/$serverId/backups") { header("Authorization", "Bearer $token") }
+            res.status shouldBe HttpStatusCode.OK
+            res.body<JsonObject>()["backups"]!!.jsonArray.size shouldBe 0
+        }
     }
 
-    @Test
-    fun `list backups requires server_backup permission`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Viewer")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
+    test("list backups requires server_backup permission") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Viewer")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
 
-        val res = client.get("/api/servers/$serverId/backups") { header("Authorization", "Bearer $token") }
-        assertEquals(HttpStatusCode.Forbidden, res.status)
+            val res = client.get("/api/servers/$serverId/backups") { header("Authorization", "Bearer $token") }
+            res.status shouldBe HttpStatusCode.Forbidden
+        }
     }
 
-    @Test
-    fun `list backups returns 404 for unknown server`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
+    test("list backups returns 404 for unknown server") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
 
-        val res = client.get("/api/servers/${Uuid.random()}/backups") { header("Authorization", "Bearer $token") }
-        assertEquals(HttpStatusCode.NotFound, res.status)
+            val res = client.get("/api/servers/${Uuid.random()}/backups") { header("Authorization", "Bearer $token") }
+            res.status shouldBe HttpStatusCode.NotFound
+        }
     }
 
     // ── Trigger backup ────────────────────────────────────────────────────────
 
-    @Test
-    fun `trigger backup creates IN_PROGRESS backup`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
+    test("trigger backup creates IN_PROGRESS backup") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
 
-        val res = client.post("/api/servers/$serverId/backups") {
-            header("Authorization", "Bearer $token")
-        }
-        assertEquals(HttpStatusCode.Accepted, res.status)
-        val body = res.body<JsonObject>()
-        assertEquals("MANUAL", body["trigger"]!!.jsonPrimitive.content)
-        assertEquals("IN_PROGRESS", body["status"]!!.jsonPrimitive.content)
+            val res = client.post("/api/servers/$serverId/backups") {
+                header("Authorization", "Bearer $token")
+            }
+            res.status shouldBe HttpStatusCode.Accepted
+            val body = res.body<JsonObject>()
+            body["trigger"]!!.jsonPrimitive.content shouldBe "MANUAL"
+            body["status"]!!.jsonPrimitive.content shouldBe "IN_PROGRESS"
 
-        val count = transaction {
-            Backups.selectAll()
-                .where { Backups.serverId eq serverId }
-                .count()
+            val count = transaction {
+                Backups.selectAll()
+                    .where { Backups.serverId eq serverId }
+                    .count()
+            }
+            count shouldBe 1
         }
-        assertEquals(1, count)
     }
 
-    @Test
-    fun `trigger backup enforces retention by deleting oldest completed`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
+    test("trigger backup enforces retention by deleting oldest completed") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
 
-        // Set max count to 2
-        transaction {
-            Servers.update({ Servers.id eq serverId }) {
-                it[Servers.backupMaxCount] = 2
+            transaction {
+                Servers.update({ Servers.id eq serverId }) {
+                    it[Servers.backupMaxCount] = 2
+                }
             }
-        }
 
-        // Pre-create 2 COMPLETED backups
-        val now = Clock.System.now()
-            .toLocalDateTime(TimeZone.UTC)
-        transaction {
-            repeat(2) { i ->
+            val now = Clock.System.now()
+                .toLocalDateTime(TimeZone.UTC)
+            transaction {
+                repeat(2) { i ->
+                    Backups.insert {
+                        it[Backups.serverId] = serverId
+                        it[Backups.nodeId] = nodeId
+                        it[Backups.trigger] = "MANUAL"
+                        it[Backups.status] = "COMPLETED"
+                        it[Backups.filePath] = "/data/backups/backup-$i.tar.gz"
+                        it[Backups.completedAt] = now
+                    }
+                }
+            }
+
+            val res = client.post("/api/servers/$serverId/backups") {
+                header("Authorization", "Bearer $token")
+            }
+            res.status shouldBe HttpStatusCode.Accepted
+
+            val total = transaction {
+                Backups.selectAll()
+                    .where { Backups.serverId eq serverId }
+                    .count()
+            }
+            total shouldBe 2
+        }
+    }
+
+    // ── Delete backup ─────────────────────────────────────────────────────────
+
+    test("delete completed backup returns 204") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
+            val now = Clock.System.now()
+                .toLocalDateTime(TimeZone.UTC)
+
+            val backupId = transaction {
                 Backups.insert {
                     it[Backups.serverId] = serverId
                     it[Backups.nodeId] = nodeId
                     it[Backups.trigger] = "MANUAL"
                     it[Backups.status] = "COMPLETED"
-                    it[Backups.filePath] = "/data/backups/backup-$i.tar.gz"
+                    it[Backups.filePath] = "/data/backups/test.tar.gz"
                     it[Backups.completedAt] = now
-                }
+                }[Backups.id]
             }
-        }
 
-        // Trigger new backup — should delete 1 oldest, leaving max 2 total
-        val res = client.post("/api/servers/$serverId/backups") {
-            header("Authorization", "Bearer $token")
-        }
-        assertEquals(HttpStatusCode.Accepted, res.status)
-
-        val total = transaction {
-            Backups.selectAll()
-                .where { Backups.serverId eq serverId }
-                .count()
-        }
-        assertEquals(2, total)
-    }
-
-    // ── Delete backup ─────────────────────────────────────────────────────────
-
-    @Test
-    fun `delete completed backup returns 204`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
-        val now = Clock.System.now()
-            .toLocalDateTime(TimeZone.UTC)
-
-        val backupId = transaction {
-            Backups.insert {
-                it[Backups.serverId] = serverId
-                it[Backups.nodeId] = nodeId
-                it[Backups.trigger] = "MANUAL"
-                it[Backups.status] = "COMPLETED"
-                it[Backups.filePath] = "/data/backups/test.tar.gz"
-                it[Backups.completedAt] = now
-            }[Backups.id]
-        }
-
-        val res = client.delete("/api/servers/$serverId/backups/$backupId") {
-            header("Authorization", "Bearer $token")
-        }
-        assertEquals(HttpStatusCode.NoContent, res.status)
-        assertEquals(
-            0,
+            val res = client.delete("/api/servers/$serverId/backups/$backupId") {
+                header("Authorization", "Bearer $token")
+            }
+            res.status shouldBe HttpStatusCode.NoContent
             transaction {
                 Backups.selectAll()
                     .where { Backups.id eq backupId }
-                    .count()
-            })
+                    .count() shouldBe 0
+            }
+        }
     }
 
-    @Test
-    fun `delete in-progress backup returns 409`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
+    test("delete in-progress backup returns 409") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
 
-        val backupId = transaction {
-            Backups.insert {
-                it[Backups.serverId] = serverId
-                it[Backups.nodeId] = nodeId
-                it[Backups.trigger] = "MANUAL"
-                it[Backups.status] = "IN_PROGRESS"
-            }[Backups.id]
-        }
+            val backupId = transaction {
+                Backups.insert {
+                    it[Backups.serverId] = serverId
+                    it[Backups.nodeId] = nodeId
+                    it[Backups.trigger] = "MANUAL"
+                    it[Backups.status] = "IN_PROGRESS"
+                }[Backups.id]
+            }
 
-        val res = client.delete("/api/servers/$serverId/backups/$backupId") {
-            header("Authorization", "Bearer $token")
+            val res = client.delete("/api/servers/$serverId/backups/$backupId") {
+                header("Authorization", "Bearer $token")
+            }
+            res.status shouldBe HttpStatusCode.Conflict
         }
-        assertEquals(HttpStatusCode.Conflict, res.status)
     }
 
     // ── Backup schedule ───────────────────────────────────────────────────────
 
-    @Test
-    fun `get backup schedule returns defaults`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
+    test("get backup schedule returns defaults") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
 
-        val res = client.get("/api/servers/$serverId/backup-schedule") {
-            header("Authorization", "Bearer $token")
+            val res = client.get("/api/servers/$serverId/backup-schedule") {
+                header("Authorization", "Bearer $token")
+            }
+            res.status shouldBe HttpStatusCode.OK
+            val body = res.body<JsonObject>()
+            body["backup_max_count"]!!.jsonPrimitive.content.toInt() shouldBe 10
         }
-        assertEquals(HttpStatusCode.OK, res.status)
-        val body = res.body<JsonObject>()
-        assertEquals(10, body["backup_max_count"]!!.jsonPrimitive.content.toInt())
     }
 
-    @Test
-    fun `put backup schedule with valid cron succeeds`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
+    test("put backup schedule with valid cron succeeds") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
 
-        val res = client.put("/api/servers/$serverId/backup-schedule") {
-            header("Authorization", "Bearer $token")
-            contentType(ContentType.Application.Json)
-            setBody("""{"backup_schedule":"0 2 * * *","backup_max_count":5}""")
-        }
-        assertEquals(HttpStatusCode.OK, res.status)
+            val res = client.put("/api/servers/$serverId/backup-schedule") {
+                header("Authorization", "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody("""{"backup_schedule":"0 2 * * *","backup_max_count":5}""")
+            }
+            res.status shouldBe HttpStatusCode.OK
 
-        val row = transaction {
-            Servers.selectAll()
-                .where { Servers.id eq serverId }
-                .first()
+            val row = transaction {
+                Servers.selectAll()
+                    .where { Servers.id eq serverId }
+                    .first()
+            }
+            row[Servers.backupSchedule] shouldBe "0 2 * * *"
+            row[Servers.backupMaxCount] shouldBe 5
         }
-        assertEquals("0 2 * * *", row[Servers.backupSchedule])
-        assertEquals(5, row[Servers.backupMaxCount])
     }
 
-    @Test
-    fun `put backup schedule with invalid cron returns 422`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
+    test("put backup schedule with invalid cron returns 422") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
 
-        val res = client.put("/api/servers/$serverId/backup-schedule") {
-            header("Authorization", "Bearer $token")
-            contentType(ContentType.Application.Json)
-            setBody("""{"backup_schedule":"not-a-cron"}""")
+            val res = client.put("/api/servers/$serverId/backup-schedule") {
+                header("Authorization", "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody("""{"backup_schedule":"not-a-cron"}""")
+            }
+            res.status shouldBe HttpStatusCode.UnprocessableEntity
         }
-        assertEquals(HttpStatusCode.UnprocessableEntity, res.status)
     }
 
-    @Test
-    fun `put backup schedule with null clears schedule`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
+    test("put backup schedule with null clears schedule") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
 
-        val res = client.put("/api/servers/$serverId/backup-schedule") {
-            header("Authorization", "Bearer $token")
-            contentType(ContentType.Application.Json)
-            setBody("""{"backup_schedule":null}""")
+            val res = client.put("/api/servers/$serverId/backup-schedule") {
+                header("Authorization", "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody("""{"backup_schedule":null}""")
+            }
+            res.status shouldBe HttpStatusCode.OK
         }
-        assertEquals(HttpStatusCode.OK, res.status)
     }
-}
+})

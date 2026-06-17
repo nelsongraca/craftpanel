@@ -9,7 +9,10 @@ import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
-import kotlin.uuid.Uuid
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.string.shouldContain
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.client.statement.*
@@ -27,30 +30,28 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import kotlin.test.*
 import io.ktor.server.plugins.ratelimit.*
 import kotlin.time.Duration
+import kotlin.uuid.Uuid
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
-class AuthRoutesTest {
-
-    private val jwtConfig = JwtConfig(
+class AuthRoutesTest : FunSpec({
+    val jwtConfig = JwtConfig(
         secret = "test-secret-that-is-at-least-32-characters!!",
         issuer = "craftpanel-test",
         audience = "craftpanel-test",
         expirySeconds = 900,
     )
-    private val jwtManager = JwtManager(jwtConfig)
-    private val refreshTokenService = RefreshTokenService()
+    val jwtManager = JwtManager(jwtConfig)
+    val refreshTokenService = RefreshTokenService()
 
-    @BeforeTest
-    fun setup() {
+    beforeTest {
         TestDatabase.initIfNeeded()
         TestDatabase.reset()
     }
 
-    private fun Application.configureTest() {
+    fun Application.configureTest() {
         install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         install(RateLimit) {
             register(RateLimitName("auth-login")) { rateLimiter(limit = 1000, refillPeriod = Duration.INFINITE) }
@@ -71,11 +72,11 @@ class AuthRoutesTest {
         routing { authRoutes(jwtManager, refreshTokenService, WsTicketService()) }
     }
 
-    private fun ApplicationTestBuilder.jsonClient() = createClient {
+    fun ApplicationTestBuilder.jsonClient() = createClient {
         install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
 
-    private fun createUser(
+    fun createUser(
         username: String = "alice",
         email: String = "alice@example.com",
         password: String = "hunter2",
@@ -89,7 +90,7 @@ class AuthRoutesTest {
         }[Users.id]
     }
 
-    private fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
+    fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
@@ -100,7 +101,7 @@ class AuthRoutesTest {
         }
     }
 
-    private fun HttpResponse.refreshTokenCookie(): String? =
+    fun HttpResponse.refreshTokenCookie(): String? =
         headers.getAll(HttpHeaders.SetCookie)
             ?.find { it.startsWith("refresh_token=") }
             ?.split(";")
@@ -108,8 +109,7 @@ class AuthRoutesTest {
             ?.removePrefix("refresh_token=")
             ?.takeIf { it.isNotEmpty() }
 
-    // Performs a full login and returns (accessToken, refreshTokenCookie).
-    private suspend fun ApplicationTestBuilder.login(
+    suspend fun ApplicationTestBuilder.login(
         email: String = "alice@example.com",
         password: String = "hunter2",
     ): Pair<String, String> {
@@ -124,271 +124,280 @@ class AuthRoutesTest {
     // login
     // -------------------------------------------------------------------------
 
-    @Test
-    fun `login with valid credentials returns access token, expires_in, and refresh cookie`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        createUser()
+    test("login with valid credentials returns access token, expires_in, and refresh cookie") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            createUser()
 
-        val response = client.post("/api/auth/login") {
-            contentType(ContentType.Application.Json)
-            setBody(LoginRequest("alice@example.com", "hunter2"))
+            val response = client.post("/api/auth/login") {
+                contentType(ContentType.Application.Json)
+                setBody(LoginRequest("alice@example.com", "hunter2"))
+            }
+
+            response.status shouldBe HttpStatusCode.OK
+            val body = response.body<LoginResponse>()
+            body.accessToken.isNotBlank() shouldBe true
+            body.expiresIn shouldBe 900L
+            response.refreshTokenCookie() shouldNotBe null
         }
-
-        assertEquals(HttpStatusCode.OK, response.status)
-        val body = response.body<LoginResponse>()
-        assertTrue(body.accessToken.isNotBlank())
-        assertEquals(900L, body.expiresIn)
-        assertNotNull(response.refreshTokenCookie())
     }
 
-    @Test
-    fun `login with wrong password returns 401`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        createUser()
+    test("login with wrong password returns 401") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            createUser()
 
-        val response = client.post("/api/auth/login") {
-            contentType(ContentType.Application.Json)
-            setBody(LoginRequest("alice@example.com", "wrongpassword"))
+            val response = client.post("/api/auth/login") {
+                contentType(ContentType.Application.Json)
+                setBody(LoginRequest("alice@example.com", "wrongpassword"))
+            }
+
+            response.status shouldBe HttpStatusCode.Unauthorized
         }
-
-        assertEquals(HttpStatusCode.Unauthorized, response.status)
     }
 
-    @Test
-    fun `login with unknown email returns 401`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
+    test("login with unknown email returns 401") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
 
-        val response = client.post("/api/auth/login") {
-            contentType(ContentType.Application.Json)
-            setBody(LoginRequest("nobody@example.com", "password"))
+            val response = client.post("/api/auth/login") {
+                contentType(ContentType.Application.Json)
+                setBody(LoginRequest("nobody@example.com", "password"))
+            }
+
+            response.status shouldBe HttpStatusCode.Unauthorized
         }
-
-        assertEquals(HttpStatusCode.Unauthorized, response.status)
     }
 
-    @Test
-    fun `login with inactive account returns 401`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        createUser(isActive = false)
+    test("login with inactive account returns 401") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            createUser(isActive = false)
 
-        val response = client.post("/api/auth/login") {
-            contentType(ContentType.Application.Json)
-            setBody(LoginRequest("alice@example.com", "hunter2"))
+            val response = client.post("/api/auth/login") {
+                contentType(ContentType.Application.Json)
+                setBody(LoginRequest("alice@example.com", "hunter2"))
+            }
+
+            response.status shouldBe HttpStatusCode.Unauthorized
         }
-
-        assertEquals(HttpStatusCode.Unauthorized, response.status)
     }
 
     // -------------------------------------------------------------------------
     // refresh
     // -------------------------------------------------------------------------
 
-    @Test
-    fun `refresh with valid cookie returns new access token and rotated cookie`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        createUser()
+    test("refresh with valid cookie returns new access token and rotated cookie") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            createUser()
 
-        val (_, firstRefreshToken) = login()
+            val (_, firstRefreshToken) = login()
 
-        val refreshResponse = client.post("/api/auth/refresh") {
-            cookie("refresh_token", firstRefreshToken)
+            val refreshResponse = client.post("/api/auth/refresh") {
+                cookie("refresh_token", firstRefreshToken)
+            }
+
+            refreshResponse.status shouldBe HttpStatusCode.OK
+            val body = refreshResponse.body<LoginResponse>()
+            body.accessToken.isNotBlank() shouldBe true
+            body.expiresIn shouldBe 900L
+            val newRefreshToken = refreshResponse.refreshTokenCookie()
+            newRefreshToken shouldNotBe null
+            newRefreshToken shouldNotBe firstRefreshToken
         }
-
-        assertEquals(HttpStatusCode.OK, refreshResponse.status)
-        val body = refreshResponse.body<LoginResponse>()
-        assertTrue(body.accessToken.isNotBlank())
-        assertEquals(900L, body.expiresIn)
-        val newRefreshToken = refreshResponse.refreshTokenCookie()
-        assertNotNull(newRefreshToken)
-        assertNotEquals(firstRefreshToken, newRefreshToken)
     }
 
-    @Test
-    fun `refresh without cookie returns 401`() = testApplication {
-        application { configureTest() }
-
-        assertEquals(HttpStatusCode.Unauthorized, client.post("/api/auth/refresh").status)
+    test("refresh without cookie returns 401") {
+        testApplication {
+            application { configureTest() }
+            client.post("/api/auth/refresh").status shouldBe HttpStatusCode.Unauthorized
+        }
     }
 
-    @Test
-    fun `refresh with garbage token returns 401`() = testApplication {
-        application { configureTest() }
+    test("refresh with garbage token returns 401") {
+        testApplication {
+            application { configureTest() }
 
-        val response = client.post("/api/auth/refresh") {
-            cookie("refresh_token", "not-a-real-token")
+            val response = client.post("/api/auth/refresh") {
+                cookie("refresh_token", "not-a-real-token")
+            }
+
+            response.status shouldBe HttpStatusCode.Unauthorized
         }
-
-        assertEquals(HttpStatusCode.Unauthorized, response.status)
     }
 
-    @Test
-    fun `refresh token cannot be reused after rotation`() = testApplication {
-        application { configureTest() }
-        createUser()
+    test("refresh token cannot be reused after rotation") {
+        testApplication {
+            application { configureTest() }
+            createUser()
 
-        val (_, token) = login()
+            val (_, token) = login()
 
-        client.post("/api/auth/refresh") { cookie("refresh_token", token) }
+            client.post("/api/auth/refresh") { cookie("refresh_token", token) }
 
-        val replayResponse = client.post("/api/auth/refresh") {
-            cookie("refresh_token", token)
+            val replayResponse = client.post("/api/auth/refresh") {
+                cookie("refresh_token", token)
+            }
+
+            replayResponse.status shouldBe HttpStatusCode.Unauthorized
         }
-
-        assertEquals(HttpStatusCode.Unauthorized, replayResponse.status)
     }
 
     // -------------------------------------------------------------------------
     // logout
     // -------------------------------------------------------------------------
 
-    @Test
-    fun `logout requires valid JWT`() = testApplication {
-        application { configureTest() }
-
-        assertEquals(HttpStatusCode.Unauthorized, client.post("/api/auth/logout").status)
-    }
-
-    @Test
-    fun `logout clears the refresh cookie`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        createUser()
-
-        val (accessToken, refreshToken) = login()
-
-        val logoutResponse = client.post("/api/auth/logout") {
-            bearerAuth(accessToken)
-            cookie("refresh_token", refreshToken)
+    test("logout requires valid JWT") {
+        testApplication {
+            application { configureTest() }
+            client.post("/api/auth/logout").status shouldBe HttpStatusCode.Unauthorized
         }
-
-        assertEquals(HttpStatusCode.NoContent, logoutResponse.status)
-        val setCookieHeader = logoutResponse.headers.getAll(HttpHeaders.SetCookie)
-            ?.find { it.startsWith("refresh_token=") }
-        assertNotNull(setCookieHeader)
-        assertTrue(setCookieHeader.contains("Max-Age=0"))
     }
 
-    @Test
-    fun `logout invalidates the refresh token`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        createUser()
+    test("logout clears the refresh cookie") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            createUser()
 
-        val (accessToken, refreshToken) = login()
+            val (accessToken, refreshToken) = login()
 
-        client.post("/api/auth/logout") {
-            bearerAuth(accessToken)
-            cookie("refresh_token", refreshToken)
+            val logoutResponse = client.post("/api/auth/logout") {
+                bearerAuth(accessToken)
+                cookie("refresh_token", refreshToken)
+            }
+
+            logoutResponse.status shouldBe HttpStatusCode.NoContent
+            val setCookieHeader = logoutResponse.headers.getAll(HttpHeaders.SetCookie)
+                ?.find { it.startsWith("refresh_token=") }
+            setCookieHeader shouldNotBe null
+            setCookieHeader!! shouldContain "Max-Age=0"
         }
-
-        assertEquals(
-            HttpStatusCode.Unauthorized,
-            client.post("/api/auth/refresh") { cookie("refresh_token", refreshToken) }.status,
-        )
     }
 
-    @Test
-    fun `logout with valid JWT but no cookie returns 204`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        createUser()
+    test("logout invalidates the refresh token") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            createUser()
 
-        val (accessToken, _) = login()
+            val (accessToken, refreshToken) = login()
 
-        assertEquals(
-            HttpStatusCode.NoContent,
-            client.post("/api/auth/logout") { bearerAuth(accessToken) }.status,
-        )
+            client.post("/api/auth/logout") {
+                bearerAuth(accessToken)
+                cookie("refresh_token", refreshToken)
+            }
+
+            client.post("/api/auth/refresh") { cookie("refresh_token", refreshToken) }
+                .status shouldBe HttpStatusCode.Unauthorized
+        }
+    }
+
+    test("logout with valid JWT but no cookie returns 204") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            createUser()
+
+            val (accessToken, _) = login()
+
+            client.post("/api/auth/logout") { bearerAuth(accessToken) }
+                .status shouldBe HttpStatusCode.NoContent
+        }
     }
 
     // -------------------------------------------------------------------------
     // logout-all
     // -------------------------------------------------------------------------
 
-    @Test
-    fun `logout-all revokes all refresh tokens`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        createUser()
+    test("logout-all revokes all refresh tokens") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            createUser()
 
-        val (accessToken, refreshToken) = login()
+            val (accessToken, refreshToken) = login()
 
-        assertEquals(HttpStatusCode.NoContent, client.post("/api/auth/logout-all") { bearerAuth(accessToken) }.status)
+            client.post("/api/auth/logout-all") { bearerAuth(accessToken) }
+                .status shouldBe HttpStatusCode.NoContent
 
-        assertEquals(
-            HttpStatusCode.Unauthorized,
-            client.post("/api/auth/refresh") { cookie("refresh_token", refreshToken) }.status,
-        )
+            client.post("/api/auth/refresh") { cookie("refresh_token", refreshToken) }
+                .status shouldBe HttpStatusCode.Unauthorized
+        }
     }
 
-    @Test
-    fun `logout-all without JWT returns 401`() = testApplication {
-        application { configureTest() }
-
-        assertEquals(HttpStatusCode.Unauthorized, client.post("/api/auth/logout-all").status)
+    test("logout-all without JWT returns 401") {
+        testApplication {
+            application { configureTest() }
+            client.post("/api/auth/logout-all").status shouldBe HttpStatusCode.Unauthorized
+        }
     }
 
     // -------------------------------------------------------------------------
     // me
     // -------------------------------------------------------------------------
 
-    @Test
-    fun `me returns authenticated user data`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        createUser()
+    test("me returns authenticated user data") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            createUser()
 
-        val (accessToken, _) = login()
+            val (accessToken, _) = login()
 
-        val meResponse = client.get("/api/auth/me") { bearerAuth(accessToken) }
+            val meResponse = client.get("/api/auth/me") { bearerAuth(accessToken) }
 
-        assertEquals(HttpStatusCode.OK, meResponse.status)
-        val me = meResponse.body<MeResponse>()
-        assertEquals("alice", me.username)
-        assertEquals("alice@example.com", me.email)
-        assertTrue(me.permissions.isEmpty())
-    }
-
-    @Test
-    fun `me returns live permissions for group assignment`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Viewer")
-
-        val (accessToken, _) = login()
-
-        val me = client.get("/api/auth/me") { bearerAuth(accessToken) }
-            .body<MeResponse>()
-
-        assertEquals(listOf("server.view"), me.permissions)
-        assertEquals(listOf("Viewer"), me.groups)
-    }
-
-    @Test
-    fun `me without JWT returns 401`() = testApplication {
-        application { configureTest() }
-
-        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/auth/me").status)
-    }
-
-    @Test
-    fun `me returns 401 when user is deactivated after token issuance`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-
-        val (accessToken, _) = login()
-
-        transaction {
-            Users.update({ Users.id eq userId }) { it[Users.isActive] = false }
+            meResponse.status shouldBe HttpStatusCode.OK
+            val me = meResponse.body<MeResponse>()
+            me.username shouldBe "alice"
+            me.email shouldBe "alice@example.com"
+            me.permissions.isEmpty() shouldBe true
         }
-
-        assertEquals(HttpStatusCode.Unauthorized, client.get("/api/auth/me") { bearerAuth(accessToken) }.status)
     }
-}
+
+    test("me returns live permissions for group assignment") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Viewer")
+
+            val (accessToken, _) = login()
+
+            val me = client.get("/api/auth/me") { bearerAuth(accessToken) }
+                .body<MeResponse>()
+
+            me.permissions shouldBe listOf("server.view")
+            me.groups shouldBe listOf("Viewer")
+        }
+    }
+
+    test("me without JWT returns 401") {
+        testApplication {
+            application { configureTest() }
+            client.get("/api/auth/me").status shouldBe HttpStatusCode.Unauthorized
+        }
+    }
+
+    test("me returns 401 when user is deactivated after token issuance") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+
+            val (accessToken, _) = login()
+
+            transaction {
+                Users.update({ Users.id eq userId }) { it[Users.isActive] = false }
+            }
+
+            client.get("/api/auth/me") { bearerAuth(accessToken) }.status shouldBe HttpStatusCode.Unauthorized
+        }
+    }
+})

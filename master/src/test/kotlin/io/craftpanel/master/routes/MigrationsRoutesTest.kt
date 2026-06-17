@@ -8,6 +8,9 @@ import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.service.*
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import kotlin.uuid.Uuid
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -28,28 +31,23 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNotNull
 import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 import kotlinx.serialization.json.Json
 
-class MigrationsRoutesTest {
-
-    private val jwtConfig = JwtConfig(
+class MigrationsRoutesTest : FunSpec({
+    val jwtConfig = JwtConfig(
         secret = "test-secret-that-is-at-least-32-characters!!",
         issuer = "craftpanel-test",
         audience = "craftpanel-test",
         expirySeconds = 900,
     )
-    private val jwtManager = JwtManager(jwtConfig)
-    private val noopSend: (String, MasterMessage) -> Boolean = { _, _ -> true }
-    private val testScope = TestScope()
+    val jwtManager = JwtManager(jwtConfig)
+    val noopSend: (String, MasterMessage) -> Boolean = { _, _ -> true }
+    val testScope = TestScope()
 
-    private fun buildMigrationService(): MigrationService = MigrationService(
+    fun buildMigrationService(): MigrationService = MigrationService(
         sendToNode = noopSend,
         agentEvents = MutableSharedFlow<AgentEvent>(),
         dnsProvider = null,
@@ -61,13 +59,12 @@ class MigrationsRoutesTest {
         ),
     )
 
-    @BeforeTest
-    fun setup() {
+    beforeTest {
         TestDatabase.initIfNeeded()
         TestDatabase.reset()
     }
 
-    private fun Application.configureTest(svc: MigrationService = buildMigrationService()) {
+    fun Application.configureTest(svc: MigrationService = buildMigrationService()) {
         install(WebSockets)
         install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         install(StatusPages) {
@@ -102,7 +99,7 @@ class MigrationsRoutesTest {
         routing { migrationsRoutes(svc) }
     }
 
-    private fun createSuperAdminJwt(): String {
+    fun createSuperAdminJwt(): String {
         val userId = transaction {
             Users.insert {
                 it[Users.username] = "admin"
@@ -124,7 +121,7 @@ class MigrationsRoutesTest {
         return jwtManager.generate(TokenClaims(userId = userId, name = "Admin", email = "admin@test.com", groups = listOf("Super Admin")))
     }
 
-    private fun insertNode(status: String = "ACTIVE"): Pair<Uuid, Uuid> {
+    fun insertNode(status: String = "ACTIVE"): Pair<Uuid, Uuid> {
         val nodeId = transaction {
             Nodes.insert {
                 it[Nodes.displayName] = "Test Node"
@@ -139,7 +136,7 @@ class MigrationsRoutesTest {
         return Uuid.parse(nodeId.toString()) to nodeId
     }
 
-    private fun insertServer(nodeId: Uuid): Pair<Uuid, Uuid> {
+    fun insertServer(nodeId: Uuid): Pair<Uuid, Uuid> {
         val serverId = transaction {
             Servers.insert {
                 it[Servers.name] = "test-server-${Uuid.random()}"
@@ -153,123 +150,130 @@ class MigrationsRoutesTest {
         return Uuid.parse(serverId.toString()) to serverId
     }
 
-    @Test
-    fun `list migrations returns empty for new server`() = testApplication {
-        val (_, sourceNodeKId) = insertNode()
-        val (serverJavaId, _) = insertServer(sourceNodeKId)
-        val token = createSuperAdminJwt()
-        application { configureTest() }
-        val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+    test("list migrations returns empty for new server") {
+        testApplication {
+            val (_, sourceNodeKId) = insertNode()
+            val (serverJavaId, _) = insertServer(sourceNodeKId)
+            val token = createSuperAdminJwt()
+            application { configureTest() }
+            val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
 
-        val response = client.get("/api/servers/$serverJavaId/migrations") {
-            bearerAuth(token)
-        }
-        assertEquals(HttpStatusCode.OK, response.status)
-        val body = response.body<JsonObject>()
-        assertEquals(0, body["migrations"]!!.jsonArray.size)
-    }
-
-    @Test
-    fun `start migration returns 404 when server not found`() = testApplication {
-        val token = createSuperAdminJwt()
-        application { configureTest() }
-        val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
-
-        val response = client.post("/api/servers/${Uuid.random()}/migrations") {
-            bearerAuth(token)
-            contentType(ContentType.Application.Json)
-            setBody("""{"target_node_id":"${Uuid.random()}"}""")
-        }
-        assertEquals(HttpStatusCode.NotFound, response.status)
-    }
-
-    @Test
-    fun `start migration returns 409 when source and target are same node`() = testApplication {
-        val (nodeJavaId, nodeKId) = insertNode()
-        val (serverJavaId, _) = insertServer(nodeKId)
-        val token = createSuperAdminJwt()
-        application { configureTest() }
-        val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
-
-        val response = client.post("/api/servers/$serverJavaId/migrations") {
-            bearerAuth(token)
-            contentType(ContentType.Application.Json)
-            setBody("""{"target_node_id":"$nodeJavaId"}""")
-        }
-        assertEquals(HttpStatusCode.Conflict, response.status)
-    }
-
-    @Test
-    fun `start migration returns 404 when target node not found`() = testApplication {
-        val (_, sourceKId) = insertNode()
-        val (serverJavaId, _) = insertServer(sourceKId)
-        val token = createSuperAdminJwt()
-        application { configureTest() }
-        val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
-
-        val response = client.post("/api/servers/$serverJavaId/migrations") {
-            bearerAuth(token)
-            contentType(ContentType.Application.Json)
-            setBody("""{"target_node_id":"${Uuid.random()}"}""")
-        }
-        assertEquals(HttpStatusCode.NotFound, response.status)
-    }
-
-    @Test
-    fun `start migration returns 409 when target node is not ACTIVE`() = testApplication {
-        val (_, sourceKId) = insertNode()
-        val (targetJavaId, _) = insertNode(status = "PENDING")
-        val (serverJavaId, _) = insertServer(sourceKId)
-        val token = createSuperAdminJwt()
-        application { configureTest() }
-        val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
-
-        val response = client.post("/api/servers/$serverJavaId/migrations") {
-            bearerAuth(token)
-            contentType(ContentType.Application.Json)
-            setBody("""{"target_node_id":"$targetJavaId"}""")
-        }
-        assertEquals(HttpStatusCode.Conflict, response.status)
-    }
-
-    @Test
-    fun `start migration returns 202 and creates pending migration`() = testApplication {
-        val (_, sourceKId) = insertNode()
-        val (targetJavaId, targetKId) = insertNode()
-        transaction {
-            PortRegistry.insert {
-                it[PortRegistry.nodeId] = targetKId
-                it[PortRegistry.port] = 25570
-                it[PortRegistry.protocol] = "TCP"
-                it[PortRegistry.serverId] = null
+            val response = client.get("/api/servers/$serverJavaId/migrations") {
+                bearerAuth(token)
             }
+            response.status shouldBe HttpStatusCode.OK
+            val body = response.body<JsonObject>()
+            body["migrations"]!!.jsonArray.size shouldBe 0
         }
-        val (serverJavaId, _) = insertServer(sourceKId)
-        val token = createSuperAdminJwt()
-        application { configureTest() }
-        val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
-
-        val response = client.post("/api/servers/$serverJavaId/migrations") {
-            bearerAuth(token)
-            contentType(ContentType.Application.Json)
-            setBody("""{"target_node_id":"$targetJavaId"}""")
-        }
-        assertEquals(HttpStatusCode.Accepted, response.status)
-        val body = response.body<JsonObject>()
-        assertNotNull(body["id"])
-        assertEquals("PENDING", body["status"]!!.jsonPrimitive.content)
-        assertEquals(serverJavaId.toString(), body["server_id"]!!.jsonPrimitive.content)
     }
 
-    @Test
-    fun `get migration returns 404 for unknown id`() = testApplication {
-        val token = createSuperAdminJwt()
-        application { configureTest() }
-        val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+    test("start migration returns 404 when server not found") {
+        testApplication {
+            val token = createSuperAdminJwt()
+            application { configureTest() }
+            val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
 
-        val response = client.get("/api/migrations/${Uuid.random()}") {
-            bearerAuth(token)
+            val response = client.post("/api/servers/${Uuid.random()}/migrations") {
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"target_node_id":"${Uuid.random()}"}""")
+            }
+            response.status shouldBe HttpStatusCode.NotFound
         }
-        assertEquals(HttpStatusCode.NotFound, response.status)
     }
-}
+
+    test("start migration returns 409 when source and target are same node") {
+        testApplication {
+            val (nodeJavaId, nodeKId) = insertNode()
+            val (serverJavaId, _) = insertServer(nodeKId)
+            val token = createSuperAdminJwt()
+            application { configureTest() }
+            val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+
+            val response = client.post("/api/servers/$serverJavaId/migrations") {
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"target_node_id":"$nodeJavaId"}""")
+            }
+            response.status shouldBe HttpStatusCode.Conflict
+        }
+    }
+
+    test("start migration returns 404 when target node not found") {
+        testApplication {
+            val (_, sourceKId) = insertNode()
+            val (serverJavaId, _) = insertServer(sourceKId)
+            val token = createSuperAdminJwt()
+            application { configureTest() }
+            val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+
+            val response = client.post("/api/servers/$serverJavaId/migrations") {
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"target_node_id":"${Uuid.random()}"}""")
+            }
+            response.status shouldBe HttpStatusCode.NotFound
+        }
+    }
+
+    test("start migration returns 409 when target node is not ACTIVE") {
+        testApplication {
+            val (_, sourceKId) = insertNode()
+            val (targetJavaId, _) = insertNode(status = "PENDING")
+            val (serverJavaId, _) = insertServer(sourceKId)
+            val token = createSuperAdminJwt()
+            application { configureTest() }
+            val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+
+            val response = client.post("/api/servers/$serverJavaId/migrations") {
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"target_node_id":"$targetJavaId"}""")
+            }
+            response.status shouldBe HttpStatusCode.Conflict
+        }
+    }
+
+    test("start migration returns 202 and creates pending migration") {
+        testApplication {
+            val (_, sourceKId) = insertNode()
+            val (targetJavaId, targetKId) = insertNode()
+            transaction {
+                PortRegistry.insert {
+                    it[PortRegistry.nodeId] = targetKId
+                    it[PortRegistry.port] = 25570
+                    it[PortRegistry.protocol] = "TCP"
+                    it[PortRegistry.serverId] = null
+                }
+            }
+            val (serverJavaId, _) = insertServer(sourceKId)
+            val token = createSuperAdminJwt()
+            application { configureTest() }
+            val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+
+            val response = client.post("/api/servers/$serverJavaId/migrations") {
+                bearerAuth(token)
+                contentType(ContentType.Application.Json)
+                setBody("""{"target_node_id":"$targetJavaId"}""")
+            }
+            response.status shouldBe HttpStatusCode.Accepted
+            val body = response.body<JsonObject>()
+            body["id"] shouldNotBe null
+            body["status"]!!.jsonPrimitive.content shouldBe "PENDING"
+            body["server_id"]!!.jsonPrimitive.content shouldBe serverJavaId.toString()
+        }
+    }
+
+    test("get migration returns 404 for unknown id") {
+        testApplication {
+            val token = createSuperAdminJwt()
+            application { configureTest() }
+            val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+
+            val response = client.get("/api/migrations/${Uuid.random()}") {
+                bearerAuth(token)
+            }
+            response.status shouldBe HttpStatusCode.NotFound
+        }
+    }
+})

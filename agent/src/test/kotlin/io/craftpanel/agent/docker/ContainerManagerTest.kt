@@ -7,47 +7,89 @@ import com.github.dockerjava.api.model.Container
 import com.github.dockerjava.api.model.ExposedPort
 import io.craftpanel.proto.ContainerState
 import io.craftpanel.proto.startContainerCommand
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import kotlin.test.Test
-import kotlin.test.assertEquals
 
-class ContainerManagerTest {
+class ContainerManagerTest : FunSpec({
+    val docker: DockerClient = mockk()
+    val manager = ContainerManager(docker)
+    val objectMapper = ObjectMapper()
 
-    private val docker: DockerClient = mockk()
-    private val manager = ContainerManager(docker)
+    fun fakeContainer(
+        name: String,
+        state: String,
+        status: String,
+        id: String = "container-id",
+        serverId: String? = "server-id",
+    ): Container {
+        val labelsJson = if (serverId != null)
+            """{"craftpanel.managed":"true","craftpanel.server.id":"$serverId"}"""
+        else "{}"
+        val json = """{"Id":"$id","Names":["$name"],"State":"$state","Status":"$status","Labels":$labelsJson}"""
+        return objectMapper.readValue(json, Container::class.java)
+    }
 
-    // -------------------------------------------------------------------------
+    fun stubListAll(containers: List<Container>) {
+        val cmd = mockk<ListContainersCmd>()
+        every { docker.listContainersCmd() } returns cmd
+        every { cmd.withShowAll(true) } returns cmd
+        every { cmd.exec() } returns containers
+    }
+
+    fun stubListRunning(containers: List<Container>) {
+        val cmd = mockk<ListContainersCmd>()
+        every { docker.listContainersCmd() } returns cmd
+        every { cmd.withShowAll(false) } returns cmd
+        every { cmd.exec() } returns containers
+    }
+
+    fun stubCreate(returnedId: String): CreateContainerCmd {
+        val createCmd = mockk<CreateContainerCmd>(relaxed = true)
+        every { docker.createContainerCmd(any()) } returns createCmd
+        every { createCmd.withName(any()) } returns createCmd
+        every { createCmd.withEnv(any<List<String>>()) } returns createCmd
+        every { createCmd.withExposedPorts(any<ExposedPort>()) } returns createCmd
+        every { createCmd.withHostConfig(any()) } returns createCmd
+        every { createCmd.withLabels(any()) } returns createCmd
+        every { createCmd.withStdinOpen(any()) } returns createCmd
+        val response = mockk<CreateContainerResponse>()
+        every { response.id } returns returnedId
+        every { createCmd.exec() } returns response
+        return createCmd
+    }
+
+    fun stubStop(containerId: String) {
+        val stopCmd = mockk<StopContainerCmd>(relaxed = true)
+        every { docker.stopContainerCmd(containerId) } returns stopCmd
+        every { stopCmd.withTimeout(any()) } returns stopCmd
+    }
+
     // listContainers
-    // -------------------------------------------------------------------------
-
-    @Test
-    fun `listContainers maps running state to RUNNING`() {
+    test("listContainers maps running state to RUNNING") {
         stubListAll(listOf(fakeContainer(name = "/craftpanel-test", state = "running", status = "Up 2 hours")))
 
         val result = manager.listContainers()
 
-        assertEquals(1, result.size)
-        assertEquals(ContainerState.RunState.RUNNING, result[0].runState)
+        result.size shouldBe 1
+        result[0].runState shouldBe ContainerState.RunState.RUNNING
     }
 
-    @Test
-    fun `listContainers maps exited with code 0 to STOPPED`() {
+    test("listContainers maps exited with code 0 to STOPPED") {
         stubListAll(listOf(fakeContainer(name = "/craftpanel-test", state = "exited", status = "Exited (0) 5 minutes ago")))
 
-        assertEquals(ContainerState.RunState.STOPPED, manager.listContainers()[0].runState)
+        manager.listContainers()[0].runState shouldBe ContainerState.RunState.STOPPED
     }
 
-    @Test
-    fun `listContainers maps non-zero exited to EXITED`() {
+    test("listContainers maps non-zero exited to EXITED") {
         stubListAll(listOf(fakeContainer(name = "/craftpanel-test", state = "exited", status = "Exited (137) 1 hour ago")))
 
-        assertEquals(ContainerState.RunState.EXITED, manager.listContainers()[0].runState)
+        manager.listContainers()[0].runState shouldBe ContainerState.RunState.EXITED
     }
 
-    @Test
-    fun `listContainers filters out containers without craftpanel- prefix`() {
+    test("listContainers filters out containers without craftpanel- prefix") {
         stubListAll(
             listOf(
                 fakeContainer(name = "/craftpanel-web", state = "running", status = "Up"),
@@ -57,30 +99,24 @@ class ContainerManagerTest {
 
         val result = manager.listContainers()
 
-        assertEquals(1, result.size)
-        assertEquals("craftpanel-web", result[0].containerName)
+        result.size shouldBe 1
+        result[0].containerName shouldBe "craftpanel-web"
     }
 
-    @Test
-    fun `listContainers sets serverId from label`() {
+    test("listContainers sets serverId from label") {
         stubListAll(listOf(fakeContainer(name = "/craftpanel-abc", state = "running", status = "Up", serverId = "server-uuid-123")))
 
-        assertEquals("server-uuid-123", manager.listContainers()[0].serverId)
+        manager.listContainers()[0].serverId shouldBe "server-uuid-123"
     }
 
-    @Test
-    fun `listContainers strips leading slash from container name`() {
+    test("listContainers strips leading slash from container name") {
         stubListAll(listOf(fakeContainer(name = "/craftpanel-srv", state = "running", status = "Up")))
 
-        assertEquals("craftpanel-srv", manager.listContainers()[0].containerName)
+        manager.listContainers()[0].containerName shouldBe "craftpanel-srv"
     }
 
-    // -------------------------------------------------------------------------
     // listRunningContainerIds
-    // -------------------------------------------------------------------------
-
-    @Test
-    fun `listRunningContainerIds returns only containers with craftpanel server id label`() {
+    test("listRunningContainerIds returns only containers with craftpanel server id label") {
         stubListRunning(
             listOf(
                 fakeContainer(name = "/craftpanel-mc", state = "running", status = "Up", serverId = "srv-1"),
@@ -90,22 +126,17 @@ class ContainerManagerTest {
 
         val result = manager.listRunningContainerIds()
 
-        assertEquals(1, result.size)
-        assertEquals("srv-1", result[0].first)
+        result.size shouldBe 1
+        result[0].first shouldBe "srv-1"
     }
 
-    @Test
-    fun `listRunningContainerIds returns empty list when no containers`() {
+    test("listRunningContainerIds returns empty list when no containers") {
         stubListRunning(emptyList())
-        assertEquals(0, manager.listRunningContainerIds().size)
+        manager.listRunningContainerIds().size shouldBe 0
     }
 
-    // -------------------------------------------------------------------------
     // createContainer
-    // -------------------------------------------------------------------------
-
-    @Test
-    fun `createContainer returns container id from docker response`() {
+    test("createContainer returns container id from docker response") {
         stubCreate("new-container-id")
 
         val id = manager.createContainer(startContainerCommand {
@@ -115,11 +146,10 @@ class ContainerManagerTest {
             hostPort = 25565
         })
 
-        assertEquals("new-container-id", id)
+        id shouldBe "new-container-id"
     }
 
-    @Test
-    fun `createContainer sets server id label`() {
+    test("createContainer sets server id label") {
         val createCmd = stubCreate("c1")
 
         manager.createContainer(startContainerCommand {
@@ -138,12 +168,8 @@ class ContainerManagerTest {
         }
     }
 
-    // -------------------------------------------------------------------------
     // startContainer
-    // -------------------------------------------------------------------------
-
-    @Test
-    fun `startContainer invokes docker start`() {
+    test("startContainer invokes docker start") {
         val startCmd = mockk<StartContainerCmd>(relaxed = true)
         every { docker.startContainerCmd("craftpanel-mc") } returns startCmd
 
@@ -152,12 +178,8 @@ class ContainerManagerTest {
         verify { startCmd.exec() }
     }
 
-    // -------------------------------------------------------------------------
     // stopContainer
-    // -------------------------------------------------------------------------
-
-    @Test
-    fun `stopContainer calls docker stop with specified timeout`() {
+    test("stopContainer calls docker stop with specified timeout") {
         val stopCmd = mockk<StopContainerCmd>(relaxed = true)
         every { docker.stopContainerCmd("craftpanel-mc") } returns stopCmd
         every { stopCmd.withTimeout(any()) } returns stopCmd
@@ -168,8 +190,7 @@ class ContainerManagerTest {
         verify { stopCmd.exec() }
     }
 
-    @Test
-    fun `stopContainer uses default timeout of 30 when timeout is zero`() {
+    test("stopContainer uses default timeout of 30 when timeout is zero") {
         val stopCmd = mockk<StopContainerCmd>(relaxed = true)
         every { docker.stopContainerCmd("craftpanel-mc") } returns stopCmd
         every { stopCmd.withTimeout(any()) } returns stopCmd
@@ -179,12 +200,8 @@ class ContainerManagerTest {
         verify { stopCmd.withTimeout(30) }
     }
 
-    // -------------------------------------------------------------------------
     // removeContainer
-    // -------------------------------------------------------------------------
-
-    @Test
-    fun `removeContainer calls docker remove with force flag`() {
+    test("removeContainer calls docker remove with force flag") {
         val removeCmd = mockk<RemoveContainerCmd>(relaxed = true)
         every { docker.removeContainerCmd("craftpanel-mc") } returns removeCmd
         every { removeCmd.withForce(true) } returns removeCmd
@@ -195,12 +212,8 @@ class ContainerManagerTest {
         verify { removeCmd.exec() }
     }
 
-    // -------------------------------------------------------------------------
     // shutdownAll
-    // -------------------------------------------------------------------------
-
-    @Test
-    fun `shutdownAll counts graceful stops`() {
+    test("shutdownAll counts graceful stops") {
         stubListRunning(
             listOf(
                 fakeContainer(name = "/craftpanel-a", state = "running", status = "Up", id = "c1"),
@@ -212,12 +225,11 @@ class ContainerManagerTest {
 
         val (graceful, forced) = manager.shutdownAll(10)
 
-        assertEquals(2, graceful)
-        assertEquals(0, forced)
+        graceful shouldBe 2
+        forced shouldBe 0
     }
 
-    @Test
-    fun `shutdownAll counts forced kills when graceful stop fails`() {
+    test("shutdownAll counts forced kills when graceful stop fails") {
         stubListRunning(listOf(fakeContainer(name = "/craftpanel-a", state = "running", status = "Up", id = "c1")))
 
         val stopCmd = mockk<StopContainerCmd>(relaxed = true)
@@ -230,72 +242,16 @@ class ContainerManagerTest {
 
         val (graceful, forced) = manager.shutdownAll(10)
 
-        assertEquals(0, graceful)
-        assertEquals(1, forced)
+        graceful shouldBe 0
+        forced shouldBe 1
     }
 
-    @Test
-    fun `shutdownAll returns zeros when no craftpanel containers running`() {
+    test("shutdownAll returns zeros when no craftpanel containers running") {
         stubListRunning(emptyList())
 
         val (graceful, forced) = manager.shutdownAll(10)
 
-        assertEquals(0, graceful)
-        assertEquals(0, forced)
+        graceful shouldBe 0
+        forced shouldBe 0
     }
-
-    // -------------------------------------------------------------------------
-    // helpers
-    // -------------------------------------------------------------------------
-
-    private val objectMapper = ObjectMapper()
-
-    private fun fakeContainer(
-        name: String,
-        state: String,
-        status: String,
-        id: String = "container-id",
-        serverId: String? = "server-id",
-    ): Container {
-        val labelsJson = if (serverId != null)
-            """{"craftpanel.managed":"true","craftpanel.server.id":"$serverId"}"""
-        else "{}"
-        val json = """{"Id":"$id","Names":["$name"],"State":"$state","Status":"$status","Labels":$labelsJson}"""
-        return objectMapper.readValue(json, Container::class.java)
-    }
-
-    private fun stubListAll(containers: List<Container>) {
-        val cmd = mockk<ListContainersCmd>()
-        every { docker.listContainersCmd() } returns cmd
-        every { cmd.withShowAll(true) } returns cmd
-        every { cmd.exec() } returns containers
-    }
-
-    private fun stubListRunning(containers: List<Container>) {
-        val cmd = mockk<ListContainersCmd>()
-        every { docker.listContainersCmd() } returns cmd
-        every { cmd.withShowAll(false) } returns cmd
-        every { cmd.exec() } returns containers
-    }
-
-    private fun stubCreate(returnedId: String): CreateContainerCmd {
-        val createCmd = mockk<CreateContainerCmd>(relaxed = true)
-        every { docker.createContainerCmd(any()) } returns createCmd
-        every { createCmd.withName(any()) } returns createCmd
-        every { createCmd.withEnv(any<List<String>>()) } returns createCmd
-        every { createCmd.withExposedPorts(any<ExposedPort>()) } returns createCmd
-        every { createCmd.withHostConfig(any()) } returns createCmd
-        every { createCmd.withLabels(any()) } returns createCmd
-        every { createCmd.withStdinOpen(any()) } returns createCmd
-        val response = mockk<CreateContainerResponse>()
-        every { response.id } returns returnedId
-        every { createCmd.exec() } returns response
-        return createCmd
-    }
-
-    private fun stubStop(containerId: String) {
-        val stopCmd = mockk<StopContainerCmd>(relaxed = true)
-        every { docker.stopContainerCmd(containerId) } returns stopCmd
-        every { stopCmd.withTimeout(any()) } returns stopCmd
-    }
-}
+})

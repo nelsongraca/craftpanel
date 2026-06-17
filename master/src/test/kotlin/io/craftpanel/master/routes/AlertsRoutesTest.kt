@@ -7,7 +7,8 @@ import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.*
-import kotlin.uuid.Uuid
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
@@ -22,36 +23,31 @@ import io.ktor.server.testing.*
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.json.*
+import kotlin.time.Clock
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
-import kotlin.test.assertNull
-import kotlin.time.Clock
+import kotlin.uuid.Uuid
 import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
-class AlertsRoutesTest {
-
-    private val jwtConfig = JwtConfig(
+class AlertsRoutesTest : FunSpec({
+    val jwtConfig = JwtConfig(
         secret = "test-secret-that-is-at-least-32-characters!!",
         issuer = "craftpanel-test",
         audience = "craftpanel-test",
         expirySeconds = 900,
     )
-    private val jwtManager = JwtManager(jwtConfig)
+    val jwtManager = JwtManager(jwtConfig)
 
-    @BeforeTest
-    fun setup() {
+    beforeTest {
         TestDatabase.initIfNeeded()
         TestDatabase.reset()
     }
 
-    private fun Application.configureTest() {
+    fun Application.configureTest() {
         install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         install(StatusPages) {
             exception<NotFoundException> { call, ex -> call.respond(HttpStatusCode.NotFound, mapOf("error" to (ex.message ?: "Not found"))) }
@@ -76,11 +72,11 @@ class AlertsRoutesTest {
         routing { alertsRoutes(AlertService()) }
     }
 
-    private fun ApplicationTestBuilder.jsonClient() = createClient {
+    fun ApplicationTestBuilder.jsonClient() = createClient {
         install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
 
-    private fun createUser(email: String = "admin@example.com"): Uuid = transaction {
+    fun createUser(email: String = "admin@example.com"): Uuid = transaction {
         Users.insert {
             it[Users.username] = email.substringBefore("@")
             it[Users.email] = email
@@ -89,7 +85,7 @@ class AlertsRoutesTest {
         }[Users.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
+    fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
@@ -100,10 +96,10 @@ class AlertsRoutesTest {
         }
     }
 
-    private fun tokenFor(userId: Uuid): String =
+    fun tokenFor(userId: Uuid): String =
         jwtManager.generate(TokenClaims(userId = userId, name = "admin", email = "admin@example.com", groups = emptyList()))
 
-    private fun createNode(hostname: String = "node-1"): Uuid = transaction {
+    fun createNode(hostname: String = "node-1"): Uuid = transaction {
         Nodes.insert {
             it[Nodes.hostname] = hostname
             it[Nodes.displayName] = hostname
@@ -118,257 +114,254 @@ class AlertsRoutesTest {
 
     // ── List thresholds ───────────────────────────────────────────────────────
 
-    @Test
-    fun `list thresholds requires system-settings`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        // Operator group has no system.settings
-        assignGlobalGroup(userId, "Operator")
-        val token = tokenFor(userId)
-        val res = client.get("/api/alerts/thresholds") { header("Authorization", "Bearer $token") }
-        assertEquals(HttpStatusCode.Forbidden, res.status)
+    test("list thresholds requires system-settings") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Operator")
+            val token = tokenFor(userId)
+            val res = client.get("/api/alerts/thresholds") { header("Authorization", "Bearer $token") }
+            res.status shouldBe HttpStatusCode.Forbidden
+        }
     }
 
-    @Test
-    fun `list thresholds returns empty list when none exist`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val res = client.get("/api/alerts/thresholds") { header("Authorization", "Bearer $token") }
-        assertEquals(HttpStatusCode.OK, res.status)
-        val body = res.body<JsonObject>()
-        assertEquals(0, body["thresholds"]!!.jsonArray.size)
+    test("list thresholds returns empty list when none exist") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val res = client.get("/api/alerts/thresholds") { header("Authorization", "Bearer $token") }
+            res.status shouldBe HttpStatusCode.OK
+            val body = res.body<JsonObject>()
+            body["thresholds"]!!.jsonArray.size shouldBe 0
+        }
     }
 
     // ── Create threshold ──────────────────────────────────────────────────────
 
-    @Test
-    fun `create threshold with numeric value succeeds`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
+    test("create threshold with numeric value succeeds") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
 
-        val res = client.post("/api/alerts/thresholds") {
-            header("Authorization", "Bearer $token")
-            contentType(ContentType.Application.Json)
-            setBody("""{"scope_type":"NODE","scope_id":"$nodeId","metric":"cpu_percent","threshold_value":80.0}""")
+            val res = client.post("/api/alerts/thresholds") {
+                header("Authorization", "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody("""{"scope_type":"NODE","scope_id":"$nodeId","metric":"cpu_percent","threshold_value":80.0}""")
+            }
+            res.status shouldBe HttpStatusCode.Created
+            val body = res.body<JsonObject>()
+            body["scope_type"]!!.jsonPrimitive.content shouldBe "NODE"
+            body["metric"]!!.jsonPrimitive.content shouldBe "cpu_percent"
+            body["threshold_value"]!!.jsonPrimitive.content.toDouble() shouldBe 80.0
         }
-        assertEquals(HttpStatusCode.Created, res.status)
-        val body = res.body<JsonObject>()
-        assertEquals("NODE", body["scope_type"]!!.jsonPrimitive.content)
-        assertEquals("cpu_percent", body["metric"]!!.jsonPrimitive.content)
-        assertEquals(80.0, body["threshold_value"]!!.jsonPrimitive.content.toDouble())
-        assertNull(body["threshold_state"]?.jsonPrimitive?.content?.takeIf { it != "null" })
     }
 
-    @Test
-    fun `create threshold with state value succeeds`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
+    test("create threshold with state value succeeds") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
 
-        val res = client.post("/api/alerts/thresholds") {
-            header("Authorization", "Bearer $token")
-            contentType(ContentType.Application.Json)
-            setBody("""{"scope_type":"NODE","scope_id":"$nodeId","metric":"server_health","threshold_state":"UNHEALTHY"}""")
+            val res = client.post("/api/alerts/thresholds") {
+                header("Authorization", "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody("""{"scope_type":"NODE","scope_id":"$nodeId","metric":"server_health","threshold_state":"UNHEALTHY"}""")
+            }
+            res.status shouldBe HttpStatusCode.Created
+            val body = res.body<JsonObject>()
+            body["threshold_state"]!!.jsonPrimitive.content shouldBe "UNHEALTHY"
         }
-        assertEquals(HttpStatusCode.Created, res.status)
-        val body = res.body<JsonObject>()
-        assertEquals("UNHEALTHY", body["threshold_state"]!!.jsonPrimitive.content)
-        assertNull(body["threshold_value"]?.jsonPrimitive?.content?.takeIf { it != "null" }
-            ?.toDoubleOrNull())
     }
 
-    @Test
-    fun `create threshold rejects both value and state`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
+    test("create threshold rejects both value and state") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
 
-        val res = client.post("/api/alerts/thresholds") {
-            header("Authorization", "Bearer $token")
-            contentType(ContentType.Application.Json)
-            setBody("""{"scope_type":"NODE","scope_id":"$nodeId","metric":"cpu_percent","threshold_value":80.0,"threshold_state":"UNHEALTHY"}""")
+            val res = client.post("/api/alerts/thresholds") {
+                header("Authorization", "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody("""{"scope_type":"NODE","scope_id":"$nodeId","metric":"cpu_percent","threshold_value":80.0,"threshold_state":"UNHEALTHY"}""")
+            }
+            res.status shouldBe HttpStatusCode.UnprocessableEntity
         }
-        assertEquals(HttpStatusCode.UnprocessableEntity, res.status)
     }
 
-    @Test
-    fun `create threshold rejects neither value nor state`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
+    test("create threshold rejects neither value nor state") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
 
-        val res = client.post("/api/alerts/thresholds") {
-            header("Authorization", "Bearer $token")
-            contentType(ContentType.Application.Json)
-            setBody("""{"scope_type":"NODE","scope_id":"$nodeId","metric":"cpu_percent"}""")
+            val res = client.post("/api/alerts/thresholds") {
+                header("Authorization", "Bearer $token")
+                contentType(ContentType.Application.Json)
+                setBody("""{"scope_type":"NODE","scope_id":"$nodeId","metric":"cpu_percent"}""")
+            }
+            res.status shouldBe HttpStatusCode.UnprocessableEntity
         }
-        assertEquals(HttpStatusCode.UnprocessableEntity, res.status)
     }
 
     // ── Delete threshold ──────────────────────────────────────────────────────
 
-    @Test
-    fun `delete threshold removes it and its events`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
+    test("delete threshold removes it and its events") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
 
-        // Create threshold
-        val thresholdId = transaction {
-            AlertThresholds.insert {
-                it[AlertThresholds.scopeType] = "NODE"
-                it[AlertThresholds.scopeId] = nodeId
-                it[AlertThresholds.metric] = "cpu_percent"
-                it[AlertThresholds.thresholdValue] = 90.0
-            }[AlertThresholds.id]
-        }
-
-        // Create associated event
-        transaction {
-            AlertEvents.insert {
-                it[AlertEvents.thresholdId] = thresholdId
-                it[AlertEvents.message] = "test event"
-                it[AlertEvents.firedAt] = Clock.System.now()
-                    .toLocalDateTime(TimeZone.UTC)
+            val thresholdId = transaction {
+                AlertThresholds.insert {
+                    it[AlertThresholds.scopeType] = "NODE"
+                    it[AlertThresholds.scopeId] = nodeId
+                    it[AlertThresholds.metric] = "cpu_percent"
+                    it[AlertThresholds.thresholdValue] = 90.0
+                }[AlertThresholds.id]
             }
-        }
 
-        val res = client.delete("/api/alerts/thresholds/$thresholdId") {
-            header("Authorization", "Bearer $token")
-        }
-        assertEquals(HttpStatusCode.NoContent, res.status)
+            transaction {
+                AlertEvents.insert {
+                    it[AlertEvents.thresholdId] = thresholdId
+                    it[AlertEvents.message] = "test event"
+                    it[AlertEvents.firedAt] = Clock.System.now()
+                        .toLocalDateTime(TimeZone.UTC)
+                }
+            }
 
-        // Threshold and its events should be gone
-        transaction {
-            assertEquals(
-                0,
+            val res = client.delete("/api/alerts/thresholds/$thresholdId") {
+                header("Authorization", "Bearer $token")
+            }
+            res.status shouldBe HttpStatusCode.NoContent
+
+            transaction {
                 AlertThresholds.selectAll()
                     .where { AlertThresholds.id eq thresholdId }
-                    .count()
-            )
-            assertEquals(
-                0,
+                    .count() shouldBe 0
                 AlertEvents.selectAll()
                     .where { AlertEvents.thresholdId eq thresholdId }
-                    .count()
-            )
+                    .count() shouldBe 0
+            }
         }
     }
 
-    @Test
-    fun `delete nonexistent threshold returns 404`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
+    test("delete nonexistent threshold returns 404") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
 
-        val res = client.delete("/api/alerts/thresholds/${Uuid.random()}") {
-            header("Authorization", "Bearer $token")
+            val res = client.delete("/api/alerts/thresholds/${Uuid.random()}") {
+                header("Authorization", "Bearer $token")
+            }
+            res.status shouldBe HttpStatusCode.NotFound
         }
-        assertEquals(HttpStatusCode.NotFound, res.status)
     }
 
     // ── List events ───────────────────────────────────────────────────────────
 
-    @Test
-    fun `list events returns all events`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val now = Clock.System.now()
-            .toLocalDateTime(TimeZone.UTC)
+    test("list events returns all events") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val now = Clock.System.now()
+                .toLocalDateTime(TimeZone.UTC)
 
-        val thresholdId = transaction {
-            AlertThresholds.insert {
-                it[AlertThresholds.scopeType] = "NODE"
-                it[AlertThresholds.scopeId] = nodeId
-                it[AlertThresholds.metric] = "ram_percent"
-                it[AlertThresholds.thresholdValue] = 85.0
-            }[AlertThresholds.id]
-        }
-
-        transaction {
-            AlertEvents.insert {
-                it[AlertEvents.thresholdId] = thresholdId
-                it[AlertEvents.message] = "Node node-1: ram_percent at 90.0%"
-                it[AlertEvents.firedAt] = now
-                it[AlertEvents.resolvedAt] = now
+            val thresholdId = transaction {
+                AlertThresholds.insert {
+                    it[AlertThresholds.scopeType] = "NODE"
+                    it[AlertThresholds.scopeId] = nodeId
+                    it[AlertThresholds.metric] = "ram_percent"
+                    it[AlertThresholds.thresholdValue] = 85.0
+                }[AlertThresholds.id]
             }
-            AlertEvents.insert {
-                it[AlertEvents.thresholdId] = thresholdId
-                it[AlertEvents.message] = "Node node-1: ram_percent at 88.0%"
-                it[AlertEvents.firedAt] = now
-            }
-        }
 
-        val res = client.get("/api/alerts/events") { header("Authorization", "Bearer $token") }
-        assertEquals(HttpStatusCode.OK, res.status)
-        val events = res.body<JsonObject>()["events"]!!.jsonArray
-        assertEquals(2, events.size)
+            transaction {
+                AlertEvents.insert {
+                    it[AlertEvents.thresholdId] = thresholdId
+                    it[AlertEvents.message] = "Node node-1: ram_percent at 90.0%"
+                    it[AlertEvents.firedAt] = now
+                    it[AlertEvents.resolvedAt] = now
+                }
+                AlertEvents.insert {
+                    it[AlertEvents.thresholdId] = thresholdId
+                    it[AlertEvents.message] = "Node node-1: ram_percent at 88.0%"
+                    it[AlertEvents.firedAt] = now
+                }
+            }
+
+            val res = client.get("/api/alerts/events") { header("Authorization", "Bearer $token") }
+            res.status shouldBe HttpStatusCode.OK
+            val events = res.body<JsonObject>()["events"]!!.jsonArray
+            events.size shouldBe 2
+        }
     }
 
-    @Test
-    fun `list events active_only filters resolved events`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val now = Clock.System.now()
-            .toLocalDateTime(TimeZone.UTC)
+    test("list events active_only filters resolved events") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val now = Clock.System.now()
+                .toLocalDateTime(TimeZone.UTC)
 
-        val thresholdId = transaction {
-            AlertThresholds.insert {
-                it[AlertThresholds.scopeType] = "NODE"
-                it[AlertThresholds.scopeId] = nodeId
-                it[AlertThresholds.metric] = "cpu_percent"
-                it[AlertThresholds.thresholdValue] = 80.0
-            }[AlertThresholds.id]
-        }
-
-        transaction {
-            AlertEvents.insert {
-                it[AlertEvents.thresholdId] = thresholdId
-                it[AlertEvents.message] = "resolved"
-                it[AlertEvents.firedAt] = now
-                it[AlertEvents.resolvedAt] = now
+            val thresholdId = transaction {
+                AlertThresholds.insert {
+                    it[AlertThresholds.scopeType] = "NODE"
+                    it[AlertThresholds.scopeId] = nodeId
+                    it[AlertThresholds.metric] = "cpu_percent"
+                    it[AlertThresholds.thresholdValue] = 80.0
+                }[AlertThresholds.id]
             }
-            AlertEvents.insert {
-                it[AlertEvents.thresholdId] = thresholdId
-                it[AlertEvents.message] = "open"
-                it[AlertEvents.firedAt] = now
-            }
-        }
 
-        val res = client.get("/api/alerts/events?active_only=true") { header("Authorization", "Bearer $token") }
-        assertEquals(HttpStatusCode.OK, res.status)
-        val events = res.body<JsonObject>()["events"]!!.jsonArray
-        assertEquals(1, events.size)
-        assertEquals("open", events[0].jsonObject["message"]!!.jsonPrimitive.content)
+            transaction {
+                AlertEvents.insert {
+                    it[AlertEvents.thresholdId] = thresholdId
+                    it[AlertEvents.message] = "resolved"
+                    it[AlertEvents.firedAt] = now
+                    it[AlertEvents.resolvedAt] = now
+                }
+                AlertEvents.insert {
+                    it[AlertEvents.thresholdId] = thresholdId
+                    it[AlertEvents.message] = "open"
+                    it[AlertEvents.firedAt] = now
+                }
+            }
+
+            val res = client.get("/api/alerts/events?active_only=true") { header("Authorization", "Bearer $token") }
+            res.status shouldBe HttpStatusCode.OK
+            val events = res.body<JsonObject>()["events"]!!.jsonArray
+            events.size shouldBe 1
+            events[0].jsonObject["message"]!!.jsonPrimitive.content shouldBe "open"
+        }
     }
-}
+})

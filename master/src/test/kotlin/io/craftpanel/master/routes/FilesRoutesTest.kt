@@ -14,8 +14,8 @@ import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.config.NodeConfig
-import io.craftpanel.master.routes.dto.ListFilesResponse
-import io.craftpanel.master.routes.dto.ReadFileResponse
+import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.shouldBe
 import kotlin.uuid.Uuid
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -33,31 +33,26 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import kotlin.test.BeforeTest
-import kotlin.test.Test
-import kotlin.test.assertEquals
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
 import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
-class FilesRoutesTest {
-
-    private val jwtConfig = JwtConfig(
+class FilesRoutesTest : FunSpec({
+    val jwtConfig = JwtConfig(
         secret = "test-secret-that-is-at-least-32-characters!!",
         issuer = "craftpanel-test",
         audience = "craftpanel-test",
         expirySeconds = 900,
     )
-    private val jwtManager = JwtManager(jwtConfig)
-    private val noopControlSvc = ControlServiceImpl(NodeConfig("test-token", 50052))
-    private val noopProxy = DataServiceProxy(noopControlSvc, BulkDataServiceImpl(noopControlSvc))
+    val jwtManager = JwtManager(jwtConfig)
+    val noopControlSvc = ControlServiceImpl(NodeConfig("test-token", 50052))
+    val noopProxy = DataServiceProxy(noopControlSvc, BulkDataServiceImpl(noopControlSvc))
 
-    @BeforeTest
-    fun setup() {
+    beforeTest {
         TestDatabase.initIfNeeded()
         TestDatabase.reset()
     }
 
-    private fun Application.configureTest() {
+    fun Application.configureTest() {
         install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         install(StatusPages) {
             exception<Exception> { call, ex -> call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (ex.message ?: "error"))) }
@@ -77,11 +72,11 @@ class FilesRoutesTest {
         routing { filesRoutes(noopProxy) }
     }
 
-    private fun ApplicationTestBuilder.jsonClient() = createClient {
+    fun ApplicationTestBuilder.jsonClient() = createClient {
         install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
     }
 
-    private fun createUser(): Uuid = transaction {
+    fun createUser(): Uuid = transaction {
         Users.insert {
             it[Users.username] = "admin"
             it[Users.email] = "admin@example.com"
@@ -90,7 +85,7 @@ class FilesRoutesTest {
         }[Users.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
+    fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
         val groupId = Groups.selectAll()
             .where { Groups.name eq groupName }
             .first()[Groups.id]
@@ -101,10 +96,10 @@ class FilesRoutesTest {
         }
     }
 
-    private fun tokenFor(userId: Uuid): String =
+    fun tokenFor(userId: Uuid): String =
         jwtManager.generate(TokenClaims(userId = userId, name = "admin", email = "admin@example.com", groups = emptyList()))
 
-    private fun createNode(): Uuid = transaction {
+    fun createNode(): Uuid = transaction {
         Nodes.insert {
             it[Nodes.hostname] = "node-1"
             it[Nodes.displayName] = "node-1"
@@ -117,7 +112,7 @@ class FilesRoutesTest {
         }[Nodes.id].let { Uuid.parse(it.toString()) }
     }
 
-    private fun createServer(nodeId: Uuid): Uuid = transaction {
+    fun createServer(nodeId: Uuid): Uuid = transaction {
         Servers.insert {
             it[Servers.name] = "test-server"
             it[Servers.displayName] = "Test Server"
@@ -131,60 +126,65 @@ class FilesRoutesTest {
 
     // ── Authorization ─────────────────────────────────────────────────────────
 
-    @Test
-    fun `list files returns 401 without token`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
-        val res = client.get("/api/servers/$serverId/files")
-        assertEquals(HttpStatusCode.Unauthorized, res.status)
+    test("list files returns 401 without token") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
+            val res = client.get("/api/servers/$serverId/files")
+            res.status shouldBe HttpStatusCode.Unauthorized
+        }
     }
 
-    @Test
-    fun `list files returns 403 without server_files permission`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Viewer")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
-        val res = client.get("/api/servers/$serverId/files") { header("Authorization", "Bearer $token") }
-        assertEquals(HttpStatusCode.Forbidden, res.status)
+    test("list files returns 403 without server_files permission") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Viewer")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
+            val res = client.get("/api/servers/$serverId/files") { header("Authorization", "Bearer $token") }
+            res.status shouldBe HttpStatusCode.Forbidden
+        }
     }
 
-    @Test
-    fun `list files returns 404 for unknown server`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Super Admin")
-        val token = tokenFor(userId)
-        val res = client.get("/api/servers/${Uuid.random()}/files") { header("Authorization", "Bearer $token") }
-        assertEquals(HttpStatusCode.NotFound, res.status)
+    test("list files returns 404 for unknown server") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Super Admin")
+            val token = tokenFor(userId)
+            val res = client.get("/api/servers/${Uuid.random()}/files") { header("Authorization", "Bearer $token") }
+            res.status shouldBe HttpStatusCode.NotFound
+        }
     }
 
-    @Test
-    fun `read file returns 401 without token`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
-        val res = client.get("/api/servers/$serverId/files/content?path=/test.txt")
-        assertEquals(HttpStatusCode.Unauthorized, res.status)
+    test("read file returns 401 without token") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
+            val res = client.get("/api/servers/$serverId/files/content?path=/test.txt")
+            res.status shouldBe HttpStatusCode.Unauthorized
+        }
     }
 
-    @Test
-    fun `read file returns 403 without server_files permission`() = testApplication {
-        application { configureTest() }
-        val client = jsonClient()
-        val userId = createUser()
-        assignGlobalGroup(userId, "Viewer")
-        val token = tokenFor(userId)
-        val nodeId = createNode()
-        val serverId = createServer(nodeId)
-        val res = client.get("/api/servers/$serverId/files/content?path=/test.txt") { header("Authorization", "Bearer $token") }
-        assertEquals(HttpStatusCode.Forbidden, res.status)
+    test("read file returns 403 without server_files permission") {
+        testApplication {
+            application { configureTest() }
+            val client = jsonClient()
+            val userId = createUser()
+            assignGlobalGroup(userId, "Viewer")
+            val token = tokenFor(userId)
+            val nodeId = createNode()
+            val serverId = createServer(nodeId)
+            val res = client.get("/api/servers/$serverId/files/content?path=/test.txt") { header("Authorization", "Bearer $token") }
+            res.status shouldBe HttpStatusCode.Forbidden
+        }
     }
-}
+})
