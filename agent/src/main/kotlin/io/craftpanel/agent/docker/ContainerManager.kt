@@ -11,6 +11,8 @@ import io.craftpanel.proto.containerState
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
 import java.io.File
+import java.time.Duration
+import java.time.Instant
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -114,7 +116,23 @@ open class ContainerManager(
             true
         }.getOrDefault(false)
 
-    fun pullImage(image: String) {
+    fun pullImage(image: String, maxAgeHours: Long = 24) {
+        val cachedAt = runCatching {
+            docker.inspectImageCmd(image).exec().created
+        }.getOrNull()
+
+        if (cachedAt != null) {
+            val age = Duration.between(
+                Instant.parse(cachedAt),
+                Instant.now()
+            )
+            if (age.toHours() < maxAgeHours) {
+                log.info("Skipping pull for $image — local image is ${age.toMinutes()}m old (max ${maxAgeHours}h)")
+                return
+            }
+            log.info("Local image $image is ${age.toHours()}h old — pulling fresh copy")
+        }
+
         runCatching {
             docker.pullImageCmd(image)
                 .exec(PullImageResultCallback())
