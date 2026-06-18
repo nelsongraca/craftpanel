@@ -22,6 +22,7 @@ abstract class BaseSystemTest : ShouldSpec() {
             authHelper.login()
         }
         beforeTest {
+            authHelper.login()
             nodeHelper.pollUntilActive(nodeId)
         }
     }

@@ -12,201 +12,165 @@ import kotlin.random.Random
 class ModrinthInjectionTest : BaseSystemTest() {
 
     init {
+        lateinit var serverId: String
+
+        beforeSpec {
+            serverId = helper.createTestServer(nodeId)
+            api.startServer(serverId)
+            helper.awaitStatus(serverId, "HEALTHY")
+            helper.awaitContainerLog(containerName(serverId), "stdin listener ready", docker)
+        }
+
+        afterSpec {
+            runCatching { api.stopServer(serverId) }
+            helper.awaitStoppedOrGone(serverId)
+            runCatching { api.deleteServer(serverId) }
+        }
+
+        afterTest {
+            // Clear all mods so each test starts from a clean mod state
+            runCatching {
+                api.listMods(serverId).values.flatten().forEach { mod ->
+                    runCatching { api.deleteMod(serverId, mod.id) }
+                }
+            }
+        }
+
         context("Modrinth mod injection") {
 
             context("PINNED strategy") {
 
                 should("MODRINTH_PROJECTS env var is absent on a server with no mods") {
-
-                val serverId = helper.createTestServer(nodeId)
-                    try {
-                        api.startServer(serverId)
-                        helper.awaitStatus(serverId, "HEALTHY")
-
-                        val info = docker.inspectContainerCmd(containerName(serverId))
-                            .exec()
-                        val envKeys = info.config?.env?.map { it.substringBefore("=") }
-                            .orEmpty()
-                        envKeys shouldNotContain "MODRINTH_PROJECTS"
-                    }
-                    finally {
-                        runCatching { api.stopServer(serverId) }
-                        helper.awaitStoppedOrGone(serverId)
-                        runCatching { api.deleteServer(serverId) }
-                    }
+                    val info = docker.inspectContainerCmd(containerName(serverId))
+                        .exec()
+                    val envKeys = info.config?.env?.map { it.substringBefore("=") }
+                        .orEmpty()
+                    envKeys shouldNotContain "MODRINTH_PROJECTS"
                 }
 
                 should("adding a pinned mod and restarting injects MODRINTH_PROJECTS into the container") {
-
-                val serverId = helper.createTestServer(nodeId)
-                    try {
-                        api.startServer(serverId)
-                        helper.awaitStatus(serverId, "HEALTHY")
-
-                        api.addMod(
-                            serverId,
-                            CreateModRequest(
-                                modrinthProjectId = "lithium",
-                                displayName = "Lithium",
-                                pinStrategy = "PINNED",
-                                pinnedVersionId = "mc1.21-0.13.0",
-                            )
+                    api.addMod(
+                        serverId,
+                        CreateModRequest(
+                            modrinthProjectId = "lithium",
+                            displayName = "Lithium",
+                            pinStrategy = "PINNED",
+                            pinnedVersionId = "mc1.21-0.13.0",
                         )
+                    )
 
-                        api.restartServer(serverId)
-                        awaitRestartCycle(helper, serverId)
+                    api.restartServer(serverId)
+                    awaitRestartCycle(helper, serverId)
 
-                        val info = docker.inspectContainerCmd(containerName(serverId))
-                            .exec()
-                        val env = info.config?.env?.toList()
-                            .orEmpty()
-                        env shouldContain "MODRINTH_PROJECTS=lithium:mc1.21-0.13.0"
-                    }
-                    finally {
-                        runCatching { api.stopServer(serverId) }
-                        helper.awaitStoppedOrGone(serverId)
-                        runCatching { api.deleteServer(serverId) }
-                    }
+                    val info = docker.inspectContainerCmd(containerName(serverId))
+                        .exec()
+                    val env = info.config?.env?.toList()
+                        .orEmpty()
+                    env shouldContain "MODRINTH_PROJECTS=lithium:mc1.21-0.13.0"
                 }
 
                 should("adding a second mod includes both in MODRINTH_PROJECTS") {
-
-                val serverId = helper.createTestServer(nodeId)
-                    try {
-                        api.startServer(serverId)
-                        helper.awaitStatus(serverId, "HEALTHY")
-
-                        api.addMod(
-                            serverId,
-                            CreateModRequest(
-                                modrinthProjectId = "lithium",
-                                displayName = "Lithium",
-                                pinStrategy = "PINNED",
-                                pinnedVersionId = "mc1.21-0.13.0",
-                            )
+                    api.addMod(
+                        serverId,
+                        CreateModRequest(
+                            modrinthProjectId = "lithium",
+                            displayName = "Lithium",
+                            pinStrategy = "PINNED",
+                            pinnedVersionId = "mc1.21-0.13.0",
                         )
-                        api.addMod(
-                            serverId,
-                            CreateModRequest(
-                                modrinthProjectId = "sodium",
-                                displayName = "Sodium",
-                                pinStrategy = "PINNED",
-                                pinnedVersionId = "mc1.21-0.5.0",
-                            )
+                    )
+                    api.addMod(
+                        serverId,
+                        CreateModRequest(
+                            modrinthProjectId = "sodium",
+                            displayName = "Sodium",
+                            pinStrategy = "PINNED",
+                            pinnedVersionId = "mc1.21-0.5.0",
                         )
+                    )
 
-                        api.restartServer(serverId)
-                        awaitRestartCycle(helper, serverId)
+                    api.restartServer(serverId)
+                    awaitRestartCycle(helper, serverId)
 
-                        val info = docker.inspectContainerCmd(containerName(serverId))
-                            .exec()
-                        val env = info.config?.env?.toList()
-                            .orEmpty()
-                        val modrinthEntry = env.firstOrNull { it.startsWith("MODRINTH_PROJECTS=") }
-                        val projects = modrinthEntry?.removePrefix("MODRINTH_PROJECTS=")
-                            ?.split(",")
-                            .orEmpty()
-                        projects shouldContain "lithium:mc1.21-0.13.0"
-                        projects shouldContain "sodium:mc1.21-0.5.0"
-                    }
-                    finally {
-                        runCatching { api.stopServer(serverId) }
-                        helper.awaitStoppedOrGone(serverId)
-                        runCatching { api.deleteServer(serverId) }
-                    }
+                    val info = docker.inspectContainerCmd(containerName(serverId))
+                        .exec()
+                    val env = info.config?.env?.toList()
+                        .orEmpty()
+                    val modrinthEntry = env.firstOrNull { it.startsWith("MODRINTH_PROJECTS=") }
+                    val projects = modrinthEntry?.removePrefix("MODRINTH_PROJECTS=")
+                        ?.split(",")
+                        .orEmpty()
+                    projects shouldContain "lithium:mc1.21-0.13.0"
+                    projects shouldContain "sodium:mc1.21-0.5.0"
                 }
 
                 should("removing a mod and restarting removes it from MODRINTH_PROJECTS") {
-
-                val serverId = helper.createTestServer(nodeId)
-                    try {
-                        api.startServer(serverId)
-                        helper.awaitStatus(serverId, "HEALTHY")
-
-                        api.addMod(
-                            serverId,
-                            CreateModRequest(
-                                modrinthProjectId = "lithium",
-                                displayName = "Lithium",
-                                pinStrategy = "PINNED",
-                                pinnedVersionId = "mc1.21-0.13.0",
-                            )
+                    api.addMod(
+                        serverId,
+                        CreateModRequest(
+                            modrinthProjectId = "lithium",
+                            displayName = "Lithium",
+                            pinStrategy = "PINNED",
+                            pinnedVersionId = "mc1.21-0.13.0",
                         )
-                        val sodium = api.addMod(
-                            serverId,
-                            CreateModRequest(
-                                modrinthProjectId = "sodium",
-                                displayName = "Sodium",
-                                pinStrategy = "PINNED",
-                                pinnedVersionId = "mc1.21-0.5.0",
-                            )
+                    )
+                    val sodium = api.addMod(
+                        serverId,
+                        CreateModRequest(
+                            modrinthProjectId = "sodium",
+                            displayName = "Sodium",
+                            pinStrategy = "PINNED",
+                            pinnedVersionId = "mc1.21-0.5.0",
                         )
+                    )
 
-                        api.restartServer(serverId)
-                        awaitRestartCycle(helper, serverId)
+                    api.restartServer(serverId)
+                    awaitRestartCycle(helper, serverId)
 
-                        api.deleteMod(serverId, sodium.id)
+                    api.deleteMod(serverId, sodium.id)
 
-                        api.restartServer(serverId)
-                        awaitRestartCycle(helper, serverId)
+                    api.restartServer(serverId)
+                    awaitRestartCycle(helper, serverId)
 
-                        val info = docker.inspectContainerCmd(containerName(serverId))
-                            .exec()
-                        val env = info.config?.env?.toList()
-                            .orEmpty()
-                        val modrinthEntry = env.firstOrNull { it.startsWith("MODRINTH_PROJECTS=") }
-                        val projects = modrinthEntry?.removePrefix("MODRINTH_PROJECTS=")
-                            ?.split(",")
-                            .orEmpty()
-                        projects shouldContain "lithium:mc1.21-0.13.0"
-                        projects shouldNotContain "sodium:mc1.21-0.5.0"
-                    }
-                    finally {
-                        runCatching { api.stopServer(serverId) }
-                        helper.awaitStoppedOrGone(serverId)
-                        runCatching { api.deleteServer(serverId) }
-                    }
+                    val info = docker.inspectContainerCmd(containerName(serverId))
+                        .exec()
+                    val env = info.config?.env?.toList()
+                        .orEmpty()
+                    val modrinthEntry = env.firstOrNull { it.startsWith("MODRINTH_PROJECTS=") }
+                    val projects = modrinthEntry?.removePrefix("MODRINTH_PROJECTS=")
+                        ?.split(",")
+                        .orEmpty()
+                    projects shouldContain "lithium:mc1.21-0.13.0"
+                    projects shouldNotContain "sodium:mc1.21-0.5.0"
                 }
             }
 
             context("LATEST strategy") {
 
                 should("a LATEST mod appears in MODRINTH_PROJECTS without a version pin") {
-
-                val serverId = helper.createTestServer(nodeId)
-                    try {
-                        api.startServer(serverId)
-                        helper.awaitStatus(serverId, "HEALTHY")
-
-                        api.addMod(
-                            serverId,
-                            CreateModRequest(
-                                modrinthProjectId = "lithium",
-                                displayName = "Lithium",
-                                pinStrategy = "LATEST",
-                            )
+                    api.addMod(
+                        serverId,
+                        CreateModRequest(
+                            modrinthProjectId = "lithium",
+                            displayName = "Lithium",
+                            pinStrategy = "LATEST",
                         )
+                    )
 
-                        api.restartServer(serverId)
-                        awaitRestartCycle(helper, serverId)
+                    api.restartServer(serverId)
+                    awaitRestartCycle(helper, serverId)
 
-                        val info = docker.inspectContainerCmd(containerName(serverId))
-                            .exec()
-                        val env = info.config?.env?.toList()
-                            .orEmpty()
-                        val modrinthEntry = env.firstOrNull { it.startsWith("MODRINTH_PROJECTS=") }
-                        val projects = modrinthEntry?.removePrefix("MODRINTH_PROJECTS=")
-                            ?.split(",")
-                            .orEmpty()
-                        // LATEST entries use just the project ID with no version suffix
-                        projects shouldContain "lithium"
-                        projects.none { it.startsWith("lithium:") } shouldBe true
-                    }
-                    finally {
-                        runCatching { api.stopServer(serverId) }
-                        helper.awaitStoppedOrGone(serverId)
-                        runCatching { api.deleteServer(serverId) }
-                    }
+                    val info = docker.inspectContainerCmd(containerName(serverId))
+                        .exec()
+                    val env = info.config?.env?.toList()
+                        .orEmpty()
+                    val modrinthEntry = env.firstOrNull { it.startsWith("MODRINTH_PROJECTS=") }
+                    val projects = modrinthEntry?.removePrefix("MODRINTH_PROJECTS=")
+                        ?.split(",")
+                        .orEmpty()
+                    // LATEST entries use just the project ID with no version suffix
+                    projects shouldContain "lithium"
+                    projects.none { it.startsWith("lithium:") } shouldBe true
                 }
             }
 

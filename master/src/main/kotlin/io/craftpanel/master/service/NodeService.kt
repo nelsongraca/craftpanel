@@ -85,7 +85,10 @@ class NodeService(private val sendToNode: (String, MasterMessage) -> Boolean) {
                 .firstOrNull()
                 ?: throw NotFoundException("Node not found")
             if (node[Nodes.status] == "ACTIVE") throw ConflictException("Node is already active")
-            Nodes.update({ Nodes.id eq id }) { it[status] = "ACTIVE" }
+            Nodes.update({ Nodes.id eq id }) {
+                it[status] = "ACTIVE"
+                it[Nodes.health] = "UNREACHABLE"
+            }
         }
     }
 
