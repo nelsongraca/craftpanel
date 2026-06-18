@@ -1,26 +1,18 @@
 package craftpanel.systemtest.auth
 
+import craftpanel.systemtest.client.model.LoginRequest
 import craftpanel.systemtest.harness.ADMIN_EMAIL
 import craftpanel.systemtest.harness.ADMIN_PASSWORD
-import craftpanel.systemtest.harness.AuthHelper
-import craftpanel.systemtest.harness.SharedStack
-import craftpanel.systemtest.client.api.DefaultApi
-import craftpanel.systemtest.client.model.LoginRequest
+import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeEmpty
 import org.openapitools.client.infrastructure.ApiClient
 import org.openapitools.client.infrastructure.ClientException
 
-class AuthTest : ShouldSpec() {
-
-    private val api: DefaultApi by lazy { DefaultApi(basePath = SharedStack.masterApiUrl) }
+class AuthTest : BaseSystemTest() {
 
     init {
-        beforeSpec {
-            AuthHelper(api).login()
-        }
 
         context("Authentication") {
 
@@ -60,7 +52,7 @@ class AuthTest : ShouldSpec() {
             }
 
             should("returns current user info via GET /api/auth/me") {
-                AuthHelper(api).login()
+                authHelper.login()
                 val me = api.authMe()
                 me.email shouldBe ADMIN_EMAIL
                 me.id.shouldNotBeEmpty()
@@ -70,19 +62,19 @@ class AuthTest : ShouldSpec() {
             }
 
             should("issues WebSocket ticket via POST /api/auth/ws-ticket") {
-                AuthHelper(api).login()
+                authHelper.login()
                 val ticket = api.authWsTicket()
                 ticket.ticket.shouldNotBeEmpty()
                 ticket.expiresIn shouldBe 30
             }
 
             should("logout returns 204") {
-                AuthHelper(api).login()
+                authHelper.login()
                 api.authLogout()
             }
 
             should("logout-all returns 204") {
-                AuthHelper(api).login()
+                authHelper.login()
                 api.authLogoutAll()
             }
         }

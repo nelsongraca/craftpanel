@@ -5,7 +5,6 @@ import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.exception.NotFoundException
 import com.github.dockerjava.api.model.Frame
 import craftpanel.systemtest.harness.BaseSystemTest
-import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
@@ -17,7 +16,6 @@ class ServerLifecycleTest : BaseSystemTest() {
 
     init {
 
-        val helper = ServerHelper(api)
 
         context("Server lifecycle") {
             lateinit var serverId: String

@@ -1,24 +1,19 @@
 package craftpanel.systemtest.node
 
-import craftpanel.systemtest.harness.AuthHelper
-import craftpanel.systemtest.harness.NodeHelper
+import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.SharedStack
-import craftpanel.systemtest.client.api.DefaultApi
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.openapitools.client.infrastructure.ClientException
 
-class NodeRegistrationTest : ShouldSpec() {
+class NodeRegistrationTest : BaseSystemTest() {
 
-    private val api: DefaultApi by lazy { DefaultApi(basePath = SharedStack.masterApiUrl) }
     private var agentNodeId = ""
     private var agentContainerId = ""
 
     init {
         beforeSpec {
-            AuthHelper(api).login()
             agentContainerId = SharedStack.addAgent()
         }
 
@@ -31,7 +26,7 @@ class NodeRegistrationTest : ShouldSpec() {
             var nodeId = ""
 
             should("agent registers and appears as PENDING before trust") {
-                val node = NodeHelper(api).awaitPendingNode()
+                val node = nodeHelper.awaitPendingNode()
                 nodeId = node.id
                 agentNodeId = node.id
                 node.status shouldBe "PENDING"
@@ -55,7 +50,7 @@ class NodeRegistrationTest : ShouldSpec() {
 
             should("trusting a PENDING node transitions it to ACTIVE") {
                 api.trustNode(nodeId)
-                val active = NodeHelper(api).pollUntilActive(nodeId)
+                val active = nodeHelper.pollUntilActive(nodeId)
                 active.status shouldBe "ACTIVE"
             }
 

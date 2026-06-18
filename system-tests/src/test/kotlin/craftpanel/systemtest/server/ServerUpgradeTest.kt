@@ -2,9 +2,7 @@ package craftpanel.systemtest.server
 
 import craftpanel.systemtest.client.model.UpdateServerRequest
 import craftpanel.systemtest.harness.BaseSystemTest
-import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
 
 class ServerUpgradeTest : BaseSystemTest() {
 
@@ -12,8 +10,8 @@ class ServerUpgradeTest : BaseSystemTest() {
         context("Server reconfigure") {
 
             context("mc_version change") {
-                val helper = ServerHelper(api)
-                lateinit var serverId: String
+
+            lateinit var serverId: String
 
                 beforeEach {
                     serverId = helper.createTestServer(nodeId)
@@ -62,8 +60,8 @@ class ServerUpgradeTest : BaseSystemTest() {
             }
 
             context("itzg_image_tag change") {
-                val helper = ServerHelper(api)
-                lateinit var serverId: String
+
+            lateinit var serverId: String
 
                 beforeEach {
                     serverId = helper.createTestServer(nodeId)

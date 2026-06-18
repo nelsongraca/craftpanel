@@ -17,8 +17,8 @@ class ModrinthInjectionTest : BaseSystemTest() {
             context("PINNED strategy") {
 
                 should("MODRINTH_PROJECTS env var is absent on a server with no mods") {
-                    val helper = ServerHelper(api)
-                    val serverId = helper.createTestServer(nodeId)
+
+                val serverId = helper.createTestServer(nodeId)
                     try {
                         api.startServer(serverId)
                         helper.awaitStatus(serverId, "HEALTHY")
@@ -37,8 +37,8 @@ class ModrinthInjectionTest : BaseSystemTest() {
                 }
 
                 should("adding a pinned mod and restarting injects MODRINTH_PROJECTS into the container") {
-                    val helper = ServerHelper(api)
-                    val serverId = helper.createTestServer(nodeId)
+
+                val serverId = helper.createTestServer(nodeId)
                     try {
                         api.startServer(serverId)
                         helper.awaitStatus(serverId, "HEALTHY")
@@ -70,8 +70,8 @@ class ModrinthInjectionTest : BaseSystemTest() {
                 }
 
                 should("adding a second mod includes both in MODRINTH_PROJECTS") {
-                    val helper = ServerHelper(api)
-                    val serverId = helper.createTestServer(nodeId)
+
+                val serverId = helper.createTestServer(nodeId)
                     try {
                         api.startServer(serverId)
                         helper.awaitStatus(serverId, "HEALTHY")
@@ -117,8 +117,8 @@ class ModrinthInjectionTest : BaseSystemTest() {
                 }
 
                 should("removing a mod and restarting removes it from MODRINTH_PROJECTS") {
-                    val helper = ServerHelper(api)
-                    val serverId = helper.createTestServer(nodeId)
+
+                val serverId = helper.createTestServer(nodeId)
                     try {
                         api.startServer(serverId)
                         helper.awaitStatus(serverId, "HEALTHY")
@@ -172,8 +172,8 @@ class ModrinthInjectionTest : BaseSystemTest() {
             context("LATEST strategy") {
 
                 should("a LATEST mod appears in MODRINTH_PROJECTS without a version pin") {
-                    val helper = ServerHelper(api)
-                    val serverId = helper.createTestServer(nodeId)
+
+                val serverId = helper.createTestServer(nodeId)
                     try {
                         api.startServer(serverId)
                         helper.awaitStatus(serverId, "HEALTHY")

@@ -1,7 +1,6 @@
 package craftpanel.systemtest.backup
 
 import craftpanel.systemtest.harness.BaseSystemTest
-import craftpanel.systemtest.harness.ServerHelper
 import craftpanel.systemtest.harness.pollUntilNotNull
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -11,7 +10,7 @@ import org.openapitools.client.infrastructure.ClientException
 class BackupDownloadTest : BaseSystemTest() {
 
     init {
-        val helper = ServerHelper(api)
+
         lateinit var serverId: String
 
         beforeSpec {

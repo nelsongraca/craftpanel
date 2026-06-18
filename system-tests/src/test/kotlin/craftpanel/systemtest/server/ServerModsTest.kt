@@ -3,7 +3,6 @@ package craftpanel.systemtest.server
 import craftpanel.systemtest.client.model.CreateModRequest
 import craftpanel.systemtest.client.model.PatchModRequest
 import craftpanel.systemtest.harness.BaseSystemTest
-import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
@@ -13,7 +12,7 @@ import org.openapitools.client.infrastructure.ClientException
 class ServerModsTest : BaseSystemTest() {
 
     init {
-        val helper = ServerHelper(api)
+
         lateinit var serverId: String
 
         beforeSpec {
@@ -27,7 +26,8 @@ class ServerModsTest : BaseSystemTest() {
             runCatching { api.deleteServer(serverId) }
         }
         beforeEach {
-            api.listMods(serverId).values.flatten().forEach { api.deleteMod(serverId, it.id) }
+            api.listMods(serverId).values.flatten()
+                .forEach { api.deleteMod(serverId, it.id) }
         }
 
         context("listMods") {

@@ -2,15 +2,10 @@ package craftpanel.systemtest.dashboard
 
 import com.google.gson.JsonParser
 import craftpanel.systemtest.harness.BaseSystemTest
-import craftpanel.systemtest.harness.ServerHelper
+import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
-import io.kotest.matchers.collections.shouldNotBeEmpty
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.Response
-import okhttp3.WebSocket
-import okhttp3.WebSocketListener
+import okhttp3.*
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -29,17 +24,20 @@ class DashboardWsTest : BaseSystemTest() {
                 val latch = CountDownLatch(1)
                 var messageType: String? = null
 
-                val ws = wsClient.newWebSocket(Request.Builder().url(url).build(), object : WebSocketListener() {
-                    override fun onMessage(webSocket: WebSocket, text: String) {
-                        val json = JsonParser.parseString(text).asJsonObject
-                        messageType = json.get("type")?.asString
-                        latch.countDown()
-                    }
+                val ws = wsClient.newWebSocket(
+                    Request.Builder()
+                        .url(url)
+                        .build(), object : WebSocketListener() {
+                        override fun onMessage(webSocket: WebSocket, text: String) {
+                            val json = JsonParser.parseString(text).asJsonObject
+                            messageType = json.get("type")?.asString
+                            latch.countDown()
+                        }
 
-                    override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                        latch.countDown()
-                    }
-                })
+                        override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                            latch.countDown()
+                        }
+                    })
 
                 latch.await(10, TimeUnit.SECONDS)
                 messageType shouldBe "snapshot"
@@ -53,19 +51,22 @@ class DashboardWsTest : BaseSystemTest() {
                 var servers: com.google.gson.JsonArray? = null
                 var nodes: com.google.gson.JsonArray? = null
 
-                val ws = wsClient.newWebSocket(Request.Builder().url(url).build(), object : WebSocketListener() {
-                    override fun onMessage(webSocket: WebSocket, text: String) {
-                        val json = JsonParser.parseString(text).asJsonObject
-                        val payload = json.getAsJsonObject("payload")
-                        servers = payload?.getAsJsonArray("servers")
-                        nodes = payload?.getAsJsonArray("nodes")
-                        latch.countDown()
-                    }
+                val ws = wsClient.newWebSocket(
+                    Request.Builder()
+                        .url(url)
+                        .build(), object : WebSocketListener() {
+                        override fun onMessage(webSocket: WebSocket, text: String) {
+                            val json = JsonParser.parseString(text).asJsonObject
+                            val payload = json.getAsJsonObject("payload")
+                            servers = payload?.getAsJsonArray("servers")
+                            nodes = payload?.getAsJsonArray("nodes")
+                            latch.countDown()
+                        }
 
-                    override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                        latch.countDown()
-                    }
-                })
+                        override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                            latch.countDown()
+                        }
+                    })
 
                 latch.await(10, TimeUnit.SECONDS)
                 servers shouldNotBe null
@@ -78,24 +79,29 @@ class DashboardWsTest : BaseSystemTest() {
                 val latch = CountDownLatch(1)
                 var closeCode = -1
 
-                wsClient.newWebSocket(Request.Builder().url(url).build(), object : WebSocketListener() {
-                    override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                        closeCode = code; latch.countDown()
-                    }
-                    override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                        if (closeCode == -1) closeCode = code; latch.countDown()
-                    }
-                    override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                        closeCode = response?.code ?: -1; latch.countDown()
-                    }
-                })
+                wsClient.newWebSocket(
+                    Request.Builder()
+                        .url(url)
+                        .build(), object : WebSocketListener() {
+                        override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                            closeCode = code; latch.countDown()
+                        }
+
+                        override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                            if (closeCode == -1) closeCode = code; latch.countDown()
+                        }
+
+                        override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                            closeCode = response?.code ?: -1; latch.countDown()
+                        }
+                    })
 
                 latch.await(5, TimeUnit.SECONDS)
                 closeCode shouldBe 1008
             }
 
             should("starting a server emits SERVER_STATUS events") {
-                val helper = ServerHelper(api)
+
                 val serverId = helper.createTestServer(nodeId)
                 try {
                     val ticket = api.authWsTicket()
@@ -103,19 +109,22 @@ class DashboardWsTest : BaseSystemTest() {
                     val statusLatch = CountDownLatch(1)
                     val seenStatuses = mutableListOf<String>()
 
-                    val ws = wsClient.newWebSocket(Request.Builder().url(url).build(), object : WebSocketListener() {
-                        override fun onMessage(webSocket: WebSocket, text: String) {
-                            val json = JsonParser.parseString(text).asJsonObject
-                            if (json.get("type")?.asString == "server.status") {
-                                val payload = json.getAsJsonObject("payload")
-                                if (payload?.get("server_id")?.asString == serverId) {
-                                    val status = payload.get("status").asString
-                                    seenStatuses.add(status)
-                                    if (status == "HEALTHY") statusLatch.countDown()
+                    val ws = wsClient.newWebSocket(
+                        Request.Builder()
+                            .url(url)
+                            .build(), object : WebSocketListener() {
+                            override fun onMessage(webSocket: WebSocket, text: String) {
+                                val json = JsonParser.parseString(text).asJsonObject
+                                if (json.get("type")?.asString == "server.status") {
+                                    val payload = json.getAsJsonObject("payload")
+                                    if (payload?.get("server_id")?.asString == serverId) {
+                                        val status = payload.get("status").asString
+                                        seenStatuses.add(status)
+                                        if (status == "HEALTHY") statusLatch.countDown()
+                                    }
                                 }
                             }
-                        }
-                    })
+                        })
 
                     // Wait for initial SNAPSHOT
                     Thread.sleep(1000)
@@ -126,7 +135,8 @@ class DashboardWsTest : BaseSystemTest() {
 
                     seenStatuses.shouldNotBeEmpty()
                     ws.close(1000, "test done")
-                } finally {
+                }
+                finally {
                     runCatching { api.stopServer(serverId) }
                     helper.awaitStoppedOrGone(serverId)
                     runCatching { api.deleteServer(serverId) }
@@ -134,7 +144,7 @@ class DashboardWsTest : BaseSystemTest() {
             }
 
             should("stopping a server emits SERVER_STATUS STOPPED") {
-                val helper = ServerHelper(api)
+
                 val serverId = helper.createTestServer(nodeId)
                 try {
                     api.startServer(serverId)
@@ -145,18 +155,21 @@ class DashboardWsTest : BaseSystemTest() {
                     val stopLatch = CountDownLatch(1)
                     var stoppedReceived = false
 
-                    val ws = wsClient.newWebSocket(Request.Builder().url(url).build(), object : WebSocketListener() {
-                        override fun onMessage(webSocket: WebSocket, text: String) {
-                            val json = JsonParser.parseString(text).asJsonObject
-                            if (json.get("type")?.asString == "server.status") {
-                                val payload = json.getAsJsonObject("payload")
-                                if (payload?.get("server_id")?.asString == serverId && payload.get("status")?.asString == "STOPPED") {
-                                    stoppedReceived = true
-                                    stopLatch.countDown()
+                    val ws = wsClient.newWebSocket(
+                        Request.Builder()
+                            .url(url)
+                            .build(), object : WebSocketListener() {
+                            override fun onMessage(webSocket: WebSocket, text: String) {
+                                val json = JsonParser.parseString(text).asJsonObject
+                                if (json.get("type")?.asString == "server.status") {
+                                    val payload = json.getAsJsonObject("payload")
+                                    if (payload?.get("server_id")?.asString == serverId && payload.get("status")?.asString == "STOPPED") {
+                                        stoppedReceived = true
+                                        stopLatch.countDown()
+                                    }
                                 }
                             }
-                        }
-                    })
+                        })
 
                     Thread.sleep(1000)
                     api.stopServer(serverId)
@@ -165,7 +178,8 @@ class DashboardWsTest : BaseSystemTest() {
 
                     stoppedReceived shouldBe true
                     ws.close(1000, "test done")
-                } finally {
+                }
+                finally {
                     runCatching { api.deleteServer(serverId) }
                 }
             }

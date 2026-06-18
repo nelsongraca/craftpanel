@@ -1,16 +1,9 @@
 package craftpanel.systemtest.auth
 
-import craftpanel.systemtest.client.model.CreateAssignmentRequest
-import craftpanel.systemtest.client.model.CreateGroupRequest
-import craftpanel.systemtest.client.model.CreateNetworkRequest
-import craftpanel.systemtest.client.model.CreateServerRequest
-import craftpanel.systemtest.client.model.CreateUserRequest
-import craftpanel.systemtest.client.model.PatchUserRequest
-import craftpanel.systemtest.client.model.PutGroupPermissionsRequest
+import craftpanel.systemtest.client.api.DefaultApi
+import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.AuthHelper
 import craftpanel.systemtest.harness.BaseSystemTest
-import craftpanel.systemtest.harness.ServerHelper
-import craftpanel.systemtest.client.api.DefaultApi
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
@@ -22,12 +15,11 @@ import org.openapitools.client.infrastructure.ClientException
 
 class PermissionsTest : BaseSystemTest() {
 
-    private lateinit var helper: ServerHelper
+
     private lateinit var serverId: String
 
     init {
         beforeSpec {
-            helper = ServerHelper(api)
             serverId = helper.createTestServer(nodeId)
         }
 
@@ -201,7 +193,8 @@ class PermissionsTest : BaseSystemTest() {
                     }
                     api.deleteGroup(group.id)
                     cleanupUser(email)
-                } finally {
+                }
+                finally {
                     runCatching { api.deleteServer(s1.id) }
                     runCatching { api.deleteServer(s2.id) }
                     runCatching { api.deleteNetwork(net.id) }
@@ -232,7 +225,8 @@ class PermissionsTest : BaseSystemTest() {
                         val ex = shouldThrow<ClientException> { vApi.stopServer(serverId) }
                         ex.statusCode shouldBe 403
                     }
-                } finally {
+                }
+                finally {
                     api.deleteGroup(group.id)
                     cleanupUser(email)
                 }
@@ -272,7 +266,8 @@ class PermissionsTest : BaseSystemTest() {
                         val servers = vApi.listServers()
                         servers.shouldBeEmpty()
                     }
-                } finally {
+                }
+                finally {
                     api.deleteGroup(group.id)
                     cleanupUser(email)
                 }
@@ -299,7 +294,8 @@ class PermissionsTest : BaseSystemTest() {
                         val ex = shouldThrow<ClientException> { vApi.listUsers() }
                         ex.statusCode shouldBe 403
                     }
-                } finally {
+                }
+                finally {
                     api.deleteGroup(group.id)
                     cleanupUser(email)
                 }
@@ -326,7 +322,8 @@ class PermissionsTest : BaseSystemTest() {
                         val ex = shouldThrow<ClientException> { vApi.getSystemSettings() }
                         ex.statusCode shouldBe 403
                     }
-                } finally {
+                }
+                finally {
                     api.deleteGroup(group.id)
                     cleanupUser(email)
                 }
@@ -406,7 +403,9 @@ class PermissionsTest : BaseSystemTest() {
         try {
             val user = api.listUsers().users.first { it.email == email }
             runCatching { api.deleteUser(user.id) }
-        } catch (_: Exception) { }
+        }
+        catch (_: Exception) {
+        }
     }
 
     private suspend fun <T> withViewerApi(email: String, password: String, block: suspend (DefaultApi) -> T): T {
@@ -415,7 +414,8 @@ class PermissionsTest : BaseSystemTest() {
             val viewerApi = DefaultApi(basePath = masterApiUrl)
             AuthHelper(viewerApi).login(email = email, password = password)
             return block(viewerApi)
-        } finally {
+        }
+        finally {
             ApiClient.accessToken = savedToken
         }
     }

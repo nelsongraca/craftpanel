@@ -1,18 +1,17 @@
 package craftpanel.systemtest.config
 
-import craftpanel.systemtest.harness.BaseSystemTest
-import craftpanel.systemtest.harness.ServerHelper
 import craftpanel.systemtest.client.model.*
+import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.shouldBe
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
+import io.kotest.matchers.shouldBe
 import org.openapitools.client.infrastructure.ClientException
 
 class ConfigTest : BaseSystemTest() {
 
     init {
-        val helper = ServerHelper(api)
+
         lateinit var serverId: String
         lateinit var serverId2: String
 

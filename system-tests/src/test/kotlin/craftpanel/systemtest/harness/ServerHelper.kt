@@ -7,9 +7,9 @@ import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.client.model.CreateServerRequest
 import craftpanel.systemtest.client.model.ServerResponse
 import kotlinx.coroutines.delay
+import org.openapitools.client.infrastructure.ClientException
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
-import org.openapitools.client.infrastructure.ClientException
 
 class ServerHelper(private val api: DefaultApi) {
 

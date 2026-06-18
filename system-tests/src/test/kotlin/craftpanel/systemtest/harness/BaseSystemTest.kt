@@ -10,15 +10,19 @@ abstract class BaseSystemTest : ShouldSpec() {
     val docker: DockerClient by lazy { SharedStack.dockerClient }
     val nodeId: String get() = SharedStack.nodeId
     val masterApiUrl: String get() = SharedStack.masterApiUrl
+    protected val helper = ServerHelper(api)
+    protected val authHelper = AuthHelper(api)
+    protected val nodeHelper = NodeHelper(api)
+
 
     fun containerName(serverId: String): String = "${SharedStack.containerPrefix}-$serverId"
 
     init {
         beforeSpec {
-            AuthHelper(api).login()
+            authHelper.login()
         }
         beforeTest {
-            NodeHelper(api).pollUntilActive(nodeId)
+            nodeHelper.pollUntilActive(nodeId)
         }
     }
 }

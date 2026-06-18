@@ -1,25 +1,20 @@
 package craftpanel.systemtest.node
 
-import craftpanel.systemtest.client.api.DefaultApi
-import craftpanel.systemtest.harness.AuthHelper
-import craftpanel.systemtest.harness.NodeHelper
+import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.SharedStack
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.shouldBe
 import org.openapitools.client.infrastructure.ClientException
 
-class NodeShutdownTest : ShouldSpec() {
+class NodeShutdownTest : BaseSystemTest() {
 
-    private val api: DefaultApi by lazy { DefaultApi(basePath = SharedStack.masterApiUrl) }
     private var agentNodeId = ""
     private var agentContainerId = ""
 
     init {
         beforeSpec {
-            AuthHelper(api).login()
             agentContainerId = SharedStack.addAgent()
-            agentNodeId = NodeHelper(api).trustFirstPendingNode()
+            agentNodeId = nodeHelper.trustFirstPendingNode()
         }
 
         afterSpec {

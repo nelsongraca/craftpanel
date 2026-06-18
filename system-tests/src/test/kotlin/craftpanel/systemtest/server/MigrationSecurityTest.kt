@@ -2,27 +2,23 @@ package craftpanel.systemtest.server
 
 import craftpanel.systemtest.client.model.MigrateRequest
 import craftpanel.systemtest.harness.BaseSystemTest
-import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.Response
-import okhttp3.WebSocket
-import okhttp3.WebSocketListener
+import okhttp3.*
 import org.openapitools.client.infrastructure.ClientException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 class MigrationSecurityTest : BaseSystemTest() {
 
-    private val wsClient = OkHttpClient.Builder().build()
+    private val wsClient = OkHttpClient.Builder()
+        .build()
 
     init {
         context("Migration validation") {
 
-            val helper = ServerHelper(api)
+
             lateinit var serverId: String
 
             beforeEach {
@@ -49,7 +45,8 @@ class MigrationSecurityTest : BaseSystemTest() {
                             )
                         )
                     }.statusCode shouldBe 409
-                } finally {
+                }
+                finally {
                     runCatching { api.stopServer(serverId) }
                     helper.awaitStoppedOrGone(serverId)
                 }
@@ -70,7 +67,8 @@ class MigrationSecurityTest : BaseSystemTest() {
 
             should("list migrations on clean server returns empty") {
                 val migrations = api.listMigrations(serverId)
-                migrations["migrations"].orEmpty().shouldBeEmpty()
+                migrations["migrations"].orEmpty()
+                    .shouldBeEmpty()
             }
 
             should("get non-existent migration returns 404") {

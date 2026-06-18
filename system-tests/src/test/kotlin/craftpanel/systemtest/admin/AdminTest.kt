@@ -1,8 +1,8 @@
 package craftpanel.systemtest.admin
 
+import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.ADMIN_EMAIL
 import craftpanel.systemtest.harness.BaseSystemTest
-import craftpanel.systemtest.client.model.*
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain

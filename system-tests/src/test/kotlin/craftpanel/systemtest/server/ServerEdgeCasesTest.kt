@@ -1,7 +1,6 @@
 package craftpanel.systemtest.server
 
 import craftpanel.systemtest.harness.BaseSystemTest
-import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.openapitools.client.infrastructure.ClientException
@@ -12,8 +11,8 @@ class ServerEdgeCasesTest : BaseSystemTest() {
         context("Server lifecycle edge cases") {
 
             context("delete guards") {
-                val helper = ServerHelper(api)
-                lateinit var serverId: String
+
+            lateinit var serverId: String
 
                 beforeEach {
                     serverId = helper.createTestServer(nodeId)
@@ -47,8 +46,8 @@ class ServerEdgeCasesTest : BaseSystemTest() {
             }
 
             context("restart") {
-                val helper = ServerHelper(api)
-                lateinit var serverId: String
+
+            lateinit var serverId: String
 
                 beforeEach {
                     serverId = helper.createTestServer(nodeId)

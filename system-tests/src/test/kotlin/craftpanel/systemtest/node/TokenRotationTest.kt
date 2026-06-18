@@ -1,28 +1,23 @@
 package craftpanel.systemtest.node
 
-import craftpanel.systemtest.client.api.DefaultApi
-import craftpanel.systemtest.harness.AuthHelper
+import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.NodeCleanupHelper
-import craftpanel.systemtest.harness.NodeHelper
 import craftpanel.systemtest.harness.SharedStack
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.core.spec.style.ShouldSpec
-import io.kotest.matchers.shouldBe
 import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeEmpty
 import org.openapitools.client.infrastructure.ClientException
 
-class TokenRotationTest : ShouldSpec() {
+class TokenRotationTest : BaseSystemTest() {
 
-    private val api: DefaultApi by lazy { DefaultApi(basePath = SharedStack.masterApiUrl) }
     private var agentNodeId = ""
     private var agentContainerId = ""
 
     init {
         beforeSpec {
-            AuthHelper(api).login()
             agentContainerId = SharedStack.addAgent()
-            agentNodeId = NodeHelper(api).trustFirstPendingNode()
+            agentNodeId = nodeHelper.trustFirstPendingNode()
         }
 
         afterSpec {

@@ -1,14 +1,12 @@
 package craftpanel.systemtest.alerts
 
-import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.client.model.AlertEventResponse
 import craftpanel.systemtest.client.model.CreateAlertThresholdRequest
-import io.kotest.assertions.throwables.shouldThrow
+import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeEmpty
 import kotlinx.coroutines.delay
-import org.openapitools.client.infrastructure.ClientException
 
 class AlertEventsTest : BaseSystemTest() {
 
@@ -54,7 +52,8 @@ class AlertEventsTest : BaseSystemTest() {
                     event.thresholdId shouldBe threshold.id
                     event.message.shouldNotBeEmpty()
                     event.firedAt.shouldNotBeEmpty()
-                } finally {
+                }
+                finally {
                     runCatching { api.deleteAlertThreshold(threshold.id) }
                 }
             }
@@ -75,7 +74,8 @@ class AlertEventsTest : BaseSystemTest() {
                     val resolvedCount = events.count { it.resolvedAt != null }
                     val unresolvedCount = events.count { it.resolvedAt == null }
                     unresolvedCount shouldBe events.size - resolvedCount
-                } finally {
+                }
+                finally {
                     runCatching { api.deleteAlertThreshold(threshold.id) }
                 }
             }
@@ -98,7 +98,8 @@ class AlertEventsTest : BaseSystemTest() {
 
                     val noMatch = events.filter { it.thresholdId == "00000000-0000-0000-0000-000000000000" }
                     noMatch.shouldBeEmpty()
-                } finally {
+                }
+                finally {
                     runCatching { api.deleteAlertThreshold(threshold.id) }
                 }
             }

@@ -3,16 +3,14 @@ package craftpanel.systemtest.server
 import craftpanel.systemtest.client.model.CreateNetworkRequest
 import craftpanel.systemtest.client.model.UpdateServerRequest
 import craftpanel.systemtest.harness.BaseSystemTest
-import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
 import org.openapitools.client.infrastructure.ClientException
 
 class ServerUpdateTest : BaseSystemTest() {
 
     init {
-        val helper = ServerHelper(api)
+
         lateinit var serverId: String
 
         beforeSpec {
@@ -44,7 +42,8 @@ class ServerUpdateTest : BaseSystemTest() {
                     api.updateServer(serverId, UpdateServerRequest(networkId = network.id))
                     val server = api.getServer(serverId)
                     server.networkId shouldBe network.id
-                } finally {
+                }
+                finally {
                     runCatching { api.deleteNetwork(network.id) }
                 }
             }

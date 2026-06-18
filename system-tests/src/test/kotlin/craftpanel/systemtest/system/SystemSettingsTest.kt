@@ -1,10 +1,8 @@
 package craftpanel.systemtest.system
 
-import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.client.model.PatchSettingsRequest
-import io.kotest.assertions.throwables.shouldThrow
+import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.matchers.shouldBe
-import org.openapitools.client.infrastructure.ClientException
 
 class SystemSettingsTest : BaseSystemTest() {
 

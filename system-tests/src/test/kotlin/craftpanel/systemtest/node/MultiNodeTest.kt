@@ -1,8 +1,6 @@
 package craftpanel.systemtest.node
 
-import craftpanel.systemtest.harness.AuthHelper
 import craftpanel.systemtest.harness.BaseSystemTest
-import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -10,14 +8,10 @@ import io.kotest.matchers.string.shouldNotBeEmpty
 
 class MultiNodeTest : BaseSystemTest() {
 
-    private val helper: ServerHelper by lazy { ServerHelper(api) }
+
     private val serverIds = mutableListOf<String>()
 
     init {
-        beforeSpec {
-            AuthHelper(api).login()
-        }
-
         afterSpec {
             serverIds.forEach { id ->
                 runCatching { api.stopServer(id) }

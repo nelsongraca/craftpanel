@@ -8,12 +8,13 @@ import org.testcontainers.containers.wait.strategy.Wait
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.attribute.PosixFilePermission
-import java.util.EnumSet
+import java.util.*
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 
 fun globalCraftpanelCleanup() {
-    val client = DockerClientFactory.instance().client()
+    val client = DockerClientFactory.instance()
+        .client()
     var removedContainers = 0
     var removedNetworks = 0
 
@@ -127,7 +128,8 @@ class CraftPanelStack {
         this.coverageDir = coverageDir
         try {
             startInternal(nodeCount)
-        } catch (t: Throwable) {
+        }
+        catch (t: Throwable) {
             runCatching { stop() }.onFailure { stopErr ->
                 System.err.println("[start-cleanup] stop() after failed start threw: ${stopErr.message}")
             }
@@ -310,9 +312,10 @@ class CraftPanelStack {
         val container = agents.find { it.containerId == containerId }
         container?.let { gracefulStop(it) }
         agents.removeAll { it.containerId == containerId }
-        agentDataDirs.remove(containerId)?.let { dir ->
-            runCatching { dir.deleteRecursively() }
-        }
+        agentDataDirs.remove(containerId)
+            ?.let { dir ->
+                runCatching { dir.deleteRecursively() }
+            }
         runCatching {
             dockerClient.removeContainerCmd(containerId)
                 .withForce(true)
@@ -371,10 +374,11 @@ class CraftPanelStack {
                             .exec()
                     }
                 }
-            } else {
+            }
+            else {
                 System.err.println(
                     "[cleanup] WARNING: ${remaining.size} container(s) still present after $attempts attempts: " +
-                        remaining.joinToString { it.names.firstOrNull() ?: it.id }
+                            remaining.joinToString { it.names.firstOrNull() ?: it.id }
                 )
             }
         }

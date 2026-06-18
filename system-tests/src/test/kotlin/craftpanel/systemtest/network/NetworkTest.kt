@@ -1,8 +1,8 @@
 package craftpanel.systemtest.network
 
-import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.client.model.CreateNetworkRequest
 import craftpanel.systemtest.client.model.PatchNetworkRequest
+import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain

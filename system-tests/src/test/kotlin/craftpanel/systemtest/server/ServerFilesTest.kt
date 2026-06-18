@@ -4,7 +4,6 @@ import craftpanel.systemtest.client.model.CopyRequest
 import craftpanel.systemtest.client.model.MkdirRequest
 import craftpanel.systemtest.client.model.MoveRequest
 import craftpanel.systemtest.harness.BaseSystemTest
-import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
@@ -16,7 +15,7 @@ import java.nio.charset.StandardCharsets
 class ServerFilesTest : BaseSystemTest() {
 
     init {
-        val helper = ServerHelper(api)
+
         lateinit var serverId: String
 
         beforeSpec {
@@ -210,7 +209,8 @@ class ServerFilesTest : BaseSystemTest() {
                 should("downloads an existing file") {
                     api.writeServerFile(serverId, path = "/download-me.txt", body = "download content")
                     val bytes = api.downloadServerFile(serverId, path = "/download-me.txt")
-                    String(bytes.map { it.toByte() }.toByteArray(), StandardCharsets.UTF_8) shouldBe "download content"
+                    String(bytes.map { it.toByte() }
+                        .toByteArray(), StandardCharsets.UTF_8) shouldBe "download content"
                 }
 
                 should("download non-existent file returns 404") {

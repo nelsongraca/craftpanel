@@ -1,7 +1,6 @@
 package craftpanel.systemtest.server
 
 import craftpanel.systemtest.harness.BaseSystemTest
-import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -11,11 +10,15 @@ import java.time.Instant
 
 class ServerMetricsTest : BaseSystemTest() {
 
-    private fun now() = Instant.now().toString()
-    private fun fiveMinutesAgo() = Instant.now().minus(Duration.ofMinutes(5)).toString()
+    private fun now() = Instant.now()
+        .toString()
+
+    private fun fiveMinutesAgo() = Instant.now()
+        .minus(Duration.ofMinutes(5))
+        .toString()
 
     init {
-        val helper = ServerHelper(api)
+
         lateinit var serverId: String
         lateinit var serverId2: String
 

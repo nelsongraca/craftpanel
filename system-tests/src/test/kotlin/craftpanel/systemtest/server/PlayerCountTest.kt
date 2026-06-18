@@ -3,7 +3,6 @@ package craftpanel.systemtest.server
 import craftpanel.systemtest.client.model.EnvVarItem
 import craftpanel.systemtest.client.model.PutEnvVarsRequest
 import craftpanel.systemtest.harness.BaseSystemTest
-import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 
@@ -13,8 +12,8 @@ class PlayerCountTest : BaseSystemTest() {
         context("Player count via MC Query protocol") {
 
             should("agent reports correct player count and names from fake server") {
-                val helper = ServerHelper(api)
-                val serverId = helper.createTestServer(nodeId)
+
+            val serverId = helper.createTestServer(nodeId)
                 try {
                     api.replaceEnvVars(
                         serverId, PutEnvVarsRequest(
@@ -38,8 +37,8 @@ class PlayerCountTest : BaseSystemTest() {
             }
 
             should("agent reports zero players when no players are online") {
-                val helper = ServerHelper(api)
-                val serverId = helper.createTestServer(nodeId)
+
+            val serverId = helper.createTestServer(nodeId)
                 try {
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, "HEALTHY")

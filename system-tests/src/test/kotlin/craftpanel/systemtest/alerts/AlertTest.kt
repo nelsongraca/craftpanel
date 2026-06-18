@@ -1,11 +1,11 @@
 package craftpanel.systemtest.alerts
 
-import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.client.model.CreateAlertThresholdRequest
+import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.shouldBe
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
+import io.kotest.matchers.shouldBe
 import org.openapitools.client.infrastructure.ClientException
 
 class AlertTest : BaseSystemTest() {

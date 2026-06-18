@@ -8,14 +8,16 @@ class NodeCleanupHelper(private val docker: DockerClient) {
 
     fun isContainerRunning(containerId: String): Boolean {
         return runCatching {
-            val inspect = docker.inspectContainerCmd(containerId).exec()
+            val inspect = docker.inspectContainerCmd(containerId)
+                .exec()
             inspect.state?.running == true
         }.getOrDefault(false)
     }
 
     fun getContainerExitCode(containerId: String): Long? {
         return runCatching {
-            val inspect = docker.inspectContainerCmd(containerId).exec()
+            val inspect = docker.inspectContainerCmd(containerId)
+                .exec()
             inspect.state?.exitCodeLong
         }.getOrNull()
     }
@@ -34,6 +36,7 @@ class NodeCleanupHelper(private val docker: DockerClient) {
     }
 
     fun restartContainer(containerId: String) {
-        docker.restartContainerCmd(containerId).exec()
+        docker.restartContainerCmd(containerId)
+            .exec()
     }
 }

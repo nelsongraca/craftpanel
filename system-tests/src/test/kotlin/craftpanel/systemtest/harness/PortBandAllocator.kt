@@ -1,5 +1,6 @@
 package craftpanel.systemtest.harness
 
+import craftpanel.systemtest.harness.PortBandAllocator.SLOT_COUNT
 import java.util.concurrent.atomic.AtomicInteger
 import kotlin.random.Random
 

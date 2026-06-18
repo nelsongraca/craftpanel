@@ -1,28 +1,18 @@
 package craftpanel.systemtest.node
 
-import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.client.model.PatchNodeRequest
-import craftpanel.systemtest.harness.AuthHelper
-import craftpanel.systemtest.harness.NodeHelper
-import craftpanel.systemtest.harness.ServerHelper
+import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.SharedStack
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.core.spec.style.ShouldSpec
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeEmpty
 import org.openapitools.client.infrastructure.ClientException
 
-class NodeOperationsTest : ShouldSpec() {
-
-    private val api: DefaultApi by lazy { DefaultApi(basePath = SharedStack.masterApiUrl) }
+class NodeOperationsTest : BaseSystemTest() {
 
     init {
-        beforeSpec {
-            AuthHelper(api).login()
-        }
-
         context("getNode") {
 
             should("returns full metadata for a trusted node") {
@@ -45,11 +35,6 @@ class NodeOperationsTest : ShouldSpec() {
         }
 
         context("updateNode") {
-
-            beforeTest {
-                AuthHelper(api).login()
-            }
-
             should("updates node display name") {
                 val newName = "updated-node-${System.currentTimeMillis()}"
                 api.updateNode(
@@ -76,13 +61,14 @@ class NodeOperationsTest : ShouldSpec() {
             should("rejects a PENDING node and transitions it to REJECTED") {
                 val containerId = SharedStack.addAgent()
                 try {
-                    val pending = NodeHelper(api).awaitPendingNode()
+                    val pending = nodeHelper.awaitPendingNode()
                     pending.status shouldBe "PENDING"
 
                     api.rejectNode(pending.id)
                     val rejected = api.getNode(pending.id)
                     rejected.status shouldBe "REJECTED"
-                } finally {
+                }
+                finally {
                     SharedStack.removeAgent(containerId)
                 }
             }
@@ -91,11 +77,12 @@ class NodeOperationsTest : ShouldSpec() {
                 val containerId = SharedStack.addAgent()
                 var nodeId = ""
                 try {
-                    nodeId = NodeHelper(api).trustFirstPendingNode()
+                    nodeId = nodeHelper.trustFirstPendingNode()
 
                     val ex = shouldThrow<ClientException> { api.rejectNode(nodeId) }
                     ex.statusCode shouldBe 409
-                } finally {
+                }
+                finally {
                     runCatching { api.decommissionNode(nodeId) }
                     SharedStack.removeAgent(containerId)
                 }
@@ -108,13 +95,14 @@ class NodeOperationsTest : ShouldSpec() {
                 val containerId = SharedStack.addAgent()
                 var nodeId = ""
                 try {
-                    nodeId = NodeHelper(api).trustFirstPendingNode()
+                    nodeId = nodeHelper.trustFirstPendingNode()
                     val keyResponse = api.rotateNodeToken(nodeId)
                     keyResponse.nodeKey.shouldNotBeEmpty()
 
                     val node = api.getNode(nodeId)
                     node.status shouldBe "ACTIVE"
-                } finally {
+                }
+                finally {
                     runCatching { api.decommissionNode(nodeId) }
                     SharedStack.removeAgent(containerId)
                 }
@@ -124,10 +112,11 @@ class NodeOperationsTest : ShouldSpec() {
                 val containerId = SharedStack.addAgent()
                 var nodeId = ""
                 try {
-                    nodeId = NodeHelper(api).trustFirstPendingNode()
+                    nodeId = nodeHelper.trustFirstPendingNode()
                     val keyResponse = api.rotateNodeToken(nodeId)
                     keyResponse.nodeKey.shouldNotBeEmpty()
-                } finally {
+                }
+                finally {
                     runCatching { api.decommissionNode(nodeId) }
                     SharedStack.removeAgent(containerId)
                 }
@@ -140,12 +129,13 @@ class NodeOperationsTest : ShouldSpec() {
                 val containerId = SharedStack.addAgent()
                 var nodeId = ""
                 try {
-                    nodeId = NodeHelper(api).trustFirstPendingNode()
+                    nodeId = nodeHelper.trustFirstPendingNode()
 
                     api.decommissionNode(nodeId)
                     val node = api.getNode(nodeId)
                     node.status shouldBe "DECOMMISSIONED"
-                } finally {
+                }
+                finally {
                     SharedStack.removeAgent(containerId)
                 }
             }
@@ -155,8 +145,8 @@ class NodeOperationsTest : ShouldSpec() {
                 var nodeId = ""
                 var serverId = ""
                 try {
-                    nodeId = NodeHelper(api).trustFirstPendingNode()
-                    val helper = ServerHelper(api)
+                    nodeId = nodeHelper.trustFirstPendingNode()
+
                     serverId = helper.createTestServer(nodeId)
                     api.startServer(serverId)
                     // Server status changes to STARTING immediately from the REST handler
@@ -175,7 +165,8 @@ class NodeOperationsTest : ShouldSpec() {
                         api.decommissionNode(nodeId)
                     }
                     ex.statusCode shouldBe 409
-                } finally {
+                }
+                finally {
                     runCatching { api.stopServer(serverId) }
                     runCatching { api.deleteServer(serverId) }
                     runCatching { api.decommissionNode(nodeId) }

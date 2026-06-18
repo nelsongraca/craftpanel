@@ -1,17 +1,10 @@
 package craftpanel.systemtest.auth
 
-import craftpanel.systemtest.client.model.CreateAssignmentRequest
-import craftpanel.systemtest.client.model.CreateGroupRequest
-import craftpanel.systemtest.client.model.CreateNetworkRequest
-import craftpanel.systemtest.client.model.CreateServerRequest
-import craftpanel.systemtest.client.model.CreateUserRequest
-import craftpanel.systemtest.client.model.PutGroupPermissionsRequest
+import craftpanel.systemtest.client.api.DefaultApi
+import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.AuthHelper
 import craftpanel.systemtest.harness.BaseSystemTest
-import craftpanel.systemtest.harness.ServerHelper
-import craftpanel.systemtest.client.api.DefaultApi
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
@@ -20,12 +13,11 @@ import org.openapitools.client.infrastructure.ClientException
 
 class PermissionResolutionTest : BaseSystemTest() {
 
-    private lateinit var helper: ServerHelper
+
     private lateinit var serverId: String
 
     init {
         beforeSpec {
-            helper = ServerHelper(api)
             serverId = helper.createTestServer(nodeId)
         }
 
@@ -193,7 +185,7 @@ class PermissionResolutionTest : BaseSystemTest() {
                         serversInA.map { it.id } shouldContain movedServer.id
                     }
 
-                    api.updateServer(movedServer.id, craftpanel.systemtest.client.model.UpdateServerRequest(networkId = netB.id))
+                    api.updateServer(movedServer.id, UpdateServerRequest(networkId = netB.id))
 
                     withViewerApi(email, "pw") { vApi ->
                         val serversAfterMove = vApi.listServers()

@@ -3,27 +3,20 @@ package craftpanel.systemtest.server
 import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.client.model.MigrateRequest
 import craftpanel.systemtest.client.model.MigrationResponse
-import craftpanel.systemtest.harness.AuthHelper
 import craftpanel.systemtest.harness.BaseSystemTest
-import craftpanel.systemtest.harness.ServerHelper
 import craftpanel.systemtest.harness.SharedStack
 import craftpanel.systemtest.harness.pollUntilNotNull
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
-import okhttp3.OkHttpClient
-import okhttp3.Request
-import okhttp3.Response
-import okhttp3.WebSocket
-import okhttp3.WebSocketListener
+import okhttp3.*
 import org.openapitools.client.infrastructure.ClientException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 class ServerMigrationTest : BaseSystemTest() {
 
-    private val helper: ServerHelper by lazy { ServerHelper(api) }
+
     private val serverIds = mutableListOf<String>()
     private val sourceNodeId: String = SharedStack.nodeIds[0]
     private val targetNodeId: String = SharedStack.nodeIds[1]
@@ -32,10 +25,6 @@ class ServerMigrationTest : BaseSystemTest() {
         .build()
 
     init {
-        beforeSpec {
-            AuthHelper(api).login()
-        }
-
         afterEach {
             serverIds.forEach { id ->
                 runCatching { api.stopServer(id) }

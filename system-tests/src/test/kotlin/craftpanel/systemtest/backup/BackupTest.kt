@@ -1,16 +1,15 @@
 package craftpanel.systemtest.backup
 
-import craftpanel.systemtest.harness.BaseSystemTest
-import craftpanel.systemtest.harness.ServerHelper
 import craftpanel.systemtest.client.model.PutBackupScheduleRequest
-import io.kotest.matchers.shouldBe
+import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.matchers.collections.shouldBeEmpty
+import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeEmpty
 
 class BackupTest : BaseSystemTest() {
 
     init {
-        val helper = ServerHelper(api)
+
         lateinit var serverId: String
 
         beforeSpec {
