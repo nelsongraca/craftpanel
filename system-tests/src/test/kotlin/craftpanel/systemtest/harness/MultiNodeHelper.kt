@@ -1,13 +1,8 @@
 package craftpanel.systemtest.harness
 
 import craftpanel.systemtest.client.api.DefaultApi
-import craftpanel.systemtest.client.model.PatchNodeRequest
 import craftpanel.systemtest.client.model.NodeResponse
-import kotlinx.coroutines.delay
-import kotlin.random.Random
-import org.openapitools.client.infrastructure.ServerException
-import org.openapitools.client.infrastructure.ClientException
-import kotlin.time.Duration.Companion.milliseconds
+import craftpanel.systemtest.client.model.PatchNodeRequest
 
 class MultiNodeHelper(private val api: DefaultApi) {
 
@@ -26,46 +21,14 @@ class MultiNodeHelper(private val api: DefaultApi) {
             val (portStart, portEnd) = PortBandAllocator.next()
             api.updateNode(node.id, PatchNodeRequest(portRangeStart = portStart, portRangeEnd = portEnd))
 
-            waitForAgentConnection(node.id, timeoutMs)
+            pollUntilNotNull(timeoutMs) {
+                api.getNode(node.id)
+                    .takeIf { it.health == "HEALTHY" }
+            } ?: error("Agent on node ${node.id} did not become HEALTHY within ${timeoutMs}ms")
 
             nodeIds.add(node.id)
         }
         return nodeIds
-    }
-
-    private suspend fun waitForAgentConnection(nodeId: String, timeoutMs: Long) {
-        val helper = ServerHelper(api)
-        val tempServerId = helper.createTestServer(nodeId)
-        try {
-            var interval = 200L
-            val deadline = System.currentTimeMillis() + timeoutMs
-            var connected = false
-            while (System.currentTimeMillis() < deadline && !connected) {
-                try {
-                    api.startServer(tempServerId)
-                    connected = true
-                }
-                catch (e: Exception) {
-                    if (isAgentNotConnectedError(e)) {
-                        val jitter = Random.nextLong(-(interval / 5), interval / 5 + 1)
-                        delay((interval + jitter).coerceAtLeast(50).milliseconds)
-                        interval = (interval * 1.5).toLong()
-                            .coerceAtMost(1000)
-                    }
-                    else {
-                        throw e
-                    }
-                }
-            }
-            if (!connected) {
-                error("Agent on node $nodeId did not connect to master within ${timeoutMs}ms")
-            }
-            runCatching { api.stopServer(tempServerId) }
-            helper.awaitStoppedOrGone(tempServerId)
-        }
-        finally {
-            runCatching { api.deleteServer(tempServerId) }
-        }
     }
 
     private suspend fun awaitPendingNode(timeoutMs: Long): NodeResponse {
@@ -78,14 +41,5 @@ class MultiNodeHelper(private val api: DefaultApi) {
             "No PENDING node appeared within ${timeoutMs}ms. " +
                     "Nodes: ${lastNodes?.map { "${it.id}=${it.status}" } ?: "none"}"
         )
-    }
-
-    private fun isAgentNotConnectedError(e: Throwable): Boolean {
-        val statusCode = when (e) {
-            is ServerException -> e.statusCode
-            is ClientException -> e.statusCode
-            else               -> return false
-        }
-        return statusCode == 502 && e.message?.contains("Agent not connected") == true
     }
 }

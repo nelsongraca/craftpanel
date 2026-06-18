@@ -3,10 +3,6 @@ package craftpanel.systemtest.harness
 import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.client.model.NodeResponse
 import craftpanel.systemtest.client.model.PatchNodeRequest
-import kotlinx.coroutines.delay
-import kotlin.random.Random
-import org.openapitools.client.infrastructure.ServerException
-import org.openapitools.client.infrastructure.ClientException
 
 class NodeHelper(private val api: DefaultApi) {
 
@@ -33,42 +29,10 @@ class NodeHelper(private val api: DefaultApi) {
         val (portStart, portEnd) = PortBandAllocator.next()
         api.updateNode(node.id, PatchNodeRequest(portRangeStart = portStart, portRangeEnd = portEnd))
 
-        // Wait until agent actually connects to the master.
-        // We do this by creating a temp server and trying to start it.
-        // If the agent is not connected, the master returns 502 Bad Gateway.
-        val serverHelper = ServerHelper(api)
-        val tempServerId = serverHelper.createTestServer(node.id)
-        try {
-            var interval = 200L
-            val deadline = System.currentTimeMillis() + timeoutMs
-            var connected = false
-            while (System.currentTimeMillis() < deadline && !connected) {
-                try {
-                    api.startServer(tempServerId)
-                    connected = true
-                }
-                catch (e: Exception) {
-                    if (isAgentNotConnectedError(e)) {
-                        val jitter = Random.nextLong(-(interval / 5), interval / 5 + 1)
-                        delay((interval + jitter).coerceAtLeast(50))
-                        interval = (interval * 1.5).toLong()
-                            .coerceAtMost(1000)
-                    }
-                    else {
-                        throw e
-                    }
-                }
-            }
-            if (!connected) {
-                error("Agent on node ${node.id} did not connect to master within ${timeoutMs}ms")
-            }
-            // Stop and delete the temp server
-            runCatching { api.stopServer(tempServerId) }
-            serverHelper.awaitStoppedOrGone(tempServerId)
-        }
-        finally {
-            runCatching { api.deleteServer(tempServerId) }
-        }
+        pollUntilNotNull(timeoutMs) {
+            api.getNode(node.id)
+                .takeIf { it.health == "HEALTHY" }
+        } ?: error("Agent on node ${node.id} did not become HEALTHY within ${timeoutMs}ms")
 
         return node.id
     }
@@ -97,12 +61,4 @@ class NodeHelper(private val api: DefaultApi) {
         } ?: error("Node $id did not transition to ACTIVE within ${timeoutMs}ms. Last status: ${lastStatus ?: "none"}")
     }
 
-    private fun isAgentNotConnectedError(e: Throwable): Boolean {
-        val statusCode = when (e) {
-            is ServerException -> e.statusCode
-            is ClientException -> e.statusCode
-            else               -> return false
-        }
-        return statusCode == 502 && e.message?.contains("Agent not connected") == true
-    }
 }
