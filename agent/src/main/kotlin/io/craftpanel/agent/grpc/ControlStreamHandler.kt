@@ -2,6 +2,7 @@ package io.craftpanel.agent.grpc
 
 import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.config.AgentConfig
+import io.craftpanel.agent.docker.ContainerEventWatcher
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.MetricsCollector
 import io.craftpanel.agent.docker.RouterSupervisor
@@ -22,6 +23,7 @@ class ControlStreamHandler(
     private val docker: DockerClient,
     private val routerSupervisor: RouterSupervisor,
     private val container: ContainerHandler,
+    private val eventWatcher: ContainerEventWatcher = ContainerEventWatcher(docker),
     private val backup: BackupHandler = BackupHandler(config),
     private val migration: MigrationHandler = MigrationHandler(config, containerManager),
     private val file: FileHandler = FileHandler(config, identity.nodeKey),
@@ -54,9 +56,10 @@ class ControlStreamHandler(
                 delay(metricsInterval)
                 val routerRunning = routerSupervisor.isRunning
                 val metrics = metricsCollector.collect()
-                out.send { nodeMetrics = metrics.toBuilder()
-                    .setRouterRunning(routerRunning)
-                    .build()
+                out.send {
+                    nodeMetrics = metrics.toBuilder()
+                        .setRouterRunning(routerRunning)
+                        .build()
                 }
 
                 containerManager.listRunningContainerIds()
@@ -68,6 +71,16 @@ class ControlStreamHandler(
                     }
             }
         }
+
+        // Near-instant crash signal: report managed-container deaths to master immediately.
+        // Master decides whether to restart (bounded). Closed when this stream scope ends;
+        // the periodic snapshot reconcile is the backstop if an event is missed.
+        val eventStream = eventWatcher.watch(
+            shouldReport = { serverId -> containerManager.shouldReportDie(serverId) },
+            onContainerCrash = { serverId -> out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.UNHEALTHY) },
+            onContainerStopped = { serverId -> out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.STOPPED) },
+        )
+        coroutineContext.job.invokeOnCompletion { runCatching { eventStream.close() } }
 
         // Process inbound commands from master
         stream.collect { msg ->

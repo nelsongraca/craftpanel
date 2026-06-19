@@ -377,6 +377,7 @@ Schema migrations via `exposed-migration-jdbc`.
 
 ## What NOT to Do
 
+- Don't launch long runs (system-test suites, full builds) with `nohup … &` or a bare `&` — that detaches the process outside the harness, so it gets no background-shell UI entry and fires no completion callback. Use the Bash tool's `run_in_background: true` instead (harness-tracked, notifies on exit). If a `timeout` wrapper is needed, put it inside the backgrounded command, not around a detached `&`.
 - Don't assume `grep` is GNU grep — on this host it's aliased to `ugrep` (different regex/flag behavior, warns on missing files). Prefer the Grep tool, or `command grep`/`rg` when the shell `grep`
   misbehaves.
 - Don't add a Makefile

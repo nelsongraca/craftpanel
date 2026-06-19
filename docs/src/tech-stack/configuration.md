@@ -101,6 +101,8 @@ Supported `_FILE` variables:
 | `dns.api_key`          | `CRAFTPANEL_DNS_API_KEY`       | Yes      | —                       | DNS provider API key                                                                    |
 | `dns.base_domain`      | `CRAFTPANEL_DNS_BASE_DOMAIN`   | Yes      | —                       | Base domain, e.g. `mc.example.com`                                                      |
 | `platform_name`        | `CRAFTPANEL_PLATFORM_NAME`     | No       | `CraftPanel`            | Platform name used in generated server MOTDs, e.g. `1.21.4 Paper powered by CraftPanel` |
+| `restart.maxAttempts`  | `CONTAINER_RESTART_MAX_ATTEMPTS` | No     | `5`                     | Max consecutive crash-restarts before a server is left UNHEALTHY for manual action (0 disables) |
+| `restart.windowSeconds`| `CONTAINER_RESTART_WINDOW_SECONDS` | No   | `600`                   | Rolling window (s) for counting consecutive crashes; a longer gap resets the counter            |
 
 !!! warning
 Never store secrets in the config file in production. Use environment variables or the `_FILE` secret pattern instead.

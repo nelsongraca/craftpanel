@@ -138,6 +138,21 @@ class ContainerLifecycle(
         return systemVars + dbEnvVars
     }
 
+    /**
+     * Fire-and-forget restart of a server that crashed, issued by the master crash-recovery path.
+     * Reuses the normal start command (no recreate) and marks the server STARTING so the next
+     * status report reconciles it. Safe no-op if the row is gone.
+     */
+    fun restartCrashedServer(id: Uuid) {
+        val server = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq id }
+                .firstOrNull()
+        } ?: return
+        writeStatus(id, ServerStatus.STARTING)
+        sendStart(server, needsRecreate = false)
+    }
+
     fun writeStatus(id: Uuid, status: ServerStatus, clearNeedsRecreate: Boolean = false) {
         transaction {
             Servers.update({ Servers.id eq id }) {

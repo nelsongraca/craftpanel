@@ -71,6 +71,11 @@ data class ImagesConfig(
     }
 }
 
+data class RestartConfig(
+    val maxAttempts: Int,
+    val windowSeconds: Long,
+)
+
 data class AdminSeedConfig(
     val email: String,
     val password: String,
@@ -176,6 +181,16 @@ class AppConfig(config: ApplicationConfig) {
             ?.getString() ?: "itzg/minecraft-server",
         proxyImage = config.propertyOrNull("images.proxyImage")
             ?.getString() ?: "itzg/mc-proxy",
+    )
+    val restart = RestartConfig(
+        maxAttempts = config.propertyOrNull("restart.maxAttempts")
+            ?.getString()
+            ?.toIntOrNull()
+            ?.coerceAtLeast(0) ?: 5,
+        windowSeconds = config.propertyOrNull("restart.windowSeconds")
+            ?.getString()
+            ?.toLongOrNull()
+            ?.coerceAtLeast(1) ?: 600,
     )
 
     fun validate() {

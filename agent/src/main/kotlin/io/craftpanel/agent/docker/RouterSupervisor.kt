@@ -18,18 +18,29 @@ class RouterSupervisor(
     suspend fun run() {
         var backoffSeconds = 5L
         while (true) {
-            val result = runCatching {
+            val ok = runCatching {
                 provisioner.ensureRunning()
                 _running.set(true)
-                backoffSeconds = 5L
                 log.info("mc-router running")
-            }
-            result.onFailure { e ->
+            }.onFailure { e ->
                 _running.set(false)
                 log.warn("mc-router provisioning failed — retrying in ${backoffSeconds}s: ${e.message}")
+            }.isSuccess
+
+            // Healthy: re-check at a slow heartbeat instead of hammering ensureRunning every 5s
+            // (each call inspects + re-connects to network → repeated 403 noise on a busy daemon).
+            // Failing: keep the 5s→120s exponential backoff.
+            if (ok) {
+                delay(HEALTHY_INTERVAL)
+                backoffSeconds = 5L
+            } else {
+                delay(backoffSeconds.seconds)
+                backoffSeconds = min(backoffSeconds * 2, 120L)
             }
-            delay(backoffSeconds.seconds)
-            backoffSeconds = min(backoffSeconds * 2, 120L)
         }
+    }
+
+    companion object {
+        private val HEALTHY_INTERVAL = 60.seconds
     }
 }

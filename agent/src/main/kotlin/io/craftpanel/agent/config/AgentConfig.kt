@@ -24,6 +24,9 @@ data class AgentConfig(
     val containerNamePrefix: String,
     val privateIpOverride: String,
     val metricsPollIntervalSeconds: Int,
+    // Max age (hours) a locally-cached image may be before a fresh pull is attempted.
+    // Prod default 24h; tests set a very large value so local-only images are never re-pulled.
+    val pullMaxImageAgeHours: Long = 24,
 ) {
 
     val tlsEnabled: Boolean get() = tlsCertPath.isNotBlank()
@@ -79,6 +82,9 @@ data class AgentConfig(
             metricsPollIntervalSeconds = System.getenv("METRICS_POLL_INTERVAL_SECONDS")
                 ?.toIntOrNull()
                 ?.coerceAtLeast(5) ?: 60,
+            pullMaxImageAgeHours = System.getenv("PULL_MAX_IMAGE_AGE_HOURS")
+                ?.toLongOrNull()
+                ?.coerceAtLeast(0) ?: 24,
         )
     }
 }

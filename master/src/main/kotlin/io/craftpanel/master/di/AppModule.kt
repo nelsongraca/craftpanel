@@ -14,6 +14,7 @@ import io.craftpanel.master.service.AlertService
 import io.craftpanel.master.service.AssignmentService
 import io.craftpanel.master.service.BackupService
 import io.craftpanel.master.service.ContainerLifecycle
+import io.craftpanel.master.service.ServerRestartManager
 import io.craftpanel.master.service.EnvVarsService
 import io.craftpanel.master.service.GroupService
 import io.craftpanel.master.service.MigrationService
@@ -29,8 +30,18 @@ import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
 val appModule = module {
+    // App-owned crash restart
+    single { ServerRestartManager(get<AppConfig>().restart.maxAttempts, get<AppConfig>().restart.windowSeconds) }
+
     // gRPC core
-    single { ControlServiceImpl(get<AppConfig>().node) }
+    single {
+        ControlServiceImpl(
+            nodeConfig = get<AppConfig>().node,
+            restartManager = get(),
+            // Lazy lookup breaks the ControlServiceImpl <-> ContainerLifecycle construction cycle.
+            restartServer = { serverId -> get<ContainerLifecycle>().restartCrashedServer(serverId) },
+        )
+    }
     single { BulkDataServiceImpl(get()) }
     single { DataServiceProxy(get(), get()) }
 

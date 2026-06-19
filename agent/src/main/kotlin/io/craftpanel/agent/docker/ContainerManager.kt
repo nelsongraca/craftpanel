@@ -13,6 +13,7 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import java.time.Duration
 import java.time.Instant
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
@@ -20,9 +21,37 @@ open class ContainerManager(
     private val docker: DockerClient,
     private val craftpanelNetwork: String = "",
     private val containerNamePrefix: String = "craftpanel",
+    private val pullMaxImageAgeHours: Long = 24,
 ) {
 
     private val log = LoggerFactory.getLogger(ContainerManager::class.java)
+
+    // ponytail: two concurrent sets gate watcher; managed=owned-by-this-agent, stopping=intentionally-dying
+    private val managedServerIds = ConcurrentHashMap.newKeySet<String>()
+    private val stoppingServerIds = ConcurrentHashMap.newKeySet<String>()
+
+    /** Returns true iff the agent owns this server and the death was NOT intentional. */
+    fun shouldReportDie(serverId: String): Boolean =
+        managedServerIds.contains(serverId) && !stoppingServerIds.contains(serverId)
+
+    /** Call before stop/remove. Death is expected; watcher will suppress. */
+    fun markStopping(serverId: String) = stoppingServerIds.add(serverId)
+
+    /**
+     * Call on successful start/restart. Clears the stopping flag (any lingering die event from
+     * the prior removal has already been delivered by the time we reach here). Also marks managed
+     * so future unexpected deaths are reported.
+     */
+    fun markStarted(serverId: String) {
+        managedServerIds.add(serverId)
+        stoppingServerIds.remove(serverId)
+    }
+
+    /** Call on successful remove (server is gone, no future deaths expected). */
+    fun markRemoved(serverId: String) {
+        managedServerIds.remove(serverId)
+        stoppingServerIds.remove(serverId)
+    }
 
     fun listRunningContainerIds(): List<Pair<String, String>> {
         return docker.listContainersCmd()
@@ -71,7 +100,8 @@ open class ContainerManager(
         val hostConfig = HostConfig.newHostConfig()
             .withPortBindings(portBindings)
             .withBinds(binds)
-            .withRestartPolicy(RestartPolicy.parse("unless-stopped"))
+            // Restart is app-owned (master decides); Docker must not auto-restart managed containers.
+            .withRestartPolicy(RestartPolicy.noRestart())
             .let { cfg ->
                 if (cmd.memoryMb > 0) cfg.withMemory(cmd.memoryMb.toLong() * 1024 * 1024) else cfg
             }
@@ -116,9 +146,10 @@ open class ContainerManager(
             true
         }.getOrDefault(false)
 
-    fun pullImage(image: String, maxAgeHours: Long = 24) {
+    fun pullImage(image: String, maxAgeHours: Long = pullMaxImageAgeHours) {
         val cachedAt = runCatching {
-            docker.inspectImageCmd(image).exec().created
+            docker.inspectImageCmd(image)
+                .exec().created
         }.getOrNull()
 
         if (cachedAt != null) {

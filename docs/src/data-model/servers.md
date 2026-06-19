@@ -35,6 +35,12 @@ Kotlin. If the itzg project restructures its images, the change requires a code 
 | `UNHEALTHY` | Container is running but health check is failing                |
 | `STOPPING`  | Stop command sent; container is shutting down                   |
 
+### Container restart ownership
+
+Managed containers run with Docker restart policy **`no`** — Docker never auto-restarts them. Restart-on-crash is **owned by master**, not Docker. This keeps a graceful stop (the server self-exits in response to its stop command) from being seen by Docker as a crash and immediately restarted.
+
+When a managed container dies, the agent reports it to master near-instantly (via Docker `die` events, not just the periodic state snapshot). Master treats a transition into `UNHEALTHY` from a running desired-state (`HEALTHY`/`STARTING`) as an unexpected crash and restarts the server, bounded by a consecutive-attempt cap (`CONTAINER_RESTART_MAX_ATTEMPTS`, default 5, within `CONTAINER_RESTART_WINDOW_SECONDS`). The counter resets when the server next reaches `HEALTHY`. An intentional stop sets the server to `STOPPING`/`STOPPED` first, so it is never mistaken for a crash. Exceeding the cap leaves the server `UNHEALTHY` for manual intervention.
+
 ### Migration state
 
 Whether a server is currently being migrated is **not** a separate status value or column on `servers`. Master derives `is_migrating` by checking for an active `migrations` record (status `PENDING`,

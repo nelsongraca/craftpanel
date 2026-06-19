@@ -2,6 +2,7 @@ package craftpanel.systemtest.dashboard
 
 import com.google.gson.JsonParser
 import craftpanel.systemtest.harness.BaseSystemTest
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -100,13 +101,15 @@ class DashboardWsTest : BaseSystemTest() {
                 closeCode shouldBe 1008
             }
 
-            should("starting a server emits SERVER_STATUS events") {
-
+            should("emits SERVER_STATUS events across start and stop") {
+                // One server drives both the start (HEALTHY) and stop (STOPPED) assertions on a
+                // single WS connection, saving an extra create + start cycle vs. two separate tests.
                 val serverId = helper.createTestServer(nodeId)
                 try {
                     val ticket = api.authWsTicket()
                     val url = "${wsBaseUrl}/api/ws?ticket=${ticket.ticket}"
-                    val statusLatch = CountDownLatch(1)
+                    val healthyLatch = CountDownLatch(1)
+                    val stoppedLatch = CountDownLatch(1)
                     val seenStatuses = mutableListOf<String>()
 
                     val ws = wsClient.newWebSocket(
@@ -120,7 +123,8 @@ class DashboardWsTest : BaseSystemTest() {
                                     if (payload?.get("server_id")?.asString == serverId) {
                                         val status = payload.get("status").asString
                                         seenStatuses.add(status)
-                                        if (status == "HEALTHY") statusLatch.countDown()
+                                        if (status == "HEALTHY") healthyLatch.countDown()
+                                        if (status == "STOPPED") stoppedLatch.countDown()
                                     }
                                 }
                             }
@@ -131,55 +135,19 @@ class DashboardWsTest : BaseSystemTest() {
 
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, "HEALTHY")
-                    statusLatch.await(15, TimeUnit.SECONDS)
-
+                    healthyLatch.await(15, TimeUnit.SECONDS)
                     seenStatuses.shouldNotBeEmpty()
+
+                    api.stopServer(serverId)
+                    helper.awaitStoppedOrGone(serverId)
+                    stoppedLatch.await(15, TimeUnit.SECONDS)
+                    seenStatuses shouldContain "STOPPED"
+
                     ws.close(1000, "test done")
                 }
                 finally {
                     runCatching { api.stopServer(serverId) }
                     helper.awaitStoppedOrGone(serverId)
-                    runCatching { api.deleteServer(serverId) }
-                }
-            }
-
-            should("stopping a server emits SERVER_STATUS STOPPED") {
-
-                val serverId = helper.createTestServer(nodeId)
-                try {
-                    api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY")
-
-                    val ticket = api.authWsTicket()
-                    val url = "${wsBaseUrl}/api/ws?ticket=${ticket.ticket}"
-                    val stopLatch = CountDownLatch(1)
-                    var stoppedReceived = false
-
-                    val ws = wsClient.newWebSocket(
-                        Request.Builder()
-                            .url(url)
-                            .build(), object : WebSocketListener() {
-                            override fun onMessage(webSocket: WebSocket, text: String) {
-                                val json = JsonParser.parseString(text).asJsonObject
-                                if (json.get("type")?.asString == "server.status") {
-                                    val payload = json.getAsJsonObject("payload")
-                                    if (payload?.get("server_id")?.asString == serverId && payload.get("status")?.asString == "STOPPED") {
-                                        stoppedReceived = true
-                                        stopLatch.countDown()
-                                    }
-                                }
-                            }
-                        })
-
-                    Thread.sleep(1000)
-                    api.stopServer(serverId)
-                    helper.awaitStoppedOrGone(serverId)
-                    stopLatch.await(15, TimeUnit.SECONDS)
-
-                    stoppedReceived shouldBe true
-                    ws.close(1000, "test done")
-                }
-                finally {
                     runCatching { api.deleteServer(serverId) }
                 }
             }

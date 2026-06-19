@@ -39,11 +39,16 @@ import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.AgentMetricEvent
 import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.ServerStatus
+import io.craftpanel.master.service.ServerRestartManager
 import kotlin.uuid.Uuid
 
 class ControlServiceImpl(
     private val nodeConfig: NodeConfig,
     private val onNodeDisconnect: (String) -> Unit = {},
+    // App-owned crash restart: bounded crash counter + a fire-and-forget restart action.
+    // Both default to no-op so existing tests construct ControlServiceImpl unchanged.
+    private val restartManager: ServerRestartManager? = null,
+    private val restartServer: (Uuid) -> Unit = {},
 ) : ControlServiceGrpcKt.ControlServiceCoroutineImplBase() {
 
     private val log = LoggerFactory.getLogger(ControlServiceImpl::class.java)
@@ -662,11 +667,40 @@ class ControlServiceImpl(
         }.getOrNull() ?: return
         val now = Clock.System.now()
             .toLocalDateTime(TimeZone.UTC)
-        transaction {
+        val prevStatus = transaction {
+            val prev = Servers.selectAll()
+                .where { Servers.id eq serverId }
+                .firstOrNull()
+                ?.let { ServerStatus.fromDb(it[Servers.status]) }
             Servers.update({ Servers.id eq serverId }) {
                 it[Servers.status] = event.status.toDb()
                 it[Servers.lastSeenAt] = now
             }
+            prev
+        }
+        maybeRestartOnCrash(serverId, prevStatus, event.status)
+    }
+
+    /**
+     * App-owned crash recovery. A managed container reporting UNHEALTHY while master's desired-state
+     * was running (HEALTHY/STARTING) is an unexpected death — restart it, bounded by the cap.
+     * An intentional stop sets the DB to STOPPING/STOPPED first, so prevStatus is not running and no
+     * restart fires. Reaching HEALTHY clears the crash counter.
+     */
+    private fun maybeRestartOnCrash(serverId: Uuid, prevStatus: ServerStatus?, newStatus: ServerStatus) {
+        val mgr = restartManager ?: return
+        if (newStatus == ServerStatus.HEALTHY) {
+            mgr.reset(serverId)
+            return
+        }
+        // Only the transition INTO unhealthy counts as a fresh crash — repeated UNHEALTHY
+        // heartbeats must not each trigger another restart.
+        val crashed = newStatus == ServerStatus.UNHEALTHY &&
+            (prevStatus == ServerStatus.HEALTHY || prevStatus == ServerStatus.STARTING)
+        if (!crashed) return
+        if (mgr.recordCrashAndShouldRestart(serverId)) {
+            runCatching { restartServer(serverId) }
+                .onFailure { e -> log.error("Crash restart for server {} failed to dispatch — {}", serverId, e.message) }
         }
     }
 

@@ -264,6 +264,9 @@ class CraftPanelStack {
             .withEnv("HOST_DATA_PATH", dataDir.absolutePath)
             .withEnv("NODE_HOSTNAME", alias)
             .withEnv("METRICS_POLL_INTERVAL_SECONDS", "5")
+            // Never re-pull local-only fake images (365 days in hours) — they are built once
+            // by :fake-server:dockerBuildImage and are not pullable from any registry.
+            .withEnv("PULL_MAX_IMAGE_AGE_HOURS", "8760")
             .withFileSystemBind(dataDir.absolutePath, "/data", BindMode.READ_WRITE)
             .withFileSystemBind("/var/run/docker.sock", "/var/run/docker.sock", BindMode.READ_WRITE)
             .apply {

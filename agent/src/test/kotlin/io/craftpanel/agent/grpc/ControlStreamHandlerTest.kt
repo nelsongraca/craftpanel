@@ -10,8 +10,8 @@ import io.craftpanel.agent.grpc.handlers.BackupHandler
 import io.craftpanel.agent.grpc.handlers.ContainerHandler
 import io.craftpanel.proto.*
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.shouldBe
 import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.shouldBe
 import io.mockk.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
@@ -19,7 +19,7 @@ import java.io.File
 import java.nio.file.Files
 
 class ControlStreamHandlerTest : FunSpec({
-    val containerManager: ContainerManager = mockk()
+    val containerManager: ContainerManager = mockk(relaxed = true)
     val metricsCollector: MetricsCollector = mockk(relaxed = true)
     val docker: DockerClient = mockk(relaxed = true)
     val identity = NodeIdentity(nodeId = "node-1", nodeKey = "test-key")

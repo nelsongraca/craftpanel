@@ -21,6 +21,8 @@ class ContainerHandler(
         withStatus(out, cmd.serverId, ServerStatusUpdate.ServerStatus.HEALTHY, log, "Failed to start container ${cmd.containerName}") {
             if (needsCreate) {
                 if (withContext(Dispatchers.IO) { containerManager.containerExists(cmd.containerName) }) {
+                    // Intentional removal: suppress the resulting die event until start succeeds.
+                    containerManager.markStopping(cmd.serverId)
                     withContext(Dispatchers.IO) { containerManager.removeContainer(cmd.containerName, force = true) }
                 }
                 withContext(Dispatchers.IO) { containerManager.pullImage(cmd.image) }
@@ -34,11 +36,15 @@ class ContainerHandler(
                 withContext(Dispatchers.IO) { containerManager.createContainer(cmdWithMount) }
             }
             containerManager.startContainer(cmd.containerName)
+            // Mark started after startContainer succeeds: clears any stopping flag and registers
+            // this agent as owner so future unexpected deaths are reported.
+            containerManager.markStarted(cmd.serverId)
         }
     }
 
     suspend fun handleStop(cmd: StopContainerCommand, out: AgentOutbound) {
         log.info("Stopping container ${cmd.containerName}")
+        containerManager.markStopping(cmd.serverId)
         withStatus(out, cmd.serverId, ServerStatusUpdate.ServerStatus.STOPPED, log, "Failed to stop container ${cmd.containerName}") {
             containerManager.stopContainer(cmd.containerName, cmd.timeoutSeconds, cmd.stopCommand)
         }
@@ -46,9 +52,11 @@ class ContainerHandler(
 
     suspend fun handleRestart(cmd: RestartContainerCommand, out: AgentOutbound) {
         log.info("Restarting container ${cmd.containerName}")
+        containerManager.markStopping(cmd.serverId)
         withStatus(out, cmd.serverId, ServerStatusUpdate.ServerStatus.HEALTHY, log, "Failed to restart container ${cmd.containerName}") {
             containerManager.stopContainer(cmd.containerName, cmd.timeoutSeconds, cmd.stopCommand)
             containerManager.startContainer(cmd.containerName)
+            containerManager.markStarted(cmd.serverId)
         }
     }
 
@@ -56,8 +64,10 @@ class ContainerHandler(
         log.info("Removing container ${cmd.containerName} (force=${cmd.force})")
         // Signal removal completion so master can sequence cross-node relocation
         // (target create must wait until the source container name is freed).
+        containerManager.markStopping(cmd.serverId)
         withStatus(out, cmd.serverId, ServerStatusUpdate.ServerStatus.STOPPED, log, "Failed to remove container ${cmd.containerName}") {
             containerManager.removeContainer(cmd.containerName, cmd.force)
+            containerManager.markRemoved(cmd.serverId)
         }
     }
 

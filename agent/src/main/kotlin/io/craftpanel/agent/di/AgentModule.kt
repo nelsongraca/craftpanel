@@ -21,7 +21,14 @@ val agentModule = module {
             .also { it.validate() }
     }
     single { DockerClientFactory.create(get<AgentConfig>().dockerSocketPath) }
-    single { ContainerManager(get<DockerClient>(), get<AgentConfig>().craftpanelNetwork, get<AgentConfig>().containerNamePrefix) }
+    single {
+        ContainerManager(
+            get<DockerClient>(),
+            get<AgentConfig>().craftpanelNetwork,
+            get<AgentConfig>().containerNamePrefix,
+            get<AgentConfig>().pullMaxImageAgeHours,
+        )
+    }
     single { MetricsCollector(get<DockerClient>(), get<AgentConfig>().craftpanelNetwork) }
 
     scope<ConnectionScope> {
