@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect, useState} from "react";
+import {useCallback, useEffect, useState} from "react";
 import {useRouter} from "next/navigation";
 import Link from "next/link";
 import {MoreHorizontal, Play, Plus, RotateCcw, Square, Trash2, X} from "lucide-react";
@@ -10,8 +10,7 @@ import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import type {Network, Node, Server} from "@/lib/types";
 import {ConfirmDialog} from "@/components/ui/confirm-dialog";
-import {tryCall} from "@/lib/api";
-import {useApiData} from "@/lib/hooks/useApiData";
+import {fillColor} from "@/lib/utils/format";
 import {serverStatusClass, serverStatusLabel} from "@/lib/status";
 
 // Filter option → backend statuses that match
@@ -30,12 +29,6 @@ const FILTER_OPTIONS = [
     {label: "Stopped", value: "STOPPED"},
 ];
 
-function ramFillColor(pct: number): string {
-    if (pct >= 86) return "var(--error)";
-    if (pct >= 66) return "var(--warning)";
-    return "var(--accent)";
-}
-
 function RamBar({total, used}: { total: number; used?: number }) {
     const hasData = used != null;
     const pct = hasData && total > 0 ? Math.min(100, (used! / total) * 100) : 0;
@@ -48,7 +41,7 @@ function RamBar({total, used}: { total: number; used?: number }) {
                 {hasData && pct > 0 && (
                     <div
                         className="h-full rounded-full"
-                        style={{width: `${pct}%`, background: ramFillColor(pct)}}
+                        style={{width: `${pct}%`, background: fillColor(pct)}}
                     />
                 )}
             </div>
@@ -95,11 +88,8 @@ export default function ServersPage() {
     const {user} = useAuth();
     const permissions = user?.permissions ?? [];
 
-    const {data: servers = [], loading: initialLoad, reload: reloadServers} = useApiData(
-        () => listServers().then(r => r.data ?? []),
-        [],
-        {pollMs: 30_000},
-    );
+    const [servers, setServers] = useState<Server[]>([]);
+    const [initialLoad, setInitialLoad] = useState(true);
     const [nodes, setNodes] = useState<Node[]>([]);
     const [networks, setNetworks] = useState<Network[]>([]);
     const [actionError, setActionError] = useState<string | null>(null);
@@ -117,12 +107,26 @@ export default function ServersPage() {
     const [filterNetwork, setFilterNetwork] = useState("");
     const [filterNode, setFilterNode] = useState("");
 
-    useEffect(() => {
-        Promise.all([listNodes(), listNetworks()]).then(([{data: nodeData}, {data: networkData}]) => {
-            if (nodeData) setNodes(nodeData);
-            if (networkData) setNetworks(networkData);
-        });
+    const reloadServers = useCallback(async () => {
+        const {data} = await listServers();
+        if (data) setServers(data);
     }, []);
+
+    useEffect(() => {
+        let cancelled = false;
+        async function init() {
+            await reloadServers();
+            if (!cancelled) setInitialLoad(false);
+        }
+        void init();
+        const id = setInterval(reloadServers, 30_000);
+        void Promise.all([listNodes(), listNetworks()]).then(([nRes, netRes]) => {
+            if (cancelled) return;
+            if (nRes.data) setNodes(nRes.data);
+            if (netRes.data) setNetworks(netRes.data);
+        });
+        return () => { cancelled = true; clearInterval(id); };
+    }, [reloadServers]);
 
     // Close ··· menu on any document click
     useEffect(() => {
@@ -165,9 +169,9 @@ export default function ServersPage() {
     async function doAction(serverId: string, action: "start" | "stop" | "restart") {
         setPendingAction((p) => ({...p, [serverId]: action}));
         setActionError(null);
-        const res = await tryCall(() => ACTION_FNS[action]({path: {id: serverId}}));
-        if (!res.ok) {
-            setActionError(res.error);
+        const {error} = await ACTION_FNS[action]({path: {id: serverId}});
+        if (error) {
+            setActionError(error.message ?? "Action failed");
         } else {
             reloadServers();
         }
@@ -185,9 +189,9 @@ export default function ServersPage() {
             destructive: true,
             onConfirm: async () => {
                 setActionError(null);
-                const res = await tryCall(() => deleteServer({path: {id: server.id}}));
-                if (!res.ok) {
-                    setActionError(res.error);
+                const {error} = await deleteServer({path: {id: server.id}});
+                if (error) {
+                    setActionError(error.message ?? "Failed to delete server");
                 } else {
                     reloadServers();
                 }

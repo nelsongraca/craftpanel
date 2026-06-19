@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect, useState} from "react";
+import {useCallback, useEffect, useState} from "react";
 import {useRouter} from "next/navigation";
 import Link from "next/link";
 import {Ban, Check, KeyRound, MoreHorizontal, Pencil, Power, Trash2, X} from "lucide-react";
@@ -9,12 +9,10 @@ import {decommissionNode, listNodes, listServers, rejectNode, rotateNodeToken, s
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import type {Node} from "@/lib/types";
-import {timeAgo} from "@/lib/utils/format";
+import {timeAgo, fmtMb, fillColor} from "@/lib/utils/format";
 import {TokenModal} from "@/components/nodes/TokenModal";
 import {ConfirmDialog} from "@/components/ui/confirm-dialog";
 import {useWs} from "@/lib/ws-context";
-import {tryCall} from "@/lib/api";
-import {useApiData} from "@/lib/hooks/useApiData";
 import {nodeDisplayStatus, nodeStatusClass, nodeStatusLabel} from "@/lib/status";
 
 const STATUS_FILTER_OPTIONS = [
@@ -25,19 +23,6 @@ const STATUS_FILTER_OPTIONS = [
     {label: "Rejected", value: "REJECTED"},
     {label: "Decommissioned", value: "DECOMMISSIONED"},
 ];
-
-// ── Utilities ─────────────────────────────────────────────────────────────────
-
-function fmtMb(mb: number): string {
-    if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
-    return `${mb} MB`;
-}
-
-function fillColor(pct: number): string {
-    if (pct >= 86) return "var(--error)";
-    if (pct >= 66) return "var(--warning)";
-    return "var(--accent)";
-}
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -188,12 +173,8 @@ export default function NodesPage() {
     const {subscribe} = useWs();
     const permissions = user?.permissions ?? [];
 
-    const {data: fetchedNodes = [], loading: initialLoad, reload: reloadNodes} = useApiData(
-        () => listNodes().then(r => r.data ?? []),
-        [],
-        {pollMs: 30_000},
-    );
     const [nodes, setNodes] = useState<Node[]>([]);
+    const [initialLoad, setInitialLoad] = useState(true);
     const [serverCounts, setServerCounts] = useState<Record<string, number>>({});
     const [actionError, setActionError] = useState<string | null>(null);
     const [pendingAction, setPendingAction] = useState<Record<string, string>>({});
@@ -211,10 +192,17 @@ export default function NodesPage() {
     const [editNode, setEditNode] = useState<Node | null>(null);
     const [tokenKey, setTokenKey] = useState<string | null>(null);
 
-    // Sync fetched nodes into local state (so WS updates can still mutate it)
+    const reloadNodes = useCallback(async () => {
+        const {data} = await listNodes();
+        if (data) setNodes(data);
+    }, []);
+
     useEffect(() => {
-        setNodes(fetchedNodes);
-    }, [fetchedNodes]);
+        let cancelled = false;
+        void reloadNodes().then(() => { if (!cancelled) setInitialLoad(false); });
+        const id = setInterval(reloadNodes, 30_000);
+        return () => { cancelled = true; clearInterval(id); };
+    }, [reloadNodes]);
 
     useEffect(() => {
         listServers().then(({data: serverData}) => {
@@ -248,9 +236,9 @@ export default function NodesPage() {
     async function doTrust(nodeId: string) {
         setPendingAction((p) => ({...p, [nodeId]: "trust"}));
         setActionError(null);
-        const res = await tryCall(() => trustNode({path: {id: nodeId}}));
-        if (!res.ok) {
-            setActionError(res.error);
+        const {error} = await trustNode({path: {id: nodeId}});
+        if (error) {
+            setActionError(error.message ?? "Failed to trust node");
         } else {
             reloadNodes();
         }
@@ -269,9 +257,9 @@ export default function NodesPage() {
             onConfirm: async () => {
                 setPendingAction((p) => ({...p, [nodeId]: "reject"}));
                 setActionError(null);
-                const res = await tryCall(() => rejectNode({path: {id: nodeId}}));
-                if (!res.ok) {
-                    setActionError(res.error);
+                const {error: rejectErr} = await rejectNode({path: {id: nodeId}});
+                if (rejectErr) {
+                    setActionError(rejectErr.message ?? "Failed to reject node");
                 } else {
                     reloadNodes();
                 }
@@ -291,11 +279,11 @@ export default function NodesPage() {
             onConfirm: async () => {
                 setPendingAction((p) => ({...p, [nodeId]: "rotate"}));
                 setActionError(null);
-                const res = await tryCall(() => rotateNodeToken({path: {id: nodeId}}));
-                if (!res.ok) {
-                    setActionError(res.error);
-                } else if (res.data?.node_key) {
-                    setTokenKey(res.data.node_key);
+                const {error: rotateErr, data: rotateData} = await rotateNodeToken({path: {id: nodeId}});
+                if (rotateErr) {
+                    setActionError(rotateErr.message ?? "Failed to rotate key");
+                } else if (rotateData?.node_key) {
+                    setTokenKey(rotateData.node_key);
                 }
                 setPendingAction((p) => {
                     const n = {...p};
@@ -313,9 +301,9 @@ export default function NodesPage() {
             onConfirm: async () => {
                 setPendingAction((p) => ({...p, [nodeId]: "shutdown"}));
                 setActionError(null);
-                const res = await tryCall(() => shutdownNode({path: {id: nodeId}}));
-                if (!res.ok) {
-                    setActionError(res.error);
+                const {error: shutdownErr} = await shutdownNode({path: {id: nodeId}});
+                if (shutdownErr) {
+                    setActionError(shutdownErr.message ?? "Failed to shutdown node");
                 } else {
                     reloadNodes();
                 }
@@ -336,9 +324,9 @@ export default function NodesPage() {
             onConfirm: async () => {
                 setPendingAction((p) => ({...p, [node.id]: "decommission"}));
                 setActionError(null);
-                const res = await tryCall(() => decommissionNode({path: {id: node.id}}));
-                if (!res.ok) {
-                    setActionError(res.error);
+                const {error: decomErr} = await decommissionNode({path: {id: node.id}});
+                if (decomErr) {
+                    setActionError(decomErr.message ?? "Failed to decommission node");
                 } else {
                     reloadNodes();
                 }

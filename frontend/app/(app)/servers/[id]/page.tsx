@@ -3,13 +3,14 @@
 import {useCallback, useEffect, useState} from "react";
 import {useParams, useRouter} from "next/navigation";
 import Link from "next/link";
-import {ArrowUpCircle, ChevronRight, MoreHorizontal, Play, RotateCcw, Shuffle, Square, Trash2, X,} from "lucide-react";
+import {ChevronRight, MoreHorizontal, Play, RotateCcw, Shuffle, Square, Trash2, X,} from "lucide-react";
 import {deleteServer, getNetwork, getNode, getServer, listNetworks, restartServer, startServer, stopServer, updateServer, updateServerResources} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import type {Network, Node, Server} from "@/lib/types";
 import {useWs} from "@/lib/ws-context";
-import {fmtBytes, timeAgo} from "@/lib/utils/format";
+import {fmtBytes, fmtMb, fetchReleaseVersions, timeAgo} from "@/lib/utils/format";
+import {serverStatusClass, serverStatusLabel} from "@/lib/status";
 import {ConsoleTab} from "./console-tab";
 import {FilesTab} from "./files-tab";
 import {BackupsTab} from "./backups-tab";
@@ -17,54 +18,7 @@ import {ModsTab} from "./mods-tab";
 import {ConfigTab} from "./config-tab";
 import {MigrationTab} from "./migration-tab";
 import {ConfirmDialog} from "@/components/ui/confirm-dialog";
-import {ApiError, call, tryCall} from "@/lib/api";
 
-// ── Mojang version manifest ───────────────────────────────────────────────────
-
-type MojangVersion = { id: string; type: string };
-
-async function fetchReleaseVersions(): Promise<string[]> {
-    try {
-        const res = await fetch("https://launchermeta.mojang.com/mc/game/version_manifest_v2.json");
-        const json = await res.json() as { versions: MojangVersion[] };
-        return json.versions.filter((v) => v.type === "release").map((v) => v.id);
-    } catch {
-        return [];
-    }
-}
-
-// ── Status helpers ────────────────────────────────────────────────────────────
-
-type DisplayStatus = "HEALTHY" | "UNHEALTHY" | "STARTING" | "STOPPING" | "STOPPED";
-
-function toDisplayStatus(status: string): DisplayStatus {
-    return (["HEALTHY", "UNHEALTHY", "STARTING", "STOPPING", "STOPPED"].includes(status)
-        ? status
-        : "STOPPED") as DisplayStatus;
-}
-
-const DISPLAY_LABELS: Record<DisplayStatus, string> = {
-    HEALTHY: "Healthy",
-    UNHEALTHY: "Unhealthy",
-    STARTING: "Starting",
-    STOPPING: "Stopping",
-    STOPPED: "Stopped",
-};
-
-const DISPLAY_CLASSES: Record<DisplayStatus, string> = {
-    HEALTHY: "text-healthy  border border-healthy/30  bg-healthy/10",
-    UNHEALTHY: "text-error    border border-error/30    bg-error/10",
-    STARTING: "text-warning  border border-warning/30  bg-warning/10",
-    STOPPING: "text-warning  border border-warning/30  bg-warning/10",
-    STOPPED: "text-text-muted border border-border    bg-surface-high",
-};
-
-// ── Utilities ─────────────────────────────────────────────────────────────────
-
-function fmtMb(mb: number): string {
-    if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
-    return `${mb} MB`;
-}
 
 type LiveMetrics = { cpuPercent: number; ramUsedMb: number; netInBytes: number; netOutBytes: number };
 type LivePlayers = { count: number; list: string[] };
@@ -230,16 +184,10 @@ export default function ServerDetailPage() {
     // ── Data fetching ──────────────────────────────────────────────────────────
 
     const fetchServer = useCallback(async () => {
-        try {
-            const data = await call(() => getServer({path: {id}}));
-            setServer(data);
-            setLoading(false);
-        } catch (e) {
-            if (e instanceof ApiError && e.status === 404) {
-                setNotFound(true);
-            }
-            setLoading(false);
-        }
+        const {data, response} = await getServer({path: {id}});
+        if (response?.status === 404) setNotFound(true);
+        if (data) setServer(data);
+        setLoading(false);
     }, [id]);
 
     useEffect(() => {
@@ -332,9 +280,9 @@ export default function ServerDetailPage() {
             if (editNetworkId !== (server.network_id ?? "")) body.network_id = editNetworkId || "";
             if (mcVersionChanged) body.mc_version = editMcVersion;
 
-            const res = await tryCall(() => updateServer({path: {id}, body: body as Parameters<typeof updateServer>[0]["body"]}));
-            if (!res.ok) {
-                setGeneralError(res.error);
+            const {error: updateErr} = await updateServer({path: {id}, body: body as Parameters<typeof updateServer>[0]["body"]});
+            if (updateErr) {
+                setGeneralError(updateErr.message ?? "Failed to save");
                 return;
             }
             await fetchServer();
@@ -362,12 +310,12 @@ export default function ServerDetailPage() {
         setSavingResources(true);
         setResourcesError(null);
         try {
-            const res = await tryCall(() => updateServerResources({
+            const {error: resErr} = await updateServerResources({
                 path: {id},
                 body: {memory_mb: editRamMb, cpu_shares: editCpuShares, itzg_image_tag: editItzgTag || undefined},
-            }));
-            if (!res.ok) {
-                setResourcesError(res.error);
+            });
+            if (resErr) {
+                setResourcesError(resErr.message ?? "Failed to save");
                 return;
             }
             await fetchServer();
@@ -390,18 +338,13 @@ export default function ServerDetailPage() {
     async function doAction(action: "start" | "stop" | "restart") {
         setPending(action);
         setActionError(null);
-        try {
-            const res = await tryCall(() => ACTION_FNS[action]({path: {id}}));
-            if (!res.ok) {
-                setActionError(res.error);
-            } else {
-                await fetchServer();
-            }
-        } catch {
-            setActionError(`Failed to ${action} server`);
-        } finally {
-            setPending(null);
+        const {error} = await ACTION_FNS[action]({path: {id}});
+        if (error) {
+            setActionError(error.message ?? `Failed to ${action} server`);
+        } else {
+            await fetchServer();
         }
+        setPending(null);
     }
 
     function doDelete() {
@@ -412,22 +355,14 @@ export default function ServerDetailPage() {
             destructive: true,
             onConfirm: async () => {
                 setActionError(null);
-                try {
-                    const res = await tryCall(() => deleteServer({path: {id}}));
-                    if (!res.ok) {
-                        setActionError(res.error);
-                    } else {
-                        router.push("/servers");
-                    }
-                } catch {
-                    setActionError("Failed to delete server");
+                const {error: deleteErr} = await deleteServer({path: {id}});
+                if (deleteErr) {
+                    setActionError(deleteErr.message ?? "Failed to delete server");
+                } else {
+                    router.push("/servers");
                 }
             },
         });
-    }
-
-    async function doUpgrade() {
-        //todo: remove
     }
 
     // ── Loading / not-found guards ─────────────────────────────────────────────
@@ -453,9 +388,9 @@ export default function ServerDetailPage() {
         );
     }
 
-    const ds = toDisplayStatus(server.status);
-
     // ── Render ─────────────────────────────────────────────────────────────────
+
+    const sStatus = server.status;
 
     return (
         <div>
@@ -489,15 +424,15 @@ export default function ServerDetailPage() {
                             {server.display_name}
                         </h1>
                         <span
-                            className={`text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${DISPLAY_CLASSES[ds]}`}
+                            className={`text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${serverStatusClass(sStatus)}`}
                         >
-              {DISPLAY_LABELS[ds]}
+              {serverStatusLabel(sStatus)}
             </span>
                     </div>
 
                     {/* Action buttons + ··· menu */}
                     <div className="flex items-center gap-2 shrink-0">
-                        {ds === "STOPPED" && hasPermission(permissions, "server.start") && (
+                        {sStatus === "STOPPED" && hasPermission(permissions, "server.start") && (
                             <HeaderActionButton
                                 icon={<Play size={12} strokeWidth={2.5}/>}
                                 label="Start"
@@ -506,7 +441,7 @@ export default function ServerDetailPage() {
                                 variant="green"
                             />
                         )}
-                        {(ds === "HEALTHY" || ds === "STARTING") && hasPermission(permissions, "server.stop") && (
+                        {(sStatus === "HEALTHY" || sStatus === "STARTING") && hasPermission(permissions, "server.stop") && (
                             <HeaderActionButton
                                 icon={<Square size={12} strokeWidth={2.5}/>}
                                 label="Stop"
@@ -515,7 +450,7 @@ export default function ServerDetailPage() {
                                 variant="red"
                             />
                         )}
-                        {ds === "HEALTHY" && hasPermission(permissions, "server.restart") && (
+                        {sStatus === "HEALTHY" && hasPermission(permissions, "server.restart") && (
                             <HeaderActionButton
                                 icon={<RotateCcw size={12} strokeWidth={2.5}/>}
                                 label="Restart"
@@ -524,7 +459,7 @@ export default function ServerDetailPage() {
                                 variant="yellow"
                             />
                         )}
-                        {ds === "STOPPED" && hasPermission(permissions, "server.delete") && (
+                        {sStatus === "STOPPED" && hasPermission(permissions, "server.delete") && (
                             <HeaderActionButton
                                 icon={<Trash2 size={12} strokeWidth={2.5}/>}
                                 label="Delete"
@@ -560,18 +495,6 @@ export default function ServerDetailPage() {
                                         >
                                             <Shuffle size={12} strokeWidth={2}/>
                                             Migrate
-                                        </button>
-                                    )}
-                                    {hasPermission(permissions, "server.upgrade") && (
-                                        <button
-                                            onClick={() => {
-                                                setMenuOpen(false);
-                                                doUpgrade();
-                                            }}
-                                            className="flex items-center gap-2 w-full text-left px-3 py-2 text-[12px] font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
-                                        >
-                                            <ArrowUpCircle size={12} strokeWidth={2}/>
-                                            Upgrade
                                         </button>
                                     )}
                                 </div>
@@ -877,7 +800,7 @@ function OverviewTab({
     onChangeCpuShares: (v: number) => void;
     onChangeItzgTag: (v: string) => void;
 }) {
-    const ds = toDisplayStatus(server.status);
+    const sStatus = server.status;
     const canConfigure = hasPermission(permissions, "server.configure");
     const canResources = hasPermission(permissions, "server.resources");
     const isProxy = ["VELOCITY", "BUNGEECORD", "WATERFALL"].includes(server.server_type);
@@ -932,9 +855,9 @@ function OverviewTab({
                 {/* STATUS */}
                 <StatCard label="Status">
           <span
-              className={`self-start text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${DISPLAY_CLASSES[ds]}`}
+              className={`self-start text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${serverStatusClass(sStatus)}`}
           >
-            {DISPLAY_LABELS[ds]}
+            {serverStatusLabel(sStatus)}
           </span>
                     {node?.last_seen_at && (
                         <p className="text-[11px] text-text-muted">

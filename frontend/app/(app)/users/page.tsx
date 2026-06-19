@@ -1,42 +1,12 @@
 "use client";
 
 import {useCallback, useEffect, useState} from "react";
-import {Pencil, Plus, Trash2, Users2, X} from "lucide-react";
+import {Pencil, Plus, Trash2, Users2} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
 import {createAssignment, createUser, deleteAssignment, deleteUser, listGroups, listNetworks, listServers, listUserAssignments, listUsers, updateUser,} from "@/lib/generated/sdk.gen";
 import type {Assignment, Group, User} from "@/lib/types";
-import {tryCall} from "@/lib/api";
+import {INPUT, BTN_PRIMARY, BTN_GHOST, Modal, Field} from "@/components/ui/form-elements";
 
-const INPUT = "w-full bg-surface-high border border-border rounded px-3 py-2 text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent/60";
-const BTN_PRIMARY = "px-4 py-2 rounded text-[12px] font-heading font-bold uppercase tracking-wider bg-accent text-bg hover:bg-accent-bright transition-colors";
-const BTN_GHOST = "px-4 py-2 rounded text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-text-primary hover:bg-surface-high transition-colors border border-border";
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function Modal({title, onClose, children}: { title: string; onClose: () => void; children: React.ReactNode }) {
-    return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <div className="bg-surface border border-border rounded-md w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between px-5 py-4 border-b border-border sticky top-0 bg-surface z-10">
-                    <h2 className="text-[13px] font-heading font-bold uppercase tracking-widest text-text-primary">{title}</h2>
-                    <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors">
-                        <X size={16}/>
-                    </button>
-                </div>
-                <div className="p-5">{children}</div>
-            </div>
-        </div>
-    );
-}
-
-function Field({label, children}: { label: string; children: React.ReactNode }) {
-    return (
-        <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">{label}</label>
-            {children}
-        </div>
-    );
-}
 
 // ── Create User Modal ─────────────────────────────────────────────────────────
 
@@ -49,10 +19,10 @@ function CreateUserModal({onClose, onDone}: { onClose: () => void; onDone: () =>
         e.preventDefault();
         setError("");
         setSaving(true);
-        const res = await tryCall(() => createUser({body: form}));
+        const {error} = await createUser({body: form});
         setSaving(false);
-        if (!res.ok) {
-            setError(res.error);
+        if (error) {
+            setError(error.message ?? "Failed to create user");
             return;
         }
         onDone();
@@ -95,13 +65,13 @@ function EditUserModal({user, onClose, onDone}: { user: User; onClose: () => voi
         e.preventDefault();
         setError("");
         setSaving(true);
-        const res = await tryCall(() => updateUser({
+        const {error} = await updateUser({
             path: {id: user.id},
             body: {username: form.username, email: form.email, is_active: form.isActive},
-        }));
+        });
         setSaving(false);
-        if (!res.ok) {
-            setError(res.error);
+        if (error) {
+            setError(error.message ?? "Failed to update user");
             return;
         }
         onDone();
@@ -181,12 +151,12 @@ function AssignmentsModal({
             setAddError("Select a scope target");
             return;
         }
-        const res = await tryCall(() => createAssignment({
+        const {error} = await createAssignment({
             path: {userId: user.id},
             body: {group_id: newGroup, scope_type: newScope, scope_id: newScope !== "GLOBAL" ? newScopeId : undefined},
-        }));
-        if (!res.ok) {
-            setAddError(res.error);
+        });
+        if (error) {
+            setAddError(error.message ?? "Failed to add assignment");
             return;
         }
         setNewGroup("");
@@ -310,9 +280,9 @@ export default function UsersPage() {
     async function handleDelete() {
         if (!deleting) return;
         setDeleteError("");
-        const res = await tryCall(() => deleteUser({path: {id: deleting.id}}));
-        if (!res.ok) {
-            setDeleteError(res.error);
+        const {error} = await deleteUser({path: {id: deleting.id}});
+        if (error) {
+            setDeleteError(error.message ?? "Failed to delete user");
             return;
         }
         setDeleting(null);

@@ -37,21 +37,21 @@ describe('timeAgo', () => {
 
     it('shows seconds for < 60s', () => {
         const iso = new Date(now - 30_000).toISOString()
-        expect(timeAgo(iso)).toBe('30s ago')
+        expect(timeAgo(iso)).toBe('30 seconds ago')
     })
 
     it('shows minutes for < 1h', () => {
         const iso = new Date(now - 5 * 60_000).toISOString()
-        expect(timeAgo(iso)).toBe('5m ago')
+        expect(timeAgo(iso)).toBe('5 minutes ago')
     })
 
     it('shows hours for < 24h', () => {
         const iso = new Date(now - 3 * 3_600_000).toISOString()
-        expect(timeAgo(iso)).toBe('3h ago')
+        expect(timeAgo(iso)).toBe('3 hours ago')
     })
 
     it('shows days for >= 24h', () => {
         const iso = new Date(now - 2 * 86_400_000).toISOString()
-        expect(timeAgo(iso)).toBe('2d ago')
+        expect(timeAgo(iso)).toBe('2 days ago')
     })
 })

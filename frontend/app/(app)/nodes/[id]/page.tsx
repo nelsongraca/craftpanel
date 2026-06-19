@@ -10,31 +10,12 @@ import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import {useWs} from "@/lib/ws-context";
 import type {Node} from "@/lib/types";
-import {timeAgo} from "@/lib/utils/format";
+import {timeAgo, fmtBytes, fmtMb, fmtBytesNetworkIo, fillColorBg} from "@/lib/utils/format";
 import {TokenModal} from "@/components/nodes/TokenModal";
 import type {ServerResponse as Server} from "@/lib/generated/types.gen";
 import {ConfirmDialog} from "@/components/ui/confirm-dialog";
-import {ApiError, call, tryCall} from "@/lib/api";
+
 import {nodeStatusClass, nodeStatusLabel, serverStatusClass} from "@/lib/status";
-
-// ── Utilities ─────────────────────────────────────────────────────────────────
-
-function fmtMb(mb: number): string {
-    return mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb} MB`;
-}
-
-function fmtBytes(b: number): string {
-    if (b >= 1e9) return `${(b / 1e9).toFixed(1)} GB`;
-    if (b >= 1e6) return `${(b / 1e6).toFixed(1)} MB`;
-    if (b >= 1e3) return `${(b / 1e3).toFixed(1)} KB`;
-    return `${b} B`;
-}
-
-function fillColor(pct: number): string {
-    if (pct >= 86) return "bg-error";
-    if (pct >= 66) return "bg-warning";
-    return "bg-accent";
-}
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -51,7 +32,7 @@ function StatCard({label, children}: { label: string; children: React.ReactNode 
 
 function ResourceBar({used, total, fmt}: { used: number; total: number; fmt: (v: number) => string }) {
     const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0;
-    const cls = fillColor(pct);
+    const cls = fillColorBg(pct);
     return (
         <div className="flex flex-col gap-1.5">
             <p className="font-mono text-[20px] text-text-primary leading-none">{fmt(used)}</p>
@@ -117,16 +98,16 @@ function EditModal({node, onClose, onSaved}: { node: Node; onClose: () => void; 
     async function save() {
         setSaving(true);
         setError(null);
-        const res = await tryCall(() => updateNode({
+        const {error} = await updateNode({
             path: {id: node.id},
             body: {
                 display_name: displayName || undefined,
                 port_range_start: portStart ? parseInt(portStart) : undefined,
                 port_range_end: portEnd ? parseInt(portEnd) : undefined,
             },
-        }));
-        if (!res.ok) {
-            setError(res.error);
+        });
+        if (error) {
+            setError(error.message ?? "Failed to save");
         } else {
             onSaved();
             onClose();
@@ -206,7 +187,7 @@ function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
                         </p>
                         <div className="h-1.5 rounded-full bg-surface-higher w-full overflow-hidden">
                             <div
-                                className={`h-full rounded-full ${fillColor(cpuPct)}`}
+                                className={`h-full rounded-full ${fillColorBg(cpuPct)}`}
                                 style={{width: `${cpuPct}%`}}
                             />
                         </div>
@@ -256,7 +237,7 @@ function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
                 <div className="flex items-center gap-3">
                     <div className="flex-1 h-3 rounded-full bg-surface-higher overflow-hidden">
                         <div
-                            className={`h-full rounded-full transition-all ${fillColor(ramPct)}`}
+                            className={`h-full rounded-full transition-all ${fillColorBg(ramPct)}`}
                             style={{width: `${ramPct}%`}}
                         />
                     </div>
@@ -519,7 +500,7 @@ function MetricsTab({nodeId}: { nodeId: string }) {
                     <LineChart data={points} margin={{top: 0, right: 8, bottom: 0, left: 0}}>
                         <CartesianGrid {...chartStyle.cartesianGrid} />
                         <XAxis dataKey="t" tickFormatter={fmtAxisTime} {...chartStyle.xAxis} />
-                        <YAxis tickFormatter={(v) => fmtBytes(v)} {...chartStyle.yAxis} />
+                        <YAxis tickFormatter={(v) => fmtBytesNetworkIo(v)} {...chartStyle.yAxis} />
                         <Tooltip
                             {...chartStyle.tooltip}
                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -555,7 +536,7 @@ function MetricsTab({nodeId}: { nodeId: string }) {
                     <LineChart data={points} margin={{top: 0, right: 8, bottom: 0, left: 0}}>
                         <CartesianGrid {...chartStyle.cartesianGrid} />
                         <XAxis dataKey="t" tickFormatter={fmtAxisTime} {...chartStyle.xAxis} />
-                        <YAxis tickFormatter={(v) => fmtBytes(v)} {...chartStyle.yAxis} />
+                        <YAxis tickFormatter={(v) => fmtBytesNetworkIo(v)} {...chartStyle.yAxis} />
                         <Tooltip
                             {...chartStyle.tooltip}
                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -600,14 +581,10 @@ export default function NodeDetailPage() {
     const [tokenKey, setTokenKey] = useState<string | null>(null);
 
     const fetchNode = useCallback(async () => {
-        try {
-            const data = await call(() => getNode({path: {id}}));
-            setNode(data);
-            setLoading(false);
-        } catch (e) {
-            if (e instanceof ApiError && e.status === 404) setNotFound(true);
-            setLoading(false);
-        }
+        const {data, response} = await getNode({path: {id}});
+        if (response?.status === 404) setNotFound(true);
+        if (data) setNode(data);
+        setLoading(false);
     }, [id]);
 
     useEffect(() => {
@@ -624,8 +601,8 @@ export default function NodeDetailPage() {
     async function doTrust() {
         setPending("trust");
         setActionError(null);
-        const res = await tryCall(() => trustNode({path: {id}}));
-        if (!res.ok) setActionError(res.error); else await fetchNode();
+        const {error: trustErr} = await trustNode({path: {id}});
+        if (trustErr) setActionError(trustErr.message ?? "Failed to trust node"); else await fetchNode();
         setPending(null);
     }
 
@@ -637,8 +614,8 @@ export default function NodeDetailPage() {
             onConfirm: async () => {
                 setPending("reject");
                 setActionError(null);
-                const res = await tryCall(() => rejectNode({path: {id}}));
-                if (!res.ok) setActionError(res.error); else await fetchNode();
+                const {error: rejectErr} = await rejectNode({path: {id}});
+                if (rejectErr) setActionError(rejectErr.message ?? "Failed to reject node"); else await fetchNode();
                 setPending(null);
             },
         });
@@ -651,8 +628,8 @@ export default function NodeDetailPage() {
             onConfirm: async () => {
                 setPending("rotate");
                 setActionError(null);
-                const res = await tryCall(() => rotateNodeToken({path: {id}}));
-                if (!res.ok) setActionError(res.error); else setTokenKey(res.data.node_key);
+                const {error: rotateErr, data: rotateData} = await rotateNodeToken({path: {id}});
+                if (rotateErr) setActionError(rotateErr.message ?? "Failed to rotate key"); else setTokenKey(rotateData!.node_key);
                 setPending(null);
             },
         });
@@ -666,8 +643,8 @@ export default function NodeDetailPage() {
             onConfirm: async () => {
                 setPending("shutdown");
                 setActionError(null);
-                const res = await tryCall(() => shutdownNode({path: {id}}));
-                if (!res.ok) setActionError(res.error); else await fetchNode();
+                const {error: shutdownErr} = await shutdownNode({path: {id}});
+                if (shutdownErr) setActionError(shutdownErr.message ?? "Failed to shutdown node"); else await fetchNode();
                 setPending(null);
             },
         });
@@ -682,8 +659,8 @@ export default function NodeDetailPage() {
             onConfirm: async () => {
                 setPending("decommission");
                 setActionError(null);
-                const res = await tryCall(() => decommissionNode({path: {id}}));
-                if (!res.ok) setActionError(res.error); else router.push("/nodes");
+                const {error: decomErr} = await decommissionNode({path: {id}});
+                if (decomErr) setActionError(decomErr.message ?? "Failed to decommission node"); else router.push("/nodes");
                 setPending(null);
             },
         });

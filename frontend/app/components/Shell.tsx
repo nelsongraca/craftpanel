@@ -52,6 +52,11 @@ export default function Shell({children}: { children: React.ReactNode }) {
 
     const permissions = user?.permissions ?? [];
 
+    const closeMenu = (fn: () => void) => () => {
+        setMenuOpen(false);
+        fn();
+    };
+
     useEffect(() => {
         function handleClickOutside(e: MouseEvent) {
             if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
@@ -90,20 +95,14 @@ export default function Shell({children}: { children: React.ReactNode }) {
                                 </p>
                             </div>
                             <button
-                                onClick={() => {
-                                    setMenuOpen(false);
-                                    logout();
-                                }}
+                                onClick={closeMenu(logout)}
                                 className="flex items-center gap-2.5 w-full text-left px-3 py-2 text-[12px] hover:bg-surface-high text-text-primary transition-colors"
                             >
                                 <LogOut size={13} strokeWidth={2}/>
                                 Sign out
                             </button>
                             <button
-                                onClick={() => {
-                                    setMenuOpen(false);
-                                    logoutAll();
-                                }}
+                                onClick={closeMenu(logoutAll)}
                                 className="flex items-center gap-2.5 w-full text-left px-3 py-2 text-[12px] hover:bg-surface-high text-text-dim transition-colors"
                             >
                                 <LogOut size={13} strokeWidth={2}/>
