@@ -2,8 +2,8 @@ package io.craftpanel.master.service
 
 import io.craftpanel.proto.*
 import io.craftpanel.master.database.schema.*
-import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.AgentEvent
+import io.craftpanel.master.dns.DnsProvider
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
@@ -26,6 +26,30 @@ import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 import io.craftpanel.master.util.toUtcString
+
+@Serializable
+sealed class MigrationEvent {
+
+    @Serializable
+    @SerialName("status")
+    data class Status(val status: String) : MigrationEvent()
+
+    @Serializable
+    @SerialName("step.started")
+    data class StepStarted(val step: Int, val description: String) : MigrationEvent()
+
+    @Serializable
+    @SerialName("rsync.progress")
+    data class RsyncProgress(val isFinalPass: Boolean, val percent: Int, val bytes: Long, val phase: String) : MigrationEvent()
+
+    @Serializable
+    @SerialName("failed")
+    data class Failed(val error: String) : MigrationEvent()
+
+    @Serializable
+    @SerialName("completed")
+    data object Completed : MigrationEvent()
+}
 
 @Serializable
 data class MigrateRequest(
@@ -57,8 +81,7 @@ data class MigrationResponse(
 )
 
 class MigrationService(
-    private val sendToNode: (String, MasterMessage) -> Boolean,
-    private val agentEvents: SharedFlow<AgentEvent>,
+    private val gateway: AgentGateway,
     private val dnsProvider: DnsProvider?,
     private val scope: CoroutineScope,
     private val lifecycle: ContainerLifecycle,
@@ -284,11 +307,11 @@ class MigrationService(
                 val stepId = startStep(2, "Prepare rsync receiver on target node")
                 val readyChannel = Channel<AgentEvent.RsyncReadyEvent>(1)
                 val job = scope.launch {
-                    agentEvents.filterIsInstance<AgentEvent.RsyncReadyEvent>()
+                    gateway.agentEvents.filterIsInstance<AgentEvent.RsyncReadyEvent>()
                         .collect { if (it.migrationId == migrationIdStr) readyChannel.trySend(it) }
                 }
                 try {
-                    val sent = sendToNode(targetNodeIdStr, masterMessage {
+                    val sent = gateway.sendToNode(targetNodeIdStr, masterMessage {
                         prepareRsyncReceive = prepareRsyncReceiveCommand {
                             this.migrationId = migrationIdStr
                             this.serverId = serverIdStr
@@ -321,19 +344,19 @@ class MigrationService(
                 val stepId = startStep(3, "Initial rsync pass (live data sync)")
                 val completeChannel = Channel<AgentEvent.RsyncCompleteEvent>(1)
                 val progressJob = scope.launch {
-                    agentEvents.filterIsInstance<AgentEvent.RsyncProgressEvent>().collect { u ->
+                    gateway.agentEvents.filterIsInstance<AgentEvent.RsyncProgressEvent>().collect { u ->
                         if (u.migrationId == migrationIdStr && !u.isFinalPass) {
                             emit(MigrationEvent.RsyncProgress(false, u.percentComplete, u.bytesTransferred, u.phase))
                         }
                     }
                 }
                 val completeJob = scope.launch {
-                    agentEvents.filterIsInstance<AgentEvent.RsyncCompleteEvent>().collect { u ->
+                    gateway.agentEvents.filterIsInstance<AgentEvent.RsyncCompleteEvent>().collect { u ->
                         if (u.migrationId == migrationIdStr && !u.isFinalPass) completeChannel.trySend(u)
                     }
                 }
                 try {
-                    val sent = sendToNode(sourceNodeIdStr, masterMessage {
+                    val sent = gateway.sendToNode(sourceNodeIdStr, masterMessage {
                         startRsync = startRsyncCommand {
                             this.migrationId = migrationIdStr
                             this.serverId = serverIdStr
@@ -375,7 +398,7 @@ class MigrationService(
                     .replace('\r', ' ')
                     .replace("\"", "")
                     .take(255)
-                sendToNode(sourceNodeIdStr, masterMessage {
+                gateway.sendToNode(sourceNodeIdStr, masterMessage {
                     sendRcon = sendRconCommand {
                         this.serverId = serverIdStr
                         command = "say $safeMsg"
@@ -415,19 +438,19 @@ class MigrationService(
                 val stepId = startStep(6, "Final rsync pass (delta sync, source stopped)")
                 val completeChannel = Channel<AgentEvent.RsyncCompleteEvent>(1)
                 val progressJob = scope.launch {
-                    agentEvents.filterIsInstance<AgentEvent.RsyncProgressEvent>().collect { u ->
+                    gateway.agentEvents.filterIsInstance<AgentEvent.RsyncProgressEvent>().collect { u ->
                         if (u.migrationId == migrationIdStr && u.isFinalPass) {
                             emit(MigrationEvent.RsyncProgress(true, u.percentComplete, u.bytesTransferred, u.phase))
                         }
                     }
                 }
                 val completeJob = scope.launch {
-                    agentEvents.filterIsInstance<AgentEvent.RsyncCompleteEvent>().collect { u ->
+                    gateway.agentEvents.filterIsInstance<AgentEvent.RsyncCompleteEvent>().collect { u ->
                         if (u.migrationId == migrationIdStr && u.isFinalPass) completeChannel.trySend(u)
                     }
                 }
                 try {
-                    sendToNode(sourceNodeIdStr, masterMessage {
+                    gateway.sendToNode(sourceNodeIdStr, masterMessage {
                         startRsync = startRsyncCommand {
                             this.migrationId = migrationIdStr
                             this.serverId = serverIdStr
@@ -565,7 +588,7 @@ class MigrationService(
             // Always clean up rsync-recv container and release the ephemeral rsync port.
             // On success path the port was already freed in step 11 — the deleteWhere is a no-op.
             runCatching {
-                sendToNode(targetNodeIdStr, masterMessage {
+                gateway.sendToNode(targetNodeIdStr, masterMessage {
                     removeContainer = removeContainerCommand {
                         containerName = "$containerNamePrefix-rsync-recv-$migrationIdStr"
                         force = true
@@ -636,7 +659,7 @@ class MigrationService(
                     ?.get(Servers.nodeId)
                     ?.toString()
             } ?: continue
-            val sent = sendToNode(nodeIdStr, masterMessage {
+            val sent = gateway.sendToNode(nodeIdStr, masterMessage {
                 restartContainer = restartContainerCommand { this.serverId = proxyServerId.toString() }
             })
             if (sent) {

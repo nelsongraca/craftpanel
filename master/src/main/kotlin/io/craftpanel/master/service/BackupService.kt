@@ -1,6 +1,5 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.proto.MasterMessage
 import io.craftpanel.proto.deleteBackupCommand
 import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.triggerBackupCommand
@@ -54,7 +53,7 @@ data class PutBackupScheduleRequest(
 data class BackupDownloadInfo(val serverId: String, val backupId: String)
 
 class BackupService(
-    private val sendToNode: (String, MasterMessage) -> Boolean,
+    private val gateway: AgentGateway,
     private val dataServiceProxy: DataServiceProxy,
 ) {
 
@@ -92,7 +91,7 @@ class BackupService(
                     val filePath = old[Backups.filePath]
                     val backupNodeId = old[Backups.nodeId].toString()
                     if (!filePath.isNullOrEmpty()) {
-                        val sent = sendToNode(backupNodeId, masterMessage {
+                        val sent = gateway.sendToNode(backupNodeId, masterMessage {
                             deleteBackup = deleteBackupCommand {
                                 backupId = old[Backups.id].toString()
                                 this.filePath = filePath
@@ -120,7 +119,7 @@ class BackupService(
                 .where { Backups.id eq backupId }
                 .first()
 
-            val sent = sendToNode(nodeId, masterMessage {
+            val sent = gateway.sendToNode(nodeId, masterMessage {
                 triggerBackup = triggerBackupCommand {
                     this.backupId = backupId.toString()
                     this.serverId = serverId.toString()
@@ -156,7 +155,7 @@ class BackupService(
         val backupNodeId = backup[Backups.nodeId].toString()
         val backupIdStr = backupId.toString()
         if (!filePath.isNullOrEmpty()) {
-            sendToNode(backupNodeId, masterMessage {
+            gateway.sendToNode(backupNodeId, masterMessage {
                 deleteBackup = deleteBackupCommand {
                     this.backupId = backupIdStr
                     this.filePath = filePath

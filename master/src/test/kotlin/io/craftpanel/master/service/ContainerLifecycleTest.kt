@@ -1,11 +1,11 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.TestDatabase
+import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.ServerStatus
-import io.craftpanel.proto.MasterMessage
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -22,15 +22,16 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 
 class ContainerLifecycleTest : FunSpec({
-    val sent = mutableListOf<Pair<String, MasterMessage>>()
     val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
     lateinit var nodeId: Uuid
     lateinit var serverId: Uuid
 
+    lateinit var gateway: TestAgentGateway
+
     beforeTest {
         TestDatabase.initIfNeeded()
         TestDatabase.reset()
-        sent.clear()
+        gateway = TestAgentGateway(agentEvents = events)
         val resolvedNodeId = transaction {
             Nodes.insert {
                 it[Nodes.hostname] = "test-node"
@@ -73,8 +74,7 @@ class ContainerLifecycleTest : FunSpec({
         stopTimeout: kotlin.time.Duration = 2.seconds,
         removeTimeout: kotlin.time.Duration = 2.seconds,
     ) = ContainerLifecycle(
-        sendToNode = { nId, msg -> sent.add(nId to msg); true },
-        agentEvents = events,
+        gateway = gateway,
         modService = ModService(),
         startTimeout = startTimeout,
         stopTimeout = stopTimeout,
@@ -89,9 +89,9 @@ class ContainerLifecycleTest : FunSpec({
             events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY))
         }
         lc.start(server, needsRecreate = false)
-        sent.size shouldBe 1
-        sent[0].second.hasStartContainer() shouldBe true
-        val cmd = sent[0].second.startContainer
+        gateway.sent.size shouldBe 1
+        gateway.sent[0].second.hasStartContainer() shouldBe true
+        val cmd = gateway.sent[0].second.startContainer
         cmd.needsRecreate shouldBe false
         cmd.containerName shouldBe "craftpanel-$serverId"
         cmd.image shouldBe "itzg/minecraft-server:latest"
@@ -106,9 +106,9 @@ class ContainerLifecycleTest : FunSpec({
             events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY))
         }
         lc.start(server, needsRecreate = true)
-        sent.size shouldBe 1
-        sent[0].second.hasStartContainer() shouldBe true
-        val cmd = sent[0].second.startContainer
+        gateway.sent.size shouldBe 1
+        gateway.sent[0].second.hasStartContainer() shouldBe true
+        val cmd = gateway.sent[0].second.startContainer
         cmd.needsRecreate shouldBe true
     }
 
@@ -135,8 +135,7 @@ class ContainerLifecycleTest : FunSpec({
     test("stop - agent not connected - throws BadGatewayException") {
         val server = serverRow()
         val lc = ContainerLifecycle(
-            sendToNode = { _, _ -> false },
-            agentEvents = events,
+            gateway = TestAgentGateway(agentEvents = events, sendResult = false),
             modService = ModService(),
         )
         shouldThrow<BadGatewayException> {

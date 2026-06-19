@@ -1,5 +1,6 @@
 package io.craftpanel.master.routes
 
+import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.auth.JwtManager
@@ -51,7 +52,7 @@ class BackupsRoutesTest : FunSpec({
     val jwtManager = JwtManager(jwtConfig)
     val noopControlSvc = ControlServiceImpl(NodeConfig("test-token", 50052))
     val noopProxy = DataServiceProxy(noopControlSvc, BulkDataServiceImpl(noopControlSvc))
-    val noopSend: (String, io.craftpanel.proto.MasterMessage) -> Boolean = { _, _ -> true }
+    val noopGateway = TestAgentGateway()
 
     beforeTest {
         TestDatabase.initIfNeeded()
@@ -80,7 +81,7 @@ class BackupsRoutesTest : FunSpec({
                 }
             }
         }
-        routing { backupsRoutes(BackupService(noopSend, noopProxy)) }
+        routing { backupsRoutes(BackupService(noopGateway, noopProxy)) }
     }
 
     fun ApplicationTestBuilder.jsonClient() = createClient {

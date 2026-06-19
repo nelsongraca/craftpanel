@@ -2,6 +2,7 @@ package io.craftpanel.master.auth
 
 import io.craftpanel.master.database.schema.RefreshTokens
 import io.craftpanel.master.database.schema.Users
+import io.craftpanel.master.util.CryptoUtils
 import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -13,8 +14,7 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.security.MessageDigest
-import java.security.SecureRandom
-import java.util.Base64
+import java.util.HexFormat
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
 import kotlin.uuid.Uuid
@@ -26,7 +26,6 @@ data class RefreshTokenResult(
 
 class RefreshTokenService {
 
-    private val random = SecureRandom()
     private val tokenLifetime = 30.days
 
     fun issue(userId: Uuid): RefreshTokenResult = transaction {
@@ -89,17 +88,9 @@ class RefreshTokenService {
         }
     }
 
-    private fun generateRaw(): String {
-        val bytes = ByteArray(48).also { random.nextBytes(it) }
-        return Base64.getUrlEncoder()
-            .withoutPadding()
-            .encodeToString(bytes)
-    }
+    private fun generateRaw(): String = CryptoUtils.generateToken(48)
 
-    private fun sha256Hex(input: String): String {
-        val digest = MessageDigest.getInstance("SHA-256")
+    private fun sha256Hex(input: String): String =
         // Result is used only as a DB lookup key (SQL WHERE) — never compared in Kotlin code.
-        return digest.digest(input.toByteArray())
-            .joinToString("") { "%02x".format(it) }
-    }
+        HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(input.toByteArray()))
 }

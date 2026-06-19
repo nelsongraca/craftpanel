@@ -22,3 +22,7 @@ enum class Permission(val node: String) {
 
     override fun toString(): String = node
 }
+
+enum class ScopeType {
+    GLOBAL, SERVER, NETWORK, NODE
+}

@@ -23,7 +23,6 @@ import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.uuid.Uuid
 import kotlin.time.Clock
 import io.craftpanel.master.util.toUtcString
-import kotlinx.coroutines.flow.MutableSharedFlow
 
 @Serializable
 data class ServerResponse(
@@ -109,14 +108,13 @@ data class ContainerMetricsSeries(
 )
 
 class ServerService(
-    private val sendToNode: (String, MasterMessage) -> Boolean,
+    private val gateway: AgentGateway,
     private val modService: ModService,
     private val dnsProvider: DnsProvider? = null,
     private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
     private val containerNamePrefix: String = "craftpanel",
     private val lifecycle: ContainerLifecycle = ContainerLifecycle(
-        sendToNode = sendToNode,
-        agentEvents = MutableSharedFlow(),
+        gateway = gateway,
         modService = modService,
         images = images,
         containerNamePrefix = containerNamePrefix,
@@ -368,7 +366,7 @@ class ServerService(
         }
 
         val nodeId = existing[Servers.nodeId].toString()
-        sendToNode(
+        gateway.sendToNode(
             nodeId, masterMessage {
                 removeContainer = removeContainerCommand {
                     serverId = id.toString()
@@ -509,7 +507,7 @@ class ServerService(
                     timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand]
                 }
             }
-            if (!sendToNode(nodeId, restartCmd)) throw BadGatewayException("Agent not connected")
+            if (!gateway.sendToNode(nodeId, restartCmd)) throw BadGatewayException("Agent not connected")
         }
     }
 

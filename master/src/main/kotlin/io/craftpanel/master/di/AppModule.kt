@@ -10,6 +10,7 @@ import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.scheduler.BackupJobHandler
 import io.craftpanel.master.scheduler.ServerScheduler
+import io.craftpanel.master.service.AgentGateway
 import io.craftpanel.master.service.AlertService
 import io.craftpanel.master.service.AssignmentService
 import io.craftpanel.master.service.BackupService
@@ -34,6 +35,7 @@ val appModule = module {
     single { ServerRestartManager(get<AppConfig>().restart.maxAttempts, get<AppConfig>().restart.windowSeconds) }
 
     // gRPC core
+    single<AgentGateway> { get<ControlServiceImpl>() }
     single {
         ControlServiceImpl(
             nodeConfig = get<AppConfig>().node,
@@ -52,7 +54,7 @@ val appModule = module {
 
     // Domain services
     single { UserService() }
-    single { NodeService(get<ControlServiceImpl>()::sendToNode) }
+    single { NodeService(get<AgentGateway>()) }
     single { NetworkService() }
     single { GroupService() }
     single { AssignmentService() }
@@ -62,8 +64,7 @@ val appModule = module {
 
     single {
         ContainerLifecycle(
-            sendToNode = get<ControlServiceImpl>()::sendToNode,
-            agentEvents = get<ControlServiceImpl>().agentEvents,
+            gateway = get<AgentGateway>(),
             modService = get(),
             images = get<AppConfig>().images,
             containerNamePrefix = get(named("containerPrefix")),
@@ -71,7 +72,7 @@ val appModule = module {
     }
     single {
         ServerService(
-            sendToNode = get<ControlServiceImpl>()::sendToNode,
+            gateway = get<AgentGateway>(),
             modService = get(),
             dnsProvider = get<DnsProviderHolder>().provider,
             images = get<AppConfig>().images,
@@ -79,14 +80,13 @@ val appModule = module {
             lifecycle = get(),
         )
     }
-    single { BackupService(get<ControlServiceImpl>()::sendToNode, get()) }
+    single { BackupService(get<AgentGateway>(), get()) }
     single { ProxyBackendService() }
     single { EnvVarsService() }
 
     single {
         MigrationService(
-            sendToNode = get<ControlServiceImpl>()::sendToNode,
-            agentEvents = get<ControlServiceImpl>().agentEvents,
+            gateway = get<AgentGateway>(),
             dnsProvider = get<DnsProviderHolder>().provider,
             scope = get(named("appScope")),
             lifecycle = get(),

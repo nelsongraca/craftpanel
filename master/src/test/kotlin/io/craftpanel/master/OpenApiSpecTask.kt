@@ -6,7 +6,6 @@ import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.config.AppConfig
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.config.NodeConfig
-import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
@@ -52,7 +51,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.serialization.json.Json
 import org.koin.dsl.module
 import org.koin.ktor.plugin.KoinIsolated
@@ -68,7 +66,7 @@ class OpenApiSpecTask : FunSpec({
                 audience = "craftpanel",
                 expirySeconds = 900,
             )
-            val noopSend: (String, io.craftpanel.proto.MasterMessage) -> Boolean = { _, _ -> false }
+            val noopGateway = TestAgentGateway()
             val stubAppConfig = AppConfig(
                 io.ktor.server.config.MapApplicationConfig(
                     "app.profile" to "dev",
@@ -100,7 +98,7 @@ class OpenApiSpecTask : FunSpec({
                             single { BulkDataServiceImpl(get()) }
                             single { DataServiceProxy(get(), get()) }
                             single { ModService() }
-                            single { NodeService(noopSend) }
+                            single { NodeService(noopGateway) }
                             single { NetworkService() }
                             single { UserService() }
                             single { GroupService() }
@@ -109,24 +107,22 @@ class OpenApiSpecTask : FunSpec({
                             single { AlertService() }
                             single {
                                 ContainerLifecycle(
-                                    sendToNode = noopSend,
-                                    agentEvents = MutableSharedFlow<AgentEvent>(),
+                                    gateway = noopGateway,
                                     modService = get(),
                                 )
                             }
                             single {
                                 ServerService(
-                                    sendToNode = noopSend,
+                                    gateway = noopGateway,
                                     modService = get(),
                                 )
                             }
-                            single { BackupService(noopSend, get()) }
+                            single { BackupService(noopGateway, get()) }
                             single { ProxyBackendService() }
                             single { EnvVarsService() }
                             single {
                                 MigrationService(
-                                    sendToNode = noopSend,
-                                    agentEvents = MutableSharedFlow<AgentEvent>(),
+                                    gateway = noopGateway,
                                     dnsProvider = null,
                                     scope = migrationScope,
                                     lifecycle = get(),

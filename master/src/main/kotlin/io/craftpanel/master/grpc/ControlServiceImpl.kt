@@ -1,6 +1,7 @@
 package io.craftpanel.master.grpc
 
 import io.craftpanel.master.auth.ScopeType
+import io.craftpanel.proto.ContainerState
 import io.craftpanel.proto.*
 import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.database.schema.*
@@ -28,7 +29,7 @@ import org.jetbrains.exposed.v1.jdbc.update
 import org.slf4j.LoggerFactory
 import java.security.MessageDigest
 import java.security.SecureRandom
-import java.util.Base64
+import java.util.HexFormat
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Clock
@@ -36,10 +37,11 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 import io.craftpanel.master.util.toUtcString
 import io.craftpanel.master.domain.AgentEvent
-import io.craftpanel.master.domain.AgentMetricEvent
 import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.ServerStatus
+import io.craftpanel.master.service.AgentGateway
 import io.craftpanel.master.service.ServerRestartManager
+import io.craftpanel.master.util.CryptoUtils
 import kotlin.uuid.Uuid
 
 class ControlServiceImpl(
@@ -49,7 +51,7 @@ class ControlServiceImpl(
     // Both default to no-op so existing tests construct ControlServiceImpl unchanged.
     private val restartManager: ServerRestartManager? = null,
     private val restartServer: (Uuid) -> Unit = {},
-) : ControlServiceGrpcKt.ControlServiceCoroutineImplBase() {
+) : ControlServiceGrpcKt.ControlServiceCoroutineImplBase(), AgentGateway {
 
     private val log = LoggerFactory.getLogger(ControlServiceImpl::class.java)
     private val random = SecureRandom()
@@ -60,13 +62,11 @@ class ControlServiceImpl(
     private val consoleOutputChannels = ConcurrentHashMap<String, Channel<ConsoleOutput>>()
 
     // ── Observability flows ───────────────────────────────────────────────────
-    private val _agentEvents = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 512)
-    private val _agentMetricsFlow = MutableSharedFlow<AgentMetricEvent>(extraBufferCapacity = 1024)
+    private val _agentEvents = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 1024)
 
-    val agentEvents = _agentEvents.asSharedFlow()
-    val agentMetricsFlow = _agentMetricsFlow.asSharedFlow()
+    override val agentEvents = _agentEvents.asSharedFlow()
 
-    fun sendToNode(nodeId: String, msg: MasterMessage): Boolean {
+    override fun sendToNode(nodeId: String, msg: MasterMessage): Boolean {
         val channel = connectedAgents[nodeId]
         if (channel == null) {
             log.warn("sendToNode: node {} not found in connectedAgents (connected: {})", nodeId, connectedAgents.keys)
@@ -224,7 +224,7 @@ class ControlServiceImpl(
                         val recordedAt = if (msg.nodeMetrics.hasRecordedAt())
                             Instant.fromEpochSeconds(msg.nodeMetrics.recordedAt.seconds, msg.nodeMetrics.recordedAt.nanos.toLong())
                         else Clock.System.now()
-                        val nodeMetricEvent = AgentMetricEvent.NodeMetricsEvent(
+                        val nodeMetricEvent = AgentEvent.NodeMetricsEvent(
                             nodeId = msg.nodeId,
                             cpuPercent = msg.nodeMetrics.cpuPercent,
                             ramUsedMb = msg.nodeMetrics.ramUsedMb,
@@ -237,7 +237,7 @@ class ControlServiceImpl(
                         )
                         runCatching { persistNodeMetrics(nodeMetricEvent) }
                             .onFailure { e -> log.warn("Node ${msg.nodeId}: persistNodeMetrics failed — ${e.message}") }
-                        _agentMetricsFlow.emit(nodeMetricEvent)
+                        _agentEvents.emit(nodeMetricEvent)
                         // Router health derived from the periodic report; emit only on change
                         val newHealth = if (msg.nodeMetrics.routerRunning) NodeHealth.HEALTHY else NodeHealth.DEGRADED
                         if (newHealth != lastEmittedHealth) {
@@ -256,7 +256,7 @@ class ControlServiceImpl(
                         val recordedAt = if (msg.containerMetrics.hasRecordedAt())
                             Instant.fromEpochSeconds(msg.containerMetrics.recordedAt.seconds, msg.containerMetrics.recordedAt.nanos.toLong())
                         else Clock.System.now()
-                        val containerMetricEvent = AgentMetricEvent.ContainerMetricsEvent(
+                        val containerMetricEvent = AgentEvent.ContainerMetricsEvent(
                             serverId = msg.containerMetrics.serverId,
                             cpuPercent = msg.containerMetrics.cpuPercent,
                             ramUsedMb = msg.containerMetrics.ramUsedMb,
@@ -266,7 +266,7 @@ class ControlServiceImpl(
                         )
                         runCatching { persistContainerMetrics(containerMetricEvent) }
                             .onFailure { e -> log.warn("Node ${msg.nodeId}: persistContainerMetrics failed — ${e.message}") }
-                        _agentMetricsFlow.emit(containerMetricEvent)
+                        _agentEvents.emit(containerMetricEvent)
                         launch {
                             runCatching { evaluateServerAlerts(msg.containerMetrics) }
                                 .onFailure { e -> if (e is CancellationException) throw e; log.warn("Node ${msg.nodeId}: evaluateServerAlerts failed — ${e.message}") }
@@ -288,7 +288,7 @@ class ControlServiceImpl(
                         val recordedAt = if (msg.playerUpdate.hasRecordedAt())
                             Instant.fromEpochSeconds(msg.playerUpdate.recordedAt.seconds, msg.playerUpdate.recordedAt.nanos.toLong())
                         else Clock.System.now()
-                        val playerUpdateEvent = AgentMetricEvent.PlayerUpdateEvent(
+                        val playerUpdateEvent = AgentEvent.PlayerUpdateEvent(
                             serverId = msg.playerUpdate.serverId,
                             playerCount = msg.playerUpdate.playerCount,
                             playerNames = msg.playerUpdate.playerNamesList,
@@ -296,7 +296,7 @@ class ControlServiceImpl(
                         )
                         runCatching { persistPlayerUpdate(msg.playerUpdate) }
                             .onFailure { e -> log.error("Node ${msg.nodeId}: persistPlayerUpdate failed — ${e.message}", e) }
-                        _agentMetricsFlow.emit(playerUpdateEvent)
+                        _agentEvents.emit(playerUpdateEvent)
                     }
 
                     msg.hasBackupProgress()        -> _agentEvents.emit(
@@ -617,7 +617,7 @@ class ControlServiceImpl(
 
     // ── Metrics persistence ───────────────────────────────────────────────────
 
-    private fun persistNodeMetrics(event: AgentMetricEvent.NodeMetricsEvent) {
+    private fun persistNodeMetrics(event: AgentEvent.NodeMetricsEvent) {
         val kotlinNodeId = runCatching {
             Uuid.parse(event.nodeId)
         }.getOrNull() ?: return
@@ -643,7 +643,7 @@ class ControlServiceImpl(
         }
     }
 
-    private fun persistContainerMetrics(event: AgentMetricEvent.ContainerMetricsEvent) {
+    private fun persistContainerMetrics(event: AgentEvent.ContainerMetricsEvent) {
         val kotlinServerId = runCatching {
             Uuid.parse(event.serverId)
         }.getOrNull() ?: return
@@ -880,16 +880,18 @@ class ControlServiceImpl(
 
     // ── Utility ───────────────────────────────────────────────────────────────
 
-    fun generateNodeKey(): String {
-        val bytes = ByteArray(32).also { random.nextBytes(it) }
-        return Base64.getUrlEncoder()
-            .withoutPadding()
-            .encodeToString(bytes)
-    }
+    fun generateNodeKey(): String = CryptoUtils.generateToken(32)
 
-    fun sha256Hex(input: String): String {
-        val digest = MessageDigest.getInstance("SHA-256")
-        return digest.digest(input.toByteArray())
-            .joinToString("") { "%02x".format(it) }
-    }
+    private fun sha256Hex(input: String): String =
+        HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(input.toByteArray()))
 }
+
+fun mapContainerState(runState: ContainerState.RunState, dbStatus: ServerStatus): ServerStatus? = when {
+    runState == ContainerState.RunState.RUNNING && dbStatus != ServerStatus.HEALTHY  -> ServerStatus.HEALTHY
+    runState == ContainerState.RunState.STOPPED && dbStatus.isRunning                -> ServerStatus.STOPPED
+    runState == ContainerState.RunState.EXITED && dbStatus != ServerStatus.UNHEALTHY -> ServerStatus.UNHEALTHY
+    else                                                                             -> null
+}
+
+fun mapMissingContainer(dbStatus: ServerStatus): ServerStatus? =
+    if (dbStatus != ServerStatus.STOPPED) ServerStatus.STOPPED else null

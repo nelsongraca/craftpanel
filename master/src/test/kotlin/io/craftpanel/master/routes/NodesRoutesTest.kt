@@ -1,6 +1,6 @@
 package io.craftpanel.master.routes
 
-import io.craftpanel.proto.MasterMessage
+import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.auth.JwtManager
@@ -53,7 +53,7 @@ class NodesRoutesTest : FunSpec({
         TestDatabase.reset()
     }
 
-    fun Application.configureTest(sendToNode: (String, MasterMessage) -> Boolean = { _, _ -> false }) {
+    fun Application.configureTest(gateway: TestAgentGateway = TestAgentGateway(sendResult = false)) {
         install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         install(StatusPages) {
             exception<NotFoundException> { call, ex -> call.respond(HttpStatusCode.NotFound, mapOf("error" to (ex.message ?: "Not found"))) }
@@ -75,7 +75,7 @@ class NodesRoutesTest : FunSpec({
                 }
             }
         }
-        routing { nodesRoutes(NodeService(sendToNode)) }
+        routing { nodesRoutes(NodeService(gateway)) }
     }
 
     fun ApplicationTestBuilder.jsonClient() = createClient {
@@ -427,7 +427,7 @@ class NodesRoutesTest : FunSpec({
 
     test("shutdown returns 502 when agent not connected") {
         testApplication {
-            application { configureTest(sendToNode = { _, _ -> false }) }
+            application { configureTest(TestAgentGateway(sendResult = false)) }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val nodeId = createNode()
@@ -438,7 +438,7 @@ class NodesRoutesTest : FunSpec({
 
     test("shutdown returns 202 when agent is connected") {
         testApplication {
-            application { configureTest(sendToNode = { _, _ -> true }) }
+            application { configureTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val nodeId = createNode()
@@ -449,15 +449,15 @@ class NodesRoutesTest : FunSpec({
 
     test("shutdown sends message to the correct node id") {
         testApplication {
-            var sentTo: String? = null
-            application { configureTest(sendToNode = { id, _ -> sentTo = id; true }) }
+            val gw = TestAgentGateway()
+            application { configureTest(gw) }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val nodeId = createNode()
 
             client.post("/api/nodes/$nodeId/shutdown") { bearerAuth(tokenFor(userId)) }
 
-            sentTo shouldBe nodeId.toString()
+            gw.sent.firstOrNull()?.first shouldBe nodeId.toString()
         }
     }
 

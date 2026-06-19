@@ -1,8 +1,7 @@
 package io.craftpanel.master.auth
 
+import io.craftpanel.master.util.CryptoUtils
 import kotlin.uuid.Uuid
-import java.security.SecureRandom
-import java.util.Base64
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
@@ -10,7 +9,6 @@ import kotlin.time.Instant
 
 class WsTicketService {
 
-    private val random = SecureRandom()
     private val ticketTtl = 30.seconds
 
     private data class TicketRecord(val userId: Uuid, val expiresAt: Instant)
@@ -33,8 +31,5 @@ class WsTicketService {
         return record.userId
     }
 
-    private fun generateRaw(): String {
-        val bytes = ByteArray(48).also { random.nextBytes(it) }
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)
-    }
+    private fun generateRaw(): String = CryptoUtils.generateToken(48)
 }

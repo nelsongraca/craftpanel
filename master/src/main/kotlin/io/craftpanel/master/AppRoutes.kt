@@ -55,7 +55,7 @@ fun Route.registerAppRoutes() {
     backupsRoutes(get())
     configRoutes(get(), get())
     modsRoutes(get())
-    dashboardWsRoutes(get(), get<ControlServiceImpl>().agentEvents, get<ControlServiceImpl>().agentMetricsFlow)
+    dashboardWsRoutes(get(), get<ControlServiceImpl>().agentEvents)
     alertsRoutes(get())
     migrationsRoutes(get())
 }

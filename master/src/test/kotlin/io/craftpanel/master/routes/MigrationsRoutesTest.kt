@@ -1,12 +1,11 @@
 package io.craftpanel.master.routes
 
-import io.craftpanel.proto.MasterMessage
+import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
-import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.service.*
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -24,7 +23,6 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.testing.*
 import io.ktor.server.websocket.*
-import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.serialization.json.*
 import org.jetbrains.exposed.v1.core.eq
@@ -44,17 +42,15 @@ class MigrationsRoutesTest : FunSpec({
         expirySeconds = 900,
     )
     val jwtManager = JwtManager(jwtConfig)
-    val noopSend: (String, MasterMessage) -> Boolean = { _, _ -> true }
+    val noopGateway = TestAgentGateway()
     val testScope = TestScope()
 
     fun buildMigrationService(): MigrationService = MigrationService(
-        sendToNode = noopSend,
-        agentEvents = MutableSharedFlow<AgentEvent>(),
+        gateway = noopGateway,
         dnsProvider = null,
         scope = testScope,
         lifecycle = ContainerLifecycle(
-            sendToNode = noopSend,
-            agentEvents = MutableSharedFlow(),
+            gateway = TestAgentGateway(),
             modService = ModService(),
         ),
     )

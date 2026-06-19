@@ -1,5 +1,6 @@
 package io.craftpanel.master.routes
 
+import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.auth.JwtManager
@@ -8,7 +9,6 @@ import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.service.*
-import io.craftpanel.proto.MasterMessage
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -53,8 +53,7 @@ class ServersRoutesTest : FunSpec({
     }
 
     fun Application.configureTest(
-        sendToNode: (String, MasterMessage) -> Boolean = { _, _ -> true },
-        agentEvents: MutableSharedFlow<AgentEvent> = MutableSharedFlow(extraBufferCapacity = 16),
+        gateway: TestAgentGateway = TestAgentGateway(),
     ) {
         install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         install(StatusPages) {
@@ -79,11 +78,10 @@ class ServersRoutesTest : FunSpec({
             }
         }
         val lifecycle = ContainerLifecycle(
-            sendToNode = sendToNode,
-            agentEvents = agentEvents,
+            gateway = gateway,
             modService = ModService(),
         )
-        routing { serversRoutes(ServerService(sendToNode, ModService(), lifecycle = lifecycle)) }
+        routing { serversRoutes(ServerService(gateway, ModService(), lifecycle = lifecycle)) }
     }
 
     fun ApplicationTestBuilder.jsonClient() = createClient {
@@ -847,7 +845,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST start returns 502 when agent not connected") {
         testApplication {
-            application { configureTest(sendToNode = { _, _ -> false }) }
+            application { configureTest(TestAgentGateway(sendResult = false)) }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -878,16 +876,9 @@ class ServersRoutesTest : FunSpec({
     }
 
     test("POST start sends single StartContainerCommand with needsRecreate=false") {
-        val sentCommands = mutableListOf<MasterMessage>()
+        val gw = TestAgentGateway()
         testApplication {
-            application {
-                configureTest(
-                    sendToNode = { _, msg ->
-                        sentCommands.add(msg)
-                        true
-                    },
-                )
-            }
+            application { configureTest(gw) }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -895,9 +886,9 @@ class ServersRoutesTest : FunSpec({
             val serverId = createServer(nodeId, status = "STOPPED")
             val resp = client.post("/api/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
             resp.status shouldBe HttpStatusCode.Accepted
-            sentCommands.size shouldBe 1
-            sentCommands[0].hasStartContainer() shouldBe true
-            val cmd = sentCommands[0].startContainer
+            gw.sent.size shouldBe 1
+            gw.sent[0].second.hasStartContainer() shouldBe true
+            val cmd = gw.sent[0].second.startContainer
             cmd.containerName shouldBe "craftpanel-$serverId"
             cmd.image shouldBe "itzg/minecraft-server:latest"
             cmd.envVarsMap["EULA"] shouldBe "TRUE"
@@ -906,16 +897,9 @@ class ServersRoutesTest : FunSpec({
     }
 
     test("POST start sends StartContainerCommand with needsRecreate=true when server needs recreate") {
-        val sentCommands = mutableListOf<MasterMessage>()
+        val gw = TestAgentGateway()
         testApplication {
-            application {
-                configureTest(
-                    sendToNode = { _, msg ->
-                        sentCommands.add(msg)
-                        true
-                    },
-                )
-            }
+            application { configureTest(gw) }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -924,9 +908,9 @@ class ServersRoutesTest : FunSpec({
             transaction { Servers.update({ Servers.id eq serverId }) { it[Servers.needsRecreate] = true } }
             val resp = client.post("/api/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
             resp.status shouldBe HttpStatusCode.Accepted
-            sentCommands.size shouldBe 1
-            sentCommands[0].hasStartContainer() shouldBe true
-            sentCommands[0].startContainer.needsRecreate shouldBe true
+            gw.sent.size shouldBe 1
+            gw.sent[0].second.hasStartContainer() shouldBe true
+            gw.sent[0].second.startContainer.needsRecreate shouldBe true
         }
     }
 
@@ -960,7 +944,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST stop returns 502 when agent not connected") {
         testApplication {
-            application { configureTest(sendToNode = { _, _ -> false }) }
+            application { configureTest(TestAgentGateway(sendResult = false)) }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -972,9 +956,9 @@ class ServersRoutesTest : FunSpec({
     }
 
     test("POST stop returns 202 and sends StopContainerCommand") {
-        val sentCommands = mutableListOf<MasterMessage>()
+        val gw = TestAgentGateway()
         testApplication {
-            application { configureTest(sendToNode = { _, msg -> sentCommands.add(msg); true }) }
+            application { configureTest(gw) }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -982,9 +966,9 @@ class ServersRoutesTest : FunSpec({
             val serverId = createServer(nodeId, status = "HEALTHY")
             val resp = client.post("/api/servers/$serverId/stop") { bearerAuth(tokenFor(userId)) }
             resp.status shouldBe HttpStatusCode.Accepted
-            sentCommands.size shouldBe 1
-            sentCommands[0].hasStopContainer() shouldBe true
-            sentCommands[0].stopContainer.containerName shouldBe "craftpanel-$serverId"
+            gw.sent.size shouldBe 1
+            gw.sent[0].second.hasStopContainer() shouldBe true
+            gw.sent[0].second.stopContainer.containerName shouldBe "craftpanel-$serverId"
         }
     }
 
@@ -1005,7 +989,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST restart returns 502 when agent not connected") {
         testApplication {
-            application { configureTest(sendToNode = { _, _ -> false }) }
+            application { configureTest(TestAgentGateway(sendResult = false)) }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -1017,9 +1001,9 @@ class ServersRoutesTest : FunSpec({
     }
 
     test("POST restart returns 202 and sends RestartContainerCommand") {
-        val sentCommands = mutableListOf<MasterMessage>()
+        val gw = TestAgentGateway()
         testApplication {
-            application { configureTest(sendToNode = { _, msg -> sentCommands.add(msg); true }) }
+            application { configureTest(gw) }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -1027,9 +1011,9 @@ class ServersRoutesTest : FunSpec({
             val serverId = createServer(nodeId, status = "HEALTHY")
             val resp = client.post("/api/servers/$serverId/restart") { bearerAuth(tokenFor(userId)) }
             resp.status shouldBe HttpStatusCode.Accepted
-            sentCommands.size shouldBe 1
-            sentCommands[0].hasRestartContainer() shouldBe true
-            sentCommands[0].restartContainer.containerName shouldBe "craftpanel-$serverId"
+            gw.sent.size shouldBe 1
+            gw.sent[0].second.hasRestartContainer() shouldBe true
+            gw.sent[0].second.restartContainer.containerName shouldBe "craftpanel-$serverId"
         }
     }
 })

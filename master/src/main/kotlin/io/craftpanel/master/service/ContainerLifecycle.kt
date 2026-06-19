@@ -12,7 +12,6 @@ import io.craftpanel.proto.startContainerCommand
 import io.craftpanel.proto.stopContainerCommand
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -29,8 +28,7 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 
 class ContainerLifecycle(
-    private val sendToNode: (String, MasterMessage) -> Boolean,
-    private val agentEvents: SharedFlow<AgentEvent>,
+    private val gateway: AgentGateway,
     private val modService: ModService,
     private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
     private val containerNamePrefix: String = "craftpanel",
@@ -174,7 +172,7 @@ class ContainerLifecycle(
     ): Unit = coroutineScope {
         val found = CompletableDeferred<Unit>()
         val job = launch {
-            agentEvents
+            gateway.agentEvents
                 .filterIsInstance<AgentEvent.ServerStatusEvent>()
                 .collect { event ->
                     if (event.serverId == serverId) {
@@ -210,7 +208,7 @@ class ContainerLifecycle(
     private fun deriveImage(serverType: String, tag: String) = images.deriveImage(serverType, tag)
 
     private fun sendOrThrow(nodeId: String, msg: MasterMessage) {
-        if (!sendToNode(nodeId, msg)) throw BadGatewayException("Agent not connected")
+        if (!gateway.sendToNode(nodeId, msg)) throw BadGatewayException("Agent not connected")
     }
 }
 

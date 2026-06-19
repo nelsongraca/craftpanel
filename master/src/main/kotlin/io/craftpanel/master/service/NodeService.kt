@@ -1,6 +1,5 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.proto.MasterMessage
 import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.shutdownCommand
 import io.craftpanel.master.database.schema.NodeMetrics
@@ -16,8 +15,8 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import java.security.MessageDigest
-import java.security.SecureRandom
-import java.util.Base64
+import java.util.HexFormat
+import io.craftpanel.master.util.CryptoUtils
 import io.craftpanel.master.util.toUtcString
 
 @Serializable
@@ -61,7 +60,7 @@ data class NodeMetricsResponse(
     @SerialName("disk_total_bytes") val diskTotalBytes: List<Long>,
 )
 
-class NodeService(private val sendToNode: (String, MasterMessage) -> Boolean) {
+class NodeService(private val gateway: AgentGateway) {
 
     fun listNodes(): List<NodeResponse> = transaction {
         Nodes.selectAll()
@@ -125,7 +124,7 @@ class NodeService(private val sendToNode: (String, MasterMessage) -> Boolean) {
         }
         if (!exists) throw NotFoundException("Node not found")
         val msg = masterMessage { shutdown = shutdownCommand { timeoutSeconds = 30 } }
-        if (!sendToNode(id.toString(), msg)) throw BadGatewayException("Agent not connected")
+        if (!gateway.sendToNode(id.toString(), msg)) throw BadGatewayException("Agent not connected")
     }
 
     fun updateNode(id: kotlin.uuid.Uuid, req: PatchNodeRequest) {
@@ -227,18 +226,7 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toNodeResponse(alloc: NodeAl
     updatedAt = this[Nodes.updatedAt].toUtcString(),
 )
 
-private fun generateNodeKey(): String {
-    val bytes = ByteArray(32).also {
-        SecureRandom()
-            .nextBytes(it)
-    }
-    return Base64.getUrlEncoder()
-        .withoutPadding()
-        .encodeToString(bytes)
-}
+private fun generateNodeKey(): String = CryptoUtils.generateToken(32)
 
-private fun sha256Hex(input: String): String {
-    val digest = MessageDigest.getInstance("SHA-256")
-    return digest.digest(input.toByteArray())
-        .joinToString("") { "%02x".format(it) }
-}
+private fun sha256Hex(input: String): String =
+    HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(input.toByteArray()))
