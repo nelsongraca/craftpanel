@@ -7,5 +7,5 @@ repositories {
 }
 
 dependencies {
-    implementation("com.google.protobuf:protobuf-gradle-plugin:0.10.0")
+    implementation(libs.protobuf.gradle.plugin)
 }

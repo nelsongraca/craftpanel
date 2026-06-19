@@ -10,10 +10,10 @@ WORKDIR /app
 
 COPY --from=mc-monitor /mc-monitor /usr/local/bin/mc-monitor
 
-COPY craftpanel-fake-server-test.jar app.jar
-COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+COPY build/install/fake-server/ .
+COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
-RUN chmod +x /app/docker-entrypoint.sh && mkdir -p /data
+RUN chmod +x docker-entrypoint.sh && mkdir -p /data
 
 EXPOSE 25565/tcp
 EXPOSE 25565/udp

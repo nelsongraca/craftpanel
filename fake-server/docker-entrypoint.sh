@@ -25,7 +25,7 @@ if [ "$(id -u)" = 0 ]; then
   if [ "$(stat -c '%u' /data 2>/dev/null)" != "$UID" ] 2>/dev/null; then
     chown -R minecraft:minecraft /data
   fi
-  exec su-exec minecraft:minecraft java -jar /app/app.jar "$@"
+  exec su-exec minecraft:minecraft /app/bin/fake-server "$@"
 else
-  exec java -jar /app/app.jar "$@"
+  exec /app/bin/fake-server "$@"
 fi

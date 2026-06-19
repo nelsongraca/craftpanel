@@ -78,6 +78,9 @@ postgresql = { module = "org.postgresql:postgresql", version.ref = "postgresql" 
 # Logging
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 
+# Protobuf Gradle plugin (consumed by buildSrc)
+protobuf-gradle-plugin = { module = "com.google.protobuf:protobuf-gradle-plugin", version.ref = "protobuf-plugin" }
+
 # Docker Java client (used directly by agent at runtime)
 docker-java-api = { module = "com.github.docker-java:docker-java-api", version.ref = "docker-java" }
 docker-java-core = { module = "com.github.docker-java:docker-java-core", version.ref = "docker-java" }

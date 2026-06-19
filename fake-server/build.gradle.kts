@@ -20,18 +20,6 @@ dependencies {
     implementation(libs.kotlinx.coroutines.core)
 }
 
-tasks.jar {
-    archiveBaseName.set("craftpanel-fake-server")
-    archiveVersion.set("test")
-    manifest {
-        attributes["Main-Class"] = "craftpanel.fakeserver.MainKt"
-    }
-    from(
-        configurations.runtimeClasspath.get()
-            .map { if (it.isDirectory) it else zipTree(it) })
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-}
-
 // ---------------------------------------------------------------------------
 // Docker tasks — tagged :test, never pushed to production registry
 // ---------------------------------------------------------------------------
@@ -43,8 +31,8 @@ fun imageTag(suffix: String) =
 val stageDocker by tasks.registering(Copy::class) {
     group = "docker"
     description = "Stages files for Docker build"
-    dependsOn(tasks.jar)
-    from(layout.buildDirectory.dir("libs")) { include("craftpanel-fake-server-test.jar") }
+    dependsOn(tasks.installDist)
+    from(layout.buildDirectory.dir("install/fake-server")) { into("build/install/fake-server") }
     from(layout.projectDirectory.file("docker-entrypoint.sh"))
     from(layout.projectDirectory.file("Dockerfile"))
     into(layout.buildDirectory.dir("docker"))

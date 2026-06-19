@@ -4,7 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.ktor) apply false
     alias(libs.plugins.bmuschko.docker) apply false
-    alias(libs.plugins.kover) apply false
+    alias(libs.plugins.kover)
 }
 
 // ---------------------------------------------------------------------------
@@ -17,59 +17,26 @@ val imageVersion: String = findProperty("imageVersion")?.toString()
     ?: "latest"
 
 // ---------------------------------------------------------------------------
-// Kover CLI for aggregation
+// Kover merged reporting (aggregates master and agent subprojects)
 // ---------------------------------------------------------------------------
-val koverCli by configurations.registering {
-    isCanBeConsumed = false
-    isCanBeResolved = true
-}
-
 dependencies {
-    koverCli(libs.kover.cli)
+    kover(project(":master"))
+    kover(project(":agent"))
 }
 
-val koverAggregateReport by tasks.registering(Exec::class) {
-    group = "verification"
-    description = "Merge .ic files from master, agent, and system-tests into aggregated report"
-    dependsOn(":master:test", ":agent:test", ":master:installDist", ":agent:installDist")
-    mustRunAfter(":system-tests:test")
-    onlyIf { project.hasProperty("withCoverage") }
-    notCompatibleWithConfigurationCache(".ic files discovered at execution time")
-
-    doFirst {
-        val masterIc = file("master/build/kover/bin-reports")
-        val agentIc = file("agent/build/kover/bin-reports")
-        val systemIc = file("system-tests/build/tmp/kover-coverage")
-        val aggregateDir = layout.buildDirectory.dir("reports/kover/aggregated").get().asFile
-        aggregateDir.mkdirs()
-
-        val cliJar = koverCli.get()
-            .filter { it.name.startsWith("kover-cli") }.singleFile
-
-        val icFiles = buildList {
-            if (masterIc.exists()) addAll(fileTree(masterIc) { include("*.ic") }.files)
-            if (agentIc.exists()) addAll(fileTree(agentIc) { include("*.ic") }.files)
-            if (systemIc.exists()) addAll(fileTree(systemIc) { include("*.ic") }.files)
+kover {
+    reports {
+        filters {
+            excludes {
+                packages("com.craftpanel")
+                classes("*Grpc*", "*OuterClass")
+                classes("io.craftpanel.master.MainKt", "io.craftpanel.agent.MainKt")
+            }
         }
-
-        if (icFiles.isEmpty()) {
-            throw GradleException("No .ic coverage files found anywhere")
+        total {
+            html { title = "CraftPanel JVM (aggregated)" }
+            xml { xmlFile = layout.buildDirectory.file("reports/kover/aggregated/report.xml") }
         }
-
-        commandLine(buildList {
-            add("java"); add("-jar"); add(cliJar.absolutePath); add("report")
-            icFiles.forEach { add(it.absolutePath) }
-            add("--classfiles")
-            add(file("master/build/install/master/lib/master.jar").absolutePath)
-            add("--classfiles")
-            add(file("agent/build/install/agent/lib/agent.jar").absolutePath)
-            add("--exclude"); add("io.craftpanel.proto.*")
-            add("--html"); add(File(aggregateDir, "html").absolutePath)
-            add("--xml"); add(File(aggregateDir, "report.xml").absolutePath)
-            add("--title"); add("CraftPanel JVM (aggregated)")
-            add("--src"); add(file("master/src/main/kotlin").absolutePath)
-            add("--src"); add(file("agent/src/main/kotlin").absolutePath)
-        })
     }
 }
 
@@ -94,12 +61,12 @@ subprojects {
     }
 }
 
-// Wire subproject docker tasks into the root aggregators once subprojects configure
+// Wire subproject docker tasks into the root aggregators
 subprojects {
-    afterEvaluate {
-        tasks.findByName("dockerBuildImage")
-            ?.let { dockerBuildAll.configure { dependsOn(it) } }
-        tasks.findByName("dockerPushImage")
-            ?.let { dockerPushAll.configure { dependsOn(it) } }
+    tasks.matching { name == "dockerBuildImage" }.configureEach {
+        dockerBuildAll { dependsOn(this@configureEach) }
+    }
+    tasks.matching { name == "dockerPushImage" }.configureEach {
+        dockerPushAll { dependsOn(this@configureEach) }
     }
 }

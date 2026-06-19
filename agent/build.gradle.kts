@@ -21,16 +21,18 @@ java {
     }
 }
 
-val dockerGid: String = (findProperty("dockerGid")?.toString())
-    ?: run {
-        val result = providers.exec {
-            commandLine("getent", "group", "docker")
+val dockerGidProvider = providers.provider {
+    (findProperty("dockerGid")?.toString())
+        ?: run {
+            val result = providers.exec {
+                commandLine("getent", "group", "docker")
+            }
+            result.standardOutput.asText.get()
+                .trim()
+                .split(":")
+                .getOrNull(2) ?: "999"
         }
-        result.standardOutput.asText.get()
-            .trim()
-            .split(":")
-            .getOrNull(2) ?: "999"
-    }
+}
 
 dependencies {
     implementation(libs.bundles.grpc.server)
@@ -76,7 +78,7 @@ tasks.register<DockerBuildImage>("dockerBuildImage") {
     inputDir.set(layout.buildDirectory.dir("docker"))
     dockerFile.set(layout.buildDirectory.file("docker/Dockerfile"))
     images.add(agentImageName)
-    buildArgs.put("DOCKER_GID", dockerGid)
+    buildArgs.put("DOCKER_GID", dockerGidProvider.get())
 }
 
 tasks.register<DockerPushImage>("dockerPushImage") {
