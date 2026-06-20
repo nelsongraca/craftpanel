@@ -297,6 +297,8 @@ Use `bg-accent`, `text-accent`, `border-accent` for amber. Use `bg-surface`, `bg
 
 ## Testing (frontend)
 
+### Unit tests (Vitest)
+
 Stack: **Vitest** + **React Testing Library** + **jsdom**. Config at `frontend/vitest.config.ts`, global setup at `frontend/vitest.setup.ts`.
 
 ```bash
@@ -311,6 +313,34 @@ cd frontend && .node/bin/pnpm test       # run all tests (use .node/bin/pnpm, no
 - Test files co-located: `lib/foo.test.ts`, `lib/__tests__/bar.test.tsx`, `app/(route)/__tests__/page.test.tsx`
 - `vi.mock()` factories are hoisted before module-level `let`/`const` — any shared state captured inside (interceptor callbacks, mock refs) must be initialised via `vi.hoisted(() => ...)` and accessed
   through the returned object, not a plain variable
+
+### E2E tests (Playwright + MSW)
+
+Stack: **@playwright/test** + **MSW 2.x** + **@msw/playwright 0.6.x**. Config at `frontend/playwright.config.ts`. Tests at `frontend/tests/e2e/specs/`. Run headless (CI-safe).
+
+```bash
+cd frontend && .node/bin/pnpm exec playwright test          # run all E2E tests
+cd frontend && .node/bin/pnpm exec playwright test --ui     # interactive mode
+```
+
+MSW layer layout:
+- `tests/e2e/msw/handlers/` — HTTP handler modules (`auth.ts`, `servers.ts`, `nodes.ts`, `websockets.ts`)
+- `tests/e2e/msw/handlers/index.ts` — exports `handlers` (default set, **WS handlers excluded**)
+- `tests/e2e/msw/fixtures/data.ts` — typed fixture data (uses generated types from `lib/generated/types.gen.ts`)
+- `tests/e2e/fixture.ts` — custom `test` that auto-enables MSW network fixture; import this instead of `@playwright/test`
+
+Auth strategy in tests: default `authRefresh` handler returns 200 → all pages are auto-authenticated. Login tests override to 401 in `test.beforeEach` via `network.use()`.
+
+WS tests use `page.routeWebSocket()` directly — NOT MSW `ws()` handlers. See footguns below.
+
+**E2E footguns:**
+
+- **Never add `ws()` handlers to the default `handlers` array** — `@msw/playwright` installs `routeWebSocket(MATCH_ALL)` whenever any WS handler is present, intercepting Turbopack's `/_next/` HMR WebSocket and breaking React hydration (blank black page). For WS tests use `page.routeWebSocket(/pattern/, handler)` directly.
+- **`getByRole("button", { name: "Add" })` matches "Add Mod"** — Playwright accessible name matching is substring-based by default; always add `exact: true` when the target name is a substring of another button's name.
+- **`getByText("X")` matches elements containing "X" as substring** — e.g. `worldedit-id` can match `WorldEdit`; use `{ exact: true }` for unambiguous matching.
+- **Buttons inside `max-h-* overflow-y-auto` containers may be clipped** — Playwright's `.click()` requires viewport visibility; use `.click({ force: true })` for buttons inside scrollable containers.
+- **`network.use()` handler state closures work** — a `let` variable captured by both GET and POST handlers in a single `network.use()` call correctly mutates across requests (same JS closure).
+- **`page.on("request")` sees zero requests when all traffic is intercepted by `context.route()`** — expected; use MSW handler `console.log` for request-level debugging instead.
 
 ## Testing (master)
 

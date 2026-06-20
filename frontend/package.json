@@ -30,6 +30,8 @@
   },
   "devDependencies": {
     "@hey-api/openapi-ts": "^0.97.3",
+    "@msw/playwright": "^0.6.7",
+    "@playwright/test": "^1.61.0",
     "@tailwindcss/postcss": "^4",
     "@testing-library/jest-dom": "^6.6.3",
     "@testing-library/react": "^16.3.0",
@@ -42,6 +44,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.6",
     "jsdom": "^26.1.0",
+    "msw": "^2.14.6",
     "shadcn": "^4.7.0",
     "tailwindcss": "^4",
     "typescript": "^5",
