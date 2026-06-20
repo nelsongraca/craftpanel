@@ -53,7 +53,7 @@ class NodesRoutesTest : FunSpec({
         TestDatabase.reset()
     }
 
-    fun Application.configureTest(gateway: TestAgentGateway = TestAgentGateway(sendResult = false)) {
+    fun Application.configureTest(gateway: TestAgentGateway = TestAgentGateway()) {
         install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         install(StatusPages) {
             exception<NotFoundException> { call, ex -> call.respond(HttpStatusCode.NotFound, mapOf("error" to (ex.message ?: "Not found"))) }

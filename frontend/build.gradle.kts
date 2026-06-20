@@ -24,25 +24,23 @@ tasks.named("clean") {
     dependsOn("cleanFrontend")
 }
 
+val withCoverage = project.hasProperty("withCoverage")
+
 tasks.register<Exec>("testFrontend") {
     group = "verification"
     description = "Runs frontend unit tests via vitest"
     dependsOn("installFrontend")
     workingDir = layout.projectDirectory.asFile
-    commandLine(layout.projectDirectory.file(".node/bin/pnpm").asFile, "run", "test")
+    val pnpm = layout.projectDirectory.file(".node/bin/pnpm").asFile
+    if (withCoverage) {
+        commandLine(pnpm, "run", "test:coverage")
+    } else {
+        commandLine(pnpm, "run", "test")
+    }
 }
 
 tasks.named("check") {
     dependsOn("testFrontend")
-}
-
-val testCoverage by tasks.registering(Exec::class) {
-    group = "verification"
-    description = "Run frontend tests with coverage"
-    dependsOn("assembleFrontend")
-    workingDir = projectDir
-    commandLine(".node/bin/pnpm", "vitest", "run", "--coverage")
-    onlyIf { project.hasProperty("withCoverage") }
 }
 
 tasks.register<Exec>("generateApiTypes") {

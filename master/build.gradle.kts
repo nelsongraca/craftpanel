@@ -112,6 +112,12 @@ tasks.register<Test>("generateOpenApiSpec") {
     outputs.file(openApiOutputFile)
 }
 
+if (project.hasProperty("withCoverage")) {
+    tasks.named("test") {
+        finalizedBy("koverHtmlReport")
+    }
+}
+
 kover {
     if (!project.hasProperty("withCoverage")) {
         currentProject {
@@ -123,7 +129,7 @@ kover {
     reports {
         filters {
             excludes {
-                packages("com.craftpanel")
+                packages("io.craftpanel.proto")
                 classes("*Grpc*", "*OuterClass")
                 classes("io.craftpanel.master.MainKt")
             }

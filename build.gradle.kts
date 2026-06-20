@@ -40,6 +40,21 @@ kover {
     }
 }
 
+if (project.hasProperty("withCoverage")) {
+    tasks.register("koverFullReport") {
+        group = "verification"
+        description = "Unit tests + system tests + all coverage reports (per-module + merged)"
+        dependsOn(
+            ":master:test",
+            ":agent:test",
+            ":frontend:testFrontend",
+            ":system-tests:test",
+            ":system-tests:koverSystemTestReport",
+            ":system-tests:koverMergedReport",
+        )
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Docker aggregation tasks
 // ---------------------------------------------------------------------------
@@ -53,6 +68,10 @@ val dockerPushAll by tasks.registering {
     group = "docker"
     description = "Pushes all Docker images"
     dependsOn(dockerBuildAll)
+}
+
+tasks.named("check") {
+    dependsOn(":frontend:testFrontend")
 }
 
 subprojects {

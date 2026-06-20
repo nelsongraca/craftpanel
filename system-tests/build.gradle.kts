@@ -1,3 +1,4 @@
+import craftpanel.registerKoverCliReport
 import org.openapitools.generator.gradle.plugin.tasks.GenerateTask
 
 plugins {
@@ -63,10 +64,16 @@ val koverAgent by configurations.registering {
     isCanBeResolved = true
 }
 
+val koverCli by configurations.registering {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+
 val coverageOutputDir = layout.buildDirectory.dir("tmp/kover-coverage")
 
 dependencies {
     koverAgent(libs.kover.jvm.agent)
+    koverCli(libs.kover.cli)
 
     testImplementation(libs.kotest.runner.junit5)
     testImplementation(libs.kotest.assertions.core)
@@ -102,5 +109,48 @@ tasks.named<Test>("test") {
 // System tests need Docker — don't include in default check lifecycle
 tasks.named("check") {
     dependsOn.clear()
+}
+
+val masterJarFile = rootProject.layout.projectDirectory.file("master/build/libs/master.jar")
+val agentJarFile = rootProject.layout.projectDirectory.file("agent/build/libs/agent.jar")
+val masterSrcDir = rootProject.layout.projectDirectory.dir("master/src/main/kotlin")
+val agentSrcDir = rootProject.layout.projectDirectory.dir("agent/src/main/kotlin")
+
+val classfiles = listOf(masterJarFile.asFile, agentJarFile.asFile)
+val srcDirs = listOf(masterSrcDir.asFile, agentSrcDir.asFile)
+val cliFiles = files(koverCli)
+
+tasks.registerKoverCliReport(
+    taskName = "koverSystemTestReport",
+    description = "Generates HTML+XML coverage report from system-test .ic files via Kover CLI",
+    title = "CraftPanel System Tests",
+    icDirs = listOf(coverageOutputDir.get().asFile),
+    classfiles = classfiles,
+    srcDirs = srcDirs,
+    htmlOut = layout.buildDirectory.dir("reports/kover/system-tests/html").get().asFile,
+    xmlOut = layout.buildDirectory.file("reports/kover/system-tests/report.xml").get().asFile,
+    cliClasspath = cliFiles,
+).configure { enabled = project.hasProperty("withCoverage"); mustRunAfter("test") }
+
+tasks.registerKoverCliReport(
+    taskName = "koverMergedReport",
+    description = "Generates merged HTML+XML coverage report (unit + system tests) via Kover CLI",
+    title = "CraftPanel (merged)",
+    icDirs = listOf(
+        coverageOutputDir.get().asFile,
+        rootProject.layout.projectDirectory.dir("master/build/kover/bin-reports").asFile,
+        rootProject.layout.projectDirectory.dir("agent/build/kover/bin-reports").asFile,
+    ),
+    classfiles = classfiles,
+    srcDirs = srcDirs,
+    htmlOut = rootProject.layout.buildDirectory.dir("reports/kover/merged/html").get().asFile,
+    xmlOut = rootProject.layout.buildDirectory.file("reports/kover/merged/report.xml").get().asFile,
+    cliClasspath = cliFiles,
+).configure { enabled = project.hasProperty("withCoverage"); mustRunAfter(":master:test", ":agent:test", ":system-tests:test") }
+
+if (project.hasProperty("withCoverage")) {
+    tasks.named("test") {
+        finalizedBy("koverSystemTestReport")
+    }
 }
 
