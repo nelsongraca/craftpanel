@@ -37,15 +37,16 @@ private data class CfResult(val id: String)
 @Serializable
 private data class CfError(val message: String)
 
-class CloudflareDnsProvider(private val apiToken: String) : DnsProvider {
-
-    override val type = "cloudflare"
-
-    private val client = HttpClient(CIO) {
+class CloudflareDnsProvider(
+    private val apiToken: String,
+    private val client: HttpClient = HttpClient(CIO) {
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true })
         }
-    }
+    },
+) : DnsProvider {
+
+    override val type = "cloudflare"
 
     private fun requireValidZoneId(zoneId: String) {
         require(CF_ID_REGEX.matches(zoneId)) { "Invalid Cloudflare zone ID format: $zoneId" }

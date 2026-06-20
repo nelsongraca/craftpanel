@@ -75,6 +75,52 @@
 
 > **Dev:** "And the **itzg Image Tag** — does changing that work the same way?"
 
+> **Domain expert:** "Yes. It's just another property that requires recreation. **itzg Image Tag** controls which tooling version wraps the server; **Minecraft Version** controls the game version
+> inside that tooling. They're independent — you can change either or both, and one **Needs Recreate** flag covers both."
+
+## Frontend & UI
+
+| Term                 | Definition                                                                                                                   | Aliases to avoid               |
+|----------------------|------------------------------------------------------------------------------------------------------------------------------|--------------------------------|
+| **Dashboard**        | The home page of the app, showing server stat cards, node health table, and recent activity                                  | Home, landing page             |
+| **Shell**            | The main app layout wrapper consisting of a top bar, collapsible sidebar, and content area                                   | Layout, frame, app shell       |
+| **Sidebar**          | The left navigation panel within the Shell, listing servers, networks, nodes, and system pages                               | Nav, menu, drawer              |
+| **Stat Card**        | A metric display card on the Dashboard showing a label, value, and optional sub-text, with an accent colour for error states | Metric card, widget, tile      |
+| **PageHeader**       | The title bar at the top of each content page, with a title, optional subtitle, and optional action button                   | Page title, heading bar        |
+| **Node Metric**      | CPU, memory, and disk usage data reported by the agent at regular intervals                                                  | Resource usage, telemetry      |
+| **Container Metric** | Per-container CPU and memory usage sampled by the agent                                                                      | Container stats, resource data |
+
+## Testing
+
+| Term            | Definition                                                                                                                                 | Aliases to avoid                         |
+|-----------------|--------------------------------------------------------------------------------------------------------------------------------------------|------------------------------------------|
+| **Unit Test**   | A Vitest + React Testing Library test that exercises a single component, hook, or pure function in isolation with jsdom                    | Component test, frontend test            |
+| **System Test** | A Kotest + Testcontainers test that boots real PostgreSQL, master, and agent Docker containers and exercises the REST API and gRPC streams | Integration test, e2e test, backend test |
+| **E2E Test**    | A browser-based test (not yet implemented) that runs the full Next.js frontend against a running backend in a headless browser             | Frontend e2e, integration test           |
+
+## Relationships
+
+- The **Dashboard** is the default page within the **Shell**
+- The **Sidebar** lives inside the **Shell** and provides navigation to all pages
+- A **Stat Card** is a visual element that can appear on the **Dashboard** or on a **Server** detail page
+
+## Example dialogue
+
+> **Dev:** "When an operator changes the **Minecraft Version** on a stopped **Server**, what happens?"
+
+> **Domain expert:** "Master sets **Needs Recreate** on the **Server** record. Nothing is sent to the **Agent** yet."
+
+> **Dev:** "So the **Container** isn't touched until start?"
+
+> **Domain expert:** "Exactly. When the operator calls start, master checks **Needs Recreate** — if true, it sends `pullImage`, then `removeContainer` (if a **Container** already exists), then
+`createContainer` with the updated `VERSION` env var. The flag clears after the new container is up."
+
+> **Dev:** "What if the **Node**'s **Agent** is disconnected when start is called?"
+
+> **Domain expert:** "Master returns `502 Bad Gateway`. The **Server Status** stays `STOPPED`. The operator retries once the **Agent** reconnects and the **Node** is back to `ACTIVE`."
+
+> **Dev:** "And the **itzg Image Tag** — does changing that work the same way?"
+
 > **Domain expert:** "Yes. It's just another property that requires recreation. **itzg Image Tag** controls which tooling version wraps the server; **Minecraft Version** controls the game version inside that tooling. They're independent — you can change either or both, and one **Needs Recreate** flag covers both."
 
 ## Flagged ambiguities

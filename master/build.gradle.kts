@@ -50,8 +50,11 @@ dependencies {
     testImplementation(libs.kotest.framework.engine)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     testImplementation(libs.ktor.server.test.host)
+    testImplementation(libs.ktor.client.mock)
     testImplementation(libs.h2)
     testImplementation(libs.koin.test)
+    testImplementation(libs.mockk)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>()

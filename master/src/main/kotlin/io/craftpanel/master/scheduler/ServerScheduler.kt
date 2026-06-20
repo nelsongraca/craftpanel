@@ -64,7 +64,7 @@ class ServerScheduler(
         job?.cancel()
     }
 
-    private fun tick(now: kotlin.time.Instant) {
+    internal fun tick(now: kotlin.time.Instant) {
         val nowZdt = java.time.Instant.ofEpochMilli(now.toEpochMilliseconds())
             .atZone(ZoneOffset.UTC)
         val nowMinute = nowZdt.truncatedTo(ChronoUnit.MINUTES)
@@ -128,7 +128,7 @@ class ServerScheduler(
         }
     }
 
-    private fun fires(expression: String, at: ZonedDateTime): Boolean = runCatching {
+    internal fun fires(expression: String, at: ZonedDateTime): Boolean = runCatching {
         val cron = cronParser.parse(expression)
         ExecutionTime.forCron(cron)
             .isMatch(at)
