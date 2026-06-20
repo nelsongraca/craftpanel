@@ -121,9 +121,16 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
             post("/upload", {
                 operationId = "uploadServerFile"
                 summary = "Upload a file to the server"
-                request { pathParameter<String>("id") }
+                request {
+                    pathParameter<String>("id")
+                    multipartBody {
+                        part<String>("path")
+                        part<ByteArray>("file")
+                    }
+                }
                 response {
                     code(HttpStatusCode.Created) { body<UploadResponse>() }
+                    code(HttpStatusCode.BadRequest) { body<ErrorResponse>() }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }

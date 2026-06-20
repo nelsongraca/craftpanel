@@ -20,7 +20,7 @@ Before starting any task, assess complexity:
 surgical edits) or a Haiku/Sonnet sub-agent. Reserve the main thread for orientation, design, and judgement. (One-or-two-line edits to a file already open in context are fine inline; spawning then
 costs more than it saves.)
 
-**Advisor calls require user confirmation.** Before calling `advisor()`, always ask the user: "Call advisor for [reason]?" and wait for approval. Never call advisor silently.
+**ALL individual advisor calls require user confirmation.** Before calling `advisor()`, ALWAYS ask the user: "Call advisor for [reason]?" and wait for approval. Never call advisor silently.
 
 ## Module Structure
 
@@ -309,6 +309,8 @@ cd frontend && .node/bin/pnpm test       # run all tests (use .node/bin/pnpm, no
 - Mock generated SDK: `vi.mock('@/lib/generated', () => ({ fn: vi.fn(), ... }))`
 - Mock client module: `vi.mock('@/lib/client', () => ({ setAccessToken: vi.fn(), getAccessToken: vi.fn(), client: { setConfig: vi.fn(), interceptors: { request: { use: vi.fn() }, response: { use: vi.fn() } } } }))`
 - Test files co-located: `lib/foo.test.ts`, `lib/__tests__/bar.test.tsx`, `app/(route)/__tests__/page.test.tsx`
+- `vi.mock()` factories are hoisted before module-level `let`/`const` — any shared state captured inside (interceptor callbacks, mock refs) must be initialised via `vi.hoisted(() => ...)` and accessed
+  through the returned object, not a plain variable
 
 ## Testing (master)
 
@@ -327,6 +329,11 @@ Singleton H2 in-memory DB shared across all tests. Call `initIfNeeded()` once an
 - `configureTest()` is an `Application.()` extension (not `ApplicationTestBuilder.()`), called via `application { configureTest() }` — avoids implicit receiver ambiguity with `install()`
 - Server/client `ContentNegotiation` are disambiguated with `as` import aliases
 - Generate JWTs directly with `jwtManager.generate(TokenClaims(...))` — no need to go through the login endpoint
+- In Kotest `FunSpec`, `@TempDir` on `lateinit var` doesn't work — JUnit 5 field injection doesn't apply inside lambda specs; use `Files.createTempDirectory()` in `beforeEach` + `deleteRecursively()`
+  in `afterEach`
+- `launch {}` without an explicit scope is deprecated in kotlinx-coroutines 1.9+; inside `runTest {}` use `this.launch {}` (the `TestScope` receiver)
+- BouncyCastle IP SANs are stored as `DEROctetString` bytes — `.name.toString()` returns `#7f000001`, not `"127.0.0.1"`; decode with
+  `(gn.name as DEROctetString).octets.joinToString(".") { (it.toInt() and 0xFF).toString() }`
 - Inject lambdas for dependencies that require external state (e.g. `sendToNode: (String, MasterMessage) -> Boolean`)
 - `startServer()` sends **1** gRPC message: a single `StartContainerCommand` with `needsRecreate: bool`. The agent owns create/pull logic — master never sends `CreateContainerCommand` (deleted in C5). Tests asserting `sentCommands.size` expect 1.
 
