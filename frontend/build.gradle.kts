@@ -40,10 +40,6 @@ tasks.register<Exec>("testFrontend") {
     }
 }
 
-tasks.named("check") {
-    dependsOn("testFrontend")
-}
-
 tasks.register<Exec>("testE2eMocked") {
     group = "verification"
     description = "Runs MSW-backed Playwright E2E tests (no live backend required)"
@@ -53,8 +49,8 @@ tasks.register<Exec>("testE2eMocked") {
     environment("CI", "true")
 }
 
-tasks.named("test") {
-    dependsOn("testE2eMocked")
+tasks.named("check") {
+    dependsOn("testFrontend", "testE2eMocked")
 }
 
 tasks.register<Exec>("generateApiTypes") {
