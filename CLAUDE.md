@@ -319,9 +319,12 @@ cd frontend && .node/bin/pnpm test       # run all tests (use .node/bin/pnpm, no
 Stack: **@playwright/test** + **MSW 2.x** + **@msw/playwright 0.6.x**. Config at `frontend/playwright.config.ts`. Tests at `frontend/tests/e2e/specs/`. Run headless (CI-safe).
 
 ```bash
-cd frontend && .node/bin/pnpm exec playwright test          # run all E2E tests
+./gradlew :frontend:testE2eMocked                           # run via Gradle (preferred)
+cd frontend && .node/bin/pnpm exec playwright test          # run all E2E tests directly
 cd frontend && .node/bin/pnpm exec playwright test --ui     # interactive mode
 ```
+
+`:frontend:testE2eMocked` runs MSW-backed specs only (no Docker, Postgres, or live backend). Excluded from `:frontend:check` and root `check` — same rule as system-tests (slower, separate infra). No CI workflow yet (only `docs.yml` exists); add a dedicated job when a build CI workflow is created, independent of the system-tests job.
 
 MSW layer layout:
 - `tests/e2e/msw/handlers/` — HTTP handler modules (`auth.ts`, `servers.ts`, `nodes.ts`, `websockets.ts`)

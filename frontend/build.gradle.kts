@@ -34,13 +34,27 @@ tasks.register<Exec>("testFrontend") {
     val pnpm = layout.projectDirectory.file(".node/bin/pnpm").asFile
     if (withCoverage) {
         commandLine(pnpm, "run", "test:coverage")
-    } else {
+    }
+    else {
         commandLine(pnpm, "run", "test")
     }
 }
 
 tasks.named("check") {
     dependsOn("testFrontend")
+}
+
+tasks.register<Exec>("testE2eMocked") {
+    group = "verification"
+    description = "Runs MSW-backed Playwright E2E tests (no live backend required)"
+    dependsOn("installFrontend")
+    workingDir = layout.projectDirectory.asFile
+    commandLine(layout.projectDirectory.file(".node/bin/pnpm").asFile, "run", "test:e2e")
+    environment("CI", "true")
+}
+
+tasks.named("test") {
+    dependsOn("testE2eMocked")
 }
 
 tasks.register<Exec>("generateApiTypes") {
