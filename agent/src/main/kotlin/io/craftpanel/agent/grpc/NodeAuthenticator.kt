@@ -9,6 +9,8 @@ import org.slf4j.LoggerFactory
 import java.net.InetAddress
 import java.net.URI
 
+internal class NodeRejectedException(message: String) : Exception(message)
+
 data class NodeIdentity(val nodeId: String, val nodeKey: String)
 
 class NodeAuthenticator(

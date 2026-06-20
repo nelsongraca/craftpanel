@@ -13,7 +13,7 @@ else
     echo "No containers with prefix '$PREFIX' found."
 fi
 
-networks=$(docker network ls --filter "name=$PREFIX" --format "{{.ID}}" | xargs -r docker network inspect --format '{{.Name}} {{.ID}}' | grep "^$PREFIX" | awk '{print $2}')
+networks=$(docker network ls --filter "name=$PREFIX" -q)
 if [ -n "$networks" ]; then
     echo "Removing networks..."
     for net in $networks; do
