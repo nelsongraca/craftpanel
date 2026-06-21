@@ -3,11 +3,13 @@ package craftpanel.systemtest.node
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.annotation.Isolate
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
 import org.openapitools.client.infrastructure.ClientException
 
+@Isolate
 class NodeResourcesTest : BaseSystemTest() {
 
     private val createdServerIds = mutableListOf<String>()

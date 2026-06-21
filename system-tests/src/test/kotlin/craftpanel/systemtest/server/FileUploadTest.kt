@@ -1,11 +1,12 @@
 package craftpanel.systemtest.server
 
 import craftpanel.systemtest.harness.BaseSystemTest
-import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.annotation.Isolate
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
-import org.openapitools.client.infrastructure.ClientException
+import io.kotest.matchers.string.shouldContain
 
+@Isolate
 class FileUploadTest : BaseSystemTest() {
 
     init {
@@ -28,24 +29,14 @@ class FileUploadTest : BaseSystemTest() {
 
             should("uploads a text file and it appears in the listing") {
                 val content = "uploaded content ${System.currentTimeMillis()}"
-                api.uploadServerFile(
-                    serverId,
-                    path = "/uploaded.txt",
-                    file = content.toByteArray()
-                        .map { it.toInt() and 0xFF },
-                )
+                helper.uploadFile(serverId, "/uploaded.txt", content.toByteArray(), authHelper.token)
                 val listing = api.listServerFiles(serverId)
                 listing.propertyEntries.map { it.name } shouldContain "uploaded.txt"
             }
 
             should("uploaded file content is readable back") {
                 val content = "hello from upload"
-                api.uploadServerFile(
-                    serverId,
-                    path = "/readable.txt",
-                    file = content.toByteArray()
-                        .map { it.toInt() and 0xFF },
-                )
+                helper.uploadFile(serverId, "/readable.txt", content.toByteArray(), authHelper.token)
                 val result = api.readServerFile(serverId, path = "/readable.txt")
                 result.content shouldBe content
                 result.encoding shouldBe "utf-8"
@@ -53,26 +44,16 @@ class FileUploadTest : BaseSystemTest() {
 
             should("upload overwrites an existing file") {
                 api.writeServerFile(serverId, path = "/overwrite.txt", body = "original")
-                api.uploadServerFile(
-                    serverId,
-                    path = "/overwrite.txt",
-                    file = "replaced".toByteArray()
-                        .map { it.toInt() and 0xFF },
-                )
+                helper.uploadFile(serverId, "/overwrite.txt", "replaced".toByteArray(), authHelper.token)
                 val result = api.readServerFile(serverId, path = "/overwrite.txt")
                 result.content shouldBe "replaced"
             }
 
             should("returns 404 for non-existent server") {
-                val ex = shouldThrow<ClientException> {
-                    api.uploadServerFile(
-                        "00000000-0000-0000-0000-000000000000",
-                        path = "/x.txt",
-                        file = "x".toByteArray()
-                            .map { it.toInt() and 0xFF },
-                    )
+                val result = runCatching {
+                    helper.uploadFile("00000000-0000-0000-0000-000000000000", "/x.txt", "x".toByteArray(), authHelper.token)
                 }
-                ex.statusCode shouldBe 404
+                result.exceptionOrNull()?.message shouldContain "404"
             }
         }
     }

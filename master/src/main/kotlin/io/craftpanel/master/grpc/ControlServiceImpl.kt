@@ -159,7 +159,7 @@ class ControlServiceImpl(
         var watchdogFired = false
         var lastEmittedHealth: NodeHealth? = null
 
-        launch {
+        val watchdogJob = launch {
             while (!watchdogFired) {
                 delay(60.seconds)
                 val elapsed = Clock.System.now() - lastMetricsAt.get()
@@ -367,6 +367,7 @@ class ControlServiceImpl(
             }
         }
         finally {
+            watchdogJob.cancel()
             connectedNodeId?.let { nodeId ->
                 val wasOwner = connectedAgents.remove(nodeId, outChannel)
                 log.debug(

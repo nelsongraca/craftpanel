@@ -15,6 +15,6 @@ class AuthHelper(private val api: DefaultApi) {
     ) {
         val response = api.authLogin(LoginRequest(email, password))
         _token = response.accessToken
-        ApiClient.accessToken = _token
+        api.accessTokenProvider = { _token }
     }
 }

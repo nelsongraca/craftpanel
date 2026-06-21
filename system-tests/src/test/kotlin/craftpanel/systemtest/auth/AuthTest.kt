@@ -44,11 +44,13 @@ class AuthTest : BaseSystemTest() {
             }
 
             should("returns 401 when accessing protected endpoint without token") {
-                ApiClient.accessToken = null
+                val savedProvider = api.accessTokenProvider
+                api.accessTokenProvider = { null }
                 val ex = shouldThrow<ClientException> {
                     api.listServers()
                 }
                 ex.statusCode shouldBe 401
+                api.accessTokenProvider = savedProvider
             }
 
             should("returns current user info via GET /api/auth/me") {

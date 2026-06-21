@@ -81,14 +81,14 @@ class ServerSchedulerTest : FunSpec({
         val handler = mockk<ScheduledJobHandler>()
         coEvery { handler.execute(any()) } returns Unit
 
-        val scope = TestScope()
-        val scheduler = ServerScheduler(mapOf("BACKUP" to handler), scope)
-
         val nodeId = createNode()
         createServer(nodeId, "* * * * *")
 
         val now = kotlin.time.Clock.System.now()
-        runTest { scheduler.tick(now) }
+        runTest {
+            val scheduler = ServerScheduler(mapOf("BACKUP" to handler), this)
+            scheduler.tick(now)
+        }
 
         coVerify(exactly = 1) { handler.execute(any()) }
     }
@@ -97,14 +97,12 @@ class ServerSchedulerTest : FunSpec({
         val handler = mockk<ScheduledJobHandler>()
         coEvery { handler.execute(any()) } returns Unit
 
-        val scope = TestScope()
-        val scheduler = ServerScheduler(mapOf("BACKUP" to handler), scope)
-
         val nodeId = createNode()
         createServer(nodeId, "* * * * *")
 
         val now = kotlin.time.Clock.System.now()
         runTest {
+            val scheduler = ServerScheduler(mapOf("BACKUP" to handler), this)
             scheduler.tick(now)
             scheduler.tick(now) // same instant = same minute
         }
@@ -114,9 +112,6 @@ class ServerSchedulerTest : FunSpec({
 
     test("tick does not fire handler when cron does not match") {
         val handler = mockk<ScheduledJobHandler>()
-
-        val scope = TestScope()
-        val scheduler = ServerScheduler(mapOf("BACKUP" to handler), scope)
 
         val nodeId = createNode()
         // cron fires only at 03:00 — test uses current time which is unlikely to be 03:00
@@ -128,7 +123,10 @@ class ServerSchedulerTest : FunSpec({
                 .toInstant()
                 .toEpochMilli()
         )
-        runTest { scheduler.tick(atNoon) }
+        runTest {
+            val scheduler = ServerScheduler(mapOf("BACKUP" to handler), this)
+            scheduler.tick(atNoon)
+        }
 
         coVerify(exactly = 0) { handler.execute(any()) }
     }
@@ -136,9 +134,6 @@ class ServerSchedulerTest : FunSpec({
     test("tick fires generic job handler for matching ServerJob") {
         val handler = mockk<ScheduledJobHandler>()
         coEvery { handler.execute(any()) } returns Unit
-
-        val scope = TestScope()
-        val scheduler = ServerScheduler(mapOf("MY_JOB" to handler), scope)
 
         val nodeId = createNode()
         val serverId = createServer(nodeId, null)
@@ -153,7 +148,10 @@ class ServerSchedulerTest : FunSpec({
         }
 
         val now = kotlin.time.Clock.System.now()
-        runTest { scheduler.tick(now) }
+        runTest {
+            val scheduler = ServerScheduler(mapOf("MY_JOB" to handler), this)
+            scheduler.tick(now)
+        }
 
         coVerify(exactly = 1) { handler.execute(any()) }
     }

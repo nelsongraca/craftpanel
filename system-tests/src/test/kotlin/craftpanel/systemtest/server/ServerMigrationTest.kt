@@ -7,6 +7,7 @@ import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.SharedStack
 import craftpanel.systemtest.harness.pollUntilNotNull
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.annotation.Isolate
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import okhttp3.*
@@ -14,6 +15,7 @@ import org.openapitools.client.infrastructure.ClientException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
+@Isolate
 class ServerMigrationTest : BaseSystemTest() {
 
 

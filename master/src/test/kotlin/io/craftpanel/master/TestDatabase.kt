@@ -19,7 +19,7 @@ object TestDatabase {
                 Users, RefreshTokens, Groups, GroupPermissions, UserGroupAssignments,
                 ServerNetworks, Nodes, Servers, ServerEnvVars, NodeMetrics, PortRegistry, ServerMigrations,
                 MigrationStepLog, Backups, AlertThresholds, AlertEvents, ContainerMetrics, ServerMods,
-                SystemSettings,
+                SystemSettings, ServerJobs,
             )
             seedSystemGroups()
         }
@@ -38,6 +38,7 @@ object TestDatabase {
             ContainerMetrics.deleteAll()
             NodeMetrics.deleteAll()
             ServerEnvVars.deleteAll()
+            ServerJobs.deleteAll()
             Servers.deleteAll()
             Nodes.deleteAll()
             ServerNetworks.deleteAll()

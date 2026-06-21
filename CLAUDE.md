@@ -100,9 +100,12 @@ Schema generator uses `RefType.OPENAPI_SIMPLE` — do not change to `OPENAPI_FUL
 ### Aggregation tasks
 
 ```bash
+./gradlew test             # runs :master:test + :agent:test + :frontend:testFrontend (registered task, not built-in)
 ./gradlew dockerBuildAll   # builds all three images
 ./gradlew dockerPushAll    # pushes all three images
 ```
+
+- Root project has no built-in `test` task — `tasks.named("test")` fails; a registered aggregate task exists instead
 
 ### Image naming
 
@@ -313,6 +316,8 @@ cd frontend && .node/bin/pnpm test       # run all tests (use .node/bin/pnpm, no
 - Test files co-located: `lib/foo.test.ts`, `lib/__tests__/bar.test.tsx`, `app/(route)/__tests__/page.test.tsx`
 - `vi.mock()` factories are hoisted before module-level `let`/`const` — any shared state captured inside (interceptor callbacks, mock refs) must be initialised via `vi.hoisted(() => ...)` and accessed
   through the returned object, not a plain variable
+- Vitest excludes `tests/e2e/**` explicitly — without it, Vitest loads Playwright specs and fails with "Playwright Test did not expect test() to be called here" (not a version conflict despite the
+  error message)
 
 ### E2E tests (Playwright + MSW)
 

@@ -4,11 +4,13 @@ import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.NodeCleanupHelper
 import craftpanel.systemtest.harness.SharedStack
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.annotation.Isolate
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeEmpty
 import org.openapitools.client.infrastructure.ClientException
 
+@Isolate
 class TokenRotationTest : BaseSystemTest() {
 
     private var agentNodeId = ""

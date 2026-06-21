@@ -74,6 +74,12 @@ tasks.named("check") {
     dependsOn(":frontend:testFrontend")
 }
 
+tasks.register("test") {
+    group = "verification"
+    description = "Runs all tests (JVM subprojects + frontend)"
+    dependsOn(":master:test", ":agent:test", ":frontend:testFrontend")
+}
+
 subprojects {
     tasks.withType<Test>().configureEach {
         jvmArgs("-Dnet.bytebuddy.experimental=true")

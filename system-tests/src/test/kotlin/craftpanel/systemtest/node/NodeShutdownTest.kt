@@ -3,9 +3,11 @@ package craftpanel.systemtest.node
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.SharedStack
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.annotation.Isolate
 import io.kotest.matchers.shouldBe
 import org.openapitools.client.infrastructure.ClientException
 
+@Isolate
 class NodeShutdownTest : BaseSystemTest() {
 
     private var agentNodeId = ""

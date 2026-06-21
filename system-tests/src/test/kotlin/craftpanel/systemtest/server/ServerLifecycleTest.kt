@@ -6,12 +6,14 @@ import com.github.dockerjava.api.exception.NotFoundException
 import com.github.dockerjava.api.model.Frame
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.annotation.Isolate
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import org.openapitools.client.infrastructure.ClientException
 import io.kotest.matchers.string.shouldContain as stringContain
 
+@Isolate
 class ServerLifecycleTest : BaseSystemTest() {
 
     init {

@@ -6,12 +6,40 @@ import com.github.dockerjava.api.model.Frame
 import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.client.model.CreateServerRequest
 import craftpanel.systemtest.client.model.ServerResponse
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.openapitools.client.infrastructure.ClientException
 import kotlin.random.Random
 import kotlin.time.Duration.Companion.milliseconds
 
 class ServerHelper(private val api: DefaultApi) {
+
+    private val httpClient = OkHttpClient()
+
+    suspend fun uploadFile(serverId: String, path: String, content: ByteArray, token: String) {
+        withContext(Dispatchers.IO) {
+            val body = MultipartBody.Builder()
+                .setType(MultipartBody.FORM)
+                .addFormDataPart("path", path)
+                .addFormDataPart("file", "file", content.toRequestBody("application/octet-stream".toMediaType()))
+                .build()
+            val request = Request.Builder()
+                .url("${SharedStack.masterApiUrl}/api/servers/$serverId/files/upload")
+                .addHeader("Authorization", "Bearer $token")
+                .post(body)
+                .build()
+            val response = httpClient.newCall(request).execute()
+            response.use {
+                if (!it.isSuccessful) error("Upload failed: ${it.code} ${it.body?.string()}")
+            }
+        }
+    }
 
     suspend fun createTestServer(nodeId: String, memoryMb: Int = 512, cpuShares: Int = 0): String {
         val response = api.createServer(

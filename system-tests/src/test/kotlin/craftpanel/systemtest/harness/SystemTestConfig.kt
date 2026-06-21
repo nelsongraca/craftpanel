@@ -3,9 +3,12 @@ package craftpanel.systemtest.harness
 import craftpanel.systemtest.client.api.DefaultApi
 import io.kotest.core.config.AbstractProjectConfig
 import io.kotest.core.extensions.Extension
+import io.kotest.engine.concurrency.SpecExecutionMode
 import java.io.File
 
 object SystemTestConfig : AbstractProjectConfig() {
+
+    override val specExecutionMode = SpecExecutionMode.LimitedConcurrency(3)
 
     override val extensions: List<Extension> = listOf(TimingListener)
 
