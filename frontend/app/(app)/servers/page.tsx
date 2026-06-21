@@ -138,7 +138,10 @@ function ServerActions({
             <div className="relative">
                 <button
                     onClick={(e) => {
-                        e.stopPropagation();
+                        // stopImmediatePropagation on the native event: the document-level
+                        // close listener is native, so React's stopPropagation alone lets it
+                        // fire and immediately re-close the menu.
+                        e.nativeEvent.stopImmediatePropagation();
                         setOpenMenuId((id) => (id === server.id ? null : server.id));
                     }}
                     className="flex items-center justify-center px-2 py-1 border rounded-[2px] border-border bg-surface-high text-text-muted hover:border-border-high hover:text-text-primary transition-colors"

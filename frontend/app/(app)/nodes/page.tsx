@@ -2,7 +2,6 @@
 
 import {useCallback, useEffect, useState} from "react";
 import {useRouter} from "next/navigation";
-import Link from "next/link";
 import {Ban, Check, KeyRound, MoreHorizontal, Pencil, Power, Trash2, X} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
 import {decommissionNode, listNodes, listServers, rejectNode, rotateNodeToken, shutdownNode, trustNode, updateNode,} from "@/lib/generated/sdk.gen";
@@ -104,18 +103,14 @@ function NodeActions({
             {/* Non-PENDING: View + ··· menu */}
             {node.status !== "PENDING" && (
                 <>
-                    <Link
-                        href={`/nodes/${node.id}`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="flex items-center justify-center px-2 py-1 border rounded-[2px] border-border bg-surface-high text-text-muted hover:border-border-high hover:text-text-primary transition-colors text-[12px] font-heading font-bold uppercase tracking-wider"
-                    >
-                        View
-                    </Link>
-
+                    {/* No explicit View action — the whole row/card is clickable to open the node. */}
                     <div className="relative">
                         <button
                             onClick={(e) => {
-                                e.stopPropagation();
+                                // stopImmediatePropagation on the native event: the document-level
+                                // close listener is native, so React's stopPropagation alone lets it
+                                // fire and immediately re-close the menu.
+                                e.nativeEvent.stopImmediatePropagation();
                                 setOpenMenuId((id) => (id === node.id ? null : node.id));
                             }}
                             className="flex items-center justify-center px-2 py-1 border rounded-[2px] border-border bg-surface-high text-text-muted hover:border-border-high hover:text-text-primary transition-colors"
