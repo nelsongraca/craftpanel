@@ -30,16 +30,16 @@ export function TokenModal({nodeKey, onClose}: { nodeKey: string; onClose: () =>
                     must re-register using the bootstrap token.
                 </div>
 
-                <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted mb-1">
+                <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-1">
                     Node Key
                 </p>
                 <div className="flex items-center gap-2">
-                    <code className="flex-1 font-mono text-[11px] text-text-primary bg-surface border border-border rounded px-3 py-2 break-all">
+                    <code className="flex-1 font-mono text-[12px] text-text-primary bg-surface border border-border rounded px-3 py-2 break-all">
                         {nodeKey}
                     </code>
                     <button
                         onClick={copy}
-                        className="shrink-0 px-3 py-2 text-[11px] font-heading font-bold uppercase tracking-widest border border-border rounded text-text-muted hover:bg-surface-high transition-colors"
+                        className="shrink-0 px-3 py-2 text-[12px] font-heading font-bold uppercase tracking-widest border border-border rounded text-text-muted hover:bg-surface-high transition-colors"
                     >
                         {copied ? "Copied!" : "Copy"}
                     </button>
@@ -48,7 +48,7 @@ export function TokenModal({nodeKey, onClose}: { nodeKey: string; onClose: () =>
                 <div className="flex justify-end mt-5">
                     <button
                         onClick={onClose}
-                        className="px-3 py-1.5 text-[11px] font-heading font-bold uppercase tracking-widest bg-accent text-bg rounded hover:bg-accent-bright transition-colors"
+                        className="px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-widest bg-accent text-bg rounded hover:bg-accent-bright transition-colors"
                     >
                         Done
                     </button>

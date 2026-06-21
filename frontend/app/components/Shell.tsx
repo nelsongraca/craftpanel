@@ -3,7 +3,7 @@
 import {useEffect, useRef, useState} from "react";
 import Link from "next/link";
 import {usePathname} from "next/navigation";
-import {Bell, ChevronDown, KeyRound, LogOut, type LucideIcon, Monitor, Network, Server, Settings, Users,} from "lucide-react";
+import {Bell, ChevronDown, KeyRound, LogOut, type LucideIcon, Menu, Monitor, Network, Server, Settings, Users,} from "lucide-react";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 
@@ -48,6 +48,7 @@ export default function Shell({children}: { children: React.ReactNode }) {
     const pathname = usePathname();
     const {user, logout, logoutAll} = useAuth();
     const [menuOpen, setMenuOpen] = useState(false);
+    const [drawerOpen, setDrawerOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
     const permissions = user?.permissions ?? [];
@@ -68,14 +69,28 @@ export default function Shell({children}: { children: React.ReactNode }) {
         return () => document.removeEventListener("mousedown", handleClickOutside);
     }, [menuOpen]);
 
+    // Close the mobile drawer after navigation, else it covers the page just opened.
+    useEffect(() => {
+        setDrawerOpen(false);
+    }, [pathname]);
+
     return (
         <div className="flex flex-col flex-1 min-h-0">
             {/* Top bar — brand + user menu */}
             <header className="flex items-center justify-between bg-surface border-b border-border px-5 h-[48px] shrink-0">
-                {/* Logo */}
-                <span className="text-[15px] font-bold font-heading tracking-widest uppercase text-accent">
-          ⛏ CraftPanel
-        </span>
+                {/* Logo + hamburger (hamburger only < md) */}
+                <div className="flex items-center gap-3">
+                    <button
+                        aria-label="Open navigation"
+                        onClick={() => setDrawerOpen((o) => !o)}
+                        className="md:hidden text-text-dim hover:text-text-primary transition-colors"
+                    >
+                        <Menu size={20} strokeWidth={2}/>
+                    </button>
+                    <span className="text-[15px] font-bold font-heading tracking-widest uppercase text-accent">
+                        ⛏ CraftPanel
+                    </span>
+                </div>
 
                 {/* User menu */}
                 <div ref={menuRef} className="relative flex justify-end">
@@ -90,7 +105,7 @@ export default function Shell({children}: { children: React.ReactNode }) {
                     {menuOpen && (
                         <div className="absolute right-0 top-full mt-2 bg-surface-higher border border-border rounded-md shadow-xl z-50 min-w-[180px] py-1 overflow-hidden">
                             <div className="px-3 py-2 border-b border-border">
-                                <p className="text-[11px] font-heading font-bold uppercase tracking-widest text-text-muted truncate">
+                                <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted truncate">
                                     {user?.email}
                                 </p>
                             </div>
@@ -114,9 +129,22 @@ export default function Shell({children}: { children: React.ReactNode }) {
             </header>
 
             {/* Body: sidebar + content */}
-            <div className="flex flex-1 min-h-0">
-                {/* Sidebar */}
-                <aside className="w-[208px] shrink-0 bg-surface border-r border-border flex flex-col py-3 overflow-y-auto">
+            <div className="flex flex-1 min-h-0 relative">
+                {/* Backdrop — only < md, only when drawer open */}
+                {drawerOpen && (
+                    <div
+                        className="md:hidden fixed inset-0 top-[48px] z-30 bg-bg/70"
+                        onClick={() => setDrawerOpen(false)}
+                    />
+                )}
+                {/* Sidebar — static w-[208px] at >= md; off-canvas drawer < md */}
+                <aside
+                    className={[
+                        "w-[208px] shrink-0 bg-surface border-r border-border flex flex-col py-3 overflow-y-auto",
+                        "max-md:fixed max-md:top-[48px] max-md:bottom-0 max-md:left-0 max-md:z-40 max-md:transition-transform",
+                        drawerOpen ? "max-md:translate-x-0" : "max-md:-translate-x-full",
+                    ].join(" ")}
+                >
                     {sidebarSections.map((section) => {
                         const visibleItems = section.items.filter(
                             (item) => !item.permission || hasPermission(permissions, item.permission)
@@ -124,7 +152,7 @@ export default function Shell({children}: { children: React.ReactNode }) {
                         if (visibleItems.length === 0) return null;
                         return (
                             <div key={section.title} className="mb-2">
-                                <p className="px-4 pt-4 pb-1.5 text-[10px] font-heading font-bold uppercase tracking-[0.12em] text-text-muted">
+                                <p className="px-4 pt-4 pb-1.5 text-[12px] font-heading font-bold uppercase tracking-[0.12em] text-text-muted">
                                     {section.title}
                                 </p>
                                 {visibleItems.map((item) => {
@@ -134,6 +162,7 @@ export default function Shell({children}: { children: React.ReactNode }) {
                                         <Link
                                             key={item.label}
                                             href={item.href}
+                                            onClick={() => setDrawerOpen(false)}
                                             className={[
                                                 "flex items-center gap-2.5 pl-[13px] pr-4 py-[6px] text-[12px] font-heading font-bold uppercase tracking-wider border-l-[3px] transition-colors",
                                                 isActive

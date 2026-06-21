@@ -34,7 +34,7 @@ function RamBar({total, used}: { total: number; used?: number }) {
     const pct = hasData && total > 0 ? Math.min(100, (used! / total) * 100) : 0;
     return (
         <div className="flex flex-col gap-1">
-      <span className="font-mono text-[11px] text-text-muted whitespace-nowrap">
+      <span className="font-mono text-[12px] text-text-muted whitespace-nowrap">
         {hasData ? `${used} / ${total} MB` : `— / ${total} MB`}
       </span>
             <div className="w-20 h-1 rounded-full" style={{background: "var(--border)"}}>
@@ -211,7 +211,7 @@ export default function ServersPage() {
                         canCreate ? (
                             <Link
                                 href="/servers/new"
-                                className="flex items-center gap-1.5 bg-accent hover:bg-accent-bright text-bg font-heading font-bold text-[11px] uppercase tracking-widest px-3 py-1.5 rounded transition-colors hover:shadow-[0_0_16px_var(--accent-glow)]"
+                                className="flex items-center gap-1.5 bg-accent hover:bg-accent-bright text-bg font-heading font-bold text-[12px] uppercase tracking-widest px-3 py-1.5 rounded transition-colors hover:shadow-[0_0_16px_var(--accent-glow)]"
                             >
                                 <Plus size={12} strokeWidth={3}/>
                                 New Server
@@ -325,12 +325,12 @@ export default function ServersPage() {
                                                 {server.display_name}
                                             </p>
                                             {server.is_migrating && (
-                                                <p className="mt-1 text-[11px] font-mono text-warning leading-none">
+                                                <p className="mt-1 text-[12px] font-mono text-warning leading-none">
                                                     ⟳ Migrating
                                                 </p>
                                             )}
                                             {server.exposed_externally && server.public_subdomain && (
-                                                <p className="mt-0.5 text-[11px] font-mono text-text-muted leading-none">
+                                                <p className="mt-0.5 text-[12px] font-mono text-text-muted leading-none">
                                                     {server.public_subdomain}
                                                 </p>
                                             )}
@@ -339,7 +339,7 @@ export default function ServersPage() {
                                         {/* TYPE */}
                                         <td className="py-3 pr-4">
                       <span
-                          className="font-mono text-[10px] uppercase tracking-wider text-text-dim border border-border px-1.5 py-0.5 rounded"
+                          className="font-mono text-[12px] uppercase tracking-wider text-text-dim border border-border px-1.5 py-0.5 rounded"
                           style={{background: "var(--text-dim-bg)"}}
                       >
                         {server.server_type}
@@ -349,7 +349,7 @@ export default function ServersPage() {
                                         {/* STATUS */}
                                         <td className="py-3 pr-4">
                       <span
-                          className={`text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${serverStatusClass(status)}`}
+                          className={`text-[12px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${serverStatusClass(status)}`}
                       >
                         {serverStatusLabel(status)}
                       </span>
@@ -357,7 +357,7 @@ export default function ServersPage() {
 
                                         {/* PLAYERS */}
                                         <td className="py-3 pr-4">
-                                            <span className="font-mono text-[11px] text-text-muted">—/—</span>
+                                            <span className="font-mono text-[12px] text-text-muted">—/—</span>
                                         </td>
 
                                         {/* RAM */}
@@ -367,7 +367,7 @@ export default function ServersPage() {
 
                                         {/* NODE */}
                                         <td className="py-3 pr-4">
-                      <span className="font-mono text-[11px] text-text-dim">
+                      <span className="font-mono text-[12px] text-text-dim">
                         {node?.display_name ?? `${server.node_id.slice(0, 8)}…`}
                       </span>
                                         </td>

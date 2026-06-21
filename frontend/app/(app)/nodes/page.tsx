@@ -35,7 +35,7 @@ function MiniBar({used, total, fmt = fmtMb}: { used: number; total: number; fmt?
     const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0;
     return (
         <div className="flex flex-col gap-1">
-      <span className="font-mono text-[11px] text-text-muted whitespace-nowrap">
+      <span className="font-mono text-[12px] text-text-muted whitespace-nowrap">
         {fmt(used)} / {fmt(total)}
       </span>
             <div className="w-20 h-1 rounded-full" style={{background: "var(--border)"}}>
@@ -110,7 +110,7 @@ function EditModal({
 
                 <div className="space-y-4">
                     <label className="block">
-            <span className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">
+            <span className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">
               Display Name
             </span>
                         <input
@@ -121,7 +121,7 @@ function EditModal({
                     </label>
                     <div className="grid grid-cols-2 gap-3">
                         <label className="block">
-              <span className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">
+              <span className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">
                 Port Range Start
               </span>
                             <input
@@ -132,7 +132,7 @@ function EditModal({
                             />
                         </label>
                         <label className="block">
-              <span className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">
+              <span className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">
                 Port Range End
               </span>
                             <input
@@ -148,14 +148,14 @@ function EditModal({
                 <div className="flex justify-end gap-2 mt-6">
                     <button
                         onClick={onClose}
-                        className="px-3 py-1.5 text-[11px] font-heading font-bold uppercase tracking-widest text-text-muted border border-border rounded hover:bg-surface-high transition-colors"
+                        className="px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted border border-border rounded hover:bg-surface-high transition-colors"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={save}
                         disabled={saving}
-                        className="px-3 py-1.5 text-[11px] font-heading font-bold uppercase tracking-widest bg-accent text-bg rounded hover:bg-accent-bright transition-colors disabled:opacity-40"
+                        className="px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-widest bg-accent text-bg rounded hover:bg-accent-bright transition-colors disabled:opacity-40"
                     >
                         {saving ? "Saving…" : "Save"}
                     </button>
@@ -445,7 +445,7 @@ export default function NodesPage() {
                                         <p className="text-[13px] font-heading font-bold text-text-primary group-hover:text-accent transition-colors leading-none">
                                             {node.display_name}
                                         </p>
-                                        <p className="mt-0.5 font-mono text-[11px] text-text-muted leading-none">
+                                        <p className="mt-0.5 font-mono text-[12px] text-text-muted leading-none">
                                             {node.hostname}
                                         </p>
                                     </td>
@@ -453,7 +453,7 @@ export default function NodesPage() {
                                     {/* STATUS */}
                                     <td className="py-3 pr-4">
                       <span
-                          className={`text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status, node.health)}`}
+                          className={`text-[12px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status, node.health)}`}
                       >
                         {nodeStatusLabel(node.status, node.health)}
                       </span>
@@ -477,7 +477,7 @@ export default function NodesPage() {
                                     {/* LAST SEEN */}
                                     <td className="py-3 pr-4">
                       <span
-                          className={`font-mono text-[11px] ${stale ? "text-error" : "text-text-muted"}`}
+                          className={`font-mono text-[12px] ${stale ? "text-error" : "text-text-muted"}`}
                       >
                         {lastSeen ? timeAgo(lastSeen) : "never"}
                       </span>
@@ -497,7 +497,7 @@ export default function NodesPage() {
                                                         onClick={() => doTrust(node.id)}
                                                         disabled={!!pending}
                                                         title="Trust node"
-                                                        className="flex items-center gap-1 px-2 py-1 text-[11px] font-heading font-bold uppercase tracking-wider border rounded-[2px] text-healthy border-healthy/40 hover:bg-healthy/10 transition-colors disabled:opacity-40"
+                                                        className="flex items-center gap-1 px-2 py-1 text-[12px] font-heading font-bold uppercase tracking-wider border rounded-[2px] text-healthy border-healthy/40 hover:bg-healthy/10 transition-colors disabled:opacity-40"
                                                     >
                                                         {pending === "trust" ? (
                                                             <span className="w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin"/>
@@ -510,7 +510,7 @@ export default function NodesPage() {
                                                         onClick={() => doReject(node.id)}
                                                         disabled={!!pending}
                                                         title="Reject node"
-                                                        className="flex items-center gap-1 px-2 py-1 text-[11px] font-heading font-bold uppercase tracking-wider border rounded-[2px] text-error border-error/40 hover:bg-error/10 transition-colors disabled:opacity-40"
+                                                        className="flex items-center gap-1 px-2 py-1 text-[12px] font-heading font-bold uppercase tracking-wider border rounded-[2px] text-error border-error/40 hover:bg-error/10 transition-colors disabled:opacity-40"
                                                     >
                                                         {pending === "reject" ? (
                                                             <span className="w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin"/>
@@ -528,7 +528,7 @@ export default function NodesPage() {
                                                     <Link
                                                         href={`/nodes/${node.id}`}
                                                         onClick={(e) => e.stopPropagation()}
-                                                        className="flex items-center justify-center px-2 py-1 border rounded-[2px] border-border bg-surface-high text-text-muted hover:border-border-high hover:text-text-primary transition-colors text-[11px] font-heading font-bold uppercase tracking-wider"
+                                                        className="flex items-center justify-center px-2 py-1 border rounded-[2px] border-border bg-surface-high text-text-muted hover:border-border-high hover:text-text-primary transition-colors text-[12px] font-heading font-bold uppercase tracking-wider"
                                                     >
                                                         View
                                                     </Link>

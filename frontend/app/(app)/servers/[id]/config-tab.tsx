@@ -319,7 +319,7 @@ function GameServerConfigSection({
                 {/* Config Mode toggle */}
                 <div className="flex items-center justify-between">
                     <div>
-                        <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted mb-1">
+                        <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-1">
                             Config Mode
                         </p>
                         <p className="text-[12px] text-text-dim">
@@ -331,7 +331,7 @@ function GameServerConfigSection({
                     <button
                         onClick={handleToggleMode}
                         disabled={togglingMode}
-                        className="px-3 py-1.5 rounded text-[11px] font-heading font-bold uppercase tracking-widest border border-border text-text-dim hover:border-text-muted transition-colors disabled:opacity-40"
+                        className="px-3 py-1.5 rounded text-[12px] font-heading font-bold uppercase tracking-widest border border-border text-text-dim hover:border-text-muted transition-colors disabled:opacity-40"
                     >
                         {togglingMode ? "Switching…" : isManual ? "Switch to Managed" : "Switch to Manual"}
                     </button>
@@ -346,7 +346,7 @@ function GameServerConfigSection({
                 {/* Stop Command */}
                 <div className="border border-border rounded">
                     <div className="px-4 py-2.5 border-b border-border bg-surface-high">
-                        <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">
+                        <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
                             Stop Command
                         </p>
                     </div>
@@ -358,7 +358,7 @@ function GameServerConfigSection({
                                 placeholder="stop"
                                 className="bg-surface-higher border border-border rounded px-2 py-1.5 text-[12px] font-mono text-text-primary w-full focus:border-accent/50 focus:outline-none"
                             />
-                            <p className="text-[11px] text-text-muted mt-1">
+                            <p className="text-[12px] text-text-muted mt-1">
                                 Command sent to stdin on stop / restart. Leave empty to skip.
                             </p>
                         </div>
@@ -366,7 +366,7 @@ function GameServerConfigSection({
                             <button
                                 onClick={handleSaveStopCmd}
                                 disabled={savingStop}
-                                className="px-3 py-1.5 rounded text-[11px] font-heading font-bold uppercase tracking-widest bg-accent text-bg hover:bg-accent-bright transition-colors disabled:opacity-60"
+                                className="px-3 py-1.5 rounded text-[12px] font-heading font-bold uppercase tracking-widest bg-accent text-bg hover:bg-accent-bright transition-colors disabled:opacity-60"
                             >
                                 {savingStop ? "Saving…" : "Save"}
                             </button>
@@ -406,21 +406,21 @@ function GameServerConfigSection({
                 {/* Unsaved changes bar */}
                 {isFormDirty && (
                     <div className="flex items-center justify-between pt-2 border-t border-border">
-                        <span className="text-[11px] text-text-muted">Unsaved changes</span>
+                        <span className="text-[12px] text-text-muted">Unsaved changes</span>
                         <div className="flex gap-2">
                             <button
                                 onClick={() => {
                                     setForm(savedForm);
                                     setExtraVars(savedExtraVars);
                                 }}
-                                className="px-3 py-1.5 rounded text-[11px] font-heading font-bold uppercase tracking-widest text-text-dim border border-border hover:border-text-muted transition-colors"
+                                className="px-3 py-1.5 rounded text-[12px] font-heading font-bold uppercase tracking-widest text-text-dim border border-border hover:border-text-muted transition-colors"
                             >
                                 Discard
                             </button>
                             <button
                                 onClick={handleSave}
                                 disabled={saving}
-                                className="px-3 py-1.5 rounded text-[11px] font-heading font-bold uppercase tracking-widest bg-accent text-bg hover:bg-accent-bright transition-colors disabled:opacity-60"
+                                className="px-3 py-1.5 rounded text-[12px] font-heading font-bold uppercase tracking-widest bg-accent text-bg hover:bg-accent-bright transition-colors disabled:opacity-60"
                             >
                                 {saving ? "Saving…" : "Save"}
                             </button>
@@ -473,7 +473,7 @@ function FieldSection({
     const content = (
         <div className="divide-y divide-border">
             {dimmed && (
-                <div className="px-4 py-2 bg-warning/5 border-b border-warning/20 text-[11px] text-warning">
+                <div className="px-4 py-2 bg-warning/5 border-b border-warning/20 text-[12px] text-warning">
                     Manual mode active — these fields will not be applied to server.properties until you switch back to Managed.
                 </div>
             )}
@@ -497,7 +497,7 @@ function FieldSection({
                 <div className="border border-border rounded overflow-hidden">
                     <CollapsibleTrigger className="w-full">
                         <div className="px-4 py-2.5 bg-surface-high flex items-center justify-between cursor-pointer hover:bg-surface-higher transition-colors">
-                            <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">
+                            <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
                                 {section.title}
                             </p>
                             {open ? (
@@ -516,7 +516,7 @@ function FieldSection({
     return (
         <div className="border border-border rounded overflow-hidden">
             <div className="px-4 py-2.5 bg-surface-high border-b border-border">
-                <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">
+                <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
                     {section.title}
                 </p>
             </div>
@@ -551,7 +551,7 @@ function FieldRow({
             <div className="w-56 shrink-0 pt-0.5">
                 <p className="text-[12px] text-text-primary font-medium">{field.label}</p>
                 {field.hint && (
-                    <p className="text-[11px] text-text-muted mt-0.5">{field.hint}</p>
+                    <p className="text-[12px] text-text-muted mt-0.5">{field.hint}</p>
                 )}
             </div>
             <div className="flex-1">
@@ -689,7 +689,7 @@ function TagInput({
                 {tags.map((tag) => (
                     <span
                         key={tag}
-                        className="inline-flex items-center gap-1 bg-surface-higher border border-border rounded px-2 py-0.5 text-[11px] font-mono text-text-primary"
+                        className="inline-flex items-center gap-1 bg-surface-higher border border-border rounded px-2 py-0.5 text-[12px] font-mono text-text-primary"
                     >
                         {tag}
                         {!disabled && (
@@ -742,12 +742,12 @@ function ExtraVarsSection({
     return (
         <div className="border border-border rounded overflow-hidden">
             <div className="px-4 py-2.5 bg-surface-high border-b border-border flex items-center justify-between">
-                <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">
+                <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
                     Extra Variables
                 </p>
                 <button
                     onClick={onAdd}
-                    className="flex items-center gap-1 text-[11px] font-heading font-bold uppercase tracking-widest text-text-muted hover:text-text-primary transition-colors"
+                    className="flex items-center gap-1 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted hover:text-text-primary transition-colors"
                 >
                     <Plus className="w-3 h-3" />
                     Add
@@ -759,10 +759,10 @@ function ExtraVarsSection({
                 <table className="w-full text-[12px]">
                     <thead>
                         <tr className="border-b border-border">
-                            <th className="px-4 py-2 text-left text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted w-5/12">
+                            <th className="px-4 py-2 text-left text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted w-5/12">
                                 Key
                             </th>
-                            <th className="px-4 py-2 text-left text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">
+                            <th className="px-4 py-2 text-left text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
                                 Value
                             </th>
                             <th className="px-4 py-2 w-10"></th>
@@ -973,7 +973,7 @@ function ProxyBackendsSection({
             {/* Stop Command */}
             <div className="border border-border rounded">
                 <div className="px-4 py-2.5 border-b border-border bg-surface-high">
-                    <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">
+                    <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
                         Stop Command
                     </p>
                 </div>
@@ -985,7 +985,7 @@ function ProxyBackendsSection({
                             placeholder="end"
                             className="bg-surface-higher border border-border rounded px-2 py-1.5 text-[12px] font-mono text-text-primary w-full focus:border-accent/50 focus:outline-none"
                         />
-                        <p className="text-[11px] text-text-muted mt-1">
+                        <p className="text-[12px] text-text-muted mt-1">
                             Command sent to stdin on stop / restart. Leave empty to skip.
                         </p>
                     </div>
@@ -993,7 +993,7 @@ function ProxyBackendsSection({
                         <button
                             onClick={handleSaveStopCmd}
                             disabled={savingStop}
-                            className="px-3 py-1.5 rounded text-[11px] font-heading font-bold uppercase tracking-widest bg-accent text-bg hover:bg-accent-bright transition-colors disabled:opacity-60"
+                            className="px-3 py-1.5 rounded text-[12px] font-heading font-bold uppercase tracking-widest bg-accent text-bg hover:bg-accent-bright transition-colors disabled:opacity-60"
                         >
                             {savingStop ? "Saving…" : "Save"}
                         </button>
@@ -1006,7 +1006,7 @@ function ProxyBackendsSection({
 
             <div className="flex items-center justify-between">
                 <div>
-                    <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted mb-1">
+                    <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-1">
                         Proxy Backends
                     </p>
                     <p className="text-[12px] text-text-dim">
@@ -1016,7 +1016,7 @@ function ProxyBackendsSection({
                 <button
                     onClick={() => setShowAddModal(true)}
                     disabled={available.length === 0}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[11px] font-heading font-bold uppercase tracking-widest bg-accent/10 text-accent border border-accent/30 hover:bg-accent/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded text-[12px] font-heading font-bold uppercase tracking-widest bg-accent/10 text-accent border border-accent/30 hover:bg-accent/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                     <Plus className="w-3.5 h-3.5" />
                     Add Backend
@@ -1044,16 +1044,16 @@ function ProxyBackendsSection({
                     <table className="w-full text-[12px]">
                         <thead>
                             <tr className="border-b border-border bg-surface-high">
-                                <th className="px-4 py-2.5 text-left text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted w-8">
+                                <th className="px-4 py-2.5 text-left text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted w-8">
                                     #
                                 </th>
-                                <th className="px-4 py-2.5 text-left text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">
+                                <th className="px-4 py-2.5 text-left text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
                                     Server
                                 </th>
-                                <th className="px-4 py-2.5 text-left text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">
+                                <th className="px-4 py-2.5 text-left text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
                                     Backend Name
                                 </th>
-                                <th className="px-4 py-2.5 text-left text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">
+                                <th className="px-4 py-2.5 text-left text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
                                     Status
                                 </th>
                                 <th className="px-4 py-2.5 w-32"></th>
@@ -1070,7 +1070,7 @@ function ProxyBackendsSection({
                                     </td>
                                     <td className="px-4 py-3">
                                         <span className="text-text-primary">{b.displayName}</span>
-                                        <span className="ml-2 text-[10px] text-text-muted font-mono">
+                                        <span className="ml-2 text-[12px] text-text-muted font-mono">
                                             {b.serverType}
                                         </span>
                                     </td>
@@ -1083,7 +1083,7 @@ function ProxyBackendsSection({
                                     </td>
                                     <td className="px-4 py-3">
                                         <span
-                                            className={`text-[10px] font-heading font-bold uppercase tracking-widest ${
+                                            className={`text-[12px] font-heading font-bold uppercase tracking-widest ${
                                                 b.status === "HEALTHY"
                                                     ? "text-healthy"
                                                     : b.status === "STOPPED"
@@ -1127,18 +1127,18 @@ function ProxyBackendsSection({
 
             {isDirty && (
                 <div className="flex items-center justify-between pt-2 border-t border-border">
-                    <span className="text-[11px] text-text-muted">Unsaved changes</span>
+                    <span className="text-[12px] text-text-muted">Unsaved changes</span>
                     <div className="flex gap-2">
                         <button
                             onClick={() => setBackends(saved)}
-                            className="px-3 py-1.5 rounded text-[11px] font-heading font-bold uppercase tracking-widest text-text-dim border border-border hover:border-text-muted transition-colors"
+                            className="px-3 py-1.5 rounded text-[12px] font-heading font-bold uppercase tracking-widest text-text-dim border border-border hover:border-text-muted transition-colors"
                         >
                             Discard
                         </button>
                         <button
                             onClick={handleSave}
                             disabled={saving}
-                            className="px-3 py-1.5 rounded text-[11px] font-heading font-bold uppercase tracking-widest bg-accent text-bg hover:bg-accent-bright transition-colors disabled:opacity-60"
+                            className="px-3 py-1.5 rounded text-[12px] font-heading font-bold uppercase tracking-widest bg-accent text-bg hover:bg-accent-bright transition-colors disabled:opacity-60"
                         >
                             {saving ? "Saving…" : "Save"}
                         </button>
@@ -1189,7 +1189,7 @@ function AddBackendModal({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80">
             <div className="bg-surface border border-border rounded-lg p-6 w-[420px] space-y-4">
                 <div className="flex items-center justify-between">
-                    <p className="text-[11px] font-heading font-bold uppercase tracking-widest text-text-muted">
+                    <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
                         Add Backend
                     </p>
                     <button
@@ -1202,7 +1202,7 @@ function AddBackendModal({
 
                 <div className="space-y-3">
                     <div>
-                        <label className="block text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted mb-1.5">
+                        <label className="block text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-1.5">
                             Server
                         </label>
                         <select
@@ -1218,7 +1218,7 @@ function AddBackendModal({
                         </select>
                     </div>
                     <div>
-                        <label className="block text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted mb-1.5">
+                        <label className="block text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-1.5">
                             Backend Name
                             <span className="ml-1 normal-case font-normal text-text-muted">
                                 (used in proxy config)
@@ -1231,7 +1231,7 @@ function AddBackendModal({
                             className="w-full bg-surface-high border border-border rounded px-3 py-2 text-[12px] font-mono text-text-primary focus:border-accent/50 focus:outline-none"
                         />
                         {backendName && !valid && (
-                            <p className="text-[11px] text-error mt-1">
+                            <p className="text-[12px] text-error mt-1">
                                 Lowercase letters, numbers, hyphens and underscores only
                             </p>
                         )}
@@ -1241,14 +1241,14 @@ function AddBackendModal({
                 <div className="flex justify-end gap-2 pt-1">
                     <button
                         onClick={onClose}
-                        className="px-3 py-1.5 rounded text-[11px] font-heading font-bold uppercase tracking-widest text-text-dim border border-border hover:border-text-muted transition-colors"
+                        className="px-3 py-1.5 rounded text-[12px] font-heading font-bold uppercase tracking-widest text-text-dim border border-border hover:border-text-muted transition-colors"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={() => selected && onAdd(selected, backendName.trim())}
                         disabled={!valid || !selected}
-                        className="px-3 py-1.5 rounded text-[11px] font-heading font-bold uppercase tracking-widest bg-accent text-bg hover:bg-accent-bright transition-colors disabled:opacity-50"
+                        className="px-3 py-1.5 rounded text-[12px] font-heading font-bold uppercase tracking-widest bg-accent text-bg hover:bg-accent-bright transition-colors disabled:opacity-50"
                     >
                         Add
                     </button>

@@ -187,7 +187,7 @@ function AssignmentsModal({
             <div className="space-y-5">
                 {/* Current assignments */}
                 <div>
-                    <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted mb-2">Current Assignments</p>
+                    <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-2">Current Assignments</p>
                     {loading ? (
                         <p className="text-[12px] text-text-muted">Loading…</p>
                     ) : assignments.length === 0 ? (
@@ -198,7 +198,7 @@ function AssignmentsModal({
                                 <li key={a.id} className="flex items-center justify-between bg-surface-high rounded px-3 py-2">
                                     <div>
                                         <span className="text-[12px] text-text-primary">{groupName(a.group_id)}</span>
-                                        <span className="ml-2 text-[11px] text-text-muted">{scopeLabel(a)}</span>
+                                        <span className="ml-2 text-[12px] text-text-muted">{scopeLabel(a)}</span>
                                     </div>
                                     <button onClick={() => handleRemove(a.id)} className="text-text-muted hover:text-error transition-colors ml-2">
                                         <Trash2 size={13}/>
@@ -211,7 +211,7 @@ function AssignmentsModal({
 
                 {/* Add assignment */}
                 <div className="border-t border-border pt-4 space-y-3">
-                    <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">Add Assignment</p>
+                    <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Add Assignment</p>
                     <Field label="Group">
                         <select className={INPUT} value={newGroup} onChange={(e) => setNewGroup(e.target.value)}>
                             <option value="">Select…</option>
@@ -312,10 +312,10 @@ export default function UsersPage() {
                         <table className="w-full text-[12px]">
                             <thead>
                             <tr className="border-b border-border">
-                                <th className="text-left px-5 py-3 text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">Username</th>
-                                <th className="text-left px-4 py-3 text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">Email</th>
-                                <th className="text-left px-4 py-3 text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">Status</th>
-                                <th className="text-left px-4 py-3 text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">Created</th>
+                                <th className="text-left px-5 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Username</th>
+                                <th className="text-left px-4 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Email</th>
+                                <th className="text-left px-4 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Status</th>
+                                <th className="text-left px-4 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Created</th>
                                 <th className="px-4 py-3"/>
                             </tr>
                             </thead>
@@ -326,11 +326,11 @@ export default function UsersPage() {
                                     <td className="px-4 py-3 text-text-dim">{u.email}</td>
                                     <td className="px-4 py-3">
                       <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-heading font-bold uppercase tracking-wider border ${u.is_active ? "text-healthy border-healthy/30 bg-healthy/10" : "text-text-muted border-border bg-surface-high"}`}>
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-[12px] font-heading font-bold uppercase tracking-wider border ${u.is_active ? "text-healthy border-healthy/30 bg-healthy/10" : "text-text-muted border-border bg-surface-high"}`}>
                         {u.is_active ? "Active" : "Inactive"}
                       </span>
                                     </td>
-                                    <td className="px-4 py-3 text-text-muted font-mono text-[11px]">
+                                    <td className="px-4 py-3 text-text-muted font-mono text-[12px]">
                                         {new Date(u.created_at).toLocaleDateString()}
                                     </td>
                                     <td className="px-4 py-3">

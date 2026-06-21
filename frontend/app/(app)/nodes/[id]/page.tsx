@@ -22,7 +22,7 @@ import {nodeStatusClass, nodeStatusLabel, serverStatusClass} from "@/lib/status"
 function StatCard({label, children}: { label: string; children: React.ReactNode }) {
     return (
         <div className="bg-surface border border-border rounded p-4 flex flex-col gap-2">
-            <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">
+            <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
                 {label}
             </p>
             {children}
@@ -36,7 +36,7 @@ function ResourceBar({used, total, fmt}: { used: number; total: number; fmt: (v:
     return (
         <div className="flex flex-col gap-1.5">
             <p className="font-mono text-[20px] text-text-primary leading-none">{fmt(used)}</p>
-            <p className="font-mono text-[11px] text-text-muted">{fmt(used)} / {fmt(total)}</p>
+            <p className="font-mono text-[12px] text-text-muted">{fmt(used)} / {fmt(total)}</p>
             <div className="h-1.5 rounded-full bg-surface-higher w-full overflow-hidden">
                 <div className={`h-full rounded-full ${cls}`} style={{width: `${pct}%`}}/>
             </div>
@@ -47,7 +47,7 @@ function ResourceBar({used, total, fmt}: { used: number; total: number; fmt: (v:
 function InfoRow({label, value}: { label: string; value: React.ReactNode }) {
     return (
         <div className="flex items-start justify-between gap-4 py-2 border-b border-border last:border-0">
-      <span className="text-[11px] font-heading font-bold uppercase tracking-wider text-text-muted shrink-0">
+      <span className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted shrink-0">
         {label}
       </span>
             <span className="font-mono text-[12px] text-text-primary text-right">{value}</span>
@@ -76,7 +76,7 @@ function HeaderActionButton({
         <button
             onClick={onClick}
             disabled={loading || disabled}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded border text-[11px] font-heading font-bold uppercase tracking-widest transition-colors disabled:opacity-40 ${cls}`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded border text-[12px] font-heading font-bold uppercase tracking-widest transition-colors disabled:opacity-40 ${cls}`}
         >
             {loading ? (
                 <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin"/>
@@ -127,18 +127,18 @@ function EditModal({node, onClose, onSaved}: { node: Node; onClose: () => void; 
                 )}
                 <div className="space-y-4">
                     <label className="block">
-                        <span className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">Display Name</span>
+                        <span className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">Display Name</span>
                         <input value={displayName} onChange={(e) => setDisplayName(e.target.value)}
                                className="w-full h-8 bg-surface border border-border rounded px-2.5 text-[12px] font-mono text-text-primary focus:outline-none focus:border-accent"/>
                     </label>
                     <div className="grid grid-cols-2 gap-3">
                         <label className="block">
-                            <span className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">Port Start</span>
+                            <span className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">Port Start</span>
                             <input type="number" value={portStart} onChange={(e) => setPortStart(e.target.value)}
                                    className="w-full h-8 bg-surface border border-border rounded px-2.5 text-[12px] font-mono text-text-primary focus:outline-none focus:border-accent"/>
                         </label>
                         <label className="block">
-                            <span className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">Port End</span>
+                            <span className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">Port End</span>
                             <input type="number" value={portEnd} onChange={(e) => setPortEnd(e.target.value)}
                                    className="w-full h-8 bg-surface border border-border rounded px-2.5 text-[12px] font-mono text-text-primary focus:outline-none focus:border-accent"/>
                         </label>
@@ -146,11 +146,11 @@ function EditModal({node, onClose, onSaved}: { node: Node; onClose: () => void; 
                 </div>
                 <div className="flex justify-end gap-2 mt-6">
                     <button onClick={onClose}
-                            className="px-3 py-1.5 text-[11px] font-heading font-bold uppercase tracking-widest text-text-muted border border-border rounded hover:bg-surface-high transition-colors">
+                            className="px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted border border-border rounded hover:bg-surface-high transition-colors">
                         Cancel
                     </button>
                     <button onClick={save} disabled={saving}
-                            className="px-3 py-1.5 text-[11px] font-heading font-bold uppercase tracking-widest bg-accent text-bg rounded hover:bg-accent-bright transition-colors disabled:opacity-40">
+                            className="px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-widest bg-accent text-bg rounded hover:bg-accent-bright transition-colors disabled:opacity-40">
                         {saving ? "Saving…" : "Save"}
                     </button>
                 </div>
@@ -182,7 +182,7 @@ function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
                         <p className="font-mono text-[20px] text-text-primary leading-none">
                             {cpuPct.toFixed(0)}%
                         </p>
-                        <p className="font-mono text-[11px] text-text-muted">
+                        <p className="font-mono text-[12px] text-text-muted">
                             {node.allocated_cpu_shares} / {node.total_cpu_shares} shares
                         </p>
                         <div className="h-1.5 rounded-full bg-surface-higher w-full overflow-hidden">
@@ -197,25 +197,25 @@ function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
                     <p className="font-mono text-[20px] text-text-primary leading-none">
                         {servers.length}
                     </p>
-                    <p className="font-mono text-[11px] text-text-muted">
+                    <p className="font-mono text-[12px] text-text-muted">
                         {servers.filter((s) => s.status === "HEALTHY").length} healthy
                     </p>
                 </StatCard>
                 <StatCard label="Status">
           <span
-              className={`self-start text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status, node.health)}`}
+              className={`self-start text-[12px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status, node.health)}`}
           >
             {nodeStatusLabel(node.status, node.health)}
           </span>
                     {node.last_seen_at && (
-                        <p className="text-[11px] text-text-muted">last seen {timeAgo(node.last_seen_at)}</p>
+                        <p className="text-[12px] text-text-muted">last seen {timeAgo(node.last_seen_at)}</p>
                     )}
                 </StatCard>
             </div>
 
             {/* Info panel */}
             <div className="bg-surface border border-border rounded p-4">
-                <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted mb-2">
+                <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-2">
                     Node Info
                 </p>
                 <InfoRow label="Hostname" value={node.hostname}/>
@@ -231,7 +231,7 @@ function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
 
             {/* RAM allocation bar */}
             <div className="bg-surface border border-border rounded p-4">
-                <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted mb-3">
+                <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-3">
                     RAM Allocation
                 </p>
                 <div className="flex items-center gap-3">
@@ -288,28 +288,28 @@ function ServersTab({servers}: { servers: Server[] }) {
                         <tr key={s.id} className="border-b border-border hover:bg-surface transition-colors">
                             <td className="py-3 pr-4">
                                 <p className="text-[13px] font-heading font-bold text-text-primary leading-none">{s.display_name}</p>
-                                <p className="mt-0.5 font-mono text-[11px] text-text-muted leading-none">{s.name}</p>
+                                <p className="mt-0.5 font-mono text-[12px] text-text-muted leading-none">{s.name}</p>
                             </td>
                             <td className="py-3 pr-4">
-                  <span className="font-mono text-[10px] uppercase tracking-wider text-text-dim border border-border px-1.5 py-0.5 rounded">
+                  <span className="font-mono text-[12px] uppercase tracking-wider text-text-dim border border-border px-1.5 py-0.5 rounded">
                     {s.server_type}
                   </span>
                             </td>
                             <td className="py-3 pr-4">
-                  <span className={`text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${sCls}`}>
+                  <span className={`text-[12px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${sCls}`}>
                     {s.status}
                   </span>
                             </td>
                             <td className="py-3 pr-4">
-                                <span className="font-mono text-[11px] text-text-muted">{fmtMb(s.memory_mb)}</span>
+                                <span className="font-mono text-[12px] text-text-muted">{fmtMb(s.memory_mb)}</span>
                             </td>
                             <td className="py-3 pr-4">
-                                <span className="font-mono text-[11px] text-text-muted">{s.host_port ?? "—"}</span>
+                                <span className="font-mono text-[12px] text-text-muted">{s.host_port ?? "—"}</span>
                             </td>
                             <td className="py-3 text-right">
                                 <Link
                                     href={`/servers/${s.id}`}
-                                    className="text-[11px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
+                                    className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
                                 >
                                     View →
                                 </Link>
@@ -432,7 +432,7 @@ function MetricsTab({nodeId}: { nodeId: string }) {
                         key={r}
                         onClick={() => setRange(r)}
                         className={[
-                            "px-3 py-1 text-[11px] font-heading font-bold uppercase tracking-widest rounded border transition-colors",
+                            "px-3 py-1 text-[12px] font-heading font-bold uppercase tracking-widest rounded border transition-colors",
                             range === r
                                 ? "bg-accent text-bg border-accent"
                                 : "text-text-muted border-border hover:bg-surface-high hover:text-text-primary",
@@ -445,7 +445,7 @@ function MetricsTab({nodeId}: { nodeId: string }) {
 
             {/* CPU % */}
             <div className="bg-surface border border-border rounded p-4">
-                <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted mb-4">
+                <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-4">
                     CPU Utilization
                 </p>
                 <ResponsiveContainer width="100%" height={140}>
@@ -467,7 +467,7 @@ function MetricsTab({nodeId}: { nodeId: string }) {
 
             {/* RAM */}
             <div className="bg-surface border border-border rounded p-4">
-                <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted mb-4">
+                <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-4">
                     RAM Usage
                 </p>
                 <ResponsiveContainer width="100%" height={140}>
@@ -493,7 +493,7 @@ function MetricsTab({nodeId}: { nodeId: string }) {
 
             {/* Disk */}
             <div className="bg-surface border border-border rounded p-4">
-                <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted mb-4">
+                <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-4">
                     Disk Usage
                 </p>
                 <ResponsiveContainer width="100%" height={140}>
@@ -519,17 +519,17 @@ function MetricsTab({nodeId}: { nodeId: string }) {
 
             {/* Network */}
             <div className="bg-surface border border-border rounded p-4">
-                <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted mb-4">
+                <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-4">
                     Network I/O
                 </p>
                 <div className="flex items-center gap-4 mb-3">
                     <div className="flex items-center gap-1.5">
                         <div className="w-3 h-0.5 rounded" style={{background: "var(--healthy)"}}/>
-                        <span className="text-[10px] font-mono text-text-muted">Net ↓</span>
+                        <span className="text-[12px] font-mono text-text-muted">Net ↓</span>
                     </div>
                     <div className="flex items-center gap-1.5">
                         <div className="w-3 h-0.5 rounded" style={{background: "var(--accent)"}}/>
-                        <span className="text-[10px] font-mono text-text-muted">Net ↑</span>
+                        <span className="text-[12px] font-mono text-text-muted">Net ↑</span>
                     </div>
                 </div>
                 <ResponsiveContainer width="100%" height={140}>
@@ -696,7 +696,7 @@ export default function NodeDetailPage() {
             {/* ── Page header ── */}
             <div className="px-6 pt-6 pb-5 border-b border-border">
                 {/* Breadcrumb */}
-                <div className="flex items-center gap-1.5 text-[11px] font-heading font-bold uppercase tracking-wider text-text-muted mb-4">
+                <div className="flex items-center gap-1.5 text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted mb-4">
                     <Link href="/nodes" className="hover:text-text-primary transition-colors">Nodes</Link>
                     <ChevronRight size={11} strokeWidth={2.5}/>
                     <span className="text-text-dim">{node.display_name}</span>
@@ -708,7 +708,7 @@ export default function NodeDetailPage() {
                         <h1 className="text-[22px] font-heading font-bold uppercase tracking-wide text-text-primary leading-none">
                             {node.display_name}
                         </h1>
-                        <span className={`text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status, node.health)}`}>
+                        <span className={`text-[12px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status, node.health)}`}>
               {nodeStatusLabel(node.status, node.health)}
             </span>
                     </div>
@@ -792,7 +792,7 @@ export default function NodeDetailPage() {
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         className={[
-                            "relative px-4 py-3 text-[11px] font-heading font-bold uppercase tracking-widest transition-colors",
+                            "relative px-4 py-3 text-[12px] font-heading font-bold uppercase tracking-widest transition-colors",
                             activeTab === tab
                                 ? "text-accent after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-accent"
                                 : "text-text-dim hover:text-text-primary",
@@ -800,7 +800,7 @@ export default function NodeDetailPage() {
                     >
                         {tab}
                         {tab === "Servers" && servers.length > 0 && (
-                            <span className="ml-1.5 font-mono text-[10px] text-text-muted">{servers.length}</span>
+                            <span className="ml-1.5 font-mono text-[12px] text-text-muted">{servers.length}</span>
                         )}
                     </button>
                 ))}

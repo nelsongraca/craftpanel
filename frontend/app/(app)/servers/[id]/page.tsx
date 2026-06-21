@@ -34,7 +34,7 @@ function StatCard({
 }) {
     return (
         <div className="bg-surface border border-border rounded p-4 flex flex-col gap-2">
-            <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">
+            <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
                 {label}
             </p>
             {children}
@@ -47,7 +47,7 @@ function RamBarInline({usedMb, totalMb}: { usedMb: number | null; totalMb: numbe
         return (
             <div className="flex flex-col gap-1.5">
                 <p className="font-mono text-[20px] text-text-muted leading-none">—</p>
-                <p className="font-mono text-[11px] text-text-muted">— / {fmtMb(totalMb)} alloc</p>
+                <p className="font-mono text-[12px] text-text-muted">— / {fmtMb(totalMb)} alloc</p>
                 <div className="h-1.5 rounded-full bg-surface-higher w-full"/>
             </div>
         );
@@ -59,7 +59,7 @@ function RamBarInline({usedMb, totalMb}: { usedMb: number | null; totalMb: numbe
             <p className="font-mono text-[20px] text-text-primary leading-none">
                 {fmtMb(usedMb)}
             </p>
-            <p className="font-mono text-[11px] text-text-muted">
+            <p className="font-mono text-[12px] text-text-muted">
                 {fmtMb(usedMb)} / {fmtMb(totalMb)} alloc
             </p>
             <div className="h-1.5 rounded-full bg-surface-higher w-full overflow-hidden">
@@ -92,7 +92,7 @@ function HeaderActionButton({
         <button
             onClick={onClick}
             disabled={loading}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded border text-[11px] font-heading font-bold uppercase tracking-widest transition-colors disabled:opacity-40 ${cls}`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded border text-[12px] font-heading font-bold uppercase tracking-widest transition-colors disabled:opacity-40 ${cls}`}
         >
             {loading ? (
                 <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin"/>
@@ -124,7 +124,7 @@ function ComingSoon({tab}: { tab: string }) {
 function InfoRow({label, value}: { label: string; value: React.ReactNode }) {
     return (
         <div className="flex items-start justify-between gap-4 py-2 border-b border-border last:border-0">
-      <span className="text-[11px] font-heading font-bold uppercase tracking-wider text-text-muted shrink-0">
+      <span className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted shrink-0">
         {label}
       </span>
             <span className="font-mono text-[12px] text-text-primary text-right">{value}</span>
@@ -398,7 +398,7 @@ export default function ServerDetailPage() {
             <div className="px-6 pt-6 pb-5 border-b border-border">
 
                 {/* Breadcrumb */}
-                <div className="flex items-center gap-1.5 text-[11px] font-heading font-bold uppercase tracking-wider text-text-muted mb-4">
+                <div className="flex items-center gap-1.5 text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted mb-4">
                     <Link href="/servers" className="hover:text-text-primary transition-colors">
                         Servers
                     </Link>
@@ -424,7 +424,7 @@ export default function ServerDetailPage() {
                             {server.display_name}
                         </h1>
                         <span
-                            className={`text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${serverStatusClass(sStatus)}`}
+                            className={`text-[12px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${serverStatusClass(sStatus)}`}
                         >
               {serverStatusLabel(sStatus)}
             </span>
@@ -505,14 +505,14 @@ export default function ServerDetailPage() {
 
                 {/* Type / config badges */}
                 <div className="flex items-center gap-2 mt-3 flex-wrap">
-          <span className="font-mono text-[10px] uppercase tracking-wider text-text-dim border border-border bg-surface-high px-1.5 py-0.5 rounded">
+          <span className="font-mono text-[12px] uppercase tracking-wider text-text-dim border border-border bg-surface-high px-1.5 py-0.5 rounded">
             {server.server_type}
           </span>
-                    <span className="font-mono text-[10px] uppercase tracking-wider text-text-dim border border-border bg-surface-high px-1.5 py-0.5 rounded">
+                    <span className="font-mono text-[12px] uppercase tracking-wider text-text-dim border border-border bg-surface-high px-1.5 py-0.5 rounded">
             {server.config_mode}
           </span>
                     {server.is_migrating && (
-                        <span className="font-mono text-[10px] uppercase tracking-wider text-warning border border-warning/30 bg-warning/10 px-1.5 py-0.5 rounded">
+                        <span className="font-mono text-[12px] uppercase tracking-wider text-warning border border-warning/30 bg-warning/10 px-1.5 py-0.5 rounded">
               ⟳ Migrating
             </span>
                     )}
@@ -556,7 +556,7 @@ export default function ServerDetailPage() {
                     {(server.status === "HEALTHY") && hasPermission(permissions, "server.restart") && (
                         <button
                             onClick={() => void doAction("restart")}
-                            className="ml-4 shrink-0 text-[11px] font-heading font-bold uppercase tracking-wider underline hover:no-underline"
+                            className="ml-4 shrink-0 text-[12px] font-heading font-bold uppercase tracking-wider underline hover:no-underline"
                         >
                             Restart Now
                         </button>
@@ -571,7 +571,7 @@ export default function ServerDetailPage() {
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         className={[
-                            "relative px-4 py-3 text-[11px] font-heading font-bold uppercase tracking-widest transition-colors",
+                            "relative px-4 py-3 text-[12px] font-heading font-bold uppercase tracking-widest transition-colors",
                             activeTab === tab
                                 ? "text-accent after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-accent"
                                 : "text-text-dim hover:text-text-primary",
@@ -693,7 +693,7 @@ function EditTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) 
 function EditFieldRow({label, children}: { label: string; children: React.ReactNode }) {
     return (
         <div className="space-y-1">
-            <p className="text-[10px] font-heading font-bold uppercase tracking-wider text-text-muted">{label}</p>
+            <p className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted">{label}</p>
             {children}
         </div>
     );
@@ -712,14 +712,14 @@ function SaveCancelRow({
         <div className="flex items-center justify-end gap-2 pt-1">
             <button
                 onClick={onCancel}
-                className="px-3 py-1 text-[10px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-text-primary transition-colors"
+                className="px-3 py-1 text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-text-primary transition-colors"
             >
                 Cancel
             </button>
             <button
                 onClick={onSave}
                 disabled={saving}
-                className="px-3 py-1 rounded bg-accent text-bg text-[10px] font-heading font-bold uppercase tracking-wider hover:bg-accent-bright transition-colors disabled:opacity-50"
+                className="px-3 py-1 rounded bg-accent text-bg text-[12px] font-heading font-bold uppercase tracking-wider hover:bg-accent-bright transition-colors disabled:opacity-50"
             >
                 {saving ? "Saving…" : "Save"}
             </button>
@@ -820,12 +820,12 @@ function OverviewTab({
                     {livePlayers ? (
                         <>
                             <p className="font-mono text-[20px] text-text-primary leading-none">{livePlayers.count}</p>
-                            <p className="font-mono text-[11px] text-text-muted">online now</p>
+                            <p className="font-mono text-[12px] text-text-muted">online now</p>
                         </>
                     ) : (
                         <>
                             <p className="font-mono text-[20px] text-text-muted leading-none">—</p>
-                            <p className="text-[11px] text-text-muted">awaiting data</p>
+                            <p className="text-[12px] text-text-muted">awaiting data</p>
                         </>
                     )}
                 </StatCard>
@@ -842,12 +842,12 @@ function OverviewTab({
                             <p className={`font-mono text-[20px] leading-none ${cpuColor}`}>
                                 {liveMetrics.cpuPercent.toFixed(1)}%
                             </p>
-                            <p className="font-mono text-[11px] text-text-muted">{server.cpu_shares} shares alloc</p>
+                            <p className="font-mono text-[12px] text-text-muted">{server.cpu_shares} shares alloc</p>
                         </>
                     ) : (
                         <>
                             <p className="font-mono text-[20px] text-text-muted leading-none">—%</p>
-                            <p className="font-mono text-[11px] text-text-muted">{server.cpu_shares} shares alloc</p>
+                            <p className="font-mono text-[12px] text-text-muted">{server.cpu_shares} shares alloc</p>
                         </>
                     )}
                 </StatCard>
@@ -855,12 +855,12 @@ function OverviewTab({
                 {/* STATUS */}
                 <StatCard label="Status">
           <span
-              className={`self-start text-[11px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${serverStatusClass(sStatus)}`}
+              className={`self-start text-[12px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${serverStatusClass(sStatus)}`}
           >
             {serverStatusLabel(sStatus)}
           </span>
                     {node?.last_seen_at && (
-                        <p className="text-[11px] text-text-muted">
+                        <p className="text-[12px] text-text-muted">
                             last seen {timeAgo(node.last_seen_at)}
                         </p>
                     )}
@@ -873,11 +873,11 @@ function OverviewTab({
                 {/* Live Metrics */}
                 <div className="bg-surface border border-border rounded p-4">
                     <div className="flex items-center justify-between mb-4">
-                        <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">
+                        <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
                             Live Metrics
                         </p>
                         {!liveMetrics && (
-                            <span className="text-[10px] font-heading text-text-muted italic">awaiting data…</span>
+                            <span className="text-[12px] font-heading text-text-muted italic">awaiting data…</span>
                         )}
                     </div>
                     <div className="space-y-3">
@@ -906,7 +906,7 @@ function OverviewTab({
                             },
                         ].map(({label, value, color}) => (
                             <div key={label} className="flex items-center justify-between">
-                <span className="text-[11px] font-heading font-bold uppercase tracking-wider text-text-muted">
+                <span className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted">
                   {label}
                 </span>
                                 <span className={`font-mono text-[12px] ${liveMetrics ? color : "text-text-muted"}`}>{value}</span>
@@ -915,12 +915,12 @@ function OverviewTab({
                     </div>
                     {livePlayers && livePlayers.list.length > 0 && (
                         <div className="mt-4 pt-4 border-t border-border">
-                            <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted mb-2">
+                            <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-2">
                                 Online Players
                             </p>
                             <div className="flex flex-wrap gap-1">
                                 {livePlayers.list.map((name) => (
-                                    <span key={name} className="font-mono text-[11px] text-text-dim border border-border bg-surface-high px-1.5 py-0.5 rounded">
+                                    <span key={name} className="font-mono text-[12px] text-text-dim border border-border bg-surface-high px-1.5 py-0.5 rounded">
                     {name}
                   </span>
                                 ))}
@@ -931,7 +931,7 @@ function OverviewTab({
 
                 {/* Server info */}
                 <div className="bg-surface border border-border rounded p-4">
-                    <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted mb-2">
+                    <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-2">
                         Server Info
                     </p>
                     <InfoRow label="Type" value={server.server_type}/>
@@ -960,13 +960,13 @@ function OverviewTab({
             {canConfigure && (
                 <div className="bg-surface border border-border rounded p-4">
                     <div className="flex items-center justify-between mb-3">
-                        <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">
+                        <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
                             General Settings
                         </p>
                         {!editingGeneral && (
                             <button
                                 onClick={onOpenEditGeneral}
-                                className="text-[10px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
+                                className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
                             >
                                 Edit
                             </button>
@@ -983,7 +983,7 @@ function OverviewTab({
                     ) : (
                         <div className="space-y-3">
                             {generalError && (
-                                <p className="text-[11px] text-error">{generalError}</p>
+                                <p className="text-[12px] text-error">{generalError}</p>
                             )}
                             <EditFieldRow label="Display Name">
                                 <EditInput
@@ -1020,7 +1020,7 @@ function OverviewTab({
                                             placeholder="1.21.4"
                                         />
                                     )}
-                                    <p className="text-[10px] text-text-muted mt-1">Requires restart to take effect.</p>
+                                    <p className="text-[12px] text-text-muted mt-1">Requires restart to take effect.</p>
                                 </EditFieldRow>
                             )}
                             <SaveCancelRow onSave={onSaveGeneral} onCancel={onCancelGeneral} saving={savingGeneral}/>
@@ -1033,13 +1033,13 @@ function OverviewTab({
             {canResources && (
                 <div className="bg-surface border border-border rounded p-4">
                     <div className="flex items-center justify-between mb-3">
-                        <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">
+                        <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
                             Resources
                         </p>
                         {!editingResources && (
                             <button
                                 onClick={onOpenEditResources}
-                                className="text-[10px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
+                                className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
                             >
                                 Edit
                             </button>
@@ -1055,7 +1055,7 @@ function OverviewTab({
                     ) : (
                         <div className="space-y-3">
                             {resourcesError && (
-                                <p className="text-[11px] text-error">{resourcesError}</p>
+                                <p className="text-[12px] text-error">{resourcesError}</p>
                             )}
                             <EditFieldRow label="RAM (MB)">
                                 <EditInput
@@ -1073,7 +1073,7 @@ function OverviewTab({
                                     onChange={(e) => onChangeCpuShares(Number(e.target.value))}
                                     min={0}
                                 />
-                                <p className="text-[10px] text-text-muted mt-1">0 = unlimited</p>
+                                <p className="text-[12px] text-text-muted mt-1">0 = unlimited</p>
                             </EditFieldRow>
                             <EditFieldRow label="itzg Image Tag">
                                 <EditInput
@@ -1082,7 +1082,7 @@ function OverviewTab({
                                     placeholder="latest"
                                 />
                             </EditFieldRow>
-                            <p className="text-[10px] text-text-muted">All changes require a restart to take effect.</p>
+                            <p className="text-[12px] text-text-muted">All changes require a restart to take effect.</p>
                             <SaveCancelRow onSave={onSaveResources} onCancel={onCancelResources} saving={savingResources}/>
                         </div>
                     )}
@@ -1091,7 +1091,7 @@ function OverviewTab({
 
             {livePlayers && livePlayers.count > 0 && (
                 <div className="bg-surface border border-border rounded p-4">
-                    <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted mb-3">
+                    <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-3">
                         Online Players ({livePlayers.count})
                     </p>
                     <div className="flex flex-wrap gap-2">

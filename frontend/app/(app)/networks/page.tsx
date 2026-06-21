@@ -165,11 +165,11 @@ export default function NetworksPage() {
                         <table className="w-full text-[12px]">
                             <thead>
                             <tr className="border-b border-border">
-                                <th className="text-left px-5 py-3 text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">Name</th>
-                                <th className="text-left px-4 py-3 text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">Type</th>
-                                <th className="text-left px-4 py-3 text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">Proxy</th>
-                                <th className="text-left px-4 py-3 text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">Servers</th>
-                                <th className="text-left px-4 py-3 text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">Description</th>
+                                <th className="text-left px-5 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Name</th>
+                                <th className="text-left px-4 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Type</th>
+                                <th className="text-left px-4 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Proxy</th>
+                                <th className="text-left px-4 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Servers</th>
+                                <th className="text-left px-4 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Description</th>
                                 <th className="px-4 py-3"/>
                             </tr>
                             </thead>
@@ -180,7 +180,7 @@ export default function NetworksPage() {
                                     <td className="px-4 py-3 text-text-dim font-mono">{n.type}</td>
                                     <td className="px-4 py-3 text-text-muted">{n.proxy_type ?? "—"}</td>
                                     <td className="px-4 py-3">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-heading font-bold bg-surface-higher border border-border text-text-dim">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[12px] font-heading font-bold bg-surface-higher border border-border text-text-dim">
                         {n.server_count}
                       </span>
                                     </td>

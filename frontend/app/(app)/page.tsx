@@ -11,7 +11,7 @@ import {nodeDisplayStatus, nodeStatusClass, serverStatusClass} from "@/lib/statu
 
 function NodeStatusBadge({status, health}: { status: string; health?: string }) {
     return (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-heading font-bold uppercase tracking-wider ${nodeStatusClass(status, health)}`}>
+        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[12px] font-heading font-bold uppercase tracking-wider ${nodeStatusClass(status, health)}`}>
       {nodeDisplayStatus(status, health)}
     </span>
     );
@@ -19,7 +19,7 @@ function NodeStatusBadge({status, health}: { status: string; health?: string }) 
 
 function ServerStatusBadge({status}: { status: string }) {
     return (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-heading font-bold uppercase tracking-wider ${serverStatusClass(status)}`}>
+        <span className={`inline-flex items-center px-2 py-0.5 rounded text-[12px] font-heading font-bold uppercase tracking-wider ${serverStatusClass(status)}`}>
       {status}
     </span>
     );
@@ -33,7 +33,7 @@ function RamBar({used, total}: { used: number; total: number }) {
             <div className="w-16 h-1 rounded-full bg-border">
                 <div className="h-full rounded-full" style={{width: `${pct}%`, background: color}}/>
             </div>
-            <span className="font-mono text-[10px] text-text-muted">{Math.round(pct)}%</span>
+            <span className="font-mono text-[12px] text-text-muted">{Math.round(pct)}%</span>
         </div>
     );
 }
@@ -47,9 +47,9 @@ function StatCard({
 }) {
     return (
         <Link href={href} className="block bg-surface border border-border rounded-md p-5 hover:border-accent/40 transition-colors">
-            <p className="text-[11px] font-heading font-bold uppercase tracking-widest text-text-muted mb-2">{label}</p>
+            <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-2">{label}</p>
             <p className={`text-3xl font-heading font-bold tabular-nums ${accent ? "text-error" : "text-text-primary"}`}>{value}</p>
-            <p className="text-[11px] text-text-muted mt-1">{sub}</p>
+            <p className="text-[12px] text-text-muted mt-1">{sub}</p>
         </Link>
     );
 }
@@ -91,7 +91,7 @@ export default function Dashboard() {
             <div className="p-6 space-y-6">
 
                 {/* Stat cards */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <StatCard label="Servers" value={totalServers} sub={`${healthyServers} healthy`} href="/servers"/>
                     <StatCard label="Nodes" value={totalNodes} sub={`${activeNodes} active`} href="/nodes"/>
                     <StatCard label="Unhealthy" value={unhealthy} sub="servers need attention" href="/servers" accent={unhealthy > 0}/>
@@ -104,20 +104,21 @@ export default function Dashboard() {
                     {/* Node health overview */}
                     <div className="bg-surface border border-border rounded-md overflow-hidden">
                         <div className="px-5 py-3 border-b border-border">
-                            <h2 className="text-[11px] font-heading font-bold uppercase tracking-widest text-text-muted">Node Health</h2>
+                            <h2 className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Node Health</h2>
                         </div>
                         {loading ? (
                             <div className="p-6 text-[12px] text-text-muted">Loading…</div>
                         ) : nodes.length === 0 ? (
                             <div className="p-6 text-[12px] text-text-muted">No nodes registered.</div>
                         ) : (
+                            <div className="overflow-x-auto">
                             <table className="w-full text-[12px]">
                                 <thead>
                                 <tr className="border-b border-border">
-                                    <th className="text-left px-5 py-2 text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">Node</th>
-                                    <th className="text-left px-3 py-2 text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">Status</th>
-                                    <th className="text-left px-3 py-2 text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">RAM</th>
-                                    <th className="text-left px-3 py-2 text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">Last seen</th>
+                                    <th className="text-left px-5 py-2 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Node</th>
+                                    <th className="text-left px-3 py-2 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Status</th>
+                                    <th className="text-left px-3 py-2 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">RAM</th>
+                                    <th className="text-left px-3 py-2 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Last seen</th>
                                 </tr>
                                 </thead>
                                 <tbody>
@@ -134,20 +135,21 @@ export default function Dashboard() {
                                         <td className="px-3 py-2.5">
                                             <RamBar used={node.allocated_ram_mb} total={node.total_ram_mb}/>
                                         </td>
-                                        <td className="px-3 py-2.5 text-text-muted font-mono text-[11px]">
+                                        <td className="px-3 py-2.5 text-text-muted font-mono text-[12px]">
                                             {node.last_seen_at ? timeAgo(node.last_seen_at) : "—"}
                                         </td>
                                     </tr>
                                 ))}
                                 </tbody>
                             </table>
+                            </div>
                         )}
                     </div>
 
                     {/* Recent server events */}
                     <div className="bg-surface border border-border rounded-md overflow-hidden">
                         <div className="px-5 py-3 border-b border-border">
-                            <h2 className="text-[11px] font-heading font-bold uppercase tracking-widest text-text-muted">Recent Server Activity</h2>
+                            <h2 className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Recent Server Activity</h2>
                         </div>
                         {loading ? (
                             <div className="p-6 text-[12px] text-text-muted">Loading…</div>
@@ -167,7 +169,7 @@ export default function Dashboard() {
                                         </div>
                                         <div className="flex items-center gap-3 shrink-0 ml-3">
                                             <ServerStatusBadge status={s.status}/>
-                                            <span className="flex items-center gap-1 text-[10px] text-text-muted font-mono">
+                                            <span className="flex items-center gap-1 text-[12px] text-text-muted font-mono">
                         <Clock size={10}/>
                                                 {timeAgo(s.updated_at)}
                       </span>

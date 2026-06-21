@@ -75,11 +75,11 @@ function GroupForm({
             </Field>
 
             <div>
-                <p className="text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted mb-3">Permissions</p>
+                <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-3">Permissions</p>
                 <div className="space-y-4">
                     {PERMISSION_GROUPS.map((group) => (
                         <div key={group.label}>
-                            <p className="text-[10px] font-heading text-text-muted mb-2 uppercase tracking-widest">{group.label}</p>
+                            <p className="text-[12px] font-heading text-text-muted mb-2 uppercase tracking-widest">{group.label}</p>
                             <div className="grid grid-cols-2 gap-1.5">
                                 {group.nodes.map((node) => (
                                     <label key={node} className="flex items-center gap-2 cursor-pointer group">
@@ -89,7 +89,7 @@ function GroupForm({
                                             onChange={() => togglePerm(node)}
                                             className="accent-amber-500 shrink-0"
                                         />
-                                        <span className="text-[11px] font-mono text-text-dim group-hover:text-text-primary transition-colors truncate">
+                                        <span className="text-[12px] font-mono text-text-dim group-hover:text-text-primary transition-colors truncate">
                       {node}
                     </span>
                                     </label>
@@ -186,8 +186,8 @@ export default function GroupsPage() {
                         <table className="w-full text-[12px]">
                             <thead>
                             <tr className="border-b border-border">
-                                <th className="text-left px-5 py-3 text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">Name</th>
-                                <th className="text-left px-4 py-3 text-[10px] font-heading font-bold uppercase tracking-widest text-text-muted">Permissions</th>
+                                <th className="text-left px-5 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Name</th>
+                                <th className="text-left px-4 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Permissions</th>
                                 <th className="px-4 py-3"/>
                             </tr>
                             </thead>
@@ -210,7 +210,7 @@ export default function GroupsPage() {
                           </span>
                                             ))}
                                             {g.permissions.length > 5 && (
-                                                <span className="text-[10px] text-text-muted">+{g.permissions.length - 5} more</span>
+                                                <span className="text-[12px] text-text-muted">+{g.permissions.length - 5} more</span>
                                             )}
                                         </div>
                                     </td>
