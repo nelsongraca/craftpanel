@@ -162,7 +162,7 @@ export default function NetworksPage() {
                     </div>
                 ) : (
                     <div className="bg-surface border border-border rounded-md overflow-hidden">
-                        <table className="w-full text-[12px]">
+                        <table className="hidden md:table w-full text-[12px]">
                             <thead>
                             <tr className="border-b border-border">
                                 <th className="text-left px-5 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Name</th>
@@ -211,6 +211,45 @@ export default function NetworksPage() {
                             ))}
                             </tbody>
                         </table>
+
+                        {/* Mobile card list (< md) */}
+                        <div className="md:hidden divide-y divide-border">
+                            {networks.map((n) => (
+                                <div key={n.id} className="p-3">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                            <p className="text-[14px] font-medium text-text-primary truncate">{n.name}</p>
+                                            <p className="mt-0.5 font-mono text-[12px] text-text-dim">
+                                                {n.type}{n.proxy_type ? ` · ${n.proxy_type}` : ""} · {n.server_count} server{n.server_count !== 1 ? "s" : ""}
+                                            </p>
+                                            {n.description && (
+                                                <p className="mt-0.5 text-[12px] text-text-muted truncate">{n.description}</p>
+                                            )}
+                                        </div>
+                                        <div className="flex items-center gap-1 shrink-0">
+                                            <button
+                                                onClick={() => setEditing(n)}
+                                                className="p-1.5 rounded hover:bg-surface-higher text-text-muted hover:text-text-primary transition-colors"
+                                                title="Edit"
+                                            >
+                                                <Pencil size={15}/>
+                                            </button>
+                                            <button
+                                                onClick={() => {
+                                                    setDeleting(n);
+                                                    setDeleteError("");
+                                                }}
+                                                disabled={n.server_count > 0}
+                                                className="p-1.5 rounded hover:bg-surface-higher text-text-muted hover:text-error transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                                                title={n.server_count > 0 ? "Cannot delete: has member servers" : "Delete"}
+                                            >
+                                                <Trash2 size={15}/>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>

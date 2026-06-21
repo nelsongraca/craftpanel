@@ -83,6 +83,99 @@ function ActionButton({
     );
 }
 
+function ServerActions({
+                           server, status, pending, permissions, openMenuId, setOpenMenuId, doAction, doDelete,
+                       }: {
+    server: Server;
+    status: string;
+    pending: string | undefined;
+    permissions: string[];
+    openMenuId: string | null;
+    setOpenMenuId: React.Dispatch<React.SetStateAction<string | null>>;
+    doAction: (id: string, action: "start" | "stop" | "restart") => void;
+    doDelete: (s: Server) => void;
+}) {
+    return (
+        <div className="flex items-center justify-end gap-1">
+            {status === "STOPPED" && hasPermission(permissions, "server.start") && (
+                <ActionButton
+                    icon={<Play size={11} strokeWidth={2.5}/>}
+                    label="Start"
+                    loading={pending === "start"}
+                    onClick={() => doAction(server.id, "start")}
+                />
+            )}
+            {(status === "HEALTHY" || status === "STARTING") && hasPermission(permissions, "server.stop") && (
+                <ActionButton
+                    icon={<Square size={11} strokeWidth={2.5}/>}
+                    label="Stop"
+                    loading={pending === "stop"}
+                    onClick={() => doAction(server.id, "stop")}
+                    isStop
+                />
+            )}
+            {status === "HEALTHY" && hasPermission(permissions, "server.restart") && (
+                <ActionButton
+                    icon={<RotateCcw size={11} strokeWidth={2.5}/>}
+                    label="Restart"
+                    loading={pending === "restart"}
+                    onClick={() => doAction(server.id, "restart")}
+                />
+            )}
+            {status === "STOPPED" && hasPermission(permissions, "server.delete") && (
+                <div onClick={(e) => e.stopPropagation()}>
+                    <ActionButton
+                        icon={<Trash2 size={11} strokeWidth={2.5}/>}
+                        label="Delete"
+                        loading={false}
+                        onClick={() => doDelete(server)}
+                        isStop
+                    />
+                </div>
+            )}
+
+            {/* ··· overflow menu */}
+            <div className="relative">
+                <button
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        setOpenMenuId((id) => (id === server.id ? null : server.id));
+                    }}
+                    className="flex items-center justify-center px-2 py-1 border rounded-[2px] border-border bg-surface-high text-text-muted hover:border-border-high hover:text-text-primary transition-colors"
+                >
+                    <MoreHorizontal size={12} strokeWidth={2}/>
+                </button>
+
+                {openMenuId === server.id && (
+                    <div
+                        className="absolute right-0 top-full mt-1 z-50 bg-surface-higher border border-border rounded shadow-xl min-w-[130px] py-1"
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <Link
+                            href={`/servers/${server.id}`}
+                            onClick={() => setOpenMenuId(null)}
+                            className="flex items-center px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
+                        >
+                            View
+                        </Link>
+                        {status === "STOPPED" && hasPermission(permissions, "server.delete") && (
+                            <button
+                                onClick={() => {
+                                    setOpenMenuId(null);
+                                    doDelete(server);
+                                }}
+                                className="flex items-center w-full text-left px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-wider text-error hover:bg-surface-high transition-colors"
+                            >
+                                Delete
+                            </button>
+                        )}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
 export default function ServersPage() {
     const router = useRouter();
     const {user} = useAuth();
@@ -221,7 +314,7 @@ export default function ServersPage() {
                 />
 
                 {/* Filter bar */}
-                <div className="flex items-center gap-2 px-6 py-3 border-b border-border bg-surface">
+                <div className="flex flex-wrap items-center gap-2 px-6 py-3 border-b border-border bg-surface">
                     <input
                         type="text"
                         placeholder="Search servers…"
@@ -289,7 +382,7 @@ export default function ServersPage() {
                                 : "No servers match the current filters"}
                         </div>
                     ) : (
-                        <table className="w-full border-collapse">
+                        <table className="hidden md:table w-full border-collapse">
                             <thead>
                             <tr className="border-b border-border">
                                 {["Server", "Type", "Status", "Players", "RAM", "Node", "Actions"].map(
@@ -377,89 +470,62 @@ export default function ServersPage() {
                                             className="py-3 text-right"
                                             onClick={(e) => e.stopPropagation()}
                                         >
-                                            <div className="flex items-center justify-end gap-1">
-                                                {status === "STOPPED" && hasPermission(permissions, "server.start") && (
-                                                    <ActionButton
-                                                        icon={<Play size={11} strokeWidth={2.5}/>}
-                                                        label="Start"
-                                                        loading={pending === "start"}
-                                                        onClick={() => doAction(server.id, "start")}
-                                                    />
-                                                )}
-                                                {(status === "HEALTHY" || status === "STARTING") && hasPermission(permissions, "server.stop") && (
-                                                    <ActionButton
-                                                        icon={<Square size={11} strokeWidth={2.5}/>}
-                                                        label="Stop"
-                                                        loading={pending === "stop"}
-                                                        onClick={() => doAction(server.id, "stop")}
-                                                        isStop
-                                                    />
-                                                )}
-                                                {status === "HEALTHY" && hasPermission(permissions, "server.restart") && (
-                                                    <ActionButton
-                                                        icon={<RotateCcw size={11} strokeWidth={2.5}/>}
-                                                        label="Restart"
-                                                        loading={pending === "restart"}
-                                                        onClick={() => doAction(server.id, "restart")}
-                                                    />
-                                                )}
-                                                {status === "STOPPED" && hasPermission(permissions, "server.delete") && (
-                                                    <div onClick={(e) => e.stopPropagation()}>
-                                                        <ActionButton
-                                                            icon={<Trash2 size={11} strokeWidth={2.5}/>}
-                                                            label="Delete"
-                                                            loading={false}
-                                                            onClick={() => doDelete(server)}
-                                                            isStop
-                                                        />
-                                                    </div>
-                                                )}
-
-                                                {/* ··· overflow menu */}
-                                                <div className="relative">
-                                                    <button
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            setOpenMenuId((id) => (id === server.id ? null : server.id));
-                                                        }}
-                                                        className="flex items-center justify-center px-2 py-1 border rounded-[2px] border-border bg-surface-high text-text-muted hover:border-border-high hover:text-text-primary transition-colors"
-                                                    >
-                                                        <MoreHorizontal size={12} strokeWidth={2}/>
-                                                    </button>
-
-                                                    {openMenuId === server.id && (
-                                                        <div
-                                                            className="absolute right-0 top-full mt-1 z-50 bg-surface-higher border border-border rounded shadow-xl min-w-[130px] py-1"
-                                                            onClick={(e) => e.stopPropagation()}
-                                                        >
-                                                            <Link
-                                                                href={`/servers/${server.id}`}
-                                                                onClick={() => setOpenMenuId(null)}
-                                                                className="flex items-center px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
-                                                            >
-                                                                View
-                                                            </Link>
-                                                            {status === "STOPPED" && hasPermission(permissions, "server.delete") && (
-                                                                <button
-                                                                    onClick={() => {
-                                                                        setOpenMenuId(null);
-                                                                        doDelete(server);
-                                                                    }}
-                                                                    className="flex items-center w-full text-left px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-wider text-error hover:bg-surface-high transition-colors"
-                                                                >
-                                                                    Delete
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </div>
+                                            <ServerActions
+                                                server={server} status={status} pending={pending}
+                                                permissions={permissions}
+                                                openMenuId={openMenuId} setOpenMenuId={setOpenMenuId}
+                                                doAction={doAction} doDelete={doDelete}
+                                            />
                                         </td>
                                     </tr>
                                 );
                             })}
                             </tbody>
                         </table>
+                    )}
+
+                    {/* Mobile card list (< md) */}
+                    {!initialLoad && filteredServers.length > 0 && (
+                        <div className="md:hidden space-y-2">
+                            {filteredServers.map((server) => {
+                                const node = nodeMap[server.node_id];
+                                const pending = pendingAction[server.id];
+                                const status = server.status;
+                                return (
+                                    <div
+                                        key={server.id}
+                                        onClick={() => router.push(`/servers/${server.id}`)}
+                                        className="bg-surface border border-border rounded-md p-3 cursor-pointer active:bg-surface-high transition-colors"
+                                    >
+                                        <div className="flex items-start justify-between gap-2">
+                                            <div className="min-w-0">
+                                                <p className="text-[14px] font-heading font-bold text-text-primary truncate">{server.display_name}</p>
+                                                <p className="mt-0.5 font-mono text-[12px] text-text-dim truncate">
+                                                    {server.server_type} · {node?.display_name ?? `${server.node_id.slice(0, 8)}…`}
+                                                </p>
+                                                {server.exposed_externally && server.public_subdomain && (
+                                                    <p className="mt-0.5 font-mono text-[12px] text-text-muted truncate">{server.public_subdomain}</p>
+                                                )}
+                                            </div>
+                                            <span className={`shrink-0 text-[12px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${serverStatusClass(status)}`}>
+                                                {serverStatusLabel(status)}
+                                            </span>
+                                        </div>
+                                        <div className="mt-2.5 flex items-center justify-between gap-2">
+                                            <RamBar total={server.memory_mb}/>
+                                            <div onClick={(e) => e.stopPropagation()}>
+                                                <ServerActions
+                                                    server={server} status={status} pending={pending}
+                                                    permissions={permissions}
+                                                    openMenuId={openMenuId} setOpenMenuId={setOpenMenuId}
+                                                    doAction={doAction} doDelete={doDelete}
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     )}
                 </div>
             </div>

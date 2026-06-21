@@ -76,12 +76,14 @@ function HeaderActionButton({
         <button
             onClick={onClick}
             disabled={loading || disabled}
+            title={label}
             className={`flex items-center gap-1.5 px-3 py-1.5 rounded border text-[12px] font-heading font-bold uppercase tracking-widest transition-colors disabled:opacity-40 ${cls}`}
         >
             {loading ? (
                 <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin"/>
             ) : icon}
-            {label}
+            {/* Label hidden on phones (icon-only) to keep the action row from overflowing */}
+            <span className="hidden sm:inline">{label}</span>
         </button>
     );
 }
@@ -173,7 +175,7 @@ function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
     return (
         <div className="px-6 py-6 space-y-6">
             {/* Stat cards */}
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatCard label="RAM Allocated">
                     <ResourceBar used={node.allocated_ram_mb} total={node.total_ram_mb} fmt={fmtMb}/>
                 </StatCard>

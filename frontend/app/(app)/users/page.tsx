@@ -309,7 +309,7 @@ export default function UsersPage() {
                     <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-[13px]">No users yet.</div>
                 ) : (
                     <div className="bg-surface border border-border rounded-md overflow-hidden">
-                        <table className="w-full text-[12px]">
+                        <table className="hidden md:table w-full text-[12px]">
                             <thead>
                             <tr className="border-b border-border">
                                 <th className="text-left px-5 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Username</th>
@@ -359,6 +359,44 @@ export default function UsersPage() {
                             ))}
                             </tbody>
                         </table>
+
+                        {/* Mobile card list (< md) */}
+                        <div className="md:hidden divide-y divide-border">
+                            {users.map((u) => (
+                                <div key={u.id} className="p-3">
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                            <p className="text-[14px] font-medium text-text-primary truncate">{u.username}</p>
+                                            <p className="mt-0.5 text-[12px] text-text-dim truncate">{u.email}</p>
+                                            <p className="mt-0.5 font-mono text-[12px] text-text-muted">
+                                                Created {new Date(u.created_at).toLocaleDateString()}
+                                            </p>
+                                        </div>
+                                        <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded text-[12px] font-heading font-bold uppercase tracking-wider border ${u.is_active ? "text-healthy border-healthy/30 bg-healthy/10" : "text-text-muted border-border bg-surface-high"}`}>
+                                            {u.is_active ? "Active" : "Inactive"}
+                                        </span>
+                                    </div>
+                                    <div className="mt-2.5 flex items-center justify-end gap-1">
+                                        <button onClick={() => setEditing(u)} className="p-1.5 rounded hover:bg-surface-higher text-text-muted hover:text-text-primary transition-colors" title="Edit">
+                                            <Pencil size={15}/>
+                                        </button>
+                                        <button onClick={() => setManagingGroups(u)} className="p-1.5 rounded hover:bg-surface-higher text-text-muted hover:text-text-primary transition-colors" title="Manage groups">
+                                            <Users2 size={15}/>
+                                        </button>
+                                        <button
+                                            onClick={() => {
+                                                setDeleting(u);
+                                                setDeleteError("");
+                                            }}
+                                            className="p-1.5 rounded hover:bg-surface-higher text-text-muted hover:text-error transition-colors"
+                                            title="Delete"
+                                        >
+                                            <Trash2 size={15}/>
+                                        </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
                     </div>
                 )}
             </div>

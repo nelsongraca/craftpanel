@@ -48,6 +48,139 @@ function MiniBar({used, total, fmt = fmtMb}: { used: number; total: number; fmt?
     );
 }
 
+// ── Row actions (shared by desktop table + mobile card) ─────────────────────────
+
+function NodeActions({
+                         node, pending, servers, canManage, openMenuId, setOpenMenuId,
+                         doTrust, doReject, doRotateToken, doShutdown, doDecommission, setEditNode,
+                     }: {
+    node: Node;
+    pending: string | undefined;
+    servers: number;
+    canManage: boolean;
+    openMenuId: string | null;
+    setOpenMenuId: React.Dispatch<React.SetStateAction<string | null>>;
+    doTrust: (id: string) => void;
+    doReject: (id: string) => void;
+    doRotateToken: (id: string) => void;
+    doShutdown: (id: string, name: string) => void;
+    doDecommission: (node: Node) => void;
+    setEditNode: (node: Node) => void;
+}) {
+    return (
+        <div className="flex items-center justify-end gap-1">
+            {/* PENDING: Trust + Reject */}
+            {node.status === "PENDING" && canManage && (
+                <>
+                    <button
+                        onClick={() => doTrust(node.id)}
+                        disabled={!!pending}
+                        title="Trust node"
+                        className="flex items-center gap-1 px-2 py-1 text-[12px] font-heading font-bold uppercase tracking-wider border rounded-[2px] text-healthy border-healthy/40 hover:bg-healthy/10 transition-colors disabled:opacity-40"
+                    >
+                        {pending === "trust" ? (
+                            <span className="w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin"/>
+                        ) : (
+                            <Check size={11} strokeWidth={2.5}/>
+                        )}
+                        Trust
+                    </button>
+                    <button
+                        onClick={() => doReject(node.id)}
+                        disabled={!!pending}
+                        title="Reject node"
+                        className="flex items-center gap-1 px-2 py-1 text-[12px] font-heading font-bold uppercase tracking-wider border rounded-[2px] text-error border-error/40 hover:bg-error/10 transition-colors disabled:opacity-40"
+                    >
+                        {pending === "reject" ? (
+                            <span className="w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin"/>
+                        ) : (
+                            <Ban size={11} strokeWidth={2.5}/>
+                        )}
+                        Reject
+                    </button>
+                </>
+            )}
+
+            {/* Non-PENDING: View + ··· menu */}
+            {node.status !== "PENDING" && (
+                <>
+                    <Link
+                        href={`/nodes/${node.id}`}
+                        onClick={(e) => e.stopPropagation()}
+                        className="flex items-center justify-center px-2 py-1 border rounded-[2px] border-border bg-surface-high text-text-muted hover:border-border-high hover:text-text-primary transition-colors text-[12px] font-heading font-bold uppercase tracking-wider"
+                    >
+                        View
+                    </Link>
+
+                    <div className="relative">
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                setOpenMenuId((id) => (id === node.id ? null : node.id));
+                            }}
+                            className="flex items-center justify-center px-2 py-1 border rounded-[2px] border-border bg-surface-high text-text-muted hover:border-border-high hover:text-text-primary transition-colors"
+                        >
+                            <MoreHorizontal size={12} strokeWidth={2}/>
+                        </button>
+
+                        {openMenuId === node.id && (
+                            <div
+                                className="absolute right-0 top-full mt-1 z-50 bg-surface-higher border border-border rounded shadow-xl min-w-[150px] py-1"
+                                onClick={(e) => e.stopPropagation()}
+                            >
+                                <button
+                                    onClick={() => {
+                                        setOpenMenuId(null);
+                                        setEditNode(node);
+                                    }}
+                                    className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
+                                >
+                                    <Pencil size={11} strokeWidth={2}/>
+                                    Edit
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setOpenMenuId(null);
+                                        doRotateToken(node.id);
+                                    }}
+                                    className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
+                                >
+                                    <KeyRound size={11} strokeWidth={2}/>
+                                    Rotate Key
+                                </button>
+                                {node.status === "ACTIVE" && (
+                                    <button
+                                        onClick={() => {
+                                            setOpenMenuId(null);
+                                            doShutdown(node.id, node.display_name);
+                                        }}
+                                        className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-wider text-warning hover:bg-surface-high transition-colors"
+                                    >
+                                        <Power size={11} strokeWidth={2}/>
+                                        Shutdown
+                                    </button>
+                                )}
+                                {servers === 0 && (
+                                    <button
+                                        onClick={() => {
+                                            setOpenMenuId(null);
+                                            doDecommission(node);
+                                        }}
+                                        className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-wider text-error hover:bg-surface-high transition-colors"
+                                    >
+                                        <Trash2 size={11} strokeWidth={2}/>
+                                        Decommission
+                                    </button>
+                                )}
+                            </div>
+                        )}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+}
+
 // ── Edit modal ─────────────────────────────────────────────────────────────────
 
 function EditModal({
@@ -409,7 +542,7 @@ export default function NodesPage() {
                             : "No nodes match the current filter"}
                     </div>
                 ) : (
-                    <table className="w-full border-collapse">
+                    <table className="hidden md:table w-full border-collapse">
                         <thead>
                         <tr className="border-b border-border">
                             {["Node", "Status", "RAM", "CPU", "Servers", "Last Seen", "Actions"].map((col) => (
@@ -488,123 +621,75 @@ export default function NodesPage() {
                                         className="py-3 text-right"
                                         onClick={(e) => e.stopPropagation()}
                                     >
-                                        <div className="flex items-center justify-end gap-1">
-
-                                            {/* PENDING: Trust + Reject */}
-                                            {node.status === "PENDING" && canManage && (
-                                                <>
-                                                    <button
-                                                        onClick={() => doTrust(node.id)}
-                                                        disabled={!!pending}
-                                                        title="Trust node"
-                                                        className="flex items-center gap-1 px-2 py-1 text-[12px] font-heading font-bold uppercase tracking-wider border rounded-[2px] text-healthy border-healthy/40 hover:bg-healthy/10 transition-colors disabled:opacity-40"
-                                                    >
-                                                        {pending === "trust" ? (
-                                                            <span className="w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin"/>
-                                                        ) : (
-                                                            <Check size={11} strokeWidth={2.5}/>
-                                                        )}
-                                                        Trust
-                                                    </button>
-                                                    <button
-                                                        onClick={() => doReject(node.id)}
-                                                        disabled={!!pending}
-                                                        title="Reject node"
-                                                        className="flex items-center gap-1 px-2 py-1 text-[12px] font-heading font-bold uppercase tracking-wider border rounded-[2px] text-error border-error/40 hover:bg-error/10 transition-colors disabled:opacity-40"
-                                                    >
-                                                        {pending === "reject" ? (
-                                                            <span className="w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin"/>
-                                                        ) : (
-                                                            <Ban size={11} strokeWidth={2.5}/>
-                                                        )}
-                                                        Reject
-                                                    </button>
-                                                </>
-                                            )}
-
-                                            {/* Non-PENDING: View + ··· menu */}
-                                            {node.status !== "PENDING" && (
-                                                <>
-                                                    <Link
-                                                        href={`/nodes/${node.id}`}
-                                                        onClick={(e) => e.stopPropagation()}
-                                                        className="flex items-center justify-center px-2 py-1 border rounded-[2px] border-border bg-surface-high text-text-muted hover:border-border-high hover:text-text-primary transition-colors text-[12px] font-heading font-bold uppercase tracking-wider"
-                                                    >
-                                                        View
-                                                    </Link>
-
-                                                    <div className="relative">
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setOpenMenuId((id) => (id === node.id ? null : node.id));
-                                                            }}
-                                                            className="flex items-center justify-center px-2 py-1 border rounded-[2px] border-border bg-surface-high text-text-muted hover:border-border-high hover:text-text-primary transition-colors"
-                                                        >
-                                                            <MoreHorizontal size={12} strokeWidth={2}/>
-                                                        </button>
-
-                                                        {openMenuId === node.id && (
-                                                            <div
-                                                                className="absolute right-0 top-full mt-1 z-50 bg-surface-higher border border-border rounded shadow-xl min-w-[150px] py-1"
-                                                                onClick={(e) => e.stopPropagation()}
-                                                            >
-                                                                <button
-                                                                    onClick={() => {
-                                                                        setOpenMenuId(null);
-                                                                        setEditNode(node);
-                                                                    }}
-                                                                    className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
-                                                                >
-                                                                    <Pencil size={11} strokeWidth={2}/>
-                                                                    Edit
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => {
-                                                                        setOpenMenuId(null);
-                                                                        doRotateToken(node.id);
-                                                                    }}
-                                                                    className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
-                                                                >
-                                                                    <KeyRound size={11} strokeWidth={2}/>
-                                                                    Rotate Key
-                                                                </button>
-                                                                {node.status === "ACTIVE" && (
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            setOpenMenuId(null);
-                                                                            doShutdown(node.id, node.display_name);
-                                                                        }}
-                                                                        className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-wider text-warning hover:bg-surface-high transition-colors"
-                                                                    >
-                                                                        <Power size={11} strokeWidth={2}/>
-                                                                        Shutdown
-                                                                    </button>
-                                                                )}
-                                                                {servers === 0 && (
-                                                                    <button
-                                                                        onClick={() => {
-                                                                            setOpenMenuId(null);
-                                                                            doDecommission(node);
-                                                                        }}
-                                                                        className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-wider text-error hover:bg-surface-high transition-colors"
-                                                                    >
-                                                                        <Trash2 size={11} strokeWidth={2}/>
-                                                                        Decommission
-                                                                    </button>
-                                                                )}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </>
-                                            )}
-                                        </div>
+                                        <NodeActions
+                                            node={node} pending={pending} servers={servers} canManage={canManage}
+                                            openMenuId={openMenuId} setOpenMenuId={setOpenMenuId}
+                                            doTrust={doTrust} doReject={doReject} doRotateToken={doRotateToken}
+                                            doShutdown={doShutdown} doDecommission={doDecommission} setEditNode={setEditNode}
+                                        />
                                     </td>
                                 </tr>
                             );
                         })}
                         </tbody>
                     </table>
+                )}
+
+                {/* Mobile card list (< md) */}
+                {!initialLoad && filtered.length > 0 && (
+                    <div className="md:hidden space-y-2">
+                        {filtered.map((node) => {
+                            const pending = pendingAction[node.id];
+                            const servers = serverCounts[node.id] ?? 0;
+                            const lastSeen = node.last_seen_at;
+                            const stale = lastSeen
+                                ? (renderNow - new Date(lastSeen).getTime()) / 1000 > 120
+                                : true;
+                            return (
+                                <div
+                                    key={node.id}
+                                    onClick={() => router.push(`/nodes/${node.id}`)}
+                                    className="bg-surface border border-border rounded-md p-3 cursor-pointer active:bg-surface-high transition-colors"
+                                >
+                                    <div className="flex items-start justify-between gap-2">
+                                        <div className="min-w-0">
+                                            <p className="text-[14px] font-heading font-bold text-text-primary truncate">{node.display_name}</p>
+                                            <p className="mt-0.5 font-mono text-[12px] text-text-muted truncate">{node.hostname}</p>
+                                        </div>
+                                        <span className={`shrink-0 text-[12px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status, node.health)}`}>
+                                            {nodeStatusLabel(node.status, node.health)}
+                                        </span>
+                                    </div>
+                                    <div className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-1.5">
+                                        <div>
+                                            <p className="text-[12px] text-text-muted">RAM</p>
+                                            <MiniBar used={Math.max(node.allocated_ram_mb, node.system_ram_used_mb ?? 0)} total={node.total_ram_mb}/>
+                                        </div>
+                                        <div>
+                                            <p className="text-[12px] text-text-muted">CPU</p>
+                                            <MiniBar used={node.allocated_cpu_shares} total={node.total_cpu_shares} fmt={fmtShares}/>
+                                        </div>
+                                        <div>
+                                            <p className="text-[12px] text-text-muted">Servers</p>
+                                            <p className="font-mono text-[12px] text-text-dim">{servers}</p>
+                                        </div>
+                                        <div>
+                                            <p className="text-[12px] text-text-muted">Last seen</p>
+                                            <p className={`font-mono text-[12px] ${stale ? "text-error" : "text-text-muted"}`}>{lastSeen ? timeAgo(lastSeen) : "never"}</p>
+                                        </div>
+                                    </div>
+                                    <div className="mt-2.5 flex justify-end" onClick={(e) => e.stopPropagation()}>
+                                        <NodeActions
+                                            node={node} pending={pending} servers={servers} canManage={canManage}
+                                            openMenuId={openMenuId} setOpenMenuId={setOpenMenuId}
+                                            doTrust={doTrust} doReject={doReject} doRotateToken={doRotateToken}
+                                            doShutdown={doShutdown} doDecommission={doDecommission} setEditNode={setEditNode}
+                                        />
+                                    </div>
+                                </div>
+                            );
+                        })}
+                    </div>
                 )}
             </div>
 
