@@ -1,5 +1,7 @@
 package io.craftpanel.master.auth
 
+import kotlinx.serialization.Serializable
+
 enum class Permission(val node: String) {
     SYSTEM_SETTINGS("system.settings"),
     SYSTEM_USERS("system.users"),
@@ -23,6 +25,7 @@ enum class Permission(val node: String) {
     override fun toString(): String = node
 }
 
+@Serializable
 enum class ScopeType {
     GLOBAL, SERVER, NETWORK, NODE
 }

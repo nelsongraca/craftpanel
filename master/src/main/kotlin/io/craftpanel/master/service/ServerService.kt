@@ -5,6 +5,7 @@ import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.config.ImagesConfig
+import io.craftpanel.master.domain.ConfigMode
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.dns.DnsProvider
 import org.jetbrains.exposed.v1.core.ResultRow
@@ -33,7 +34,7 @@ data class ServerResponse(
     @SerialName("server_type") val serverType: String,
     @SerialName("mc_version") val mcVersion: String,
     @SerialName("itzg_image_tag") val itzgImageTag: String,
-    val status: String,
+    val status: ServerStatus,
     @SerialName("node_id") val nodeId: String,
     @SerialName("network_id") val networkId: String?,
     @SerialName("host_port") val hostPort: Int,
@@ -43,7 +44,7 @@ data class ServerResponse(
     @SerialName("public_subdomain") val publicSubdomain: String?,
     @SerialName("is_migrating") val isMigrating: Boolean,
     @SerialName("needs_recreate") val needsRecreate: Boolean,
-    @SerialName("config_mode") val configMode: String,
+    @SerialName("config_mode") val configMode: ConfigMode,
     @SerialName("stop_command") val stopCommand: String,
     @SerialName("last_player_count") val lastPlayerCount: Int?,
     @SerialName("last_player_names") val lastPlayerNames: List<String>?,
@@ -204,7 +205,7 @@ class ServerService(
             val port = (node[Nodes.portRangeStart]..node[Nodes.portRangeEnd]).firstOrNull { it !in usedPorts }
                 ?: return@transaction CreateResult("no_ports")
 
-            val stopCommand = if (req.serverType in listOf("VELOCITY", "BUNGEECORD", "WATERFALL")) "end" else "stop"
+            val stopCommand = if (req.serverType in PROXY_SERVER_TYPES) "end" else "stop"
             val insertedId = Servers.insert {
                 it[name] = req.name
                 it[displayName] = req.displayName ?: req.name
@@ -731,7 +732,7 @@ internal fun rowToServerResponse(row: ResultRow, isMigrating: Boolean) = ServerR
     serverType = row[Servers.serverType],
     mcVersion = row[Servers.mcVersion],
     itzgImageTag = row[Servers.itzgImageTag],
-    status = row[Servers.status],
+    status = ServerStatus.fromDb(row[Servers.status]),
     nodeId = row[Servers.nodeId].toString(),
     networkId = row[Servers.networkId]?.toString(),
     hostPort = row[Servers.hostPort],
@@ -741,7 +742,7 @@ internal fun rowToServerResponse(row: ResultRow, isMigrating: Boolean) = ServerR
     publicSubdomain = row[Servers.publicSubdomain],
     isMigrating = isMigrating,
     needsRecreate = row[Servers.needsRecreate],
-    configMode = row[Servers.configMode],
+    configMode = ConfigMode.fromDb(row[Servers.configMode]),
     stopCommand = row[Servers.stopCommand],
     lastPlayerCount = row[Servers.lastPlayerCount],
     lastPlayerNames = row[Servers.lastPlayerNames]?.split(",")

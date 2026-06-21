@@ -4,7 +4,7 @@ import {useCallback, useEffect, useState} from "react";
 import {Pencil, Plus, Trash2} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
 import {createNetwork, deleteNetwork, listNetworks, updateNetwork} from "@/lib/generated/sdk.gen";
-import type {Network} from "@/lib/types";
+import type {Network, NetworkType, ProxyType} from "@/lib/types";
 
 import {INPUT, BTN_PRIMARY, BTN_GHOST, Modal, Field} from "@/components/ui/form-elements";
 
@@ -107,8 +107,8 @@ export default function NetworksPage() {
         const res = await createNetwork({
             body: {
                 name: form.name,
-                type: form.type,
-                proxy_type: form.type === "PROXY" && form.proxyType ? form.proxyType : undefined,
+                type: form.type as NetworkType,
+                proxy_type: form.type === "PROXY" && form.proxyType ? (form.proxyType as ProxyType) : undefined,
                 description: form.description || undefined,
             },
         });

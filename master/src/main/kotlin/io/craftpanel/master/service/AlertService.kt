@@ -21,7 +21,7 @@ import io.craftpanel.master.util.toUtcString
 @Serializable
 data class AlertThresholdResponse(
     val id: String,
-    @SerialName("scope_type") val scopeType: String,
+    @SerialName("scope_type") val scopeType: ScopeType,
     @SerialName("scope_id") val scopeId: String,
     val metric: String,
     @SerialName("threshold_value") val thresholdValue: Double? = null,
@@ -40,7 +40,7 @@ data class AlertEventResponse(
 
 @Serializable
 data class CreateAlertThresholdRequest(
-    @SerialName("scope_type") val scopeType: String,
+    @SerialName("scope_type") val scopeType: ScopeType,
     @SerialName("scope_id") val scopeId: String,
     val metric: String,
     @SerialName("threshold_value") val thresholdValue: Double? = null,
@@ -66,7 +66,7 @@ class AlertService {
             }.map { row ->
                 AlertThresholdResponse(
                     id = row[AlertThresholds.id].toString(),
-                    scopeType = row[AlertThresholds.scopeType],
+                    scopeType = ScopeType.valueOf(row[AlertThresholds.scopeType]),
                     scopeId = row[AlertThresholds.scopeId].toString(),
                     metric = row[AlertThresholds.metric],
                     thresholdValue = row[AlertThresholds.thresholdValue],
@@ -79,7 +79,7 @@ class AlertService {
     fun createThreshold(req: CreateAlertThresholdRequest): AlertThresholdResponse {
         if ((req.thresholdValue == null) == (req.thresholdState == null))
             throw UnprocessableException("Exactly one of threshold_value or threshold_state must be provided")
-        if (req.scopeType !in setOf(ScopeType.NODE.name, ScopeType.SERVER.name))
+        if (req.scopeType != ScopeType.NODE && req.scopeType != ScopeType.SERVER)
             throw UnprocessableException("scope_type must be NODE or SERVER")
         val scopeKotlinId = runCatching {
             Uuid.parse(req.scopeId)
@@ -88,21 +88,21 @@ class AlertService {
         // Validate scopeId references an existing entity of the given scope type
         val scopeExists = transaction {
             when (req.scopeType) {
-                ScopeType.NODE.name   -> Nodes.selectAll()
+                ScopeType.NODE   -> Nodes.selectAll()
                     .where { Nodes.id eq scopeKotlinId }
                     .firstOrNull() != null
 
-                ScopeType.SERVER.name -> Servers.selectAll()
+                ScopeType.SERVER -> Servers.selectAll()
                     .where { Servers.id eq scopeKotlinId }
                     .firstOrNull() != null
 
-                else                  -> false
+                else             -> false
             }
         }
-        if (!scopeExists) throw UnprocessableException("scope_id does not reference an existing ${req.scopeType.lowercase()}")
+        if (!scopeExists) throw UnprocessableException("scope_id does not reference an existing ${req.scopeType.name.lowercase()}")
         return transaction {
             val id = AlertThresholds.insert {
-                it[AlertThresholds.scopeType] = req.scopeType
+                it[AlertThresholds.scopeType] = req.scopeType.name
                 it[AlertThresholds.scopeId] = scopeKotlinId
                 it[AlertThresholds.metric] = req.metric
                 it[AlertThresholds.thresholdValue] = req.thresholdValue
@@ -114,7 +114,7 @@ class AlertService {
                 .let { row ->
                     AlertThresholdResponse(
                         id = row[AlertThresholds.id].toString(),
-                        scopeType = row[AlertThresholds.scopeType],
+                        scopeType = ScopeType.valueOf(row[AlertThresholds.scopeType]),
                         scopeId = row[AlertThresholds.scopeId].toString(),
                         metric = row[AlertThresholds.metric],
                         thresholdValue = row[AlertThresholds.thresholdValue],

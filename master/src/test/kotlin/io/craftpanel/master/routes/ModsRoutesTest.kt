@@ -286,7 +286,7 @@ class ModsRoutesTest : FunSpec({
         }
     }
 
-    test("add mod with invalid pin_strategy returns 422") {
+    test("add mod with invalid pin_strategy returns 400") {
         testApplication {
             application { configureTest() }
             val client = jsonClient()
@@ -301,7 +301,8 @@ class ModsRoutesTest : FunSpec({
                 contentType(ContentType.Application.Json)
                 setBody("""{"modrinth_project_id":"fabric-api","display_name":"Fabric API","pin_strategy":"NIGHTLY"}""")
             }
-            res.status shouldBe HttpStatusCode.UnprocessableEntity
+            // Invalid enum value fails kotlinx deserialization → 400 (was a manual 422 check before pin_strategy became an enum).
+            res.status shouldBe HttpStatusCode.BadRequest
         }
     }
 

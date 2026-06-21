@@ -1,5 +1,6 @@
 package io.craftpanel.master.scheduler
 
+import io.craftpanel.master.domain.BackupTrigger
 import io.craftpanel.master.service.BackupService
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -14,7 +15,7 @@ class BackupJobHandler(private val backupService: BackupService) : ScheduledJobH
         log.info("Scheduled backup firing for server ${context.serverId}")
         runCatching {
             withContext(Dispatchers.IO) {
-                backupService.triggerBackup(context.serverId, trigger = "SCHEDULED")
+                backupService.triggerBackup(context.serverId, trigger = BackupTrigger.SCHEDULED)
             }
         }.onFailure {
             log.error("Scheduled backup failed for server ${context.serverId}", it)

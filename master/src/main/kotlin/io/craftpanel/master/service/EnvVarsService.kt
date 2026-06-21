@@ -2,6 +2,7 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.database.schema.ServerEnvVars
 import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.domain.ConfigMode
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.eq
@@ -22,7 +23,7 @@ data class EnvVarsResponse(@SerialName("env_vars") val envVars: List<EnvVarItem>
 data class PutEnvVarsRequest(@SerialName("env_vars") val envVars: List<EnvVarItem>)
 
 @Serializable
-data class PatchConfigModeRequest(@SerialName("config_mode") val configMode: String)
+data class PatchConfigModeRequest(@SerialName("config_mode") val configMode: ConfigMode)
 
 @Serializable
 data class PatchStopCommandRequest(@SerialName("stop_command") val stopCommand: String)
@@ -85,9 +86,6 @@ class EnvVarsService {
     }
 
     fun updateConfigMode(serverId: Uuid, req: PatchConfigModeRequest): EnvVarsResponse {
-        if (req.configMode !in setOf("MANAGED", "MANUAL"))
-            throw BadRequestException("config_mode must be MANAGED or MANUAL")
-
         transaction {
             Servers.selectAll()
                 .where { Servers.id eq serverId }
@@ -96,7 +94,7 @@ class EnvVarsService {
 
         transaction {
             Servers.update({ Servers.id eq serverId }) {
-                it[Servers.configMode] = req.configMode
+                it[Servers.configMode] = req.configMode.name
                 it[Servers.needsRecreate] = true
             }
         }

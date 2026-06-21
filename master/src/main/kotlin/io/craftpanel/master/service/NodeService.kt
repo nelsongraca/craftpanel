@@ -5,6 +5,8 @@ import io.craftpanel.proto.shutdownCommand
 import io.craftpanel.master.database.schema.NodeMetrics
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.domain.NodeHealth
+import io.craftpanel.master.domain.NodeStatus
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -26,8 +28,8 @@ data class NodeResponse(
     val hostname: String,
     @SerialName("public_ip") val publicIp: String,
     @SerialName("private_ip") val privateIp: String,
-    val status: String,
-    val health: String,
+    val status: NodeStatus,
+    val health: NodeHealth,
     @SerialName("total_ram_mb") val totalRamMb: Int,
     @SerialName("total_cpu_shares") val totalCpuShares: Int,
     @SerialName("allocated_ram_mb") val allocatedRamMb: Int,
@@ -211,8 +213,8 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toNodeResponse(alloc: NodeAl
     hostname = this[Nodes.hostname],
     publicIp = this[Nodes.publicIp],
     privateIp = this[Nodes.privateIp],
-    status = this[Nodes.status],
-    health = this[Nodes.health],
+    status = NodeStatus.fromDb(this[Nodes.status]),
+    health = NodeHealth.valueOf(this[Nodes.health]),
     totalRamMb = this[Nodes.totalRamMb],
     totalCpuShares = this[Nodes.totalCpuShares],
     allocatedRamMb = alloc.ramMb,

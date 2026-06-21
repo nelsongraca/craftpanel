@@ -17,7 +17,7 @@ import kotlin.uuid.Uuid
 data class AssignmentResponse(
     val id: String,
     @SerialName("group_id") val groupId: String,
-    @SerialName("scope_type") val scopeType: String,
+    @SerialName("scope_type") val scopeType: ScopeType,
     @SerialName("scope_id") val scopeId: String?,
 )
 
@@ -133,6 +133,6 @@ class AssignmentService {
 private fun org.jetbrains.exposed.v1.core.ResultRow.toAssignmentResponse() = AssignmentResponse(
     id = this[UserGroupAssignments.id].toString(),
     groupId = this[UserGroupAssignments.groupId].toString(),
-    scopeType = this[UserGroupAssignments.scopeType],
+    scopeType = ScopeType.valueOf(this[UserGroupAssignments.scopeType]),
     scopeId = this[UserGroupAssignments.scopeId]?.toString(),
 )

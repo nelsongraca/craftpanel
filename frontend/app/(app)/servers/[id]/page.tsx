@@ -7,7 +7,7 @@ import {ChevronRight, MoreHorizontal, Play, RotateCcw, Shuffle, Square, Trash2, 
 import {deleteServer, getNetwork, getNode, getServer, listNetworks, restartServer, startServer, stopServer, updateServer, updateServerResources} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
-import type {Network, Node, Server} from "@/lib/types";
+import type {Network, Node, Server, ServerStatus} from "@/lib/types";
 import {useWs} from "@/lib/ws-context";
 import {fmtBytes, fmtMb, fetchReleaseVersions, timeAgo} from "@/lib/utils/format";
 import {serverStatusClass, serverStatusLabel} from "@/lib/status";
@@ -232,7 +232,7 @@ export default function ServerDetailPage() {
         });
         const unsubStatus = subscribe("server.status", (payload) => {
             if (payload.server_id !== id) return;
-            setServer((prev) => prev ? {...prev, status: payload.status as string} : prev);
+            setServer((prev) => prev ? {...prev, status: payload.status as ServerStatus} : prev);
         });
         const unsubPlayers = subscribe("server.players", (payload) => {
             if (payload.server_id !== id) return;

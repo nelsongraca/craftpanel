@@ -74,7 +74,7 @@ export const fakeNode2: NodeResponse = {
 export const fakeNetwork: NetworkResponse = {
     id: "net-1",
     name: "default",
-    type: "INTERNAL",
+    type: "VANILLA",
     proxy_type: null,
     proxy_port: null,
     server_count: 4,
@@ -96,7 +96,7 @@ const SERVER_DEFAULTS = {
     last_player_count: null,
     created_at: "2025-01-01T00:00:00Z",
     updated_at: "2025-01-01T00:00:00Z",
-};
+} satisfies Partial<ServerResponse>;
 
 export const fakeServers: ServerResponse[] = [
     {
@@ -200,7 +200,7 @@ export const fakeMigration: MigrationResponse = {
     server_id: "srv-1",
     source_node_id: "node-1",
     target_node_id: "node-2",
-    status: "IN_PROGRESS",
+    status: "SYNCING",
     steps: [],
     created_at: "2025-06-20T10:00:00Z",
     completed_at: null,

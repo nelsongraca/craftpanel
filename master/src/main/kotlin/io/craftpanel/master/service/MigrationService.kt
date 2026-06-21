@@ -3,6 +3,8 @@ package io.craftpanel.master.service
 import io.craftpanel.proto.*
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.domain.AgentEvent
+import io.craftpanel.master.domain.MigrationStatus
+import io.craftpanel.master.domain.MigrationStepStatus
 import io.craftpanel.master.dns.DnsProvider
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
@@ -62,7 +64,7 @@ data class MigrateRequest(
 data class MigrationStepData(
     @SerialName("step_number") val stepNumber: Int,
     val description: String,
-    val status: String,
+    val status: MigrationStepStatus,
     @SerialName("started_at") val startedAt: String?,
     @SerialName("completed_at") val completedAt: String?,
     @SerialName("error_message") val errorMessage: String?,
@@ -74,7 +76,7 @@ data class MigrationResponse(
     @SerialName("server_id") val serverId: String,
     @SerialName("source_node_id") val sourceNodeId: String,
     @SerialName("target_node_id") val targetNodeId: String,
-    val status: String,
+    val status: MigrationStatus,
     val steps: List<MigrationStepData>,
     @SerialName("created_at") val createdAt: String,
     @SerialName("completed_at") val completedAt: String?,
@@ -177,7 +179,7 @@ class MigrationService(
             serverId = row[ServerMigrations.serverId].toString(),
             sourceNodeId = row[ServerMigrations.sourceNodeId].toString(),
             targetNodeId = row[ServerMigrations.targetNodeId].toString(),
-            status = row[ServerMigrations.status],
+            status = MigrationStatus.fromDb(row[ServerMigrations.status]),
             steps = steps,
             createdAt = row[ServerMigrations.createdAt].toUtcString(),
             completedAt = row[ServerMigrations.completedAt]?.toUtcString(),
@@ -200,7 +202,7 @@ class MigrationService(
                         serverId = row[ServerMigrations.serverId].toString(),
                         sourceNodeId = row[ServerMigrations.sourceNodeId].toString(),
                         targetNodeId = row[ServerMigrations.targetNodeId].toString(),
-                        status = row[ServerMigrations.status],
+                        status = MigrationStatus.fromDb(row[ServerMigrations.status]),
                         steps = steps,
                         createdAt = row[ServerMigrations.createdAt].toUtcString(),
                         completedAt = row[ServerMigrations.completedAt]?.toUtcString(),
@@ -344,16 +346,18 @@ class MigrationService(
                 val stepId = startStep(3, "Initial rsync pass (live data sync)")
                 val completeChannel = Channel<AgentEvent.RsyncCompleteEvent>(1)
                 val progressJob = scope.launch {
-                    gateway.agentEvents.filterIsInstance<AgentEvent.RsyncProgressEvent>().collect { u ->
-                        if (u.migrationId == migrationIdStr && !u.isFinalPass) {
-                            emit(MigrationEvent.RsyncProgress(false, u.percentComplete, u.bytesTransferred, u.phase))
+                    gateway.agentEvents.filterIsInstance<AgentEvent.RsyncProgressEvent>()
+                        .collect { u ->
+                            if (u.migrationId == migrationIdStr && !u.isFinalPass) {
+                                emit(MigrationEvent.RsyncProgress(false, u.percentComplete, u.bytesTransferred, u.phase))
+                            }
                         }
-                    }
                 }
                 val completeJob = scope.launch {
-                    gateway.agentEvents.filterIsInstance<AgentEvent.RsyncCompleteEvent>().collect { u ->
-                        if (u.migrationId == migrationIdStr && !u.isFinalPass) completeChannel.trySend(u)
-                    }
+                    gateway.agentEvents.filterIsInstance<AgentEvent.RsyncCompleteEvent>()
+                        .collect { u ->
+                            if (u.migrationId == migrationIdStr && !u.isFinalPass) completeChannel.trySend(u)
+                        }
                 }
                 try {
                     val sent = gateway.sendToNode(sourceNodeIdStr, masterMessage {
@@ -438,16 +442,18 @@ class MigrationService(
                 val stepId = startStep(6, "Final rsync pass (delta sync, source stopped)")
                 val completeChannel = Channel<AgentEvent.RsyncCompleteEvent>(1)
                 val progressJob = scope.launch {
-                    gateway.agentEvents.filterIsInstance<AgentEvent.RsyncProgressEvent>().collect { u ->
-                        if (u.migrationId == migrationIdStr && u.isFinalPass) {
-                            emit(MigrationEvent.RsyncProgress(true, u.percentComplete, u.bytesTransferred, u.phase))
+                    gateway.agentEvents.filterIsInstance<AgentEvent.RsyncProgressEvent>()
+                        .collect { u ->
+                            if (u.migrationId == migrationIdStr && u.isFinalPass) {
+                                emit(MigrationEvent.RsyncProgress(true, u.percentComplete, u.bytesTransferred, u.phase))
+                            }
                         }
-                    }
                 }
                 val completeJob = scope.launch {
-                    gateway.agentEvents.filterIsInstance<AgentEvent.RsyncCompleteEvent>().collect { u ->
-                        if (u.migrationId == migrationIdStr && u.isFinalPass) completeChannel.trySend(u)
-                    }
+                    gateway.agentEvents.filterIsInstance<AgentEvent.RsyncCompleteEvent>()
+                        .collect { u ->
+                            if (u.migrationId == migrationIdStr && u.isFinalPass) completeChannel.trySend(u)
+                        }
                 }
                 try {
                     gateway.sendToNode(sourceNodeIdStr, masterMessage {
@@ -677,7 +683,7 @@ class MigrationService(
 private fun ResultRow.toStepData() = MigrationStepData(
     stepNumber = this[MigrationStepLog.stepNumber],
     description = this[MigrationStepLog.description],
-    status = this[MigrationStepLog.status],
+    status = MigrationStepStatus.fromDb(this[MigrationStepLog.status]),
     startedAt = this[MigrationStepLog.startedAt]?.toUtcString(),
     completedAt = this[MigrationStepLog.completedAt]?.toUtcString(),
     errorMessage = this[MigrationStepLog.errorMessage],

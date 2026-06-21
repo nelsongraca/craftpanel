@@ -5,6 +5,8 @@ import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.triggerBackupCommand
 import io.craftpanel.master.database.schema.Backups
 import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.domain.BackupStatus
+import io.craftpanel.master.domain.BackupTrigger
 import io.craftpanel.master.grpc.DataServiceProxy
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -29,8 +31,8 @@ data class BackupResponse(
     val id: String,
     @SerialName("server_id") val serverId: String,
     @SerialName("node_id") val nodeId: String,
-    val trigger: String,
-    val status: String,
+    val trigger: BackupTrigger,
+    val status: BackupStatus,
     @SerialName("file_path") val filePath: String?,
     @SerialName("size_bytes") val sizeBytes: Long?,
     @SerialName("error_message") val errorMessage: String?,
@@ -67,7 +69,7 @@ class BackupService(
                 .map { it.toBackupResponse() }
         }
 
-    fun triggerBackup(serverId: kotlin.uuid.Uuid, trigger: String = "MANUAL"): BackupResponse {
+    fun triggerBackup(serverId: kotlin.uuid.Uuid, trigger: BackupTrigger = BackupTrigger.MANUAL): BackupResponse {
         val serverRow = transaction {
             Servers.selectAll()
                 .where { Servers.id eq serverId }
@@ -111,7 +113,7 @@ class BackupService(
             val backupId = Backups.insert {
                 it[Backups.serverId] = serverId
                 it[Backups.nodeId] = nodeKotlinId
-                it[Backups.trigger] = trigger
+                it[Backups.trigger] = trigger.name
                 it[Backups.status] = "IN_PROGRESS"
             }[Backups.id]
 
@@ -138,7 +140,7 @@ class BackupService(
             row.toBackupResponse()
         }
 
-        if (backupResponse.status == "FAILED" && backupResponse.errorMessage == "Agent not connected")
+        if (backupResponse.status == BackupStatus.FAILED && backupResponse.errorMessage == "Agent not connected")
             throw BadGatewayException("Agent not connected")
         return backupResponse
     }
@@ -211,8 +213,8 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toBackupResponse() = BackupR
     id = this[Backups.id].toString(),
     serverId = this[Backups.serverId].toString(),
     nodeId = this[Backups.nodeId].toString(),
-    trigger = this[Backups.trigger],
-    status = this[Backups.status],
+    trigger = BackupTrigger.fromDb(this[Backups.trigger]),
+    status = BackupStatus.fromDb(this[Backups.status]),
     filePath = this[Backups.filePath],
     sizeBytes = this[Backups.sizeBytes],
     errorMessage = this[Backups.errorMessage],

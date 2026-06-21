@@ -1,7 +1,9 @@
 package io.craftpanel.master.domain
 
 import io.craftpanel.proto.ServerStatusUpdate
+import kotlinx.serialization.Serializable
 
+@Serializable
 enum class ServerStatus {
     STOPPED, STARTING, HEALTHY, STOPPING, UNHEALTHY;
 

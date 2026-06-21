@@ -5,6 +5,10 @@ package io.craftpanel.master.routes
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.auth.PermissionResolver
+import io.craftpanel.master.domain.NodeHealth
+import io.craftpanel.master.domain.NodeStatus
+import io.craftpanel.master.domain.ServerStatus
+import io.craftpanel.master.domain.BackupStatus
 import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
@@ -91,7 +95,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, agentEvents: Share
                     ServerSnapshot(
                         sid.toString(),
                         row[Servers.displayName],
-                        row[Servers.status],
+                        ServerStatus.fromDb(row[Servers.status]),
                         row[Servers.nodeId].toString(),
                         row[Servers.networkId]?.toString(),
                     )
@@ -99,7 +103,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, agentEvents: Share
             val nodes = if (hasNodes()) {
                 Nodes.selectAll()
                     .map { row ->
-                        NodeSnapshot(row[Nodes.id].toString(), row[Nodes.displayName], row[Nodes.status], row[Nodes.health])
+                        NodeSnapshot(row[Nodes.id].toString(), row[Nodes.displayName], NodeStatus.fromDb(row[Nodes.status]), NodeHealth.valueOf(row[Nodes.health]))
                     }
             }
             else emptyList()
@@ -114,67 +118,91 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, agentEvents: Share
             AgentEvent.NodeMetricsEvent::class to { event ->
                 val e = event as AgentEvent.NodeMetricsEvent
                 if (!hasNodes()) return@to
-                sendWs(WsEventType.NODE_METRICS, NodeMetricsPayload(
-                    e.nodeId, e.cpuPercent, e.ramUsedMb, e.ramTotalMb,
-                    e.netInBytes, e.netOutBytes, e.diskUsedBytes, e.diskTotalBytes,
-                    e.recordedAt.toString(),
-                ))
+                sendWs(
+                    WsEventType.NODE_METRICS, NodeMetricsPayload(
+                        e.nodeId, e.cpuPercent, e.ramUsedMb, e.ramTotalMb,
+                        e.netInBytes, e.netOutBytes, e.diskUsedBytes, e.diskTotalBytes,
+                        e.recordedAt.toString(),
+                    )
+                )
             },
             AgentEvent.NodeStatusEvent::class to { event ->
                 val e = event as AgentEvent.NodeStatusEvent
                 if (!hasNodes()) return@to
-                sendWs(WsEventType.NODE_STATUS, NodeStatusPayload(
-                    e.nodeId, e.health.name, Clock.System.now().toString(),
-                ))
+                sendWs(
+                    WsEventType.NODE_STATUS, NodeStatusPayload(
+                        e.nodeId,
+                        e.health,
+                        Clock.System.now()
+                            .toString(),
+                    )
+                )
             },
             AgentEvent.ContainerMetricsEvent::class to { event ->
                 val e = event as AgentEvent.ContainerMetricsEvent
                 val sid = runCatching { Uuid.parse(e.serverId) }.getOrNull() ?: return@to
                 val netId = serverNetworkId(e.serverId)
                 if (!canViewServer(sid, netId)) return@to
-                sendWs(WsEventType.SERVER_METRICS, ServerMetricsPayload(
-                    e.serverId, e.cpuPercent, e.ramUsedMb,
-                    e.netInBytes, e.netOutBytes, e.recordedAt.toString(),
-                ))
+                sendWs(
+                    WsEventType.SERVER_METRICS, ServerMetricsPayload(
+                        e.serverId, e.cpuPercent, e.ramUsedMb,
+                        e.netInBytes, e.netOutBytes, e.recordedAt.toString(),
+                    )
+                )
             },
             AgentEvent.ServerStatusEvent::class to { event ->
                 val e = event as AgentEvent.ServerStatusEvent
                 val sid = runCatching { Uuid.parse(e.serverId) }.getOrNull() ?: return@to
                 val netId = serverNetworkId(e.serverId)
                 if (!canViewServer(sid, netId)) return@to
-                sendWs(WsEventType.SERVER_STATUS, ServerStatusPayload(
-                    e.serverId, e.status.name, Clock.System.now().toString(),
-                ))
+                sendWs(
+                    WsEventType.SERVER_STATUS, ServerStatusPayload(
+                        e.serverId,
+                        e.status,
+                        Clock.System.now()
+                            .toString(),
+                    )
+                )
             },
             AgentEvent.PlayerUpdateEvent::class to { event ->
                 val e = event as AgentEvent.PlayerUpdateEvent
                 val sid = runCatching { Uuid.parse(e.serverId) }.getOrNull() ?: return@to
                 val netId = serverNetworkId(e.serverId)
                 if (!canViewServer(sid, netId)) return@to
-                sendWs(WsEventType.SERVER_PLAYERS, ServerPlayersPayload(
-                    e.serverId, e.playerCount, e.playerNames, e.recordedAt.toString(),
-                ))
+                sendWs(
+                    WsEventType.SERVER_PLAYERS, ServerPlayersPayload(
+                        e.serverId, e.playerCount, e.playerNames, e.recordedAt.toString(),
+                    )
+                )
             },
             AgentEvent.BackupProgressEvent::class to { event ->
                 val e = event as AgentEvent.BackupProgressEvent
                 val sid = runCatching { Uuid.parse(e.serverId) }.getOrNull() ?: return@to
                 val netId = serverNetworkId(e.serverId)
                 if (!canViewServer(sid, netId)) return@to
-                sendWs(WsEventType.SERVER_BACKUP_PROGRESS, BackupProgressPayload(
-                    e.serverId, e.backupId, e.percentComplete, Clock.System.now().toString(),
-                ))
+                sendWs(
+                    WsEventType.SERVER_BACKUP_PROGRESS, BackupProgressPayload(
+                        e.serverId,
+                        e.backupId,
+                        e.percentComplete,
+                        Clock.System.now()
+                            .toString(),
+                    )
+                )
             },
             AgentEvent.BackupCompleteEvent::class to { event ->
                 val e = event as AgentEvent.BackupCompleteEvent
                 val sid = runCatching { Uuid.parse(e.serverId) }.getOrNull() ?: return@to
                 val netId = serverNetworkId(e.serverId)
                 if (!canViewServer(sid, netId)) return@to
-                val status = if (e.success) "COMPLETED" else "FAILED"
-                sendWs(WsEventType.SERVER_BACKUP_COMPLETE, BackupCompletePayload(
-                    e.serverId, e.backupId, status,
-                    e.sizeBytes, if (!e.success) e.errorMessage else null,
-                    e.completedAt.toString(),
-                ))
+                val status = if (e.success) BackupStatus.COMPLETED else BackupStatus.FAILED
+                sendWs(
+                    WsEventType.SERVER_BACKUP_COMPLETE, BackupCompletePayload(
+                        e.serverId, e.backupId, status,
+                        e.sizeBytes, if (!e.success) e.errorMessage else null,
+                        e.completedAt.toString(),
+                    )
+                )
             },
             AgentEvent.AlertFiredEvent::class to { event ->
                 val alert = event as AgentEvent.AlertFiredEvent
@@ -186,18 +214,23 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, agentEvents: Share
                     if (!canViewServer(sid, netId)) return@to
                 }
                 val type = if (isResolved) WsEventType.ALERT_RESOLVED else WsEventType.ALERT_FIRED
-                sendWs(type, AlertPayload(
-                    alert.eventId, alert.thresholdId, alert.scopeType, alert.scopeId,
-                    alert.metric, alert.message,
-                    if (!isResolved) alert.firedAt else null,
-                    if (isResolved) alert.resolvedAt else null,
-                ))
+                sendWs(
+                    type, AlertPayload(
+                        alert.eventId, alert.thresholdId, ScopeType.valueOf(alert.scopeType), alert.scopeId,
+                        alert.metric, alert.message,
+                        if (!isResolved) alert.firedAt else null,
+                        if (isResolved) alert.resolvedAt else null,
+                    )
+                )
             },
         )
 
         val subscriptionsJob = launch {
             handlers.forEach { (cls, handler) ->
-                launch { agentEvents.filterIsInstance(cls).collect { handler(it) } }
+                launch {
+                    agentEvents.filterIsInstance(cls)
+                        .collect { handler(it) }
+                }
             }
         }
 

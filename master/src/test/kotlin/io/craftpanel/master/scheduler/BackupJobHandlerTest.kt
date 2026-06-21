@@ -1,5 +1,6 @@
 package io.craftpanel.master.scheduler
 
+import io.craftpanel.master.domain.BackupTrigger
 import io.craftpanel.master.service.BackupService
 import io.kotest.core.spec.style.FunSpec
 import io.mockk.every
@@ -14,7 +15,7 @@ class BackupJobHandlerTest : FunSpec({
 
     test("execute calls triggerBackup with SCHEDULED trigger") {
         val backupService = mockk<BackupService>()
-        every { backupService.triggerBackup(any(), trigger = "SCHEDULED") } returns mockk()
+        every { backupService.triggerBackup(any(), trigger = BackupTrigger.SCHEDULED) } returns mockk()
 
         val handler = BackupJobHandler(backupService)
         val serverId = Uuid.random()
@@ -23,7 +24,7 @@ class BackupJobHandlerTest : FunSpec({
             handler.execute(JobExecutionContext(serverId, jobId = null, scheduledAt = Clock.System.now()))
         }
 
-        verify(exactly = 1) { backupService.triggerBackup(serverId, trigger = "SCHEDULED") }
+        verify(exactly = 1) { backupService.triggerBackup(serverId, trigger = BackupTrigger.SCHEDULED) }
     }
 
     test("execute swallows exceptions from triggerBackup") {

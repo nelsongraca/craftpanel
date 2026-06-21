@@ -1,7 +1,9 @@
 package io.craftpanel.master.domain
 
 import kotlin.time.Instant
+import kotlinx.serialization.Serializable
 
+@Serializable
 enum class NodeHealth { HEALTHY, DEGRADED, UNREACHABLE }
 
 sealed class AgentEvent {

@@ -2,6 +2,7 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.database.schema.ServerMods
 import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.domain.ModPinStrategy
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerialName
@@ -22,15 +23,13 @@ import kotlin.time.Clock
 import kotlin.uuid.Uuid
 import io.craftpanel.master.util.toUtcString
 
-private val VALID_PIN_STRATEGIES = setOf("PINNED", "LATEST", "BETA", "ALPHA")
-
 @Serializable
 data class ModResponse(
     val id: String,
     @SerialName("server_id") val serverId: String,
     @SerialName("modrinth_project_id") val modrinthProjectId: String,
     @SerialName("display_name") val displayName: String,
-    @SerialName("pin_strategy") val pinStrategy: String,
+    @SerialName("pin_strategy") val pinStrategy: ModPinStrategy,
     @SerialName("pinned_version_id") val pinnedVersionId: String?,
     @SerialName("installed_version_id") val installedVersionId: String?,
     @SerialName("created_at") val createdAt: String,
@@ -41,13 +40,13 @@ data class ModResponse(
 data class CreateModRequest(
     @SerialName("modrinth_project_id") val modrinthProjectId: String,
     @SerialName("display_name") val displayName: String,
-    @SerialName("pin_strategy") val pinStrategy: String,
+    @SerialName("pin_strategy") val pinStrategy: ModPinStrategy,
     @SerialName("pinned_version_id") val pinnedVersionId: String? = null,
 )
 
 @Serializable
 data class PatchModRequest(
-    @SerialName("pin_strategy") val pinStrategy: String? = null,
+    @SerialName("pin_strategy") val pinStrategy: ModPinStrategy? = null,
     @SerialName("pinned_version_id") val pinnedVersionId: String? = null,
 )
 
@@ -63,9 +62,7 @@ class ModService {
         }
 
     fun addMod(serverId: kotlin.uuid.Uuid, req: CreateModRequest): ModResponse {
-        if (req.pinStrategy !in VALID_PIN_STRATEGIES)
-            throw UnprocessableException("pin_strategy must be one of: ${VALID_PIN_STRATEGIES.joinToString()}")
-        if (req.pinStrategy == "PINNED" && req.pinnedVersionId.isNullOrEmpty())
+        if (req.pinStrategy == ModPinStrategy.PINNED && req.pinnedVersionId.isNullOrEmpty())
             throw UnprocessableException("pinned_version_id is required when pin_strategy is PINNED")
         return transaction {
             val alreadyExists = ServerMods.selectAll()
@@ -76,7 +73,7 @@ class ModService {
                 it[ServerMods.serverId] = serverId
                 it[ServerMods.modrinthProjectId] = req.modrinthProjectId
                 it[ServerMods.displayName] = req.displayName
-                it[ServerMods.pinStrategy] = req.pinStrategy
+                it[ServerMods.pinStrategy] = req.pinStrategy.name
                 it[ServerMods.pinnedVersionId] = req.pinnedVersionId
             }[ServerMods.id]
             markNeedsRecreate(serverId)
@@ -94,18 +91,17 @@ class ModService {
                 .firstOrNull()
         }
             ?: throw NotFoundException("Mod not found")
-        if (req.pinStrategy != null && req.pinStrategy !in VALID_PIN_STRATEGIES)
-            throw UnprocessableException("pin_strategy must be one of: ${VALID_PIN_STRATEGIES.joinToString()}")
-        if (req.pinStrategy == "PINNED" && req.pinnedVersionId.isNullOrEmpty())
+        if (req.pinStrategy == ModPinStrategy.PINNED && req.pinnedVersionId.isNullOrEmpty())
             throw UnprocessableException("pinned_version_id is required when pin_strategy is PINNED")
         val now = Clock.System.now()
             .toLocalDateTime(TimeZone.UTC)
         return transaction {
             ServerMods.update({ (ServerMods.id eq modId) and (ServerMods.serverId eq serverId) }) {
-                if (req.pinStrategy != null) it[ServerMods.pinStrategy] = req.pinStrategy
+                if (req.pinStrategy != null) it[ServerMods.pinStrategy] = req.pinStrategy.name
                 if (req.pinnedVersionId != null) {
                     it[ServerMods.pinnedVersionId] = req.pinnedVersionId
-                } else if (req.pinStrategy != null && req.pinStrategy != "PINNED") {
+                }
+                else if (req.pinStrategy != null && req.pinStrategy != ModPinStrategy.PINNED) {
                     it[ServerMods.pinnedVersionId] = null
                 }
                 it[ServerMods.updatedAt] = now
@@ -153,11 +149,11 @@ class ModService {
         }
             .joinToString(",") { row ->
                 val projectId = row[ServerMods.modrinthProjectId]
-                when (row[ServerMods.pinStrategy]) {
-                    "PINNED" -> "${projectId}:${row[ServerMods.pinnedVersionId]}"
-                    "BETA"   -> "$projectId:beta"
-                    "ALPHA"  -> "$projectId:alpha"
-                    else     -> projectId
+                when (ModPinStrategy.fromDb(row[ServerMods.pinStrategy])) {
+                    ModPinStrategy.PINNED -> "${projectId}:${row[ServerMods.pinnedVersionId]}"
+                    ModPinStrategy.BETA   -> "$projectId:beta"
+                    ModPinStrategy.ALPHA  -> "$projectId:alpha"
+                    else                  -> projectId
                 }
             }
 }
@@ -167,7 +163,7 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toModResponse() = ModRespons
     serverId = this[ServerMods.serverId].toString(),
     modrinthProjectId = this[ServerMods.modrinthProjectId],
     displayName = this[ServerMods.displayName],
-    pinStrategy = this[ServerMods.pinStrategy],
+    pinStrategy = ModPinStrategy.fromDb(this[ServerMods.pinStrategy]),
     pinnedVersionId = this[ServerMods.pinnedVersionId],
     installedVersionId = this[ServerMods.installedVersionId],
     createdAt = this[ServerMods.createdAt].toUtcString(),

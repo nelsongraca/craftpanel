@@ -11,7 +11,7 @@ import {
     updateConfigMode,
     updateStopCommand,
 } from "@/lib/generated/sdk.gen";
-import type { EnvVarItem, ProxyBackend, PutEnvVarsRequest, PutProxyBackendsRequest } from "@/lib/types";
+import type { EnvVarItem, ProxyBackend, PutEnvVarsRequest, PutProxyBackendsRequest, ConfigMode } from "@/lib/types";
 import type { ServerResponse } from "@/lib/generated/types.gen";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Switch } from "@/components/ui/switch";
@@ -224,7 +224,7 @@ function GameServerConfigSection({
     async function applyToggleMode(next: string) {
         setTogglingMode(true);
         setError(null);
-        const res = await updateConfigMode({ path: { id: serverId }, body: { config_mode: next } });
+        const res = await updateConfigMode({ path: { id: serverId }, body: { config_mode: next as ConfigMode } });
         if (res.error) {
             setError((res.error as { message?: string }).message ?? "Failed to update config mode");
         } else {
