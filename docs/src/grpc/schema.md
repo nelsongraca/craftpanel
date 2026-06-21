@@ -2,7 +2,7 @@
 
 All communication between master and agent uses gRPC over TLS. The REST API is exclusively for browser↔master — no REST endpoints are exposed to agents.
 
-The full proto definition is at [`craftpanel.proto`](craftpanel.proto).
+The full proto definition is at `proto/craftpanel.proto` (repo root).
 
 ## Connection model
 
@@ -108,14 +108,13 @@ Container run states:
 |-----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `RUNNING` | Container is running normally                                                                                                                                             |
 | `STOPPED` | Container was stopped cleanly via CraftPanel                                                                                                                              |
-| `EXITED`  | Container exited unexpectedly — Docker restart policy did not recover it (e.g. restart limit hit, or manually stopped outside CraftPanel). Surfaced distinctly in the UI. |
+| `EXITED`  | Container exited unexpectedly — master-level restart did not recover it (e.g. restart limit hit, or manually stopped outside CraftPanel). Surfaced distinctly in the UI. |
 
 ---
 
 ## Container lifecycle
 
-All containers are created with `restart_policy = unless-stopped`. Docker restarts containers automatically after agent restarts or node reboots — the agent does not need to restart containers on
-reconnect, only report their current state via `NodeStateSnapshot`.
+Game server and rsync containers are created with `restart_policy = no` — the master owns restart-on-crash decisions. The agent reports container state via `NodeStateSnapshot` on reconnect, and the master reissues start commands if needed. Only the mc-router container uses `restart_policy = unless-stopped`.
 
 ### Graceful stop
 
@@ -196,53 +195,14 @@ On agent reconnect master waits for the `NodeStateSnapshot` before issuing comma
 
 ## Gradle setup
 
-Proto is the source of truth. Kotlin code is generated from the proto definition — never written by hand.
-
-```kotlin
-// build.gradle.kts
-plugins {
-    id("com.google.protobuf") version "0.9.4"
-}
-
-dependencies {
-    implementation("io.grpc:grpc-kotlin-stub:1.4.3")
-    implementation("io.grpc:grpc-protobuf:1.75.0")
-    implementation("com.google.protobuf:protobuf-kotlin:4.32.0")
-}
-
-protobuf {
-    protoc {
-        artifact = "com.google.protobuf:protoc:4.32.0"
-    }
-    plugins {
-        create("grpc") {
-            artifact = "io.grpc:protoc-gen-grpc-java:1.75.0"
-        }
-        create("grpckt") {
-            artifact = "io.grpc:protoc-gen-grpc-kotlin:1.4.3:jdk8@jar"
-        }
-    }
-    generateProtoTasks {
-        all().forEach {
-            it.plugins {
-                create("grpc")
-                create("grpckt")
-            }
-            it.builtins {
-                create("kotlin")
-            }
-        }
-    }
-}
-```
+Proto is the source of truth. Kotlin code is generated from the proto definition — never written by hand. See the `craftpanel.protobuf-convention` Gradle convention plugin in [`buildSrc/`](https://github.com/nelsongraca/craftpanel/tree/main/buildSrc) and the version catalog at `gradle/libs.versions.toml` for the current dependency versions.
 
 **Project structure:**
 
 ```
 craftpanel/
 ├── proto/
-│   └── craftpanel/agent/v1/
-│       └── craftpanel.proto    ← source of truth
+│   └── craftpanel.proto    ← single flat file, source of truth
 ├── master/
 │   └── src/main/kotlin/...     ← consumes generated stubs
 └── agent/

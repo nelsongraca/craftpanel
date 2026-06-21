@@ -8,9 +8,13 @@
 |----------------|---------------------------------------------------------|
 | `PENDING`      | Migration created; initial rsync not yet started        |
 | `SYNCING`      | Initial rsync pass in progress (server still running)   |
+| `RUNNING`      | Migration is actively in progress                       |
 | `CUTTING_OVER` | Final rsync, container swap, and DNS update in progress |
 | `COMPLETED`    | Server is fully running on destination node             |
 | `FAILED`       | Migration failed at some step; see `error_message`      |
+| `CANCELLED`    | Migration was cancelled before completion               |
+
+These values are stored as VARCHAR(15) with application-level validation.
 
 ---
 
@@ -26,7 +30,7 @@ derives `is_migrating` for any server by checking for an active record with stat
 | `source_node_id`      | UUID                    | FK → `nodes` — retained for audit even after completion                                  |
 | `destination_node_id` | UUID                    | FK → `nodes`                                                                             |
 | `initiated_by`        | UUID                    | FK → `users`                                                                             |
-| `status`              | `migration_status` ENUM | Overall migration state                                                                  |
+| `status`              | VARCHAR(15)          | Overall migration state                                                                  |
 | `current_step`        | INT                     | Last completed step (1–11); maps to steps defined in the migration spec                  |
 | `warning_message`     | TEXT                    | In-game RCON broadcast sent to players at step 4, e.g. `Server restarting in 60 seconds` |
 | `error_message`       | TEXT                    | `NULL` unless status is `FAILED`                                                         |

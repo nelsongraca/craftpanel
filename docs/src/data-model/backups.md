@@ -26,8 +26,8 @@
 | `id`            | UUID                  | Primary key                                                                                                                      |
 | `server_id`     | UUID                  | FK → `servers`, CASCADE DELETE                                                                                                   |
 | `node_id`       | UUID                  | FK → `nodes` — denormalised; the node that holds the backup file. Retained even if the server later migrates to a different node |
-| `trigger`       | `backup_trigger` ENUM | How the backup was initiated                                                                                                     |
-| `status`        | `backup_status` ENUM  | Current or final state                                                                                                           |
+| `trigger`       | VARCHAR(10)          | How the backup was initiated: `MANUAL` or `SCHEDULED`                                                          |
+| `status`        | VARCHAR(15)          | Current or final state: `IN_PROGRESS`, `COMPLETED`, or `FAILED`                                                |
 | `file_path`     | TEXT                  | Absolute path on the node, e.g. `/data/craftpanel/backups/<server-id>/<backup-id>.tar.gz`                                        |
 | `size_bytes`    | BIGINT                | Archive size; `NULL` until status is `COMPLETED`                                                                                 |
 | `error_message` | TEXT                  | `NULL` unless status is `FAILED`                                                                                                 |

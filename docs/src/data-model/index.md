@@ -7,7 +7,7 @@ CraftPanel's persistent state lives entirely in PostgreSQL on the master node. T
 - All tables have `id UUID PRIMARY KEY DEFAULT gen_random_uuid()`
 - `created_at TIMESTAMPTZ` and `updated_at TIMESTAMPTZ` on all mutable entities
 - Hard deletes throughout — no soft delete pattern; cascades are defined per relationship
-- Enums are defined as Postgres `ENUM` types and mirrored as Kotlin sealed classes
+- Enums are stored as `VARCHAR` columns with application-level validation (mirrored as Kotlin sealed classes/enums)
 
 ## Sections
 

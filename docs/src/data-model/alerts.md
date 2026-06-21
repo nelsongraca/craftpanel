@@ -18,7 +18,7 @@ Defines a condition that master monitors. When the condition is met, an `alert_e
 | Column            | Type               | Description                                                                           |
 |-------------------|--------------------|---------------------------------------------------------------------------------------|
 | `id`              | UUID               | Primary key                                                                           |
-| `scope_type`      | `alert_scope` ENUM | `NODE` or `SERVER`                                                                    |
+| `scope_type`      | VARCHAR(6)          | `NODE` or `SERVER`                                                                                     |
 | `scope_id`        | UUID               | ID of the node or server this threshold applies to                                    |
 | `metric`          | VARCHAR(64)        | Metric identifier, e.g. `ram_percent`, `cpu_percent`, `disk_percent`, `server_health` |
 | `threshold_value` | NUMERIC            | Numeric trigger value; `NULL` for state-based alerts                                  |

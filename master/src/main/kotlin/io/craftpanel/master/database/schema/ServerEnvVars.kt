@@ -7,7 +7,7 @@ object ServerEnvVars : Table("server_env_vars") {
 
     val id = uuid("id").autoGenerate()
     val serverId = uuid("server_id").references(Servers.id, onDelete = ReferenceOption.CASCADE)
-    val key = varchar("key", 100)
+    val key = varchar("key", 128)
     val value = text("value")
 
     override val primaryKey = PrimaryKey(id)

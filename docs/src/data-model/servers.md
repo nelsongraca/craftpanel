@@ -72,14 +72,15 @@ The UI combines both — showing the server's live status alongside a migration 
 | `id`                 | UUID                 | Primary key                                                                                                                                                      |
 | `name`               | VARCHAR(100)         | Unique machine-readable slug, e.g. `survival-1`; used for container naming and internal references                                                               |
 | `display_name`       | VARCHAR(100)         | Human-readable label shown in the UI                                                                                                                             |
-| `description`        | TEXT                 | Optional                                                                                                                                                         |
-| `server_type`        | `server_type` ENUM   | Determines software and Docker image                                                                                                                             |
+| `description`        | VARCHAR(500)        | Optional                                                                                                                                                        |
+| `server_type`        | VARCHAR(20)          | Determines software and Docker image; validated at application layer                                                                                             |
 | `mc_version`         | VARCHAR(16)          | Minecraft version string, e.g. `1.21.4`; maps to itzg `VERSION` env var                                                                                          |
 | `itzg_image_tag`     | VARCHAR(100)         | itzg image tag, e.g. `latest` or a pinned digest                                                                                                                 |
+| `needs_recreate`     | BOOLEAN              | `true` when `mc_version` or `itzg_image_tag` changed via PATCH; container is recreated on next start; default `false`                                            |
 | `node_id`            | UUID                 | FK → `nodes`, RESTRICT — server must be migrated before node decommission                                                                                        |
 | `network_id`         | UUID                 | FK → `server_networks`, SET NULL — nullable                                                                                                                      |
-| `status`             | `server_status` ENUM | Current runtime state                                                                                                                                            |
-| `config_mode`        | `config_mode` ENUM   | `MANAGED` or `MANUAL`                                                                                                                                            |
+| `status`             | VARCHAR(10)          | Current runtime state: `STOPPED`, `STARTING`, `HEALTHY`, `STOPPING`, `UNHEALTHY`                                                                                 |
+| `config_mode`        | VARCHAR(10)          | `MANAGED` or `MANUAL`                                                                                                                                            |
 | `memory_mb`          | INT                  | RAM allocated to this container                                                                                                                                  |
 | `cpu_shares`         | INT                  | Docker CPU share value; `0` = unlimited                                                                                                                          |
 | `host_port`          | INT                  | Port assigned from the node port registry; `NULL` for containers only reachable within a Docker bridge network                                                   |
@@ -90,11 +91,13 @@ The UI combines both — showing the server's live status alongside a migration 
 | `dns_record_name`    | VARCHAR(255)         | DNS provider record name as returned by the provider                                                                                                             |
 | `container_id`       | VARCHAR(64)          | Docker container ID as last reported by agent; `NULL` when stopped                                                                                               |
 | `container_name`     | TEXT                 | Stable container name; also used as the Docker bridge hostname for same-node routing                                                                             |
-| `player_count`       | INT                  | Last observed player count from Minecraft query protocol; refreshed every 60 s                                                                                   |
-| `player_list`        | JSONB                | Array of online player name strings                                                                                                                              |
+| `last_player_count`       | INT                  | Last observed player count from Minecraft query protocol; refreshed every 60 s; `NULL` when unknown                                                   |
+| `last_player_names`       | VARCHAR(1000)        | Comma-separated string of online player names; `NULL` when unknown                                                                                    |
+| `last_player_update`      | TIMESTAMPTZ          | Timestamp of the most recent player data refresh; `NULL` if never polled                                                                              |
 | `last_seen_at`       | TIMESTAMPTZ          | Timestamp of last successful health check from agent                                                                                                             |
 | `stop_command`       | VARCHAR(64)          | Command written to container stdin on graceful stop or restart. Defaults to `stop` for game servers and `end` for proxy types. Configurable per server in the UI |
 | `backup_schedule`    | VARCHAR(64)          | Cron expression for automated backups; `NULL` = no scheduled backups                                                                                             |
+| `backup_schedule_last_fired` | TIMESTAMPTZ | When the cron-based backup last triggered; `NULL` if never fired. Read from `ServerJobs.last_fired_at` and cached here for quick lookup                         |
 | `backup_max_count`   | INT                  | Maximum number of backups to retain; default `10`                                                                                                                |
 | `created_at`         | TIMESTAMPTZ          |                                                                                                                                                                  |
 | `updated_at`         | TIMESTAMPTZ          |                                                                                                                                                                  |
@@ -173,3 +176,22 @@ Records which backend game servers a proxy server connects to, used in managed (
 | `order`             | INT         | Ordering for display and config generation                                    |
 
 **Unique constraint:** `(proxy_server_id, backend_name)`
+
+---
+
+## `server_jobs`
+
+Holds cron-based job definitions tied to a server. Currently used for scheduled backups; extensible for future job types.
+
+| Column            | Type         | Description                                                          |
+|-------------------|--------------|----------------------------------------------------------------------|
+| `id`              | UUID         | Primary key                                                          |
+| `server_id`       | UUID         | FK → `servers`, CASCADE DELETE                                       |
+| `type`            | VARCHAR(50)  | Job type identifier, e.g. `backup`                                   |
+| `cron_expression` | VARCHAR(64)  | Cron schedule for the job                                            |
+| `enabled`         | BOOLEAN      | Whether the job is active; default `true`                            |
+| `last_fired_at`   | TIMESTAMPTZ  | When the job last triggered; `NULL` if never fired                   |
+| `created_at`      | TIMESTAMPTZ  |                                                                      |
+| `updated_at`      | TIMESTAMPTZ  |                                                                      |
+
+**Primary key:** `(id)`

@@ -29,7 +29,7 @@ http:
 
 grpc:
   host: 0.0.0.0
-  port: 9090
+  port: 50051
   # cert_store: /etc/craftpanel/certs   # where auto-generated CA+server certs are persisted
   # tls_sans: master.example.com,10.0.0.1  # extra SANs for auto-generated cert
   # Bring-your-own-cert (overrides auto-gen):
@@ -91,7 +91,7 @@ Supported `_FILE` variables:
 | `http.host`            | `CRAFTPANEL_HTTP_HOST`         | No       | `0.0.0.0`               | HTTP bind address                                                                       |
 | `http.port`            | `CRAFTPANEL_HTTP_PORT`         | No       | `8080`                  | HTTP bind port                                                                          |
 | `grpc.host`            | `CRAFTPANEL_GRPC_HOST`         | No       | `0.0.0.0`               | gRPC bind address                                                                       |
-| `grpc.port`            | `CRAFTPANEL_GRPC_PORT`         | No       | `9090`                  | gRPC bind port                                                                          |
+| `grpc.port`            | `CRAFTPANEL_GRPC_PORT`         | No       | `50051`                 | gRPC bind port                                                                          |
 | `GRPC_CERT_STORE_PATH` | `GRPC_CERT_STORE_PATH`         | No       | `/etc/craftpanel/certs` | Directory for auto-generated CA + server certs                                          |
 | `GRPC_TLS_SANS`        | `GRPC_TLS_SANS`                | No       | —                       | Comma-separated extra SANs (add server hostname/IP)                                     |
 | `GRPC_TLS_CERT`        | `GRPC_TLS_CERT`                | No       | —                       | BYOC: path to server cert (overrides auto-gen)                                          |

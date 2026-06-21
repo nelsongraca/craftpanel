@@ -43,15 +43,15 @@ Runtime health — master/agent-observed, independent of lifecycle status.
 | `public_ip`            | INET               | Public-facing IP; used for DNS A records and player ingress                |
 | `private_ip`           | INET               | Private IP; used for cross-node container communication                    |
 | `token_hash`           | TEXT               | SHA-256 of the 256-bit pre-shared registration token                       |
-| `status`               | `node_status` ENUM | Admin-driven lifecycle state                                               |
+| `status`               | VARCHAR(20)          | Admin-driven lifecycle state: `PENDING`, `ACTIVE`, `REJECTED`, or `DECOMMISSIONED`                |
 | `health`               | VARCHAR(20)        | Runtime health: `HEALTHY`, `DEGRADED`, or `UNREACHABLE`. Default `HEALTHY` |
 | `total_ram_mb`         | INT                | Total RAM reported by agent at registration                                |
 | `total_cpu_shares`     | INT                | Configured allocatable CPU share envelope                                  |
+| `system_ram_used_mb`   | INT                | RAM used by the agent host itself; reported by agent each snapshot; `NULL` if not yet collected |
 | `allocated_ram_mb`     | INT                | Sum of `ram_mb` across all servers currently on this node                  |
 | `allocated_cpu_shares` | INT                | Sum of `cpu_shares` across all servers currently on this node              |
 | `port_range_start`     | INT                | First port in the assignable range; default `25570`                        |
 | `port_range_end`       | INT                | Last port in the assignable range; default `26070`                         |
-| `data_path`            | TEXT               | Base filesystem path for server data on this node, e.g. `/data/craftpanel` |
 | `agent_version`        | VARCHAR(50)        | Agent version string as reported at registration; `NULL` if not provided   |
 | `last_seen_at`         | TIMESTAMPTZ        | Timestamp of last gRPC message received from agent                         |
 | `created_at`           | TIMESTAMPTZ        |                                                                            |
@@ -60,6 +60,9 @@ Runtime health — master/agent-observed, independent of lifecycle status.
 !!! note "Computed fields"
 `allocated_ram_mb` and `allocated_cpu_shares` are not stored columns — they are computed at query time by summing `memory_mb` and `cpu_shares` across all servers currently assigned to the node. Master
 checks available capacity (`total - allocated`) before allowing a new allocation.
+
+!!! note "`data_path`"
+`data_path` is not stored in the database — it is agent runtime configuration only, set via the `DATA_PATH` / `HOST_DATA_PATH` environment variables on each agent. It defaults to `/data` inside the agent container.
 
 ---
 

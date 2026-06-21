@@ -58,7 +58,7 @@ Produces a self-contained distribution at `master/build/install/master/` — a `
 FROM eclipse-temurin:25-jdk-alpine
 WORKDIR /app
 COPY master/build/install/master/ .
-EXPOSE 8080 9090
+EXPOSE 8080 50051
 ENTRYPOINT ["bin/master"]
 ```
 

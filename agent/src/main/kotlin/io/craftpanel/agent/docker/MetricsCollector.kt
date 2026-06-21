@@ -207,7 +207,7 @@ open class MetricsCollector(private val docker: DockerClient, private val craftp
                     if (colon < 0) return@forEach
                     val iface = trimmed.substring(0, colon)
                         .trim()
-                    if (iface == "lo") return@forEach
+                    if (iface == "lo" || iface.startsWith("veth") || iface.startsWith("br-") || iface == "docker0") return@forEach
                     val parts = trimmed.substring(colon + 1)
                         .trim()
                         .split("\\s+".toRegex())

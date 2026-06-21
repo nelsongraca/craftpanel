@@ -25,7 +25,7 @@ object Servers : Table("servers") {
     val dnsRecordId = varchar("dns_record_id", 100).nullable()
     val dnsRecordName = varchar("dns_record_name", 255).nullable()
     val configMode = varchar("config_mode", 10).default("MANAGED")  // MANAGED | MANUAL
-    val stopCommand = varchar("stop_command", 50).default("stop")
+    val stopCommand = varchar("stop_command", 64).default("stop")
     val itzgImageTag = varchar("itzg_image_tag", 100).default("latest")
     val needsRecreate = bool("needs_recreate").default(false)
     val backupSchedule = varchar("backup_schedule", 64).nullable()

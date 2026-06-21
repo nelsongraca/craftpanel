@@ -29,6 +29,7 @@ Wildcards are resolved at runtime — only explicit permission nodes are stored 
 | `GLOBAL`  | Assignment applies to all servers and networks   |
 | `SERVER`  | Assignment applies to one specific server        |
 | `NETWORK` | Assignment applies to all servers in one network |
+| `NODE`    | Assignment applies to one specific node          |
 
 ---
 
@@ -37,7 +38,7 @@ Wildcards are resolved at runtime — only explicit permission nodes are stored 
 | Column       | Type        | Description                                                     |
 |--------------|-------------|-----------------------------------------------------------------|
 | `id`         | UUID        | Primary key                                                     |
-| `name`       | VARCHAR(64) | Unique display name                                             |
+| `name`       | VARCHAR(100) | Unique display name                                             |
 | `is_system`  | BOOLEAN     | `true` = pre-defined system group; cannot be deleted or renamed |
 | `created_at` | TIMESTAMPTZ |                                                                 |
 | `updated_at` | TIMESTAMPTZ |                                                                 |
@@ -62,7 +63,7 @@ One row per permission node granted to a group.
 | Column       | Type                   | Description                   |
 |--------------|------------------------|-------------------------------|
 | `group_id`   | UUID                   | FK → `groups`, CASCADE DELETE |
-| `permission` | `permission_node` ENUM |                               |
+| `permission` | VARCHAR(100)         | Permission node string, e.g. `server.start`; validated at application layer |
 
 **Primary key:** `(group_id, permission)`
 
@@ -78,7 +79,7 @@ simultaneously.
 | `id`         | UUID                    | Primary key                                          |
 | `user_id`    | UUID                    | FK → `users`, CASCADE DELETE                         |
 | `group_id`   | UUID                    | FK → `groups`, CASCADE DELETE                        |
-| `scope_type` | `assignment_scope` ENUM | `GLOBAL`, `SERVER`, or `NETWORK`                     |
+| `scope_type` | VARCHAR(10)          | Scope type: `GLOBAL`, `SERVER`, `NETWORK`, or `NODE`                         |
 | `scope_id`   | UUID                    | `NULL` if `GLOBAL`; server or network UUID otherwise |
 | `created_at` | TIMESTAMPTZ             |                                                      |
 
