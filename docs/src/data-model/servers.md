@@ -83,10 +83,9 @@ The UI combines both — showing the server's live status alongside a migration 
 | `config_mode`        | VARCHAR(10)          | `MANAGED` or `MANUAL`                                                                                                                                            |
 | `memory_mb`          | INT                  | RAM allocated to this container                                                                                                                                  |
 | `cpu_shares`         | INT                  | Docker CPU share value; `0` = unlimited                                                                                                                          |
-| `host_port`          | INT                  | Port assigned from the node port registry; `NULL` for containers only reachable within a Docker bridge network                                                   |
+| `host_port`          | INT                  | Port assigned from the node port registry. Always set — every server currently allocates a host port at creation                                                |
 | `exposed_externally` | BOOLEAN              | Whether a public DNS A record exists for this server                                                                                                             |
-| `public_subdomain`   | VARCHAR(253)         | Chosen subdomain, e.g. `survival`; `NULL` if not exposed. Unique across all servers                                                                              |
-| `public_hostname`    | VARCHAR(255)         | Fully-qualified public hostname, e.g. `survival.mc.domain.tld`                                                                                                   |
+| `public_subdomain`   | VARCHAR(253)         | Chosen subdomain, e.g. `survival`; `NULL` if not exposed. Unique across all servers. The fully-qualified public hostname is derived at runtime from this + the base domain in system settings — not stored |
 | `dns_record_id`      | VARCHAR(100)         | DNS provider record ID; used for updates and deletion on migration or exposure toggle                                                                            |
 | `dns_record_name`    | VARCHAR(255)         | DNS provider record name as returned by the provider                                                                                                             |
 
@@ -109,11 +108,12 @@ Stores the managed-mode configuration for a server. Each row represents one itzg
 
 | Column      | Type         | Description                                                                      |
 |-------------|--------------|----------------------------------------------------------------------------------|
+| `id`        | UUID         | Primary key                                                                      |
 | `server_id` | UUID         | FK → `servers`, CASCADE DELETE                                                   |
 | `key`       | VARCHAR(128) | itzg env var name, e.g. `DIFFICULTY`, `MAX_PLAYERS`, `MOTD`                      |
 | `value`     | TEXT         | String value; numeric and boolean values stored as strings per Docker convention |
 
-**Primary key:** `(server_id, key)`
+**Primary key:** `id` &nbsp;&nbsp; **Unique constraint:** `(server_id, key)`
 
 !!! note
 Master always injects the full contents of this table into the container spec regardless of `config_mode`. In manual mode, master additionally injects `OVERRIDE_SERVER_PROPERTIES=false`, which tells

@@ -34,7 +34,7 @@ The agent collects and streams the following to master continuously, reading fro
 | CPU utilisation (per-core and aggregate)   | `/proc/stat`              |
 | RAM usage (total, used, available)         | `/proc/meminfo`           |
 | Network I/O (bytes in/out per interface)   | `/proc/net/dev`           |
-| Disk usage (total, used, free)             | `/proc/mounts` + `statfs` |
+| Disk usage (total, used, free)             | Java NIO `FileStore` (root mount) |
 | Per-container CPU, RAM, network, block I/O | Docker Stats API          |
 
 Master stores metric snapshots at **1-minute intervals** in PostgreSQL. Historical data is retained for a configurable period (default 30 days).

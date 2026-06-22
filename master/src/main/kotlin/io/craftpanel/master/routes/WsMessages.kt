@@ -50,6 +50,8 @@ data class ServerMetricsPayload(
     val ramUsedMb: Int,
     val netInBytes: Long,
     val netOutBytes: Long,
+    val blockInBytes: Long,
+    val blockOutBytes: Long,
     val recordedAt: String,
 )
 

@@ -146,7 +146,8 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, agentEvents: Share
                 sendWs(
                     WsEventType.SERVER_METRICS, ServerMetricsPayload(
                         e.serverId, e.cpuPercent, e.ramUsedMb,
-                        e.netInBytes, e.netOutBytes, e.recordedAt.toString(),
+                        e.netInBytes, e.netOutBytes,
+                        e.blockInBytes, e.blockOutBytes, e.recordedAt.toString(),
                     )
                 )
             },

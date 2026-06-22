@@ -85,14 +85,25 @@ open class MetricsCollector(private val docker: DockerClient, private val craftp
             val cache = statsConfig?.cache ?: statsConfig?.inactiveFile ?: 0L
             val ramUsedMb = ((mem.usage ?: 0L) - cache).coerceAtLeast(0L) / (1024 * 1024)
 
+            val netIn = s.networks?.values?.sumOf { it.rxBytes ?: 0L } ?: 0L
+            val netOut = s.networks?.values?.sumOf { it.txBytes ?: 0L } ?: 0L
+
+            val blkio = s.blkioStats?.ioServiceBytesRecursive.orEmpty()
+            val blockIn = blkio.filter { it.op.equals("read", ignoreCase = true) }
+                .sumOf { it.value ?: 0L }
+            val blockOut = blkio.filter { it.op.equals("write", ignoreCase = true) }
+                .sumOf { it.value ?: 0L }
+
             val now = Instant.now()
             containerMetricsUpdate {
                 this.serverId = serverId
                 recordedAt = timestamp { seconds = now.epochSecond; nanos = now.nano }
                 this.cpuPercent = cpuPct
                 this.ramUsedMb = ramUsedMb.toInt()
-                netInBytes = 0L
-                netOutBytes = 0L
+                netInBytes = netIn
+                netOutBytes = netOut
+                blockInBytes = blockIn
+                blockOutBytes = blockOut
             }
         }.getOrElse {
             log.warn("Failed to collect container metrics for $containerId", it)

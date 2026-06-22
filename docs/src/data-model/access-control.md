@@ -41,7 +41,6 @@ Wildcards are resolved at runtime — only explicit permission nodes are stored 
 | `name`       | VARCHAR(100) | Unique display name                                             |
 | `is_system`  | BOOLEAN     | `true` = pre-defined system group; cannot be deleted or renamed |
 | `created_at` | TIMESTAMPTZ |                                                                 |
-| `updated_at` | TIMESTAMPTZ |                                                                 |
 
 ### System groups
 
@@ -81,7 +80,6 @@ simultaneously.
 | `group_id`   | UUID                    | FK → `groups`, CASCADE DELETE                        |
 | `scope_type` | VARCHAR(10)          | Scope type: `GLOBAL`, `SERVER`, `NETWORK`, or `NODE`                         |
 | `scope_id`   | UUID                    | `NULL` if `GLOBAL`; server or network UUID otherwise |
-| `created_at` | TIMESTAMPTZ             |                                                      |
 
 **Unique constraint:** `(user_id, group_id, scope_type, scope_id)`
 

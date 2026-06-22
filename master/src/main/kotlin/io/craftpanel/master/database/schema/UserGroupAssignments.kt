@@ -19,5 +19,6 @@ object UserGroupAssignments : Table("user_group_assignments") {
     init {
         index(false, userId)
         index(false, groupId)
+        uniqueIndex(userId, groupId, scopeType, scopeId)
     }
 }

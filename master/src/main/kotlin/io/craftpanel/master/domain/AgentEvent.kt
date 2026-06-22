@@ -4,7 +4,10 @@ import kotlin.time.Instant
 import kotlinx.serialization.Serializable
 
 @Serializable
-enum class NodeHealth { HEALTHY, DEGRADED, UNREACHABLE }
+enum class NodeHealth {
+
+    HEALTHY, DEGRADED, UNREACHABLE
+}
 
 sealed class AgentEvent {
     data class ServerStatusEvent(
@@ -81,6 +84,8 @@ sealed class AgentEvent {
         val ramUsedMb: Int,
         val netInBytes: Long,
         val netOutBytes: Long,
+        val blockInBytes: Long,
+        val blockOutBytes: Long,
         val recordedAt: Instant,
     ) : AgentEvent()
 

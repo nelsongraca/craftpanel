@@ -262,6 +262,8 @@ class ControlServiceImpl(
                             ramUsedMb = msg.containerMetrics.ramUsedMb,
                             netInBytes = msg.containerMetrics.netInBytes,
                             netOutBytes = msg.containerMetrics.netOutBytes,
+                            blockInBytes = msg.containerMetrics.blockInBytes,
+                            blockOutBytes = msg.containerMetrics.blockOutBytes,
                             recordedAt = recordedAt,
                         )
                         runCatching { persistContainerMetrics(containerMetricEvent) }
@@ -658,6 +660,8 @@ class ControlServiceImpl(
                 it[ContainerMetrics.ramUsedMb] = event.ramUsedMb
                 it[ContainerMetrics.netInBytes] = event.netInBytes
                 it[ContainerMetrics.netOutBytes] = event.netOutBytes
+                it[ContainerMetrics.blockInBytes] = event.blockInBytes
+                it[ContainerMetrics.blockOutBytes] = event.blockOutBytes
             }
         }
     }
@@ -697,7 +701,7 @@ class ControlServiceImpl(
         // Only the transition INTO unhealthy counts as a fresh crash — repeated UNHEALTHY
         // heartbeats must not each trigger another restart.
         val crashed = newStatus == ServerStatus.UNHEALTHY &&
-            (prevStatus == ServerStatus.HEALTHY || prevStatus == ServerStatus.STARTING)
+                (prevStatus == ServerStatus.HEALTHY || prevStatus == ServerStatus.STARTING)
         if (!crashed) return
         if (mgr.recordCrashAndShouldRestart(serverId)) {
             runCatching { restartServer(serverId) }
@@ -884,7 +888,11 @@ class ControlServiceImpl(
     fun generateNodeKey(): String = CryptoUtils.generateToken(32)
 
     private fun sha256Hex(input: String): String =
-        HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(input.toByteArray()))
+        HexFormat.of()
+            .formatHex(
+                MessageDigest.getInstance("SHA-256")
+                    .digest(input.toByteArray())
+            )
 }
 
 fun mapContainerState(runState: ContainerState.RunState, dbStatus: ServerStatus): ServerStatus? = when {

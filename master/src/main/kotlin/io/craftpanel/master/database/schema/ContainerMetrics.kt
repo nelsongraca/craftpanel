@@ -13,6 +13,8 @@ object ContainerMetrics : Table("container_metrics") {
     val ramUsedMb = integer("ram_used_mb")
     val netInBytes = long("net_in_bytes")
     val netOutBytes = long("net_out_bytes")
+    val blockInBytes = long("block_in_bytes")
+    val blockOutBytes = long("block_out_bytes")
 
     override val primaryKey = PrimaryKey(id)
 

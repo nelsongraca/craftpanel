@@ -141,8 +141,8 @@ Restart follows the same stop sequence then starts the container again. Docker r
 
 ## Migration and rsync
 
-Server data is transferred between nodes using a purpose-built `craftpanel-rsync` Docker container — an Alpine-based image containing only `rsync` and `rsyncd`. The same image serves both roles (
-sender and receiver) depending on the command passed at runtime.
+Server data is transferred between nodes using an `alpine:latest` Docker container that installs `rsync` at runtime via `apk`. The same container serves both roles (sender and receiver) depending on
+the command passed at runtime. The `rsync_image` field on `PrepareRsyncReceiveCommand` and `StartRsyncCommand` overrides the image when set — point it at a pre-built image to skip the runtime install.
 
 ### Migration flow
 
