@@ -2,9 +2,16 @@ package io.craftpanel.agent.docker
 
 import com.fasterxml.jackson.databind.ObjectMapper
 import com.github.dockerjava.api.DockerClient
+import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.command.*
 import com.github.dockerjava.api.model.Container
 import com.github.dockerjava.api.model.ExposedPort
+import com.github.dockerjava.api.model.Frame
+import io.kotest.matchers.shouldBe
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.verify
+import java.util.concurrent.TimeUnit
 import io.craftpanel.proto.ContainerState
 import io.craftpanel.proto.startContainerCommand
 import io.kotest.core.spec.style.FunSpec
@@ -24,10 +31,16 @@ class ContainerManagerTest : FunSpec({
         status: String,
         id: String = "container-id",
         serverId: String? = "server-id",
+        stopCommand: String? = null,
     ): Container {
-        val labelsJson = if (serverId != null)
-            """{"craftpanel.managed":"true","craftpanel.server.id":"$serverId"}"""
-        else "{}"
+        val labelsJson = buildString {
+            append("{")
+            if (serverId != null) {
+                append(""""craftpanel.managed":"true","craftpanel.server.id":"$serverId"""")
+                if (stopCommand != null) append(""","craftpanel.stop.command":"$stopCommand"""")
+            }
+            append("}")
+        }
         val json = """{"Id":"$id","Names":["$name"],"State":"$state","Status":"$status","Labels":$labelsJson}"""
         return objectMapper.readValue(json, Container::class.java)
     }
@@ -168,6 +181,47 @@ class ContainerManagerTest : FunSpec({
         }
     }
 
+    test("createContainer stores stop.command label when stopCommand is set") {
+        val createCmd = stubCreate("c1")
+
+        manager.createContainer(startContainerCommand {
+            containerName = "craftpanel-srv"
+            serverId = "srv-1"
+            image = "itzg/minecraft-server:latest"
+            stopCommand = "stop"
+        })
+
+        verify {
+            createCmd.withLabels(
+                mapOf(
+                    "craftpanel.managed" to "true",
+                    "craftpanel.server.id" to "srv-1",
+                    "craftpanel.stop.command" to "stop",
+                )
+            )
+        }
+    }
+
+    test("createContainer does not store stop.command label when stopCommand is empty") {
+        val createCmd = stubCreate("c1")
+
+        manager.createContainer(startContainerCommand {
+            containerName = "craftpanel-srv"
+            serverId = "srv-1"
+            image = "itzg/minecraft-server:latest"
+            stopCommand = ""
+        })
+
+        verify {
+            createCmd.withLabels(
+                mapOf(
+                    "craftpanel.managed" to "true",
+                    "craftpanel.server.id" to "srv-1",
+                )
+            )
+        }
+    }
+
     // startContainer
     test("startContainer invokes docker start") {
         val startCmd = mockk<StartContainerCmd>(relaxed = true)
@@ -220,8 +274,8 @@ class ContainerManagerTest : FunSpec({
                 fakeContainer(name = "/craftpanel-b", state = "running", status = "Up", id = "c2"),
             )
         )
-        stubStop("c1")
-        stubStop("c2")
+        stubStop("craftpanel-a")
+        stubStop("craftpanel-b")
 
         val (graceful, forced) = manager.shutdownAll(10)
 
@@ -233,7 +287,7 @@ class ContainerManagerTest : FunSpec({
         stubListRunning(listOf(fakeContainer(name = "/craftpanel-a", state = "running", status = "Up", id = "c1")))
 
         val stopCmd = mockk<StopContainerCmd>(relaxed = true)
-        every { docker.stopContainerCmd("c1") } returns stopCmd
+        every { docker.stopContainerCmd("craftpanel-a") } returns stopCmd
         every { stopCmd.withTimeout(any()) } returns stopCmd
         every { stopCmd.exec() } throws RuntimeException("stop failed")
 
@@ -252,6 +306,53 @@ class ContainerManagerTest : FunSpec({
         val (graceful, forced) = manager.shutdownAll(10)
 
         graceful shouldBe 0
+        forced shouldBe 0
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    test("shutdownAll uses graceful stop with stop command from label") {
+        stubListRunning(
+            listOf(
+                fakeContainer(name = "/craftpanel-a", state = "running", status = "Up", id = "c1", stopCommand = "stop"),
+            )
+        )
+
+        val attachCmd = mockk<AttachContainerCmd>(relaxed = true)
+        every { docker.attachContainerCmd("craftpanel-a") } returns attachCmd
+        every { attachCmd.withStdIn(any()) } returns attachCmd
+        every { attachCmd.withStdOut(any()) } returns attachCmd
+        every { attachCmd.withStdErr(any()) } returns attachCmd
+        every { attachCmd.withFollowStream(any()) } returns attachCmd
+        every { attachCmd.withLogs(any()) } returns attachCmd
+        val adapter = ResultCallback.Adapter<Frame>()
+        adapter.onComplete() // pre-complete so awaitCompletion returns immediately
+        every { attachCmd.exec(any()) } returns adapter
+
+        val inspectCmd = mockk<InspectContainerCmd>(relaxed = true)
+        every { docker.inspectContainerCmd("craftpanel-a") } returns inspectCmd
+        val inspectResponse = mockk<InspectContainerResponse>(relaxed = true)
+        every { inspectCmd.exec() } returns inspectResponse
+        val state = mockk<InspectContainerResponse.ContainerState>(relaxed = true)
+        every { inspectResponse.state } returns state
+        every { state.running } returns false
+
+        val (graceful, forced) = manager.shutdownAll(10)
+
+        graceful shouldBe 1
+        forced shouldBe 0
+    }
+
+    test("shutdownAll falls back to docker stop when stop command label is absent") {
+        stubListRunning(
+            listOf(
+                fakeContainer(name = "/craftpanel-a", state = "running", status = "Up", id = "c1"),
+            )
+        )
+        stubStop("craftpanel-a")
+
+        val (graceful, forced) = manager.shutdownAll(10)
+
+        graceful shouldBe 1
         forced shouldBe 0
     }
 })

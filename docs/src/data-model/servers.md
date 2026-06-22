@@ -89,8 +89,7 @@ The UI combines both — showing the server's live status alongside a migration 
 | `public_hostname`    | VARCHAR(255)         | Fully-qualified public hostname, e.g. `survival.mc.domain.tld`                                                                                                   |
 | `dns_record_id`      | VARCHAR(100)         | DNS provider record ID; used for updates and deletion on migration or exposure toggle                                                                            |
 | `dns_record_name`    | VARCHAR(255)         | DNS provider record name as returned by the provider                                                                                                             |
-| `container_id`       | VARCHAR(64)          | Docker container ID as last reported by agent; `NULL` when stopped                                                                                               |
-| `container_name`     | TEXT                 | Stable container name; also used as the Docker bridge hostname for same-node routing                                                                             |
+
 | `last_player_count`       | INT                  | Last observed player count from Minecraft query protocol; refreshed every 60 s; `NULL` when unknown                                                   |
 | `last_player_names`       | VARCHAR(1000)        | Comma-separated string of online player names; `NULL` when unknown                                                                                    |
 | `last_player_update`      | TIMESTAMPTZ          | Timestamp of the most recent player data refresh; `NULL` if never polled                                                                              |
@@ -153,13 +152,14 @@ See the note in [Nodes](nodes.md#node_metrics) — this table shares the same ti
 
 Tracks port assignments per node. Each server that needs a host-mapped port is assigned one from the node's configured range at creation time. Ports are reclaimed when the server is deleted.
 
-| Column      | Type | Description                                                                   |
-|-------------|------|-------------------------------------------------------------------------------|
-| `node_id`   | UUID | FK → `nodes`, CASCADE DELETE                                                  |
-| `port`      | INT  | Port number                                                                   |
-| `server_id` | UUID | FK → `servers`, SET NULL on server delete — `NULL` indicates the port is free |
+| Column      | Type        | Description                                                                   |
+|-------------|-------------|-------------------------------------------------------------------------------|
+| `node_id`   | UUID        | FK → `nodes`, CASCADE DELETE                                                  |
+| `port`      | INT         | Port number                                                                   |
+| `protocol`  | VARCHAR(3)  | Transport protocol (`TCP` or `UDP`)                                           |
+| `server_id` | UUID        | FK → `servers`, SET NULL on server delete — `NULL` indicates the port is free |
 
-**Primary key:** `(node_id, port)`
+**Primary key:** `(node_id, port, protocol)`
 
 ---
 

@@ -123,6 +123,9 @@ open class ContainerManager(
                 if (cmd.publicHostname.isNotEmpty()) {
                     put("mc-router.hostname", cmd.publicHostname)
                 }
+                if (cmd.stopCommand.isNotEmpty()) {
+                    put("craftpanel.stop.command", cmd.stopCommand)
+                }
             })
             .withStdinOpen(true)
             .exec()
@@ -385,22 +388,27 @@ CONF
             .exec()
             .filter { it.labels.containsKey("craftpanel.managed") }
 
+        // Mark all as stopping first — prevents watcher from reporting unexpected deaths
+        for (container in containers) {
+            val serverId = container.labels["craftpanel.server.id"]
+            if (serverId != null) stoppingServerIds.add(serverId)
+        }
+
         var graceful = 0
         var forced = 0
 
         for (container in containers) {
             val name = container.names.firstOrNull()
                 ?.trimStart('/') ?: container.id
+            val stopCommand = container.labels["craftpanel.stop.command"] ?: ""
+
             runCatching {
-                docker.stopContainerCmd(container.id)
-                    .withTimeout(timeoutSeconds.takeIf { it > 0 } ?: 30)
-                    .exec()
+                stopContainer(name, timeoutSeconds, stopCommand)
                 graceful++
             }.onFailure {
                 log.warn("Graceful stop failed for $name — force stopping", it)
                 runCatching {
-                    docker.killContainerCmd(container.id)
-                        .exec()
+                    docker.killContainerCmd(container.id).exec()
                 }
                 forced++
             }
