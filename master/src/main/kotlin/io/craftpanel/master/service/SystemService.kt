@@ -17,6 +17,12 @@ data class SettingsMap(
     @SerialName("default_backup_max_count") val defaultBackupMaxCount: Int,
     @SerialName("default_port_range_start") val defaultPortRangeStart: Int,
     @SerialName("default_port_range_end") val defaultPortRangeEnd: Int,
+    @SerialName("restart_max_attempts") val restartMaxAttempts: Int,
+    @SerialName("restart_window_seconds") val restartWindowSeconds: Long,
+    @SerialName("rate_limit_login_per_minute") val rateLimitLoginPerMinute: Int,
+    @SerialName("rate_limit_refresh_per_minute") val rateLimitRefreshPerMinute: Int,
+    @SerialName("image_minecraft") val imageMinecraft: String,
+    @SerialName("image_proxy") val imageProxy: String,
 )
 
 @Serializable
@@ -32,6 +38,12 @@ data class PatchSettingsRequest(
     @SerialName("default_backup_max_count") val defaultBackupMaxCount: Int? = null,
     @SerialName("default_port_range_start") val defaultPortRangeStart: Int? = null,
     @SerialName("default_port_range_end") val defaultPortRangeEnd: Int? = null,
+    @SerialName("restart_max_attempts") val restartMaxAttempts: Int? = null,
+    @SerialName("restart_window_seconds") val restartWindowSeconds: Long? = null,
+    @SerialName("rate_limit_login_per_minute") val rateLimitLoginPerMinute: Int? = null,
+    @SerialName("rate_limit_refresh_per_minute") val rateLimitRefreshPerMinute: Int? = null,
+    @SerialName("image_minecraft") val imageMinecraft: String? = null,
+    @SerialName("image_proxy") val imageProxy: String? = null,
 )
 
 class SystemService {
@@ -47,6 +59,18 @@ class SystemService {
             throw UnprocessableException("metric_retention_days must be at least 1")
         if (req.defaultBackupMaxCount != null && req.defaultBackupMaxCount < 1)
             throw UnprocessableException("default_backup_max_count must be at least 1")
+        if (req.restartMaxAttempts != null && req.restartMaxAttempts < 0)
+            throw UnprocessableException("restart_max_attempts must be at least 0")
+        if (req.restartWindowSeconds != null && req.restartWindowSeconds < 1)
+            throw UnprocessableException("restart_window_seconds must be at least 1")
+        if (req.rateLimitLoginPerMinute != null && req.rateLimitLoginPerMinute < 1)
+            throw UnprocessableException("rate_limit_login_per_minute must be at least 1")
+        if (req.rateLimitRefreshPerMinute != null && req.rateLimitRefreshPerMinute < 1)
+            throw UnprocessableException("rate_limit_refresh_per_minute must be at least 1")
+        if (req.imageMinecraft != null && req.imageMinecraft.isBlank())
+            throw UnprocessableException("image_minecraft must not be blank")
+        if (req.imageProxy != null && req.imageProxy.isBlank())
+            throw UnprocessableException("image_proxy must not be blank")
 
         val updatedByKotlin = updatedBy
         transaction {
@@ -55,6 +79,12 @@ class SystemService {
                 if (req.defaultBackupMaxCount != null) put("default_backup_max_count", req.defaultBackupMaxCount.toString())
                 if (req.defaultPortRangeStart != null) put("default_port_range_start", req.defaultPortRangeStart.toString())
                 if (req.defaultPortRangeEnd != null) put("default_port_range_end", req.defaultPortRangeEnd.toString())
+                if (req.restartMaxAttempts != null) put("restart_max_attempts", req.restartMaxAttempts.toString())
+                if (req.restartWindowSeconds != null) put("restart_window_seconds", req.restartWindowSeconds.toString())
+                if (req.rateLimitLoginPerMinute != null) put("rate_limit_login_per_minute", req.rateLimitLoginPerMinute.toString())
+                if (req.rateLimitRefreshPerMinute != null) put("rate_limit_refresh_per_minute", req.rateLimitRefreshPerMinute.toString())
+                if (req.imageMinecraft != null) put("image_minecraft", req.imageMinecraft)
+                if (req.imageProxy != null) put("image_proxy", req.imageProxy)
             }
             updates.forEach { (k, v) ->
                 SystemSettings.upsert {
@@ -87,6 +117,12 @@ private fun loadSettings(): SystemSettingsResponse {
             defaultBackupMaxCount = map["default_backup_max_count"]?.toIntOrNull() ?: 10,
             defaultPortRangeStart = map["default_port_range_start"]?.toIntOrNull() ?: 25570,
             defaultPortRangeEnd = map["default_port_range_end"]?.toIntOrNull() ?: 26070,
+            restartMaxAttempts = map["restart_max_attempts"]?.toIntOrNull() ?: 5,
+            restartWindowSeconds = map["restart_window_seconds"]?.toLongOrNull() ?: 600L,
+            rateLimitLoginPerMinute = map["rate_limit_login_per_minute"]?.toIntOrNull() ?: 10,
+            rateLimitRefreshPerMinute = map["rate_limit_refresh_per_minute"]?.toIntOrNull() ?: 30,
+            imageMinecraft = map["image_minecraft"] ?: "itzg/minecraft-server",
+            imageProxy = map["image_proxy"] ?: "itzg/mc-proxy",
         ),
         updatedAt = latest?.get(SystemSettings.updatedAt)
             ?.toString(),

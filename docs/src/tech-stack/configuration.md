@@ -58,21 +58,39 @@ Supported `_FILE` variables:
 | Key                    | Env var                           | Required | Default                 | Description                                                                             |
 |------------------------|-----------------------------------|----------|-------------------------|-----------------------------------------------------------------------------------------|
 | `database.url`         | `DATABASE_URL`                    | Yes      | —                       | JDBC connection string                                                                  |
-| `database.user`        | `DATABASE_USERNAME`               | Yes      | —                       | Database user                                                                           |
+| `database.username`    | `DATABASE_USERNAME`               | Yes      | —                       | Database user                                                                           |
 | `database.password`    | `DATABASE_PASSWORD`               | Yes      | —                       | Database password                                                                       |
 | `database.poolSize`    | `DATABASE_POOL_SIZE`              | No       | `10`                    | HikariCP maximum pool size                                                              |
 | `http.port`            | `HTTP_PORT`                       | No       | `8080`                  | HTTP bind port (Ktor binds `0.0.0.0` by default; not configurable)                      |
 | `grpc.port`            | `GRPC_PORT`                       | No       | `50051`                 | gRPC bind port (server uses `forPort()` without a bind address; not configurable)       |
-| `GRPC_CERT_STORE_PATH` | `GRPC_CERT_STORE_PATH`            | No       | `/etc/craftpanel/certs` | Directory for auto-generated CA + server certs                                          |
-| `GRPC_TLS_SANS`        | `GRPC_TLS_SANS`                   | No       | —                       | Comma-separated extra SANs (add server hostname/IP)                                     |
-| `GRPC_TLS_CERT`        | `GRPC_TLS_CERT`                   | No       | —                       | BYOC: path to server cert (overrides auto-gen)                                          |
-| `GRPC_TLS_KEY`         | `GRPC_TLS_KEY`                    | No       | —                       | BYOC: path to private key (required with GRPC_TLS_CERT)                                 |
+| `grpc.certStorePath`   | `GRPC_CERT_STORE_PATH`            | No       | `/app/certs`            | Directory for auto-generated CA + server certs                                          |
+| `grpc.tlsSans`         | `GRPC_TLS_SANS`                   | No       | —                       | Comma-separated extra SANs (add server hostname/IP)                                     |
+| `grpc.tlsCertPath`     | `GRPC_TLS_CERT`                   | No       | —                       | BYOC: path to server cert (overrides auto-gen)                                          |
+| `grpc.tlsKeyPath`      | `GRPC_TLS_KEY`                    | No       | —                       | BYOC: path to private key (required with GRPC_TLS_CERT)                                 |
 | `jwt.secret`           | `JWT_SECRET`                      | Yes      | —                       | JWT signing key (min 32 bytes)                                                          |
-| `dns.provider`         | `DNS_PROVIDER`                    | Yes      | —                       | DNS provider identifier, e.g. `cloudflare`                                              |
-| `dns.api_key`          | `CF_API_TOKEN`                    | Yes      | —                       | Cloudflare API token (DNS provider API key)                                             |
-| `platform_name`        | *(system_settings DB)*            | No       | `CraftPanel`            | Platform name used in generated server MOTDs; stored in `system_settings` DB table      |
-| `restart.maxAttempts`  | `CONTAINER_RESTART_MAX_ATTEMPTS`  | No       | `5`                     | Max consecutive crash-restarts before a server is left UNHEALTHY for manual action (0 disables) |
-| `restart.windowSeconds`| `CONTAINER_RESTART_WINDOW_SECONDS`| No       | `600`                   | Rolling window (s) for counting consecutive crashes; a longer gap resets the counter            |
+| `dns.provider`         | `DNS_PROVIDER`                    | No       | `none`                  | DNS provider identifier, e.g. `cloudflare`                                              |
+| `dns.cloudflare.apiToken` | `CF_API_TOKEN`                 | No       | —                       | Cloudflare API token (required when `dns.provider=cloudflare`)                          |
+| `cors.allowedSchemes`  | `CORS_ALLOWED_SCHEMES`            | No       | `https`                 | Comma-separated allowed CORS schemes                                                    |
+| `auth.secureCookies`   | `AUTH_SECURE_COOKIES`             | No       | `true`                  | Set `Secure` flag on auth cookies (disable in dev behind plain HTTP)                    |
+| `node.bootstrapToken`  | `NODE_BOOTSTRAP_TOKEN`            | Yes      | —                       | Token agents use to register for the first time (min 16 chars)                          |
+| `node.agentDataPort`   | `AGENT_DATA_PORT`                 | No       | `50052`                 | Port for agent bulk-data transfers                                                      |
+
+## Runtime settings (DB-backed, editable in the UI)
+
+These values are stored in the `system_settings` database table and can be changed at runtime via the **Settings** page (`/settings`). They are not configurable via environment variables. Where noted, the new value takes effect after a master restart.
+
+| Setting key                   | Default                  | Description                                                                                   |
+|-------------------------------|--------------------------|-----------------------------------------------------------------------------------------------|
+| `metric_retention_days`       | `30`                     | How long node/container metric samples are kept (days)                                        |
+| `default_backup_max_count`    | `10`                     | Default maximum number of backups to keep per server                                          |
+| `default_port_range_start`    | `25570`                  | Lower bound of the host-port pool for new servers                                             |
+| `default_port_range_end`      | `26070`                  | Upper bound of the host-port pool for new servers                                             |
+| `restart_max_attempts`        | `5`                      | Max consecutive crash-restarts before leaving a server UNHEALTHY (0 disables). **Restart required.** |
+| `restart_window_seconds`      | `600`                    | Rolling window (s) for counting crashes; a gap longer than this resets the counter. **Restart required.** |
+| `rate_limit_login_per_minute` | `10`                     | Max login attempts per client per minute. **Restart required.**                               |
+| `rate_limit_refresh_per_minute` | `30`                   | Max token-refresh calls per client per minute. **Restart required.**                          |
+| `image_minecraft`             | `itzg/minecraft-server`  | Base Docker image for Minecraft servers. **Restart required.**                                |
+| `image_proxy`                 | `itzg/mc-proxy`          | Base Docker image for proxy servers (BungeeCord/Velocity/Waterfall). **Restart required.**    |
 
 !!! warning
 Never store secrets in the config file in production. Use environment variables or the `_FILE` secret pattern instead.

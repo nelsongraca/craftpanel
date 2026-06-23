@@ -4,6 +4,7 @@ import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.RefreshTokenService
 import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.config.AppConfig
+import io.craftpanel.master.config.ImagesConfig
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.ControlServiceImpl
@@ -31,8 +32,11 @@ import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
 val appModule = module {
-    // App-owned crash restart
-    single { ServerRestartManager(get<AppConfig>().restart.maxAttempts, get<AppConfig>().restart.windowSeconds) }
+    // App-owned crash restart — parameters read from DB settings at startup (takes effect on restart)
+    single {
+        val s = get<SystemService>().getSettings().settings
+        ServerRestartManager(s.restartMaxAttempts, s.restartWindowSeconds)
+    }
 
     // gRPC core
     single<AgentGateway> { get<ControlServiceImpl>() }
@@ -63,19 +67,23 @@ val appModule = module {
     single { ModService() }
 
     single {
+        val s = get<SystemService>().getSettings().settings
+        val images = ImagesConfig(s.imageMinecraft, s.imageProxy)
         ContainerLifecycle(
             gateway = get<AgentGateway>(),
             modService = get(),
-            images = get<AppConfig>().images,
+            images = images,
             containerNamePrefix = get(named("containerPrefix")),
         )
     }
     single {
+        val s = get<SystemService>().getSettings().settings
+        val images = ImagesConfig(s.imageMinecraft, s.imageProxy)
         ServerService(
             gateway = get<AgentGateway>(),
             modService = get(),
             dnsProvider = get<DnsProviderHolder>().provider,
-            images = get<AppConfig>().images,
+            images = images,
             containerNamePrefix = get(named("containerPrefix")),
             lifecycle = get(),
         )

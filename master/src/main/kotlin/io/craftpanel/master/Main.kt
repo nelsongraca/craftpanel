@@ -16,6 +16,7 @@ import io.craftpanel.master.scheduler.ServerScheduler
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.ServerStatus
+import io.craftpanel.master.service.SystemService
 import io.craftpanel.master.service.BadGatewayException
 import io.craftpanel.master.service.BadRequestException
 import io.craftpanel.master.service.ConflictException
@@ -86,6 +87,8 @@ fun Application.module() {
     if (appConfig.adminSeed.enabled) {
         transaction { seedAdminUser(appConfig.adminSeed.email, appConfig.adminSeed.password, appConfig.adminSeed.username) }
     }
+
+    val startupSettings = SystemService().getSettings().settings
 
     val appScope: CoroutineScope = this
     val dnsProvider: DnsProvider? = DnsProviderFactory.create(appConfig.dns)
@@ -189,10 +192,10 @@ fun Application.module() {
 
     install(RateLimit) {
         register(RateLimitName("auth-login")) {
-            rateLimiter(limit = appConfig.rateLimit.loginPerMinute, refillPeriod = 1.minutes)
+            rateLimiter(limit = startupSettings.rateLimitLoginPerMinute, refillPeriod = 1.minutes)
         }
         register(RateLimitName("auth-refresh")) {
-            rateLimiter(limit = appConfig.rateLimit.refreshPerMinute, refillPeriod = 1.minutes)
+            rateLimiter(limit = startupSettings.rateLimitRefreshPerMinute, refillPeriod = 1.minutes)
         }
     }
 

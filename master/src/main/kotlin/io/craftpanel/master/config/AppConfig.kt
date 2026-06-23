@@ -62,19 +62,15 @@ data class ImagesConfig(
     val minecraftImage: String,
     val proxyImage: String,
 ) {
+
     fun deriveImage(serverType: String, tag: String): String {
         val base = when (serverType) {
             "BUNGEECORD", "VELOCITY", "WATERFALL" -> proxyImage
-            else -> minecraftImage
+            else                                  -> minecraftImage
         }
         return if (':' in base) base else "$base:$tag"
     }
 }
-
-data class RestartConfig(
-    val maxAttempts: Int,
-    val windowSeconds: Long,
-)
 
 data class AdminSeedConfig(
     val email: String,
@@ -97,7 +93,8 @@ class AppConfig(config: ApplicationConfig) {
             .getString(),
         password = secretFromFileOrValue(
             "DATABASE_PASSWORD",
-            config.property("database.password").getString(),
+            config.property("database.password")
+                .getString(),
         ),
         maximumPoolSize = config.property("database.maximumPoolSize")
             .getString()
@@ -106,7 +103,8 @@ class AppConfig(config: ApplicationConfig) {
     val jwt = JwtConfig(
         secret = secretFromFileOrValue(
             "JWT_SECRET",
-            config.property("jwt.secret").getString(),
+            config.property("jwt.secret")
+                .getString(),
         ),
         issuer = config.property("jwt.issuer")
             .getString(),
@@ -135,7 +133,8 @@ class AppConfig(config: ApplicationConfig) {
     val node = NodeConfig(
         bootstrapToken = secretFromFileOrValue(
             "NODE_BOOTSTRAP_TOKEN",
-            config.property("node.bootstrapToken").getString(),
+            config.property("node.bootstrapToken")
+                .getString(),
         ),
         agentDataPort = config.property("node.agentDataPort")
             .getString()
@@ -148,7 +147,8 @@ class AppConfig(config: ApplicationConfig) {
             ?.getString() ?: "none",
         cloudflareApiToken = secretFromFileOrValue(
             "CF_API_TOKEN",
-            config.propertyOrNull("dns.cloudflare.apiToken")?.getString() ?: "",
+            config.propertyOrNull("dns.cloudflare.apiToken")
+                ?.getString() ?: "",
         ),
     )
     val cors = CorsConfig(
@@ -189,16 +189,6 @@ class AppConfig(config: ApplicationConfig) {
             ?.getString() ?: "itzg/minecraft-server",
         proxyImage = config.propertyOrNull("images.proxyImage")
             ?.getString() ?: "itzg/mc-proxy",
-    )
-    val restart = RestartConfig(
-        maxAttempts = config.propertyOrNull("restart.maxAttempts")
-            ?.getString()
-            ?.toIntOrNull()
-            ?.coerceAtLeast(0) ?: 5,
-        windowSeconds = config.propertyOrNull("restart.windowSeconds")
-            ?.getString()
-            ?.toLongOrNull()
-            ?.coerceAtLeast(1) ?: 600,
     )
 
     fun validate() {
