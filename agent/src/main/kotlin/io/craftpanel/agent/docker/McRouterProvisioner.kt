@@ -59,6 +59,10 @@ class McRouterProvisioner(
         val id = try {
             docker.createContainerCmd(image)
                 .withName(containerName)
+                // IN_DOCKER=true subscribes mc-router to the Docker event stream so it reads
+                // per-container `mc-router.host`/`mc-router.port`/`mc-router.network` labels.
+                // Without it the mounted docker socket is never used and labels are ignored.
+                .withEnv("IN_DOCKER=true")
                 .withHostConfig(hostConfig)
                 .withLabels(mapOf("craftpanel.managed" to "true"))
                 .exec().id

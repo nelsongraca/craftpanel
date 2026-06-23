@@ -43,16 +43,22 @@ class ServerHelper(private val api: DefaultApi) {
         }
     }
 
-    suspend fun createTestServer(nodeId: String, memoryMb: Int = 512, cpuShares: Int = 0): String {
+    suspend fun createTestServer(
+        nodeId: String,
+        memoryMb: Int = 512,
+        cpuShares: Int = 0,
+        networkId: String? = null,
+    ): String {
         val response = api.createServer(
             CreateServerRequest(
-                name = "test-${System.currentTimeMillis()}",
+                name = "test-${System.currentTimeMillis()}-${Random.nextInt(100000)}",
                 nodeId = nodeId,
                 serverType = "PAPER",
                 mcVersion = "1.21.4",
                 itzgImageTag = "latest",
                 memoryMb = memoryMb,
                 cpuShares = cpuShares,
+                networkId = networkId,
             )
         )
         return response.id

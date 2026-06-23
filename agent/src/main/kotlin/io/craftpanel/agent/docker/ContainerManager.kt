@@ -121,7 +121,16 @@ open class ContainerManager(
                 put("craftpanel.managed", "true")
                 put("craftpanel.server.id", cmd.serverId)
                 if (cmd.publicHostname.isNotEmpty()) {
-                    put("mc-router.hostname", cmd.publicHostname)
+                    // mc-router auto-discovery labels (https://github.com/itzg/mc-router).
+                    // `mc-router.host` is the routing hostname; `mc-router.port` is the
+                    // container-internal Minecraft port; `mc-router.network` tells mc-router
+                    // which Docker network to dial the backend on (the shared craftpanel
+                    // network both mc-router and this container are attached to).
+                    put("mc-router.host", cmd.publicHostname)
+                    put("mc-router.port", "25565")
+                    if (craftpanelNetwork.isNotEmpty()) {
+                        put("mc-router.network", craftpanelNetwork)
+                    }
                 }
                 if (cmd.stopCommand.isNotEmpty()) {
                     put("craftpanel.stop.command", cmd.stopCommand)

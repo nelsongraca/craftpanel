@@ -73,9 +73,21 @@ Each server has an **expose externally** toggle. When enabled:
 1. The user chooses a subdomain (e.g. `survival`) — master validates it is unique
 2. The public hostname becomes `survival.mc.domain.tld`
 3. Master creates an A record via the DNS provider API (Cloudflare recommended, TTL 60 seconds) pointing to the current node's IP
-4. The mc-router label `mc-router.hostname=survival.mc.domain.tld` is set on the container
+4. The mc-router label `mc-router.host=survival.mc.domain.tld` is set on the container
 5. mc-router on the node picks up the label and begins routing that hostname to the container
 6. The public hostname is shown on the server detail page for users to add to their Minecraft client
+
+### mc-router auto-discovery labels
+
+mc-router runs with `IN_DOCKER=true` so it subscribes to the Docker event stream and routes by these container labels (set by the agent at container creation):
+
+| Label | Value | Purpose |
+|---|---|---|
+| `mc-router.host` | the public hostname(s) | routing hostname; comma-separated for multiple hostnames |
+| `mc-router.port` | `25565` | container-internal Minecraft port |
+| `mc-router.network` | the `craftpanel` network name | which Docker network mc-router dials the backend on |
+
+The label key is `mc-router.host` (not `hostname`) and `IN_DOCKER=true` is required — without it the mounted Docker socket is unused and labels are ignored.
 
 When expose is disabled, no public DNS record exists. The server is reachable only within its Docker network or by node IP + port (used for cross-node proxy easy-mode configuration).
 
