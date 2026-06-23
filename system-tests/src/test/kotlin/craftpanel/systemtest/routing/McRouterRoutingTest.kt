@@ -2,8 +2,10 @@ package craftpanel.systemtest.routing
 
 import craftpanel.systemtest.client.model.CreateNetworkRequest
 import craftpanel.systemtest.client.model.EnvVarItem
+import craftpanel.systemtest.client.model.NetworkType
 import craftpanel.systemtest.client.model.PatchExposureRequest
 import craftpanel.systemtest.client.model.PutEnvVarsRequest
+import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.SharedStack
 import io.kotest.matchers.shouldBe
@@ -60,7 +62,7 @@ class McRouterRoutingTest : BaseSystemTest() {
             val network = api.createNetwork(
                 CreateNetworkRequest(
                     name = "mcrouter-net-${System.currentTimeMillis()}",
-                    type = "NORMAL",
+                    type = NetworkType.VANILLA,
                     domainSuffix = domainSuffix,
                 )
             )
@@ -117,7 +119,7 @@ class McRouterRoutingTest : BaseSystemTest() {
             PatchExposureRequest(exposedExternally = true, publicSubdomain = subdomain)
         )
         api.startServer(serverId)
-        helper.awaitStatus(serverId, "HEALTHY")
+        helper.awaitStatus(serverId, ServerStatus.HEALTHY)
         return serverId
     }
 
