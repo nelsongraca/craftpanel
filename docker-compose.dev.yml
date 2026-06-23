@@ -27,12 +27,12 @@ services:
     ports:
       - "50051:50051"
     environment:
-      CRAFTPANEL_DATABASE_URL: jdbc:postgresql://db:5432/craftpanel
-      CRAFTPANEL_DATABASE_USER: craftpanel
-      CRAFTPANEL_DATABASE_PASSWORD: craftpanel
-      CRAFTPANEL_JWT_SECRET: dev-secret-change-me-in-production
+      DATABASE_URL: jdbc:postgresql://db:5432/craftpanel
+      DATABASE_USERNAME: craftpanel
+      DATABASE_PASSWORD: craftpanel
+      JWT_SECRET: dev-secret-change-me-in-production
       NODE_BOOTSTRAP_TOKEN: devtoken
-      APP_PROFILE: dev
+      CRAFTPANEL_PROFILE: dev
     depends_on:
       - db
     labels:
