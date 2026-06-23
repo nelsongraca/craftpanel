@@ -30,12 +30,15 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
 
             if (disposed || !containerRef.current) return;
 
+            const css = getComputedStyle(document.documentElement);
+            const v = (name: string) => css.getPropertyValue(name).trim();
+
             term = new Terminal({
                 theme: {
-                    background: "#0e0d0c",
-                    foreground: "#f5f0e8",
-                    cursor: "#d97706",
-                    selectionBackground: "rgba(217,119,6,0.3)",
+                    background: v("--bg"),
+                    foreground: v("--text-primary"),
+                    cursor: v("--accent"),
+                    selectionBackground: v("--terminal-selection"),
                 },
                 fontFamily: "var(--font-mono, 'JetBrains Mono', monospace)",
                 fontSize: 13,
