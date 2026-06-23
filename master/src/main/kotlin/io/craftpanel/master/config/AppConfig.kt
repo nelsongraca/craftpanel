@@ -95,15 +95,19 @@ class AppConfig(config: ApplicationConfig) {
             .getString(),
         username = config.property("database.username")
             .getString(),
-        password = config.property("database.password")
-            .getString(),
+        password = secretFromFileOrValue(
+            "DATABASE_PASSWORD",
+            config.property("database.password").getString(),
+        ),
         maximumPoolSize = config.property("database.maximumPoolSize")
             .getString()
             .toInt(),
     )
     val jwt = JwtConfig(
-        secret = config.property("jwt.secret")
-            .getString(),
+        secret = secretFromFileOrValue(
+            "JWT_SECRET",
+            config.property("jwt.secret").getString(),
+        ),
         issuer = config.property("jwt.issuer")
             .getString(),
         audience = config.property("jwt.audience")
@@ -129,8 +133,10 @@ class AppConfig(config: ApplicationConfig) {
             ?.filter { it.isNotEmpty() } ?: emptyList(),
     )
     val node = NodeConfig(
-        bootstrapToken = config.property("node.bootstrapToken")
-            .getString(),
+        bootstrapToken = secretFromFileOrValue(
+            "NODE_BOOTSTRAP_TOKEN",
+            config.property("node.bootstrapToken").getString(),
+        ),
         agentDataPort = config.property("node.agentDataPort")
             .getString()
             .toIntOrNull() ?: 50052,
@@ -140,8 +146,10 @@ class AppConfig(config: ApplicationConfig) {
     val dns = DnsConfig(
         provider = config.propertyOrNull("dns.provider")
             ?.getString() ?: "none",
-        cloudflareApiToken = config.propertyOrNull("dns.cloudflare.apiToken")
-            ?.getString() ?: "",
+        cloudflareApiToken = secretFromFileOrValue(
+            "CF_API_TOKEN",
+            config.propertyOrNull("dns.cloudflare.apiToken")?.getString() ?: "",
+        ),
     )
     val cors = CorsConfig(
         allowedHosts = config.propertyOrNull("cors.allowedHosts")

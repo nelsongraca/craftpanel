@@ -1,52 +1,28 @@
 # Configuration & Secrets
 
-CraftPanel master is configured through a layered system: a config file provides defaults, environment variables override any file value, and sensitive values can be supplied as mounted secret files.
+CraftPanel master is configured through a layered system: a bundled HOCON config file provides defaults, environment variables override any default, and sensitive values can be supplied as mounted secret files.
 
 ## Precedence
+
+For secrets (`JWT_SECRET`, `DATABASE_PASSWORD`, `CF_API_TOKEN`, `NODE_BOOTSTRAP_TOKEN`):
 
 ```
 Secret file (_FILE env var)  ← highest priority
   ↓
 Environment variable
   ↓
-Config file (craftpanel.conf / application.yaml)
-  ↓
 Built-in default              ← lowest priority
 ```
 
+For all other values: environment variable, else built-in default.
+
 ## Config file
 
-The config file is `craftpanel.conf` (YAML format), located at a path passed via the `--config` flag or the `CRAFTPANEL_CONFIG` environment variable. Example:
-
-```yaml
-database:
-  url: jdbc:postgresql://localhost:5432/craftpanel
-  username: craftpanel
-
-http:
-  port: 8080
-
-grpc:
-  port: 50051
-  # cert_store: /etc/craftpanel/certs   # where auto-generated CA+server certs are persisted
-  # tls_sans: master.example.com,10.0.0.1  # extra SANs for auto-generated cert
-  # Bring-your-own-cert (overrides auto-gen):
-  # tls:
-  #   cert: /etc/craftpanel/tls/grpc.crt
-  #   key: /etc/craftpanel/tls/grpc.key
-
-jwt:
-  # key loaded from secret file in production — see below
-  secret: changeme
-
-dns:
-  provider: cloudflare
-  # api_key loaded from secret file in production
-```
+Master uses Ktor's bundled HOCON config, `application.conf` (packaged inside the master distribution — not a user-supplied file). It defines defaults and wires each value to an optional environment-variable override via HOCON `${?ENV_VAR}` syntax. There is no external config-file path, `--config` flag, or `CRAFTPANEL_CONFIG` variable — override values through environment variables (and `_FILE` for secrets).
 
 ## Environment variables
 
-Every config file key can be overridden by an environment variable using the key name uppercased with underscores. The config file uses HOCON `${?ENV_VAR}` syntax, where `?` means the variable is optional. Examples of documented env vars:
+Each `application.conf` value can be overridden by its environment variable. Examples:
 
 | Config file key     | Environment variable |
 |---------------------|----------------------|
@@ -58,8 +34,7 @@ Every config file key can be overridden by an environment variable using the key
 
 ## Secrets (`_FILE` pattern)
 
-For sensitive values, a `_FILE` variant of any environment variable is supported. When set, master reads the value from the specified file path rather than the environment variable directly. This is
-compatible with Docker secrets and Kubernetes secret mounts.
+For the four secret values, a `_FILE` variant of the environment variable is supported. When `<NAME>_FILE` is set, master reads the secret from that file path (contents trimmed) instead of the plain environment variable — compatible with Docker secrets and Kubernetes secret mounts. A `_FILE` path that is set but unreadable is fatal (fail loud rather than silently fall back).
 
 ```bash
 # Instead of:
@@ -71,11 +46,12 @@ DATABASE_PASSWORD_FILE=/run/secrets/db_password
 
 Supported `_FILE` variables:
 
-| Variable                      | Description          |
-|-------------------------------|----------------------|
-| `DATABASE_PASSWORD_FILE`      | PostgreSQL password  |
-| `JWT_SECRET_FILE`             | JWT signing key      |
-| `CF_API_TOKEN_FILE`           | DNS provider API key |
+| Variable                      | Description                                    |
+|-------------------------------|------------------------------------------------|
+| `DATABASE_PASSWORD_FILE`      | PostgreSQL password                            |
+| `JWT_SECRET_FILE`             | JWT signing key                                |
+| `CF_API_TOKEN_FILE`           | DNS provider (Cloudflare) API key              |
+| `NODE_BOOTSTRAP_TOKEN_FILE`   | Node registration bootstrap token (master and agent both read it) |
 
 ## All configuration keys
 

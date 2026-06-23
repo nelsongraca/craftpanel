@@ -61,7 +61,7 @@ data class AgentConfig(
                 ?.toIntOrNull() ?: 8080,
             tlsCertPath = System.getenv("GRPC_TLS_CERT") ?: "",
             caCertFilePath = System.getenv("GRPC_CA_CERT_FILE") ?: "/app/config/grpc-ca.crt",
-            bootstrapToken = System.getenv("NODE_BOOTSTRAP_TOKEN") ?: "changeme",
+            bootstrapToken = secretFromFileOrEnv("NODE_BOOTSTRAP_TOKEN", "changeme"),
             keyFilePath = System.getenv("NODE_KEY_FILE") ?: "/app/config/node.key",
             dockerSocketPath = System.getenv("DOCKER_SOCKET") ?: "unix:///var/run/docker.sock",
             agentVersion = System.getenv("AGENT_VERSION") ?: "dev",
