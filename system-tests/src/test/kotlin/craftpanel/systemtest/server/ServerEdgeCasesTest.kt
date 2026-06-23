@@ -1,5 +1,6 @@
 package craftpanel.systemtest.server
 
+import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -25,7 +26,7 @@ class ServerEdgeCasesTest : BaseSystemTest() {
 
                 should("deleting a HEALTHY server returns 409") {
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY")
+                    helper.awaitStatus(serverId, ServerStatus.HEALTHY)
                     val ex = shouldThrow<ClientException> { api.deleteServer(serverId) }
                     ex.statusCode shouldBe 409
                 }
@@ -38,7 +39,7 @@ class ServerEdgeCasesTest : BaseSystemTest() {
 
                 should("stop then delete succeeds") {
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY")
+                    helper.awaitStatus(serverId, ServerStatus.HEALTHY)
                     api.stopServer(serverId)
                     helper.awaitStoppedOrGone(serverId)
                     api.deleteServer(serverId)
@@ -60,11 +61,11 @@ class ServerEdgeCasesTest : BaseSystemTest() {
 
                 should("restarting a HEALTHY server transitions through STOPPING to HEALTHY") {
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY")
+                    helper.awaitStatus(serverId, ServerStatus.HEALTHY)
 
                     api.restartServer(serverId)
 
-                    val afterRestart = helper.awaitStatus(serverId, "HEALTHY", timeoutMs = 120_000)
+                    val afterRestart = helper.awaitStatus(serverId, ServerStatus.HEALTHY, timeoutMs = 120_000)
                     afterRestart.status shouldBe "HEALTHY"
                 }
 

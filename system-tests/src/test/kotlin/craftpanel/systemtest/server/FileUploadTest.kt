@@ -1,5 +1,6 @@
 package craftpanel.systemtest.server
 
+import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.core.annotation.Isolate
 import io.kotest.matchers.collections.shouldContain
@@ -16,7 +17,7 @@ class FileUploadTest : BaseSystemTest() {
         beforeSpec {
             serverId = helper.createTestServer(nodeId)
             api.startServer(serverId)
-            helper.awaitStatus(serverId, "HEALTHY")
+            helper.awaitStatus(serverId, ServerStatus.HEALTHY)
         }
 
         afterSpec {

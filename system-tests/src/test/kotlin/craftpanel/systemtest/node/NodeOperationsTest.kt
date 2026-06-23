@@ -1,6 +1,7 @@
 package craftpanel.systemtest.node
 
 import craftpanel.systemtest.client.model.PatchNodeRequest
+import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.SharedStack
 import io.kotest.assertions.throwables.shouldThrow
@@ -169,7 +170,7 @@ class NodeOperationsTest : BaseSystemTest() {
                         var attempts = 0
                         while (attempts < 30) {
                             val s = api.getServer(serverId)
-                            if (s.status != "STOPPED") return@runCatching
+                            if (s.status != ServerStatus.STOPPED) return@runCatching
                             Thread.sleep(500)
                             attempts++
                         }

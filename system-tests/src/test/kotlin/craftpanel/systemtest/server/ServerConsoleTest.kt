@@ -1,5 +1,6 @@
 package craftpanel.systemtest.server
 
+import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.matchers.shouldBe
 import okhttp3.*
@@ -18,7 +19,7 @@ class ServerConsoleTest : BaseSystemTest() {
         beforeSpec {
             serverId = helper.createTestServer(nodeId)
             api.startServer(serverId)
-            helper.awaitStatus(serverId, "HEALTHY")
+            helper.awaitStatus(serverId, ServerStatus.HEALTHY)
         }
 
         afterSpec {

@@ -1,5 +1,6 @@
 package craftpanel.systemtest.server
 
+import craftpanel.systemtest.client.model.ServerStatus
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.exception.NotFoundException
@@ -29,7 +30,7 @@ class ServerLifecycleTest : BaseSystemTest() {
             afterContainer {
                 runCatching {
                     api.stopServer(serverId)
-                    helper.awaitStatus(serverId, "STOPPED")
+                    helper.awaitStatus(serverId, ServerStatus.STOPPED)
                     api.deleteServer(serverId)
                 }
                 helper.awaitStoppedOrGone(serverId)
@@ -58,7 +59,7 @@ class ServerLifecycleTest : BaseSystemTest() {
 
                 should("starting a STOPPED server transitions it to STARTING then HEALTHY") {
                     api.startServer(serverId)
-                    val server = helper.awaitStatus(serverId, "HEALTHY")
+                    val server = helper.awaitStatus(serverId, ServerStatus.HEALTHY)
                     helper.awaitContainerLog(containerName(serverId), "stdin listener ready", docker, 15_000)
                     server.status shouldBe "HEALTHY"
                 }
@@ -89,7 +90,7 @@ class ServerLifecycleTest : BaseSystemTest() {
 
                 should("deleting a RUNNING server returns 409") {
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY")
+                    helper.awaitStatus(serverId, ServerStatus.HEALTHY)
                     val ex = shouldThrow<ClientException> { api.deleteServer(serverId) }
                     ex.statusCode shouldBe 409
                 }
@@ -111,7 +112,7 @@ class ServerLifecycleTest : BaseSystemTest() {
 
                 should("stopping a HEALTHY server transitions it to STOPPED") {
                     api.startServer(serverId)
-                    val response = helper.awaitStatus(serverId, "HEALTHY")
+                    val response = helper.awaitStatus(serverId, ServerStatus.HEALTHY)
                     response.status shouldBe "HEALTHY"
                     api.stopServer(serverId)
                     helper.awaitStoppedOrGone(serverId)

@@ -1,6 +1,8 @@
 package craftpanel.systemtest.server
 
 import craftpanel.systemtest.client.model.CreateModRequest
+import craftpanel.systemtest.client.model.ServerStatus
+import craftpanel.systemtest.client.model.ModPinStrategy
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.matchers.collections.shouldContain
@@ -17,7 +19,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
         beforeSpec {
             serverId = helper.createTestServer(nodeId)
             api.startServer(serverId)
-            helper.awaitStatus(serverId, "HEALTHY")
+            helper.awaitStatus(serverId, ServerStatus.HEALTHY)
             helper.awaitContainerLog(containerName(serverId), "stdin listener ready", docker)
         }
 
@@ -54,7 +56,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                         CreateModRequest(
                             modrinthProjectId = "lithium",
                             displayName = "Lithium",
-                            pinStrategy = "PINNED",
+                            pinStrategy = ModPinStrategy.PINNED,
                             pinnedVersionId = "mc1.21-0.13.0",
                         )
                     )
@@ -75,7 +77,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                         CreateModRequest(
                             modrinthProjectId = "lithium",
                             displayName = "Lithium",
-                            pinStrategy = "PINNED",
+                            pinStrategy = ModPinStrategy.PINNED,
                             pinnedVersionId = "mc1.21-0.13.0",
                         )
                     )
@@ -84,7 +86,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                         CreateModRequest(
                             modrinthProjectId = "sodium",
                             displayName = "Sodium",
-                            pinStrategy = "PINNED",
+                            pinStrategy = ModPinStrategy.PINNED,
                             pinnedVersionId = "mc1.21-0.5.0",
                         )
                     )
@@ -110,7 +112,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                         CreateModRequest(
                             modrinthProjectId = "lithium",
                             displayName = "Lithium",
-                            pinStrategy = "PINNED",
+                            pinStrategy = ModPinStrategy.PINNED,
                             pinnedVersionId = "mc1.21-0.13.0",
                         )
                     )
@@ -119,7 +121,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                         CreateModRequest(
                             modrinthProjectId = "sodium",
                             displayName = "Sodium",
-                            pinStrategy = "PINNED",
+                            pinStrategy = ModPinStrategy.PINNED,
                             pinnedVersionId = "mc1.21-0.5.0",
                         )
                     )
@@ -153,7 +155,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                         CreateModRequest(
                             modrinthProjectId = "lithium",
                             displayName = "Lithium",
-                            pinStrategy = "LATEST",
+                            pinStrategy = ModPinStrategy.LATEST,
                         )
                     )
 
@@ -185,7 +187,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
         var interval = 100L
         while (System.currentTimeMillis() < phase1Deadline) {
             val status = runCatching { api.getServer(serverId).status }.getOrNull()
-            if (status != "HEALTHY") break
+            if (status != ServerStatus.HEALTHY) break
             val jitter = Random.nextLong(-(interval / 5), interval / 5 + 1)
             delay((interval + jitter).coerceAtLeast(50))
             interval = (interval * 1.5).toLong()
@@ -193,6 +195,6 @@ class ModrinthInjectionTest : BaseSystemTest() {
         }
 
         // Phase 2: wait for server to return to HEALTHY
-        helper.awaitStatus(serverId, "HEALTHY", phaseTimeoutMs)
+        helper.awaitStatus(serverId, ServerStatus.HEALTHY, phaseTimeoutMs)
     }
 }

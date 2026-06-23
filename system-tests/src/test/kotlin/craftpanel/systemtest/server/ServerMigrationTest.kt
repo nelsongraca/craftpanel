@@ -3,6 +3,8 @@ package craftpanel.systemtest.server
 import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.client.model.MigrateRequest
 import craftpanel.systemtest.client.model.MigrationResponse
+import craftpanel.systemtest.client.model.ServerStatus
+import craftpanel.systemtest.client.model.MigrationStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.SharedStack
 import craftpanel.systemtest.harness.pollUntilNotNull
@@ -61,9 +63,9 @@ class ServerMigrationTest : BaseSystemTest() {
                 response.status shouldBe "PENDING"
 
                 val migration = pollMigrationStatus(api, response.id, 180_000)
-                val isTerminal = migration.status == "COMPLETED" || migration.status == "FAILED"
+                val isTerminal = migration.status == MigrationStatus.COMPLETED || migration.status == MigrationStatus.FAILED
                 if (!isTerminal) throw AssertionError("Expected terminal status but got ${migration.status}")
-                if (migration.status == "FAILED") {
+                if (migration.status == MigrationStatus.FAILED) {
                     println("[warn] Migration FAILED: ${migration.steps.lastOrNull()?.errorMessage}")
                 }
 
@@ -87,9 +89,9 @@ class ServerMigrationTest : BaseSystemTest() {
                 pollMigrationStatus(api, migrateResp.id, 180_000)
 
                 api.stopServer(serverId)
-                helper.awaitStatus(serverId, "STOPPED", timeoutMs = 60_000)
+                helper.awaitStatus(serverId, ServerStatus.STOPPED, timeoutMs = 60_000)
                 api.startServer(serverId)
-                helper.awaitStatus(serverId, "HEALTHY", timeoutMs = 120_000)
+                helper.awaitStatus(serverId, ServerStatus.HEALTHY, timeoutMs = 120_000)
             }
 
             should("receives migration progress events via WebSocket") {
@@ -163,7 +165,7 @@ class ServerMigrationTest : BaseSystemTest() {
                 val serverId = helper.createTestServer(sourceNodeId)
                     .also { serverIds.add(it) }
                 api.startServer(serverId)
-                helper.awaitStatus(serverId, "HEALTHY")
+                helper.awaitStatus(serverId, ServerStatus.HEALTHY)
 
                 val response = api.startMigration(
                     serverId,
@@ -210,7 +212,7 @@ class ServerMigrationTest : BaseSystemTest() {
     ): MigrationResponse {
         return pollUntilNotNull(timeoutMs) {
             api.getMigration(migrationId)
-                .takeIf { it.status == "COMPLETED" || it.status == "FAILED" }
+                .takeIf { it.status == MigrationStatus.COMPLETED || it.status == MigrationStatus.FAILED }
         } ?: error("Migration $migrationId did not reach terminal state within ${timeoutMs}ms")
     }
 }

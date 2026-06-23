@@ -1,6 +1,8 @@
 package craftpanel.systemtest.config
 
 import craftpanel.systemtest.client.model.*
+import craftpanel.systemtest.client.model.ServerStatus
+import craftpanel.systemtest.client.model.ConfigMode
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
@@ -18,7 +20,7 @@ class ConfigTest : BaseSystemTest() {
         beforeSpec {
             serverId = helper.createTestServer(nodeId)
             api.startServer(serverId)
-            helper.awaitStatus(serverId, "HEALTHY")
+            helper.awaitStatus(serverId, ServerStatus.HEALTHY)
             serverId2 = helper.createTestServer(nodeId, memoryMb = 512, cpuShares = 128)
         }
         afterSpec {
@@ -78,7 +80,7 @@ class ConfigTest : BaseSystemTest() {
             }
 
             should("updates config mode") {
-                api.updateConfigMode(serverId, PatchConfigModeRequest(configMode = "MANAGED"))
+                api.updateConfigMode(serverId, PatchConfigModeRequest(configMode = ConfigMode.MANAGED))
                 val server = api.getServer(serverId)
                 server.configMode shouldBe "MANAGED"
             }

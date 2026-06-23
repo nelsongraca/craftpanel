@@ -2,6 +2,7 @@ package craftpanel.systemtest.network
 
 import craftpanel.systemtest.client.model.CreateNetworkRequest
 import craftpanel.systemtest.client.model.PatchNetworkRequest
+import craftpanel.systemtest.client.model.NetworkType
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
@@ -21,7 +22,7 @@ class NetworkTest : BaseSystemTest() {
                 val network = api.createNetwork(
                     CreateNetworkRequest(
                         name = networkName,
-                        type = "NORMAL"
+                        type = NetworkType.VANILLA
                     )
                 )
                 createdNetworkId = network.id
@@ -54,9 +55,9 @@ class NetworkTest : BaseSystemTest() {
 
             should("creating a network with duplicate name returns 409") {
                 val name = "unique-network-${System.currentTimeMillis()}"
-                api.createNetwork(CreateNetworkRequest(name = name, type = "NORMAL"))
+                api.createNetwork(CreateNetworkRequest(name = name, type = NetworkType.VANILLA))
                 val ex = shouldThrow<ClientException> {
-                    api.createNetwork(CreateNetworkRequest(name = name, type = "NORMAL"))
+                    api.createNetwork(CreateNetworkRequest(name = name, type = NetworkType.VANILLA))
                 }
                 ex.statusCode shouldBe 409
             }

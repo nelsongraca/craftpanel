@@ -1,5 +1,6 @@
 package craftpanel.systemtest.dashboard
 
+import craftpanel.systemtest.client.model.ServerStatus
 import com.google.gson.JsonParser
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.matchers.collections.shouldContain
@@ -134,7 +135,7 @@ class DashboardWsTest : BaseSystemTest() {
                     Thread.sleep(1000)
 
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY")
+                    helper.awaitStatus(serverId, ServerStatus.HEALTHY)
                     healthyLatch.await(15, TimeUnit.SECONDS)
                     seenStatuses.shouldNotBeEmpty()
 

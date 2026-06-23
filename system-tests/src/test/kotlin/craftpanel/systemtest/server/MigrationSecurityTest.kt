@@ -1,6 +1,7 @@
 package craftpanel.systemtest.server
 
 import craftpanel.systemtest.client.model.MigrateRequest
+import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldBeEmpty
@@ -33,7 +34,7 @@ class MigrationSecurityTest : BaseSystemTest() {
 
             should("start migration of running server returns 409") {
                 api.startServer(serverId)
-                helper.awaitStatus(serverId, "HEALTHY")
+                helper.awaitStatus(serverId, ServerStatus.HEALTHY)
                 try {
                     shouldThrow<ClientException> {
                         api.startMigration(

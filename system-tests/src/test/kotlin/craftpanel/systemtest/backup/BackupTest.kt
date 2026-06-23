@@ -1,6 +1,7 @@
 package craftpanel.systemtest.backup
 
 import craftpanel.systemtest.client.model.PutBackupScheduleRequest
+import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
@@ -15,7 +16,7 @@ class BackupTest : BaseSystemTest() {
         beforeSpec {
             serverId = helper.createTestServer(nodeId)
             api.startServer(serverId)
-            helper.awaitStatus(serverId, "HEALTHY")
+            helper.awaitStatus(serverId, ServerStatus.HEALTHY)
         }
         afterSpec {
             runCatching { api.stopServer(serverId) }
@@ -55,7 +56,7 @@ class BackupTest : BaseSystemTest() {
                 backup.trigger shouldBe "MANUAL"
 
                 // Wait for backup to complete (up to 30s)
-                helper.awaitStatus(serverId, "HEALTHY")
+                helper.awaitStatus(serverId, ServerStatus.HEALTHY)
             }
 
             should("triggers and then deletes a backup") {

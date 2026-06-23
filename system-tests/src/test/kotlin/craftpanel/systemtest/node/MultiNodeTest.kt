@@ -1,5 +1,7 @@
 package craftpanel.systemtest.node
 
+import craftpanel.systemtest.client.model.NodeStatus
+import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.core.annotation.Isolate
 import io.kotest.matchers.collections.shouldContainAll
@@ -27,7 +29,7 @@ class MultiNodeTest : BaseSystemTest() {
             should("listNodes returns both agents") {
                 val nodes = api.listNodes()
                 nodes.shouldHaveSize(2)
-                nodes.all { it.status == "ACTIVE" } shouldBe true
+                nodes.all { it.status == NodeStatus.ACTIVE } shouldBe true
                 nodes.map { it.id }
                     .distinct()
                     .shouldHaveSize(2)
@@ -76,9 +78,9 @@ class MultiNodeTest : BaseSystemTest() {
                     .also { serverIds.add(it) }
 
                 api.startServer(serverA)
-                helper.awaitStatus(serverA, "HEALTHY")
+                helper.awaitStatus(serverA, ServerStatus.HEALTHY)
                 api.startServer(serverB)
-                helper.awaitStatus(serverB, "HEALTHY")
+                helper.awaitStatus(serverB, ServerStatus.HEALTHY)
 
                 runCatching { api.stopServer(serverA) }
                 runCatching { api.stopServer(serverB) }

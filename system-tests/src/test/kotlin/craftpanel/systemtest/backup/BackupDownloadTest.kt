@@ -1,5 +1,7 @@
 package craftpanel.systemtest.backup
 
+import craftpanel.systemtest.client.model.ServerStatus
+import craftpanel.systemtest.client.model.BackupStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.pollUntilNotNull
 import io.kotest.assertions.throwables.shouldThrow
@@ -18,7 +20,7 @@ class BackupDownloadTest : BaseSystemTest() {
         beforeSpec {
             serverId = helper.createTestServer(nodeId)
             api.startServer(serverId)
-            helper.awaitStatus(serverId, "HEALTHY")
+            helper.awaitStatus(serverId, ServerStatus.HEALTHY)
         }
         afterSpec {
             runCatching { api.stopServer(serverId) }
@@ -30,12 +32,12 @@ class BackupDownloadTest : BaseSystemTest() {
 
             should("downloads a completed backup") {
                 val backup = api.triggerBackup(serverId)
-                helper.awaitStatus(serverId, "HEALTHY")
+                helper.awaitStatus(serverId, ServerStatus.HEALTHY)
 
                 val completed = pollUntilNotNull(30_000) {
                     val backups = api.listBackups(serverId)
                     backups["backups"]
-                        ?.firstOrNull { it.id == backup.id && it.status == "COMPLETED" }
+                        ?.firstOrNull { it.id == backup.id && it.status == BackupStatus.COMPLETED }
                 }
                 completed shouldNotBe null
                 completed!!.sizeBytes shouldNotBe null
@@ -62,7 +64,7 @@ class BackupDownloadTest : BaseSystemTest() {
                 val status = api.listBackups(serverId)["backups"]
                     ?.firstOrNull { it.id == backup.id }
                     ?.status
-                if (status == "IN_PROGRESS") {
+                if (status == BackupStatus.IN_PROGRESS) {
                     val ex = shouldThrow<ClientException> {
                         api.downloadBackup(serverId, backup.id)
                     }

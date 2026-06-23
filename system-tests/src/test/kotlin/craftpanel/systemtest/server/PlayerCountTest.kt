@@ -2,6 +2,7 @@ package craftpanel.systemtest.server
 
 import craftpanel.systemtest.client.model.EnvVarItem
 import craftpanel.systemtest.client.model.PutEnvVarsRequest
+import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
@@ -23,7 +24,7 @@ class PlayerCountTest : BaseSystemTest() {
                         )
                     )
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY")
+                    helper.awaitStatus(serverId, ServerStatus.HEALTHY)
 
                     val server = helper.awaitPlayerCount(serverId, expected = 2)
                     server.lastPlayerCount shouldBe 2
@@ -41,7 +42,7 @@ class PlayerCountTest : BaseSystemTest() {
             val serverId = helper.createTestServer(nodeId)
                 try {
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY")
+                    helper.awaitStatus(serverId, ServerStatus.HEALTHY)
 
                     // awaitPlayerCount(0) waits until the agent has polled at least once
                     val server = helper.awaitPlayerCount(serverId, expected = 0)

@@ -5,6 +5,7 @@ import craftpanel.systemtest.client.model.CreateAssignmentRequest
 import craftpanel.systemtest.client.model.CreateGroupRequest
 import craftpanel.systemtest.client.model.CreateUserRequest
 import craftpanel.systemtest.client.model.PutGroupPermissionsRequest
+import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.AuthHelper
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
@@ -21,7 +22,7 @@ class SearchModsTest : BaseSystemTest() {
         beforeSpec {
             serverId = helper.createTestServer(nodeId)
             api.startServer(serverId)
-            helper.awaitStatus(serverId, "HEALTHY")
+            helper.awaitStatus(serverId, ServerStatus.HEALTHY)
         }
 
         afterSpec {

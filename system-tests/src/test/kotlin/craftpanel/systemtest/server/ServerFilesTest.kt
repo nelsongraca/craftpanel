@@ -3,6 +3,7 @@ package craftpanel.systemtest.server
 import craftpanel.systemtest.client.model.CopyRequest
 import craftpanel.systemtest.client.model.MkdirRequest
 import craftpanel.systemtest.client.model.MoveRequest
+import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.annotation.Isolate
@@ -23,7 +24,7 @@ class ServerFilesTest : BaseSystemTest() {
         beforeSpec {
             serverId = helper.createTestServer(nodeId)
             api.startServer(serverId)
-            helper.awaitStatus(serverId, "HEALTHY")
+            helper.awaitStatus(serverId, ServerStatus.HEALTHY)
         }
         afterSpec {
             runCatching { api.stopServer(serverId) }
@@ -53,7 +54,7 @@ class ServerFilesTest : BaseSystemTest() {
                     val files = api.listServerFiles(serverId)
                     files.path shouldBe "/"
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY")
+                    helper.awaitStatus(serverId, ServerStatus.HEALTHY)
                 }
 
                 should("creates a directory and appears in listing") {

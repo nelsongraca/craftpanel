@@ -1,6 +1,7 @@
 package craftpanel.systemtest.alerts
 
 import craftpanel.systemtest.client.model.CreateAlertThresholdRequest
+import craftpanel.systemtest.client.model.ScopeType
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
@@ -18,7 +19,7 @@ class AlertTest : BaseSystemTest() {
             should("creates a NODE-scoped alert threshold") {
                 val threshold = api.createAlertThreshold(
                     CreateAlertThresholdRequest(
-                        scopeType = "NODE",
+                        scopeType = ScopeType.NODE,
                         scopeId = nodeId,
                         metric = "cpu_percent",
                         thresholdValue = 90.0
@@ -50,7 +51,7 @@ class AlertTest : BaseSystemTest() {
                 val ex = shouldThrow<ClientException> {
                     api.createAlertThreshold(
                         CreateAlertThresholdRequest(
-                            scopeType = "GLOBAL",
+                            scopeType = ScopeType.GLOBAL,
                             scopeId = "00000000-0000-0000-0000-000000000000",
                             metric = "cpu_percent",
                             thresholdValue = 90.0

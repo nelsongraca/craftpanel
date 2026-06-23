@@ -2,6 +2,7 @@ package craftpanel.systemtest.alerts
 
 import craftpanel.systemtest.client.model.AlertEventResponse
 import craftpanel.systemtest.client.model.CreateAlertThresholdRequest
+import craftpanel.systemtest.client.model.ScopeType
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
@@ -38,7 +39,7 @@ class AlertEventsTest : BaseSystemTest() {
             should("events populate after threshold breach") {
                 val threshold = api.createAlertThreshold(
                     CreateAlertThresholdRequest(
-                        scopeType = "NODE",
+                        scopeType = ScopeType.NODE,
                         scopeId = nodeId,
                         metric = "cpu_percent",
                         thresholdValue = 0.0
@@ -61,7 +62,7 @@ class AlertEventsTest : BaseSystemTest() {
             should("active_only filter returns only unresolved events") {
                 val threshold = api.createAlertThreshold(
                     CreateAlertThresholdRequest(
-                        scopeType = "NODE",
+                        scopeType = ScopeType.NODE,
                         scopeId = nodeId,
                         metric = "cpu_percent",
                         thresholdValue = 0.0
@@ -83,7 +84,7 @@ class AlertEventsTest : BaseSystemTest() {
             should("scope filter returns only matching events") {
                 val threshold = api.createAlertThreshold(
                     CreateAlertThresholdRequest(
-                        scopeType = "NODE",
+                        scopeType = ScopeType.NODE,
                         scopeId = nodeId,
                         metric = "cpu_percent",
                         thresholdValue = 0.0
@@ -107,7 +108,7 @@ class AlertEventsTest : BaseSystemTest() {
             should("deleting threshold removes its events") {
                 val thresholdA = api.createAlertThreshold(
                     CreateAlertThresholdRequest(
-                        scopeType = "NODE",
+                        scopeType = ScopeType.NODE,
                         scopeId = nodeId,
                         metric = "cpu_percent",
                         thresholdValue = 0.0
@@ -115,7 +116,7 @@ class AlertEventsTest : BaseSystemTest() {
                 )
                 val thresholdB = api.createAlertThreshold(
                     CreateAlertThresholdRequest(
-                        scopeType = "NODE",
+                        scopeType = ScopeType.NODE,
                         scopeId = nodeId,
                         metric = "cpu_percent",
                         thresholdValue = 0.0

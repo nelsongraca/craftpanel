@@ -2,6 +2,8 @@ package craftpanel.systemtest.server
 
 import craftpanel.systemtest.client.model.CreateModRequest
 import craftpanel.systemtest.client.model.PatchModRequest
+import craftpanel.systemtest.client.model.ServerStatus
+import craftpanel.systemtest.client.model.ModPinStrategy
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
@@ -18,7 +20,7 @@ class ServerModsTest : BaseSystemTest() {
         beforeSpec {
             serverId = helper.createTestServer(nodeId)
             api.startServer(serverId)
-            helper.awaitStatus(serverId, "HEALTHY")
+            helper.awaitStatus(serverId, ServerStatus.HEALTHY)
         }
         afterSpec {
             runCatching { api.stopServer(serverId) }
@@ -44,7 +46,7 @@ class ServerModsTest : BaseSystemTest() {
                     CreateModRequest(
                         modrinthProjectId = "lithium",
                         displayName = "Lithium",
-                        pinStrategy = "PINNED",
+                        pinStrategy = ModPinStrategy.PINNED,
                         pinnedVersionId = "mc1.21-0.13.0",
                     )
                 )
@@ -60,7 +62,7 @@ class ServerModsTest : BaseSystemTest() {
                     CreateModRequest(
                         modrinthProjectId = "lithium",
                         displayName = "Lithium",
-                        pinStrategy = "PINNED",
+                        pinStrategy = ModPinStrategy.PINNED,
                         pinnedVersionId = "mc1.21-0.13.0",
                     )
                 )
@@ -69,7 +71,7 @@ class ServerModsTest : BaseSystemTest() {
                     CreateModRequest(
                         modrinthProjectId = "sodium",
                         displayName = "Sodium",
-                        pinStrategy = "PINNED",
+                        pinStrategy = ModPinStrategy.PINNED,
                         pinnedVersionId = "mc1.21-0.5.0",
                     )
                 )
@@ -90,7 +92,7 @@ class ServerModsTest : BaseSystemTest() {
                     CreateModRequest(
                         modrinthProjectId = "lithium",
                         displayName = "Lithium",
-                        pinStrategy = "PINNED",
+                        pinStrategy = ModPinStrategy.PINNED,
                         pinnedVersionId = "mc1.21-0.13.0",
                     )
                 )
@@ -100,7 +102,7 @@ class ServerModsTest : BaseSystemTest() {
                         CreateModRequest(
                             modrinthProjectId = "lithium",
                             displayName = "Lithium",
-                            pinStrategy = "PINNED",
+                            pinStrategy = ModPinStrategy.PINNED,
                             pinnedVersionId = "mc1.21-0.13.0",
                         )
                     )
@@ -117,7 +119,7 @@ class ServerModsTest : BaseSystemTest() {
                     CreateModRequest(
                         modrinthProjectId = "lithium",
                         displayName = "Lithium",
-                        pinStrategy = "PINNED",
+                        pinStrategy = ModPinStrategy.PINNED,
                         pinnedVersionId = "mc1.21-0.13.0",
                     )
                 )
@@ -137,13 +139,13 @@ class ServerModsTest : BaseSystemTest() {
                     CreateModRequest(
                         modrinthProjectId = "lithium",
                         displayName = "Lithium",
-                        pinStrategy = "PINNED",
+                        pinStrategy = ModPinStrategy.PINNED,
                         pinnedVersionId = "mc1.21-0.13.0",
                     )
                 )
                 api.updateMod(
                     serverId, mod.id,
-                    PatchModRequest(pinStrategy = "LATEST", pinnedVersionId = null)
+                    PatchModRequest(pinStrategy = ModPinStrategy.LATEST, pinnedVersionId = null)
                 )
                 val mods = api.listMods(serverId)
                 val updated = mods.values.flatten()
@@ -161,7 +163,7 @@ class ServerModsTest : BaseSystemTest() {
                     CreateModRequest(
                         modrinthProjectId = "lithium",
                         displayName = "Lithium",
-                        pinStrategy = "PINNED",
+                        pinStrategy = ModPinStrategy.PINNED,
                         pinnedVersionId = "mc1.21-0.13.0",
                     )
                 )

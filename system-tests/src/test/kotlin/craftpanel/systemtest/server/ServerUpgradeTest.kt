@@ -1,6 +1,7 @@
 package craftpanel.systemtest.server
 
 import craftpanel.systemtest.client.model.UpdateServerRequest
+import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.matchers.shouldBe
 
@@ -29,7 +30,7 @@ class ServerUpgradeTest : BaseSystemTest() {
                 should("container VERSION env reflects mc_version after start") {
                     api.updateServer(serverId, UpdateServerRequest(mcVersion = "1.21.5"))
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY")
+                    helper.awaitStatus(serverId, ServerStatus.HEALTHY)
                     val info = docker.inspectContainerCmd(containerName(serverId))
                         .exec()
                     val env = info.config?.env?.associate {
@@ -42,12 +43,12 @@ class ServerUpgradeTest : BaseSystemTest() {
 
                 should("container VERSION env updated after stop, PATCH, restart") {
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY")
+                    helper.awaitStatus(serverId, ServerStatus.HEALTHY)
                     api.stopServer(serverId)
                     helper.awaitStoppedOrGone(serverId)
                     api.updateServer(serverId, UpdateServerRequest(mcVersion = "1.21.5"))
                     api.startServer(serverId)
-                    helper.awaitStatus(serverId, "HEALTHY")
+                    helper.awaitStatus(serverId, ServerStatus.HEALTHY)
                     val info = docker.inspectContainerCmd(containerName(serverId))
                         .exec()
                     val env = info.config?.env?.associate {

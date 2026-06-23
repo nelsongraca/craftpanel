@@ -3,6 +3,7 @@ package craftpanel.systemtest.config
 import craftpanel.systemtest.client.model.BackendInput
 import craftpanel.systemtest.client.model.CreateServerRequest
 import craftpanel.systemtest.client.model.PutProxyBackendsRequest
+import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.assertions.throwables.shouldThrow
@@ -179,7 +180,7 @@ class ProxyBackendTest : BaseSystemTest() {
                     )
                 )
                 api.startServer(proxyServerId)
-                helper.awaitStatus(proxyServerId, "HEALTHY")
+                helper.awaitStatus(proxyServerId, ServerStatus.HEALTHY)
             }
         }
     }

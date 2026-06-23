@@ -6,6 +6,8 @@ import com.github.dockerjava.api.model.Frame
 import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.client.model.CreateServerRequest
 import craftpanel.systemtest.client.model.ServerResponse
+import craftpanel.systemtest.client.model.BackupStatus
+import craftpanel.systemtest.client.model.ServerStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -56,7 +58,7 @@ class ServerHelper(private val api: DefaultApi) {
         return response.id
     }
 
-    suspend fun awaitStatus(id: String, status: String, timeoutMs: Long = 120_000): ServerResponse {
+    suspend fun awaitStatus(id: String, status: ServerStatus, timeoutMs: Long = 120_000): ServerResponse {
         var lastResponse: ServerResponse? = null
         val result = pollUntilNotNull(timeoutMs) {
             api.getServer(id)
@@ -112,21 +114,21 @@ class ServerHelper(private val api: DefaultApi) {
         pollUntilNotNull(timeoutMs) {
             api.listBackups(serverId)
                 .getOrDefault("backups", emptyList())
-                .firstOrNull { it.id == backupId && it.status in setOf("COMPLETED", "FAILED") }
+                .firstOrNull { it.id == backupId && it.status in setOf(BackupStatus.COMPLETED, BackupStatus.FAILED) }
         } ?: error("Backup $backupId did not complete within ${timeoutMs}ms")
     }
 
     suspend fun awaitStoppedOrGone(id: String, timeoutMs: Long = 30_000) {
         val deadline = System.currentTimeMillis() + timeoutMs
         var interval = 100L
-        var lastStatus: String? = null
+        var lastStatus: ServerStatus? = null
         while (System.currentTimeMillis() < deadline) {
             val result = runCatching { api.getServer(id) }
             when {
                 result.exceptionOrNull() is ClientException
                         && (result.exceptionOrNull() as ClientException).statusCode == 404 -> return
 
-                result.getOrNull()?.status.also { lastStatus = it } == "STOPPED"           -> return
+                result.getOrNull()?.status.also { lastStatus = it } == ServerStatus.STOPPED           -> return
             }
             val jitter = Random.nextLong(-(interval / 5), interval / 5 + 1)
             delay((interval + jitter).coerceAtLeast(50).milliseconds)
