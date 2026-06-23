@@ -33,19 +33,29 @@ class McRouterProvisioner(
         }.getOrNull()
 
         if (existing != null) {
-            if (existing.state?.running == true) {
+            // A router provisioned by an older agent may lack IN_DOCKER=true (no auto-discovery
+            // → it ignores `mc-router.host` labels and routes nothing). Reusing it as-is silently
+            // breaks ingress after an upgrade. Detect the drift and recreate.
+            val hasAutoDiscovery = existing.config?.env
+                ?.any { it == "IN_DOCKER=true" } == true
+            if (!hasAutoDiscovery) {
+                log.info("mc-router exists without IN_DOCKER auto-discovery — recreating")
+                runCatching { docker.removeContainerCmd(existing.id).withForce(true).exec() }
+                    .onFailure { log.warn("Failed to remove stale mc-router — continuing to recreate: ${it.message}") }
+            } else if (existing.state?.running == true) {
                 log.info("mc-router already running")
                 connectToNetwork(existing.id)
                 return
+            } else {
+                log.info("mc-router container exists but not running — starting")
+                runCatching {
+                    docker.startContainerCmd(existing.id)
+                        .exec()
+                }
+                    .onFailure { if (it !is NotModifiedException) throw it }
+                connectToNetwork(existing.id)
+                return
             }
-            log.info("mc-router container exists but not running — starting")
-            runCatching {
-                docker.startContainerCmd(existing.id)
-                    .exec()
-            }
-                .onFailure { if (it !is NotModifiedException) throw it }
-            connectToNetwork(existing.id)
-            return
         }
 
         log.info("Provisioning mc-router container ($image)")
