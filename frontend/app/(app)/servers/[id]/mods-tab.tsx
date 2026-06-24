@@ -14,6 +14,24 @@ const PIN_LABELS: Record<PinStrategy, string> = {
     ALPHA: "Latest alpha",
 };
 
+interface ModrinthVersion {
+    id: string;
+    version_number: string;
+    name: string;
+    version_type: "release" | "beta" | "alpha";
+    date_published: string;
+}
+
+async function fetchModrinthVersions(projectId: string): Promise<ModrinthVersion[]> {
+    try {
+        const res = await fetch(`https://api.modrinth.com/v2/project/${projectId}/version`);
+        if (!res.ok) return [];
+        return await res.json() as ModrinthVersion[];
+    } catch {
+        return [];
+    }
+}
+
 interface ModrinthHit {
     project_id: string;
     title: string;
@@ -40,12 +58,16 @@ export function ModsTab({serverId, onModsChanged}: { serverId: string; onModsCha
     const [addVersionId, setAddVersionId] = useState("");
     const [addDisplayName, setAddDisplayName] = useState("");
     const [addProjectId, setAddProjectId] = useState("");
+    const [addVersions, setAddVersions] = useState<ModrinthVersion[]>([]);
+    const [loadingAddVersions, setLoadingAddVersions] = useState(false);
 
     // Edit state
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editStrategy, setEditStrategy] = useState<PinStrategy>("LATEST");
     const [editVersionId, setEditVersionId] = useState("");
     const [savingEdit, setSavingEdit] = useState(false);
+    const [editVersions, setEditVersions] = useState<ModrinthVersion[]>([]);
+    const [loadingEditVersions, setLoadingEditVersions] = useState(false);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -82,6 +104,19 @@ export function ModsTab({serverId, onModsChanged}: { serverId: string; onModsCha
         setAdding(hit.project_id);
         setAddPinStrategy("LATEST");
         setAddVersionId("");
+        setAddVersions([]);
+    }
+
+    async function handleAddStrategyChange(strategy: PinStrategy, projectId: string) {
+        setAddPinStrategy(strategy);
+        setAddVersionId("");
+        if (strategy === "PINNED" && addVersions.length === 0) {
+            setLoadingAddVersions(true);
+            const vs = await fetchModrinthVersions(projectId);
+            setAddVersions(vs);
+            if (vs.length > 0) setAddVersionId(vs[0].id);
+            setLoadingAddVersions(false);
+        }
     }
 
     async function confirmAdd() {
@@ -118,10 +153,30 @@ export function ModsTab({serverId, onModsChanged}: { serverId: string; onModsCha
         setDeleting(null);
     }
 
-    function startEdit(mod: Mod) {
+    async function startEdit(mod: Mod) {
         setEditingId(mod.id!);
-        setEditStrategy((mod.pin_strategy as PinStrategy) ?? "LATEST");
+        const strategy = (mod.pin_strategy as PinStrategy) ?? "LATEST";
+        setEditStrategy(strategy);
         setEditVersionId(mod.pinned_version_id ?? "");
+        setEditVersions([]);
+        if (strategy === "PINNED" && mod.modrinth_project_id) {
+            setLoadingEditVersions(true);
+            const vs = await fetchModrinthVersions(mod.modrinth_project_id);
+            setEditVersions(vs);
+            setLoadingEditVersions(false);
+        }
+    }
+
+    async function handleEditStrategyChange(strategy: PinStrategy, mod: Mod) {
+        setEditStrategy(strategy);
+        setEditVersionId("");
+        if (strategy === "PINNED" && mod.modrinth_project_id && editVersions.length === 0) {
+            setLoadingEditVersions(true);
+            const vs = await fetchModrinthVersions(mod.modrinth_project_id);
+            setEditVersions(vs);
+            if (vs.length > 0) setEditVersionId(vs[0].id);
+            setLoadingEditVersions(false);
+        }
     }
 
     async function saveEdit(modId: string) {
@@ -208,10 +263,10 @@ export function ModsTab({serverId, onModsChanged}: { serverId: string; onModsCha
                                         {alreadyAdded ? (
                                             <span className="text-xs text-text-muted shrink-0 mt-1">Added</span>
                                         ) : adding === hit.project_id ? (
-                                            <div className="shrink-0 space-y-2 min-w-40">
+                                            <div className="shrink-0 space-y-2 min-w-48">
                                                 <select
                                                     value={addPinStrategy}
-                                                    onChange={(e) => setAddPinStrategy(e.target.value as PinStrategy)}
+                                                    onChange={(e) => void handleAddStrategyChange(e.target.value as PinStrategy, hit.project_id)}
                                                     className="w-full bg-surface border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent"
                                                 >
                                                     {(Object.keys(PIN_LABELS) as PinStrategy[]).map((s) => (
@@ -219,12 +274,28 @@ export function ModsTab({serverId, onModsChanged}: { serverId: string; onModsCha
                                                     ))}
                                                 </select>
                                                 {addPinStrategy === "PINNED" && (
-                                                    <input
-                                                        value={addVersionId}
-                                                        onChange={(e) => setAddVersionId(e.target.value)}
-                                                        placeholder="Version ID"
-                                                        className="w-full bg-bg border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent"
-                                                    />
+                                                    loadingAddVersions ? (
+                                                        <div className="text-xs text-text-muted">Loading versions…</div>
+                                                    ) : addVersions.length > 0 ? (
+                                                        <select
+                                                            value={addVersionId}
+                                                            onChange={(e) => setAddVersionId(e.target.value)}
+                                                            className="w-full bg-bg border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent"
+                                                        >
+                                                            {addVersions.map((v) => (
+                                                                <option key={v.id} value={v.id}>
+                                                                    {v.version_number} ({v.version_type})
+                                                                </option>
+                                                            ))}
+                                                        </select>
+                                                    ) : (
+                                                        <input
+                                                            value={addVersionId}
+                                                            onChange={(e) => setAddVersionId(e.target.value)}
+                                                            placeholder="Version ID"
+                                                            className="w-full bg-bg border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent"
+                                                        />
+                                                    )
                                                 )}
                                                 <div className="flex gap-1">
                                                     <button
@@ -307,7 +378,7 @@ export function ModsTab({serverId, onModsChanged}: { serverId: string; onModsCha
                                 <div className="mt-2 flex items-center gap-2 flex-wrap">
                                     <select
                                         value={editStrategy}
-                                        onChange={(e) => setEditStrategy(e.target.value as PinStrategy)}
+                                        onChange={(e) => void handleEditStrategyChange(e.target.value as PinStrategy, mod)}
                                         className="bg-bg border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent"
                                     >
                                         {(Object.keys(PIN_LABELS) as PinStrategy[]).map((s) => (
@@ -315,12 +386,28 @@ export function ModsTab({serverId, onModsChanged}: { serverId: string; onModsCha
                                         ))}
                                     </select>
                                     {editStrategy === "PINNED" && (
-                                        <input
-                                            value={editVersionId}
-                                            onChange={(e) => setEditVersionId(e.target.value)}
-                                            placeholder="Version ID"
-                                            className="bg-bg border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent w-36"
-                                        />
+                                        loadingEditVersions ? (
+                                            <span className="text-xs text-text-muted">Loading versions…</span>
+                                        ) : editVersions.length > 0 ? (
+                                            <select
+                                                value={editVersionId}
+                                                onChange={(e) => setEditVersionId(e.target.value)}
+                                                className="bg-bg border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent"
+                                            >
+                                                {editVersions.map((v) => (
+                                                    <option key={v.id} value={v.id}>
+                                                        {v.version_number} ({v.version_type})
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        ) : (
+                                            <input
+                                                value={editVersionId}
+                                                onChange={(e) => setEditVersionId(e.target.value)}
+                                                placeholder="Version ID"
+                                                className="bg-bg border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent w-36"
+                                            />
+                                        )
                                     )}
                                     <button
                                         onClick={() => saveEdit(mod.id!)}

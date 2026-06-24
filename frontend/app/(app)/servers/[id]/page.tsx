@@ -513,24 +513,24 @@ export default function ServerDetailPage() {
                             />
                         )}
 
-                        {/* ··· overflow menu */}
-                        <div className="relative">
-                            <button
-                                onClick={(e) => {
-                                    e.stopPropagation();
-                                    setMenuOpen((o) => !o);
-                                }}
-                                className="flex items-center justify-center w-8 h-8 rounded border border-border text-text-muted hover:text-text-primary hover:bg-surface-high transition-colors"
-                            >
-                                <MoreHorizontal size={14} strokeWidth={2}/>
-                            </button>
-
-                            {menuOpen && (
-                                <div
-                                    className="absolute right-0 top-full mt-1 z-50 bg-surface-higher border border-border rounded shadow-xl min-w-[160px] py-1"
-                                    onClick={(e) => e.stopPropagation()}
+                        {/* ··· overflow menu — only render if there are items */}
+                        {hasPermission(permissions, "server.migrate") && (
+                            <div className="relative">
+                                <button
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        setMenuOpen((o) => !o);
+                                    }}
+                                    className="flex items-center justify-center w-8 h-8 rounded border border-border text-text-muted hover:text-text-primary hover:bg-surface-high transition-colors"
                                 >
-                                    {hasPermission(permissions, "server.migrate") && (
+                                    <MoreHorizontal size={14} strokeWidth={2}/>
+                                </button>
+
+                                {menuOpen && (
+                                    <div
+                                        className="absolute right-0 top-full mt-1 z-50 bg-surface-higher border border-border rounded shadow-xl min-w-[160px] py-1"
+                                        onClick={(e) => e.stopPropagation()}
+                                    >
                                         <button
                                             onClick={() => {
                                                 setMenuOpen(false);
@@ -541,10 +541,10 @@ export default function ServerDetailPage() {
                                             <Shuffle size={12} strokeWidth={2}/>
                                             Migrate
                                         </button>
-                                    )}
-                                </div>
-                            )}
-                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
                 </div>
 
