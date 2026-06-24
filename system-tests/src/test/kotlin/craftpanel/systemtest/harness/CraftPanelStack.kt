@@ -185,6 +185,7 @@ class CraftPanelStack {
             .waitingFor(Wait.forSuccessfulCommand("pg_isready -U $DB_USER -d $DB_NAME"))
 
         postgres.start()
+        seedImageSettings()
 
         val jar = agentJar
         val covDir = coverageDir
@@ -202,12 +203,8 @@ class CraftPanelStack {
             .withEnv("NODE_BOOTSTRAP_TOKEN", "test-bootstrap-token")
             .withEnv("JWT_SECRET", "test-jwt-secret-at-least-32-characters-long!")
             .withEnv("CRAFTPANEL_CONTAINER_PREFIX", containerPrefix)
-            .withEnv("CRAFTPANEL_IMAGE_OVERRIDE_MINECRAFT", "craftpanel-fake-server")
-            .withEnv("CRAFTPANEL_IMAGE_OVERRIDE_PROXY", "craftpanel-fake-proxy")
             .withEnv("CRAFTPANEL_ADMIN_EMAIL", ADMIN_EMAIL)
             .withEnv("CRAFTPANEL_ADMIN_PASSWORD", ADMIN_PASSWORD)
-            .withEnv("RATE_LIMIT_LOGIN", "1000")
-            .withEnv("RATE_LIMIT_REFRESH", "1000")
             .apply {
                 withLogConsumer { frame -> System.err.println("[master] ${frame.utf8String.trimEnd()}") }
                 if (coverageMode && jar != null && covDir != null) {
@@ -234,6 +231,33 @@ class CraftPanelStack {
             container.start()
             agents.add(container)
         }
+    }
+
+    // Seed the DB-backed runtime settings before master boots. master reads image_minecraft /
+    // image_proxy and the rate limits from system_settings at startup (single-source rule: no env
+    // override exists), so the harness must plant the fake-server images and high rate limits as
+    // the runtime values. The minimal table is created here; master's createMissingTablesAndColumns
+    // adds the remaining columns.
+    private fun seedImageSettings() {
+        val sql = """
+            CREATE TABLE IF NOT EXISTS system_settings (key VARCHAR(100) PRIMARY KEY, value TEXT NOT NULL);
+            INSERT INTO system_settings(key, value) VALUES
+                ('image_minecraft', 'craftpanel-fake-server'),
+                ('image_proxy', 'craftpanel-fake-proxy'),
+                ('rate_limit_login_per_minute', '1000'),
+                ('rate_limit_refresh_per_minute', '1000')
+            ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
+        """.trimIndent()
+        // The postgres:16 image runs an init server that shuts down before the real one starts;
+        // pg_isready can pass against the temp server, so retry through the shutdown window.
+        var last = ""
+        repeat(30) {
+            val result = postgres.execInContainer("psql", "-U", DB_USER, "-d", DB_NAME, "-v", "ON_ERROR_STOP=1", "-c", sql)
+            if (result.exitCode == 0) return
+            last = result.stderr
+            Thread.sleep(500)
+        }
+        error("Failed to seed image settings: $last")
     }
 
     private fun createAgentContainer(index: Int, networkName: String, gatewayIp: String): AgentContainer {

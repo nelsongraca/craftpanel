@@ -127,13 +127,57 @@ class McRouterRoutingTest : BaseSystemTest() {
     private suspend fun awaitRoutedMotd(hostname: String, timeoutMs: Long = 60_000): String {
         val deadline = System.currentTimeMillis() + timeoutMs
         var interval = 250L
+        var lastError: Throwable? = null
         while (System.currentTimeMillis() < deadline) {
-            val motd = runCatching { pingThroughRouter(hostname) }.getOrNull()
-            if (motd != null) return motd
+            val attempt = runCatching { pingThroughRouter(hostname) }
+            attempt.getOrNull()?.let { return it }
+            lastError = attempt.exceptionOrNull()
             delay(interval.milliseconds)
             interval = (interval * 1.5).toLong().coerceAtMost(2000)
         }
+        System.err.println("[mcrouter-diag] last ping error for '$hostname': ${lastError?.javaClass?.simpleName}: ${lastError?.message}")
+        dumpRouterDiagnostics(hostname)
         error("Hostname '$hostname' never routed through mc-router within ${timeoutMs}ms")
+    }
+
+    /** On a routing timeout, dump the mc-router container's logs + attached networks so the
+     *  discovery decision (or the reason it can't dial the backend) is visible in the report. */
+    private suspend fun dumpRouterDiagnostics(hostname: String) = withContext(Dispatchers.IO) {
+        val docker = SharedStack.dockerClient
+        val routerName = "${SharedStack.containerPrefix}-mc-router"
+        runCatching {
+            val router = docker.inspectContainerCmd(routerName).exec()
+            val routerNets = router.networkSettings?.networks?.keys ?: emptySet()
+            System.err.println("[mcrouter-diag] router '$routerName' networks: $routerNets")
+            System.err.println("[mcrouter-diag] router state: running=${router.state?.running} status=${router.state?.status}")
+            System.err.println("[mcrouter-diag] router host port bindings: ${router.networkSettings?.ports?.bindings}")
+            System.err.println("[mcrouter-diag] router env IN_DOCKER: " +
+                (router.config?.env?.firstOrNull { it.startsWith("IN_DOCKER") } ?: "<unset>"))
+
+            // Backends carrying the routing label and the networks they live on.
+            docker.listContainersCmd().withLabelFilter(listOf("mc-router.host")).exec().forEach { c ->
+                val nets = runCatching {
+                    docker.inspectContainerCmd(c.id).exec().networkSettings?.networks?.keys
+                }.getOrNull() ?: emptySet()
+                System.err.println("[mcrouter-diag] backend ${c.names?.joinToString()} " +
+                    "host=${c.labels?.get("mc-router.host")} network=${c.labels?.get("mc-router.network")} attachedTo=$nets")
+                System.err.println("[mcrouter-diag] backend ${c.names?.joinToString()} logs:\n${tailLogs(c.id)}")
+            }
+
+            System.err.println("[mcrouter-diag] last router logs for '$hostname':\n${tailLogs(routerName)}")
+        }.onFailure { System.err.println("[mcrouter-diag] failed: ${it.message}") }
+    }
+
+    private fun tailLogs(containerIdOrName: String): String {
+        val logs = StringBuilder()
+        SharedStack.dockerClient.logContainerCmd(containerIdOrName)
+            .withStdOut(true).withStdErr(true).withTail(60)
+            .exec(object : com.github.dockerjava.api.async.ResultCallback.Adapter<com.github.dockerjava.api.model.Frame>() {
+                override fun onNext(frame: com.github.dockerjava.api.model.Frame) {
+                    logs.append(String(frame.payload))
+                }
+            }).awaitCompletion()
+        return logs.toString()
     }
 
     /**
