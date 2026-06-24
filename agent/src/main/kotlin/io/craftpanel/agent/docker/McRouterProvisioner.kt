@@ -34,12 +34,15 @@ class McRouterProvisioner(
 
         if (existing != null) {
             // A router provisioned by an older agent may lack IN_DOCKER=true (no auto-discovery
-            // → it ignores `mc-router.host` labels and routes nothing). Reusing it as-is silently
-            // breaks ingress after an upgrade. Detect the drift and recreate.
+            // → it ignores `mc-router.host` labels and routes nothing) or lack the published
+            // 25565 host binding (→ unreachable for external ingress). Reusing such a container
+            // as-is silently breaks ingress after an upgrade. Detect the drift and recreate.
             val hasAutoDiscovery = existing.config?.env
                 ?.any { it == "IN_DOCKER=true" } == true
-            if (!hasAutoDiscovery) {
-                log.info("mc-router exists without IN_DOCKER auto-discovery — recreating")
+            val hasHostPort = existing.networkSettings?.ports?.bindings
+                ?.keys?.any { it.port == 25565 } == true
+            if (!hasAutoDiscovery || !hasHostPort) {
+                log.info("mc-router drift (autoDiscovery=$hasAutoDiscovery hostPort=$hasHostPort) — recreating")
                 runCatching { docker.removeContainerCmd(existing.id).withForce(true).exec() }
                     .onFailure { log.warn("Failed to remove stale mc-router — continuing to recreate: ${it.message}") }
             } else if (existing.state?.running == true) {
@@ -69,6 +72,10 @@ class McRouterProvisioner(
         val id = try {
             docker.createContainerCmd(image)
                 .withName(containerName)
+                // The port must be exposed for the host binding to take effect — without it
+                // Docker silently drops the binding and 25565 is never published to the host,
+                // leaving mc-router unreachable for external ingress.
+                .withExposedPorts(port)
                 // IN_DOCKER=true subscribes mc-router to the Docker event stream so it reads
                 // per-container `mc-router.host`/`mc-router.port`/`mc-router.network` labels.
                 // Without it the mounted docker socket is never used and labels are ignored.
