@@ -414,9 +414,9 @@ class ServerService(
                 .toList()
             val usedRam = others.sumOf { it[Servers.memoryMb] }
             val usedCpu = others.sumOf { it[Servers.cpuShares] }
-            val systemRamUsed = node[Nodes.systemRamUsedMb] ?: 0
-            val effectiveUsedRam = maxOf(usedRam, systemRamUsed)
-            if (effectiveUsedRam + req.memoryMb > node[Nodes.totalRamMb]) return@transaction "insufficient_ram"
+            // Use allocated RAM from other servers as the baseline; don't apply system RAM floor
+            // for updates since systemRamUsedMb includes the running container being resized.
+            if (usedRam + req.memoryMb > node[Nodes.totalRamMb]) return@transaction "insufficient_ram"
             if (node[Nodes.totalCpuShares] > 0 && usedCpu + req.cpuShares > node[Nodes.totalCpuShares]) return@transaction "insufficient_cpu"
             Servers.update({ Servers.id eq id }) {
                 it[memoryMb] = req.memoryMb
@@ -563,11 +563,13 @@ class ServerService(
             if (ch.isEmpty()) {
                 // empty string means clear the custom hostname
                 null
-            } else {
+            }
+            else {
                 validateCustomHostname(ch, id)
                 ch
             }
-        } else {
+        }
+        else {
             // null means "don't change" — but we still carry through the existing value in the DB
             serverRow[Servers.customHostname]
         }
@@ -744,7 +746,8 @@ class ServerService(
         val managed = if (row[Servers.exposedExternally] && row[Servers.publicSubdomain] != null) {
             row[Servers.dnsRecordName]
                 ?: resolvePublicHostname(row[Servers.publicSubdomain]!!, row[Servers.networkId])
-        } else null
+        }
+        else null
         val custom = row[Servers.customHostname]
         val parts = listOfNotNull(managed, custom)
         return if (parts.isEmpty()) null else parts.joinToString(",")
@@ -826,7 +829,8 @@ internal fun rowToServerResponse(row: ResultRow, isMigrating: Boolean): ServerRe
     val customHostname = row[Servers.customHostname]
     val managedHostname = if (row[Servers.exposedExternally] && row[Servers.publicSubdomain] != null) {
         row[Servers.dnsRecordName]
-    } else null
+    }
+    else null
     val canonicalHostname = customHostname ?: managedHostname
     return ServerResponse(
         id = row[Servers.id].toString(),

@@ -4,7 +4,7 @@ import {useCallback, useEffect, useState} from "react";
 import {useParams, useRouter} from "next/navigation";
 import Link from "next/link";
 import {ChevronRight, MoreHorizontal, Play, RotateCcw, Shuffle, Square, Trash2, X,} from "lucide-react";
-import {deleteServer, getNetwork, getNode, getServer, listNetworks, restartServer, startServer, stopServer, updateServer, updateServerResources} from "@/lib/generated/sdk.gen";
+import {deleteServer, getNetwork, getNode, getServer, listNetworks, restartServer, startServer, stopServer, updateServer, updateServerExposure, updateServerResources} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import type {Network, Node, Server, ServerStatus} from "@/lib/types";
@@ -181,6 +181,14 @@ export default function ServerDetailPage() {
     const [savingResources, setSavingResources] = useState(false);
     const [resourcesError, setResourcesError] = useState<string | null>(null);
 
+    // ── Edit: exposure ─────────────────────────────────────────────────────────
+    const [editingExposure, setEditingExposure] = useState(false);
+    const [editExposedExternally, setEditExposedExternally] = useState(false);
+    const [editPublicSubdomain, setEditPublicSubdomain] = useState("");
+    const [editCustomHostname, setEditCustomHostname] = useState("");
+    const [savingExposure, setSavingExposure] = useState(false);
+    const [exposureError, setExposureError] = useState<string | null>(null);
+
     // ── Data fetching ──────────────────────────────────────────────────────────
 
     const fetchServer = useCallback(async () => {
@@ -327,6 +335,43 @@ export default function ServerDetailPage() {
         }
     }
 
+    // ── Edit: exposure handlers ────────────────────────────────────────────────
+
+    function openEditExposure() {
+        if (!server) return;
+        setEditExposedExternally(server.exposed_externally);
+        setEditPublicSubdomain(server.public_subdomain ?? "");
+        setEditCustomHostname(server.custom_hostname ?? "");
+        setExposureError(null);
+        setEditingExposure(true);
+    }
+
+    async function saveExposure() {
+        if (!server) return;
+        setSavingExposure(true);
+        setExposureError(null);
+        try {
+            const {error: expErr} = await updateServerExposure({
+                path: {id},
+                body: {
+                    exposed_externally: editExposedExternally,
+                    public_subdomain: editPublicSubdomain || null,
+                    custom_hostname: editCustomHostname || null,
+                },
+            });
+            if (expErr) {
+                setExposureError(expErr.message ?? "Failed to save");
+                return;
+            }
+            await fetchServer();
+            setEditingExposure(false);
+        } catch {
+            setExposureError("Failed to save");
+        } finally {
+            setSavingExposure(false);
+        }
+    }
+
     // ── Actions ────────────────────────────────────────────────────────────────
 
     const ACTION_FNS = {
@@ -406,7 +451,7 @@ export default function ServerDetailPage() {
                         <>
                             <ChevronRight size={11} strokeWidth={2.5}/>
                             <Link
-                                href={`/networks/${network.id}`}
+                                href="/networks"
                                 className="hover:text-text-primary transition-colors"
                             >
                                 {network.name}
@@ -441,7 +486,7 @@ export default function ServerDetailPage() {
                                 variant="green"
                             />
                         )}
-                        {(sStatus === "HEALTHY" || sStatus === "STARTING") && hasPermission(permissions, "server.stop") && (
+                        {(sStatus === "HEALTHY" || sStatus === "STARTING" || sStatus === "UNHEALTHY") && hasPermission(permissions, "server.stop") && (
                             <HeaderActionButton
                                 icon={<Square size={12} strokeWidth={2.5}/>}
                                 label="Stop"
@@ -645,6 +690,18 @@ export default function ServerDetailPage() {
                     onChangeRamMb={setEditRamMb}
                     onChangeCpuShares={setEditCpuShares}
                     onChangeItzgTag={setEditItzgTag}
+                    editingExposure={editingExposure}
+                    editExposedExternally={editExposedExternally}
+                    editPublicSubdomain={editPublicSubdomain}
+                    editCustomHostname={editCustomHostname}
+                    savingExposure={savingExposure}
+                    exposureError={exposureError}
+                    onOpenEditExposure={openEditExposure}
+                    onSaveExposure={() => void saveExposure()}
+                    onCancelExposure={() => setEditingExposure(false)}
+                    onChangeExposedExternally={setEditExposedExternally}
+                    onChangePublicSubdomain={setEditPublicSubdomain}
+                    onChangeCustomHostname={setEditCustomHostname}
                 />
             )}
             <ConfirmDialog
@@ -764,6 +821,18 @@ function OverviewTab({
                          onChangeRamMb,
                          onChangeCpuShares,
                          onChangeItzgTag,
+                         editingExposure,
+                         editExposedExternally,
+                         editPublicSubdomain,
+                         editCustomHostname,
+                         savingExposure,
+                         exposureError,
+                         onOpenEditExposure,
+                         onSaveExposure,
+                         onCancelExposure,
+                         onChangeExposedExternally,
+                         onChangePublicSubdomain,
+                         onChangeCustomHostname,
                      }: {
     server: Server;
     node: Node | null;
@@ -799,6 +868,18 @@ function OverviewTab({
     onChangeRamMb: (v: number) => void;
     onChangeCpuShares: (v: number) => void;
     onChangeItzgTag: (v: string) => void;
+    editingExposure: boolean;
+    editExposedExternally: boolean;
+    editPublicSubdomain: string;
+    editCustomHostname: string;
+    savingExposure: boolean;
+    exposureError: string | null;
+    onOpenEditExposure: () => void;
+    onSaveExposure: () => void;
+    onCancelExposure: () => void;
+    onChangeExposedExternally: (v: boolean) => void;
+    onChangePublicSubdomain: (v: string) => void;
+    onChangeCustomHostname: (v: string) => void;
 }) {
     const sStatus = server.status;
     const canConfigure = hasPermission(permissions, "server.configure");
@@ -1080,10 +1161,88 @@ function OverviewTab({
                                     value={editItzgTag}
                                     onChange={(e) => onChangeItzgTag(e.target.value)}
                                     placeholder="latest"
+                                    list="itzg-tags-edit"
                                 />
+                                <datalist id="itzg-tags-edit">
+                                    <option value="latest"/>
+                                    <option value="java21"/>
+                                    <option value="java21-jdk"/>
+                                    <option value="java17"/>
+                                    <option value="java17-jdk"/>
+                                    <option value="java11"/>
+                                    <option value="java8"/>
+                                </datalist>
                             </EditFieldRow>
                             <p className="text-[12px] text-text-muted">All changes require a restart to take effect.</p>
                             <SaveCancelRow onSave={onSaveResources} onCancel={onCancelResources} saving={savingResources}/>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {canConfigure && (
+                <div className="bg-surface border border-border rounded p-4">
+                    <div className="flex items-center justify-between mb-3">
+                        <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
+                            Public Access
+                        </p>
+                        {!editingExposure && (
+                            <button
+                                onClick={onOpenEditExposure}
+                                className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
+                            >
+                                Edit
+                            </button>
+                        )}
+                    </div>
+
+                    {!editingExposure ? (
+                        <div>
+                            <InfoRow label="Exposed" value={server.exposed_externally ? "Yes" : "No"}/>
+                            <InfoRow label="Public Subdomain" value={server.public_subdomain ?? "—"}/>
+                            <InfoRow label="Custom Hostname" value={server.custom_hostname ?? "—"}/>
+                            {server.canonical_hostname && <InfoRow label="Canonical" value={server.canonical_hostname}/>}
+                        </div>
+                    ) : (
+                        <div className="space-y-3">
+                            {exposureError && (
+                                <p className="text-[12px] text-error">{exposureError}</p>
+                            )}
+                            <EditFieldRow label="Expose Externally">
+                                <div className="flex items-center gap-2 pt-1">
+                                    <input
+                                        type="checkbox"
+                                        id="expose-externally"
+                                        checked={editExposedExternally}
+                                        onChange={(e) => onChangeExposedExternally(e.target.checked)}
+                                        className="accent-[var(--accent)] w-4 h-4"
+                                    />
+                                    <label htmlFor="expose-externally" className="text-[12px] font-mono text-text-primary">
+                                        Expose via mc-router
+                                    </label>
+                                </div>
+                            </EditFieldRow>
+                            {editExposedExternally && (
+                                <>
+                                    <EditFieldRow label="Public Subdomain">
+                                        <EditInput
+                                            value={editPublicSubdomain}
+                                            onChange={(e) => onChangePublicSubdomain(e.target.value)}
+                                            placeholder="myserver"
+                                        />
+                                        <p className="text-[12px] text-text-muted mt-1">Subdomain under the platform domain (e.g. myserver.mc.example.com)</p>
+                                    </EditFieldRow>
+                                    <EditFieldRow label="Custom Hostname">
+                                        <EditInput
+                                            value={editCustomHostname}
+                                            onChange={(e) => onChangeCustomHostname(e.target.value)}
+                                            placeholder="play.example.com"
+                                        />
+                                        <p className="text-[12px] text-text-muted mt-1">Your own domain (bring-your-own-DNS)</p>
+                                    </EditFieldRow>
+                                </>
+                            )}
+                            <SaveCancelRow onSave={onSaveExposure} onCancel={onCancelExposure} saving={savingExposure}/>
                         </div>
                     )}
                 </div>

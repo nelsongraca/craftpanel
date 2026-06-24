@@ -327,9 +327,14 @@ export default function NodesPage() {
 
     useEffect(() => {
         let cancelled = false;
-        void reloadNodes().then(() => { if (!cancelled) setInitialLoad(false); });
+        void reloadNodes().then(() => {
+            if (!cancelled) setInitialLoad(false);
+        });
         const id = setInterval(reloadNodes, 30_000);
-        return () => { cancelled = true; clearInterval(id); };
+        return () => {
+            cancelled = true;
+            clearInterval(id);
+        };
     }, [reloadNodes]);
 
     useEffect(() => {
@@ -559,7 +564,7 @@ export default function NodesPage() {
                             const servers = serverCounts[node.id] ?? 0;
                             const lastSeen = node.last_seen_at;
                             const stale = lastSeen
-                                ? (renderNow - new Date(lastSeen).getTime()) / 1000 > 120
+                                ? (renderNow - new Date(lastSeen).getTime()) / 1000 > 300
                                 : true;
 
                             return (
@@ -638,7 +643,7 @@ export default function NodesPage() {
                             const servers = serverCounts[node.id] ?? 0;
                             const lastSeen = node.last_seen_at;
                             const stale = lastSeen
-                                ? (renderNow - new Date(lastSeen).getTime()) / 1000 > 120
+                                ? (renderNow - new Date(lastSeen).getTime()) / 1000 > 300
                                 : true;
                             return (
                                 <div

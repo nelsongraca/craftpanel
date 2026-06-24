@@ -2,7 +2,7 @@
 
 import {useCallback, useEffect, useState} from "react";
 import {AlertTriangle, CheckCircle, Plus, Trash2, X} from "lucide-react";
-import {createAlertThreshold, deleteAlertThreshold, listAlertEvents, listAlertThresholds,} from "@/lib/generated/sdk.gen";
+import {createAlertThreshold, deleteAlertThreshold, listAlertEvents, listAlertThresholds, listNodes, listServers,} from "@/lib/generated/sdk.gen";
 import type {CreateAlertThresholdRequest as CreateRequest} from "@/lib/generated/types.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
@@ -77,6 +77,22 @@ function CreateThresholdModal({
     const [thresholdState, setThresholdState] = useState("UNHEALTHY");
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [nodes, setNodes] = useState<{ id: string; display_name: string }[]>([]);
+    const [servers, setServers] = useState<{ id: string; display_name: string }[]>([]);
+
+    useEffect(() => {
+        listNodes().then(({data}) => {
+            if (data) setNodes(data);
+        });
+        listServers().then(({data}) => {
+            if (data) setServers(data);
+        });
+    }, []);
+
+    function handleScopeTypeChange(t: "NODE" | "SERVER") {
+        setScopeType(t);
+        setScopeId("");
+    }
 
     async function submit() {
         setSaving(true);
@@ -120,7 +136,7 @@ function CreateThresholdModal({
                         </label>
                         <select
                             value={scopeType}
-                            onChange={(e) => setScopeType(e.target.value as "NODE" | "SERVER")}
+                            onChange={(e) => handleScopeTypeChange(e.target.value as "NODE" | "SERVER")}
                             className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-[12px] font-mono text-text-primary focus:outline-none focus:border-accent"
                         >
                             <option value="NODE">Node</option>
@@ -130,14 +146,18 @@ function CreateThresholdModal({
 
                     <div className="space-y-1">
                         <label className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted">
-                            Scope ID (UUID)
+                            {scopeType === "NODE" ? "Node" : "Server"}
                         </label>
-                        <input
+                        <select
                             value={scopeId}
                             onChange={(e) => setScopeId(e.target.value)}
-                            placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
-                            className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-[12px] font-mono text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent"
-                        />
+                            className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-[12px] font-mono text-text-primary focus:outline-none focus:border-accent"
+                        >
+                            <option value="">— select —</option>
+                            {(scopeType === "NODE" ? nodes : servers).map((item) => (
+                                <option key={item.id} value={item.id}>{item.display_name}</option>
+                            ))}
+                        </select>
                     </div>
 
                     <div className="space-y-1">

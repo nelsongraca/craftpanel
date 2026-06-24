@@ -563,6 +563,7 @@ export default function NodeDetailPage() {
     const router = useRouter();
     const {user} = useAuth();
     const permissions = user?.permissions ?? [];
+    const {subscribe} = useWs();
 
     const [node, setNode] = useState<Node | null>(null);
     const [servers, setServers] = useState<Server[]>([]);
@@ -597,6 +598,14 @@ export default function NodeDetailPage() {
         const timer = setInterval(fetchNode, 30_000);
         return () => clearInterval(timer);
     }, [fetchNode, id]);
+
+    useEffect(() => {
+        return subscribe("node.status", (payload) => {
+            const p = payload as Record<string, unknown>;
+            if (p.node_id !== id) return;
+            void fetchNode();
+        });
+    }, [subscribe, id, fetchNode]);
 
     // ── Actions ────────────────────────────────────────────────────────────────
 

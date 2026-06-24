@@ -272,7 +272,17 @@ export default function NewServerPage() {
                             onChange={(e) => setItzgImageTag(e.target.value)}
                             placeholder="latest"
                             required
+                            list="itzg-tags"
                         />
+                        <datalist id="itzg-tags">
+                            <option value="latest"/>
+                            <option value="java21"/>
+                            <option value="java21-jdk"/>
+                            <option value="java17"/>
+                            <option value="java17-jdk"/>
+                            <option value="java11"/>
+                            <option value="java8"/>
+                        </datalist>
                         <p className="mt-1 text-[12px] text-text-muted">Docker image tag for itzg/minecraft-server or itzg/mc-proxy.</p>
                     </div>
                 </div>

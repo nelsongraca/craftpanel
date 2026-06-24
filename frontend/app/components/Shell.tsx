@@ -3,7 +3,7 @@
 import {useEffect, useRef, useState} from "react";
 import Link from "next/link";
 import {usePathname} from "next/navigation";
-import {Bell, ChevronDown, KeyRound, LogOut, type LucideIcon, Menu, Monitor, Network, Server, Settings, Users,} from "lucide-react";
+import {Bell, ChevronDown, KeyRound, LayoutDashboard, LogOut, type LucideIcon, Menu, Monitor, Network, Server, Settings, Users,} from "lucide-react";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 
@@ -20,6 +20,12 @@ interface SidebarSection {
 }
 
 const sidebarSections: SidebarSection[] = [
+    {
+        title: "Overview",
+        items: [
+            {label: "Dashboard", href: "/", icon: LayoutDashboard},
+        ],
+    },
     {
         title: "Servers",
         items: [
@@ -157,7 +163,7 @@ export default function Shell({children}: { children: React.ReactNode }) {
                                 </p>
                                 {visibleItems.map((item) => {
                                     const Icon = item.icon;
-                                    const isActive = pathname.startsWith(item.href);
+                                    const isActive = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
                                     return (
                                         <Link
                                             key={item.label}
