@@ -2,7 +2,6 @@ package craftpanel.systemtest.routing
 
 import craftpanel.systemtest.client.model.CreateNetworkRequest
 import craftpanel.systemtest.client.model.EnvVarItem
-import craftpanel.systemtest.client.model.NetworkType
 import craftpanel.systemtest.client.model.PatchExposureRequest
 import craftpanel.systemtest.client.model.PutEnvVarsRequest
 import craftpanel.systemtest.client.model.ServerStatus
@@ -70,7 +69,6 @@ class McRouterRoutingTest : BaseSystemTest() {
             val network = api.createNetwork(
                 CreateNetworkRequest(
                     name = "mcrouter-net-${System.currentTimeMillis()}",
-                    type = NetworkType.VANILLA,
                     domainSuffix = domainSuffix,
                 )
             )

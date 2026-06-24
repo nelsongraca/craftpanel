@@ -2,7 +2,6 @@ package craftpanel.systemtest.auth
 
 import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.client.model.*
-import craftpanel.systemtest.client.model.NetworkType
 import craftpanel.systemtest.harness.AuthHelper
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
@@ -153,7 +152,7 @@ class PermissionsTest : BaseSystemTest() {
 
             should("user with NETWORK-scoped assignment sees all servers in the network") {
                 val net = api.createNetwork(
-                    CreateNetworkRequest(name = "perm-net-${System.currentTimeMillis()}", type = NetworkType.VANILLA)
+                    CreateNetworkRequest(name = "perm-net-${System.currentTimeMillis()}")
                 )
                 val s1 = api.createServer(
                     CreateServerRequest(

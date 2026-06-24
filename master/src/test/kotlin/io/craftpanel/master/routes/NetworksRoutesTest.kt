@@ -117,12 +117,10 @@ class NetworksRoutesTest : FunSpec({
 
     fun createNetwork(
         name: String = "test-network",
-        type: String = "VANILLA",
         description: String? = null,
     ): Uuid = transaction {
         ServerNetworks.insert {
             it[ServerNetworks.name] = name
-            it[ServerNetworks.type] = type
             it[ServerNetworks.description] = description
         }[ServerNetworks.id].let { Uuid.parse(it.toString()) }
     }
@@ -191,7 +189,7 @@ class NetworksRoutesTest : FunSpec({
             val resp = client.post("/api/networks") {
                 bearerAuth(tokenFor(userId))
                 contentType(ContentType.Application.Json)
-                setBody("""{"name":"n","type":"VANILLA"}""")
+                setBody("""{"name":"n"}""")
             }
             resp.status shouldBe HttpStatusCode.Forbidden
         }
@@ -206,13 +204,11 @@ class NetworksRoutesTest : FunSpec({
             val resp = client.post("/api/networks") {
                 bearerAuth(tokenFor(userId))
                 contentType(ContentType.Application.Json)
-                setBody("""{"name":"lobby","type":"PROXY","proxy_type":"VELOCITY","proxy_port":25577,"description":"main lobby"}""")
+                setBody("""{"name":"lobby","proxy_port":25577,"description":"main lobby"}""")
             }
             resp.status shouldBe HttpStatusCode.Created
             val body = resp.body<JsonObject>()
             body["name"]!!.jsonPrimitive.content shouldBe "lobby"
-            body["type"]!!.jsonPrimitive.content shouldBe "PROXY"
-            body["proxy_type"]!!.jsonPrimitive.content shouldBe "VELOCITY"
             body["proxy_port"]!!.jsonPrimitive.content.toInt() shouldBe 25577
             body["description"]!!.jsonPrimitive.content shouldBe "main lobby"
             body["server_count"]!!.jsonPrimitive.content.toInt() shouldBe 0
@@ -231,7 +227,7 @@ class NetworksRoutesTest : FunSpec({
             val resp = client.post("/api/networks") {
                 bearerAuth(tokenFor(userId))
                 contentType(ContentType.Application.Json)
-                setBody("""{"name":"dup","type":"VANILLA"}""")
+                setBody("""{"name":"dup"}""")
             }
             resp.status shouldBe HttpStatusCode.Conflict
         }
@@ -256,7 +252,7 @@ class NetworksRoutesTest : FunSpec({
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Viewer")
-            val netId = createNetwork("detail-net", "VANILLA")
+            val netId = createNetwork("detail-net")
             val resp = client.get("/api/networks/$netId") { bearerAuth(tokenFor(userId)) }
             resp.status shouldBe HttpStatusCode.OK
             val body = resp.body<JsonObject>()

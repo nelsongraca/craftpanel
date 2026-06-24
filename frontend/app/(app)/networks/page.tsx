@@ -4,7 +4,7 @@ import {useCallback, useEffect, useState} from "react";
 import {Pencil, Plus, Trash2} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
 import {createNetwork, deleteNetwork, listNetworks, updateNetwork} from "@/lib/generated/sdk.gen";
-import type {Network, NetworkType, ProxyType} from "@/lib/types";
+import type {Network} from "@/lib/types";
 
 import {INPUT, BTN_PRIMARY, BTN_GHOST, Modal, Field} from "@/components/ui/form-elements";
 
@@ -12,8 +12,6 @@ import {INPUT, BTN_PRIMARY, BTN_GHOST, Modal, Field} from "@/components/ui/form-
 
 interface NetworkFormState {
     name: string;
-    type: string;
-    proxyType: string;
     description: string;
 }
 
@@ -30,8 +28,6 @@ function NetworkForm({
 }) {
     const [form, setForm] = useState<NetworkFormState>({
         name: initial?.name ?? "",
-        type: initial?.type ?? "VANILLA",
-        proxyType: initial?.proxyType ?? "",
         description: initial?.description ?? "",
     });
     const [error, setError] = useState("");
@@ -55,22 +51,6 @@ function NetworkForm({
             <Field label="Name">
                 <input className={INPUT} value={form.name} onChange={(e) => setForm((f) => ({...f, name: e.target.value}))} required/>
             </Field>
-            <Field label="Type">
-                <select className={INPUT} value={form.type} onChange={(e) => setForm((f) => ({...f, type: e.target.value, proxyType: ""}))}>
-                    <option value="VANILLA">Vanilla</option>
-                    <option value="PROXY">Proxy</option>
-                </select>
-            </Field>
-            {form.type === "PROXY" && (
-                <Field label="Proxy Type">
-                    <select className={INPUT} value={form.proxyType} onChange={(e) => setForm((f) => ({...f, proxyType: e.target.value}))}>
-                        <option value="">Select…</option>
-                        <option value="VELOCITY">Velocity</option>
-                        <option value="BUNGEECORD">BungeeCord</option>
-                        <option value="WATERFALL">Waterfall</option>
-                    </select>
-                </Field>
-            )}
             <Field label="Description">
                 <input className={INPUT} value={form.description} placeholder="Optional" onChange={(e) => setForm((f) => ({...f, description: e.target.value}))}/>
             </Field>
@@ -107,8 +87,6 @@ export default function NetworksPage() {
         const res = await createNetwork({
             body: {
                 name: form.name,
-                type: form.type as NetworkType,
-                proxy_type: form.type === "PROXY" && form.proxyType ? (form.proxyType as ProxyType) : undefined,
                 description: form.description || undefined,
             },
         });
@@ -166,8 +144,6 @@ export default function NetworksPage() {
                             <thead>
                             <tr className="border-b border-border">
                                 <th className="text-left px-5 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Name</th>
-                                <th className="text-left px-4 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Type</th>
-                                <th className="text-left px-4 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Proxy</th>
                                 <th className="text-left px-4 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Servers</th>
                                 <th className="text-left px-4 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Description</th>
                                 <th className="px-4 py-3"/>
@@ -177,8 +153,6 @@ export default function NetworksPage() {
                             {networks.map((n) => (
                                 <tr key={n.id} className="border-b border-border/50 hover:bg-surface-high/40">
                                     <td className="px-5 py-3 font-medium text-text-primary">{n.name}</td>
-                                    <td className="px-4 py-3 text-text-dim font-mono">{n.type}</td>
-                                    <td className="px-4 py-3 text-text-muted">{n.proxy_type ?? "—"}</td>
                                     <td className="px-4 py-3">
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-[12px] font-heading font-bold bg-surface-higher border border-border text-text-dim">
                         {n.server_count}
@@ -220,7 +194,7 @@ export default function NetworksPage() {
                                         <div className="min-w-0">
                                             <p className="text-[14px] font-medium text-text-primary truncate">{n.name}</p>
                                             <p className="mt-0.5 font-mono text-[12px] text-text-dim">
-                                                {n.type}{n.proxy_type ? ` · ${n.proxy_type}` : ""} · {n.server_count} server{n.server_count !== 1 ? "s" : ""}
+                                                {n.server_count} server{n.server_count !== 1 ? "s" : ""}
                                             </p>
                                             {n.description && (
                                                 <p className="mt-0.5 text-[12px] text-text-muted truncate">{n.description}</p>

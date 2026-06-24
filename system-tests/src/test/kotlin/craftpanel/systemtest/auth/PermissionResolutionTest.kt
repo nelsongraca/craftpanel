@@ -3,7 +3,6 @@ package craftpanel.systemtest.auth
 import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.client.model.ServerStatus
-import craftpanel.systemtest.client.model.NetworkType
 import craftpanel.systemtest.harness.AuthHelper
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
@@ -152,10 +151,10 @@ class PermissionResolutionTest : BaseSystemTest() {
 
             should("NETWORK scope respected after server moves between networks") {
                 val netA = api.createNetwork(
-                    CreateNetworkRequest(name = "perm-move-a-${System.currentTimeMillis()}", type = NetworkType.VANILLA)
+                    CreateNetworkRequest(name = "perm-move-a-${System.currentTimeMillis()}")
                 )
                 val netB = api.createNetwork(
-                    CreateNetworkRequest(name = "perm-move-b-${System.currentTimeMillis()}", type = NetworkType.VANILLA)
+                    CreateNetworkRequest(name = "perm-move-b-${System.currentTimeMillis()}")
                 )
                 val movedServer = api.createServer(
                     CreateServerRequest(

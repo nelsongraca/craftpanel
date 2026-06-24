@@ -2,8 +2,6 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.Servers
-import io.craftpanel.master.domain.NetworkType
-import io.craftpanel.master.domain.ProxyType
 import io.craftpanel.master.domain.ServerStatus
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -23,8 +21,6 @@ import io.craftpanel.master.util.toUtcString
 data class NetworkResponse(
     val id: String,
     val name: String,
-    val type: NetworkType,
-    @SerialName("proxy_type") val proxyType: ProxyType?,
     @SerialName("proxy_port") val proxyPort: Int?,
     val description: String?,
     @SerialName("domain_suffix") val domainSuffix: String?,
@@ -47,8 +43,6 @@ data class NetworkServerItem(
 data class NetworkDetailResponse(
     val id: String,
     val name: String,
-    val type: NetworkType,
-    @SerialName("proxy_type") val proxyType: ProxyType?,
     @SerialName("proxy_port") val proxyPort: Int?,
     val description: String?,
     @SerialName("domain_suffix") val domainSuffix: String?,
@@ -63,8 +57,6 @@ data class NetworkDetailResponse(
 @Serializable
 data class CreateNetworkRequest(
     val name: String,
-    val type: NetworkType,
-    @SerialName("proxy_type") val proxyType: ProxyType? = null,
     @SerialName("proxy_port") val proxyPort: Int? = null,
     val description: String? = null,
     @SerialName("domain_suffix") val domainSuffix: String? = null,
@@ -102,8 +94,6 @@ class NetworkService {
                 NetworkResponse(
                     id = netId.toString(),
                     name = row[ServerNetworks.name],
-                    type = NetworkType.fromDb(row[ServerNetworks.type]),
-                    proxyType = row[ServerNetworks.proxyType]?.let { ProxyType.fromDb(it) },
                     proxyPort = row[ServerNetworks.proxyPort],
                     description = row[ServerNetworks.description],
                     domainSuffix = row[ServerNetworks.cfDomainSuffix],
@@ -127,8 +117,6 @@ class NetworkService {
         return transaction {
             val insertedId = ServerNetworks.insert {
                 it[name] = req.name
-                it[type] = req.type.name
-                it[proxyType] = req.proxyType?.name
                 it[proxyPort] = req.proxyPort
                 it[description] = req.description
                 it[cfDomainSuffix] = req.domainSuffix ?: req.dnsDomainSuffix
@@ -141,8 +129,6 @@ class NetworkService {
             NetworkResponse(
                 id = insertedId.toString(),
                 name = row[ServerNetworks.name],
-                type = NetworkType.fromDb(row[ServerNetworks.type]),
-                proxyType = row[ServerNetworks.proxyType]?.let { ProxyType.fromDb(it) },
                 proxyPort = row[ServerNetworks.proxyPort],
                 description = row[ServerNetworks.description],
                 domainSuffix = row[ServerNetworks.cfDomainSuffix],
@@ -174,8 +160,6 @@ class NetworkService {
             NetworkDetailResponse(
                 id = row[ServerNetworks.id].toString(),
                 name = row[ServerNetworks.name],
-                type = NetworkType.fromDb(row[ServerNetworks.type]),
-                proxyType = row[ServerNetworks.proxyType]?.let { ProxyType.fromDb(it) },
                 proxyPort = row[ServerNetworks.proxyPort],
                 description = row[ServerNetworks.description],
                 domainSuffix = row[ServerNetworks.cfDomainSuffix],

@@ -17,72 +17,66 @@ import kotlinx.serialization.Serializable
 
 @Serializable
 enum class ConfigMode {
+
     MANAGED, MANUAL;
 
     companion object {
+
         fun fromDb(s: String) = valueOf(s)
     }
 }
 
 @Serializable
 enum class BackupTrigger {
+
     MANUAL, SCHEDULED;
 
     companion object {
+
         fun fromDb(s: String) = valueOf(s)
     }
 }
 
 @Serializable
 enum class BackupStatus {
+
     IN_PROGRESS, COMPLETED, FAILED;
 
     companion object {
+
         fun fromDb(s: String) = valueOf(s)
     }
 }
 
 @Serializable
 enum class MigrationStatus {
+
     PENDING, SYNCING, CUTTING_OVER, COMPLETED, FAILED, CANCELLED, RUNNING;
 
     companion object {
+
         fun fromDb(s: String) = valueOf(s)
     }
 }
 
 @Serializable
 enum class MigrationStepStatus {
+
     PENDING, RUNNING, SUCCESS, FAILED;
 
     companion object {
-        fun fromDb(s: String) = valueOf(s)
-    }
-}
 
-@Serializable
-enum class NetworkType {
-    PROXY, VANILLA;
-
-    companion object {
-        fun fromDb(s: String) = valueOf(s)
-    }
-}
-
-@Serializable
-enum class ProxyType {
-    VELOCITY, BUNGEECORD, WATERFALL;
-
-    companion object {
         fun fromDb(s: String) = valueOf(s)
     }
 }
 
 @Serializable
 enum class ModPinStrategy {
+
     PINNED, LATEST, BETA, ALPHA;
 
     companion object {
+
         fun fromDb(s: String) = valueOf(s)
     }
 }

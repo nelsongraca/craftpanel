@@ -140,7 +140,6 @@ class ServersRoutesTest : FunSpec({
     fun createNetwork(name: String = "net-1"): Uuid = transaction {
         ServerNetworks.insert {
             it[ServerNetworks.name] = name
-            it[ServerNetworks.type] = "VANILLA"
         }[ServerNetworks.id].let { Uuid.parse(it.toString()) }
     }
 

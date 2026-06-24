@@ -117,7 +117,6 @@ class RouteAuthorizationTest : FunSpec({
     fun createNetwork(): Uuid = transaction {
         ServerNetworks.insert {
             it[ServerNetworks.name] = "net-1"
-            it[ServerNetworks.type] = "VANILLA"
         }[ServerNetworks.id].let { Uuid.parse(it.toString()) }
     }
 

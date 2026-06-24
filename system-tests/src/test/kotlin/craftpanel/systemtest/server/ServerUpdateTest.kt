@@ -2,7 +2,6 @@ package craftpanel.systemtest.server
 
 import craftpanel.systemtest.client.model.CreateNetworkRequest
 import craftpanel.systemtest.client.model.UpdateServerRequest
-import craftpanel.systemtest.client.model.NetworkType
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
@@ -37,7 +36,7 @@ class ServerUpdateTest : BaseSystemTest() {
 
             should("updates server network") {
                 val network = api.createNetwork(
-                    CreateNetworkRequest(name = "update-net-${System.currentTimeMillis()}", type = NetworkType.VANILLA)
+                    CreateNetworkRequest(name = "update-net-${System.currentTimeMillis()}")
                 )
                 try {
                     api.updateServer(serverId, UpdateServerRequest(networkId = network.id))
