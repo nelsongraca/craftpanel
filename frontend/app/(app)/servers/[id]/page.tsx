@@ -518,7 +518,7 @@ export default function ServerDetailPage() {
                             <div className="relative">
                                 <button
                                     onClick={(e) => {
-                                        e.stopPropagation();
+                                        e.nativeEvent.stopImmediatePropagation();
                                         setMenuOpen((o) => !o);
                                     }}
                                     className="flex items-center justify-center w-8 h-8 rounded border border-border text-text-muted hover:text-text-primary hover:bg-surface-high transition-colors"
