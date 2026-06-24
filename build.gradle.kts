@@ -61,13 +61,21 @@ if (project.hasProperty("withCoverage")) {
 val dockerBuildAll by tasks.registering {
     group = "docker"
     description = "Builds all Docker images"
-    dependsOn(tasks.named("build"))
+    dependsOn(
+        ":master:dockerBuildImage",
+        ":agent:dockerBuildImage",
+        ":frontend:dockerBuildImage",
+    )
 }
 
 val dockerPushAll by tasks.registering {
     group = "docker"
     description = "Pushes all Docker images"
-    dependsOn(dockerBuildAll)
+    dependsOn(
+        ":master:dockerPushImage",
+        ":agent:dockerPushImage",
+        ":frontend:dockerPushImage",
+    )
 }
 
 tasks.named("check") {
@@ -83,15 +91,5 @@ tasks.register("test") {
 subprojects {
     tasks.withType<Test>().configureEach {
         jvmArgs("-Dnet.bytebuddy.experimental=true")
-    }
-}
-
-// Wire subproject docker tasks into the root aggregators
-subprojects {
-    tasks.matching { name == "dockerBuildImage" }.configureEach {
-        dockerBuildAll { dependsOn(this@configureEach) }
-    }
-    tasks.matching { name == "dockerPushImage" }.configureEach {
-        dockerPushAll { dependsOn(this@configureEach) }
     }
 }
