@@ -88,6 +88,12 @@ The UI combines both — showing the server's live status alongside a migration 
 | `public_subdomain`   | VARCHAR(253)         | Chosen subdomain, e.g. `survival`; `NULL` if not exposed. Unique across all servers. The fully-qualified public hostname is derived at runtime from this + the base domain in system settings — not stored |
 | `dns_record_id`      | VARCHAR(100)         | DNS provider record ID; used for updates and deletion on migration or exposure toggle                                                                            |
 | `dns_record_name`    | VARCHAR(255)         | DNS provider record name as returned by the provider                                                                                                             |
+| `custom_hostname`    | VARCHAR(253)         | User-supplied fully-qualified hostname (e.g. `play.their-domain.com`); `NULL` if not set. Unique across all servers. The panel configures mc-router routing for this hostname but never manages DNS — the user must point their own A/CNAME record at the node. Set/change/clear triggers a container recreate so the mc-router label is updated. Additive with the managed subdomain: both hostnames can route simultaneously. |
+
+!!! note "Canonical public hostname"
+    The **canonical hostname** shown on the server detail page (API field `canonical_hostname`) is derived as: `custom_hostname` if set, otherwise the fully-qualified managed hostname (`{public_subdomain}.{domain_suffix}`). When neither is available the field is `null`.
+
+    The mc-router label `mc-router.host` is always the **comma-joined** list of all available hostnames (`[managedHostname, customHostname]`, nulls filtered). Both hostnames can route simultaneously.
 
 | `last_player_count`       | INT                  | Last observed player count from Minecraft query protocol; refreshed every 60 s; `NULL` when unknown                                                   |
 | `last_player_names`       | VARCHAR(1000)        | Comma-separated string of online player names; `NULL` when unknown                                                                                    |

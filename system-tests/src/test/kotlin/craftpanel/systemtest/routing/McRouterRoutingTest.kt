@@ -49,10 +49,18 @@ class McRouterRoutingTest : BaseSystemTest() {
     private val motdA = "ROUTED-TO-ALPHA"
     private val motdB = "ROUTED-TO-BRAVO"
 
+    // Custom hostname test uses a separate server (serverIdC) with both a managed subdomain
+    // and a custom hostname so both can be tested simultaneously.
+    private val subdomainC = "charlie-${System.currentTimeMillis()}"
+    private val hostnameC = "$subdomainC.$domainSuffix"
+    private val customHostnameC = "custom-c-${System.currentTimeMillis()}.example.test"
+    private val motdC = "ROUTED-TO-CHARLIE"
+
     private lateinit var networkId: String
     private lateinit var dockerNetworkName: String
     private lateinit var serverIdA: String
     private lateinit var serverIdB: String
+    private lateinit var serverIdC: String
 
     init {
         beforeSpec {
@@ -72,15 +80,19 @@ class McRouterRoutingTest : BaseSystemTest() {
 
             serverIdA = startExposedServer(subdomainA, motdA)
             serverIdB = startExposedServer(subdomainB, motdB)
+            serverIdC = startExposedServerWithCustomHostname(subdomainC, customHostnameC, motdC)
         }
 
         afterSpec {
             runCatching { api.stopServer(serverIdA) }
             runCatching { api.stopServer(serverIdB) }
+            runCatching { api.stopServer(serverIdC) }
             runCatching { helper.awaitStoppedOrGone(serverIdA) }
             runCatching { helper.awaitStoppedOrGone(serverIdB) }
+            runCatching { helper.awaitStoppedOrGone(serverIdC) }
             runCatching { api.deleteServer(serverIdA) }
             runCatching { api.deleteServer(serverIdB) }
+            runCatching { api.deleteServer(serverIdC) }
             runCatching { api.deleteNetwork(networkId) }
             removeDockerNetwork(dockerNetworkName)
         }
@@ -105,6 +117,53 @@ class McRouterRoutingTest : BaseSystemTest() {
                 routed shouldBe null
             }
         }
+
+        context("custom domain routing") {
+
+            should("routes the managed subdomain hostname to a server with a custom hostname") {
+                awaitRoutedMotd(hostnameC) shouldContain motdC
+            }
+
+            should("routes the custom hostname to the same server") {
+                awaitRoutedMotd(customHostnameC) shouldContain motdC
+            }
+
+            should("canonical_hostname reflects the custom hostname in the API response") {
+                val server = api.getServer(serverIdC)
+                server.customHostname shouldBe customHostnameC
+                server.canonicalHostname shouldBe customHostnameC
+            }
+
+            should("clearing the custom hostname drops only that route") {
+                // Stop, clear custom hostname, restart
+                api.stopServer(serverIdC)
+                helper.awaitStoppedOrGone(serverIdC)
+                api.updateServerExposure(
+                    serverIdC,
+                    PatchExposureRequest(
+                        exposedExternally = true,
+                        publicSubdomain = subdomainC,
+                        customHostname = "",  // empty string = clear
+                    )
+                )
+                api.startServer(serverIdC)
+                helper.awaitStatus(serverIdC, ServerStatus.HEALTHY)
+
+                // Managed subdomain still routes
+                awaitRoutedMotd(hostnameC) shouldContain motdC
+
+                // Custom hostname no longer routes
+                val routed = runCatching {
+                    pingThroughRouter(customHostnameC)
+                }.getOrNull()
+                routed shouldBe null
+
+                // canonical_hostname falls back to managed
+                val server = api.getServer(serverIdC)
+                server.customHostname shouldBe null
+                server.canonicalHostname shouldBe hostnameC
+            }
+        }
     }
 
     /** Creates a server on the test network, sets its MOTD, marks it externally exposed, starts it, waits HEALTHY. */
@@ -117,6 +176,33 @@ class McRouterRoutingTest : BaseSystemTest() {
         api.updateServerExposure(
             serverId,
             PatchExposureRequest(exposedExternally = true, publicSubdomain = subdomain)
+        )
+        api.startServer(serverId)
+        helper.awaitStatus(serverId, ServerStatus.HEALTHY)
+        return serverId
+    }
+
+    /**
+     * Creates a server with both a managed subdomain and a custom hostname.
+     * Both hostnames should route to the same backend via mc-router.
+     */
+    private suspend fun startExposedServerWithCustomHostname(
+        subdomain: String,
+        customHostname: String,
+        motd: String,
+    ): String {
+        val serverId = helper.createTestServer(nodeId, networkId = networkId)
+        api.replaceEnvVars(
+            serverId,
+            PutEnvVarsRequest(envVars = listOf(EnvVarItem(key = "MOTD", value = motd)))
+        )
+        api.updateServerExposure(
+            serverId,
+            PatchExposureRequest(
+                exposedExternally = true,
+                publicSubdomain = subdomain,
+                customHostname = customHostname,
+            )
         )
         api.startServer(serverId)
         helper.awaitStatus(serverId, ServerStatus.HEALTHY)

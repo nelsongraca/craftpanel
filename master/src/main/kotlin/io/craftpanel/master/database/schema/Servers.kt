@@ -24,6 +24,7 @@ object Servers : Table("servers") {
         .uniqueIndex()
     val dnsRecordId = varchar("dns_record_id", 100).nullable()
     val dnsRecordName = varchar("dns_record_name", 255).nullable()
+    val customHostname = varchar("custom_hostname", 253).nullable().uniqueIndex()
     val configMode = varchar("config_mode", 10).default("MANAGED")  // MANAGED | MANUAL
     val stopCommand = varchar("stop_command", 64).default("stop")
     val itzgImageTag = varchar("itzg_image_tag", 100).default("latest")

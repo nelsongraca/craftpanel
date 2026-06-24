@@ -77,6 +77,29 @@ Each server has an **expose externally** toggle. When enabled:
 5. mc-router on the node picks up the label and begins routing that hostname to the container
 6. The public hostname is shown on the server detail page for users to add to their Minecraft client
 
+### Custom domains (bring your own DNS)
+
+In addition to the managed subdomain, a server can have a **custom hostname** — a user-supplied FQDN such as `play.their-domain.com`. The panel only configures mc-router routing for this hostname; it never manages DNS for custom domains.
+
+**User responsibility:** The user must point an A record (or CNAME to an A record) at the node's public IP themselves using their own DNS provider. The panel cannot create, update, or delete records in user-owned DNS zones.
+
+**Additive routing:** Both the managed subdomain and the custom hostname can be active simultaneously. The mc-router label becomes a comma-joined list, e.g. `survival.mc.domain.tld,play.their-domain.com`. Both addresses work.
+
+**Canonical hostname:** The **canonical (display) hostname** shown on the server detail page (`canonical_hostname` API field) is the custom hostname when set, otherwise the managed subdomain hostname. Setting a custom hostname does not remove the managed subdomain route.
+
+**Setting or clearing a custom hostname triggers a container recreate** — the mc-router label is baked at container creation, so it must be refreshed to pick up the change.
+
+**Validation:** A custom hostname must be a valid RFC-1123 hostname. The panel rejects:
+
+- Hostnames already in use by another server's custom hostname
+- Hostnames that match an existing managed DNS record name
+- Hostnames under a panel-managed domain suffix (e.g. anything ending in `.mc.domain.tld`) — those must go through the managed subdomain path
+
+**Disabling external exposure** keeps a still-set custom hostname routing through mc-router. Only the managed subdomain half of the label is removed; the custom half remains. The user's traffic still reaches the server via their custom domain even when the panel subdomain is disabled.
+
+!!! warning "Custom domains and migration"
+    When a server is migrated to a different node, the panel updates the managed A record to point to the destination node's IP automatically. **Custom domains are not updated.** The user's A/CNAME still points at the old node's IP until they update it manually. Players using the custom hostname will be routed to the old node until the user updates their DNS. This is a user responsibility — the panel cannot touch user-owned DNS zones.
+
 ### mc-router auto-discovery labels
 
 mc-router runs with `IN_DOCKER=true` so it subscribes to the Docker event stream and routes by these container labels (set by the agent at container creation):
@@ -128,5 +151,6 @@ zone configured.
 
 ## DNS on Migration
 
-When a server is migrated to a different node, master updates the A record to point to the destination node's IP after the new container is running. With a 60-second TTL, players experience at most a
-short retry window before resolving the new address. See [Migration](../migration/index.md) for the full sequence.
+When a server is migrated to a different node, master updates the **managed** A record to point to the destination node's IP after the new container is running. With a 60-second TTL, players experience at most a short retry window before resolving the new address. See [Migration](../migration/index.md) for the full sequence.
+
+**Custom domains are not updated on migration.** The `custom_hostname` column travels with the server row so mc-router on the new node picks it up automatically. However, the user's own A/CNAME record still points at the old node's IP until the user updates it manually in their DNS provider. See the caveat in [Custom domains](#custom-domains-bring-your-own-dns) above.

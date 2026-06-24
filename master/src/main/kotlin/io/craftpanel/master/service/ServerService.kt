@@ -42,6 +42,8 @@ data class ServerResponse(
     @SerialName("cpu_shares") val cpuShares: Int,
     @SerialName("exposed_externally") val exposedExternally: Boolean,
     @SerialName("public_subdomain") val publicSubdomain: String?,
+    @SerialName("custom_hostname") val customHostname: String?,
+    @SerialName("canonical_hostname") val canonicalHostname: String?,
     @SerialName("is_migrating") val isMigrating: Boolean,
     @SerialName("needs_recreate") val needsRecreate: Boolean,
     @SerialName("config_mode") val configMode: ConfigMode,
@@ -86,6 +88,7 @@ data class PatchResourcesRequest(
 data class PatchExposureRequest(
     @SerialName("exposed_externally") val exposedExternally: Boolean,
     @SerialName("public_subdomain") val publicSubdomain: String? = null,
+    @SerialName("custom_hostname") val customHostname: String? = null,
 )
 
 @Serializable
@@ -442,11 +445,7 @@ class ServerService(
         val status = ServerStatus.fromDb(serverRow[Servers.status])
         if (status == ServerStatus.HEALTHY || status == ServerStatus.STARTING)
             throw ConflictException("Server is already running")
-        val publicHostname = serverRow[Servers.dnsRecordName]
-            ?: if (serverRow[Servers.exposedExternally] && serverRow[Servers.publicSubdomain] != null) {
-                resolvePublicHostname(serverRow[Servers.publicSubdomain]!!, serverRow[Servers.networkId])
-            }
-            else null
+        val publicHostname = buildMcRouterLabel(serverRow)
         // Write STARTING before dispatching to the agent: the background ServerStatusEvent
         // consumer may write HEALTHY as soon as the agent reports, and a late STARTING write
         // would clobber it, leaving the server stuck STARTING.
@@ -499,7 +498,7 @@ class ServerService(
             }
         }
         if (serverRow[Servers.needsRecreate]) {
-            lifecycle.sendStart(serverRow, needsRecreate = true)
+            lifecycle.sendStart(serverRow, needsRecreate = true, publicHostname = buildMcRouterLabel(serverRow))
         }
         else {
             val restartCmd = masterMessage {
@@ -558,6 +557,21 @@ class ServerService(
             if (taken) throw UnprocessableException("Public subdomain already taken")
         }
 
+        // Validate and check custom_hostname if provided
+        val resolvedCustomHostname: String? = if (req.customHostname != null) {
+            val ch = req.customHostname.trim()
+            if (ch.isEmpty()) {
+                // empty string means clear the custom hostname
+                null
+            } else {
+                validateCustomHostname(ch, id)
+                ch
+            }
+        } else {
+            // null means "don't change" — but we still carry through the existing value in the DB
+            serverRow[Servers.customHostname]
+        }
+
         val existingRecordId = serverRow[Servers.dnsRecordId]
         var newHostname: String? = null
         var newRecordId: String? = null
@@ -611,6 +625,10 @@ class ServerService(
             }
         }
 
+        // Determine if custom_hostname changed — triggers recreate
+        val prevCustomHostname = serverRow[Servers.customHostname]
+        val customHostnameChanged = resolvedCustomHostname != prevCustomHostname
+
         transaction {
             Servers.update({ Servers.id eq id }) {
                 it[exposedExternally] = req.exposedExternally
@@ -626,6 +644,7 @@ class ServerService(
                     it[dnsRecordName] = null
                     it[dnsRecordId] = null
                 }
+                it[customHostname] = resolvedCustomHostname
                 it[updatedAt] = Clock.System.now()
                     .toLocalDateTime(TimeZone.UTC)
             }
@@ -633,23 +652,102 @@ class ServerService(
 
         val currentStatus = ServerStatus.fromDb(serverRow[Servers.status])
         if (currentStatus.isRunning) {
-            val hostname = if (req.exposedExternally && req.publicSubdomain != null) newHostname else null
             val freshRow = transaction {
                 Servers.selectAll()
                     .where { Servers.id eq id }
                     .first()
             }
-            // Recreate transitions the container through a restart; mark STARTING before dispatch
-            // so the DB reflects it and a late write cannot clobber the consumer's HEALTHY.
-            transaction {
-                Servers.update({ Servers.id eq id }) {
-                    it[Servers.status] = "STARTING"
-                    it[Servers.updatedAt] = Clock.System.now()
-                        .toLocalDateTime(TimeZone.UTC)
+            // Recreate if exposure flags changed or custom_hostname changed so mc-router label is updated.
+            val needsRecreate = req.publicSubdomain != null || customHostnameChanged
+            if (needsRecreate) {
+                // Recreate transitions the container through a restart; mark STARTING before dispatch
+                // so the DB reflects it and a late write cannot clobber the consumer's HEALTHY.
+                transaction {
+                    Servers.update({ Servers.id eq id }) {
+                        it[Servers.status] = "STARTING"
+                        it[Servers.updatedAt] = Clock.System.now()
+                            .toLocalDateTime(TimeZone.UTC)
+                    }
                 }
+                lifecycle.sendStart(freshRow, needsRecreate = true, publicHostname = buildMcRouterLabel(freshRow))
             }
-            lifecycle.sendStart(freshRow, needsRecreate = true, publicHostname = hostname)
         }
+    }
+
+    /**
+     * Validates a custom hostname against RFC-1123 rules and panel-specific constraints:
+     * - Must be a valid RFC-1123 hostname (labels separated by dots, each label [a-z0-9-])
+     * - Must not collide with any server's existing custom_hostname
+     * - Must not collide with any server's managed dns_record_name
+     * - Must not end with any panel-managed domain suffix (network cfDomainSuffix values or global dns_domain_suffix)
+     */
+    private fun validateCustomHostname(hostname: String, excludeServerId: kotlin.uuid.Uuid) {
+        val rfc1123Label = Regex("^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$")
+        val labels = hostname.split(".")
+        if (labels.isEmpty() || labels.any { !it.matches(rfc1123Label) }) {
+            throw UnprocessableException("custom_hostname must be a valid RFC-1123 hostname (e.g. play.yourdomain.com)")
+        }
+
+        // Check collision with existing custom hostnames
+        val customTaken = transaction {
+            Servers.selectAll()
+                .where { (Servers.customHostname eq hostname) and (Servers.id neq excludeServerId) }
+                .firstOrNull() != null
+        }
+        if (customTaken) throw UnprocessableException("custom_hostname is already in use by another server")
+
+        // Check collision with managed dns_record_name values
+        val managedTaken = transaction {
+            Servers.selectAll()
+                .where { (Servers.dnsRecordName eq hostname) and (Servers.id neq excludeServerId) }
+                .firstOrNull() != null
+        }
+        if (managedTaken) throw UnprocessableException("custom_hostname conflicts with a managed DNS record name")
+
+        // Reject hostnames under panel-managed suffixes
+        val managedSuffixes = collectManagedSuffixes()
+        for (suffix in managedSuffixes) {
+            if (hostname.endsWith(".$suffix") || hostname == suffix) {
+                throw UnprocessableException(
+                    "custom_hostname must not be under a panel-managed domain suffix ($suffix). " +
+                            "Use the managed subdomain path instead."
+                )
+            }
+        }
+    }
+
+    /**
+     * Collects all panel-managed domain suffixes: per-network cfDomainSuffix values UNION
+     * the global dns_domain_suffix system setting.
+     */
+    private fun collectManagedSuffixes(): Set<String> = transaction {
+        val suffixes = mutableSetOf<String>()
+        ServerNetworks.selectAll()
+            .mapNotNull { it[ServerNetworks.cfDomainSuffix] }
+            .forEach { suffixes += it }
+        SystemSettings.selectAll()
+            .where { SystemSettings.key eq "dns_domain_suffix" }
+            .firstOrNull()
+            ?.get(SystemSettings.value)
+            ?.let { suffixes += it }
+        suffixes
+    }
+
+    /**
+     * Builds the mc-router.host label value: comma-joined list of [managedHostname, customHostname],
+     * with nulls filtered. When exposed_externally is true and public_subdomain is set, the managed
+     * hostname is included. The custom hostname is always included when set (even when expose is off).
+     *
+     * Returns null if no hostnames are available.
+     */
+    private fun buildMcRouterLabel(row: ResultRow): String? {
+        val managed = if (row[Servers.exposedExternally] && row[Servers.publicSubdomain] != null) {
+            row[Servers.dnsRecordName]
+                ?: resolvePublicHostname(row[Servers.publicSubdomain]!!, row[Servers.networkId])
+        } else null
+        val custom = row[Servers.customHostname]
+        val parts = listOfNotNull(managed, custom)
+        return if (parts.isEmpty()) null else parts.joinToString(",")
     }
 
     private data class NetworkDns(val zoneId: String, val domainSuffix: String)
@@ -724,32 +822,41 @@ internal fun resolveServerVisibility(userId: Uuid): ServerVisibility = transacti
 private fun permGrantsServerView(granted: String) =
     granted == "*" || granted == "server.*" || granted == Permission.SERVER_VIEW.node
 
-internal fun rowToServerResponse(row: ResultRow, isMigrating: Boolean) = ServerResponse(
-    id = row[Servers.id].toString(),
-    name = row[Servers.name],
-    displayName = row[Servers.displayName],
-    description = row[Servers.description],
-    serverType = row[Servers.serverType],
-    mcVersion = row[Servers.mcVersion],
-    itzgImageTag = row[Servers.itzgImageTag],
-    status = ServerStatus.fromDb(row[Servers.status]),
-    nodeId = row[Servers.nodeId].toString(),
-    networkId = row[Servers.networkId]?.toString(),
-    hostPort = row[Servers.hostPort],
-    memoryMb = row[Servers.memoryMb],
-    cpuShares = row[Servers.cpuShares],
-    exposedExternally = row[Servers.exposedExternally],
-    publicSubdomain = row[Servers.publicSubdomain],
-    isMigrating = isMigrating,
-    needsRecreate = row[Servers.needsRecreate],
-    configMode = ConfigMode.fromDb(row[Servers.configMode]),
-    stopCommand = row[Servers.stopCommand],
-    lastPlayerCount = row[Servers.lastPlayerCount],
-    lastPlayerNames = row[Servers.lastPlayerNames]?.split(",")
-        ?.filter { it.isNotBlank() },
-    createdAt = row[Servers.createdAt].toUtcString(),
-    updatedAt = row[Servers.updatedAt].toUtcString(),
-)
+internal fun rowToServerResponse(row: ResultRow, isMigrating: Boolean): ServerResponse {
+    val customHostname = row[Servers.customHostname]
+    val managedHostname = if (row[Servers.exposedExternally] && row[Servers.publicSubdomain] != null) {
+        row[Servers.dnsRecordName]
+    } else null
+    val canonicalHostname = customHostname ?: managedHostname
+    return ServerResponse(
+        id = row[Servers.id].toString(),
+        name = row[Servers.name],
+        displayName = row[Servers.displayName],
+        description = row[Servers.description],
+        serverType = row[Servers.serverType],
+        mcVersion = row[Servers.mcVersion],
+        itzgImageTag = row[Servers.itzgImageTag],
+        status = ServerStatus.fromDb(row[Servers.status]),
+        nodeId = row[Servers.nodeId].toString(),
+        networkId = row[Servers.networkId]?.toString(),
+        hostPort = row[Servers.hostPort],
+        memoryMb = row[Servers.memoryMb],
+        cpuShares = row[Servers.cpuShares],
+        exposedExternally = row[Servers.exposedExternally],
+        publicSubdomain = row[Servers.publicSubdomain],
+        customHostname = customHostname,
+        canonicalHostname = canonicalHostname,
+        isMigrating = isMigrating,
+        needsRecreate = row[Servers.needsRecreate],
+        configMode = ConfigMode.fromDb(row[Servers.configMode]),
+        stopCommand = row[Servers.stopCommand],
+        lastPlayerCount = row[Servers.lastPlayerCount],
+        lastPlayerNames = row[Servers.lastPlayerNames]?.split(",")
+            ?.filter { it.isNotBlank() },
+        createdAt = row[Servers.createdAt].toUtcString(),
+        updatedAt = row[Servers.updatedAt].toUtcString(),
+    )
+}
 
 internal val PROXY_SERVER_TYPES = setOf("VELOCITY", "BUNGEECORD", "WATERFALL")
 
