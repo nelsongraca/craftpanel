@@ -81,7 +81,7 @@ data class AgentConfig(
             privateIpOverride = System.getenv("NODE_PRIVATE_IP") ?: "",
             metricsPollIntervalSeconds = System.getenv("METRICS_POLL_INTERVAL_SECONDS")
                 ?.toIntOrNull()
-                ?.coerceAtLeast(5) ?: 60,
+                ?.coerceAtLeast(1) ?: 5,
             pullMaxImageAgeHours = System.getenv("PULL_MAX_IMAGE_AGE_HOURS")
                 ?.toLongOrNull()
                 ?.coerceAtLeast(0) ?: 24,

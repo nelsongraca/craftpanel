@@ -611,7 +611,7 @@ export default function ServerDetailPage() {
 
             {/* ── Tab bar ── */}
             <div className="flex items-end px-6 border-b border-border bg-surface">
-                {TABS.map((tab) => (
+                {TABS.filter((tab) => !(isProxy && tab === "Migration")).map((tab) => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
@@ -643,6 +643,10 @@ export default function ServerDetailPage() {
                     networkId={server.network_id ?? null}
                     configMode={server.config_mode ?? "MANAGED"}
                     stopCommand={server.stop_command ?? "stop"}
+                    onOpenGeneralSettings={() => {
+                        setActiveTab("Overview");
+                        openEditGeneral();
+                    }}
                 />
             ) : activeTab === "Migration" ? (
                 <div className="px-6 py-4">
