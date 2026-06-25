@@ -21,6 +21,7 @@ import io.craftpanel.master.service.EnvVarsService
 import io.craftpanel.master.service.GroupService
 import io.craftpanel.master.service.MigrationService
 import io.craftpanel.master.service.ModService
+import io.craftpanel.master.docker.MasterDockerClient
 import io.craftpanel.master.service.NetworkService
 import io.craftpanel.master.service.NodeService
 import io.craftpanel.master.service.ProxyBackendService
@@ -59,7 +60,14 @@ val appModule = module {
     // Domain services
     single { UserService() }
     single { NodeService(get<AgentGateway>()) }
-    single { NetworkService() }
+    single {
+        val endpoint = get<AppConfig>().docker.endpoint
+        val dockerClient = if (endpoint.isNotEmpty()) MasterDockerClient.create(endpoint) else null
+        NetworkService(
+            dockerClient = dockerClient,
+            containerNamePrefix = get(named("containerPrefix")),
+        )
+    }
     single { GroupService() }
     single { AssignmentService() }
     single { SystemService() }

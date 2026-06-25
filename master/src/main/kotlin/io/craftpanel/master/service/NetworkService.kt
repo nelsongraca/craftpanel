@@ -1,8 +1,10 @@
 package io.craftpanel.master.service
 
+import com.github.dockerjava.api.DockerClient
 import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ServerStatus
+import io.craftpanel.master.util.toUtcString
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.and
@@ -15,7 +17,6 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.uuid.Uuid
-import io.craftpanel.master.util.toUtcString
 
 @Serializable
 data class NetworkResponse(
@@ -75,7 +76,41 @@ data class PatchNetworkRequest(
     @SerialName("dns_provider_type") val dnsProviderType: String? = null,
 )
 
-class NetworkService {
+class NetworkService(
+    private val dockerClient: DockerClient? = null,
+    private val containerNamePrefix: String = "craftpanel",
+) {
+
+    private val log = org.slf4j.LoggerFactory.getLogger(NetworkService::class.java)
+
+    private fun createOverlayNetwork(networkId: String) {
+        val docker = dockerClient ?: return
+        val name = "$containerNamePrefix-net-$networkId"
+        runCatching {
+            docker.createNetworkCmd()
+                .withName(name)
+                .withDriver("overlay")
+                .withAttachable(true)
+                .withLabels(mapOf("craftpanel.managed" to "true"))
+                .exec()
+            log.info("Created overlay network $name")
+        }.onFailure { log.warn("Failed to create overlay network $name: ${it.message}") }
+    }
+
+    private fun deleteOverlayNetwork(networkId: String) {
+        val docker = dockerClient ?: return
+        val name = "$containerNamePrefix-net-$networkId"
+        runCatching {
+            val nets = docker.listNetworksCmd()
+                .withNameFilter(name)
+                .exec()
+            nets.forEach {
+                docker.removeNetworkCmd(it.id)
+                    .exec()
+            }
+            log.info("Deleted overlay network $name")
+        }.onFailure { log.warn("Failed to delete overlay network $name: ${it.message}") }
+    }
 
     fun listNetworks(userId: Uuid): List<NetworkResponse> {
         val visibility = resolveServerVisibility(userId)
@@ -114,7 +149,7 @@ class NetworkService {
                 .firstOrNull() != null
         }
         if (nameTaken) throw ConflictException("Network name already taken")
-        return transaction {
+        val response = transaction {
             val insertedId = ServerNetworks.insert {
                 it[name] = req.name
                 it[proxyPort] = req.proxyPort
@@ -139,9 +174,11 @@ class NetworkService {
                 createdAt = row[ServerNetworks.createdAt].toUtcString(),
             )
         }
+        createOverlayNetwork(response.id)
+        return response
     }
 
-    fun getNetwork(id: kotlin.uuid.Uuid): NetworkDetailResponse =
+    fun getNetwork(id: Uuid): NetworkDetailResponse =
         transaction {
             val row = ServerNetworks.selectAll()
                 .where { ServerNetworks.id eq id }
@@ -172,7 +209,7 @@ class NetworkService {
             )
         } ?: throw NotFoundException("Network not found")
 
-    fun updateNetwork(id: kotlin.uuid.Uuid, req: PatchNetworkRequest) {
+    fun updateNetwork(id: Uuid, req: PatchNetworkRequest) {
         val result: Boolean? = transaction {
             val exists = ServerNetworks.selectAll()
                 .where { ServerNetworks.id eq id }
@@ -201,7 +238,7 @@ class NetworkService {
         }
     }
 
-    fun deleteNetwork(id: kotlin.uuid.Uuid) {
+    fun deleteNetwork(id: Uuid) {
         val deleted = transaction {
             val exists = ServerNetworks.selectAll()
                 .where { ServerNetworks.id eq id }
@@ -212,5 +249,6 @@ class NetworkService {
             true
         }
         if (!deleted) throw NotFoundException("Network not found")
+        deleteOverlayNetwork(id.toString())
     }
 }
