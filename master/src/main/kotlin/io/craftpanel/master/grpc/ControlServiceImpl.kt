@@ -217,6 +217,14 @@ class ControlServiceImpl(
                                 }
                             }
                             .onFailure { e -> log.error("Node ${msg.nodeId}: reconcileNodeState failed — ${e.message}", e) }
+                        // Persist swarm_active from snapshot
+                        runCatching {
+                            transaction {
+                                Nodes.update({ Nodes.id eq Uuid.parse(msg.nodeId) }) {
+                                    it[Nodes.swarmActive] = msg.nodeState.swarmActive
+                                }
+                            }
+                        }.onFailure { e -> log.warn("Node ${msg.nodeId}: failed to persist swarm_active — ${e.message}") }
                     }
 
                     msg.hasNodeMetrics()           -> {
