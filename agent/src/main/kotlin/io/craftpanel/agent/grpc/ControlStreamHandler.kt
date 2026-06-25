@@ -122,12 +122,17 @@ class ControlStreamHandler(
             .onFailure { if (it is CancellationException) throw it else log.error("Unexpected handler failure", it) }
     }
 
+    private fun isSwarmActive(): Boolean = runCatching {
+        docker.infoCmd().exec().swarm?.localNodeState?.name?.lowercase() == "active"
+    }.getOrDefault(false)
+
     internal fun buildStateSnapshot(): NodeStateSnapshot {
         val containers = containerManager.listContainers()
         return nodeStateSnapshot {
             this.containers.addAll(containers)
             recordedAt = nowTimestamp()
             routerRunning = routerSupervisor.isRunning
+            swarmActive = isSwarmActive()
         }
     }
 }
