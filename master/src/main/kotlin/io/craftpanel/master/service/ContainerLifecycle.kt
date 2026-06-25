@@ -112,7 +112,9 @@ class ContainerLifecycle(
                 hostPort = server[Servers.hostPort]
                 memoryMb = server[Servers.memoryMb]
                 cpuShares = server[Servers.cpuShares]
-                dockerNetwork = server[Servers.networkId]?.let { "$containerNamePrefix-net-$it" } ?: ""
+                dockerNetwork = server[Servers.networkId]
+                    ?.let { "$containerNamePrefix-net-$it" }
+                    ?: "$containerNamePrefix-server-$id"
             }
         }
     }
@@ -130,7 +132,6 @@ class ContainerLifecycle(
             put("TYPE", serverType)
             put("VERSION", server[Servers.mcVersion])
             put("MEMORY", "${server[Servers.memoryMb]}M")
-            put("ENABLE_QUERY", "TRUE")
             if (modrinthProjects.isNotEmpty()) put("MODRINTH_PROJECTS", modrinthProjects)
         }
         return systemVars + dbEnvVars
