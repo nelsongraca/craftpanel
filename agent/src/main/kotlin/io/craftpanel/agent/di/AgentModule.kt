@@ -14,7 +14,6 @@ import io.craftpanel.agent.grpc.handlers.ConsoleHandler
 import io.craftpanel.agent.grpc.handlers.ContainerHandler
 import io.craftpanel.agent.grpc.handlers.FileHandler
 import io.craftpanel.agent.grpc.handlers.MigrationHandler
-import org.koin.core.parameter.parametersOf
 import org.koin.dsl.module
 
 class ConnectionScope
@@ -50,12 +49,10 @@ val agentModule = module {
         )
     }
     single { MetricsCollector(get<DockerClient>(), get<AgentConfig>().craftpanelNetwork) }
-    single { NetworkManager(get<DockerClient>(), "${get<AgentConfig>().containerNamePrefix}-mc-router") }
-
     scope<ConnectionScope> {
         scoped { ConsoleHandler(get(), get()) }
         scoped { (nodeKey: String) -> FileHandler(get(), nodeKey) }
-        scoped { ContainerHandler(get(), get(), get()) }
+        scoped { (networkManager: NetworkManager) -> ContainerHandler(get(), get(), networkManager) }
         scoped { BackupHandler(get()) }
         scoped { MigrationHandler(get(), get()) }
     }

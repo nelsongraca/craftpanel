@@ -4,11 +4,8 @@ import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.di.agentModule
 import io.craftpanel.agent.docker.ContainerManager
-import io.craftpanel.agent.docker.McRouterProvisioner
 import io.craftpanel.agent.docker.MetricsCollector
-import io.craftpanel.agent.docker.RouterSupervisor
 import io.craftpanel.agent.grpc.ConnectionManager
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.koin.core.context.startKoin
 import org.slf4j.LoggerFactory
@@ -52,10 +49,5 @@ fun main(): Unit = runBlocking {
     val containerManager = koin.get<ContainerManager>()
     val metricsCollector = koin.get<MetricsCollector>()
 
-    val routerSupervisor = RouterSupervisor(
-        McRouterProvisioner(docker, config.mcRouterImage, config.mcRouterUpdateOnStart, config.craftpanelNetwork, config.containerNamePrefix)
-    )
-    launch { routerSupervisor.run() }
-
-    ConnectionManager(koin, config, containerManager, metricsCollector, docker, routerSupervisor).run()
+    ConnectionManager(koin, config, containerManager, metricsCollector, docker).run(this)
 }

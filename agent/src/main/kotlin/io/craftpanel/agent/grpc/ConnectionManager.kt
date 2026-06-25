@@ -5,12 +5,16 @@ import io.craftpanel.agent.auth.NodeKeyStore
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.di.ConnectionScope
 import io.craftpanel.agent.docker.ContainerManager
+import io.craftpanel.agent.docker.McRouterProvisioner
 import io.craftpanel.agent.docker.MetricsCollector
+import io.craftpanel.agent.docker.NetworkManager
 import io.craftpanel.agent.docker.RouterSupervisor
 import io.grpc.ManagedChannel
 import io.grpc.netty.GrpcSslContexts
 import io.grpc.netty.NettyChannelBuilder
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import org.koin.core.Koin
 import org.koin.core.parameter.parametersOf
 import org.koin.core.qualifier.named
@@ -27,7 +31,6 @@ class ConnectionManager(
     private val containerManager: ContainerManager,
     private val metricsCollector: MetricsCollector,
     private val docker: DockerClient,
-    private val routerSupervisor: RouterSupervisor,
 ) {
 
     private val log = LoggerFactory.getLogger(ConnectionManager::class.java)
@@ -56,8 +59,10 @@ class ConnectionManager(
         return builder.build()
     }
 
-    suspend fun run() {
+    suspend fun run(coroutineScope: CoroutineScope) {
         var backoffSeconds = 5L
+        var routerSupervisor: RouterSupervisor? = null
+        var networkManager: NetworkManager? = null
 
         while (true) {
             val result = runCatching {
@@ -72,10 +77,25 @@ class ConnectionManager(
                     val identity = NodeAuthenticator(config, metricsCollector).authenticate(channel)
                     backoffSeconds = 5L  // reset on successful auth
 
+                    if (routerSupervisor == null) {
+                        val provisioner = McRouterProvisioner(
+                            docker,
+                            config.mcRouterImage,
+                            config.mcRouterUpdateOnStart,
+                            config.craftpanelNetwork,
+                            config.containerNamePrefix,
+                            nodeId = identity.nodeId,
+                        )
+                        networkManager = NetworkManager(docker, provisioner.containerName)
+                        val supervisor = RouterSupervisor(provisioner)
+                        routerSupervisor = supervisor
+                        coroutineScope.launch { supervisor.run() }
+                    }
+
                     ControlStreamHandler(
                         identity, config, containerManager, metricsCollector, docker,
-                        routerSupervisor = routerSupervisor,
-                        container = scope.get(),
+                        routerSupervisor = checkNotNull(routerSupervisor),
+                        container = scope.get { parametersOf(checkNotNull(networkManager)) },
                         backup = scope.get(),
                         migration = scope.get(),
                         file = scope.get { parametersOf(identity.nodeKey) },

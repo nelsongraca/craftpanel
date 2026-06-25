@@ -14,10 +14,14 @@ class McRouterProvisioner(
     private val updateOnStart: Boolean,
     private val networkName: String = "",
     private val containerNamePrefix: String = "craftpanel",
+    private val nodeId: String = "",
 ) {
 
     private val log = LoggerFactory.getLogger(McRouterProvisioner::class.java)
-    private val containerName = "$containerNamePrefix-mc-router"
+    val containerName: String = if (nodeId.isNotEmpty())
+        "$containerNamePrefix-mc-router-$nodeId"
+    else
+        "$containerNamePrefix-mc-router"
 
     fun ensureRunning() {
         if (updateOnStart) {
@@ -43,13 +47,19 @@ class McRouterProvisioner(
                 ?.keys?.any { it.port == 25565 } == true
             if (!hasAutoDiscovery || !hasHostPort) {
                 log.info("mc-router drift (autoDiscovery=$hasAutoDiscovery hostPort=$hasHostPort) — recreating")
-                runCatching { docker.removeContainerCmd(existing.id).withForce(true).exec() }
+                runCatching {
+                    docker.removeContainerCmd(existing.id)
+                        .withForce(true)
+                        .exec()
+                }
                     .onFailure { log.warn("Failed to remove stale mc-router — continuing to recreate: ${it.message}") }
-            } else if (existing.state?.running == true) {
+            }
+            else if (existing.state?.running == true) {
                 log.info("mc-router already running")
                 connectToNetwork(existing.id)
                 return
-            } else {
+            }
+            else {
                 log.info("mc-router container exists but not running — starting")
                 runCatching {
                     docker.startContainerCmd(existing.id)
