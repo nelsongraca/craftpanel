@@ -535,13 +535,8 @@ class ServerService(
             lifecycle.sendStart(serverRow, needsRecreate = true, publicHostname = buildMcRouterLabel(serverRow))
         }
         else {
-            val restartCmd = masterMessage {
-                restartContainer = restartContainerCommand {
-                    serverId = id.toString(); containerName = "$containerNamePrefix-$id"
-                    timeoutSeconds = 30; stopCommand = serverRow[Servers.stopCommand]
-                }
-            }
-            if (!gateway.sendToNode(nodeId, restartCmd)) throw BadGatewayException("Agent not connected")
+            lifecycle.sendStop(serverRow, nodeId)
+            lifecycle.sendStart(serverRow, needsRecreate = false, publicHostname = buildMcRouterLabel(serverRow))
         }
     }
 

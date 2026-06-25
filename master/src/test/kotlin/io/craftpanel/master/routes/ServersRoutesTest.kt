@@ -999,7 +999,7 @@ class ServersRoutesTest : FunSpec({
         }
     }
 
-    test("POST restart returns 202 and sends RestartContainerCommand") {
+    test("POST restart returns 202 and sends StopContainerCommand then StartContainerCommand") {
         val gw = TestAgentGateway()
         testApplication {
             application { configureTest(gw) }
@@ -1010,9 +1010,11 @@ class ServersRoutesTest : FunSpec({
             val serverId = createServer(nodeId, status = "HEALTHY")
             val resp = client.post("/api/servers/$serverId/restart") { bearerAuth(tokenFor(userId)) }
             resp.status shouldBe HttpStatusCode.Accepted
-            gw.sent.size shouldBe 1
-            gw.sent[0].second.hasRestartContainer() shouldBe true
-            gw.sent[0].second.restartContainer.containerName shouldBe "craftpanel-$serverId"
+            gw.sent.size shouldBe 2
+            gw.sent[0].second.hasStopContainer() shouldBe true
+            gw.sent[0].second.stopContainer.containerName shouldBe "craftpanel-$serverId"
+            gw.sent[1].second.hasStartContainer() shouldBe true
+            gw.sent[1].second.startContainer.containerName shouldBe "craftpanel-$serverId"
         }
     }
 })
