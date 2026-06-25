@@ -13,7 +13,6 @@ import java.io.IOException
 import java.nio.file.*
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.PosixFilePermission
-import java.time.Instant
 
 class FileHandler(
     private val config: AgentConfig,
@@ -29,7 +28,13 @@ class FileHandler(
                 log.debug("listFiles serverId={} requestedPath={} root={} rootExists={}", cmd.serverId, cmd.path, root, Files.exists(root))
                 val target = safeResolve(root, cmd.path.ifEmpty { "/" })
                 log.debug("listFiles target={} exists={} isDir={}", target, Files.exists(target), Files.isDirectory(target))
-                if (!Files.isDirectory(target)) error("Path not found")
+                if (!Files.isDirectory(target)) {
+                    if (target == root) {
+                        Files.createDirectories(root)
+                        return@withContext emptyList()
+                    }
+                    error("Path not found")
+                }
                 Files.list(target)
                     .use { stream ->
                         stream.map { path ->

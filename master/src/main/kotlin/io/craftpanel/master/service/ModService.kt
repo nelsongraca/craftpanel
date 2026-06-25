@@ -120,11 +120,21 @@ class ModService {
         transaction { markNeedsRecreate(serverId) }
     }
 
-    fun searchModrinth(query: String, limit: Int): ModrinthSearchResult {
+    fun searchModrinth(query: String, limit: Int, serverType: String = "", mcVersion: String = ""): ModrinthSearchResult {
+        val typeUpper = serverType.uppercase()
+        val projectType = if (typeUpper in PLUGIN_SERVER_TYPES) "plugin" else "mod"
+        val loader = LOADER_BY_SERVER_TYPE[typeUpper]
         val url = buildString {
             append("https://api.modrinth.com/v2/search?query=")
             append(URLEncoder.encode(query, "UTF-8"))
-            append("&facets=[[%22project_type:mod%22]]&limit=")
+            val facets = buildList {
+                add("[\"project_type:$projectType\"]")
+                if (loader != null) add("[\"loaders:$loader\"]")
+                if (mcVersion.isNotBlank() && mcVersion.uppercase() != "LATEST") add("[\"game_versions:$mcVersion\"]")
+            }
+            append("&facets=[")
+            append(facets.joinToString(","))
+            append("]&limit=")
             append(limit)
         }
         val httpClient = HttpClient.newHttpClient()
@@ -157,6 +167,17 @@ class ModService {
                 }
             }
 }
+
+private val PLUGIN_SERVER_TYPES = setOf(
+    "PAPER", "PURPUR", "SPIGOT", "BUKKIT",
+    "VELOCITY", "BUNGEECORD", "WATERFALL",
+)
+
+private val LOADER_BY_SERVER_TYPE = mapOf(
+    "FABRIC" to "fabric", "FORGE" to "forge", "NEOFORGE" to "neoforge", "QUILT" to "quilt",
+    "PAPER" to "paper", "PURPUR" to "purpur", "SPIGOT" to "spigot", "BUKKIT" to "bukkit",
+    "VELOCITY" to "velocity", "BUNGEECORD" to "bungeecord", "WATERFALL" to "waterfall",
+)
 
 private fun org.jetbrains.exposed.v1.core.ResultRow.toModResponse() = ModResponse(
     id = this[ServerMods.id].toString(),

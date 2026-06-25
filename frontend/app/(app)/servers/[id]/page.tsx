@@ -622,7 +622,7 @@ export default function ServerDetailPage() {
                                 : "text-text-dim hover:text-text-primary",
                         ].join(" ")}
                     >
-                        {tab}
+                        {tab === "Mods" && !isModServerType ? "Plugins" : tab}
                     </button>
                 ))}
             </div>
@@ -635,7 +635,7 @@ export default function ServerDetailPage() {
             ) : activeTab === "Backups" ? (
                 <BackupsTab serverId={server.id}/>
             ) : activeTab === "Mods" ? (
-                <ModsTab serverId={server.id} onModsChanged={() => void fetchServer()}/>
+                <ModsTab serverId={server.id} serverType={server.server_type} mcVersion={server.mc_version} onModsChanged={() => void fetchServer()}/>
             ) : activeTab === "Configuration" ? (
                 <ConfigTab
                     serverId={server.id}
@@ -889,6 +889,7 @@ function OverviewTab({
     const canConfigure = hasPermission(permissions, "server.configure");
     const canResources = hasPermission(permissions, "server.resources");
     const isProxy = ["VELOCITY", "BUNGEECORD", "WATERFALL"].includes(server.server_type);
+    const isModServerType = ["FABRIC", "FORGE", "NEOFORGE", "QUILT"].includes(server.server_type);
 
     const cpuColor = liveMetrics && liveMetrics.cpuPercent > 85 ? "text-error"
         : liveMetrics && liveMetrics.cpuPercent > 65 ? "text-warning"

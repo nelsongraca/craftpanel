@@ -116,7 +116,7 @@ class ModsRoutes(val modService: ModService) {
                 get("/search", {
                     operationId = "searchMods"
                     summary = "Search Modrinth mods"
-                    request { pathParameter<String>("id"); queryParameter<String>("query"); queryParameter<Int>("limit") }
+                    request { pathParameter<String>("id"); queryParameter<String>("query"); queryParameter<Int>("limit"); queryParameter<String>("serverType"); queryParameter<String>("mcVersion") }
                     response {
                         code(HttpStatusCode.OK) { }
                         code(HttpStatusCode.BadGateway) { body<ErrorResponse>() }
@@ -129,7 +129,9 @@ class ModsRoutes(val modService: ModService) {
                     val query = call.request.queryParameters["query"]?.takeIf { it.isNotBlank() } ?: ""
                     val limit = call.request.queryParameters["limit"]?.toIntOrNull()
                         ?.coerceIn(1, 20) ?: 10
-                    val result = modService.searchModrinth(query, limit)
+                    val serverType = call.request.queryParameters["serverType"] ?: ""
+                    val mcVersion = call.request.queryParameters["mcVersion"] ?: ""
+                    val result = modService.searchModrinth(query, limit, serverType, mcVersion)
                     if (result.statusCode !in 200..299) {
                         call.respond(HttpStatusCode.BadGateway, ErrorResponse("Mod search upstream unavailable"))
                         return@get

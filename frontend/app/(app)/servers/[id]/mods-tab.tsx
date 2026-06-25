@@ -40,7 +40,11 @@ interface ModrinthHit {
     downloads: number;
 }
 
-export function ModsTab({serverId, onModsChanged}: { serverId: string; onModsChanged?: () => void }) {
+const MOD_SERVER_TYPES = new Set(["FABRIC", "FORGE", "NEOFORGE", "QUILT"]);
+
+export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serverId: string; serverType: string; mcVersion: string; onModsChanged?: () => void }) {
+    const isMod = MOD_SERVER_TYPES.has(serverType.toUpperCase());
+    const itemLabel = isMod ? "mod" : "plugin";
     const [mods, setMods] = useState<Mod[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -88,7 +92,8 @@ export function ModsTab({serverId, onModsChanged}: { serverId: string; onModsCha
         try {
             const {data} = await searchMods({
                 path: {id: serverId},
-                query: {query: searchQuery, limit: 10}
+                // ponytail: serverType added to backend; cast until codegen regenerates SearchModsData
+                query: {query: searchQuery, limit: 10, serverType, mcVersion} as { query?: string; limit?: number }
             });
             const body = data as { hits?: ModrinthHit[] } | undefined;
             setSearchResults(body?.hits ?? []);
@@ -198,7 +203,7 @@ export function ModsTab({serverId, onModsChanged}: { serverId: string; onModsCha
     }
 
     if (loading) {
-        return <div className="text-text-dim text-sm p-4">Loading mods…</div>;
+        return <div className="text-text-dim text-sm p-4">Loading {itemLabel}s…</div>;
     }
 
     return (
@@ -209,7 +214,7 @@ export function ModsTab({serverId, onModsChanged}: { serverId: string; onModsCha
 
             {/* Header */}
             <div className="flex items-center justify-between">
-                <span className="text-sm text-text-dim">{mods.length} mod{mods.length !== 1 ? "s" : ""}</span>
+                <span className="text-sm text-text-dim">{mods.length} {itemLabel}{mods.length !== 1 ? "s" : ""}</span>
                 <div className="flex gap-2">
                     <button
                         onClick={load}
@@ -223,7 +228,7 @@ export function ModsTab({serverId, onModsChanged}: { serverId: string; onModsCha
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-bg text-xs rounded hover:bg-accent-bright transition-colors"
                     >
                         <Plus className="w-3 h-3"/>
-                        Add Mod
+                        Add {isMod ? "Mod" : "Plugin"}
                     </button>
                 </div>
             </div>
@@ -332,7 +337,7 @@ export function ModsTab({serverId, onModsChanged}: { serverId: string; onModsCha
             {/* Mod list */}
             {mods.length === 0 ? (
                 <div className="text-center text-text-muted text-sm py-8 border border-border rounded-lg bg-surface">
-                    No mods installed
+                    No {itemLabel}s installed
                 </div>
             ) : (
                 <div className="space-y-2">
