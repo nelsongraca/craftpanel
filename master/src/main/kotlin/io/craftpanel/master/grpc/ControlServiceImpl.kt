@@ -217,14 +217,7 @@ class ControlServiceImpl(
                                 }
                             }
                             .onFailure { e -> log.error("Node ${msg.nodeId}: reconcileNodeState failed — ${e.message}", e) }
-                        // Persist swarm_active from snapshot
-                        runCatching {
-                            transaction {
-                                Nodes.update({ Nodes.id eq Uuid.parse(msg.nodeId) }) {
-                                    it[Nodes.swarmActive] = msg.nodeState.swarmActive
-                                }
-                            }
-                        }.onFailure { e -> log.warn("Node ${msg.nodeId}: failed to persist swarm_active — ${e.message}") }
+
                     }
 
                     msg.hasNodeMetrics()           -> {
@@ -558,6 +551,7 @@ class ControlServiceImpl(
                 Nodes.update({ Nodes.id eq kotlinNodeId }) {
                     it[Nodes.health] = newHealth.name
                     it[Nodes.lastSeenAt] = now
+                    it[Nodes.swarmActive] = snapshot.swarmActive
                 }
                 resultHealth = newHealth
                 log.debug("Node {}: reconciled health={} (routerRunning={})", nodeId, newHealth, snapshot.routerRunning)
