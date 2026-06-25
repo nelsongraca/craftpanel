@@ -250,6 +250,19 @@ open class ContainerManager(
         }
     }
 
+    fun getContainerNetworkNames(containerName: String): List<String> =
+        runCatching {
+            docker.inspectContainerCmd(containerName)
+                .exec()
+                .networkSettings?.networks?.keys?.toList() ?: emptyList()
+        }.getOrDefault(emptyList())
+
+    fun getContainerId(containerName: String): String? =
+        runCatching {
+            docker.inspectContainerCmd(containerName)
+                .exec().id
+        }.getOrNull()
+
     fun getContainerDataPath(containerName: String): String? {
         return runCatching {
             docker.inspectContainerCmd(containerName)
@@ -417,7 +430,8 @@ CONF
             }.onFailure {
                 log.warn("Graceful stop failed for $name — force stopping", it)
                 runCatching {
-                    docker.killContainerCmd(container.id).exec()
+                    docker.killContainerCmd(container.id)
+                        .exec()
                 }
                 forced++
             }

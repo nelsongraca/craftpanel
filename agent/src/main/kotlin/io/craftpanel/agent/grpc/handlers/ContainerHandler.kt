@@ -2,6 +2,7 @@ package io.craftpanel.agent.grpc.handlers
 
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerManager
+import io.craftpanel.agent.docker.NetworkManager
 import io.craftpanel.agent.grpc.AgentOutbound
 import io.craftpanel.proto.*
 import kotlinx.coroutines.Dispatchers
@@ -11,6 +12,7 @@ import org.slf4j.LoggerFactory
 class ContainerHandler(
     private val containerManager: ContainerManager,
     private val config: AgentConfig,
+    private val networkManager: NetworkManager,
 ) {
 
     private val log = LoggerFactory.getLogger(ContainerHandler::class.java)
@@ -33,7 +35,11 @@ class ContainerHandler(
                         readOnly = false
                     })
                     .build()
-                withContext(Dispatchers.IO) { containerManager.createContainer(cmdWithMount) }
+                val containerId = withContext(Dispatchers.IO) { containerManager.createContainer(cmdWithMount) }
+                val dockerNetwork = cmd.dockerNetwork
+                if (dockerNetwork.isNotEmpty()) {
+                    withContext(Dispatchers.IO) { networkManager.ensureNetworkAndAttach(dockerNetwork, containerId) }
+                }
             }
             containerManager.startContainer(cmd.containerName)
             // Mark started after startContainer succeeds: clears any stopping flag and registers
@@ -65,9 +71,18 @@ class ContainerHandler(
         // Signal removal completion so master can sequence cross-node relocation
         // (target create must wait until the source container name is freed).
         containerManager.markStopping(cmd.serverId)
+        val networkNames = withContext(Dispatchers.IO) { containerManager.getContainerNetworkNames(cmd.containerName) }
+        val containerId = withContext(Dispatchers.IO) { containerManager.getContainerId(cmd.containerName) }
         withStatus(out, cmd.serverId, ServerStatusUpdate.ServerStatus.STOPPED, log, "Failed to remove container ${cmd.containerName}") {
             containerManager.removeContainer(cmd.containerName, cmd.force)
             containerManager.markRemoved(cmd.serverId)
+            if (containerId != null) {
+                withContext(Dispatchers.IO) {
+                    networkNames
+                        .filter { it.startsWith("craftpanel-net-") || it.startsWith("craftpanel-server-") }
+                        .forEach { net -> networkManager.maybeDetachAndDelete(net, containerId) }
+                }
+            }
         }
     }
 

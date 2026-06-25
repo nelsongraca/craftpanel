@@ -3,6 +3,7 @@ package io.craftpanel.agent.di
 import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerManager
+import io.craftpanel.agent.docker.NetworkManager
 import com.github.dockerjava.core.DefaultDockerClientConfig
 import com.github.dockerjava.core.DockerClientImpl
 import com.github.dockerjava.httpclient5.ApacheDockerHttpClient
@@ -49,11 +50,12 @@ val agentModule = module {
         )
     }
     single { MetricsCollector(get<DockerClient>(), get<AgentConfig>().craftpanelNetwork) }
+    single { NetworkManager(get<DockerClient>(), "${get<AgentConfig>().containerNamePrefix}-mc-router") }
 
     scope<ConnectionScope> {
         scoped { ConsoleHandler(get(), get()) }
         scoped { (nodeKey: String) -> FileHandler(get(), nodeKey) }
-        scoped { ContainerHandler(get(), get()) }
+        scoped { ContainerHandler(get(), get(), get()) }
         scoped { BackupHandler(get()) }
         scoped { MigrationHandler(get(), get()) }
     }
