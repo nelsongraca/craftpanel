@@ -87,6 +87,7 @@ class ConnectionManager(
                             nodeId = identity.nodeId,
                         )
                         networkManager = NetworkManager(docker, provisioner.containerName)
+                        metricsCollector.mcRouterContainerName = provisioner.containerName
                         val supervisor = RouterSupervisor(provisioner)
                         routerSupervisor = supervisor
                         coroutineScope.launch { supervisor.run() }

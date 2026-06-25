@@ -4,7 +4,7 @@ import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.model.Statistics
 import com.google.protobuf.timestamp
-import io.craftpanel.agent.McQueryClient
+import io.craftpanel.agent.McStatusClient
 import io.craftpanel.proto.*
 import org.slf4j.LoggerFactory
 import java.io.Closeable
@@ -13,7 +13,11 @@ import java.time.Instant
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-open class MetricsCollector(private val docker: DockerClient, private val craftpanelNetwork: String = "") {
+open class MetricsCollector(
+    private val docker: DockerClient,
+    private val craftpanelNetwork: String = "",
+    var mcRouterContainerName: String = "",
+) {
 
     private val log = LoggerFactory.getLogger(MetricsCollector::class.java)
 
@@ -111,10 +115,11 @@ open class MetricsCollector(private val docker: DockerClient, private val craftp
         }
     }
 
+    @Suppress("UNUSED_PARAMETER")
     fun collectPlayerCount(serverId: String, containerId: String): PlayerUpdate? {
+        val routerIp = getMcRouterIp() ?: return null
         return runCatching {
-            val ip = getContainerIp(containerId) ?: return null
-            val result = McQueryClient.query(ip) ?: return null
+            val result = McStatusClient.ping(routerIp) ?: return null
             val now = Instant.now()
             playerUpdate {
                 this.serverId = serverId
@@ -123,14 +128,17 @@ open class MetricsCollector(private val docker: DockerClient, private val craftp
                 recordedAt = timestamp { seconds = now.epochSecond; nanos = now.nano }
             }
         }.getOrElse {
-            log.warn("Failed to collect player count for $containerId: ${it.message}")
+            log.warn("Failed to collect player count for server $serverId: ${it.message}")
             null
         }
     }
 
-    private fun getContainerIp(containerId: String): String? {
-        val networks = docker.inspectContainerCmd(containerId)
-            .exec().networkSettings?.networks ?: return null
+    private fun getMcRouterIp(): String? {
+        if (mcRouterContainerName.isEmpty()) return null
+        val networks = runCatching {
+            docker.inspectContainerCmd(mcRouterContainerName)
+                .exec().networkSettings?.networks
+        }.getOrNull() ?: return null
         val net = if (craftpanelNetwork.isNotEmpty()) networks[craftpanelNetwork] ?: networks.values.firstOrNull()
         else networks.values.firstOrNull()
         return net?.ipAddress?.takeIf { it.isNotBlank() }
