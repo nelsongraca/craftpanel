@@ -60,6 +60,13 @@ Base path: `/api/networks`
 }
 ```
 
+**Response `422`:** returned when assigning servers across nodes without the required Swarm infrastructure:
+
+| Condition | Message |
+|---|---|
+| Master has no `DOCKER_ENDPOINT` configured | `"Master is not configured with a Docker endpoint — Swarm mode required for cross-node Server Networks"` |
+| One or more nodes not joined to a Swarm | `"Node(s) <names> are not joined to a Swarm — join all nodes to a Swarm before creating cross-node Server Networks"` |
+
 ---
 
 ## `GET /networks/{id}`

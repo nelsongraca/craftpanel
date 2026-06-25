@@ -1,11 +1,33 @@
 # Networking & Player Ingress
 
+## Two-Network Model
+
+Each node operates two categories of Docker networks:
+
+| Network | Name | Created by | Purpose |
+|---|---|---|---|
+| Infra network | `craftpanel` | Operator (pre-created) | Connects agent, mc-router, and all server containers |
+| Server Network bridge | `craftpanel-net-<uuid>` | Agent (bridge) / Master (overlay) | Per-Server-Network isolation; containers in the same network reach each other by hostname |
+| Standalone server | `craftpanel-server-<uuid>` | Agent (bridge) | Isolates standalone servers (no assigned network) |
+
+### Who creates what
+
+| Actor | Creates |
+|---|---|
+| Operator | `craftpanel` infra network — must exist before the agent starts |
+| Master | `craftpanel-net-<uuid>` overlay networks when `DOCKER_ENDPOINT` is configured (Swarm mode) |
+| Agent | `craftpanel-net-<uuid>` bridge networks on the local node; `craftpanel-server-<uuid>` bridges for standalone servers |
+
 ## mc-router
 
 Each node runs one instance of [`itzg/mc-router`](https://github.com/itzg/mc-router). It listens on port **25565** and routes incoming Minecraft connections by hostname, reading its routing table from
 **Docker container labels**. Master sets the appropriate labels when creating or updating containers — no direct API communication between master and mc-router is required.
 
+The mc-router container is named **`craftpanel-mc-router-<node-id>`** — the node ID suffix ensures uniqueness in Swarm deployments where multiple agents share a Docker context.
+
 Game traffic flows directly from players to mc-router to containers. It never passes through the master backend.
+
+mc-router is attached to the `craftpanel` infra network **and** to every server network bridge/overlay on the node. This allows it to reach game containers across all networks while players only need to connect on port 25565.
 
 ### Lifecycle management
 
@@ -13,17 +35,15 @@ The **agent** provisions and manages the mc-router container automatically — n
 
 1. Pulls the configured mc-router image (controlled by `MCROUTER_IMAGE`, default `itzg/mc-router:latest`)
 2. Starts the container if it is not already running, or leaves it in place if it is
+3. Attaches mc-router to any server network bridges that exist locally
 
 The pull step runs by default so nodes always run the latest mc-router release. It can be disabled by setting `MCROUTER_UPDATE_ON_START=false`, which causes the agent to use whatever image is already
 cached locally — useful when the image is pinned to a specific digest or when image pulls are restricted. See [Agent Configuration](../nodes/index.md#agent-configuration) for the full list of env
 vars.
 
-## Docker Network
+## Docker Networks
 
-All server containers, the mc-router container, and the agent container must share a common Docker bridge network so that mc-router can reach game server containers and the agent can query player
-counts via the Minecraft Server Query protocol.
-
-### The `craftpanel` network
+### The `craftpanel` infra network
 
 The operator must create this network before starting the agent:
 
@@ -48,14 +68,57 @@ networks:
     external: true
 ```
 
-The agent attaches every game server container to this network at creation time in addition to any server network bridge the container belongs to. No manual configuration is required for individual
-servers.
+The agent attaches every game server container to this network at creation time in addition to any server network or standalone bridge the container belongs to.
+
+### Server Network bridges (`craftpanel-net-<uuid>`)
+
+When master assigns a server to a Server Network, it derives the Docker network name from the Server Network UUID and sets it in `StartContainerCommand.docker_network`. The agent does not re-derive this name — it uses the value sent by master directly.
+
+**Agent network lifecycle:**
+
+1. On `StartContainerCommand`: if the bridge named `craftpanel-net-<uuid>` does not exist, the agent creates it
+2. Agent starts the container and attaches it to the bridge
+3. Agent attaches mc-router to the bridge (if not already attached)
+4. On container removal: if no other containers remain on the bridge, the agent detaches mc-router and deletes the bridge
+
+### Standalone server bridges (`craftpanel-server-<uuid>`)
+
+Servers with no assigned Server Network are placed on an isolated bridge named `craftpanel-server-<uuid>`. The agent creates this bridge when the container starts and deletes it when the server is removed.
 
 ### Security note
 
-All containers on the `craftpanel` network can reach each other directly by container name. This is an inherent property of a shared Docker bridge network. On a multi-tenant node hosting servers for
-different trust levels, this is a known limitation. Network-policy-level isolation between containers on a shared bridge is not available in plain Docker without external tooling. This is accepted for
-the current architecture and noted for future improvement.
+All containers on the `craftpanel` infra network can reach each other directly by container name. This is an inherent property of a shared Docker bridge network. On a multi-tenant node hosting servers for different trust levels, this is a known limitation. Server Network bridges provide container-level isolation between networks, but containers sharing the infra network can still communicate. Network-policy-level isolation between containers on a shared bridge is not available in plain Docker without external tooling. This is accepted for the current architecture and noted for future improvement.
+
+## Deployment Topologies
+
+### Single-node
+
+All servers run on one node. The agent creates bridge networks locally. No Swarm required. Server Networks and standalone servers are fully supported.
+
+```
+Node 1
+├── craftpanel (infra bridge)
+│   ├── craftpanel-agent
+│   └── craftpanel-mc-router-<node-id>
+├── craftpanel-net-<uuid> (bridge)
+│   ├── velocity-proxy
+│   └── survival-server
+└── craftpanel-server-<uuid> (bridge, standalone)
+    └── creative-server
+```
+
+### Multi-node with Swarm
+
+Master is configured with `DOCKER_ENDPOINT` pointing at a Swarm manager. Master creates `craftpanel-net-<uuid>` as an **overlay** network so containers on different nodes can communicate via Docker Swarm networking. Cross-node Server Networks are supported.
+
+```
+Swarm overlay: craftpanel-net-<uuid>
+  Node 1: velocity-proxy ──▶ (overlay) ──▶ Node 2: survival-server
+```
+
+### Multi-node without Swarm
+
+Each agent runs independently. Master does not manage overlay networks. Server Networks whose members are all on the same node work normally using bridges. Cross-node Server Networks are **rejected at the API level with 422** — see [Server Networks](../servers/networks.md#cross-node-constraints).
 
 ## DNS Structure
 

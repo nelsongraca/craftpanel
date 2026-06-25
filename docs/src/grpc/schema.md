@@ -95,12 +95,21 @@ against the stored hash in the database — the same credential used by `Identif
 
 The first `AgentMessage` on every `Control` stream after connect must be a `NodeStateSnapshot`. Master reconciles DB server statuses against what the agent reports before issuing any commands.
 
-`NodeStateSnapshot` includes a `router_running` boolean indicating whether the agent's mc-router container is up. Master uses this to derive the node's initial `health`:
+`NodeStateSnapshot` includes the following fields relevant to networking and health:
+
+| Field | Type | Description |
+|---|---|---|
+| `router_running` | bool | `true` when the agent's mc-router container is up |
+| `swarm_active` | bool | `true` when agent's Docker daemon is joined to a Swarm |
+
+Master uses `router_running` to derive the node's initial `health`:
 
 - `router_running = true` → `health = HEALTHY`
 - `router_running = false` → `health = DEGRADED`
 
-The same field is included in every subsequent `NodeMetricsUpdate`. Master emits a `node.status` WebSocket event only when the derived health value changes between polls.
+Master stores `swarm_active` on the node record. It is used to validate cross-node Server Network assignments — all nodes in a cross-node network must have `swarm_active = true`.
+
+The same fields are included in every subsequent `NodeMetricsUpdate`. Master emits a `node.status` WebSocket event only when the derived health value changes between polls.
 
 Container run states:
 
@@ -115,6 +124,15 @@ Container run states:
 ## Container lifecycle
 
 Game server and rsync containers are created with `restart_policy = no` — the master owns restart-on-crash decisions. The agent reports container state via `NodeStateSnapshot` on reconnect, and the master reissues start commands if needed. Only the mc-router container uses `restart_policy = unless-stopped`.
+
+### `StartContainerCommand` — network field
+
+`StartContainerCommand` includes a `docker_network` string field carrying the Docker network name the container should be attached to. Master derives this name from the server's configuration:
+
+- Server Network member → `craftpanel-net-<network-uuid>`
+- Standalone server → `craftpanel-server-<server-uuid>`
+
+The agent uses this value directly — it does not re-derive the network name. If the network does not exist when the command arrives, the agent creates a local bridge with that name before starting the container.
 
 ### Graceful stop
 

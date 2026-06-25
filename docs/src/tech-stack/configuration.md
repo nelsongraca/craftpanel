@@ -74,6 +74,7 @@ Supported `_FILE` variables:
 | `auth.secureCookies`   | `AUTH_SECURE_COOKIES`             | No       | `true`                  | Set `Secure` flag on auth cookies (disable in dev behind plain HTTP)                    |
 | `node.bootstrapToken`  | `NODE_BOOTSTRAP_TOKEN`            | Yes      | —                       | Token agents use to register for the first time (min 16 chars)                          |
 | `node.agentDataPort`   | `AGENT_DATA_PORT`                 | No       | `50052`                 | Port for agent bulk-data transfers                                                      |
+| `docker.endpoint`      | `DOCKER_ENDPOINT`                 | No       | —                       | Docker host for Swarm overlay network management (e.g. `unix:///var/run/docker.sock`). When set, master creates/deletes overlay networks for Server Networks and allows cross-node membership. |
 
 ## Runtime settings (DB-backed, editable in the UI)
 

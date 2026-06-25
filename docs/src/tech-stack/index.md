@@ -11,7 +11,7 @@
 | Container Runtime | Docker (Docker Java SDK)       | Managed by agent on each node                                                                               |
 | Game Servers      | `itzg/minecraft-server`        | All non-proxy server types                                                                                  |
 | Proxy Servers     | `itzg/mc-proxy`                | Velocity, BungeeCord, Waterfall                                                                             |
-| Player Ingress    | `itzg/mc-router`               | One instance per node, provisioned by the agent on startup with `IN_DOCKER=true`; routes by `mc-router.host` container labels |
+| Player Ingress    | `itzg/mc-router`               | One per node; named `craftpanel-mc-router-<node-id>` for Swarm uniqueness; provisioned by the agent on startup with `IN_DOCKER=true`; routes by `mc-router.host` container labels |
 | DNS Management    | Cloudflare API (default)       | Dynamic A records for exposed servers; pluggable provider interface                                         |
 
 ## Master ↔ Agent Communication

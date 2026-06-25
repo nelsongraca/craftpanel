@@ -34,3 +34,21 @@ These ports are internal implementation details — end users only ever see the 
 - Docker bridge networking is only available between containers on the same node
 - Cross-node communication within a network uses host IP + port automatically; no manual configuration is required in easy mode
 - Migrating a server to a different node updates cross-node addressing automatically for easy-mode proxies
+
+## Cross-Node Constraints
+
+Cross-node Server Networks require Docker Swarm. Two conditions must both be met:
+
+1. **Master must have `DOCKER_ENDPOINT` configured** — this enables master to create and manage overlay networks. Without it, cross-node Server Networks are rejected.
+2. **All nodes in the network must be joined to a Swarm** — the `swarm_active` flag on each node is set from the agent's `NodeStateSnapshot` on every connect.
+
+If either condition is not met, assigning a server to a cross-node network (or creating a Server Network with servers across nodes when master has no Docker endpoint) returns:
+
+- `422 Unprocessable Entity` — `"Master is not configured with a Docker endpoint — Swarm mode required for cross-node Server Networks"`
+- `422 Unprocessable Entity` — `"Node(s) <names> are not joined to a Swarm — join all nodes to a Swarm before creating cross-node Server Networks"`
+
+When all members of a Server Network are on the same node, no Swarm is required — the agent creates a local bridge network.
+
+## Standalone Server Isolation
+
+A server with no assigned Server Network is placed on a dedicated bridge named `craftpanel-server-<uuid>`. The agent creates this bridge when the server starts and deletes it when the server is removed. Standalone servers are reachable via mc-router (which attaches to the bridge) but isolated from other servers at the network layer.

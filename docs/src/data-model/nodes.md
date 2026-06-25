@@ -53,6 +53,7 @@ Runtime health — master/agent-observed, independent of lifecycle status.
 | `port_range_start`     | INT                | First port in the assignable range; default `25570`                        |
 | `port_range_end`       | INT                | Last port in the assignable range; default `26070`                         |
 | `agent_version`        | VARCHAR(50)        | Agent version string as reported at registration; `NULL` if not provided   |
+| `swarm_active`         | BOOLEAN            | `true` when agent's Docker daemon is joined to a Swarm cluster; updated on every agent connect |
 | `last_seen_at`         | TIMESTAMPTZ        | Timestamp of last gRPC message received from agent                         |
 | `created_at`           | TIMESTAMPTZ        |                                                                            |
 | `updated_at`           | TIMESTAMPTZ        |                                                                            |

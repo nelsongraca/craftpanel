@@ -13,8 +13,12 @@ The `itzg/minecraft-server` image exposes a built-in health check endpoint. Mast
 
 ## Player Count
 
-The agent queries each running game server using the **Minecraft server query protocol** (UDP). Player count and online player list are refreshed every 60 seconds and surfaced on the server detail
-page and dashboard.
+The agent retrieves player count using the **Minecraft TCP status ping** protocol, routed through the local mc-router on port 25565. mc-router proxies the status request to the target game container.
+
+Player count and online player list are refreshed every 60 seconds and surfaced on the server detail page and dashboard.
+
+!!! note
+`ENABLE_QUERY` is no longer automatically injected into server containers. If you require the UDP query protocol for external tooling (e.g. server list websites), add `ENABLE_QUERY=TRUE` and `QUERY_PORT=25565` via the server's environment variable editor.
 
 ## Node Metrics Dashboard
 
