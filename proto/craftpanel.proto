@@ -235,6 +235,9 @@ message NodeStateSnapshot {
   repeated ContainerState containers = 1;
   google.protobuf.Timestamp recorded_at = 2;
   bool router_running = 3;
+  // True when the local Docker daemon is joined to a Swarm cluster.
+  // Used by master to enforce cross-node Server Network constraints.
+  bool swarm_active = 4;
 }
 
 message ContainerState {
