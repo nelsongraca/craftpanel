@@ -4,6 +4,8 @@ import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.grpc.AgentOutbound
 import io.craftpanel.proto.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.io.File
@@ -27,26 +29,56 @@ class BackupHandler(private val config: AgentConfig) {
 
         runCatching {
             withContext(Dispatchers.IO) {
-                val destFile = File(destPath)
-                destFile.parentFile?.mkdirs()
+                File(destPath).parentFile?.mkdirs()
 
-                val process = ProcessBuilder("tar", "-czf", destPath, "-C", sourceDir, ".")
-                    .redirectErrorStream(true)
-                    .start()
-
-                out.send {
-                    backupProgress = backupProgressUpdate {
-                        backupId = cmd.backupId
-                        serverId = cmd.serverId
-                        percentComplete = 50
-                    }
-                }
-
-                val exitCode = process.waitFor()
-                if (exitCode != 0) {
-                    val output = process.inputStream.bufferedReader()
+                val totalBytes = runCatching {
+                    val duProcess = ProcessBuilder("du", "-sb", sourceDir)
+                        .redirectErrorStream(true)
+                        .start()
+                    val output = duProcess.inputStream.bufferedReader()
                         .readText()
-                    error("tar exited with $exitCode: $output")
+                        .trim()
+                    duProcess.waitFor()
+                    output.split("\t")
+                        .firstOrNull()
+                        ?.toLongOrNull() ?: 0L
+                }.getOrDefault(0L)
+
+                log.debug("Backup ${cmd.backupId}: source size estimate = $totalBytes bytes")
+
+                coroutineScope {
+                    val tarPb = ProcessBuilder("tar", "-c", "-C", sourceDir, ".")
+                    val pvPb = ProcessBuilder("pv", "-n", "-s", totalBytes.toString())
+                    val gzipPb = ProcessBuilder("gzip")
+                        .redirectOutput(File(destPath))
+
+                    val procs = ProcessBuilder.startPipeline(listOf(tarPb, pvPb, gzipPb))
+                    val pvProc = procs[1]
+
+                    val stderrReader = launch(Dispatchers.IO) {
+                        pvProc.errorStream.bufferedReader()
+                            .lineSequence()
+                            .forEach { line ->
+                                val percent = line.trim()
+                                    .toIntOrNull()
+                                if (percent != null) {
+                                    out.trySend {
+                                        backupProgress = backupProgressUpdate {
+                                            backupId = cmd.backupId
+                                            serverId = cmd.serverId
+                                            percentComplete = percent
+                                        }
+                                    }
+                                }
+                            }
+                    }
+
+                    val exitCodes = procs.map { it.waitFor() }
+                    stderrReader.join()
+
+                    if (exitCodes.any { it != 0 }) {
+                        error("backup pipeline failed: tar=${exitCodes[0]} pv=${exitCodes[1]} gzip=${exitCodes[2]}")
+                    }
                 }
 
                 File(destPath).length()

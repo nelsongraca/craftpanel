@@ -10,6 +10,7 @@ import io.craftpanel.master.domain.NodeStatus
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.domain.BackupStatus
 import io.craftpanel.master.auth.WsTicketService
+import io.craftpanel.master.database.schema.ContainerMetrics
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.AgentEvent
@@ -27,6 +28,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
 import kotlinx.serialization.json.encodeToJsonElement
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -87,19 +89,40 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, agentEvents: Share
 
         // ── Initial snapshot ──────────────────────────────────────────────────
         val snapshot = transaction {
-            val servers = Servers.selectAll()
-                .mapNotNull { row ->
-                    val sid = row[Servers.id]
-                    val netId = row[Servers.networkId]
-                    if (!canViewServer(sid, netId)) return@mapNotNull null
-                    ServerSnapshot(
-                        sid.toString(),
-                        row[Servers.displayName],
-                        ServerStatus.fromDb(row[Servers.status]),
-                        row[Servers.nodeId].toString(),
-                        row[Servers.networkId]?.toString(),
+            val serverRows = Servers.selectAll()
+                .toList()
+            val latestMetrics = serverRows.associate { row ->
+                val sid = row[Servers.id]
+                val metricsRow = ContainerMetrics.selectAll()
+                    .where { ContainerMetrics.serverId eq sid }
+                    .orderBy(ContainerMetrics.recordedAt, SortOrder.DESC)
+                    .limit(1)
+                    .firstOrNull()
+                sid to metricsRow?.let {
+                    ServerMetricsSnapshot(
+                        it[ContainerMetrics.cpuPercent],
+                        it[ContainerMetrics.ramUsedMb],
+                        it[ContainerMetrics.netInBytes],
+                        it[ContainerMetrics.netOutBytes],
+                        it[ContainerMetrics.blockInBytes],
+                        it[ContainerMetrics.blockOutBytes],
+                        it[ContainerMetrics.recordedAt].toString(),
                     )
                 }
+            }
+            val servers = serverRows.mapNotNull { row ->
+                val sid = row[Servers.id]
+                val netId = row[Servers.networkId]
+                if (!canViewServer(sid, netId)) return@mapNotNull null
+                ServerSnapshot(
+                    sid.toString(),
+                    row[Servers.displayName],
+                    ServerStatus.fromDb(row[Servers.status]),
+                    row[Servers.nodeId].toString(),
+                    row[Servers.networkId]?.toString(),
+                    latestMetrics[sid],
+                )
+            }
             val nodes = if (hasNodes()) {
                 Nodes.selectAll()
                     .map { row ->

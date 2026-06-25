@@ -229,6 +229,26 @@ export default function ServerDetailPage() {
 
     // ── Live WS subscriptions ──────────────────────────────────────────────────
     useEffect(() => {
+        const unsubSnapshot = subscribe("snapshot", (payload) => {
+            const servers = payload.servers as Array<{
+                id: string;
+                metrics?: {
+                    cpu_percent: number;
+                    ram_used_mb: number;
+                    net_in_bytes: number;
+                    net_out_bytes: number;
+                } | null;
+            }>;
+            const mine = servers?.find((s) => s.id === id);
+            if (mine?.metrics) {
+                setLiveMetrics({
+                    cpuPercent: mine.metrics.cpu_percent,
+                    ramUsedMb: mine.metrics.ram_used_mb,
+                    netInBytes: mine.metrics.net_in_bytes,
+                    netOutBytes: mine.metrics.net_out_bytes,
+                });
+            }
+        });
         const unsubMetrics = subscribe("server.metrics", (payload) => {
             if (payload.server_id !== id) return;
             setLiveMetrics({
@@ -250,6 +270,7 @@ export default function ServerDetailPage() {
             });
         });
         return () => {
+            unsubSnapshot();
             unsubMetrics();
             unsubStatus();
             unsubPlayers();

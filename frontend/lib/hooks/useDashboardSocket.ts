@@ -11,6 +11,8 @@ export type WsEventType =
     | "server.metrics"
     | "server.status"
     | "server.players"
+    | "server.backup.progress"
+    | "server.backup.complete"
     | "alert.fired"
     | "alert.resolved";
 

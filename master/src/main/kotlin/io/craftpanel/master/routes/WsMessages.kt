@@ -19,6 +19,18 @@ data class ServerSnapshot(
     val status: ServerStatus,
     val nodeId: String,
     val networkId: String? = null,
+    val metrics: ServerMetricsSnapshot? = null,
+)
+
+@Serializable
+data class ServerMetricsSnapshot(
+    val cpuPercent: Double,
+    val ramUsedMb: Int,
+    val netInBytes: Long,
+    val netOutBytes: Long,
+    val blockInBytes: Long,
+    val blockOutBytes: Long,
+    val recordedAt: String,
 )
 
 @Serializable

@@ -5,6 +5,7 @@ import {Clock, Download, Play, RefreshCw, Trash2} from "lucide-react";
 import {deleteBackup, getBackupSchedule, listBackups, triggerBackup, updateBackupSchedule,} from "@/lib/generated/sdk.gen";
 import type {BackupResponse as Backup, BackupScheduleResponse as Schedule,} from "@/lib/generated/types.gen";
 import {fmtBytes} from "@/lib/utils/format";
+import {useWs} from "@/lib/ws-context";
 
 function fmtDate(iso: string): string {
     return new Date(iso).toLocaleString();
@@ -23,6 +24,9 @@ export function BackupsTab({serverId}: { serverId: string }) {
     const [triggering, setTriggering] = useState(false);
     const [deleting, setDeleting] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [progress, setProgress] = useState<Record<string, number>>({});
+
+    const {subscribe} = useWs();
 
     // Schedule edit state
     const [editingSchedule, setEditingSchedule] = useState(false);
@@ -51,6 +55,29 @@ export function BackupsTab({serverId}: { serverId: string }) {
     useEffect(() => {
         load();
     }, [load]);
+
+    useEffect(() => {
+        const unsubProgress = subscribe("server.backup.progress", (payload) => {
+            if (payload.server_id !== serverId) return;
+            setProgress((prev) => ({
+                ...prev,
+                [payload.backup_id as string]: payload.percent_complete as number,
+            }));
+        });
+        const unsubComplete = subscribe("server.backup.complete", (payload) => {
+            if (payload.server_id !== serverId) return;
+            setProgress((prev) => {
+                const next = {...prev};
+                delete next[payload.backup_id as string];
+                return next;
+            });
+            void load();
+        });
+        return () => {
+            unsubProgress();
+            unsubComplete();
+        };
+    }, [subscribe, serverId, load]);
 
     async function handleTrigger() {
         setTriggering(true);
@@ -229,6 +256,23 @@ export function BackupsTab({serverId}: { serverId: string }) {
                                     )}
                                     {backup.error_message && (
                                         <div className="text-xs text-error truncate">{backup.error_message}</div>
+                                    )}
+                                    {backup.status === "IN_PROGRESS" && (
+                                        <div className="mt-1.5 w-full">
+                                            <div
+                                                className="flex items-center justify-between text-xs text-text-muted mb-0.5">
+                                                <span>Backing up…</span>
+                                                {progress[backup.id!] != null && (
+                                                    <span>{progress[backup.id!]}%</span>
+                                                )}
+                                            </div>
+                                            <div className="h-1 bg-surface-high rounded overflow-hidden">
+                                                <div
+                                                    className="h-full bg-accent transition-all duration-300"
+                                                    style={{width: `${progress[backup.id!] ?? 0}%`}}
+                                                />
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
                             </div>
