@@ -34,7 +34,7 @@ object McStatusClient {
                 )
 
                 // Handshake (0x00): protocolVersion=-1, host, port, nextState=1
-                val handshake = buildPacket(0x00) { buf ->
+                val handshake = buildPacket { buf ->
                     writeVarInt(buf, -1)
                     writeString(buf, host)
                     buf.write(port shr 8 and 0xFF)
@@ -43,7 +43,7 @@ object McStatusClient {
                 }
                 writePacket(out, handshake)
                 // Status request (0x00, empty)
-                writePacket(out, buildPacket(0x00) {})
+                writePacket(out, buildPacket {})
                 out.flush()
 
                 // Read length-prefixed response
@@ -67,9 +67,9 @@ object McStatusClient {
             null
         }
 
-    private fun buildPacket(id: Int, fill: (ByteArrayOutputStream) -> Unit): ByteArray {
+    private fun buildPacket(fill: (ByteArrayOutputStream) -> Unit): ByteArray {
         val buf = ByteArrayOutputStream()
-        writeVarInt(buf, id)
+        writeVarInt(buf, 0x00)
         fill(buf)
         return buf.toByteArray()
     }

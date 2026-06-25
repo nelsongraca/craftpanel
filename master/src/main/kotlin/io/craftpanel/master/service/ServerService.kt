@@ -1,18 +1,17 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.proto.*
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.ScopeType
-import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.config.ImagesConfig
+import io.craftpanel.master.database.schema.*
+import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.ConfigMode
 import io.craftpanel.master.domain.ServerStatus
-import io.craftpanel.master.dns.DnsProvider
-import org.jetbrains.exposed.v1.core.ResultRow
-import org.slf4j.LoggerFactory
+import io.craftpanel.master.util.toUtcString
+import io.craftpanel.proto.masterMessage
+import io.craftpanel.proto.removeContainerCommand
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import kotlin.time.Instant
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.*
@@ -21,9 +20,10 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import kotlin.uuid.Uuid
+import org.slf4j.LoggerFactory
 import kotlin.time.Clock
-import io.craftpanel.master.util.toUtcString
+import kotlin.time.Instant
+import kotlin.uuid.Uuid
 
 @Serializable
 data class ServerResponse(
@@ -817,8 +817,8 @@ class ServerService(
 
 internal data class ServerVisibility(
     val isGlobal: Boolean,
-    val networkIds: Set<kotlin.uuid.Uuid>,
-    val serverIds: Set<kotlin.uuid.Uuid>,
+    val networkIds: Set<Uuid>,
+    val serverIds: Set<Uuid>,
 )
 
 internal fun resolveServerVisibility(userId: Uuid): ServerVisibility = transaction {
@@ -839,8 +839,8 @@ internal fun resolveServerVisibility(userId: Uuid): ServerVisibility = transacti
         .toSet()
     if (viewGroups.isEmpty()) return@transaction ServerVisibility(false, emptySet(), emptySet())
     var isGlobal = false
-    val networkIds = mutableSetOf<kotlin.uuid.Uuid>()
-    val serverIds = mutableSetOf<kotlin.uuid.Uuid>()
+    val networkIds = mutableSetOf<Uuid>()
+    val serverIds = mutableSetOf<Uuid>()
     for (a in assignments.filter { it[UserGroupAssignments.groupId] in viewGroups }) {
         when (a[UserGroupAssignments.scopeType]) {
             ScopeType.GLOBAL.name  -> isGlobal = true

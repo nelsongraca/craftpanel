@@ -4,11 +4,11 @@
 
 Each node operates two categories of Docker networks:
 
-| Network | Name | Created by | Purpose |
-|---|---|---|---|
-| Infra network | `craftpanel` | Operator (pre-created) | Connects agent, mc-router, and all server containers |
-| Server Network bridge | `craftpanel-net-<uuid>` | Agent (bridge) / Master (overlay) | Per-Server-Network isolation; containers in the same network reach each other by hostname |
-| Standalone server | `craftpanel-server-<uuid>` | Agent (bridge) | Isolates standalone servers (no assigned network) |
+| Network               | Name                       | Created by                        | Purpose                                                                                   |
+|-----------------------|----------------------------|-----------------------------------|-------------------------------------------------------------------------------------------|
+| Infra network         | `craftpanel`               | Operator (pre-created)            | Connects agent and mc-router; mc-router uses it to reach all server bridges               |
+| Server Network bridge | `craftpanel-net-<uuid>`    | Agent (bridge) / Master (overlay) | Per-Server-Network isolation; containers in the same network reach each other by hostname |
+| Standalone server     | `craftpanel-server-<uuid>` | Agent (bridge)                    | Isolates standalone servers (no assigned network)                                         |
 
 ### Who creates what
 
@@ -68,7 +68,8 @@ networks:
     external: true
 ```
 
-The agent attaches every game server container to this network at creation time in addition to any server network or standalone bridge the container belongs to.
+Game server containers are **not** placed on the `craftpanel` infra network. They are attached only to their server network bridge (`craftpanel-net-<uuid>`) or standalone bridge (
+`craftpanel-server-<uuid>`). mc-router is attached to both the infra network and every server bridge, giving it connectivity to all game containers without exposing them to the infra network directly.
 
 ### Server Network bridges (`craftpanel-net-<uuid>`)
 
@@ -87,7 +88,10 @@ Servers with no assigned Server Network are placed on an isolated bridge named `
 
 ### Security note
 
-All containers on the `craftpanel` infra network can reach each other directly by container name. This is an inherent property of a shared Docker bridge network. On a multi-tenant node hosting servers for different trust levels, this is a known limitation. Server Network bridges provide container-level isolation between networks, but containers sharing the infra network can still communicate. Network-policy-level isolation between containers on a shared bridge is not available in plain Docker without external tooling. This is accepted for the current architecture and noted for future improvement.
+Game server containers are isolated on their own bridges and are **not** on the shared `craftpanel` infra network. Servers in different Server Networks cannot reach each other directly. Servers in the
+same Server Network share a bridge and can reach each other by container hostname — this is intentional (required for proxy-to-backend routing).
+
+The only shared surface is mc-router, which is attached to all bridges. mc-router does not forward arbitrary traffic between networks; it only proxies inbound Minecraft connections on port 25565.
 
 ## Deployment Topologies
 
