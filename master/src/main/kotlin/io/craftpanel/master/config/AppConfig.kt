@@ -81,6 +81,10 @@ data class AdminSeedConfig(
     val enabled: Boolean get() = email.isNotBlank() && password.isNotBlank()
 }
 
+data class DockerConfig(
+    val endpoint: String = "",
+)
+
 class AppConfig(config: ApplicationConfig) {
 
     val profile: String = config.propertyOrNull("app.profile")
@@ -189,6 +193,10 @@ class AppConfig(config: ApplicationConfig) {
             ?.getString() ?: "itzg/minecraft-server",
         proxyImage = config.propertyOrNull("images.proxyImage")
             ?.getString() ?: "itzg/mc-proxy",
+    )
+    val docker = DockerConfig(
+        endpoint = config.propertyOrNull("docker.endpoint")
+            ?.getString() ?: "",
     )
 
     fun validate() {
