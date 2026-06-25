@@ -90,6 +90,7 @@ val appModule = module {
         ServerService(
             gateway = get<AgentGateway>(),
             modService = get(),
+            networkService = get(),
             dnsProvider = get<DnsProviderHolder>().provider,
             images = images,
             containerNamePrefix = get(named("containerPrefix")),

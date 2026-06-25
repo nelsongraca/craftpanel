@@ -114,6 +114,7 @@ data class ContainerMetricsSeries(
 class ServerService(
     private val gateway: AgentGateway,
     private val modService: ModService,
+    private val networkService: NetworkService? = null,
     private val dnsProvider: DnsProvider? = null,
     private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
     private val containerNamePrefix: String = "craftpanel",
@@ -169,6 +170,19 @@ class ServerService(
 
         val nodeKotlinId = parseUuid(req.nodeId) ?: throw UnprocessableException("Invalid node_id")
         val networkKotlinId = req.networkId?.let { parseUuid(it) ?: throw UnprocessableException("Invalid network_id") }
+
+        if (networkKotlinId != null) {
+            val existingNodeIds = transaction {
+                Servers.selectAll()
+                    .where { Servers.networkId eq networkKotlinId }
+                    .map { it[Servers.nodeId] }
+                    .distinct()
+            }
+            val allNodeIds = (existingNodeIds + nodeKotlinId).distinct()
+            if (allNodeIds.size > 1) {
+                networkService?.validateCrossNodeAssignment(allNodeIds)
+            }
+        }
 
         data class CreateResult(val status: String, val server: ServerResponse? = null)
 
@@ -315,6 +329,26 @@ class ServerService(
     fun updateServer(id: kotlin.uuid.Uuid, req: UpdateServerRequest) {
         val newNetworkId: kotlin.uuid.Uuid? = req.networkId?.ifEmpty { null }
             ?.let { parseUuid(it) ?: throw UnprocessableException("Invalid network_id") }
+
+        if (newNetworkId != null) {
+            val (serverNodeId, existingNodeIds) = transaction {
+                val serverRow = Servers.selectAll()
+                    .where { Servers.id eq id }
+                    .firstOrNull()
+                val nodeId = serverRow?.get(Servers.nodeId)
+                val networkNodeIds = Servers.selectAll()
+                    .where { (Servers.networkId eq newNetworkId) and (Servers.id neq id) }
+                    .map { it[Servers.nodeId] }
+                    .distinct()
+                nodeId to networkNodeIds
+            }
+            if (serverNodeId != null) {
+                val allNodeIds = (existingNodeIds + serverNodeId).distinct()
+                if (allNodeIds.size > 1) {
+                    networkService?.validateCrossNodeAssignment(allNodeIds)
+                }
+            }
+        }
 
         val result = transaction {
             Servers.selectAll()

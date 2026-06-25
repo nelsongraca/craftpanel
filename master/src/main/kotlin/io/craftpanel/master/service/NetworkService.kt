@@ -1,6 +1,7 @@
 package io.craftpanel.master.service
 
 import com.github.dockerjava.api.DockerClient
+import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ServerStatus
@@ -82,6 +83,28 @@ class NetworkService(
 ) {
 
     private val log = org.slf4j.LoggerFactory.getLogger(NetworkService::class.java)
+
+    private val hasDockerEndpoint: Boolean = dockerClient != null
+
+    fun validateCrossNodeAssignment(nodeIds: List<Uuid>) {
+        if (!hasDockerEndpoint) {
+            throw UnprocessableException(
+                "Master is not configured with a Docker endpoint — Swarm mode required for cross-node Server Networks"
+            )
+        }
+        val nonSwarm = transaction {
+            Nodes.selectAll()
+                .where { Nodes.id inList nodeIds }
+                .filter { !it[Nodes.swarmActive] }
+                .map { it[Nodes.displayName] }
+        }
+        if (nonSwarm.isNotEmpty()) {
+            val names = nonSwarm.joinToString(", ")
+            throw UnprocessableException(
+                "Node(s) $names are not joined to a Swarm — join all nodes to a Swarm before creating cross-node Server Networks"
+            )
+        }
+    }
 
     private fun createOverlayNetwork(networkId: String) {
         val docker = dockerClient ?: return
