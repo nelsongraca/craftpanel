@@ -99,7 +99,9 @@ class ContainerLifecycle(
         val id = server[Servers.id]
         val image = deriveImage(server[Servers.serverType], server[Servers.itzgImageTag])
         val allVars = buildAllVars(id, server)
-        val resolvedHostname = publicHostname ?: server[Servers.dnsRecordName]
+        // Always provide a routing hostname so mc-router can label the container and
+        // the agent's MetricsCollector can ping it for player-count collection.
+        val resolvedHostname = publicHostname ?: server[Servers.dnsRecordName] ?: "$id.mc.internal"
         return masterMessage {
             startContainer = startContainerCommand {
                 serverId = id.toString()
@@ -108,7 +110,7 @@ class ContainerLifecycle(
                 this.needsRecreate = needsRecreate
                 this.image = image
                 envVars.putAll(allVars)
-                resolvedHostname?.let { this.publicHostname = it }
+                this.publicHostname = resolvedHostname
                 hostPort = server[Servers.hostPort]
                 memoryMb = server[Servers.memoryMb]
                 cpuShares = server[Servers.cpuShares]
