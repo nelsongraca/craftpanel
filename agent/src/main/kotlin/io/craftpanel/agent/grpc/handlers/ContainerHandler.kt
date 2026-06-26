@@ -79,12 +79,18 @@ class ContainerHandler(
         withStatus(out, cmd.serverId, ServerStatusUpdate.ServerStatus.STOPPED, log, "Failed to remove container ${cmd.containerName}") {
             containerManager.removeContainer(cmd.containerName, cmd.force)
             containerManager.markRemoved(cmd.serverId)
-            if (containerId != null) {
-                withContext(Dispatchers.IO) {
+            withContext(Dispatchers.IO) {
+                // Clean up from container's network list (if container existed)
+                if (containerId != null) {
                     networkNames
                         .filter { it.startsWith("craftpanel-net-") || it.startsWith("craftpanel-server-") }
                         .forEach { net -> networkManager.maybeDetachAndDelete(net, containerId) }
                 }
+                // Always try deterministic cleanup of standalone server bridge by server ID
+                // (handles the case where the container was already gone before this command)
+                networkManager.maybeDetachAndDelete(
+                    "${config.containerNamePrefix}-server-${cmd.serverId}", ""
+                )
             }
         }
     }
