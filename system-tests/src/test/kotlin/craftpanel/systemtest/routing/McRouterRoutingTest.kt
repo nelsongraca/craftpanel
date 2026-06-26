@@ -235,7 +235,7 @@ class McRouterRoutingTest : BaseSystemTest() {
      *  discovery decision (or the reason it can't dial the backend) is visible in the report. */
     private suspend fun dumpRouterDiagnostics(hostname: String) = withContext(Dispatchers.IO) {
         val docker = SharedStack.dockerClient
-        val routerName = "${SharedStack.containerPrefix}-mc-router"
+        val routerName = SharedStack.mcRouterContainerName
         runCatching {
             val router = docker.inspectContainerCmd(routerName)
                 .exec()

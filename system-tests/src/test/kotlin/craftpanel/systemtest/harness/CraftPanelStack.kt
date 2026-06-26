@@ -97,9 +97,9 @@ class CraftPanelStack {
     val masterApiUrl: String
         get() = "http://localhost:${master.getMappedPort(8080)}"
 
-    // mc-router is provisioned by the agent (one-per-host) and binds host port 25565
-    // directly (fixed bind, not a Testcontainers ephemeral mapping). External Minecraft
-    // ingress by hostname is exercised by dialing this from the test JVM.
+    // mc-router is provisioned by the agent — one per host, shared across stacks.
+    // Fixed name regardless of container prefix; binds host port 25565 directly.
+    val mcRouterContainerName: String = "craftpanel-mc-router"
     val mcRouterHost: String get() = "localhost"
     val mcRouterPort: Int get() = 25565
 

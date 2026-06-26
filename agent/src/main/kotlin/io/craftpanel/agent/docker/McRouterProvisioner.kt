@@ -13,14 +13,13 @@ class McRouterProvisioner(
     private val image: String,
     private val updateOnStart: Boolean,
     private val networkName: String = "",
-    private val containerNamePrefix: String = "craftpanel",
     containerNameOverride: String = "",
 ) {
 
     private val log = LoggerFactory.getLogger(McRouterProvisioner::class.java)
 
-    // One mc-router per host, shared by co-located agents — fixed name, no nodeId suffix.
-    val containerName: String = containerNameOverride.ifBlank { "$containerNamePrefix-mc-router" }
+    // One per host, shared by all co-located agents. Override via MCROUTER_CONTAINER_NAME.
+    val containerName: String = containerNameOverride.ifBlank { "craftpanel-mc-router" }
 
     fun ensureRunning() {
         if (updateOnStart) {

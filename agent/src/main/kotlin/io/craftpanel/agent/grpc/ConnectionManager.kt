@@ -83,7 +83,6 @@ class ConnectionManager(
                             config.mcRouterImage,
                             config.mcRouterUpdateOnStart,
                             config.craftpanelNetwork,
-                            config.containerNamePrefix,
                             config.mcRouterContainerName,
                         )
                         networkManager = NetworkManager(docker, provisioner.containerName)
