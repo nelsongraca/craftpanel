@@ -5,6 +5,7 @@ import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.McRouterProvisioner
 import io.craftpanel.agent.docker.MetricsCollector
+import io.craftpanel.agent.docker.NetworkManager
 import io.craftpanel.agent.docker.RouterSupervisor
 import io.craftpanel.agent.grpc.handlers.BackupHandler
 import io.craftpanel.agent.grpc.handlers.ContainerHandler
@@ -46,7 +47,7 @@ class ControlStreamHandlerTest : FunSpec({
         masterHttpPort = 80,
         privateIpOverride = ""
     )
-    val containerHandler = ContainerHandler(containerManager, config)
+    val containerHandler = ContainerHandler(containerManager, config, mockk<NetworkManager>(relaxed = true))
     val backupHandler = BackupHandler(config)
     val routerSupervisor = RouterSupervisor(mockk<McRouterProvisioner>(relaxed = true))
     val handler = ControlStreamHandler(identity, config, containerManager, metricsCollector, docker, routerSupervisor, containerHandler)

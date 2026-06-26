@@ -54,14 +54,14 @@ data class ModrinthSearchResult(val statusCode: Int, val body: String)
 
 class ModService {
 
-    fun listMods(serverId: kotlin.uuid.Uuid): List<ModResponse> =
+    fun listMods(serverId: Uuid): List<ModResponse> =
         transaction {
             ServerMods.selectAll()
                 .where { ServerMods.serverId eq serverId }
                 .map { it.toModResponse() }
         }
 
-    fun addMod(serverId: kotlin.uuid.Uuid, req: CreateModRequest): ModResponse {
+    fun addMod(serverId: Uuid, req: CreateModRequest): ModResponse {
         if (req.pinStrategy == ModPinStrategy.PINNED && req.pinnedVersionId.isNullOrEmpty())
             throw UnprocessableException("pinned_version_id is required when pin_strategy is PINNED")
         return transaction {
@@ -84,7 +84,7 @@ class ModService {
         }
     }
 
-    fun updateMod(serverId: kotlin.uuid.Uuid, modId: kotlin.uuid.Uuid, req: PatchModRequest): ModResponse {
+    fun updateMod(serverId: Uuid, modId: Uuid, req: PatchModRequest): ModResponse {
         transaction {
             ServerMods.selectAll()
                 .where { (ServerMods.id eq modId) and (ServerMods.serverId eq serverId) }
@@ -114,7 +114,7 @@ class ModService {
         }
     }
 
-    fun deleteMod(serverId: kotlin.uuid.Uuid, modId: kotlin.uuid.Uuid) {
+    fun deleteMod(serverId: Uuid, modId: Uuid) {
         val deleted = transaction { ServerMods.deleteWhere { (ServerMods.id eq modId) and (ServerMods.serverId eq serverId) } }
         if (deleted == 0) throw NotFoundException("Mod not found")
         transaction { markNeedsRecreate(serverId) }
@@ -137,21 +137,26 @@ class ModService {
             append("]&limit=")
             append(limit)
         }
-        val httpClient = HttpClient.newHttpClient()
-        val request = HttpRequest.newBuilder()
-            .uri(URI.create(url))
-            .header("User-Agent", "CraftPanel/1.0")
-            .GET()
-            .build()
-        val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
-        return ModrinthSearchResult(response.statusCode(), response.body())
+        return try {
+            val httpClient = HttpClient.newHttpClient()
+            val request = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .header("User-Agent", "CraftPanel/1.0")
+                .GET()
+                .build()
+            val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
+            ModrinthSearchResult(response.statusCode(), response.body())
+        }
+        catch (_: Exception) {
+            ModrinthSearchResult(502, "")
+        }
     }
 
-    fun markNeedsRecreate(serverId: kotlin.uuid.Uuid) {
+    fun markNeedsRecreate(serverId: Uuid) {
         Servers.update({ Servers.id eq serverId }) { it[Servers.needsRecreate] = true }
     }
 
-    fun buildModrinthEnvVar(serverId: kotlin.uuid.Uuid): String =
+    fun buildModrinthEnvVar(serverId: Uuid): String =
         transaction {
             ServerMods.selectAll()
                 .where { ServerMods.serverId eq serverId }

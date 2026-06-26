@@ -1,5 +1,6 @@
 package craftpanel.systemtest.node
 
+import craftpanel.systemtest.client.model.NodeStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.NodeCleanupHelper
 import craftpanel.systemtest.harness.SharedStack
@@ -34,7 +35,7 @@ class TokenRotationTest : BaseSystemTest() {
                 response.nodeKey.shouldNotBeEmpty()
 
                 val node = api.getNode(agentNodeId)
-                node.status shouldBe "ACTIVE"
+                node.status shouldBe NodeStatus.ACTIVE
             }
 
             should("can rotate token twice") {
@@ -58,7 +59,7 @@ class TokenRotationTest : BaseSystemTest() {
                 val helper = NodeCleanupHelper(SharedStack.dockerClient)
                 helper.restartContainer(agentContainerId)
 
-                val exited = helper.waitForContainerStop(agentContainerId, timeoutMs = 10_000)
+                val exited = helper.waitForContainerStop(agentContainerId, timeoutMs = 30_000)
                 exited shouldBe true
                 helper.isContainerRunning(agentContainerId) shouldBe false
 

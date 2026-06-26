@@ -86,7 +86,7 @@ class ControlStreamHandler(
         stream.collect { msg ->
             log.debug("Received master command: {}", msg.payloadCase)
             when {
-                msg.hasStartContainer()      -> dispatch { container.handleStart(msg.startContainer, out) }
+                msg.hasStartContainer()      -> launch { dispatch { container.handleStart(msg.startContainer, out) } }
                 msg.hasStopContainer()       -> launch { dispatch { container.handleStop(msg.stopContainer, out) } }
                 msg.hasRestartContainer()    -> launch { dispatch { container.handleRestart(msg.restartContainer, out) } }
                 msg.hasRemoveContainer()     -> dispatch { container.handleRemove(msg.removeContainer, out) }
@@ -123,7 +123,8 @@ class ControlStreamHandler(
     }
 
     private fun isSwarmActive(): Boolean = runCatching {
-        docker.infoCmd().exec().swarm?.localNodeState?.name?.lowercase() == "active"
+        docker.infoCmd()
+            .exec().swarm?.localNodeState?.name?.lowercase() == "active"
     }.getOrDefault(false)
 
     internal fun buildStateSnapshot(): NodeStateSnapshot {

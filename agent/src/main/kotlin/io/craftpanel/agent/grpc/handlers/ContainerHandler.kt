@@ -35,10 +35,13 @@ class ContainerHandler(
                         readOnly = false
                     })
                     .build()
-                val containerId = withContext(Dispatchers.IO) { containerManager.createContainer(cmdWithMount) }
                 val dockerNetwork = cmd.dockerNetwork
                 if (dockerNetwork.isNotEmpty()) {
-                    withContext(Dispatchers.IO) { networkManager.ensureNetworkAndAttach(dockerNetwork, containerId) }
+                    withContext(Dispatchers.IO) { networkManager.ensureNetwork(dockerNetwork) }
+                }
+                withContext(Dispatchers.IO) { containerManager.createContainer(cmdWithMount) }
+                if (dockerNetwork.isNotEmpty()) {
+                    withContext(Dispatchers.IO) { networkManager.attachToNetwork(dockerNetwork) }
                 }
             }
             containerManager.startContainer(cmd.containerName)

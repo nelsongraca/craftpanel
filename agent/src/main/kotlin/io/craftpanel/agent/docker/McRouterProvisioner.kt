@@ -129,11 +129,43 @@ class McRouterProvisioner(
         runCatching {
             docker.startContainerCmd(id)
                 .exec()
+        }.onFailure { e ->
+            if (e is NotModifiedException) {
+                connectToNetwork(id)
+                log.info("mc-router already started (NotModified on start)")
+                return
+            }
+            // Port 25565 may be bound by another mc-router on the same host (co-located agents).
+            // Find it and reuse rather than failing — both agents share one host port.
+            if (e.message?.contains("port is already allocated") == true ||
+                e.message?.contains("address already in use") == true
+            ) {
+                val existing = findExistingRouterOnPort(25565)
+                if (existing != null) {
+                    log.info("mc-router port conflict — reusing existing router ${existing.id}")
+                    connectToNetwork(existing.id)
+                    return
+                }
+            }
+            throw e
         }
-            .onFailure { if (it !is NotModifiedException) throw it }
         connectToNetwork(id)
         log.info("mc-router provisioned and started")
     }
+
+    private fun findExistingRouterOnPort(port: Int): InspectContainerResponse? =
+        runCatching {
+            docker.listContainersCmd()
+                .exec()
+                .firstOrNull { c ->
+                    c.ports?.any { p -> p.publicPort == port } == true &&
+                            c.image?.contains("mc-router") == true
+                }
+                ?.let {
+                    docker.inspectContainerCmd(it.id)
+                        .exec()
+                }
+        }.getOrNull()
 
     private fun connectToNetwork(containerId: String) {
         if (networkName.isEmpty()) return

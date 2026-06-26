@@ -60,7 +60,7 @@ class ServerMigrationTest : BaseSystemTest() {
                 )
 
                 response.id.isNotEmpty()
-                response.status shouldBe "PENDING"
+                response.status shouldBe MigrationStatus.PENDING
 
                 val migration = pollMigrationStatus(api, response.id, 180_000)
                 val isTerminal = migration.status == MigrationStatus.COMPLETED || migration.status == MigrationStatus.FAILED
@@ -175,10 +175,10 @@ class ServerMigrationTest : BaseSystemTest() {
                         playerWarningMessage = "test"
                     )
                 )
-                response.status shouldBe "PENDING"
+                response.status shouldBe MigrationStatus.PENDING
 
                 val migration = pollMigrationStatus(api, response.id, 180_000)
-                migration.status shouldBe "COMPLETED"
+                migration.status shouldBe MigrationStatus.COMPLETED
             }
 
             should("migrate to non-existent node returns 404") {

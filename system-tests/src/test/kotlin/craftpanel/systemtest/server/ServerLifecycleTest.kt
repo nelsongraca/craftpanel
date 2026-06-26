@@ -39,7 +39,7 @@ class ServerLifecycleTest : BaseSystemTest() {
 
                 should("creates a server and returns it with status STOPPED") {
                     val server = api.getServer(serverId)
-                    server.status shouldBe "STOPPED"
+                    server.status shouldBe ServerStatus.STOPPED
                 }
 
                 should("created server appears in GET /servers list") {
@@ -61,7 +61,7 @@ class ServerLifecycleTest : BaseSystemTest() {
                     api.startServer(serverId)
                     val server = helper.awaitStatus(serverId, ServerStatus.HEALTHY)
                     helper.awaitContainerLog(containerName(serverId), "stdin listener ready", docker, 15_000)
-                    server.status shouldBe "HEALTHY"
+                    server.status shouldBe ServerStatus.HEALTHY
                 }
 
                 should("container exists on node after start") {
@@ -113,11 +113,11 @@ class ServerLifecycleTest : BaseSystemTest() {
                 should("stopping a HEALTHY server transitions it to STOPPED") {
                     api.startServer(serverId)
                     val response = helper.awaitStatus(serverId, ServerStatus.HEALTHY)
-                    response.status shouldBe "HEALTHY"
+                    response.status shouldBe ServerStatus.HEALTHY
                     api.stopServer(serverId)
                     helper.awaitStoppedOrGone(serverId)
                     val server = api.getServer(serverId)
-                    server.status shouldBe "STOPPED"
+                    server.status shouldBe ServerStatus.STOPPED
                 }
 
                 should("stop command was sent to container stdin") {

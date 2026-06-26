@@ -1,5 +1,6 @@
 package craftpanel.systemtest.node
 
+import craftpanel.systemtest.client.model.NodeStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.SharedStack
 import io.kotest.assertions.throwables.shouldThrow
@@ -31,7 +32,7 @@ class NodeShutdownTest : BaseSystemTest() {
                 response.message shouldBe "Shutdown command sent"
 
                 val node = api.getNode(agentNodeId)
-                node.status shouldBe "ACTIVE"
+                node.status shouldBe NodeStatus.ACTIVE
             }
 
             should("shutdown non-existent node returns 404") {

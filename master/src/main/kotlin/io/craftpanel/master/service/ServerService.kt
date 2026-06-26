@@ -186,7 +186,7 @@ class ServerService(
 
         data class CreateResult(val status: String, val server: ServerResponse? = null)
 
-        val result = transaction {
+        fun attemptCreate(): CreateResult = transaction {
             val node = Nodes.selectAll()
                 .where { Nodes.id eq nodeKotlinId }
                 .firstOrNull()
@@ -301,6 +301,26 @@ class ServerService(
             CreateResult("ok", rowToServerResponse(row, false))
         }
 
+        // Retry on port collision (two concurrent creates can race past the usedPorts read).
+        val result = run {
+            var lastEx: java.sql.SQLException? = null
+            repeat(3) {
+                try {
+                    return@run attemptCreate()
+                }
+                catch (ex: Exception) {
+                    val cause = generateSequence(ex as Throwable) { it.cause }
+                        .filterIsInstance<java.sql.SQLException>()
+                        .firstOrNull()
+                    if (cause != null && cause.sqlState?.startsWith("23") == true) {
+                        lastEx = cause
+                    }
+                    else throw ex
+                }
+            }
+            throw lastEx ?: RuntimeException("port allocation failed after retries")
+        }
+
         return when (result.status) {
             "ok"                -> result.server!!
             "node_not_found"    -> throw UnprocessableException("Node not found")
@@ -313,7 +333,7 @@ class ServerService(
         }
     }
 
-    fun getServer(id: kotlin.uuid.Uuid): ServerResponse {
+    fun getServer(id: Uuid): ServerResponse {
         val (row, isMigrating) = transaction {
             val r = Servers.selectAll()
                 .where { Servers.id eq id }
@@ -326,8 +346,8 @@ class ServerService(
         return rowToServerResponse(row, isMigrating)
     }
 
-    fun updateServer(id: kotlin.uuid.Uuid, req: UpdateServerRequest) {
-        val newNetworkId: kotlin.uuid.Uuid? = req.networkId?.ifEmpty { null }
+    fun updateServer(id: Uuid, req: UpdateServerRequest) {
+        val newNetworkId: Uuid? = req.networkId?.ifEmpty { null }
             ?.let { parseUuid(it) ?: throw UnprocessableException("Invalid network_id") }
 
         if (newNetworkId != null) {
@@ -384,7 +404,7 @@ class ServerService(
         }
     }
 
-    fun deleteServer(id: kotlin.uuid.Uuid) {
+    fun deleteServer(id: Uuid) {
         val existing = transaction {
             Servers.selectAll()
                 .where { Servers.id eq id }
@@ -428,7 +448,7 @@ class ServerService(
         }
     }
 
-    fun updateResources(id: kotlin.uuid.Uuid, req: PatchResourcesRequest) {
+    fun updateResources(id: Uuid, req: PatchResourcesRequest) {
         if (req.memoryMb <= 0) throw UnprocessableException("memory_mb must be positive")
         if (req.cpuShares < 0) throw UnprocessableException("cpu_shares must be non-negative")
         val existing = transaction {
@@ -469,7 +489,7 @@ class ServerService(
         }
     }
 
-    fun startServer(id: kotlin.uuid.Uuid) {
+    fun startServer(id: Uuid) {
         val serverRow = transaction {
             Servers.selectAll()
                 .where { Servers.id eq id }
@@ -493,7 +513,7 @@ class ServerService(
         lifecycle.sendStart(serverRow, needsRecreate = serverRow[Servers.needsRecreate], publicHostname = publicHostname)
     }
 
-    fun stopServer(id: kotlin.uuid.Uuid) {
+    fun stopServer(id: Uuid) {
         val serverRow = transaction {
             Servers.selectAll()
                 .where { Servers.id eq id }
@@ -513,7 +533,7 @@ class ServerService(
         lifecycle.sendStop(serverRow, nodeId)
     }
 
-    fun restartServer(id: kotlin.uuid.Uuid) {
+    fun restartServer(id: Uuid) {
         val serverRow = transaction {
             Servers.selectAll()
                 .where { Servers.id eq id }
@@ -540,7 +560,7 @@ class ServerService(
         }
     }
 
-    fun getMetrics(id: kotlin.uuid.Uuid, from: Instant, to: Instant): ContainerMetricsSeriesResponse {
+    fun getMetrics(id: Uuid, from: Instant, to: Instant): ContainerMetricsSeriesResponse {
         val exists = transaction {
             Servers.selectAll()
                 .where { Servers.id eq id }
@@ -570,7 +590,7 @@ class ServerService(
         )
     }
 
-    fun updateExposure(id: kotlin.uuid.Uuid, req: PatchExposureRequest) {
+    fun updateExposure(id: Uuid, req: PatchExposureRequest) {
         val serverRow = transaction {
             Servers.selectAll()
                 .where { Servers.id eq id }
@@ -660,6 +680,7 @@ class ServerService(
         val prevCustomHostname = serverRow[Servers.customHostname]
         val customHostnameChanged = resolvedCustomHostname != prevCustomHostname
 
+        val exposureNeedsRecreate = req.publicSubdomain != null || customHostnameChanged
         transaction {
             Servers.update({ Servers.id eq id }) {
                 it[exposedExternally] = req.exposedExternally
@@ -676,6 +697,7 @@ class ServerService(
                     it[dnsRecordId] = null
                 }
                 it[customHostname] = resolvedCustomHostname
+                if (exposureNeedsRecreate) it[needsRecreate] = true
                 it[updatedAt] = Clock.System.now()
                     .toLocalDateTime(TimeZone.UTC)
             }
@@ -712,7 +734,7 @@ class ServerService(
      * - Must not collide with any server's managed dns_record_name
      * - Must not end with any panel-managed domain suffix (network cfDomainSuffix values or global dns_domain_suffix)
      */
-    private fun validateCustomHostname(hostname: String, excludeServerId: kotlin.uuid.Uuid) {
+    private fun validateCustomHostname(hostname: String, excludeServerId: Uuid) {
         val rfc1123Label = Regex("^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$")
         val labels = hostname.split(".")
         if (labels.isEmpty() || labels.any { !it.matches(rfc1123Label) }) {
@@ -784,7 +806,7 @@ class ServerService(
 
     private data class NetworkDns(val zoneId: String, val domainSuffix: String)
 
-    private fun resolveNetworkDns(networkId: kotlin.uuid.Uuid?): NetworkDns? = transaction {
+    private fun resolveNetworkDns(networkId: Uuid?): NetworkDns? = transaction {
         networkId ?: return@transaction null
         ServerNetworks.selectAll()
             .where { ServerNetworks.id eq networkId }
@@ -796,7 +818,7 @@ class ServerService(
             }
     }
 
-    private fun resolvePublicHostname(subdomain: String, networkId: kotlin.uuid.Uuid?): String? {
+    private fun resolvePublicHostname(subdomain: String, networkId: Uuid?): String? {
         val suffix = transaction {
             if (networkId != null) {
                 ServerNetworks.selectAll()

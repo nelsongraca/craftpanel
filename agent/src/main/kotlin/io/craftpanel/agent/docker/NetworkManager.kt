@@ -12,10 +12,13 @@ class NetworkManager(
 
     private val log = LoggerFactory.getLogger(NetworkManager::class.java)
 
-    /** Ensures the network exists (creates bridge if not), attaches container, attaches mc-router. */
-    fun ensureNetworkAndAttach(networkName: String, containerId: String) {
+    /** Creates the bridge network if it does not exist yet. Call before createContainer. */
+    fun ensureNetwork(networkName: String) {
         ensureNetworkExists(networkName)
-        attachContainer(containerId, networkName)
+    }
+
+    /** Attaches mc-router to the network after container creation (container already joined via withNetworkMode). */
+    fun attachToNetwork(networkName: String) {
         attachMcRouter(networkName)
     }
 
@@ -52,16 +55,6 @@ class NetworkManager(
                 log.warn("Failed to create network $networkName: ${e.message}")
             }
         }
-    }
-
-    private fun attachContainer(containerId: String, networkName: String) {
-        runCatching {
-            docker.connectToNetworkCmd()
-                .withNetworkId(networkName)
-                .withContainerId(containerId)
-                .exec()
-            log.info("Attached container $containerId to $networkName")
-        }.onFailure { log.warn("Failed to attach container $containerId to $networkName: ${it.message}") }
     }
 
     private fun attachMcRouter(networkName: String) {

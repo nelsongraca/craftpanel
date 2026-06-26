@@ -118,8 +118,9 @@ open class MetricsCollector(
     @Suppress("UNUSED_PARAMETER")
     fun collectPlayerCount(serverId: String, containerId: String): PlayerUpdate? {
         val routerIp = getMcRouterIp() ?: return null
+        val hostname = getServerRoutingHostname(containerId) ?: return null
         return runCatching {
-            val result = McStatusClient.ping(routerIp) ?: return null
+            val result = McStatusClient.ping(routerIp, serverAddress = hostname) ?: return null
             val now = Instant.now()
             playerUpdate {
                 this.serverId = serverId
@@ -143,6 +144,14 @@ open class MetricsCollector(
         else networks.values.firstOrNull()
         return net?.ipAddress?.takeIf { it.isNotBlank() }
     }
+
+    private fun getServerRoutingHostname(containerId: String): String? =
+        runCatching {
+            docker.inspectContainerCmd(containerId)
+                .exec().config?.labels?.get("mc-router.host")
+        }.getOrNull()
+            ?.split(",")
+            ?.firstOrNull { it.isNotBlank() }
 
     fun collectCapacity(): Pair<Int, Int> {
         val totalRamMb = runCatching {

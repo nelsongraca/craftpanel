@@ -150,7 +150,7 @@ class ServerModsTest : BaseSystemTest() {
                 val mods = api.listMods(serverId)
                 val updated = mods.values.flatten()
                     .first { it.id == mod.id }
-                updated.pinStrategy shouldBe "LATEST"
+                updated.pinStrategy shouldBe ModPinStrategy.LATEST
                 updated.pinnedVersionId shouldBe null
             }
         }

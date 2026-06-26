@@ -237,7 +237,7 @@ class ServerConsoleTest : BaseSystemTest() {
                         connectLatch.await(5, TimeUnit.SECONDS)
                         ws.send("""{"type":"console.input","data":"stop\r"}""")
                         helper.awaitStoppedOrGone(serverId)
-                        api.getServer(serverId).status shouldBe "STOPPED"
+                        api.getServer(serverId).status shouldBe ServerStatus.STOPPED
                     }
                     finally {
                         ws?.close(1000, "test done")

@@ -150,10 +150,15 @@ class McRouterRoutingTest : BaseSystemTest() {
                 // Managed subdomain still routes
                 awaitRoutedMotd(hostnameC) shouldContain motdC
 
-                // Custom hostname no longer routes
-                val routed = runCatching {
-                    pingThroughRouter(customHostnameC)
-                }.getOrNull()
+                // Custom hostname no longer routes — mc-router drops the route when the container
+                // is recreated without the customHostnameC label.
+                val deadline = System.currentTimeMillis() + 15_000
+                var routed: String? = "pending"
+                while (System.currentTimeMillis() < deadline) {
+                    routed = runCatching { pingThroughRouter(customHostnameC) }.getOrNull()
+                    if (routed == null) break
+                    delay(500.milliseconds)
+                }
                 routed shouldBe null
 
                 // canonical_hostname falls back to managed
@@ -214,10 +219,12 @@ class McRouterRoutingTest : BaseSystemTest() {
         var lastError: Throwable? = null
         while (System.currentTimeMillis() < deadline) {
             val attempt = runCatching { pingThroughRouter(hostname) }
-            attempt.getOrNull()?.let { return it }
+            attempt.getOrNull()
+                ?.let { return it }
             lastError = attempt.exceptionOrNull()
             delay(interval.milliseconds)
-            interval = (interval * 1.5).toLong().coerceAtMost(2000)
+            interval = (interval * 1.5).toLong()
+                .coerceAtMost(2000)
         }
         System.err.println("[mcrouter-diag] last ping error for '$hostname': ${lastError?.javaClass?.simpleName}: ${lastError?.message}")
         dumpRouterDiagnostics(hostname)
@@ -230,23 +237,31 @@ class McRouterRoutingTest : BaseSystemTest() {
         val docker = SharedStack.dockerClient
         val routerName = "${SharedStack.containerPrefix}-mc-router"
         runCatching {
-            val router = docker.inspectContainerCmd(routerName).exec()
+            val router = docker.inspectContainerCmd(routerName)
+                .exec()
             val routerNets = router.networkSettings?.networks?.keys ?: emptySet()
             System.err.println("[mcrouter-diag] router '$routerName' networks: $routerNets")
             System.err.println("[mcrouter-diag] router state: running=${router.state?.running} status=${router.state?.status}")
             System.err.println("[mcrouter-diag] router host port bindings: ${router.networkSettings?.ports?.bindings}")
-            System.err.println("[mcrouter-diag] router env IN_DOCKER: " +
-                (router.config?.env?.firstOrNull { it.startsWith("IN_DOCKER") } ?: "<unset>"))
+            System.err.println(
+                "[mcrouter-diag] router env IN_DOCKER: " +
+                        (router.config?.env?.firstOrNull { it.startsWith("IN_DOCKER") } ?: "<unset>"))
 
             // Backends carrying the routing label and the networks they live on.
-            docker.listContainersCmd().withLabelFilter(listOf("mc-router.host")).exec().forEach { c ->
-                val nets = runCatching {
-                    docker.inspectContainerCmd(c.id).exec().networkSettings?.networks?.keys
-                }.getOrNull() ?: emptySet()
-                System.err.println("[mcrouter-diag] backend ${c.names?.joinToString()} " +
-                    "host=${c.labels?.get("mc-router.host")} network=${c.labels?.get("mc-router.network")} attachedTo=$nets")
-                System.err.println("[mcrouter-diag] backend ${c.names?.joinToString()} logs:\n${tailLogs(c.id)}")
-            }
+            docker.listContainersCmd()
+                .withLabelFilter(listOf("mc-router.host"))
+                .exec()
+                .forEach { c ->
+                    val nets = runCatching {
+                        docker.inspectContainerCmd(c.id)
+                            .exec().networkSettings?.networks?.keys
+                    }.getOrNull() ?: emptySet()
+                    System.err.println(
+                        "[mcrouter-diag] backend ${c.names?.joinToString()} " +
+                                "host=${c.labels?.get("mc-router.host")} network=${c.labels?.get("mc-router.network")} attachedTo=$nets"
+                    )
+                    System.err.println("[mcrouter-diag] backend ${c.names?.joinToString()} logs:\n${tailLogs(c.id)}")
+                }
 
             System.err.println("[mcrouter-diag] last router logs for '$hostname':\n${tailLogs(routerName)}")
         }.onFailure { System.err.println("[mcrouter-diag] failed: ${it.message}") }
@@ -255,12 +270,15 @@ class McRouterRoutingTest : BaseSystemTest() {
     private fun tailLogs(containerIdOrName: String): String {
         val logs = StringBuilder()
         SharedStack.dockerClient.logContainerCmd(containerIdOrName)
-            .withStdOut(true).withStdErr(true).withTail(60)
+            .withStdOut(true)
+            .withStdErr(true)
+            .withTail(60)
             .exec(object : com.github.dockerjava.api.async.ResultCallback.Adapter<com.github.dockerjava.api.model.Frame>() {
                 override fun onNext(frame: com.github.dockerjava.api.model.Frame) {
                     logs.append(String(frame.payload))
                 }
-            }).awaitCompletion()
+            })
+            .awaitCompletion()
         return logs.toString()
     }
 
@@ -306,17 +324,29 @@ class McRouterRoutingTest : BaseSystemTest() {
 
     private suspend fun createDockerNetwork(name: String) = withContext(Dispatchers.IO) {
         val docker = SharedStack.dockerClient
-        val exists = docker.listNetworksCmd().withNameFilter(name).exec().any { it.name == name }
+        val exists = docker.listNetworksCmd()
+            .withNameFilter(name)
+            .exec()
+            .any { it.name == name }
         if (!exists) {
-            docker.createNetworkCmd().withName(name).exec()
+            docker.createNetworkCmd()
+                .withName(name)
+                .exec()
         }
     }
 
     private suspend fun removeDockerNetwork(name: String) = withContext(Dispatchers.IO) {
         val docker = SharedStack.dockerClient
-        docker.listNetworksCmd().withNameFilter(name).exec()
+        docker.listNetworksCmd()
+            .withNameFilter(name)
+            .exec()
             .filter { it.name == name }
-            .forEach { runCatching { docker.removeNetworkCmd(it.id).exec() } }
+            .forEach {
+                runCatching {
+                    docker.removeNetworkCmd(it.id)
+                        .exec()
+                }
+            }
     }
 
     // --- Minecraft protocol VarInt / String helpers ---

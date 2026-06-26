@@ -40,6 +40,7 @@ interface Section {
     title: string;
     fields: FieldDef[];
     collapsible?: boolean;
+    defaultOpen?: boolean;
 }
 
 const SECTIONS: Section[] = [
@@ -132,6 +133,7 @@ const SECTIONS: Section[] = [
     {
         title: "Advanced",
         collapsible: true,
+        defaultOpen: false,
         fields: [
             {key: "ENABLE_COMMAND_BLOCK", label: "Enable Command Blocks", type: "toggle", serverPropertiesMapped: true},
             {key: "OP_PERMISSION_LEVEL", label: "Op Permission Level", type: "number", hint: "1–4", serverPropertiesMapped: true},
@@ -495,7 +497,7 @@ function FieldSection({
     isManual: boolean;
     dimmed: boolean;
 }) {
-    const [open, setOpen] = useState(true);
+    const [open, setOpen] = useState(section.defaultOpen ?? true);
 
     const visibleFields = section.fields.filter((f) => {
         if (!f.showWhen) return true;

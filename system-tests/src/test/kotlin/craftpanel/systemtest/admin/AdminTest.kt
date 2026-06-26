@@ -191,7 +191,7 @@ class AdminTest : BaseSystemTest() {
                 )
                 assignmentId = assignment.id
                 assignment.groupId shouldBe assignGroupId
-                assignment.scopeType shouldBe "GLOBAL"
+                assignment.scopeType shouldBe ScopeType.GLOBAL
             }
 
             should("lists assignments for user") {

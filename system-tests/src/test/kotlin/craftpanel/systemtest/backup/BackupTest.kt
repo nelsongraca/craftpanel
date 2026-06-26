@@ -1,5 +1,6 @@
 package craftpanel.systemtest.backup
 
+import craftpanel.systemtest.client.model.BackupTrigger
 import craftpanel.systemtest.client.model.PutBackupScheduleRequest
 import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
@@ -53,7 +54,7 @@ class BackupTest : BaseSystemTest() {
                 val backup = api.triggerBackup(serverId)
                 backup.id.shouldNotBeEmpty()
                 backup.serverId shouldBe serverId
-                backup.trigger shouldBe "MANUAL"
+                backup.trigger shouldBe BackupTrigger.MANUAL
 
                 // Wait for backup to complete (up to 30s)
                 helper.awaitStatus(serverId, ServerStatus.HEALTHY)

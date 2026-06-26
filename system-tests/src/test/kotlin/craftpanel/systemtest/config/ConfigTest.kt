@@ -82,7 +82,7 @@ class ConfigTest : BaseSystemTest() {
             should("updates config mode") {
                 api.updateConfigMode(serverId, PatchConfigModeRequest(configMode = ConfigMode.MANAGED))
                 val server = api.getServer(serverId)
-                server.configMode shouldBe "MANAGED"
+                server.configMode shouldBe ConfigMode.MANAGED
             }
 
             should("managing proxy backends on a non-proxy server returns 409") {

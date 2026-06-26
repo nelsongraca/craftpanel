@@ -12,6 +12,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import org.openapitools.client.infrastructure.ApiClient
 import org.openapitools.client.infrastructure.ClientException
+import org.openapitools.client.infrastructure.ServerException
 
 class SearchModsTest : BaseSystemTest() {
 
@@ -85,8 +86,12 @@ class SearchModsTest : BaseSystemTest() {
                     api.searchMods(serverId, query = "fabric-api", limit = 5)
                 }.exceptionOrNull()
                 if (ex != null) {
-                    ex as ClientException
-                    ex.statusCode shouldBe 502
+                    val statusCode = when (ex) {
+                        is ClientException -> ex.statusCode
+                        is ServerException -> ex.statusCode
+                        else -> throw ex
+                    }
+                    statusCode shouldBe 502
                 }
                 // if no exception: upstream was reachable, success
             }

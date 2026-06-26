@@ -1,5 +1,6 @@
 package craftpanel.systemtest.node
 
+import craftpanel.systemtest.client.model.NodeStatus
 import craftpanel.systemtest.client.model.PatchNodeRequest
 import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
@@ -21,7 +22,7 @@ class NodeOperationsTest : BaseSystemTest() {
             should("returns full metadata for a trusted node") {
                 val node = api.getNode(SharedStack.nodeId)
                 node.id shouldBe SharedStack.nodeId
-                node.status shouldBe "ACTIVE"
+                node.status shouldBe NodeStatus.ACTIVE
                 node.displayName.shouldNotBeEmpty()
                 node.hostname.shouldNotBeEmpty()
                 node.totalRamMb.shouldBeGreaterThan(0)
@@ -77,11 +78,11 @@ class NodeOperationsTest : BaseSystemTest() {
                 val containerId = SharedStack.addAgent()
                 try {
                     val pending = nodeHelper.awaitPendingNode()
-                    pending.status shouldBe "PENDING"
+                    pending.status shouldBe NodeStatus.PENDING
 
                     api.rejectNode(pending.id)
                     val rejected = api.getNode(pending.id)
-                    rejected.status shouldBe "REJECTED"
+                    rejected.status shouldBe NodeStatus.REJECTED
                 }
                 finally {
                     SharedStack.removeAgent(containerId)
@@ -115,7 +116,7 @@ class NodeOperationsTest : BaseSystemTest() {
                     keyResponse.nodeKey.shouldNotBeEmpty()
 
                     val node = api.getNode(nodeId)
-                    node.status shouldBe "ACTIVE"
+                    node.status shouldBe NodeStatus.ACTIVE
                 }
                 finally {
                     runCatching { api.decommissionNode(nodeId) }
@@ -148,7 +149,7 @@ class NodeOperationsTest : BaseSystemTest() {
 
                     api.decommissionNode(nodeId)
                     val node = api.getNode(nodeId)
-                    node.status shouldBe "DECOMMISSIONED"
+                    node.status shouldBe NodeStatus.DECOMMISSIONED
                 }
                 finally {
                     SharedStack.removeAgent(containerId)

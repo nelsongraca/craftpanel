@@ -19,7 +19,7 @@ object McStatusClient {
 
     data class StatusResult(val playerCount: Int, val playerNames: List<String>)
 
-    fun ping(host: String, port: Int = 25565, timeoutMs: Int = 3000): StatusResult? =
+    fun ping(host: String, port: Int = 25565, timeoutMs: Int = 3000, serverAddress: String = host): StatusResult? =
         runCatching {
             Socket().use { socket ->
                 socket.soTimeout = timeoutMs
@@ -33,10 +33,10 @@ object McStatusClient {
                         .buffered()
                 )
 
-                // Handshake (0x00): protocolVersion=-1, host, port, nextState=1
+                // Handshake (0x00): protocolVersion=-1, serverAddress (routing hostname), port, nextState=1
                 val handshake = buildPacket { buf ->
                     writeVarInt(buf, -1)
-                    writeString(buf, host)
+                    writeString(buf, serverAddress)
                     buf.write(port shr 8 and 0xFF)
                     buf.write(port and 0xFF)
                     writeVarInt(buf, 1)
