@@ -45,7 +45,8 @@ class ControlStreamHandlerTest : FunSpec({
         containerNamePrefix = "craftpanel",
         metricsPollIntervalSeconds = 60,
         masterHttpPort = 80,
-        privateIpOverride = ""
+        privateIpOverride = "",
+        mcRouterContainerName = ""
     )
     val containerHandler = ContainerHandler(containerManager, config, mockk<NetworkManager>(relaxed = true))
     val backupHandler = BackupHandler(config)

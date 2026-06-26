@@ -67,7 +67,9 @@ class AgentConfigTest : FunSpec({
         copy.tlsCertPath shouldBe original.tlsCertPath
     }
 }) {
+
     companion object {
+
         fun config(
             profile: String = "dev",
             masterAddress: String = "localhost",
@@ -108,7 +110,8 @@ class AgentConfigTest : FunSpec({
             containerNamePrefix = containerNamePrefix,
             metricsPollIntervalSeconds = metricsPollIntervalSeconds,
             masterHttpPort = 80,
-            privateIpOverride = ""
+            privateIpOverride = "",
+            mcRouterContainerName = ""
         )
     }
 }
