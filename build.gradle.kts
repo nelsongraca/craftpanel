@@ -85,7 +85,7 @@ tasks.named("check") {
 tasks.register("test") {
     group = "verification"
     description = "Runs all tests (JVM subprojects + frontend)"
-    dependsOn(":master:test", ":agent:test", ":frontend:testFrontend")
+    dependsOn(":master:test", ":agent:test", ":frontend:typecheckFrontend", ":frontend:testFrontend")
 }
 
 subprojects {

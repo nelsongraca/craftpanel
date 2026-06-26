@@ -26,6 +26,14 @@ tasks.named("clean") {
 
 val withCoverage = project.hasProperty("withCoverage")
 
+tasks.register<Exec>("typecheckFrontend") {
+    group = "verification"
+    description = "Runs TypeScript type checking"
+    dependsOn("installFrontend")
+    workingDir = layout.projectDirectory.asFile
+    commandLine(layout.projectDirectory.file(".node/bin/pnpm").asFile, "exec", "tsc", "--noEmit")
+}
+
 tasks.register<Exec>("testFrontend") {
     group = "verification"
     description = "Runs frontend unit tests via vitest"
@@ -50,7 +58,7 @@ tasks.register<Exec>("testE2eMocked") {
 }
 
 tasks.named("check") {
-    dependsOn("testFrontend", "testE2eMocked")
+    dependsOn("typecheckFrontend", "testFrontend", "testE2eMocked")
 }
 
 tasks.register<Exec>("generateApiTypes") {
