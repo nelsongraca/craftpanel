@@ -84,7 +84,7 @@ class ConnectionManager(
                             config.mcRouterUpdateOnStart,
                             config.craftpanelNetwork,
                             config.containerNamePrefix,
-                            nodeId = identity.nodeId,
+                            config.mcRouterContainerName,
                         )
                         networkManager = NetworkManager(docker, provisioner.containerName)
                         metricsCollector.mcRouterContainerName = provisioner.containerName

@@ -17,6 +17,7 @@ data class AgentConfig(
     val hostDataBasePath: String,
     val mcRouterImage: String,
     val mcRouterUpdateOnStart: Boolean,
+    val mcRouterContainerName: String,
     val publicIpUrl: String,
     val hostnameOverride: String,
     val systemReservedRamMb: Int,
@@ -71,6 +72,7 @@ data class AgentConfig(
             mcRouterImage = System.getenv("MCROUTER_IMAGE") ?: "itzg/mc-router:latest",
             mcRouterUpdateOnStart = System.getenv("MCROUTER_UPDATE_ON_START")
                 ?.lowercase() != "false",
+            mcRouterContainerName = System.getenv("MCROUTER_CONTAINER_NAME") ?: "",
             publicIpUrl = System.getenv("PUBLIC_IP_URL") ?: "",
             hostnameOverride = System.getenv("NODE_HOSTNAME") ?: "",
             systemReservedRamMb = System.getenv("SYSTEM_RESERVED_RAM_MB")

@@ -14,14 +14,13 @@ class McRouterProvisioner(
     private val updateOnStart: Boolean,
     private val networkName: String = "",
     private val containerNamePrefix: String = "craftpanel",
-    private val nodeId: String = "",
+    containerNameOverride: String = "",
 ) {
 
     private val log = LoggerFactory.getLogger(McRouterProvisioner::class.java)
-    val containerName: String = if (nodeId.isNotEmpty())
-        "$containerNamePrefix-mc-router-$nodeId"
-    else
-        "$containerNamePrefix-mc-router"
+
+    // One mc-router per host, shared by co-located agents — fixed name, no nodeId suffix.
+    val containerName: String = containerNameOverride.ifBlank { "$containerNamePrefix-mc-router" }
 
     fun ensureRunning() {
         if (updateOnStart) {
@@ -37,16 +36,15 @@ class McRouterProvisioner(
         }.getOrNull()
 
         if (existing != null) {
-            // A router provisioned by an older agent may lack IN_DOCKER=true (no auto-discovery
-            // → it ignores `mc-router.host` labels and routes nothing) or lack the published
-            // 25565 host binding (→ unreachable for external ingress). Reusing such a container
-            // as-is silently breaks ingress after an upgrade. Detect the drift and recreate.
+            // Recreate only if IN_DOCKER=true is missing — that's the flag that enables label-based
+            // auto-discovery. Without it mc-router ignores container labels and routes nothing.
+            // The host-port binding is always set on creation and not re-checked here: Docker inspect
+            // may not expose bindings via networkSettings.ports inside the container network, and
+            // a running shared container must not be destroyed while co-located agents depend on it.
             val hasAutoDiscovery = existing.config?.env
                 ?.any { it == "IN_DOCKER=true" } == true
-            val hasHostPort = existing.networkSettings?.ports?.bindings
-                ?.keys?.any { it.port == 25565 } == true
-            if (!hasAutoDiscovery || !hasHostPort) {
-                log.info("mc-router drift (autoDiscovery=$hasAutoDiscovery hostPort=$hasHostPort) — recreating")
+            if (!hasAutoDiscovery) {
+                log.info("mc-router drift (autoDiscovery=false) — recreating")
                 runCatching {
                     docker.removeContainerCmd(existing.id)
                         .withForce(true)
