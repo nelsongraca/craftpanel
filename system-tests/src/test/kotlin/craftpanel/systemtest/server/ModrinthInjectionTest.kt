@@ -180,10 +180,13 @@ class ModrinthInjectionTest : BaseSystemTest() {
     }
 
     private suspend fun awaitRestartCycle(helper: ServerHelper, serverId: String, timeoutMs: Long = 120_000) {
-        val phaseTimeoutMs = timeoutMs / 2
+        // Phase 1 cap: master writes STARTING synchronously before dispatching, so NOT-HEALTHY
+        // should appear within seconds. Cap phase 1 tightly so load delays don't eat phase 2 budget.
+        val phase1TimeoutMs = minOf(30_000L, timeoutMs / 4)
+        val phase2TimeoutMs = timeoutMs - phase1TimeoutMs
 
         // Phase 1: wait for server to leave HEALTHY (restart in progress)
-        val phase1Deadline = System.currentTimeMillis() + phaseTimeoutMs
+        val phase1Deadline = System.currentTimeMillis() + phase1TimeoutMs
         var interval = 100L
         while (System.currentTimeMillis() < phase1Deadline) {
             val status = runCatching { api.getServer(serverId).status }.getOrNull()
@@ -195,6 +198,6 @@ class ModrinthInjectionTest : BaseSystemTest() {
         }
 
         // Phase 2: wait for server to return to HEALTHY
-        helper.awaitStatus(serverId, ServerStatus.HEALTHY, phaseTimeoutMs)
+        helper.awaitStatus(serverId, ServerStatus.HEALTHY, phase2TimeoutMs)
     }
 }
