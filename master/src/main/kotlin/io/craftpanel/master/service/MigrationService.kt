@@ -504,13 +504,66 @@ class MigrationService(
                 completeStep(stepId, true)
             }
 
+            // ── Port assignment on target ─────────────────────────────────────────
+            // Move/reallocate the server port to the target node before starting the
+            // container there. Required because two agents may share a Docker host
+            // (tests) or the target may already have another server on the same port.
+            val freshServerRow = transaction {
+                val existingPort = serverRow[Servers.hostPort]
+                val portConflict = PortRegistry.selectAll()
+                    .where {
+                        (PortRegistry.nodeId eq targetNodeId) and
+                                (PortRegistry.port eq existingPort) and
+                                (PortRegistry.protocol eq "TCP") and
+                                PortRegistry.serverId.isNotNull() and
+                                (PortRegistry.serverId neq serverId)
+                    }
+                    .any()
+
+                val assignedPort = if (portConflict) {
+                    // Allocate a fresh port on target node
+                    val usedPorts = PortRegistry.selectAll()
+                        .where { (PortRegistry.nodeId eq targetNodeId) and (PortRegistry.protocol eq "TCP") }
+                        .map { it[PortRegistry.port] }
+                        .toSet()
+                    val targetNode = Nodes.selectAll()
+                        .where { Nodes.id eq targetNodeId }
+                        .first()
+                    (targetNode[Nodes.portRangeStart]..targetNode[Nodes.portRangeEnd])
+                        .firstOrNull { it !in usedPorts }
+                        ?: throw PortExhaustedException("No free ports on target node")
+                }
+                else existingPort
+
+                // Move PortRegistry from source to target (or just re-register if port changed)
+                PortRegistry.deleteWhere { PortRegistry.serverId eq serverId }
+                PortRegistry.insert {
+                    it[PortRegistry.nodeId] = targetNodeId
+                    it[PortRegistry.port] = assignedPort
+                    it[PortRegistry.protocol] = "TCP"
+                    it[PortRegistry.serverId] = serverId
+                }
+
+                if (assignedPort != existingPort) {
+                    Servers.update({ Servers.id eq serverId }) {
+                        it[Servers.hostPort] = assignedPort
+                        it[Servers.updatedAt] = now()
+                    }
+                }
+
+                // Re-fetch row so lifecycle.start picks up the (possibly updated) port
+                Servers.selectAll()
+                    .where { Servers.id eq serverId }
+                    .first()
+            }
+
             // ── Step 8: Create and start container on target ─────────────────────
             run {
                 val stepId = startStep(8, "Create and start server container on target node")
                 runCatching {
-                    lifecycle.start(serverRow, needsRecreate = true, nodeId = targetNodeIdStr)
+                    lifecycle.start(freshServerRow, needsRecreate = true, nodeId = targetNodeIdStr)
                 }.onFailure { e ->
-                    runCatching { lifecycle.remove(serverRow, targetNodeIdStr, force = true) }
+                    runCatching { lifecycle.remove(freshServerRow, targetNodeIdStr, force = true) }
                     completeStep(stepId, false, e.message)
                     failMigration("New container failed to start on target: ${e.message}")
                     return
@@ -542,7 +595,8 @@ class MigrationService(
             // ── Step 10: mc-router labels updated implicitly at container creation ─
             // Nothing to do — labels set in step 8 CreateContainerCommand.
 
-            // ── Step 11: Update DB — node assignment + PortRegistry ──────────────
+            // ── Step 11: Update DB — node assignment ─────────────────────────────
+            // Port and PortRegistry already updated before step 8.
             run {
                 val stepId = startStep(11, "Update server node assignment in database")
                 try {
@@ -550,15 +604,6 @@ class MigrationService(
                         Servers.update({ Servers.id eq serverId }) {
                             it[Servers.nodeId] = targetNodeId
                             it[Servers.updatedAt] = now()
-                        }
-                        // Move the server's port entry to the target node
-                        val serverPort = serverRow[Servers.hostPort]
-                        PortRegistry.deleteWhere { (PortRegistry.serverId eq serverId) }
-                        PortRegistry.insert {
-                            it[PortRegistry.nodeId] = targetNodeId
-                            it[PortRegistry.port] = serverPort
-                            it[PortRegistry.protocol] = "TCP"
-                            it[PortRegistry.serverId] = serverId
                         }
                         // Release rsync ephemeral port
                         PortRegistry.deleteWhere {
@@ -580,7 +625,7 @@ class MigrationService(
             run {
                 val stepId = startStep(12, "Update proxy backends")
                 runCatching {
-                    updateProxyBackendsAfterMigration(serverId, targetNodeRow[Nodes.privateIp], serverRow[Servers.hostPort])
+                    updateProxyBackendsAfterMigration(serverId, targetNodeRow[Nodes.privateIp], freshServerRow[Servers.hostPort])
                 }.onFailure { ex ->
                     log.warn("Proxy backend update failed after migration $migrationIdStr: ${ex.message}")
                 }

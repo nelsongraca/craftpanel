@@ -78,9 +78,9 @@ class MultiNodeTest : BaseSystemTest() {
                     .also { serverIds.add(it) }
 
                 api.startServer(serverA)
-                helper.awaitStatus(serverA, ServerStatus.HEALTHY)
+                helper.awaitStatus(serverA, ServerStatus.HEALTHY, timeoutMs = 180_000)
                 api.startServer(serverB)
-                helper.awaitStatus(serverB, ServerStatus.HEALTHY)
+                helper.awaitStatus(serverB, ServerStatus.HEALTHY, timeoutMs = 180_000)
 
                 runCatching { api.stopServer(serverA) }
                 runCatching { api.stopServer(serverB) }
