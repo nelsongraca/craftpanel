@@ -1,0 +1,42 @@
+name: System Tests
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  system-tests:
+    name: System Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: gradle
+
+      - name: Cache local .gradle
+        uses: actions/cache@v4
+        with:
+          path: .gradle/
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      - name: Build Docker images
+        run: ./gradlew dockerBuildAll
+
+      - name: Run system tests
+        run: ./gradlew :system-tests:test -PwithCoverage
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: system-tests/build/reports/kover/system-tests/report.xml
+          flags: system
+          fail_ci_if_error: true

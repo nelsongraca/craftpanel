@@ -22,6 +22,21 @@ costs more than it saves.)
 
 **ALL individual advisor calls require user confirmation.** Before calling `advisor()`, ALWAYS ask the user: "Call advisor for [reason]?" and wait for approval. Never call advisor silently.
 
+## Subagent Delegation (Free Tier)
+
+For exploration, auditing, and mechanical tasks, delegate via:
+
+```bash
+opencode run "<task>" --dangerously-skip-permissions
+```
+
+**Prefer this over inline exploration for:**
+- Reading and auditing multiple files across the codebase
+- Generating boilerplate, stubs, or mechanical refactors
+- Any task where the first step is "understand the current state of X"
+
+Always delegate the exploration phase before making changes. Review output before applying.
+
 ## Module Structure
 
 ```
