@@ -207,10 +207,7 @@ describe("AlertsPage", () => {
                 ).toBeInTheDocument();
             });
 
-            const banner = screen.getByText("Cannot delete threshold in use").closest(
-                "div",
-            )!;
-            const closeBtn = banner.parentElement!.querySelector("button")!;
+            const closeBtn = screen.getByRole("button", {name: "Dismiss"});
             await user.click(closeBtn);
 
             await waitFor(() => {
@@ -300,6 +297,7 @@ describe("AlertsPage", () => {
             const firedHandler = subscribeMock.mock.calls.find(
                 (c: unknown[]) => c[0] === "alert.fired",
             )?.[1];
+            expect(firedHandler).toBeDefined();
 
             act(() => {
                 firedHandler({
@@ -326,6 +324,7 @@ describe("AlertsPage", () => {
             const resolvedHandler = subscribeMock.mock.calls.find(
                 (c: unknown[]) => c[0] === "alert.resolved",
             )?.[1];
+            expect(resolvedHandler).toBeDefined();
 
             act(() => {
                 resolvedHandler({

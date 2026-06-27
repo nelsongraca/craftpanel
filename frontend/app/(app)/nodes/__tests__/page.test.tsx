@@ -247,10 +247,8 @@ describe("NodesPage", () => {
                 expect(screen.getByText("Node registration failed")).toBeInTheDocument();
             });
 
-            const xBtns = screen.getAllByRole("button").filter(
-                (btn) => btn.closest('[class*="bg-error/10"]') && btn.querySelector("svg"),
-            );
-            await user.click(xBtns[0]);
+            const xBtn = screen.getByRole("button", {name: "Dismiss"});
+            await user.click(xBtn);
 
             await waitFor(() => {
                 expect(screen.queryByText("Node registration failed")).not.toBeInTheDocument();

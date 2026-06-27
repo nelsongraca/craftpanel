@@ -129,7 +129,8 @@ describe("GroupsPage", () => {
 
     it("'New Group' button opens create modal", async () => {
         await renderWith({groups: []});
-        await userEvent.setup().click(screen.getByText("New Group"));
+        const user = userEvent.setup();
+        await user.click(screen.getByText("New Group"));
         expect(screen.getByText("Create")).toBeTruthy();
     });
 
@@ -139,13 +140,14 @@ describe("GroupsPage", () => {
         vi.mocked(listGroups).mockResolvedValue({data: []} as any);
         await renderWith({groups: []});
 
-        await userEvent.setup().click(screen.getByText("New Group"));
+        const user = userEvent.setup();
+        await user.click(screen.getByText("New Group"));
         const inputs = screen.getAllByRole("textbox");
-        await userEvent.setup().type(inputs[0], "NewGroup");
+        await user.type(inputs[0], "NewGroup");
 
         const checkboxes = screen.getAllByRole("checkbox");
-        await userEvent.setup().click(checkboxes[0]);
-        await userEvent.setup().click(screen.getByText("Create"));
+        await user.click(checkboxes[0]);
+        await user.click(screen.getByText("Create"));
 
         await waitFor(() => {
             expect(createGroup).toHaveBeenCalled();
@@ -157,10 +159,11 @@ describe("GroupsPage", () => {
         vi.mocked(createGroup).mockResolvedValue({error: {message: "Name taken"} as any} as any);
         await renderWith({groups: []});
 
-        await userEvent.setup().click(screen.getByText("New Group"));
+        const user = userEvent.setup();
+        await user.click(screen.getByText("New Group"));
         const inputs = screen.getAllByRole("textbox");
-        await userEvent.setup().type(inputs[0], "Duplicate");
-        await userEvent.setup().click(screen.getByText("Create"));
+        await user.type(inputs[0], "Duplicate");
+        await user.click(screen.getByText("Create"));
 
         await waitFor(() => {
             expect(screen.getByText("Name taken")).toBeTruthy();
@@ -171,7 +174,8 @@ describe("GroupsPage", () => {
         await renderWith({
             groups: [group({id: "g1", name: "Custom", is_system: false, permissions: ["server.view"]})],
         });
-        await userEvent.setup().click(screen.getAllByTitle("Edit")[0]);
+        const user = userEvent.setup();
+        await user.click(screen.getAllByTitle("Edit")[0]);
         await waitFor(() => {
             expect(screen.getByDisplayValue("Custom")).toBeTruthy();
         });
@@ -183,10 +187,11 @@ describe("GroupsPage", () => {
         await renderWith({
             groups: [group({id: "g1", name: "Custom", is_system: false, permissions: ["server.view"]})],
         });
-        await userEvent.setup().click(screen.getAllByTitle("Edit")[0]);
-        await userEvent.setup().clear(screen.getByDisplayValue("Custom"));
-        await userEvent.setup().type(screen.getByDisplayValue(""), "Updated");
-        await userEvent.setup().click(screen.getByText("Save"));
+        const user = userEvent.setup();
+        await user.click(screen.getAllByTitle("Edit")[0]);
+        await user.clear(screen.getByDisplayValue("Custom"));
+        await user.type(screen.getByDisplayValue(""), "Updated");
+        await user.click(screen.getByText("Save"));
         await waitFor(() => {
             expect(updateGroup).toHaveBeenCalled();
             expect(setGroupPermissions).toHaveBeenCalled();

@@ -1,5 +1,5 @@
 import {describe, it, expect, vi, beforeEach} from "vitest";
-import {render, screen, waitFor} from "@testing-library/react";
+import {render, screen, waitFor, within} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
 vi.mock("@/lib/generated/sdk.gen", () => ({
@@ -171,7 +171,7 @@ describe("UsersPage", () => {
         it('clicking "New User" opens form, submitting calls createUser, on success refreshes list', async () => {
             const u = user();
             vi.mocked(createUser).mockResolvedValue({data: {}} as never);
-            const {container} = await renderWith({users: [u]});
+            await renderWith({users: [u]});
 
             const userEv = userEvent.setup();
             await userEv.click(screen.getByRole("button", {name: /New User/i}));
@@ -180,7 +180,9 @@ describe("UsersPage", () => {
                 expect(screen.getByText("Create User")).toBeInTheDocument();
             });
 
-            const [usernameInput, emailInput, passwordInput] = container.querySelectorAll<HTMLInputElement>(".fixed input");
+            const dialog = screen.getByRole("dialog");
+            const [usernameInput, emailInput] = within(dialog).getAllByRole("textbox");
+            const passwordInput = dialog.querySelector<HTMLInputElement>('input[type="password"]')!;
             await userEv.type(usernameInput, "newuser");
             await userEv.type(emailInput, "new@test.com");
             await userEv.type(passwordInput, "secret123");
@@ -200,7 +202,7 @@ describe("UsersPage", () => {
             vi.mocked(createUser).mockResolvedValue({
                 error: {message: "Email already taken"},
             } as never);
-            const {container} = await renderWith({users: [u]});
+            await renderWith({users: [u]});
 
             const userEv = userEvent.setup();
             await userEv.click(screen.getByRole("button", {name: /New User/i}));
@@ -209,7 +211,9 @@ describe("UsersPage", () => {
                 expect(screen.getByText("Create User")).toBeInTheDocument();
             });
 
-            const [usernameInput, emailInput, passwordInput] = container.querySelectorAll<HTMLInputElement>(".fixed input");
+            const dialog = screen.getByRole("dialog");
+            const [usernameInput, emailInput] = within(dialog).getAllByRole("textbox");
+            const passwordInput = dialog.querySelector<HTMLInputElement>('input[type="password"]')!;
             await userEv.type(usernameInput, "dup");
             await userEv.type(emailInput, "dup@test.com");
             await userEv.type(passwordInput, "secret");
@@ -289,8 +293,7 @@ describe("UsersPage", () => {
             });
             expect(screen.getAllByText(/alice/).length).toBeGreaterThan(0);
 
-            const deleteBtns = screen.getAllByRole("button", {name: "Delete"});
-            await userEv.click(deleteBtns.find((b) => b.closest(".fixed"))!);
+            await userEv.click(within(screen.getByRole("dialog")).getByRole("button", {name: "Delete"}));
 
             await waitFor(() => {
                 expect(deleteUser).toHaveBeenCalledWith({path: {id: "u1"}});
@@ -312,8 +315,7 @@ describe("UsersPage", () => {
                 expect(screen.getByText("Delete User")).toBeInTheDocument();
             });
 
-            const deleteBtns = screen.getAllByRole("button", {name: "Delete"});
-            await userEv.click(deleteBtns.find((b) => b.closest(".fixed"))!);
+            await userEv.click(within(screen.getByRole("dialog")).getByRole("button", {name: "Delete"}));
 
             await waitFor(() => {
                 expect(screen.getByText("Cannot delete last admin")).toBeInTheDocument();
@@ -405,7 +407,7 @@ describe("UsersPage", () => {
             const g = group({id: "g1", name: "Viewer"});
             const a = assignment({id: "a1", group_id: "g1", scope_type: "GLOBAL"});
             vi.mocked(deleteAssignment).mockResolvedValue({data: {}} as never);
-            const {container} = await renderWith({users: [u], groups: [g], assignments: [a]});
+            await renderWith({users: [u], groups: [g], assignments: [a]});
 
             const userEv = userEvent.setup();
             await userEv.click(screen.getAllByTitle("Manage groups")[0]);
@@ -414,9 +416,9 @@ describe("UsersPage", () => {
                 expect(screen.getAllByText("Viewer").length).toBeGreaterThan(0);
             });
 
-            const removeBtn = container.querySelector("li button");
+            const removeBtn = within(screen.getByRole("list")).getByRole("button");
             expect(removeBtn).toBeInTheDocument();
-            await userEv.click(removeBtn!);
+            await userEv.click(removeBtn);
 
             await waitFor(() => {
                 expect(deleteAssignment).toHaveBeenCalledWith({
