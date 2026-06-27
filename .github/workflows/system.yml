@@ -33,6 +33,14 @@ jobs:
       - name: Run system tests
         run: ./gradlew :system-tests:test -PwithCoverage --configuration-cache-problems=warn
 
+      - name: Upload test reports
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: system-test-reports
+          path: system-tests/build/reports/tests/test/
+          retention-days: 3
+
       - name: Upload test results to Codecov
         if: ${{ !cancelled() }}
         uses: codecov/test-results-action@v1

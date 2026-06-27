@@ -90,7 +90,7 @@ tasks.register<DockerPushImage>("dockerPushImage") {
 
 if (project.hasProperty("withCoverage")) {
     tasks.named("test") {
-        finalizedBy("koverHtmlReport")
+        finalizedBy("koverHtmlReport", "koverXmlReport")
     }
 }
 

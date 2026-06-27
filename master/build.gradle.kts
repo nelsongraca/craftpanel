@@ -120,7 +120,7 @@ tasks.register<Test>("generateOpenApiSpec") {
 
 if (project.hasProperty("withCoverage")) {
     tasks.named("test") {
-        finalizedBy("koverHtmlReport")
+        finalizedBy("koverHtmlReport", "koverXmlReport")
     }
 }
 
