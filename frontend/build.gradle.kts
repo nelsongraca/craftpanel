@@ -37,7 +37,7 @@ tasks.register<Exec>("typecheckFrontend") {
 tasks.register<Exec>("testFrontend") {
     group = "verification"
     description = "Runs frontend unit tests via vitest"
-    dependsOn("installFrontend")
+    dependsOn("generateApiTypes")
     workingDir = layout.projectDirectory.asFile
     val pnpm = layout.projectDirectory.file(".node/bin/pnpm").asFile
     if (withCoverage) {
