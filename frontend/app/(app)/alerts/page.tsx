@@ -326,7 +326,7 @@ export default function AlertsPage() {
             {deleteError && (
                 <div className="flex items-center justify-between bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-[12px]">
                     <span>{deleteError}</span>
-                    <button onClick={() => setDeleteError(null)} className="ml-4 hover:opacity-70">
+                    <button onClick={() => setDeleteError(null)} className="ml-4 hover:opacity-70" aria-label="Dismiss">
                         <X size={13}/>
                     </button>
                 </div>
