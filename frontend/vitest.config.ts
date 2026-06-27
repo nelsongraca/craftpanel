@@ -9,6 +9,7 @@ export default defineConfig({
         setupFiles: ['./vitest.setup.ts'],
         globals: true,
         exclude: ['**/node_modules/**', '**/tests/e2e/**'],
+        reporters: ['default', ['junit', {outputFile: './build/reports/junit/vitest.xml'}]],
         coverage: {
             provider: 'v8',
             reporter: ['text', 'html', 'lcov'],

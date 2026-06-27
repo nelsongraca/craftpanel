@@ -33,6 +33,14 @@ jobs:
       - name: Run system tests
         run: ./gradlew :system-tests:test -PwithCoverage --configuration-cache-problems=warn
 
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: system-tests/build/test-results/**/*.xml
+          flags: system
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -40,3 +48,45 @@ jobs:
           files: system-tests/build/reports/kover/system-tests/report.xml
           flags: system
           fail_ci_if_error: true
+
+  e2e-tests:
+    name: E2E Tests (MSW)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: gradle
+
+      - name: Cache local .gradle
+        uses: actions/cache@v4
+        with:
+          path: .gradle/
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
+          restore-keys: ${{ runner.os }}-gradle-
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: frontend/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+
+      - name: Install Playwright browsers
+        run: ./gradlew :frontend:installFrontend && cd frontend && .node/bin/pnpm exec playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        run: ./gradlew :frontend:testE2eMocked --configuration-cache-problems=warn
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: frontend/build/reports/junit/playwright.xml
+          flags: e2e

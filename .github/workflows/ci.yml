@@ -30,6 +30,14 @@ jobs:
       - name: Run backend unit tests
         run: ./gradlew :master:test :agent:test -PwithCoverage
 
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: master/build/test-results/**/*.xml,agent/build/test-results/**/*.xml
+          flags: backend
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
         with:
@@ -67,6 +75,14 @@ jobs:
 
       - name: Run frontend tests
         run: ./gradlew :frontend:testFrontend -PwithCoverage
+
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: frontend/build/reports/junit/vitest.xml
+          flags: frontend
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
