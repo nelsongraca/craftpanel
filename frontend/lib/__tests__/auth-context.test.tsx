@@ -41,6 +41,11 @@ function TestLogout() {
     return <button onClick={() => logout()}>logout</button>
 }
 
+function TestLogoutAll() {
+    const { logoutAll } = useAuth()
+    return <button onClick={() => logoutAll()}>logout all</button>
+}
+
 const mockUser = {
     id: '1',
     username: 'user1',
@@ -155,5 +160,42 @@ describe('AuthProvider', () => {
             return null
         }
         expect(() => render(<Bare />)).toThrow('useAuth must be used within AuthProvider')
+    })
+
+    it('logoutAll calls authLogoutAll, clears token/user, redirects to /login', async () => {
+        vi.mocked(generated.authRefresh).mockResolvedValue({ data: { access_token: 'tok' } } as never)
+        vi.mocked(generated.authMe).mockResolvedValue({ data: mockUser } as never)
+        vi.mocked(generated.authLogoutAll).mockResolvedValue({} as never)
+
+        render(<AuthProvider><TestConsumer /><TestLogoutAll /></AuthProvider>)
+        await waitFor(() => expect(screen.getByTestId('user')).toHaveTextContent('u@test.com'))
+
+        await act(async () => {
+            screen.getByText('logout all').click()
+        })
+
+        await waitFor(() => {
+            expect(screen.getByTestId('user')).toHaveTextContent('none')
+        })
+        expect(clientModule.setAccessToken).toHaveBeenCalledWith(null)
+        expect(generated.authLogoutAll).toHaveBeenCalled()
+    })
+
+    it('authLogoutAll failure still clears token/user and redirects', async () => {
+        vi.mocked(generated.authRefresh).mockResolvedValue({ data: { access_token: 'tok' } } as never)
+        vi.mocked(generated.authMe).mockResolvedValue({ data: mockUser } as never)
+        vi.mocked(generated.authLogoutAll).mockRejectedValue(new Error('network'))
+
+        render(<AuthProvider><TestConsumer /><TestLogoutAll /></AuthProvider>)
+        await waitFor(() => expect(screen.getByTestId('user')).toHaveTextContent('u@test.com'))
+
+        await act(async () => {
+            screen.getByText('logout all').click()
+        })
+
+        await waitFor(() => {
+            expect(screen.getByTestId('user')).toHaveTextContent('none')
+        })
+        expect(clientModule.setAccessToken).toHaveBeenCalledWith(null)
     })
 })

@@ -146,4 +146,85 @@ describe('useDashboardSocket', () => {
         vi.advanceTimersByTime(5000)
         expect(MockWebSocket.instances).toHaveLength(1)
     })
+
+    it('ws.onopen resets retryCount to 0', async () => {
+        vi.mocked(clientModule.getAccessToken).mockReturnValue('tok')
+        vi.mocked(sdkGen.authWsTicket).mockResolvedValue({ data: { ticket: 'abc123' } } as never)
+
+        const onEvent = vi.fn()
+        renderHook(() => useDashboardSocket(onEvent))
+
+        await act(async () => {
+            await Promise.resolve()
+        })
+
+        const ws1 = MockWebSocket.instances[0]
+        // close triggers retry with backoff
+        act(() => { ws1.onclose?.() })
+
+        // advance through first retry delay (1000ms)
+        await act(async () => {
+            vi.advanceTimersByTime(1000)
+            await Promise.resolve()
+        })
+
+        const ws2 = MockWebSocket.instances[1]
+        // onopen resets retryCount to 0
+        act(() => { ws2.onopen?.() })
+        // close again — if retryCount was reset, delay is 1000ms (not 2000ms)
+        act(() => { ws2.onclose?.() })
+
+        await act(async () => {
+            vi.advanceTimersByTime(1000)
+            await Promise.resolve()
+        })
+
+        // third WebSocket was created because backoff was reset
+        expect(MockWebSocket.instances.length).toBe(3)
+    })
+
+    it('connect() catch block schedules retry when WebSocket constructor throws', async () => {
+        const throwingCtor = vi.fn().mockImplementation(() => { throw new Error('ws fail') })
+        vi.stubGlobal('WebSocket', throwingCtor)
+        vi.mocked(clientModule.getAccessToken).mockReturnValue('tok')
+        vi.mocked(sdkGen.authWsTicket).mockResolvedValue({ data: { ticket: 'abc123' } } as never)
+
+        const onEvent = vi.fn()
+        renderHook(() => useDashboardSocket(onEvent))
+
+        await act(async () => {
+            await Promise.resolve()
+        })
+
+        // retry scheduled for 1000ms
+        await act(async () => {
+            vi.advanceTimersByTime(1000)
+            await Promise.resolve()
+        })
+
+        // initial attempt + one retry
+        expect(throwingCtor).toHaveBeenCalledTimes(2)
+    })
+
+    it('ws.onclose does not retry if component unmounted', async () => {
+        vi.mocked(clientModule.getAccessToken).mockReturnValue('tok')
+        vi.mocked(sdkGen.authWsTicket).mockResolvedValue({ data: { ticket: 'abc123' } } as never)
+
+        const onEvent = vi.fn()
+        const { unmount } = renderHook(() => useDashboardSocket(onEvent))
+
+        await act(async () => {
+            await Promise.resolve()
+        })
+
+        const ws = MockWebSocket.instances[0]
+        unmount()
+
+        // onclose fires after unmount — should bail at mountedRef check
+        act(() => { ws.onclose?.() })
+        vi.advanceTimersByTime(5000)
+
+        // no additional WebSocket instances created
+        expect(MockWebSocket.instances).toHaveLength(1)
+    })
 })
