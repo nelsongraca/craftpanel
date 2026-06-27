@@ -417,15 +417,20 @@ class MigrationService(
             // The container is kept (not removed) so the final rsync below reads a
             // consistent, on-disk snapshot. If a later step fails before removal we
             // restart the source so the server is not left dead.
+            // If the server was never started (DB status STOPPED) there is no container
+            // to stop — skip the command to avoid an UNHEALTHY response from the agent.
             var sourceStopped = false
             run {
                 val stepId = startStep(5, "Stop source server container")
-                runCatching { lifecycle.stop(serverRow, sourceNodeIdStr) }
-                    .onFailure { e ->
-                        completeStep(stepId, false, e.message)
-                        failMigration("Source server did not stop: ${e.message}")
-                        return
-                    }
+                val alreadyStopped = serverRow[Servers.status] == "STOPPED"
+                if (!alreadyStopped) {
+                    runCatching { lifecycle.stop(serverRow, sourceNodeIdStr) }
+                        .onFailure { e ->
+                            completeStep(stepId, false, e.message)
+                            failMigration("Source server did not stop: ${e.message}")
+                            return
+                        }
+                }
                 sourceStopped = true
                 completeStep(stepId, true)
             }

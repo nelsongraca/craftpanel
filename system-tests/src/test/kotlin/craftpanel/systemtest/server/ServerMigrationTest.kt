@@ -63,11 +63,7 @@ class ServerMigrationTest : BaseSystemTest() {
                 response.status shouldBe MigrationStatus.PENDING
 
                 val migration = pollMigrationStatus(api, response.id, 180_000)
-                val isTerminal = migration.status == MigrationStatus.COMPLETED || migration.status == MigrationStatus.FAILED
-                if (!isTerminal) throw AssertionError("Expected terminal status but got ${migration.status}")
-                if (migration.status == MigrationStatus.FAILED) {
-                    println("[warn] Migration FAILED: ${migration.steps.lastOrNull()?.errorMessage}")
-                }
+                migration.status shouldBe MigrationStatus.COMPLETED
 
                 val server = api.getServer(serverId)
                 server.nodeId shouldBe targetNodeId
