@@ -16,9 +16,6 @@ Before starting any task, assess complexity:
 - Ambiguous architecture, cross-module coordination, new proto changes,
   state machine logic: pause and flag for advisor review before proceeding
 
-**Be cost-conscious about who does edits.** Inline edits on the main (Opus/Sonnet) thread are not always cheapest — for bounded mechanical edits prefer a cheaper executor: `cavecrew-builder` (1-2 file
-surgical edits) or a Haiku/Sonnet sub-agent. Reserve the main thread for orientation, design, and judgement. (One-or-two-line edits to a file already open in context are fine inline; spawning then
-costs more than it saves.)
 
 **ALL individual advisor calls require user confirmation.** Before calling `advisor()`, ALWAYS ask the user: "Call advisor for [reason]?" and wait for approval. Never call advisor silently.
 

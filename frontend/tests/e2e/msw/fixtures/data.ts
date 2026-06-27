@@ -74,8 +74,6 @@ export const fakeNode2: NodeResponse = {
 export const fakeNetwork: NetworkResponse = {
     id: "net-1",
     name: "default",
-    type: "VANILLA",
-    proxy_type: null,
     proxy_port: null,
     server_count: 4,
     created_at: "2025-01-01T00:00:00Z",

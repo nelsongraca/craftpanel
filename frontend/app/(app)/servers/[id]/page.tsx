@@ -457,6 +457,8 @@ export default function ServerDetailPage() {
     // ── Render ─────────────────────────────────────────────────────────────────
 
     const sStatus = server.status;
+    const isProxy = ["VELOCITY", "BUNGEECORD", "WATERFALL"].includes(server.server_type);
+    const isModServerType = ["FABRIC", "FORGE", "NEOFORGE", "QUILT"].includes(server.server_type);
 
     return (
         <div>
