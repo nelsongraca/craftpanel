@@ -1,9 +1,10 @@
 import {http, HttpResponse} from "msw";
 import {expect, test} from "../fixture";
 
-test("installed mods load and show pin strategy", async ({page}) => {
+test("installed plugins load and show pin strategy", async ({page}) => {
     await page.goto("/servers/srv-1");
-    await page.getByRole("button", {name: "Mods"}).click();
+    // srv-1 is PAPER → tab label is "Plugins", button is "Add Plugin"
+    await page.getByRole("button", {name: "Plugins"}).click();
 
     await expect(page.getByText("WorldEdit", {exact: true})).toBeVisible();
     await expect(page.getByText("Latest stable", {exact: true})).toBeVisible();
@@ -11,9 +12,9 @@ test("installed mods load and show pin strategy", async ({page}) => {
 
 test("search returns results and Add button appears", async ({page}) => {
     await page.goto("/servers/srv-1");
-    await page.getByRole("button", {name: "Mods"}).click();
+    await page.getByRole("button", {name: "Plugins"}).click();
 
-    await page.getByRole("button", {name: /Add Mod/i}).click();
+    await page.getByRole("button", {name: /Add Plugin/i}).click();
     await page.getByPlaceholder("Search Modrinth…").fill("dynmap");
     await page.getByRole("button", {name: /^Search$/}).click();
 
@@ -24,7 +25,7 @@ test("search returns results and Add button appears", async ({page}) => {
     await expect(page.getByRole("button", {name: "Add", exact: true}).first()).toBeVisible();
 });
 
-test("clicking Add then confirming adds mod to installed list", async ({
+test("clicking Add then confirming adds plugin to installed list", async ({
                                                                            page,
                                                                            network,
                                                                        }) => {
@@ -76,17 +77,17 @@ test("clicking Add then confirming adds mod to installed list", async ({
     );
 
     await page.goto("/servers/srv-1");
-    await page.getByRole("button", {name: "Mods"}).click();
-    await expect(page.getByText("No mods installed")).toBeVisible();
+    await page.getByRole("button", {name: "Plugins"}).click();
+    await expect(page.getByText("No plugins installed")).toBeVisible();
 
-    await page.getByRole("button", {name: /Add Mod/i}).click();
+    await page.getByRole("button", {name: /Add Plugin/i}).click();
     await page.getByPlaceholder("Search Modrinth…").fill("dynmap");
     await page.getByRole("button", {name: /^Search$/}).click();
 
     await expect(page.getByText("Dynmap")).toBeVisible();
 
     // Click the Add button next to Dynmap in search results to open confirm form.
-    // exact: true needed — "Add Mod" button also matches "Add" without it.
+    // exact: true needed — "Add Plugin" button also matches "Add" without it.
     await page.getByRole("button", {name: "Add", exact: true}).first().click();
 
     // Confirm panel: select + "Add"/"✕" buttons appear inside Dynmap's row.
@@ -96,8 +97,8 @@ test("clicking Add then confirming adds mod to installed list", async ({
     await expect(confirmAddBtn).toBeVisible({timeout: 3000});
     await confirmAddBtn.click({force: true});
 
-    // After add + reload, search panel closes and mod list shows Dynmap
-    await expect(page.getByText("No mods installed")).not.toBeVisible({
+    // After add + reload, search panel closes and plugin list shows Dynmap
+    await expect(page.getByText("No plugins installed")).not.toBeVisible({
         timeout: 5000,
     });
     await expect(page.getByText("Latest stable", {exact: true})).toBeVisible({timeout: 5000});

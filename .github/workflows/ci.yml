@@ -27,6 +27,9 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
 
+      - name: Install pv
+        run: sudo apt-get install -y pv
+
       - name: Run backend unit tests
         run: ./gradlew :master:test :agent:test -PwithCoverage
 
