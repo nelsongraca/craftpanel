@@ -345,6 +345,7 @@ CONF
             rsync -az --progress --stats /source/ rsync://craftpanel@${destIp}:${destPort}/data/
         """.trimIndent()
 
+        File(sourcePath).mkdirs()
         val hostConfig = HostConfig.newHostConfig()
             .withBinds(Bind(sourcePath, Volume("/source"), AccessMode.ro))
             .withRestartPolicy(RestartPolicy.noRestart())
