@@ -33,6 +33,7 @@ opencode run "<task>" --dangerously-skip-permissions
 - Any task where the first step is "understand the current state of X"
 
 Always delegate the exploration phase before making changes. Review output before applying.
+Max 3 concurrent opencode subagent delegations at any time.
 
 ## Module Structure
 
