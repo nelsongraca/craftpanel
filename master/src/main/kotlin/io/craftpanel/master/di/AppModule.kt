@@ -21,13 +21,15 @@ import io.craftpanel.master.service.EnvVarsService
 import io.craftpanel.master.service.GroupService
 import io.craftpanel.master.service.MigrationService
 import io.craftpanel.master.service.ModService
-import io.craftpanel.master.docker.MasterDockerClient
 import io.craftpanel.master.service.NetworkService
+import io.craftpanel.master.service.NodeObserver
 import io.craftpanel.master.service.NodeService
+import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.master.service.ProxyBackendService
 import io.craftpanel.master.service.ServerService
 import io.craftpanel.master.service.SystemService
 import io.craftpanel.master.service.UserService
+import io.craftpanel.master.docker.MasterDockerClient
 import kotlinx.coroutines.CoroutineScope
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
@@ -40,17 +42,28 @@ val appModule = module {
     }
 
     // gRPC core
+    single { NodeStateReconciler() }
     single<AgentGateway> { get<ControlServiceImpl>() }
     single {
         ControlServiceImpl(
             nodeConfig = get<AppConfig>().node,
-            restartManager = get(),
-            // Lazy lookup breaks the ControlServiceImpl <-> ContainerLifecycle construction cycle.
-            restartServer = { serverId -> get<ContainerLifecycle>().restartCrashedServer(serverId) },
+            nodeStateReconciler = get(),
         )
     }
     single { BulkDataServiceImpl(get()) }
     single { DataServiceProxy(get(), get()) }
+
+    // Observability — subscribes to agentEvents emitted by ControlServiceImpl
+    single(createdAtStart = true) {
+        val csi = get<ControlServiceImpl>()
+        NodeObserver(
+            agentEvents = csi.agentEvents,
+            restartManager = get(),
+            // Lazy lookup breaks the NodeObserver <-> ContainerLifecycle construction cycle.
+            restartServer = { serverId -> get<ContainerLifecycle>().restartCrashedServer(serverId) },
+            emitAgentEvent = { event -> csi.emitToAgentEvents(event) },
+        ).also { it.start(get(named("appScope"))) }
+    }
 
     // Auth
     single { JwtManager(get<AppConfig>().jwt) }

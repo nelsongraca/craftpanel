@@ -1,7 +1,7 @@
 package io.craftpanel.master.domain
 
-import io.craftpanel.master.grpc.mapContainerState
-import io.craftpanel.master.grpc.mapMissingContainer
+import io.craftpanel.master.service.mapContainerState
+import io.craftpanel.master.service.mapMissingContainer
 import io.craftpanel.proto.ContainerState
 import io.craftpanel.proto.ServerStatusUpdate
 import io.kotest.assertions.throwables.shouldThrow
