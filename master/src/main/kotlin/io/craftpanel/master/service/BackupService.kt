@@ -3,23 +3,13 @@ package io.craftpanel.master.service
 import io.craftpanel.proto.deleteBackupCommand
 import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.triggerBackupCommand
-import io.craftpanel.master.database.schema.Backups
-import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.BackupStatus
 import io.craftpanel.master.domain.BackupTrigger
 import io.craftpanel.master.grpc.DataServiceProxy
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
+import io.craftpanel.master.service.repo.BackupRow
+import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.core.SortOrder
-import org.jetbrains.exposed.v1.core.and
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 import io.craftpanel.master.util.toUtcString
@@ -57,167 +47,109 @@ data class BackupDownloadInfo(val serverId: String, val backupId: String)
 class BackupService(
     private val gateway: AgentGateway,
     private val dataServiceProxy: DataServiceProxy,
+    private val serverRepository: ServerRepository,
 ) {
 
     private val log = org.slf4j.LoggerFactory.getLogger(BackupService::class.java)
 
-    fun listBackups(serverId: kotlin.uuid.Uuid): List<BackupResponse> =
-        transaction {
-            Backups.selectAll()
-                .where { Backups.serverId eq serverId }
-                .orderBy(Backups.createdAt, SortOrder.DESC)
-                .map { it.toBackupResponse() }
-        }
+    fun listBackups(serverId: Uuid): List<BackupResponse> =
+        serverRepository.listBackups(serverId)
+            .map { it.toResponse() }
 
-    fun triggerBackup(serverId: kotlin.uuid.Uuid, trigger: BackupTrigger = BackupTrigger.MANUAL): BackupResponse {
-        val serverRow = transaction {
-            Servers.selectAll()
-                .where { Servers.id eq serverId }
-                .firstOrNull()
-        }
-            ?: throw NotFoundException("Server not found")
-        val nodeKotlinId = serverRow[Servers.nodeId]
-        val nodeId = nodeKotlinId.toString()
+    fun triggerBackup(serverId: Uuid, trigger: BackupTrigger = BackupTrigger.MANUAL): BackupResponse {
+        val serverRow = serverRepository.findById(serverId) ?: throw NotFoundException("Server not found")
+        val nodeId = serverRow.nodeId.toString()
         val now = Clock.System.now()
-            .toLocalDateTime(TimeZone.UTC)
 
-        val backupResponse = transaction {
-            val maxCount = serverRow[Servers.backupMaxCount]
-            val completed = Backups.selectAll()
-                .where { (Backups.serverId eq serverId) and (Backups.status eq "COMPLETED") }
-                .orderBy(Backups.createdAt, SortOrder.ASC)
-                .toList()
-            if (completed.size >= maxCount) {
-                val toDelete = completed.take(completed.size - maxCount + 1)
-                for (old in toDelete) {
-                    val filePath = old[Backups.filePath]
-                    val backupNodeId = old[Backups.nodeId].toString()
-                    if (!filePath.isNullOrEmpty()) {
-                        val sent = gateway.sendToNode(backupNodeId, masterMessage {
-                            deleteBackup = deleteBackupCommand {
-                                backupId = old[Backups.id].toString()
-                                this.filePath = filePath
-                            }
-                        })
-                        if (!sent) {
-                            // Agent unreachable — skip deletion to avoid orphaned files.
-                            // Row will be retried next time rotation runs.
-                            log.warn("Could not send deleteBackup to node $backupNodeId for backup ${old[Backups.id]} — skipping row deletion")
-                            continue
-                        }
+        val maxCount = serverRow.backupMaxCount
+        val toRotate = serverRepository.findOldestCompletedBackups(serverId, maxCount)
+        for (old in toRotate) {
+            if (!old.filePath.isNullOrEmpty()) {
+                val sent = gateway.sendToNode(old.nodeId.toString(), masterMessage {
+                    deleteBackup = deleteBackupCommand {
+                        backupId = old.id.toString()
+                        this.filePath = old.filePath
                     }
-                    Backups.deleteWhere { Backups.id eq old[Backups.id] }
+                })
+                if (!sent) {
+                    log.warn("Could not send deleteBackup to node ${old.nodeId} for backup ${old.id} — skipping row deletion")
+                    continue
                 }
             }
-
-            val backupId = Backups.insert {
-                it[Backups.serverId] = serverId
-                it[Backups.nodeId] = nodeKotlinId
-                it[Backups.trigger] = trigger.name
-                it[Backups.status] = "IN_PROGRESS"
-            }[Backups.id]
-
-            val row = Backups.selectAll()
-                .where { Backups.id eq backupId }
-                .first()
-
-            val sent = gateway.sendToNode(nodeId, masterMessage {
-                triggerBackup = triggerBackupCommand {
-                    this.backupId = backupId.toString()
-                    this.serverId = serverId.toString()
-                    containerName = "craftpanel-$serverId"
-                }
-            })
-
-            if (!sent) {
-                Backups.update({ Backups.id eq backupId }) {
-                    it[Backups.status] = "FAILED"
-                    it[Backups.errorMessage] = "Agent not connected"
-                    it[Backups.completedAt] = now
-                }
-            }
-
-            row.toBackupResponse()
+            serverRepository.deleteBackup(old.id)
         }
 
-        if (backupResponse.status == BackupStatus.FAILED && backupResponse.errorMessage == "Agent not connected")
+        val backup = serverRepository.createBackup(serverId, serverRow.nodeId, trigger)
+
+        val sent = gateway.sendToNode(nodeId, masterMessage {
+            triggerBackup = triggerBackupCommand {
+                this.backupId = backup.id.toString()
+                this.serverId = serverId.toString()
+                containerName = "craftpanel-$serverId"
+            }
+        })
+
+        if (!sent) {
+            serverRepository.updateBackupStatus(backup.id, BackupStatus.FAILED, null, null, "Agent not connected", now)
             throw BadGatewayException("Agent not connected")
-        return backupResponse
+        }
+
+        return serverRepository.findBackupById(backup.id)!!
+            .toResponse()
     }
 
-    fun deleteBackup(serverId: kotlin.uuid.Uuid, backupId: kotlin.uuid.Uuid) {
-        val backup = transaction {
-            Backups.selectAll()
-                .where { (Backups.id eq backupId) and (Backups.serverId eq serverId) }
-                .firstOrNull()
-        } ?: throw NotFoundException("Backup not found")
-        if (backup[Backups.status] == "IN_PROGRESS")
-            throw ConflictException("Cannot delete a backup that is in progress")
-        val filePath = backup[Backups.filePath]
-        val backupNodeId = backup[Backups.nodeId].toString()
-        val backupIdStr = backupId.toString()
-        if (!filePath.isNullOrEmpty()) {
-            gateway.sendToNode(backupNodeId, masterMessage {
+    fun deleteBackup(serverId: Uuid, backupId: Uuid) {
+        val backup = serverRepository.findBackupById(backupId)
+            ?.takeIf { it.serverId == serverId }
+            ?: throw NotFoundException("Backup not found")
+        if (backup.status == "IN_PROGRESS") throw ConflictException("Cannot delete a backup that is in progress")
+        if (!backup.filePath.isNullOrEmpty()) {
+            gateway.sendToNode(backup.nodeId.toString(), masterMessage {
                 deleteBackup = deleteBackupCommand {
-                    this.backupId = backupIdStr
-                    this.filePath = filePath
+                    this.backupId = backupId.toString()
+                    this.filePath = backup.filePath
                 }
             })
         }
-        transaction { Backups.deleteWhere { Backups.id eq backupId } }
+        serverRepository.deleteBackup(backupId)
     }
 
-    fun resolveDownload(serverId: kotlin.uuid.Uuid, backupId: kotlin.uuid.Uuid): BackupDownloadInfo {
-        val backup = transaction {
-            Backups.selectAll()
-                .where { (Backups.id eq backupId) and (Backups.serverId eq serverId) }
-                .firstOrNull()
-        } ?: throw NotFoundException("Backup not found")
-        if (backup[Backups.status] != "COMPLETED")
-            throw ConflictException("Backup is not in COMPLETED status")
+    fun resolveDownload(serverId: Uuid, backupId: Uuid): BackupDownloadInfo {
+        val backup = serverRepository.findBackupById(backupId)
+            ?.takeIf { it.serverId == serverId }
+            ?: throw NotFoundException("Backup not found")
+        if (backup.status != "COMPLETED") throw ConflictException("Backup is not in COMPLETED status")
         return BackupDownloadInfo(serverId = serverId.toString(), backupId = backupId.toString())
     }
 
     suspend fun downloadStream(info: BackupDownloadInfo) = dataServiceProxy.downloadBackup(info.serverId, info.backupId)
 
-    fun getSchedule(serverId: kotlin.uuid.Uuid): BackupScheduleResponse {
-        val serverRow = transaction {
-            Servers.selectAll()
-                .where { Servers.id eq serverId }
-                .firstOrNull()
-        }
-            ?: throw NotFoundException("Server not found")
+    fun getSchedule(serverId: Uuid): BackupScheduleResponse {
+        val serverRow = serverRepository.findById(serverId) ?: throw NotFoundException("Server not found")
         return BackupScheduleResponse(
-            backupSchedule = serverRow[Servers.backupSchedule],
-            backupMaxCount = serverRow[Servers.backupMaxCount],
+            backupSchedule = serverRow.backupSchedule,
+            backupMaxCount = serverRow.backupMaxCount,
         )
     }
 
-    fun updateSchedule(serverId: kotlin.uuid.Uuid, req: PutBackupScheduleRequest) {
+    fun updateSchedule(serverId: Uuid, req: PutBackupScheduleRequest) {
         if (req.backupSchedule != null && !CRON_REGEX.matches(req.backupSchedule))
             throw UnprocessableException("Invalid cron expression")
         if (req.backupMaxCount != null && req.backupMaxCount < 1)
             throw UnprocessableException("backup_max_count must be at least 1")
-        transaction {
-            Servers.update({ Servers.id eq serverId }) {
-                it[Servers.backupSchedule] = req.backupSchedule
-                if (req.backupMaxCount != null) it[Servers.backupMaxCount] = req.backupMaxCount
-                it[Servers.updatedAt] = Clock.System.now()
-                    .toLocalDateTime(TimeZone.UTC)
-            }
-        }
+        serverRepository.updateBackupSchedule(serverId, req.backupSchedule, req.backupMaxCount)
     }
 }
 
-private fun org.jetbrains.exposed.v1.core.ResultRow.toBackupResponse() = BackupResponse(
-    id = this[Backups.id].toString(),
-    serverId = this[Backups.serverId].toString(),
-    nodeId = this[Backups.nodeId].toString(),
-    trigger = BackupTrigger.fromDb(this[Backups.trigger]),
-    status = BackupStatus.fromDb(this[Backups.status]),
-    filePath = this[Backups.filePath],
-    sizeBytes = this[Backups.sizeBytes],
-    errorMessage = this[Backups.errorMessage],
-    createdAt = this[Backups.createdAt].toUtcString(),
-    completedAt = this[Backups.completedAt]?.toUtcString(),
+private fun BackupRow.toResponse() = BackupResponse(
+    id = id.toString(),
+    serverId = serverId.toString(),
+    nodeId = nodeId.toString(),
+    trigger = BackupTrigger.fromDb(trigger),
+    status = BackupStatus.fromDb(status),
+    filePath = filePath,
+    sizeBytes = sizeBytes,
+    errorMessage = errorMessage,
+    createdAt = createdAt,
+    completedAt = completedAt,
 )

@@ -60,9 +60,9 @@ function node(overrides: Record<string, unknown> = {}): Record<string, unknown> 
         port_range_start: 25565,
         port_range_end: 25600,
         agent_version: "1.0.0",
-        last_seen_at: "2026-06-27T10:00:00Z",
+        last_seen_at: new Date(Date.now() - 120_000).toISOString(),
         created_at: "2026-01-01T00:00:00Z",
-        updated_at: "2026-06-27T10:00:00Z",
+        updated_at: new Date(Date.now() - 120_000).toISOString(),
         ...overrides,
     } as Record<string, unknown>;
 }

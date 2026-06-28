@@ -9,6 +9,12 @@ import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.service.*
+import io.craftpanel.master.service.repo.GroupRepositoryImpl
+import io.craftpanel.master.service.repo.NetworkRepositoryImpl
+import io.craftpanel.master.service.repo.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.ServerRepositoryImpl
+import io.craftpanel.master.service.repo.SettingsRepositoryImpl
+import io.craftpanel.master.service.repo.UserRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -77,11 +83,27 @@ class ServersRoutesTest : FunSpec({
                 }
             }
         }
+        val modService = ModService(ServerRepositoryImpl())
         val lifecycle = ContainerLifecycle(
             gateway = gateway,
-            modService = ModService(),
+            modService = modService,
+            serverRepository = ServerRepositoryImpl(),
         )
-        routing { serversRoutes(ServerService(gateway, ModService(), lifecycle = lifecycle)) }
+        routing {
+            serversRoutes(
+                ServerService(
+                    gateway = gateway,
+                    modService = modService,
+                    lifecycle = lifecycle,
+                    serverRepository = ServerRepositoryImpl(),
+                    nodeRepository = NodeRepositoryImpl(),
+                    networkRepository = NetworkRepositoryImpl(),
+                    userRepository = UserRepositoryImpl(),
+                    groupRepository = GroupRepositoryImpl(),
+                    settingsRepository = SettingsRepositoryImpl(),
+                )
+            )
+        }
     }
 
     fun ApplicationTestBuilder.jsonClient() = createClient {

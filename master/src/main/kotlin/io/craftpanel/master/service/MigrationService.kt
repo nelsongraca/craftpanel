@@ -1,11 +1,14 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.proto.*
-import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.MigrationStatus
 import io.craftpanel.master.domain.MigrationStepStatus
 import io.craftpanel.master.dns.DnsProvider
+import io.craftpanel.master.service.repo.MigrationStepRow
+import io.craftpanel.master.service.repo.NodeRepository
+import io.craftpanel.master.service.repo.NetworkRepository
+import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
@@ -13,21 +16,12 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.core.*
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
-import io.craftpanel.master.util.toUtcString
 
 @Serializable
 sealed class MigrationEvent {
@@ -83,6 +77,9 @@ data class MigrationResponse(
 )
 
 class MigrationService(
+    private val serverRepository: ServerRepository,
+    private val nodeRepository: NodeRepository,
+    private val networkRepository: NetworkRepository,
     private val gateway: AgentGateway,
     private val dnsProvider: DnsProvider?,
     private val scope: CoroutineScope,
@@ -93,64 +90,36 @@ class MigrationService(
 
     private val eventFlows = ConcurrentHashMap<String, MutableSharedFlow<MigrationEvent>>()
 
-    fun failStuckMigrations() = transaction {
-        ServerMigrations.update({
-            ServerMigrations.status inList listOf("PENDING", "SYNCING", "CUTTING_OVER", "RUNNING")
-        }) {
-            it[ServerMigrations.status] = "FAILED"
-            it[ServerMigrations.completedAt] = Clock.System.now()
-                .toLocalDateTime(TimeZone.UTC)
-        }
-    }
+    fun failStuckMigrations() = serverRepository.failAllStuckMigrations()
 
     fun startMigration(serverId: Uuid, req: MigrateRequest): MigrationResponse {
-        val serverRow = transaction {
-            Servers.selectAll()
-                .where { Servers.id eq serverId }
-                .firstOrNull()
-        } ?: throw NotFoundException("Server not found")
+        val serverRow = serverRepository.findById(serverId)
+            ?: throw NotFoundException("Server not found")
 
         val targetNodeId = runCatching { Uuid.parse(req.targetNodeId) }.getOrNull()
             ?: throw UnprocessableException("Invalid target_node_id")
 
-        val sourceNodeId = serverRow[Servers.nodeId]
+        val sourceNodeId = serverRow.nodeId
         if (sourceNodeId == targetNodeId)
             throw ConflictException("Source and target node are the same")
 
-        val targetNodeRow = transaction {
-            Nodes.selectAll()
-                .where { Nodes.id eq targetNodeId }
-                .firstOrNull()
-        } ?: throw NotFoundException("Target node not found")
+        val targetNodeRow = nodeRepository.findById(targetNodeId)
+            ?: throw NotFoundException("Target node not found")
 
-        if (targetNodeRow[Nodes.status] != "ACTIVE")
+        if (targetNodeRow.status != "ACTIVE")
             throw ConflictException("Target node is not ACTIVE")
 
-        val inProgress = transaction {
-            ServerMigrations.selectAll()
-                .where {
-                    (ServerMigrations.serverId eq serverId) and
-                            (ServerMigrations.status inList listOf("PENDING", "SYNCING", "CUTTING_OVER"))
-                }
-                .any()
-        }
+        val inProgress = serverRepository.findActiveMigration(serverId) != null
         if (inProgress) throw ConflictException("Migration already in progress for this server")
 
-        val migrationId = transaction {
-            ServerMigrations.insert {
-                it[ServerMigrations.serverId] = serverId
-                it[ServerMigrations.sourceNodeId] = sourceNodeId
-                it[ServerMigrations.targetNodeId] = targetNodeId
-                it[ServerMigrations.status] = "PENDING"
-            }[ServerMigrations.id]
-        }
+        val migration = serverRepository.createMigration(serverId, sourceNodeId, targetNodeId)
 
-        eventFlows[migrationId.toString()] =
+        eventFlows[migration.id.toString()] =
             MutableSharedFlow(extraBufferCapacity = 128, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
         scope.launch {
             runMigration(
-                migrationId = migrationId,
+                migrationId = migration.id,
                 serverId = serverId,
                 sourceNodeId = sourceNodeId,
                 targetNodeId = targetNodeId,
@@ -159,56 +128,40 @@ class MigrationService(
             )
         }
 
-        return getMigration(migrationId)
+        return getMigration(migration.id)
     }
 
     fun getMigration(migrationId: Uuid): MigrationResponse {
-        val row = transaction {
-            ServerMigrations.selectAll()
-                .where { ServerMigrations.id eq migrationId }
-                .firstOrNull()
-        } ?: throw NotFoundException("Migration not found")
-        val steps = transaction {
-            MigrationStepLog.selectAll()
-                .where { MigrationStepLog.migrationId eq migrationId }
-                .orderBy(MigrationStepLog.stepNumber, SortOrder.ASC)
-                .map { it.toStepData() }
-        }
+        val row = serverRepository.findMigrationById(migrationId)
+            ?: throw NotFoundException("Migration not found")
+        val steps = serverRepository.listMigrationSteps(migrationId)
         return MigrationResponse(
             id = migrationId.toString(),
-            serverId = row[ServerMigrations.serverId].toString(),
-            sourceNodeId = row[ServerMigrations.sourceNodeId].toString(),
-            targetNodeId = row[ServerMigrations.targetNodeId].toString(),
-            status = MigrationStatus.fromDb(row[ServerMigrations.status]),
-            steps = steps,
-            createdAt = row[ServerMigrations.createdAt].toUtcString(),
-            completedAt = row[ServerMigrations.completedAt]?.toUtcString(),
+            serverId = row.serverId.toString(),
+            sourceNodeId = row.sourceNodeId.toString(),
+            targetNodeId = row.targetNodeId.toString(),
+            status = MigrationStatus.fromDb(row.status),
+            steps = steps.map { it.toStepData() },
+            createdAt = row.createdAt,
+            completedAt = row.completedAt,
         )
     }
 
     fun listMigrations(serverId: Uuid): List<MigrationResponse> =
-        transaction {
-            ServerMigrations.selectAll()
-                .where { ServerMigrations.serverId eq serverId }
-                .orderBy(ServerMigrations.createdAt, SortOrder.DESC)
-                .map { row ->
-                    val migId = row[ServerMigrations.id]
-                    val steps = MigrationStepLog.selectAll()
-                        .where { MigrationStepLog.migrationId eq migId }
-                        .orderBy(MigrationStepLog.stepNumber, SortOrder.ASC)
-                        .map { it.toStepData() }
-                    MigrationResponse(
-                        id = migId.toString(),
-                        serverId = row[ServerMigrations.serverId].toString(),
-                        sourceNodeId = row[ServerMigrations.sourceNodeId].toString(),
-                        targetNodeId = row[ServerMigrations.targetNodeId].toString(),
-                        status = MigrationStatus.fromDb(row[ServerMigrations.status]),
-                        steps = steps,
-                        createdAt = row[ServerMigrations.createdAt].toUtcString(),
-                        completedAt = row[ServerMigrations.completedAt]?.toUtcString(),
-                    )
-                }
-        }
+        serverRepository.listMigrations(serverId)
+            .map { row ->
+                val steps = serverRepository.listMigrationSteps(row.id)
+                MigrationResponse(
+                    id = row.id.toString(),
+                    serverId = row.serverId.toString(),
+                    sourceNodeId = row.sourceNodeId.toString(),
+                    targetNodeId = row.targetNodeId.toString(),
+                    status = MigrationStatus.fromDb(row.status),
+                    steps = steps.map { it.toStepData() },
+                    createdAt = row.createdAt,
+                    completedAt = row.completedAt,
+                )
+            }
 
     fun getEventFlow(migrationId: String): SharedFlow<MigrationEvent>? =
         eventFlows[migrationId]?.asSharedFlow()
@@ -225,46 +178,28 @@ class MigrationService(
         val serverIdStr = serverId.toString()
         val eventFlow = eventFlows[migrationIdStr]
         fun now() = Clock.System.now()
-            .toLocalDateTime(TimeZone.UTC)
 
         suspend fun emit(event: MigrationEvent) = eventFlow?.emit(event)
 
-        fun updateStatus(status: String) {
-            transaction {
-                ServerMigrations.update({ ServerMigrations.id eq migrationId }) {
-                    it[ServerMigrations.status] = status
-                    if (status == "COMPLETED" || status == "FAILED") it[ServerMigrations.completedAt] = now()
-                }
-            }
-            scope.launch { emit(MigrationEvent.Status(status)) }
+        fun updateStatus(status: MigrationStatus) {
+            val ts = now()
+            serverRepository.updateMigrationStatus(migrationId, status, if (status == MigrationStatus.COMPLETED || status == MigrationStatus.FAILED) ts else null)
+            scope.launch { emit(MigrationEvent.Status(status.name)) }
         }
 
         fun startStep(stepNum: Int, description: String): Uuid {
-            val stepId = transaction {
-                MigrationStepLog.insert {
-                    it[MigrationStepLog.migrationId] = migrationId
-                    it[MigrationStepLog.stepNumber] = stepNum
-                    it[MigrationStepLog.description] = description
-                    it[MigrationStepLog.status] = "RUNNING"
-                    it[MigrationStepLog.startedAt] = now()
-                }[MigrationStepLog.id]
-            }
+            val step = serverRepository.createMigrationStep(migrationId, stepNum, description)
+            serverRepository.updateMigrationStepStatus(step.id, MigrationStepStatus.RUNNING, now(), null, null)
             scope.launch { emit(MigrationEvent.StepStarted(stepNum, description)) }
-            return stepId
+            return step.id
         }
 
         fun completeStep(stepId: Uuid, success: Boolean, error: String? = null) {
-            transaction {
-                MigrationStepLog.update({ MigrationStepLog.id eq stepId }) {
-                    it[MigrationStepLog.status] = if (success) "SUCCESS" else "FAILED"
-                    it[MigrationStepLog.completedAt] = now()
-                    it[MigrationStepLog.errorMessage] = error
-                }
-            }
+            serverRepository.updateMigrationStepStatus(stepId, if (success) MigrationStepStatus.SUCCESS else MigrationStepStatus.FAILED, null, now(), error)
         }
 
         suspend fun failMigration(error: String) {
-            updateStatus("FAILED")
+            updateStatus(MigrationStatus.FAILED)
             emit(MigrationEvent.Failed(error))
         }
 
@@ -272,20 +207,12 @@ class MigrationService(
         val sourceNodeIdStr = sourceNodeId.toString()
         val targetNodeIdStr = targetNodeId.toString()
 
-        val serverRow = transaction {
-            Servers.selectAll()
-                .where { Servers.id eq serverId }
-                .firstOrNull()
-        }
+        val serverRow = serverRepository.findById(serverId)
             ?: run { failMigration("Server $serverIdStr no longer exists"); return }
-        val targetNodeRow = transaction {
-            Nodes.selectAll()
-                .where { Nodes.id eq targetNodeId }
-                .firstOrNull()
-        }
+        val targetNodeRow = nodeRepository.findById(targetNodeId)
             ?: run { failMigration("Target node $targetNodeIdStr no longer exists"); return }
 
-        val targetPrivateIp = targetNodeRow[Nodes.privateIp]
+        val targetPrivateIp = targetNodeRow.privateIp
 
         // ── Step 1: Allocate rsync port ──────────────────────────────────────
         val rsyncPort: Int
@@ -392,7 +319,7 @@ class MigrationService(
                 }
             }
 
-            updateStatus("SYNCING")
+            updateStatus(MigrationStatus.SYNCING)
 
             // ── Step 4: Player warning via RCON ──────────────────────────────────
             run {
@@ -413,16 +340,11 @@ class MigrationService(
 
             delay(2.seconds)
 
-            // ── Step 5: Stop source container (a clean stop flushes world data) ──
-            // The container is kept (not removed) so the final rsync below reads a
-            // consistent, on-disk snapshot. If a later step fails before removal we
-            // restart the source so the server is not left dead.
-            // If the server was never started (DB status STOPPED) there is no container
-            // to stop — skip the command to avoid an UNHEALTHY response from the agent.
+            // ── Step 5: Stop source container ──────────────────────────────────
             var sourceStopped = false
             run {
                 val stepId = startStep(5, "Stop source server container")
-                val alreadyStopped = serverRow[Servers.status] == "STOPPED"
+                val alreadyStopped = serverRow.status == "STOPPED"
                 if (!alreadyStopped) {
                     runCatching { lifecycle.stop(serverRow, sourceNodeIdStr) }
                         .onFailure { e ->
@@ -435,7 +357,6 @@ class MigrationService(
                 completeStep(stepId, true)
             }
 
-            // Restart the source container — used on rollback while it still exists.
             fun restartSource() {
                 if (sourceStopped) scope.launch {
                     runCatching { lifecycle.start(serverRow, needsRecreate = false, nodeId = sourceNodeIdStr) }
@@ -489,12 +410,9 @@ class MigrationService(
                 }
             }
 
-            updateStatus("CUTTING_OVER")
+            updateStatus(MigrationStatus.CUTTING_OVER)
 
             // ── Step 7: Remove source container ──────────────────────────────────
-            // Awaited (STOPPED ack) so the container name is freed before the
-            // target create — prevents a name collision on a shared Docker
-            // namespace and guarantees no two live containers for one server.
             run {
                 val stepId = startStep(7, "Remove source server container")
                 runCatching { lifecycle.remove(serverRow, sourceNodeIdStr) }
@@ -504,63 +422,30 @@ class MigrationService(
                         failMigration("Source container removal failed: ${e.message}")
                         return
                     }
-                // Source is gone — rollback by restart is no longer possible past here.
                 sourceStopped = false
                 completeStep(stepId, true)
             }
 
             // ── Port assignment on target ─────────────────────────────────────────
-            // Move/reallocate the server port to the target node before starting the
-            // container there. Required because two agents may share a Docker host
-            // (tests) or the target may already have another server on the same port.
-            val freshServerRow = transaction {
-                val existingPort = serverRow[Servers.hostPort]
-                val portConflict = PortRegistry.selectAll()
-                    .where {
-                        (PortRegistry.nodeId eq targetNodeId) and
-                                (PortRegistry.port eq existingPort) and
-                                (PortRegistry.protocol eq "TCP") and
-                                PortRegistry.serverId.isNotNull() and
-                                (PortRegistry.serverId neq serverId)
-                    }
-                    .any()
+            val existingPort = serverRow.hostPort
+            val usedPorts = serverRepository.findUsedPortsOnNode(targetNodeId)
+                .toSet()
 
-                val assignedPort = if (portConflict) {
-                    // Allocate a fresh port on target node
-                    val usedPorts = PortRegistry.selectAll()
-                        .where { (PortRegistry.nodeId eq targetNodeId) and (PortRegistry.protocol eq "TCP") }
-                        .map { it[PortRegistry.port] }
-                        .toSet()
-                    val targetNode = Nodes.selectAll()
-                        .where { Nodes.id eq targetNodeId }
-                        .first()
-                    (targetNode[Nodes.portRangeStart]..targetNode[Nodes.portRangeEnd])
-                        .firstOrNull { it !in usedPorts }
-                        ?: throw PortExhaustedException("No free ports on target node")
-                }
-                else existingPort
-
-                // Move PortRegistry from source to target (or just re-register if port changed)
-                PortRegistry.deleteWhere { PortRegistry.serverId eq serverId }
-                PortRegistry.insert {
-                    it[PortRegistry.nodeId] = targetNodeId
-                    it[PortRegistry.port] = assignedPort
-                    it[PortRegistry.protocol] = "TCP"
-                    it[PortRegistry.serverId] = serverId
-                }
-
-                if (assignedPort != existingPort) {
-                    Servers.update({ Servers.id eq serverId }) {
-                        it[Servers.hostPort] = assignedPort
-                        it[Servers.updatedAt] = now()
-                    }
-                }
-
-                // Re-fetch row so lifecycle.start picks up the (possibly updated) port
-                Servers.selectAll()
-                    .where { Servers.id eq serverId }
-                    .first()
+            val assignedPort = if (existingPort in usedPorts) {
+                val range = targetNodeRow.portRangeStart..targetNodeRow.portRangeEnd
+                range.firstOrNull { it !in usedPorts }
+                    ?: throw PortExhaustedException("No free ports on target node")
             }
+            else existingPort
+
+            serverRepository.releasePortsForServer(serverId)
+            serverRepository.registerPort(targetNodeId, assignedPort, "TCP", serverId)
+
+            if (assignedPort != existingPort) {
+                serverRepository.updateMigrationHostPort(serverId, assignedPort)
+            }
+
+            val freshServerRow = serverRepository.findById(serverId)!!
 
             // ── Step 8: Create and start container on target ─────────────────────
             run {
@@ -579,14 +464,14 @@ class MigrationService(
             // ── Step 9: Update DNS A record ──────────────────────────────────────
             run {
                 val stepId = startStep(9, "Update DNS A record to target node IP")
-                val recordId = serverRow[Servers.dnsRecordId]
+                val recordId = serverRow.dnsRecordId
                 val provider = dnsProvider
                 if (recordId != null && provider != null) {
-                    val networkId = serverRow[Servers.networkId]
+                    val networkId = serverRow.networkId
                     val dns = resolveNetworkDnsForMigration(networkId)
                     if (dns != null) {
                         runCatching {
-                            provider.updateARecord(dns.zoneId, recordId, targetNodeRow[Nodes.publicIp])
+                            provider.updateARecord(dns.zoneId, recordId, targetNodeRow.publicIp)
                         }.onFailure { ex ->
                             completeStep(stepId, false, ex.message)
                             failMigration("DNS update failed: ${ex.message}")
@@ -601,22 +486,11 @@ class MigrationService(
             // Nothing to do — labels set in step 8 CreateContainerCommand.
 
             // ── Step 11: Update DB — node assignment ─────────────────────────────
-            // Port and PortRegistry already updated before step 8.
             run {
                 val stepId = startStep(11, "Update server node assignment in database")
                 try {
-                    transaction {
-                        Servers.update({ Servers.id eq serverId }) {
-                            it[Servers.nodeId] = targetNodeId
-                            it[Servers.updatedAt] = now()
-                        }
-                        // Release rsync ephemeral port
-                        PortRegistry.deleteWhere {
-                            (PortRegistry.nodeId eq targetNodeId) and
-                                    (PortRegistry.port eq rsyncPort) and
-                                    (PortRegistry.serverId.isNull())
-                        }
-                    }
+                    serverRepository.updateNodeId(serverId, targetNodeId)
+                    serverRepository.releasePort(targetNodeId, rsyncPort, "TCP")
                     completeStep(stepId, true)
                 }
                 catch (e: Exception) {
@@ -630,19 +504,18 @@ class MigrationService(
             run {
                 val stepId = startStep(12, "Update proxy backends")
                 runCatching {
-                    updateProxyBackendsAfterMigration(serverId, targetNodeRow[Nodes.privateIp], freshServerRow[Servers.hostPort])
+                    updateProxyBackendsAfterMigration(serverId, targetNodeRow.privateIp, freshServerRow.hostPort)
                 }.onFailure { ex ->
                     log.warn("Proxy backend update failed after migration $migrationIdStr: ${ex.message}")
                 }
                 completeStep(stepId, true)
             }
 
-            updateStatus("COMPLETED")
+            updateStatus(MigrationStatus.COMPLETED)
             emit(MigrationEvent.Completed)
         }
         finally {
             // Always clean up rsync-recv container and release the ephemeral rsync port.
-            // On success path the port was already freed in step 11 — the deleteWhere is a no-op.
             runCatching {
                 gateway.sendToNode(targetNodeIdStr, masterMessage {
                     removeContainer = removeContainerCommand {
@@ -651,70 +524,40 @@ class MigrationService(
                     }
                 })
             }
-            transaction {
-                PortRegistry.deleteWhere {
-                    (PortRegistry.nodeId eq targetNodeId) and
-                            (PortRegistry.port eq rsyncPort) and
-                            (PortRegistry.serverId.isNull())
-                }
-            }
+            serverRepository.releasePort(targetNodeId, rsyncPort, "TCP")
         }
     }
 
-    private fun allocateRsyncPort(targetNodeId: Uuid): Int = transaction {
-        val usedPorts = PortRegistry.selectAll()
-            .where { (PortRegistry.nodeId eq targetNodeId) and (PortRegistry.protocol eq "TCP") }
-            .map { it[PortRegistry.port] }
+    private fun allocateRsyncPort(targetNodeId: Uuid): Int {
+        val usedPorts = serverRepository.findUsedPortsOnNode(targetNodeId)
             .toSet()
-        val node = Nodes.selectAll()
-            .where { Nodes.id eq targetNodeId }
-            .firstOrNull() ?: throw NotFoundException("Target node $targetNodeId not found")
-        val start = node[Nodes.portRangeStart]
-        val end = node[Nodes.portRangeEnd]
-        val port = (start..end).firstOrNull { it !in usedPorts }
-            ?: throw PortExhaustedException("No free ports in range $start-$end on node $targetNodeId")
-        PortRegistry.insert {
-            it[PortRegistry.nodeId] = targetNodeId
-            it[PortRegistry.port] = port
-            it[PortRegistry.protocol] = "TCP"
-            it[PortRegistry.serverId] = null
-        }
-        port
+        val node = nodeRepository.findById(targetNodeId)
+            ?: throw NotFoundException("Target node $targetNodeId not found")
+        val port = (node.portRangeStart..node.portRangeEnd)
+            .firstOrNull { it !in usedPorts }
+            ?: throw PortExhaustedException("No free ports in range ${node.portRangeStart}-${node.portRangeEnd} on node $targetNodeId")
+        serverRepository.registerPort(targetNodeId, port, "TCP", null)
+        return port
     }
 
     private fun resolveNetworkDnsForMigration(networkId: Uuid?): NetworkDns? {
         if (networkId == null) return null
-        return transaction {
-            ServerNetworks.selectAll()
-                .where { ServerNetworks.id eq networkId }
-                .firstOrNull()
-                ?.let {
-                    val zoneId = it[ServerNetworks.cfZoneId] ?: return@let null
-                    val suffix = it[ServerNetworks.cfDomainSuffix] ?: return@let null
-                    NetworkDns(zoneId, suffix)
-                }
-        }
+        return networkRepository.findById(networkId)
+            ?.let {
+                val zoneId = it.cfZoneId ?: return null
+                val suffix = it.cfDomainSuffix ?: return null
+                NetworkDns(zoneId, suffix)
+            }
     }
 
     private data class NetworkDns(val zoneId: String, val domainSuffix: String)
 
     private fun updateProxyBackendsAfterMigration(serverId: Uuid, targetIp: String, port: Int) {
-        // Find proxy servers in the same network that have this server as a backend.
-        // Send each proxy a restart-container command so it re-discovers the new node IP.
-        val proxyServerIds = transaction {
-            ProxyBackends.selectAll()
-                .where { ProxyBackends.backendServerId eq serverId }
-                .map { it[ProxyBackends.proxyServerId] }
-        }
+        val proxyServerIds = serverRepository.findProxyServersForBackend(serverId)
         if (proxyServerIds.isEmpty()) return
         for (proxyServerId in proxyServerIds) {
-            val nodeIdStr = transaction {
-                Servers.selectAll()
-                    .where { Servers.id eq proxyServerId }
-                    .firstOrNull()
-                    ?.get(Servers.nodeId)
-                    ?.toString()
-            } ?: continue
+            val proxyServer = serverRepository.findById(proxyServerId) ?: continue
+            val nodeIdStr = proxyServer.nodeId.toString()
             val sent = gateway.sendToNode(nodeIdStr, masterMessage {
                 restartContainer = restartContainerCommand { this.serverId = proxyServerId.toString() }
             })
@@ -730,11 +573,11 @@ class MigrationService(
     private val log = org.slf4j.LoggerFactory.getLogger(MigrationService::class.java)
 }
 
-private fun ResultRow.toStepData() = MigrationStepData(
-    stepNumber = this[MigrationStepLog.stepNumber],
-    description = this[MigrationStepLog.description],
-    status = MigrationStepStatus.fromDb(this[MigrationStepLog.status]),
-    startedAt = this[MigrationStepLog.startedAt]?.toUtcString(),
-    completedAt = this[MigrationStepLog.completedAt]?.toUtcString(),
-    errorMessage = this[MigrationStepLog.errorMessage],
+private fun MigrationStepRow.toStepData() = MigrationStepData(
+    stepNumber = this.stepNumber,
+    description = this.description,
+    status = MigrationStepStatus.fromDb(this.status),
+    startedAt = this.startedAt,
+    completedAt = this.completedAt,
+    errorMessage = this.errorMessage,
 )

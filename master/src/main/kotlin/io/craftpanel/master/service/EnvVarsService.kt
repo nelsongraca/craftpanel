@@ -1,16 +1,10 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.database.schema.ServerEnvVars
-import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ConfigMode
+import io.craftpanel.master.service.repo.EnvVarRow
+import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.uuid.Uuid
 
 @Serializable
@@ -28,76 +22,34 @@ data class PatchConfigModeRequest(@SerialName("config_mode") val configMode: Con
 @Serializable
 data class PatchStopCommandRequest(@SerialName("stop_command") val stopCommand: String)
 
-class EnvVarsService {
+class EnvVarsService(private val serverRepository: ServerRepository) {
 
     fun getEnvVars(serverId: Uuid): EnvVarsResponse {
-        transaction {
-            Servers.selectAll()
-                .where { Servers.id eq serverId }
-                .firstOrNull()
-        } ?: throw NotFoundException("Server not found")
-
-        val items = transaction {
-            ServerEnvVars.selectAll()
-                .where { ServerEnvVars.serverId eq serverId }
-                .orderBy(ServerEnvVars.key)
-                .map { EnvVarItem(it[ServerEnvVars.key], it[ServerEnvVars.value]) }
-        }
+        serverRepository.findById(serverId) ?: throw NotFoundException("Server not found")
+        val items = serverRepository.getEnvVars(serverId)
+            .map { EnvVarItem(it.key, it.value) }
         return EnvVarsResponse(items)
     }
 
     fun replaceEnvVars(serverId: Uuid, req: PutEnvVarsRequest): EnvVarsResponse {
-        transaction {
-            Servers.selectAll()
-                .where { Servers.id eq serverId }
-                .firstOrNull()
-        } ?: throw NotFoundException("Server not found")
-
+        serverRepository.findById(serverId) ?: throw NotFoundException("Server not found")
         val keys = req.envVars.map { it.key.trim() }
         if (keys.size != keys.toSet().size) throw UnprocessableException("Duplicate env var keys")
-
-        transaction {
-            ServerEnvVars.deleteWhere { ServerEnvVars.serverId eq serverId }
-            for (item in req.envVars) {
-                ServerEnvVars.insert {
-                    it[ServerEnvVars.serverId] = serverId
-                    it[ServerEnvVars.key] = item.key.trim()
-                    it[ServerEnvVars.value] = item.value
-                }
-            }
-            Servers.update({ Servers.id eq serverId }) { it[Servers.needsRecreate] = true }
-        }
+        serverRepository.replaceEnvVars(serverId, req.envVars.map { EnvVarRow(it.key.trim(), it.value) })
+        serverRepository.updateNeedsRecreate(serverId, true)
         return getEnvVars(serverId)
     }
 
     fun updateStopCommand(serverId: Uuid, req: PatchStopCommandRequest) {
-        transaction {
-            Servers.selectAll()
-                .where { Servers.id eq serverId }
-                .firstOrNull()
-        } ?: throw NotFoundException("Server not found")
-
-        transaction {
-            Servers.update({ Servers.id eq serverId }) {
-                it[Servers.stopCommand] = req.stopCommand
-                it[Servers.needsRecreate] = true
-            }
-        }
+        serverRepository.findById(serverId) ?: throw NotFoundException("Server not found")
+        serverRepository.updateStopCommand(serverId, req.stopCommand)
+        serverRepository.updateNeedsRecreate(serverId, true)
     }
 
     fun updateConfigMode(serverId: Uuid, req: PatchConfigModeRequest): EnvVarsResponse {
-        transaction {
-            Servers.selectAll()
-                .where { Servers.id eq serverId }
-                .firstOrNull()
-        } ?: throw NotFoundException("Server not found")
-
-        transaction {
-            Servers.update({ Servers.id eq serverId }) {
-                it[Servers.configMode] = req.configMode.name
-                it[Servers.needsRecreate] = true
-            }
-        }
+        serverRepository.findById(serverId) ?: throw NotFoundException("Server not found")
+        serverRepository.updateConfigMode(serverId, req.configMode.name)
+        serverRepository.updateNeedsRecreate(serverId, true)
         return getEnvVars(serverId)
     }
 }

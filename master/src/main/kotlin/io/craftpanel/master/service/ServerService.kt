@@ -3,25 +3,22 @@ package io.craftpanel.master.service
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.config.ImagesConfig
-import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.ConfigMode
 import io.craftpanel.master.domain.ServerStatus
-import io.craftpanel.master.util.toUtcString
+import io.craftpanel.master.service.repo.GroupRepository
+import io.craftpanel.master.service.repo.NetworkRepository
+import io.craftpanel.master.service.repo.NodeRepository
+import io.craftpanel.master.service.repo.ServerRepository
+import io.craftpanel.master.service.repo.EnvVarRow
+import io.craftpanel.master.service.repo.ServerRow
+import io.craftpanel.master.service.repo.SettingsRepository
+import io.craftpanel.master.service.repo.UserRepository
 import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.removeContainerCommand
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.core.*
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
 import org.slf4j.LoggerFactory
-import kotlin.time.Clock
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
@@ -118,50 +115,33 @@ class ServerService(
     private val dnsProvider: DnsProvider? = null,
     private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
     private val containerNamePrefix: String = "craftpanel",
-    private val lifecycle: ContainerLifecycle = ContainerLifecycle(
-        gateway = gateway,
-        modService = modService,
-        images = images,
-        containerNamePrefix = containerNamePrefix,
-    ),
+    private val lifecycle: ContainerLifecycle,
+    private val serverRepository: ServerRepository,
+    private val nodeRepository: NodeRepository,
+    private val networkRepository: NetworkRepository,
+    private val userRepository: UserRepository,
+    private val groupRepository: GroupRepository,
+    private val settingsRepository: SettingsRepository,
 ) {
 
     private val log = LoggerFactory.getLogger(ServerService::class.java)
 
-
     fun listServers(userId: Uuid): List<ServerResponse> {
         val visibility = resolveServerVisibility(userId)
-        return transaction {
-            val netIds = visibility.networkIds.toList()
-            val srvIds = visibility.serverIds.toList()
-            val rows = when {
-                visibility.isGlobal                  -> Servers.selectAll()
-                    .toList()
-
-                netIds.isEmpty() && srvIds.isEmpty() -> return@transaction emptyList()
-                else                                 -> Servers.selectAll()
-                    .where {
-                        val conds = buildList<Op<Boolean>> {
-                            if (netIds.isNotEmpty()) add(Servers.networkId inList netIds)
-                            if (srvIds.isNotEmpty()) add(Servers.id inList srvIds)
-                        }
-                        conds.reduce { a, b -> a or b }
-                    }
-                    .toList()
-            }
-            val ids = rows.map { it[Servers.id] }
-            val migratingIds = if (ids.isEmpty()) emptySet()
-            else {
-                ServerMigrations.selectAll()
-                    .where {
-                        (ServerMigrations.serverId inList ids) and
-                                (ServerMigrations.status inList listOf("PENDING", "RUNNING"))
-                    }
-                    .map { it[ServerMigrations.serverId] }
-                    .toSet()
-            }
-            rows.map { row -> rowToServerResponse(row, row[Servers.id] in migratingIds) }
+        val rows = when {
+            visibility.isGlobal                                               -> serverRepository.listAll()
+            visibility.networkIds.isEmpty() && visibility.serverIds.isEmpty() -> return emptyList()
+            else                                                              -> serverRepository.listByVisibility(
+                visibility.networkIds.toList(),
+                visibility.serverIds.toList(),
+            )
         }
+        val ids = rows.map { it.id }
+        val migratingIds = if (ids.isEmpty()) emptySet()
+        else rows.filter { serverRepository.findActiveMigration(it.id) != null }
+            .map { it.id }
+            .toSet()
+        return rows.map { row -> row.toResponse(row.id in migratingIds) }
     }
 
     fun createServer(req: CreateServerRequest): ServerResponse {
@@ -172,136 +152,78 @@ class ServerService(
         val networkKotlinId = req.networkId?.let { parseUuid(it) ?: throw UnprocessableException("Invalid network_id") }
 
         if (networkKotlinId != null) {
-            val existingNodeIds = transaction {
-                Servers.selectAll()
-                    .where { Servers.networkId eq networkKotlinId }
-                    .map { it[Servers.nodeId] }
-                    .distinct()
-            }
+            val existingNodeIds = serverRepository.listByNetworkId(networkKotlinId)
+                .map { it.nodeId }
+                .distinct()
             val allNodeIds = (existingNodeIds + nodeKotlinId).distinct()
-            if (allNodeIds.size > 1) {
-                networkService?.validateCrossNodeAssignment(allNodeIds)
-            }
+            if (allNodeIds.size > 1) networkService?.validateCrossNodeAssignment(allNodeIds)
         }
 
         data class CreateResult(val status: String, val server: ServerResponse? = null)
 
-        fun attemptCreate(): CreateResult = transaction {
-            val node = Nodes.selectAll()
-                .where { Nodes.id eq nodeKotlinId }
-                .firstOrNull()
-                ?: return@transaction CreateResult("node_not_found")
-            if (node[Nodes.status] != "ACTIVE") return@transaction CreateResult("node_not_active")
-            if (networkKotlinId != null) {
-                val netExists = ServerNetworks.selectAll()
-                    .where { ServerNetworks.id eq networkKotlinId }
-                    .firstOrNull() != null
-                if (!netExists) return@transaction CreateResult("network_not_found")
-            }
-            val nameTaken = Servers.selectAll()
-                .where { Servers.name eq req.name }
-                .firstOrNull() != null
-            if (nameTaken) return@transaction CreateResult("name_taken")
+        fun attemptCreate(): CreateResult {
+            val node = nodeRepository.findById(nodeKotlinId) ?: return CreateResult("node_not_found")
+            if (node.status != "ACTIVE") return CreateResult("node_not_active")
+            if (networkKotlinId != null && networkRepository.findById(networkKotlinId) == null)
+                return CreateResult("network_not_found")
+            if (serverRepository.findByName(req.name) != null) return CreateResult("name_taken")
 
-            val totalRam = node[Nodes.totalRamMb]
-            val totalCpu = node[Nodes.totalCpuShares]
-            val existing = Servers.selectAll()
-                .where { Servers.nodeId eq nodeKotlinId }
-                .toList()
-            val usedRam = existing.sumOf { it[Servers.memoryMb] }
-            val usedCpu = existing.sumOf { it[Servers.cpuShares] }
-            val systemRamUsed = node[Nodes.systemRamUsedMb] ?: 0
+            val serversOnNode = serverRepository.listByNodeId(nodeKotlinId)
+            val usedRam = serversOnNode.sumOf { it.memoryMb }
+            val usedCpu = serversOnNode.sumOf { it.cpuShares }
+            val systemRamUsed = node.systemRamUsedMb ?: 0
             val effectiveUsedRam = maxOf(usedRam, systemRamUsed)
-            if (effectiveUsedRam + req.memoryMb > totalRam) return@transaction CreateResult("insufficient_ram")
-            if (totalCpu > 0 && usedCpu + req.cpuShares > totalCpu) return@transaction CreateResult("insufficient_cpu")
+            if (effectiveUsedRam + req.memoryMb > node.totalRamMb) return CreateResult("insufficient_ram")
+            if (node.totalCpuShares > 0 && usedCpu + req.cpuShares > node.totalCpuShares) return CreateResult("insufficient_cpu")
 
-            val usedPorts = PortRegistry.selectAll()
-                .where { (PortRegistry.nodeId eq nodeKotlinId) and (PortRegistry.protocol eq "TCP") }
-                .map { it[PortRegistry.port] }
+            val usedPorts = serverRepository.findUsedPortsOnNode(nodeKotlinId)
                 .toSet()
-            val port = (node[Nodes.portRangeStart]..node[Nodes.portRangeEnd]).firstOrNull { it !in usedPorts }
-                ?: return@transaction CreateResult("no_ports")
+            val port = (node.portRangeStart..node.portRangeEnd).firstOrNull { it !in usedPorts }
+                ?: return CreateResult("no_ports")
 
             val stopCommand = if (req.serverType in PROXY_SERVER_TYPES) "end" else "stop"
-            val insertedId = Servers.insert {
-                it[name] = req.name
-                it[displayName] = req.displayName ?: req.name
-                it[description] = req.description
-                it[nodeId] = nodeKotlinId
-                it[networkId] = networkKotlinId
-                it[serverType] = req.serverType
-                it[mcVersion] = req.mcVersion
-                it[itzgImageTag] = req.itzgImageTag
-                it[Servers.stopCommand] = stopCommand
-                it[hostPort] = port
-                it[memoryMb] = req.memoryMb
-                it[cpuShares] = req.cpuShares
-            }[Servers.id]
-            PortRegistry.insert {
-                it[PortRegistry.nodeId] = nodeKotlinId
-                it[PortRegistry.port] = port
-                it[PortRegistry.protocol] = "TCP"
-                it[PortRegistry.serverId] = insertedId
+            val newServer = try {
+                serverRepository.create(
+                    name = req.name,
+                    displayName = req.displayName ?: req.name,
+                    description = req.description,
+                    nodeId = nodeKotlinId,
+                    networkId = networkKotlinId,
+                    serverType = req.serverType,
+                    mcVersion = req.mcVersion,
+                    itzgImageTag = req.itzgImageTag,
+                    hostPort = port,
+                    memoryMb = req.memoryMb,
+                    cpuShares = req.cpuShares,
+                    configMode = "MANAGED",
+                    stopCommand = stopCommand,
+                )
             }
-            if (req.serverType !in PROXY_SERVER_TYPES) {
-                val platformName = SystemSettings.selectAll()
-                    .where { SystemSettings.key eq "CRAFTPANEL_PLATFORM_NAME" }
+            catch (ex: Exception) {
+                val cause = generateSequence(ex as Throwable) { it.cause }
+                    .filterIsInstance<java.sql.SQLException>()
                     .firstOrNull()
-                    ?.get(SystemSettings.value) ?: "CraftPanel"
+                if (cause != null && cause.sqlState?.startsWith("23") == true) throw ex
+                throw ex
+            }
+
+            serverRepository.registerPort(nodeKotlinId, port, "TCP", newServer.id)
+
+            if (req.serverType !in PROXY_SERVER_TYPES) {
+                val platformName = settingsRepository.getAll()
+                    .firstOrNull { it.key == "CRAFTPANEL_PLATFORM_NAME" }
+                    ?.value ?: "CraftPanel"
                 val serverTypeDisplay = req.serverType.lowercase()
                     .replaceFirstChar { it.uppercase() }
-                val defaults = mapOf(
-                    "MOTD" to "${req.mcVersion} $serverTypeDisplay powered by $platformName",
-                    "DIFFICULTY" to "easy",
-                    "MODE" to "survival",
-                    "HARDCORE" to "false",
-                    "PVP" to "true",
-                    "ALLOW_NETHER" to "true",
-                    "FORCE_GAMEMODE" to "false",
-                    "SPAWN_ANIMALS" to "true",
-                    "SPAWN_MONSTERS" to "true",
-                    "SPAWN_NPCS" to "true",
-                    "SPAWN_PROTECTION" to "16",
-                    "ALLOW_FLIGHT" to "false",
-                    "LEVEL" to "world",
-                    "LEVEL_TYPE" to "DEFAULT",
-                    "GENERATE_STRUCTURES" to "true",
-                    "MAX_WORLD_SIZE" to "29999984",
-                    "MAX_PLAYERS" to "20",
-                    "ONLINE_MODE" to "true",
-                    "ENABLE_WHITELIST" to "false",
-                    "EXISTING_WHITELIST_FILE" to "SYNCHRONIZE",
-                    "EXISTING_OPS_FILE" to "SYNCHRONIZE",
-                    "PLAYER_IDLE_TIMEOUT" to "0",
-                    "ENFORCE_SECURE_PROFILE" to "true",
-                    "PREVENT_PROXY_CONNECTIONS" to "false",
-                    "VIEW_DISTANCE" to "10",
-                    "SIMULATION_DISTANCE" to "10",
-                    "MAX_TICK_TIME" to "60000",
-                    "NETWORK_COMPRESSION_THRESHOLD" to "256",
-                    "SYNC_CHUNK_WRITES" to "true",
-                    "ENABLE_COMMAND_BLOCK" to "false",
-                    "OP_PERMISSION_LEVEL" to "4",
-                    "FUNCTION_PERMISSION_LEVEL" to "2",
-                    "BROADCAST_CONSOLE_TO_OPS" to "true",
-                    "TZ" to "UTC",
-                    "USE_AIKAR_FLAGS" to "true",
-                )
-                for ((k, v) in defaults) {
-                    ServerEnvVars.insert {
-                        it[ServerEnvVars.serverId] = insertedId
-                        it[ServerEnvVars.key] = k
-                        it[ServerEnvVars.value] = v
-                    }
-                }
+                val defaults = buildDefaultEnvVars(req.mcVersion, serverTypeDisplay, platformName)
+                serverRepository.replaceEnvVars(newServer.id, defaults.map { (k, v) ->
+                    EnvVarRow(k, v)
+                })
             }
-            val row = Servers.selectAll()
-                .where { Servers.id eq insertedId }
-                .first()
-            CreateResult("ok", rowToServerResponse(row, false))
+
+            return CreateResult("ok", newServer.toResponse(false))
         }
 
-        // Retry on port collision (two concurrent creates can race past the usedPorts read).
         val result = run {
             var lastEx: java.sql.SQLException? = null
             repeat(3) {
@@ -334,224 +256,113 @@ class ServerService(
     }
 
     fun getServer(id: Uuid): ServerResponse {
-        val (row, isMigrating) = transaction {
-            val r = Servers.selectAll()
-                .where { Servers.id eq id }
-                .firstOrNull() ?: return@transaction null
-            val migrating = ServerMigrations.selectAll()
-                .where { (ServerMigrations.serverId eq id) and (ServerMigrations.status inList listOf("PENDING", "RUNNING")) }
-                .firstOrNull() != null
-            r to migrating
-        } ?: throw NotFoundException("Server not found")
-        return rowToServerResponse(row, isMigrating)
+        val row = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
+        val isMigrating = serverRepository.findActiveMigration(id) != null
+        return row.toResponse(isMigrating)
     }
 
     fun updateServer(id: Uuid, req: UpdateServerRequest) {
         val newNetworkId: Uuid? = req.networkId?.ifEmpty { null }
             ?.let { parseUuid(it) ?: throw UnprocessableException("Invalid network_id") }
 
+        val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
+
         if (newNetworkId != null) {
-            val (serverNodeId, existingNodeIds) = transaction {
-                val serverRow = Servers.selectAll()
-                    .where { Servers.id eq id }
-                    .firstOrNull()
-                val nodeId = serverRow?.get(Servers.nodeId)
-                val networkNodeIds = Servers.selectAll()
-                    .where { (Servers.networkId eq newNetworkId) and (Servers.id neq id) }
-                    .map { it[Servers.nodeId] }
-                    .distinct()
-                nodeId to networkNodeIds
-            }
-            if (serverNodeId != null) {
-                val allNodeIds = (existingNodeIds + serverNodeId).distinct()
-                if (allNodeIds.size > 1) {
-                    networkService?.validateCrossNodeAssignment(allNodeIds)
-                }
-            }
+            val existingNodeIds = serverRepository.listByNetworkId(newNetworkId)
+                .filter { it.id != id }
+                .map { it.nodeId }
+                .distinct()
+            val allNodeIds = (existingNodeIds + serverRow.nodeId).distinct()
+            if (allNodeIds.size > 1) networkService?.validateCrossNodeAssignment(allNodeIds)
+            if (networkRepository.findById(newNetworkId) == null)
+                throw UnprocessableException("Network not found")
         }
 
-        val result = transaction {
-            Servers.selectAll()
-                .where { Servers.id eq id }
-                .firstOrNull()
-                ?: return@transaction "not_found"
-            if (newNetworkId != null) {
-                val netExists = ServerNetworks.selectAll()
-                    .where { ServerNetworks.id eq newNetworkId }
-                    .firstOrNull() != null
-                if (!netExists) return@transaction "network_not_found"
-            }
-            Servers.update({ Servers.id eq id }) {
-                if (req.displayName != null) it[displayName] = req.displayName
-                if (req.description != null) it[description] = req.description.ifEmpty { null }
-                if (req.networkId != null) it[networkId] = newNetworkId
-                if (req.mcVersion != null) {
-                    it[mcVersion] = req.mcVersion
-                    it[needsRecreate] = true
-                }
-                if (req.itzgImageTag != null) {
-                    it[itzgImageTag] = req.itzgImageTag
-                    it[needsRecreate] = true
-                }
-                it[updatedAt] = Clock.System.now()
-                    .toLocalDateTime(TimeZone.UTC)
-            }
-            "ok"
+        val needsRecreate = req.mcVersion != null || req.itzgImageTag != null
+
+        if (req.networkId != null && newNetworkId == null) {
+            // empty string = clear networkId
+            serverRepository.clearNetworkId(id)
         }
-        when (result) {
-            "not_found"         -> throw NotFoundException("Server not found")
-            "network_not_found" -> throw UnprocessableException("Network not found")
-        }
+        serverRepository.updateDetails(
+            id,
+            req.displayName,
+            req.description?.ifEmpty { null },
+            newNetworkId,
+            req.mcVersion,
+            req.itzgImageTag,
+        )
+        if (needsRecreate) serverRepository.updateNeedsRecreate(id, true)
     }
 
     fun deleteServer(id: Uuid) {
-        val existing = transaction {
-            Servers.selectAll()
-                .where { Servers.id eq id }
-                .firstOrNull()
-        }
-            ?: throw NotFoundException("Server not found")
-        if (existing[Servers.status] != "STOPPED") throw ConflictException("Server must be STOPPED before deletion")
+        val existing = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
+        if (existing.status != "STOPPED") throw ConflictException("Server must be STOPPED before deletion")
 
-        val recordId = existing[Servers.dnsRecordId]
+        val recordId = existing.dnsRecordId
         if (recordId != null) {
             val provider = dnsProvider
                 ?: throw ConflictException("Cannot delete server with DNS record: DNS provider not configured")
-            val dns = resolveNetworkDns(existing[Servers.networkId])
+            val dns = resolveNetworkDns(existing.networkId)
                 ?: throw ConflictException("Cannot delete server with DNS record: network has no DNS config")
             runCatching { provider.deleteARecord(dns.zoneId, recordId) }
                 .onFailure { log.warn("Failed to delete DNS record $recordId during server delete", it) }
         }
 
-        val nodeId = existing[Servers.nodeId].toString()
-        gateway.sendToNode(
-            nodeId, masterMessage {
-                removeContainer = removeContainerCommand {
-                    serverId = id.toString()
-                    containerName = "$containerNamePrefix-$id"
-                    force = true
-                }
+        val nodeId = existing.nodeId.toString()
+        gateway.sendToNode(nodeId, masterMessage {
+            removeContainer = removeContainerCommand {
+                serverId = id.toString()
+                containerName = "$containerNamePrefix-$id"
+                force = true
             }
-        )
+        })
 
-        transaction {
-            val migrationIds = ServerMigrations.selectAll()
-                .where { ServerMigrations.serverId eq id }
-                .map { it[ServerMigrations.id] }
-            if (migrationIds.isNotEmpty()) {
-                MigrationStepLog.deleteWhere { MigrationStepLog.migrationId inList migrationIds }
-                ServerMigrations.deleteWhere { ServerMigrations.serverId eq id }
-            }
-            PortRegistry.deleteWhere { PortRegistry.serverId eq id }
-            Backups.deleteWhere { Backups.serverId eq id }
-            Servers.deleteWhere { Servers.id eq id }
-        }
+        serverRepository.delete(id)
     }
 
     fun updateResources(id: Uuid, req: PatchResourcesRequest) {
         if (req.memoryMb <= 0) throw UnprocessableException("memory_mb must be positive")
         if (req.cpuShares < 0) throw UnprocessableException("cpu_shares must be non-negative")
-        val existing = transaction {
-            Servers.selectAll()
-                .where { Servers.id eq id }
-                .firstOrNull()
-        }
-            ?: throw NotFoundException("Server not found")
-        val nodeKotlinId = existing[Servers.nodeId]
-        val result = transaction {
-            val node = Nodes.selectAll()
-                .where { Nodes.id eq nodeKotlinId }
-                .firstOrNull()
-                ?: return@transaction "node_not_found"
-            val others = Servers.selectAll()
-                .where { (Servers.nodeId eq nodeKotlinId) and (Servers.id neq id) }
-                .toList()
-            val usedRam = others.sumOf { it[Servers.memoryMb] }
-            val usedCpu = others.sumOf { it[Servers.cpuShares] }
-            // Use allocated RAM from other servers as the baseline; don't apply system RAM floor
-            // for updates since systemRamUsedMb includes the running container being resized.
-            if (usedRam + req.memoryMb > node[Nodes.totalRamMb]) return@transaction "insufficient_ram"
-            if (node[Nodes.totalCpuShares] > 0 && usedCpu + req.cpuShares > node[Nodes.totalCpuShares]) return@transaction "insufficient_cpu"
-            Servers.update({ Servers.id eq id }) {
-                it[memoryMb] = req.memoryMb
-                it[cpuShares] = req.cpuShares
-                if (req.itzgImageTag != null) it[itzgImageTag] = req.itzgImageTag
-                it[needsRecreate] = true
-                it[updatedAt] = Clock.System.now()
-                    .toLocalDateTime(TimeZone.UTC)
-            }
-            "ok"
-        }
-        when (result) {
-            "node_not_found"   -> throw UnprocessableException("Node not found")
-            "insufficient_ram" -> throw ConflictException("Insufficient RAM capacity on node")
-            "insufficient_cpu" -> throw ConflictException("Insufficient CPU capacity on node")
-        }
+        val existing = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
+        val nodeKotlinId = existing.nodeId
+        val node = nodeRepository.findById(nodeKotlinId) ?: throw UnprocessableException("Node not found")
+        val others = serverRepository.listByNodeId(nodeKotlinId)
+            .filter { it.id != id }
+        val usedRam = others.sumOf { it.memoryMb }
+        val usedCpu = others.sumOf { it.cpuShares }
+        if (usedRam + req.memoryMb > node.totalRamMb) throw ConflictException("Insufficient RAM capacity on node")
+        if (node.totalCpuShares > 0 && usedCpu + req.cpuShares > node.totalCpuShares) throw ConflictException("Insufficient CPU capacity on node")
+        serverRepository.updateResources(id, req.memoryMb, req.cpuShares, req.itzgImageTag, true)
     }
 
     fun startServer(id: Uuid) {
-        val serverRow = transaction {
-            Servers.selectAll()
-                .where { Servers.id eq id }
-                .firstOrNull()
-        }
-            ?: throw NotFoundException("Server not found")
-        val status = ServerStatus.fromDb(serverRow[Servers.status])
+        val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
+        val status = ServerStatus.fromDb(serverRow.status)
         if (status == ServerStatus.HEALTHY || status == ServerStatus.STARTING)
             throw ConflictException("Server is already running")
         val publicHostname = buildMcRouterLabel(serverRow)
-        // Write STARTING before dispatching to the agent: the background ServerStatusEvent
-        // consumer may write HEALTHY as soon as the agent reports, and a late STARTING write
-        // would clobber it, leaving the server stuck STARTING.
-        transaction {
-            Servers.update({ Servers.id eq id }) {
-                it[Servers.status] = "STARTING"
-                it[Servers.updatedAt] = Clock.System.now()
-                    .toLocalDateTime(TimeZone.UTC)
-            }
-        }
-        lifecycle.sendStart(serverRow, needsRecreate = serverRow[Servers.needsRecreate], publicHostname = publicHostname)
+        // Write STARTING before dispatching so a late write cannot clobber HEALTHY.
+        serverRepository.updateStatus(id, "STARTING", null)
+        lifecycle.sendStart(serverRow, needsRecreate = serverRow.needsRecreate, publicHostname = publicHostname)
     }
 
     fun stopServer(id: Uuid) {
-        val serverRow = transaction {
-            Servers.selectAll()
-                .where { Servers.id eq id }
-                .firstOrNull()
-        }
-            ?: throw NotFoundException("Server not found")
-        if (serverRow[Servers.status] == "STOPPED") throw ConflictException("Server is already stopped")
-        val nodeId = serverRow[Servers.nodeId].toString()
-        // Write STOPPING before dispatching: the background consumer may write STOPPED as soon
-        // as the agent reports, and a late STOPPING write would clobber it.
-        transaction {
-            Servers.update({ Servers.id eq id }) {
-                it[status] = "STOPPING"; it[updatedAt] = Clock.System.now()
-                .toLocalDateTime(TimeZone.UTC)
-            }
-        }
+        val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
+        if (serverRow.status == "STOPPED") throw ConflictException("Server is already stopped")
+        val nodeId = serverRow.nodeId.toString()
+        // Write STOPPING before dispatching so a late write cannot clobber STOPPED.
+        serverRepository.updateStatus(id, "STOPPING", null)
         lifecycle.sendStop(serverRow, nodeId)
     }
 
     fun restartServer(id: Uuid) {
-        val serverRow = transaction {
-            Servers.selectAll()
-                .where { Servers.id eq id }
-                .firstOrNull()
-        }
-            ?: throw NotFoundException("Server not found")
-        if (ServerStatus.fromDb(serverRow[Servers.status]).isStopped) throw ConflictException("Server is not running")
-        val nodeId = serverRow[Servers.nodeId].toString()
-        // Write STARTING before dispatching so the restart is reflected in the DB and a late write
-        // cannot clobber a HEALTHY/STOPPED status reported by the background consumer.
-        transaction {
-            Servers.update({ Servers.id eq id }) {
-                it[Servers.status] = "STARTING"
-                it[Servers.updatedAt] = Clock.System.now()
-                    .toLocalDateTime(TimeZone.UTC)
-            }
-        }
-        if (serverRow[Servers.needsRecreate]) {
+        val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
+        if (ServerStatus.fromDb(serverRow.status).isStopped) throw ConflictException("Server is not running")
+        val nodeId = serverRow.nodeId.toString()
+        // Write STARTING before dispatching so a late write cannot clobber HEALTHY/STOPPED.
+        serverRepository.updateStatus(id, "STARTING", null)
+        if (serverRow.needsRecreate) {
             lifecycle.sendStart(serverRow, needsRecreate = true, publicHostname = buildMcRouterLabel(serverRow))
         }
         else {
@@ -561,75 +372,44 @@ class ServerService(
     }
 
     fun getMetrics(id: Uuid, from: Instant, to: Instant): ContainerMetricsSeriesResponse {
-        val exists = transaction {
-            Servers.selectAll()
-                .where { Servers.id eq id }
-                .firstOrNull() != null
-        }
-        if (!exists) throw NotFoundException("Server not found")
-        val fromLdt = from.toLocalDateTime(TimeZone.UTC)
-        val toLdt = to.toLocalDateTime(TimeZone.UTC)
-        val rows = transaction {
-            ContainerMetrics.selectAll()
-                .where {
-                    (ContainerMetrics.serverId eq id) and
-                            (ContainerMetrics.recordedAt greaterEq fromLdt) and
-                            (ContainerMetrics.recordedAt lessEq toLdt)
-                }
-                .orderBy(ContainerMetrics.recordedAt, SortOrder.ASC)
-                .toList()
-        }
+        serverRepository.findById(id) ?: throw NotFoundException("Server not found")
+        val rows = serverRepository.getContainerMetricsByRange(id, from, to)
         return ContainerMetricsSeriesResponse(
             serverId = id.toString(),
             series = ContainerMetricsSeries(
-                cpuPercent = rows.map { ContainerMetricsPoint(it[ContainerMetrics.recordedAt].toUtcString(), it[ContainerMetrics.cpuPercent]) },
-                ramUsedMb = rows.map { ContainerMetricsPoint(it[ContainerMetrics.recordedAt].toUtcString(), it[ContainerMetrics.ramUsedMb].toDouble()) },
-                netInBytes = rows.map { ContainerMetricsPointLong(it[ContainerMetrics.recordedAt].toUtcString(), it[ContainerMetrics.netInBytes]) },
-                netOutBytes = rows.map { ContainerMetricsPointLong(it[ContainerMetrics.recordedAt].toUtcString(), it[ContainerMetrics.netOutBytes]) },
-            )
+                cpuPercent = rows.map { ContainerMetricsPoint(it.recordedAt, it.cpuPercent) },
+                ramUsedMb = rows.map { ContainerMetricsPoint(it.recordedAt, it.ramUsedMb.toDouble()) },
+                netInBytes = rows.map { ContainerMetricsPointLong(it.recordedAt, it.netInBytes) },
+                netOutBytes = rows.map { ContainerMetricsPointLong(it.recordedAt, it.netOutBytes) },
+            ),
         )
     }
 
     fun updateExposure(id: Uuid, req: PatchExposureRequest) {
-        val serverRow = transaction {
-            Servers.selectAll()
-                .where { Servers.id eq id }
-                .firstOrNull()
-        } ?: throw NotFoundException("Server not found")
+        val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
 
         if (req.exposedExternally && req.publicSubdomain != null) {
-            val taken = transaction {
-                Servers.selectAll()
-                    .where { (Servers.publicSubdomain eq req.publicSubdomain) and (Servers.id neq id) }
-                    .firstOrNull() != null
-            }
-            if (taken) throw UnprocessableException("Public subdomain already taken")
+            val existing = serverRepository.findBySubdomain(req.publicSubdomain)
+            if (existing != null && existing.id != id) throw UnprocessableException("Public subdomain already taken")
         }
 
-        // Validate and check custom_hostname if provided
         val resolvedCustomHostname: String? = if (req.customHostname != null) {
             val ch = req.customHostname.trim()
-            if (ch.isEmpty()) {
-                // empty string means clear the custom hostname
-                null
-            }
+            if (ch.isEmpty()) null
             else {
                 validateCustomHostname(ch, id)
                 ch
             }
         }
-        else {
-            // null means "don't change" — but we still carry through the existing value in the DB
-            serverRow[Servers.customHostname]
-        }
+        else serverRow.customHostname
 
-        val existingRecordId = serverRow[Servers.dnsRecordId]
+        val existingRecordId = serverRow.dnsRecordId
         var newHostname: String? = null
         var newRecordId: String? = null
 
         if (req.exposedExternally && req.publicSubdomain != null) {
             val provider = dnsProvider
-            val dns = resolveNetworkDns(serverRow[Servers.networkId])
+            val dns = resolveNetworkDns(serverRow.networkId)
 
             if (provider != null && dns == null) {
                 throw UnprocessableException(
@@ -637,26 +417,19 @@ class ServerService(
                 )
             }
 
-            val fullHostname = if (dns != null) {
-                "${req.publicSubdomain}.${dns.domainSuffix}"
-            }
-            else {
-                resolvePublicHostname(req.publicSubdomain, serverRow[Servers.networkId])
-            }
+            val fullHostname = if (dns != null) "${req.publicSubdomain}.${dns.domainSuffix}"
+            else resolvePublicHostname(req.publicSubdomain, serverRow.networkId)
 
             newRecordId = if (provider != null && dns != null) {
-                val nodeIp = transaction {
-                    Nodes.selectAll()
-                        .where { Nodes.id eq serverRow[Servers.nodeId] }
-                        .first()
-                }[Nodes.publicIp]
+                val node = nodeRepository.findById(serverRow.nodeId)
+                    ?: throw BadGatewayException("Node not found")
                 runCatching {
                     if (existingRecordId != null) {
-                        provider.updateARecord(dns.zoneId, existingRecordId, nodeIp)
+                        provider.updateARecord(dns.zoneId, existingRecordId, node.publicIp)
                         existingRecordId
                     }
                     else {
-                        provider.createARecord(dns.zoneId, fullHostname ?: req.publicSubdomain, nodeIp)
+                        provider.createARecord(dns.zoneId, fullHostname ?: req.publicSubdomain, node.publicIp)
                     }
                 }.getOrElse { ex -> throw BadGatewayException("DNS provider error: ${ex.message}") }
             }
@@ -665,75 +438,38 @@ class ServerService(
             newHostname = fullHostname
         }
 
-        if (!req.exposedExternally) {
-            val provider = dnsProvider
-            if (existingRecordId != null && provider != null) {
-                val dns = resolveNetworkDns(serverRow[Servers.networkId])
-                if (dns != null) {
-                    runCatching { provider.deleteARecord(dns.zoneId, existingRecordId) }
-                        .onFailure { log.warn("Failed to delete DNS record $existingRecordId — continuing", it) }
-                }
+        if (!req.exposedExternally && existingRecordId != null && dnsProvider != null) {
+            val dns = resolveNetworkDns(serverRow.networkId)
+            if (dns != null) {
+                runCatching { dnsProvider!!.deleteARecord(dns.zoneId, existingRecordId) }
+                    .onFailure { log.warn("Failed to delete DNS record $existingRecordId — continuing", it) }
             }
         }
 
-        // Determine if custom_hostname changed — triggers recreate
-        val prevCustomHostname = serverRow[Servers.customHostname]
+        val prevCustomHostname = serverRow.customHostname
         val customHostnameChanged = resolvedCustomHostname != prevCustomHostname
-
         val exposureNeedsRecreate = req.publicSubdomain != null || customHostnameChanged
-        transaction {
-            Servers.update({ Servers.id eq id }) {
-                it[exposedExternally] = req.exposedExternally
-                if (req.publicSubdomain != null) {
-                    it[publicSubdomain] = req.publicSubdomain
-                    if (req.exposedExternally) {
-                        it[dnsRecordName] = newHostname
-                        it[dnsRecordId] = newRecordId
-                    }
-                }
-                if (!req.exposedExternally) {
-                    it[publicSubdomain] = null
-                    it[dnsRecordName] = null
-                    it[dnsRecordId] = null
-                }
-                it[customHostname] = resolvedCustomHostname
-                if (exposureNeedsRecreate) it[needsRecreate] = true
-                it[updatedAt] = Clock.System.now()
-                    .toLocalDateTime(TimeZone.UTC)
-            }
-        }
 
-        val currentStatus = ServerStatus.fromDb(serverRow[Servers.status])
-        if (currentStatus.isRunning) {
-            val freshRow = transaction {
-                Servers.selectAll()
-                    .where { Servers.id eq id }
-                    .first()
-            }
-            // Recreate if exposure flags changed or custom_hostname changed so mc-router label is updated.
-            val needsRecreate = req.publicSubdomain != null || customHostnameChanged
-            if (needsRecreate) {
-                // Recreate transitions the container through a restart; mark STARTING before dispatch
-                // so the DB reflects it and a late write cannot clobber the consumer's HEALTHY.
-                transaction {
-                    Servers.update({ Servers.id eq id }) {
-                        it[Servers.status] = "STARTING"
-                        it[Servers.updatedAt] = Clock.System.now()
-                            .toLocalDateTime(TimeZone.UTC)
-                    }
-                }
-                lifecycle.sendStart(freshRow, needsRecreate = true, publicHostname = buildMcRouterLabel(freshRow))
-            }
+        serverRepository.updateExposure(
+            id = id,
+            exposedExternally = req.exposedExternally,
+            publicSubdomain = if (!req.exposedExternally) null else req.publicSubdomain,
+            customHostname = resolvedCustomHostname,
+            dnsRecordId = if (req.exposedExternally && req.publicSubdomain != null) newRecordId
+            else if (!req.exposedExternally) null else existingRecordId,
+            dnsRecordName = if (req.exposedExternally && req.publicSubdomain != null) newHostname
+            else if (!req.exposedExternally) null else serverRow.dnsRecordName,
+            needsRecreate = if (exposureNeedsRecreate) true else null,
+        )
+
+        val currentStatus = ServerStatus.fromDb(serverRow.status)
+        if (currentStatus.isRunning && exposureNeedsRecreate) {
+            val freshRow = serverRepository.findById(id)!!
+            serverRepository.updateStatus(id, "STARTING", null)
+            lifecycle.sendStart(freshRow, needsRecreate = true, publicHostname = buildMcRouterLabel(freshRow))
         }
     }
 
-    /**
-     * Validates a custom hostname against RFC-1123 rules and panel-specific constraints:
-     * - Must be a valid RFC-1123 hostname (labels separated by dots, each label [a-z0-9-])
-     * - Must not collide with any server's existing custom_hostname
-     * - Must not collide with any server's managed dns_record_name
-     * - Must not end with any panel-managed domain suffix (network cfDomainSuffix values or global dns_domain_suffix)
-     */
     private fun validateCustomHostname(hostname: String, excludeServerId: Uuid) {
         val rfc1123Label = Regex("^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?$")
         val labels = hostname.split(".")
@@ -741,23 +477,14 @@ class ServerService(
             throw UnprocessableException("custom_hostname must be a valid RFC-1123 hostname (e.g. play.yourdomain.com)")
         }
 
-        // Check collision with existing custom hostnames
-        val customTaken = transaction {
-            Servers.selectAll()
-                .where { (Servers.customHostname eq hostname) and (Servers.id neq excludeServerId) }
-                .firstOrNull() != null
-        }
-        if (customTaken) throw UnprocessableException("custom_hostname is already in use by another server")
+        val customTaken = serverRepository.findByCustomHostname(hostname)
+        if (customTaken != null && customTaken.id != excludeServerId)
+            throw UnprocessableException("custom_hostname is already in use by another server")
 
-        // Check collision with managed dns_record_name values
-        val managedTaken = transaction {
-            Servers.selectAll()
-                .where { (Servers.dnsRecordName eq hostname) and (Servers.id neq excludeServerId) }
-                .firstOrNull() != null
-        }
-        if (managedTaken) throw UnprocessableException("custom_hostname conflicts with a managed DNS record name")
+        val managedTaken = serverRepository.findByDnsRecordName(hostname)
+        if (managedTaken != null && managedTaken.id != excludeServerId)
+            throw UnprocessableException("custom_hostname conflicts with a managed DNS record name")
 
-        // Reject hostnames under panel-managed suffixes
         val managedSuffixes = collectManagedSuffixes()
         for (suffix in managedSuffixes) {
             if (hostname.endsWith(".$suffix") || hostname == suffix) {
@@ -769,71 +496,67 @@ class ServerService(
         }
     }
 
-    /**
-     * Collects all panel-managed domain suffixes: per-network cfDomainSuffix values UNION
-     * the global dns_domain_suffix system setting.
-     */
-    private fun collectManagedSuffixes(): Set<String> = transaction {
+    private fun collectManagedSuffixes(): Set<String> {
         val suffixes = mutableSetOf<String>()
-        ServerNetworks.selectAll()
-            .mapNotNull { it[ServerNetworks.cfDomainSuffix] }
+        networkRepository.listAll()
+            .mapNotNull { it.cfDomainSuffix }
             .forEach { suffixes += it }
-        SystemSettings.selectAll()
-            .where { SystemSettings.key eq "dns_domain_suffix" }
-            .firstOrNull()
-            ?.get(SystemSettings.value)
-            ?.let { suffixes += it }
-        suffixes
+        settingsRepository.getAll()
+            .firstOrNull { it.key == "dns_domain_suffix" }?.value?.let { suffixes += it }
+        return suffixes
     }
 
-    /**
-     * Builds the mc-router.host label value: comma-joined list of [managedHostname, customHostname],
-     * with nulls filtered. When exposed_externally is true and public_subdomain is set, the managed
-     * hostname is included. The custom hostname is always included when set (even when expose is off).
-     *
-     * Returns null if no hostnames are available.
-     */
-    private fun buildMcRouterLabel(row: ResultRow): String? {
-        val managed = if (row[Servers.exposedExternally] && row[Servers.publicSubdomain] != null) {
-            row[Servers.dnsRecordName]
-                ?: resolvePublicHostname(row[Servers.publicSubdomain]!!, row[Servers.networkId])
+    private fun buildMcRouterLabel(row: ServerRow): String? {
+        val managed = if (row.exposedExternally && row.publicSubdomain != null) {
+            row.dnsRecordName ?: resolvePublicHostname(row.publicSubdomain, row.networkId)
         }
         else null
-        val custom = row[Servers.customHostname]
+        val custom = row.customHostname
         val parts = listOfNotNull(managed, custom)
         return if (parts.isEmpty()) null else parts.joinToString(",")
     }
 
     private data class NetworkDns(val zoneId: String, val domainSuffix: String)
 
-    private fun resolveNetworkDns(networkId: Uuid?): NetworkDns? = transaction {
-        networkId ?: return@transaction null
-        ServerNetworks.selectAll()
-            .where { ServerNetworks.id eq networkId }
-            .firstOrNull()
-            ?.let { row ->
-                val zoneId = row[ServerNetworks.cfZoneId] ?: return@let null
-                val suffix = row[ServerNetworks.cfDomainSuffix] ?: return@let null
-                NetworkDns(zoneId, suffix)
-            }
+    private fun resolveNetworkDns(networkId: Uuid?): NetworkDns? {
+        networkId ?: return null
+        val row = networkRepository.findById(networkId) ?: return null
+        val zoneId = row.cfZoneId ?: return null
+        val suffix = row.cfDomainSuffix ?: return null
+        return NetworkDns(zoneId, suffix)
     }
 
     private fun resolvePublicHostname(subdomain: String, networkId: Uuid?): String? {
-        val suffix = transaction {
-            if (networkId != null) {
-                ServerNetworks.selectAll()
-                    .where { ServerNetworks.id eq networkId }
-                    .firstOrNull()
-                    ?.get(ServerNetworks.cfDomainSuffix)
-            }
-            else null
-        } ?: transaction {
-            SystemSettings.selectAll()
-                .where { SystemSettings.key eq "dns_domain_suffix" }
-                .firstOrNull()
-                ?.get(SystemSettings.value)
-        }
+        val suffix = networkId?.let { networkRepository.findById(it)?.cfDomainSuffix }
+            ?: settingsRepository.getAll()
+                .firstOrNull { it.key == "dns_domain_suffix" }?.value
         return suffix?.let { "$subdomain.$it" }
+    }
+
+    private fun resolveServerVisibility(userId: Uuid): ServerVisibility {
+        if (!userRepository.isActive(userId)) return ServerVisibility(false, emptySet(), emptySet())
+        val assignments = userRepository.listAssignments(userId)
+        val groupIds = assignments.map { it.groupId }
+            .toSet()
+        if (groupIds.isEmpty()) return ServerVisibility(false, emptySet(), emptySet())
+        val allPerms = groupRepository.getPermissionsForGroups(groupIds.toList())
+        val viewGroups = groupIds.filter { gid ->
+            groupRepository.getPermissions(gid)
+                .any { permGrantsServerView(it) }
+        }
+            .toSet()
+        if (viewGroups.isEmpty()) return ServerVisibility(false, emptySet(), emptySet())
+        var isGlobal = false
+        val networkIds = mutableSetOf<Uuid>()
+        val serverIds = mutableSetOf<Uuid>()
+        for (a in assignments.filter { it.groupId in viewGroups }) {
+            when (a.scopeType) {
+                ScopeType.GLOBAL.name  -> isGlobal = true
+                ScopeType.NETWORK.name -> a.scopeId?.let { networkIds += it }
+                ScopeType.SERVER.name  -> a.scopeId?.let { serverIds += it }
+            }
+        }
+        return ServerVisibility(isGlobal, networkIds, serverIds)
     }
 }
 
@@ -843,80 +566,80 @@ internal data class ServerVisibility(
     val serverIds: Set<Uuid>,
 )
 
-internal fun resolveServerVisibility(userId: Uuid): ServerVisibility = transaction {
-    val user = Users.selectAll()
-        .where { Users.id eq userId }
-        .firstOrNull()
-    if (user == null || !user[Users.isActive]) return@transaction ServerVisibility(false, emptySet(), emptySet())
-    val assignments = UserGroupAssignments.selectAll()
-        .where { UserGroupAssignments.userId eq userId }
-        .toList()
-    val groupIds = assignments.map { it[UserGroupAssignments.groupId] }
-        .toSet()
-    if (groupIds.isEmpty()) return@transaction ServerVisibility(false, emptySet(), emptySet())
-    val viewGroups = GroupPermissions.selectAll()
-        .where { GroupPermissions.groupId inList groupIds }
-        .filter { permGrantsServerView(it[GroupPermissions.permission]) }
-        .map { it[GroupPermissions.groupId] }
-        .toSet()
-    if (viewGroups.isEmpty()) return@transaction ServerVisibility(false, emptySet(), emptySet())
-    var isGlobal = false
-    val networkIds = mutableSetOf<Uuid>()
-    val serverIds = mutableSetOf<Uuid>()
-    for (a in assignments.filter { it[UserGroupAssignments.groupId] in viewGroups }) {
-        when (a[UserGroupAssignments.scopeType]) {
-            ScopeType.GLOBAL.name  -> isGlobal = true
-            ScopeType.NETWORK.name -> a[UserGroupAssignments.scopeId]?.let { networkIds += it }
-            ScopeType.SERVER.name  -> a[UserGroupAssignments.scopeId]?.let { serverIds += it }
-        }
-    }
-    ServerVisibility(isGlobal, networkIds, serverIds)
-}
+internal val PROXY_SERVER_TYPES = setOf("VELOCITY", "BUNGEECORD", "WATERFALL")
 
 private fun permGrantsServerView(granted: String) =
     granted == "*" || granted == "server.*" || granted == Permission.SERVER_VIEW.node
 
-internal fun rowToServerResponse(row: ResultRow, isMigrating: Boolean): ServerResponse {
-    val customHostname = row[Servers.customHostname]
-    val managedHostname = if (row[Servers.exposedExternally] && row[Servers.publicSubdomain] != null) {
-        row[Servers.dnsRecordName]
-    }
-    else null
+internal fun ServerRow.toResponse(isMigrating: Boolean): ServerResponse {
+    val managedHostname = if (exposedExternally && publicSubdomain != null) dnsRecordName else null
     val canonicalHostname = customHostname ?: managedHostname
     return ServerResponse(
-        id = row[Servers.id].toString(),
-        name = row[Servers.name],
-        displayName = row[Servers.displayName],
-        description = row[Servers.description],
-        serverType = row[Servers.serverType],
-        mcVersion = row[Servers.mcVersion],
-        itzgImageTag = row[Servers.itzgImageTag],
-        status = ServerStatus.fromDb(row[Servers.status]),
-        nodeId = row[Servers.nodeId].toString(),
-        networkId = row[Servers.networkId]?.toString(),
-        hostPort = row[Servers.hostPort],
-        memoryMb = row[Servers.memoryMb],
-        cpuShares = row[Servers.cpuShares],
-        exposedExternally = row[Servers.exposedExternally],
-        publicSubdomain = row[Servers.publicSubdomain],
+        id = id.toString(),
+        name = name,
+        displayName = displayName,
+        description = description,
+        serverType = serverType,
+        mcVersion = mcVersion,
+        itzgImageTag = itzgImageTag,
+        status = ServerStatus.fromDb(status),
+        nodeId = nodeId.toString(),
+        networkId = networkId?.toString(),
+        hostPort = hostPort,
+        memoryMb = memoryMb,
+        cpuShares = cpuShares,
+        exposedExternally = exposedExternally,
+        publicSubdomain = publicSubdomain,
         customHostname = customHostname,
         canonicalHostname = canonicalHostname,
         isMigrating = isMigrating,
-        needsRecreate = row[Servers.needsRecreate],
-        configMode = ConfigMode.fromDb(row[Servers.configMode]),
-        stopCommand = row[Servers.stopCommand],
-        lastPlayerCount = row[Servers.lastPlayerCount],
-        lastPlayerNames = row[Servers.lastPlayerNames]?.split(",")
+        needsRecreate = needsRecreate,
+        configMode = ConfigMode.fromDb(configMode),
+        stopCommand = stopCommand,
+        lastPlayerCount = lastPlayerCount,
+        lastPlayerNames = lastPlayerNames?.split(",")
             ?.filter { it.isNotBlank() },
-        createdAt = row[Servers.createdAt].toUtcString(),
-        updatedAt = row[Servers.updatedAt].toUtcString(),
+        createdAt = createdAt,
+        updatedAt = updatedAt,
     )
 }
 
-internal val PROXY_SERVER_TYPES = setOf("VELOCITY", "BUNGEECORD", "WATERFALL")
+private fun parseUuid(raw: String): Uuid? = runCatching { Uuid.parse(raw) }.getOrNull()
 
-
-private fun parseUuid(raw: String): Uuid? =
-    runCatching {
-        Uuid.parse(raw)
-    }.getOrNull()
+private fun buildDefaultEnvVars(mcVersion: String, serverTypeDisplay: String, platformName: String) = mapOf(
+    "MOTD" to "${mcVersion} $serverTypeDisplay powered by $platformName",
+    "DIFFICULTY" to "easy",
+    "MODE" to "survival",
+    "HARDCORE" to "false",
+    "PVP" to "true",
+    "ALLOW_NETHER" to "true",
+    "FORCE_GAMEMODE" to "false",
+    "SPAWN_ANIMALS" to "true",
+    "SPAWN_MONSTERS" to "true",
+    "SPAWN_NPCS" to "true",
+    "SPAWN_PROTECTION" to "16",
+    "ALLOW_FLIGHT" to "false",
+    "LEVEL" to "world",
+    "LEVEL_TYPE" to "DEFAULT",
+    "GENERATE_STRUCTURES" to "true",
+    "MAX_WORLD_SIZE" to "29999984",
+    "MAX_PLAYERS" to "20",
+    "ONLINE_MODE" to "true",
+    "ENABLE_WHITELIST" to "false",
+    "EXISTING_WHITELIST_FILE" to "SYNCHRONIZE",
+    "EXISTING_OPS_FILE" to "SYNCHRONIZE",
+    "PLAYER_IDLE_TIMEOUT" to "0",
+    "ENFORCE_SECURE_PROFILE" to "true",
+    "PREVENT_PROXY_CONNECTIONS" to "false",
+    "VIEW_DISTANCE" to "10",
+    "SIMULATION_DISTANCE" to "10",
+    "MAX_TICK_TIME" to "60000",
+    "NETWORK_COMPRESSION_THRESHOLD" to "256",
+    "SYNC_CHUNK_WRITES" to "true",
+    "ENABLE_COMMAND_BLOCK" to "false",
+    "OP_PERMISSION_LEVEL" to "4",
+    "FUNCTION_PERMISSION_LEVEL" to "2",
+    "BROADCAST_CONSOLE_TO_OPS" to "true",
+    "TZ" to "UTC",
+    "USE_AIKAR_FLAGS" to "true",
+)

@@ -1,16 +1,18 @@
 package io.craftpanel.master.grpc
 
-import io.craftpanel.master.auth.ScopeType
-import io.craftpanel.proto.ContainerState
 import io.craftpanel.proto.*
 import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.database.schema.*
+import io.craftpanel.master.domain.AgentEvent
+import io.craftpanel.master.domain.NodeHealth
+import io.craftpanel.master.domain.ServerStatus
+import io.craftpanel.master.service.AgentGateway
+import io.craftpanel.master.service.NodeStateReconciler
+import io.craftpanel.master.util.CryptoUtils
 import io.grpc.Status
 import io.grpc.StatusException
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
-import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -33,24 +35,15 @@ import java.util.HexFormat
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Clock
+import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
-import io.craftpanel.master.util.toUtcString
-import io.craftpanel.master.domain.AgentEvent
-import io.craftpanel.master.domain.NodeHealth
-import io.craftpanel.master.domain.ServerStatus
-import io.craftpanel.master.service.AgentGateway
-import io.craftpanel.master.service.ServerRestartManager
-import io.craftpanel.master.util.CryptoUtils
 import kotlin.uuid.Uuid
 
 class ControlServiceImpl(
     private val nodeConfig: NodeConfig,
+    private val nodeStateReconciler: NodeStateReconciler,
     private val onNodeDisconnect: (String) -> Unit = {},
-    // App-owned crash restart: bounded crash counter + a fire-and-forget restart action.
-    // Both default to no-op so existing tests construct ControlServiceImpl unchanged.
-    private val restartManager: ServerRestartManager? = null,
-    private val restartServer: (Uuid) -> Unit = {},
 ) : ControlServiceGrpcKt.ControlServiceCoroutineImplBase(), AgentGateway {
 
     private val log = LoggerFactory.getLogger(ControlServiceImpl::class.java)
@@ -65,6 +58,11 @@ class ControlServiceImpl(
     private val _agentEvents = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 1024)
 
     override val agentEvents = _agentEvents.asSharedFlow()
+
+    /** Exposed so NodeObserver can emit events (alert firings) back through the bus. */
+    suspend fun emitToAgentEvents(event: AgentEvent) {
+        _agentEvents.emit(event)
+    }
 
     override fun sendToNode(nodeId: String, msg: MasterMessage): Boolean {
         val channel = connectedAgents[nodeId]
@@ -167,7 +165,7 @@ class ControlServiceImpl(
                     watchdogFired = true
                     connectedNodeId?.let { nodeId ->
                         log.warn("Node $nodeId: no metrics for ${elapsed.inWholeSeconds}s — marking unreachable")
-                        markNodeUnreachable(nodeId)
+                        nodeStateReconciler.markNodeUnreachable(nodeId)
                         _agentEvents.emit(AgentEvent.NodeStatusEvent(nodeId, NodeHealth.UNREACHABLE))
                     }
                 }
@@ -181,10 +179,7 @@ class ControlServiceImpl(
                     val nodeId = msg.nodeId
                     val nodeStatus = transaction {
                         Nodes.selectAll()
-                            .where {
-                                Nodes.id eq Uuid.parse(nodeId)
-
-                            }
+                            .where { Nodes.id eq Uuid.parse(nodeId) }
                             .firstOrNull()
                             ?.get(Nodes.status)
                     }
@@ -206,7 +201,7 @@ class ControlServiceImpl(
                 when {
                     msg.hasNodeState()             -> {
                         log.info("Node ${msg.nodeId} sent state snapshot with ${msg.nodeState.containersCount} containers")
-                        runCatching { reconcileNodeState(msg.nodeId, msg.nodeState) }
+                        runCatching { nodeStateReconciler.reconcileNodeState(msg.nodeId, msg.nodeState) }
                             .onSuccess { result ->
                                 if (result != null) {
                                     log.debug("Node {}: reconcileNodeState ok — emitting health={}", msg.nodeId, result.name)
@@ -217,7 +212,6 @@ class ControlServiceImpl(
                                 }
                             }
                             .onFailure { e -> log.error("Node ${msg.nodeId}: reconcileNodeState failed — ${e.message}", e) }
-
                     }
 
                     msg.hasNodeMetrics()           -> {
@@ -236,20 +230,14 @@ class ControlServiceImpl(
                             diskTotalBytes = msg.nodeMetrics.diskTotalBytes,
                             recordedAt = recordedAt,
                         )
-                        runCatching { persistNodeMetrics(nodeMetricEvent) }
-                            .onFailure { e -> log.warn("Node ${msg.nodeId}: persistNodeMetrics failed — ${e.message}") }
                         _agentEvents.emit(nodeMetricEvent)
                         // Router health derived from the periodic report; emit only on change
                         val newHealth = if (msg.nodeMetrics.routerRunning) NodeHealth.HEALTHY else NodeHealth.DEGRADED
                         if (newHealth != lastEmittedHealth) {
                             lastEmittedHealth = newHealth
-                            runCatching { updateNodeHealth(msg.nodeId, newHealth) }
+                            runCatching { nodeStateReconciler.updateNodeHealth(msg.nodeId, newHealth) }
                                 .onFailure { e -> log.warn("Node ${msg.nodeId}: updateNodeHealth failed — ${e.message}") }
                             _agentEvents.emit(AgentEvent.NodeStatusEvent(msg.nodeId, newHealth))
-                        }
-                        launch {
-                            runCatching { evaluateNodeAlerts(msg.nodeId, msg.nodeMetrics) }
-                                .onFailure { e -> if (e is CancellationException) throw e; log.warn("Node ${msg.nodeId}: evaluateNodeAlerts failed — ${e.message}") }
                         }
                     }
 
@@ -267,13 +255,7 @@ class ControlServiceImpl(
                             blockOutBytes = msg.containerMetrics.blockOutBytes,
                             recordedAt = recordedAt,
                         )
-                        runCatching { persistContainerMetrics(containerMetricEvent) }
-                            .onFailure { e -> log.warn("Node ${msg.nodeId}: persistContainerMetrics failed — ${e.message}") }
                         _agentEvents.emit(containerMetricEvent)
-                        launch {
-                            runCatching { evaluateServerAlerts(msg.containerMetrics) }
-                                .onFailure { e -> if (e is CancellationException) throw e; log.warn("Node ${msg.nodeId}: evaluateServerAlerts failed — ${e.message}") }
-                        }
                     }
 
                     msg.hasServerStatus()          -> {
@@ -282,8 +264,6 @@ class ControlServiceImpl(
                             serverId = msg.serverStatus.serverId,
                             status = domainStatus,
                         )
-                        runCatching { persistServerStatus(serverStatusEvent) }
-                            .onFailure { e -> log.warn("Node ${msg.nodeId}: persistServerStatus failed — ${e.message}") }
                         _agentEvents.emit(serverStatusEvent)
                     }
 
@@ -297,8 +277,6 @@ class ControlServiceImpl(
                             playerNames = msg.playerUpdate.playerNamesList,
                             recordedAt = recordedAt,
                         )
-                        runCatching { persistPlayerUpdate(msg.playerUpdate) }
-                            .onFailure { e -> log.error("Node ${msg.nodeId}: persistPlayerUpdate failed — ${e.message}", e) }
                         _agentEvents.emit(playerUpdateEvent)
                     }
 
@@ -322,8 +300,6 @@ class ControlServiceImpl(
                             errorMessage = if (!msg.backupComplete.success) msg.backupComplete.errorMessage else "",
                             completedAt = completedAt,
                         )
-                        runCatching { persistBackupComplete(msg.backupComplete) }
-                            .onFailure { e -> log.error("Node ${msg.nodeId}: persistBackupComplete failed — ${e.message}", e) }
                         _agentEvents.emit(backupCompleteEvent)
                     }
 
@@ -375,16 +351,14 @@ class ControlServiceImpl(
                 val wasOwner = connectedAgents.remove(nodeId, outChannel)
                 log.debug(
                     "Node $nodeId: stream finally — wasOwner=$wasOwner, watchdogFired=$watchdogFired, channel=${System.identityHashCode(outChannel)}, stillConnected=${
-                        connectedAgents.containsKey(
-                            nodeId
-                        )
+                        connectedAgents.containsKey(nodeId)
                     }"
                 )
                 drainNodeRequests(nodeId)
                 onNodeDisconnect(nodeId)
                 if (wasOwner && !watchdogFired && !connectedAgents.containsKey(nodeId)) {
                     log.warn("Node $nodeId: control stream disconnected — marking unreachable")
-                    markNodeUnreachable(nodeId)
+                    nodeStateReconciler.markNodeUnreachable(nodeId)
                     _agentEvents.emit(AgentEvent.NodeStatusEvent(nodeId, NodeHealth.UNREACHABLE))
                 }
                 else if (wasOwner && connectedAgents.containsKey(nodeId)) {
@@ -503,388 +477,6 @@ class ControlServiceImpl(
             ?.get(Nodes.status) == "ACTIVE"
     }
 
-    // ── Reconciliation & lifecycle ────────────────────────────────────────────
-
-    internal fun reconcileNodeState(nodeId: String, snapshot: NodeStateSnapshot): NodeHealth? {
-        val kotlinNodeId = runCatching {
-            Uuid.parse(nodeId)
-
-        }.getOrNull() ?: return null
-        val now = Clock.System.now()
-            .toLocalDateTime(TimeZone.UTC)
-        var resultHealth: NodeHealth? = null
-
-        transaction {
-            val currentStatus = Nodes.selectAll()
-                .where { Nodes.id eq kotlinNodeId }
-                .firstOrNull()
-                ?.get(Nodes.status)
-
-            log.debug("Node $nodeId: reconcileNodeState — currentStatus=$currentStatus, containers=${snapshot.containersCount}")
-            val byServerId = snapshot.containersList.associateBy { it.serverId }
-
-            Servers.selectAll()
-                .where { Servers.nodeId eq kotlinNodeId }
-                .forEach { server ->
-                    val serverId = server[Servers.id]
-                    val dbStatus = ServerStatus.fromDb(server[Servers.status])
-                    val container = byServerId[serverId.toString()]
-
-                    val newStatus: ServerStatus? = if (container == null) {
-                        mapMissingContainer(dbStatus)
-                    }
-                    else {
-                        mapContainerState(container.runState, dbStatus)
-                    }
-
-                    if (newStatus != null) {
-                        log.info("Node $nodeId reconcile: server $serverId $dbStatus → $newStatus")
-                        Servers.update({ Servers.id eq serverId }) {
-                            it[Servers.status] = newStatus.toDb()
-                            it[Servers.lastSeenAt] = now
-                        }
-                    }
-                }
-
-            if (currentStatus == "ACTIVE") {
-                val newHealth = if (snapshot.routerRunning) NodeHealth.HEALTHY else NodeHealth.DEGRADED
-                Nodes.update({ Nodes.id eq kotlinNodeId }) {
-                    it[Nodes.health] = newHealth.name
-                    it[Nodes.lastSeenAt] = now
-                    it[Nodes.swarmActive] = snapshot.swarmActive
-                }
-                resultHealth = newHealth
-                log.debug("Node {}: reconciled health={} (routerRunning={})", nodeId, newHealth, snapshot.routerRunning)
-            }
-            else {
-                log.debug("Node $nodeId: status=$currentStatus — only updating lastSeenAt")
-                Nodes.update({ Nodes.id eq kotlinNodeId }) { it[Nodes.lastSeenAt] = now }
-            }
-        }
-        return resultHealth
-    }
-
-    internal fun markNodeUnreachable(nodeId: String) {
-        val kotlinNodeId = runCatching {
-            Uuid.parse(nodeId)
-
-        }.getOrElse {
-            log.warn("markNodeUnreachable: invalid nodeId format: $nodeId")
-            return
-        }
-        val now = Clock.System.now()
-            .toLocalDateTime(TimeZone.UTC)
-
-        transaction {
-            val updated = Nodes.update({
-                (Nodes.id eq kotlinNodeId) and (Nodes.status eq "ACTIVE")
-            }) { it[Nodes.health] = "UNREACHABLE" }
-
-            if (updated == 0) {
-                log.debug("markNodeUnreachable: node $nodeId is not ACTIVE — skipping")
-                return@transaction
-            }
-
-            val migrationCount = ServerMigrations.update({
-                ((ServerMigrations.sourceNodeId eq kotlinNodeId) or (ServerMigrations.targetNodeId eq kotlinNodeId)) and
-                        (ServerMigrations.status inList listOf("PENDING", "SYNCING", "CUTTING_OVER"))
-            }) {
-                it[ServerMigrations.status] = "FAILED"
-                it[ServerMigrations.completedAt] = now
-            }
-
-            val backupCount = Backups.update({
-                (Backups.nodeId eq kotlinNodeId) and (Backups.status eq "IN_PROGRESS")
-            }) {
-                it[Backups.status] = "FAILED"
-                it[Backups.errorMessage] = "Node went offline during backup"
-                it[Backups.completedAt] = now
-            }
-
-            log.warn("Node $nodeId marked UNREACHABLE: $migrationCount migrations → FAILED, $backupCount backups → FAILED")
-        }
-    }
-
-    internal fun updateNodeHealth(nodeId: String, health: NodeHealth) {
-        val kotlinNodeId = runCatching {
-            Uuid.parse(nodeId)
-
-        }.getOrElse {
-            log.warn("updateNodeHealth: invalid nodeId format: $nodeId")
-            return
-        }
-        transaction {
-            Nodes.update({ (Nodes.id eq kotlinNodeId) and (Nodes.status eq "ACTIVE") }) {
-                it[Nodes.health] = health.name
-            }
-        }
-    }
-
-    // ── Metrics persistence ───────────────────────────────────────────────────
-
-    private fun persistNodeMetrics(event: AgentEvent.NodeMetricsEvent) {
-        val kotlinNodeId = runCatching {
-            Uuid.parse(event.nodeId)
-        }.getOrNull() ?: return
-        val recordedAt = event.recordedAt.toLocalDateTime(TimeZone.UTC)
-
-        transaction {
-            NodeMetrics.insert {
-                it[NodeMetrics.nodeId] = kotlinNodeId
-                it[NodeMetrics.recordedAt] = recordedAt
-                it[NodeMetrics.cpuPercent] = event.cpuPercent
-                it[NodeMetrics.ramUsedMb] = event.ramUsedMb
-                it[NodeMetrics.ramTotalMb] = event.ramTotalMb
-                it[NodeMetrics.netInBytes] = event.netInBytes
-                it[NodeMetrics.netOutBytes] = event.netOutBytes
-                it[NodeMetrics.diskUsedBytes] = event.diskUsedBytes
-                it[NodeMetrics.diskTotalBytes] = event.diskTotalBytes
-            }
-            if (event.ramUsedMb > 0) {
-                Nodes.update({ Nodes.id eq kotlinNodeId }) {
-                    it[Nodes.systemRamUsedMb] = event.ramUsedMb
-                }
-            }
-        }
-    }
-
-    private fun persistContainerMetrics(event: AgentEvent.ContainerMetricsEvent) {
-        val kotlinServerId = runCatching {
-            Uuid.parse(event.serverId)
-        }.getOrNull() ?: return
-        val recordedAt = event.recordedAt.toLocalDateTime(TimeZone.UTC)
-
-        transaction {
-            ContainerMetrics.insert {
-                it[ContainerMetrics.serverId] = kotlinServerId
-                it[ContainerMetrics.recordedAt] = recordedAt
-                it[ContainerMetrics.cpuPercent] = event.cpuPercent
-                it[ContainerMetrics.ramUsedMb] = event.ramUsedMb
-                it[ContainerMetrics.netInBytes] = event.netInBytes
-                it[ContainerMetrics.netOutBytes] = event.netOutBytes
-                it[ContainerMetrics.blockInBytes] = event.blockInBytes
-                it[ContainerMetrics.blockOutBytes] = event.blockOutBytes
-            }
-        }
-    }
-
-    private fun persistServerStatus(event: AgentEvent.ServerStatusEvent) {
-        val serverId = runCatching {
-            Uuid.parse(event.serverId)
-        }.getOrNull() ?: return
-        val now = Clock.System.now()
-            .toLocalDateTime(TimeZone.UTC)
-        val prevStatus = transaction {
-            val prev = Servers.selectAll()
-                .where { Servers.id eq serverId }
-                .firstOrNull()
-                ?.let { ServerStatus.fromDb(it[Servers.status]) }
-            Servers.update({ Servers.id eq serverId }) {
-                it[Servers.status] = event.status.toDb()
-                it[Servers.lastSeenAt] = now
-            }
-            prev
-        }
-        maybeRestartOnCrash(serverId, prevStatus, event.status)
-    }
-
-    /**
-     * App-owned crash recovery. A managed container reporting UNHEALTHY while master's desired-state
-     * was running (HEALTHY/STARTING) is an unexpected death — restart it, bounded by the cap.
-     * An intentional stop sets the DB to STOPPING/STOPPED first, so prevStatus is not running and no
-     * restart fires. Reaching HEALTHY clears the crash counter.
-     */
-    private fun maybeRestartOnCrash(serverId: Uuid, prevStatus: ServerStatus?, newStatus: ServerStatus) {
-        val mgr = restartManager ?: return
-        if (newStatus == ServerStatus.HEALTHY) {
-            mgr.reset(serverId)
-            return
-        }
-        // Only the transition INTO unhealthy counts as a fresh crash — repeated UNHEALTHY
-        // heartbeats must not each trigger another restart.
-        val crashed = newStatus == ServerStatus.UNHEALTHY &&
-                (prevStatus == ServerStatus.HEALTHY || prevStatus == ServerStatus.STARTING)
-        if (!crashed) return
-        if (mgr.recordCrashAndShouldRestart(serverId)) {
-            runCatching { restartServer(serverId) }
-                .onFailure { e -> log.error("Crash restart for server {} failed to dispatch — {}", serverId, e.message) }
-        }
-    }
-
-    private fun persistPlayerUpdate(update: PlayerUpdate) {
-        val serverId = runCatching {
-            Uuid.parse(update.serverId)
-
-        }.getOrNull() ?: return
-        val now = Clock.System.now()
-            .toLocalDateTime(TimeZone.UTC)
-        transaction {
-            Servers.update({ Servers.id eq serverId }) {
-                it[Servers.lastPlayerCount] = update.playerCount
-                it[Servers.lastPlayerNames] = update.playerNamesList.joinToString(",")
-                    .takeIf { s -> s.isNotBlank() }
-                it[Servers.lastPlayerUpdate] = now
-            }
-        }
-    }
-
-    private fun persistBackupComplete(update: BackupCompleteUpdate) {
-        val backupId = runCatching {
-            Uuid.parse(update.backupId)
-
-        }.getOrNull() ?: return
-        val completedAt = if (update.hasCompletedAt()) {
-            Instant.fromEpochSeconds(update.completedAt.seconds, update.completedAt.nanos.toLong())
-                .toLocalDateTime(TimeZone.UTC)
-        }
-        else {
-            Clock.System.now()
-                .toLocalDateTime(TimeZone.UTC)
-        }
-
-        transaction {
-            Backups.update({ Backups.id eq backupId }) {
-                if (update.success) {
-                    it[Backups.status] = "COMPLETED"
-                    it[Backups.filePath] = update.filePath.takeIf { s -> s.isNotEmpty() }
-                    it[Backups.sizeBytes] = update.sizeBytes.takeIf { n -> n > 0 }
-                }
-                else {
-                    it[Backups.status] = "FAILED"
-                    it[Backups.errorMessage] = update.errorMessage.takeIf { s -> s.isNotEmpty() }
-                }
-                it[Backups.completedAt] = completedAt
-            }
-        }
-    }
-
-    // ── Alert evaluation ──────────────────────────────────────────────────────
-
-    private suspend fun evaluateNodeAlerts(nodeId: String, metrics: NodeMetricsUpdate) {
-        val kotlinNodeId = runCatching {
-            Uuid.parse(nodeId)
-
-        }.getOrNull() ?: return
-        val now = Clock.System.now()
-            .toLocalDateTime(TimeZone.UTC)
-
-        val metricValues = buildMap {
-            put("cpu_percent", metrics.cpuPercent)
-            if (metrics.ramTotalMb > 0)
-                put("ram_percent", metrics.ramUsedMb.toDouble() / metrics.ramTotalMb * 100.0)
-            if (metrics.diskTotalBytes > 0)
-                put("disk_percent", metrics.diskUsedBytes.toDouble() / metrics.diskTotalBytes * 100.0)
-        }
-
-        val notifications = transaction {
-            val result = mutableListOf<AgentEvent.AlertFiredEvent>()
-            val thresholds = AlertThresholds.selectAll()
-                .where { (AlertThresholds.scopeType eq ScopeType.NODE.name) and (AlertThresholds.scopeId eq kotlinNodeId) and AlertThresholds.thresholdValue.isNotNull() }
-                .toList()
-
-            for (threshold in thresholds) {
-                val thresholdId = threshold[AlertThresholds.id]
-                val metric = threshold[AlertThresholds.metric]
-                val limitValue = threshold[AlertThresholds.thresholdValue] ?: continue
-                val currentValue = metricValues[metric] ?: continue
-                val triggered = currentValue > limitValue
-                val openEvent = AlertEvents.selectAll()
-                    .where { (AlertEvents.thresholdId eq thresholdId) and AlertEvents.resolvedAt.isNull() }
-                    .firstOrNull()
-
-                if (triggered && openEvent == null) {
-                    val msg = "Node $nodeId: $metric at ${"%.1f".format(currentValue)}%"
-                    val eventId = AlertEvents.insert {
-                        it[AlertEvents.thresholdId] = thresholdId
-                        it[AlertEvents.firedAt] = now
-                        it[AlertEvents.message] = msg
-                    }[AlertEvents.id]
-                    result += AgentEvent.AlertFiredEvent(eventId.toString(), thresholdId.toString(), ScopeType.NODE.name, nodeId, metric, msg, now.toUtcString(), null)
-                }
-                else if (!triggered && openEvent != null) {
-                    val eventId = openEvent[AlertEvents.id]
-                    AlertEvents.update({ AlertEvents.id eq eventId }) { it[AlertEvents.resolvedAt] = now }
-                    val msg = "Node $nodeId: $metric normalised"
-                    result += AgentEvent.AlertFiredEvent(
-                        eventId.toString(),
-                        thresholdId.toString(),
-                        ScopeType.NODE.name,
-                        nodeId,
-                        metric,
-                        msg,
-                        openEvent[AlertEvents.firedAt].toUtcString(),
-                        now.toUtcString()
-                    )
-                }
-            }
-            result
-        }
-
-        notifications.forEach { _agentEvents.emit(it) }
-    }
-
-    private suspend fun evaluateServerAlerts(metrics: ContainerMetricsUpdate) {
-        val kotlinServerId = runCatching {
-            Uuid.parse(metrics.serverId)
-        }.getOrNull() ?: return
-        val now = Clock.System.now()
-            .toLocalDateTime(TimeZone.UTC)
-
-        val serverMemMb = transaction {
-            Servers.selectAll()
-                .where { Servers.id eq kotlinServerId }
-                .firstOrNull()
-                ?.get(Servers.memoryMb)
-        } ?: return
-
-        val metricValues = buildMap {
-            put("cpu_percent", metrics.cpuPercent)
-            if (serverMemMb > 0)
-                put("ram_percent", metrics.ramUsedMb.toDouble() / serverMemMb * 100.0)
-        }
-
-        val notifications = transaction {
-            val result = mutableListOf<AgentEvent.AlertFiredEvent>()
-            val thresholds = AlertThresholds.selectAll()
-                .where { (AlertThresholds.scopeType eq ScopeType.SERVER.name) and (AlertThresholds.scopeId eq kotlinServerId) and AlertThresholds.thresholdValue.isNotNull() }
-                .toList()
-
-            for (threshold in thresholds) {
-                val thresholdId = threshold[AlertThresholds.id]
-                val metric = threshold[AlertThresholds.metric]
-                val limitValue = threshold[AlertThresholds.thresholdValue] ?: continue
-                val currentValue = metricValues[metric] ?: continue
-                val triggered = currentValue > limitValue
-                val openEvent = AlertEvents.selectAll()
-                    .where { (AlertEvents.thresholdId eq thresholdId) and AlertEvents.resolvedAt.isNull() }
-                    .firstOrNull()
-
-                if (triggered && openEvent == null) {
-                    val msg = "Server ${metrics.serverId}: $metric at ${"%.1f".format(currentValue)}%"
-                    val eventId = AlertEvents.insert {
-                        it[AlertEvents.thresholdId] = thresholdId
-                        it[AlertEvents.firedAt] = now
-                        it[AlertEvents.message] = msg
-                    }[AlertEvents.id]
-                    result += AgentEvent.AlertFiredEvent(eventId.toString(), thresholdId.toString(), ScopeType.SERVER.name, metrics.serverId, metric, msg, now.toUtcString(), null)
-                }
-                else if (!triggered && openEvent != null) {
-                    val eventId = openEvent[AlertEvents.id]
-                    AlertEvents.update({ AlertEvents.id eq eventId }) { it[AlertEvents.resolvedAt] = now }
-                    val msg = "Server ${metrics.serverId}: $metric normalised"
-                    result += AgentEvent.AlertFiredEvent(
-                        eventId.toString(), thresholdId.toString(), ScopeType.SERVER.name,
-                        metrics.serverId, metric, msg,
-                        openEvent[AlertEvents.firedAt].toUtcString(), now.toUtcString()
-                    )
-                }
-            }
-            result
-        }
-
-        notifications.forEach { _agentEvents.emit(it) }
-    }
-
     // ── Utility ───────────────────────────────────────────────────────────────
 
     fun generateNodeKey(): String = CryptoUtils.generateToken(32)
@@ -896,13 +488,3 @@ class ControlServiceImpl(
                     .digest(input.toByteArray())
             )
 }
-
-fun mapContainerState(runState: ContainerState.RunState, dbStatus: ServerStatus): ServerStatus? = when {
-    runState == ContainerState.RunState.RUNNING && dbStatus != ServerStatus.HEALTHY  -> ServerStatus.HEALTHY
-    runState == ContainerState.RunState.STOPPED && dbStatus.isRunning                -> ServerStatus.STOPPED
-    runState == ContainerState.RunState.EXITED && dbStatus != ServerStatus.UNHEALTHY -> ServerStatus.UNHEALTHY
-    else                                                                             -> null
-}
-
-fun mapMissingContainer(dbStatus: ServerStatus): ServerStatus? =
-    if (dbStatus != ServerStatus.STOPPED) ServerStatus.STOPPED else null

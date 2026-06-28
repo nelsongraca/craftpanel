@@ -1,22 +1,14 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.auth.ScopeType
-import io.craftpanel.master.database.schema.AlertEvents
-import io.craftpanel.master.database.schema.AlertThresholds
-import io.craftpanel.master.database.schema.Nodes
-import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.service.repo.AlertRepository
+import io.craftpanel.master.service.repo.AlertEventRow
+import io.craftpanel.master.service.repo.AlertThresholdRow
+import io.craftpanel.master.service.repo.NodeRepository
+import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.core.SortOrder
-import org.jetbrains.exposed.v1.core.and
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.isNull
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
-import io.craftpanel.master.util.toUtcString
 
 @Serializable
 data class AlertThresholdResponse(
@@ -47,34 +39,15 @@ data class CreateAlertThresholdRequest(
     @SerialName("threshold_state") val thresholdState: String? = null,
 )
 
-class AlertService {
+class AlertService(
+    private val alertRepository: AlertRepository,
+    private val nodeRepository: NodeRepository,
+    private val serverRepository: ServerRepository,
+) {
 
     fun listThresholds(scopeType: String?, scopeId: kotlin.uuid.Uuid?): List<AlertThresholdResponse> =
-        transaction {
-            val query = AlertThresholds.selectAll()
-            when {
-                scopeType != null && scopeId != null ->
-                    query.where { (AlertThresholds.scopeType eq scopeType) and (AlertThresholds.scopeId eq scopeId) }
-
-                scopeType != null                    ->
-                    query.where { AlertThresholds.scopeType eq scopeType }
-
-                scopeId != null                      ->
-                    query.where { AlertThresholds.scopeId eq scopeId }
-
-                else                                 -> query
-            }.map { row ->
-                AlertThresholdResponse(
-                    id = row[AlertThresholds.id].toString(),
-                    scopeType = ScopeType.valueOf(row[AlertThresholds.scopeType]),
-                    scopeId = row[AlertThresholds.scopeId].toString(),
-                    metric = row[AlertThresholds.metric],
-                    thresholdValue = row[AlertThresholds.thresholdValue],
-                    thresholdState = row[AlertThresholds.thresholdState],
-                    createdAt = row[AlertThresholds.createdAt].toUtcString(),
-                )
-            }
-        }
+        alertRepository.listThresholds(scopeType, scopeId)
+            .map { it.toResponse() }
 
     fun createThreshold(req: CreateAlertThresholdRequest): AlertThresholdResponse {
         if ((req.thresholdValue == null) == (req.thresholdState == null))
@@ -85,83 +58,54 @@ class AlertService {
             Uuid.parse(req.scopeId)
         }.getOrNull()
             ?: throw UnprocessableException("Invalid scope_id")
-        // Validate scopeId references an existing entity of the given scope type
-        val scopeExists = transaction {
-            when (req.scopeType) {
-                ScopeType.NODE   -> Nodes.selectAll()
-                    .where { Nodes.id eq scopeKotlinId }
-                    .firstOrNull() != null
-
-                ScopeType.SERVER -> Servers.selectAll()
-                    .where { Servers.id eq scopeKotlinId }
-                    .firstOrNull() != null
-
-                else             -> false
-            }
+        val scopeExists = when (req.scopeType) {
+            ScopeType.NODE   -> nodeRepository.findById(scopeKotlinId) != null
+            ScopeType.SERVER -> serverRepository.findById(scopeKotlinId) != null
         }
         if (!scopeExists) throw UnprocessableException("scope_id does not reference an existing ${req.scopeType.name.lowercase()}")
-        return transaction {
-            val id = AlertThresholds.insert {
-                it[AlertThresholds.scopeType] = req.scopeType.name
-                it[AlertThresholds.scopeId] = scopeKotlinId
-                it[AlertThresholds.metric] = req.metric
-                it[AlertThresholds.thresholdValue] = req.thresholdValue
-                it[AlertThresholds.thresholdState] = req.thresholdState
-            }[AlertThresholds.id]
-            AlertThresholds.selectAll()
-                .where { AlertThresholds.id eq id }
-                .first()
-                .let { row ->
-                    AlertThresholdResponse(
-                        id = row[AlertThresholds.id].toString(),
-                        scopeType = ScopeType.valueOf(row[AlertThresholds.scopeType]),
-                        scopeId = row[AlertThresholds.scopeId].toString(),
-                        metric = row[AlertThresholds.metric],
-                        thresholdValue = row[AlertThresholds.thresholdValue],
-                        thresholdState = row[AlertThresholds.thresholdState],
-                        createdAt = row[AlertThresholds.createdAt].toUtcString(),
-                    )
-                }
-        }
+        return alertRepository.createThreshold(
+            scopeType = req.scopeType.name,
+            scopeId = scopeKotlinId,
+            metric = req.metric,
+            thresholdValue = req.thresholdValue,
+            thresholdState = req.thresholdState,
+        )
+            .toResponse()
     }
 
     fun deleteThreshold(id: kotlin.uuid.Uuid) {
-        val deleted = transaction {
-            AlertEvents.deleteWhere { AlertEvents.thresholdId eq id }
-            AlertThresholds.deleteWhere { AlertThresholds.id eq id }
-        }
-        if (deleted == 0) throw NotFoundException("Threshold not found")
+        if (alertRepository.findThresholdById(id) == null) throw NotFoundException("Threshold not found")
+        alertRepository.deleteThreshold(id)
     }
 
-    fun listEvents(scopeType: String?, scopeId: kotlin.uuid.Uuid?, activeOnly: Boolean): List<AlertEventResponse> =
-        transaction {
-            val query = (AlertEvents innerJoin AlertThresholds).selectAll()
-            when {
-                scopeType != null && scopeId != null && activeOnly ->
-                    query.where { (AlertThresholds.scopeType eq scopeType) and (AlertThresholds.scopeId eq scopeId) and AlertEvents.resolvedAt.isNull() }
-
-                scopeType != null && scopeId != null               ->
-                    query.where { (AlertThresholds.scopeType eq scopeType) and (AlertThresholds.scopeId eq scopeId) }
-
-                scopeType != null && activeOnly                    ->
-                    query.where { (AlertThresholds.scopeType eq scopeType) and AlertEvents.resolvedAt.isNull() }
-
-                scopeId != null && activeOnly                      ->
-                    query.where { (AlertThresholds.scopeId eq scopeId) and AlertEvents.resolvedAt.isNull() }
-
-                scopeType != null                                  -> query.where { AlertThresholds.scopeType eq scopeType }
-                scopeId != null                                    -> query.where { AlertThresholds.scopeId eq scopeId }
-                activeOnly                                         -> query.where { AlertEvents.resolvedAt.isNull() }
-                else                                               -> query
-            }.orderBy(AlertEvents.firedAt, SortOrder.DESC)
-                .map { row ->
-                    AlertEventResponse(
-                        id = row[AlertEvents.id].toString(),
-                        thresholdId = row[AlertEvents.thresholdId].toString(),
-                        message = row[AlertEvents.message],
-                        firedAt = row[AlertEvents.firedAt].toUtcString(),
-                        resolvedAt = row[AlertEvents.resolvedAt]?.toUtcString(),
-                    )
-                }
+    fun listEvents(scopeType: String?, scopeId: kotlin.uuid.Uuid?, activeOnly: Boolean): List<AlertEventResponse> {
+        val thresholdIds = if (scopeType != null || scopeId != null) {
+            val thresholds = alertRepository.listThresholds(scopeType, scopeId)
+            thresholds.map { it.id }
+                .takeIf { it.isNotEmpty() } ?: return emptyList()
         }
+        else {
+            null
+        }
+        return alertRepository.listEvents(thresholdIds, activeOnly)
+            .map { it.toResponse() }
+    }
 }
+
+private fun AlertThresholdRow.toResponse() = AlertThresholdResponse(
+    id = id.toString(),
+    scopeType = ScopeType.valueOf(scopeType),
+    scopeId = scopeId.toString(),
+    metric = metric,
+    thresholdValue = thresholdValue,
+    thresholdState = thresholdState,
+    createdAt = createdAt,
+)
+
+private fun AlertEventRow.toResponse() = AlertEventResponse(
+    id = id.toString(),
+    thresholdId = thresholdId.toString(),
+    message = message,
+    firedAt = firedAt,
+    resolvedAt = resolvedAt,
+)

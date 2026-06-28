@@ -2,24 +2,16 @@ package io.craftpanel.master.service
 
 import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.shutdownCommand
-import io.craftpanel.master.database.schema.NodeMetrics
-import io.craftpanel.master.database.schema.Nodes
-import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.NodeStatus
+import io.craftpanel.master.service.repo.NodeRepository
+import io.craftpanel.master.service.repo.NodeRow
+import io.craftpanel.master.service.repo.ServerRepository
+import io.craftpanel.master.util.CryptoUtils
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.core.SortOrder
-import org.jetbrains.exposed.v1.core.and
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
 import java.security.MessageDigest
 import java.util.HexFormat
-import io.craftpanel.master.util.CryptoUtils
-import io.craftpanel.master.util.toUtcString
 
 @Serializable
 data class NodeResponse(
@@ -62,173 +54,113 @@ data class NodeMetricsResponse(
     @SerialName("disk_total_bytes") val diskTotalBytes: List<Long>,
 )
 
-class NodeService(private val gateway: AgentGateway) {
+class NodeService(
+    private val gateway: AgentGateway,
+    private val nodeRepository: NodeRepository,
+    private val serverRepository: ServerRepository,
+) {
 
-    fun listNodes(): List<NodeResponse> = transaction {
-        Nodes.selectAll()
-            .map { row ->
-                row.toNodeResponse(allocationsForNode(row[Nodes.id]))
+    fun listNodes(): List<NodeResponse> {
+        return nodeRepository.listAll()
+            .map { node ->
+                val ram = nodeRepository.calculateAllocatedRam(node.id)
+                val cpu = nodeRepository.calculateAllocatedCpu(node.id)
+                node.toNodeResponse(ram, cpu)
             }
     }
 
-    fun getNode(id: kotlin.uuid.Uuid): NodeResponse =
-        transaction {
-            Nodes.selectAll()
-                .where { Nodes.id eq id }
-                .firstOrNull()
-                ?.toNodeResponse(allocationsForNode(id))
-        } ?: throw NotFoundException("Node not found")
+    fun getNode(id: kotlin.uuid.Uuid): NodeResponse {
+        val node = nodeRepository.findById(id) ?: throw NotFoundException("Node not found")
+        val ram = nodeRepository.calculateAllocatedRam(id)
+        val cpu = nodeRepository.calculateAllocatedCpu(id)
+        return node.toNodeResponse(ram, cpu)
+    }
 
     fun trustNode(id: kotlin.uuid.Uuid) {
-        transaction {
-            val node = Nodes.selectAll()
-                .where { Nodes.id eq id }
-                .firstOrNull()
-                ?: throw NotFoundException("Node not found")
-            if (node[Nodes.status] == "ACTIVE") throw ConflictException("Node is already active")
-            Nodes.update({ Nodes.id eq id }) {
-                it[status] = "ACTIVE"
-                it[Nodes.health] = "UNREACHABLE"
-            }
-        }
+        val node = nodeRepository.findById(id) ?: throw NotFoundException("Node not found")
+        if (node.status == "ACTIVE") throw ConflictException("Node is already active")
+        nodeRepository.updateStatus(id, "ACTIVE")
+        nodeRepository.updateHealth(id, "UNREACHABLE")
     }
 
     fun rejectNode(id: kotlin.uuid.Uuid) {
-        transaction {
-            val node = Nodes.selectAll()
-                .where { Nodes.id eq id }
-                .firstOrNull() ?: throw NotFoundException("Node not found")
-            if (node[Nodes.status] == "ACTIVE") throw ConflictException("Cannot reject an active node")
-            Nodes.update({ Nodes.id eq id }) { it[status] = "REJECTED" }
-        }
+        val node = nodeRepository.findById(id) ?: throw NotFoundException("Node not found")
+        if (node.status == "ACTIVE") throw ConflictException("Cannot reject an active node")
+        nodeRepository.updateStatus(id, "REJECTED")
     }
 
     fun rotateToken(id: kotlin.uuid.Uuid): String {
-        val (rawKey, updated) = transaction {
-            val exists = Nodes.selectAll()
-                .where { Nodes.id eq id }
-                .firstOrNull() != null
-            if (!exists) return@transaction null to 0
-            val raw = generateNodeKey()
-            val hash = sha256Hex(raw)
-            val rows = Nodes.update({ Nodes.id eq id }) { it[tokenHash] = hash }
-            raw to rows
-        }
-        if (updated == 0) throw NotFoundException("Node not found")
-        return rawKey!!
+        if (nodeRepository.findById(id) == null) throw NotFoundException("Node not found")
+        val raw = generateNodeKey()
+        val hash = sha256Hex(raw)
+        nodeRepository.updateTokenHash(id, hash)
+        return raw
     }
 
     fun shutdownNode(id: kotlin.uuid.Uuid) {
-        val exists = transaction {
-            Nodes.selectAll()
-                .where { Nodes.id eq id }
-                .firstOrNull() != null
-        }
-        if (!exists) throw NotFoundException("Node not found")
+        if (nodeRepository.findById(id) == null) throw NotFoundException("Node not found")
         val msg = masterMessage { shutdown = shutdownCommand { timeoutSeconds = 30 } }
         if (!gateway.sendToNode(id.toString(), msg)) throw BadGatewayException("Agent not connected")
     }
 
     fun updateNode(id: kotlin.uuid.Uuid, req: PatchNodeRequest) {
-        val result = transaction {
-            val current = Nodes.selectAll()
-                .where { Nodes.id eq id }
-                .firstOrNull()
-                ?: return@transaction null
-            val newStart = req.portRangeStart ?: current[Nodes.portRangeStart]
-            val newEnd = req.portRangeEnd ?: current[Nodes.portRangeEnd]
-            if (newStart >= newEnd) return@transaction "Port range start must be less than end"
-            Nodes.update({ Nodes.id eq id }) {
-                if (req.displayName != null) it[displayName] = req.displayName
-                it[portRangeStart] = newStart
-                it[portRangeEnd] = newEnd
-            }
-            "ok"
-        }
-        when (result) {
-            null -> throw NotFoundException("Node not found")
-            "ok" -> Unit
-            else -> throw UnprocessableException(result)
-        }
+        val node = nodeRepository.findById(id) ?: throw NotFoundException("Node not found")
+        val newStart = req.portRangeStart ?: node.portRangeStart
+        val newEnd = req.portRangeEnd ?: node.portRangeEnd
+        if (newStart >= newEnd) throw UnprocessableException("Port range start must be less than end")
+        nodeRepository.update(id, req.displayName, newStart, newEnd)
     }
 
     fun decommissionNode(id: kotlin.uuid.Uuid) {
-        transaction {
-            val node = Nodes.selectAll()
-                .where { Nodes.id eq id }
-                .firstOrNull() ?: throw NotFoundException("Node not found")
-            if (node[Nodes.status] != "ACTIVE" && node[Nodes.status] != "PENDING") throw ConflictException("Node cannot be decommissioned")
-            val activeServers = Servers.selectAll()
-                .where { (Servers.nodeId eq id) and (Servers.status inList listOf("HEALTHY", "STARTING", "STOPPING")) }
-                .count()
-            if (activeServers > 0) throw ConflictException("Node has active servers")
-            Nodes.update({ Nodes.id eq id }) { it[status] = "DECOMMISSIONED" }
-        }
+        val node = nodeRepository.findById(id) ?: throw NotFoundException("Node not found")
+        if (node.status != "ACTIVE" && node.status != "PENDING") throw ConflictException("Node cannot be decommissioned")
+        if (serverRepository.countByNodeId(id) > 0) throw ConflictException("Node has active servers")
+        nodeRepository.markDecommissioned(id)
     }
 
     fun getNodeMetrics(id: kotlin.uuid.Uuid, limit: Int): NodeMetricsResponse {
-        val exists = transaction {
-            Nodes.selectAll()
-                .where { Nodes.id eq id }
-                .firstOrNull() != null
-        }
-        if (!exists) throw NotFoundException("Node not found")
-        val metrics = transaction {
-            NodeMetrics.selectAll()
-                .where { NodeMetrics.nodeId eq id }
-                .orderBy(NodeMetrics.recordedAt, SortOrder.DESC)
-                .limit(limit)
-                .toList()
-                .reversed()
-        }
+        if (nodeRepository.findById(id) == null) throw NotFoundException("Node not found")
+        val metrics = nodeRepository.getMetrics(id, limit)
+            .reversed()
         return NodeMetricsResponse(
-            timestamps = metrics.map { it[NodeMetrics.recordedAt].toUtcString() },
-            cpuPercent = metrics.map { it[NodeMetrics.cpuPercent] },
-            ramUsedMb = metrics.map { it[NodeMetrics.ramUsedMb] },
-            ramTotalMb = metrics.map { it[NodeMetrics.ramTotalMb] },
-            netInBytes = metrics.map { it[NodeMetrics.netInBytes] },
-            netOutBytes = metrics.map { it[NodeMetrics.netOutBytes] },
-            diskUsedBytes = metrics.map { it[NodeMetrics.diskUsedBytes] },
-            diskTotalBytes = metrics.map { it[NodeMetrics.diskTotalBytes] },
+            timestamps = metrics.map { it.recordedAt },
+            cpuPercent = metrics.map { it.cpuPercent },
+            ramUsedMb = metrics.map { it.ramUsedMb },
+            ramTotalMb = metrics.map { it.ramTotalMb },
+            netInBytes = metrics.map { it.netInBytes },
+            netOutBytes = metrics.map { it.netOutBytes },
+            diskUsedBytes = metrics.map { it.diskUsedBytes },
+            diskTotalBytes = metrics.map { it.diskTotalBytes },
         )
     }
 }
 
-private data class NodeAllocations(val ramMb: Int, val cpuShares: Int)
-
-private fun allocationsForNode(nodeKotlinId: kotlin.uuid.Uuid): NodeAllocations {
-    val rows = Servers.selectAll()
-        .where { Servers.nodeId eq nodeKotlinId }
-    var ram = 0
-    var cpu = 0
-    for (row in rows) {
-        ram += row[Servers.memoryMb]; cpu += row[Servers.cpuShares]
-    }
-    return NodeAllocations(ram, cpu)
-}
-
-private fun org.jetbrains.exposed.v1.core.ResultRow.toNodeResponse(alloc: NodeAllocations) = NodeResponse(
-    id = this[Nodes.id].toString(),
-    displayName = this[Nodes.displayName],
-    hostname = this[Nodes.hostname],
-    publicIp = this[Nodes.publicIp],
-    privateIp = this[Nodes.privateIp],
-    status = NodeStatus.fromDb(this[Nodes.status]),
-    health = NodeHealth.valueOf(this[Nodes.health]),
-    totalRamMb = this[Nodes.totalRamMb],
-    totalCpuShares = this[Nodes.totalCpuShares],
-    allocatedRamMb = alloc.ramMb,
-    allocatedCpuShares = alloc.cpuShares,
-    systemRamUsedMb = this[Nodes.systemRamUsedMb],
-    portRangeStart = this[Nodes.portRangeStart],
-    portRangeEnd = this[Nodes.portRangeEnd],
-    agentVersion = this[Nodes.agentVersion],
-    lastSeenAt = this[Nodes.lastSeenAt]?.toUtcString(),
-    createdAt = this[Nodes.createdAt].toUtcString(),
-    updatedAt = this[Nodes.updatedAt].toUtcString(),
+private fun NodeRow.toNodeResponse(allocatedRamMb: Int, allocatedCpuShares: Int) = NodeResponse(
+    id = id.toString(),
+    displayName = displayName,
+    hostname = hostname,
+    publicIp = publicIp,
+    privateIp = privateIp,
+    status = NodeStatus.fromDb(status),
+    health = NodeHealth.valueOf(health),
+    totalRamMb = totalRamMb,
+    totalCpuShares = totalCpuShares,
+    allocatedRamMb = allocatedRamMb,
+    allocatedCpuShares = allocatedCpuShares,
+    systemRamUsedMb = systemRamUsedMb,
+    portRangeStart = portRangeStart,
+    portRangeEnd = portRangeEnd,
+    agentVersion = agentVersion,
+    lastSeenAt = lastSeenAt,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
 )
 
 private fun generateNodeKey(): String = CryptoUtils.generateToken(32)
 
 private fun sha256Hex(input: String): String =
-    HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(input.toByteArray()))
+    HexFormat.of()
+        .formatHex(
+            MessageDigest.getInstance("SHA-256")
+                .digest(input.toByteArray())
+        )

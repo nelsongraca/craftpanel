@@ -17,6 +17,7 @@ import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.SystemService
+import io.craftpanel.master.service.repo.SettingsRepositoryImpl
 import io.craftpanel.master.service.BadGatewayException
 import io.craftpanel.master.service.BadRequestException
 import io.craftpanel.master.service.ConflictException
@@ -88,7 +89,7 @@ fun Application.module() {
         transaction { seedAdminUser(appConfig.adminSeed.email, appConfig.adminSeed.password, appConfig.adminSeed.username) }
     }
 
-    val startupSettings = SystemService().getSettings().settings
+    val startupSettings = SystemService(settingsRepository = SettingsRepositoryImpl()).getSettings().settings
 
     val appScope: CoroutineScope = this
     val dnsProvider: DnsProvider? = DnsProviderFactory.create(appConfig.dns)

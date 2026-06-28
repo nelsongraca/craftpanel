@@ -9,6 +9,10 @@ import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.service.*
+import io.craftpanel.master.service.repo.GroupRepositoryImpl
+import io.craftpanel.master.service.repo.NetworkRepositoryImpl
+import io.craftpanel.master.service.repo.ServerRepositoryImpl
+import io.craftpanel.master.service.repo.UserRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -69,7 +73,16 @@ class AssignmentsRoutesTest : FunSpec({
                 }
             }
         }
-        routing { assignmentsRoutes(AssignmentService()) }
+        routing {
+            assignmentsRoutes(
+                AssignmentService(
+                    userRepository = UserRepositoryImpl(),
+                    groupRepository = GroupRepositoryImpl(),
+                    serverRepository = ServerRepositoryImpl(),
+                    networkRepository = NetworkRepositoryImpl(),
+                )
+            )
+        }
     }
 
     fun ApplicationTestBuilder.jsonClient() = createClient {

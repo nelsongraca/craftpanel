@@ -4,6 +4,9 @@ import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.service.NodeStateReconciler
+import io.craftpanel.master.service.repo.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.craftpanel.master.routes.dto.FileEntryResponse
 import io.craftpanel.master.routes.dto.ListFilesResponse
 import io.craftpanel.master.routes.dto.ReadFileResponse
@@ -23,7 +26,7 @@ class DataServiceProxyTest : FunSpec({
     beforeTest {
         TestDatabase.initIfNeeded()
         TestDatabase.reset()
-        controlSvc = ControlServiceImpl(NodeConfig("test-token", 50052))
+        controlSvc = ControlServiceImpl(NodeConfig("test-token", 50052), NodeStateReconciler(ServerRepositoryImpl(), NodeRepositoryImpl()))
         proxy = DataServiceProxy(controlSvc, BulkDataServiceImpl(controlSvc))
     }
 
@@ -57,7 +60,10 @@ class DataServiceProxyTest : FunSpec({
 
     test("listFiles throws for unknown serverId") {
         shouldThrow<IllegalStateException> {
-            proxy.listFiles(Uuid.random().toString(), "/")
+            proxy.listFiles(
+                Uuid.random()
+                    .toString(), "/"
+            )
         }
     }
 

@@ -19,10 +19,25 @@ import io.craftpanel.master.service.MigrationService
 import io.craftpanel.master.service.ModService
 import io.craftpanel.master.service.NetworkService
 import io.craftpanel.master.service.NodeService
+import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.master.service.ProxyBackendService
 import io.craftpanel.master.service.ServerService
 import io.craftpanel.master.service.SystemService
 import io.craftpanel.master.service.UserService
+import io.craftpanel.master.service.repo.AlertRepository
+import io.craftpanel.master.service.repo.AlertRepositoryImpl
+import io.craftpanel.master.service.repo.GroupRepository
+import io.craftpanel.master.service.repo.GroupRepositoryImpl
+import io.craftpanel.master.service.repo.NetworkRepository
+import io.craftpanel.master.service.repo.NetworkRepositoryImpl
+import io.craftpanel.master.service.repo.NodeRepository
+import io.craftpanel.master.service.repo.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.ServerRepository
+import io.craftpanel.master.service.repo.ServerRepositoryImpl
+import io.craftpanel.master.service.repo.SettingsRepository
+import io.craftpanel.master.service.repo.SettingsRepositoryImpl
+import io.craftpanel.master.service.repo.UserRepository
+import io.craftpanel.master.service.repo.UserRepositoryImpl
 import io.github.smiley4.ktoropenapi.OpenApi
 import io.github.smiley4.ktoropenapi.config.AuthScheme
 import io.github.smiley4.ktoropenapi.config.AuthType
@@ -86,101 +101,128 @@ class OpenApiSpecTask : FunSpec({
 
             testApplication {
                 application {
-                install(KoinIsolated) {
-                    modules(
-                        module {
-                            single { stubAppConfig }
-                            single { jwtConfig }
-                            single { JwtManager(jwtConfig) }
-                            single { RefreshTokenService() }
-                            single { WsTicketService() }
-                            single { ControlServiceImpl(NodeConfig(bootstrapToken = "test", agentDataPort = 50052)) }
-                            single { BulkDataServiceImpl(get()) }
-                            single { DataServiceProxy(get(), get()) }
-                            single { ModService() }
-                            single { NodeService(noopGateway) }
-                            single { NetworkService() }
-                            single { UserService() }
-                            single { GroupService() }
-                            single { AssignmentService() }
-                            single { SystemService() }
-                            single { AlertService() }
-                            single {
-                                ContainerLifecycle(
-                                    gateway = noopGateway,
-                                    modService = get(),
-                                )
+                    install(KoinIsolated) {
+                        modules(
+                            module {
+                                single { stubAppConfig }
+                                single { jwtConfig }
+                                single { JwtManager(jwtConfig) }
+                                single { RefreshTokenService() }
+                                single { WsTicketService() }
+                                single { ControlServiceImpl(NodeConfig(bootstrapToken = "test", agentDataPort = 50052), NodeStateReconciler(ServerRepositoryImpl(), NodeRepositoryImpl())) }
+                                single { BulkDataServiceImpl(get()) }
+                                single { DataServiceProxy(get(), get()) }
+                                single<NodeRepository> { NodeRepositoryImpl() }
+                                single<AlertRepository> { AlertRepositoryImpl() }
+                                single<ServerRepository> { ServerRepositoryImpl() }
+                                single<NetworkRepository> { NetworkRepositoryImpl() }
+                                single<GroupRepository> { GroupRepositoryImpl() }
+                                single<UserRepository> { UserRepositoryImpl() }
+                                single<SettingsRepository> { SettingsRepositoryImpl() }
+                                single { ModService(get()) }
+                                single { NodeService(noopGateway, get(), get()) }
+                                single {
+                                    NetworkService(
+                                        networkRepository = get(),
+                                        serverRepository = get(),
+                                        nodeRepository = get(),
+                                        userRepository = get(),
+                                        groupRepository = get(),
+                                    )
+                                }
+                                single { UserService(userRepository = get()) }
+                                single { GroupService(groupRepository = get()) }
+                                single { AssignmentService(userRepository = get(), groupRepository = get(), serverRepository = get(), networkRepository = get()) }
+                                single { SystemService(settingsRepository = get()) }
+                                single { AlertService(get(), get(), get()) }
+                                single {
+                                    ContainerLifecycle(
+                                        gateway = noopGateway,
+                                        modService = get(),
+                                        serverRepository = get(),
+                                    )
+                                }
+                                single {
+                                    ServerService(
+                                        gateway = noopGateway,
+                                        modService = get(),
+                                        lifecycle = get(),
+                                        serverRepository = get(),
+                                        nodeRepository = get(),
+                                        networkRepository = get(),
+                                        userRepository = get(),
+                                        groupRepository = get(),
+                                        settingsRepository = get(),
+                                    )
+                                }
+                                single { BackupService(noopGateway, get(), get()) }
+                                single { ProxyBackendService(get()) }
+                                single { EnvVarsService(get()) }
+                                single {
+                                    MigrationService(
+                                        serverRepository = get(),
+                                        nodeRepository = get(),
+                                        networkRepository = get(),
+                                        gateway = noopGateway,
+                                        dnsProvider = null,
+                                        scope = migrationScope,
+                                        lifecycle = get(),
+                                    )
+                                }
                             }
-                            single {
-                                ServerService(
-                                    gateway = noopGateway,
-                                    modService = get(),
-                                )
+                        )
+                    }
+                    install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+                    install(WebSockets)
+                    install(RateLimit) {
+                        register(RateLimitName("auth-login")) { rateLimiter(limit = 100, refillPeriod = kotlin.time.Duration.INFINITE) }
+                        register(RateLimitName("auth-refresh")) { rateLimiter(limit = 100, refillPeriod = kotlin.time.Duration.INFINITE) }
+                    }
+                    install(OpenApi) {
+                        ignoredRouteSelectors += RateLimitRouteSelector::class
+                        info {
+                            title = "CraftPanel API"
+                            version = "1.0.0"
+                            description = "CraftPanel master REST API"
+                        }
+                        server { url = "http://localhost:8080" }
+                        security {
+                            securityScheme("BearerAuth") {
+                                type = AuthType.HTTP
+                                scheme = AuthScheme.BEARER
                             }
-                            single { BackupService(noopGateway, get()) }
-                            single { ProxyBackendService() }
-                            single { EnvVarsService() }
-                            single {
-                                MigrationService(
-                                    gateway = noopGateway,
-                                    dnsProvider = null,
-                                    scope = migrationScope,
-                                    lifecycle = get(),
-                                )
+                            defaultSecuritySchemeNames("BearerAuth")
+                        }
+                        schemas { generator = SchemaGenerator.kotlinx { referencePath = RefType.OPENAPI_SIMPLE } }
+                    }
+                    install(Authentication) {
+                        jwt("auth-jwt") {
+                            realm = "CraftPanel"
+                            verifier(JwtManager(jwtConfig).verifier)
+                            validate { credential ->
+                                if (credential.payload.subject != null) JWTPrincipal(credential.payload) else null
+                            }
+                            challenge { _, _ ->
+                                call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Unauthorized"))
                             }
                         }
-                    )
-                }
-                install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
-                install(WebSockets)
-                install(RateLimit) {
-                    register(RateLimitName("auth-login")) { rateLimiter(limit = 100, refillPeriod = kotlin.time.Duration.INFINITE) }
-                    register(RateLimitName("auth-refresh")) { rateLimiter(limit = 100, refillPeriod = kotlin.time.Duration.INFINITE) }
-                }
-                install(OpenApi) {
-                    ignoredRouteSelectors += RateLimitRouteSelector::class
-                    info {
-                        title = "CraftPanel API"
-                        version = "1.0.0"
-                        description = "CraftPanel master REST API"
                     }
-                    server { url = "http://localhost:8080" }
-                    security {
-                        securityScheme("BearerAuth") {
-                            type = AuthType.HTTP
-                            scheme = AuthScheme.BEARER
-                        }
-                        defaultSecuritySchemeNames("BearerAuth")
-                    }
-                    schemas { generator = SchemaGenerator.kotlinx { referencePath = RefType.OPENAPI_SIMPLE } }
-                }
-                install(Authentication) {
-                    jwt("auth-jwt") {
-                        realm = "CraftPanel"
-                        verifier(JwtManager(jwtConfig).verifier)
-                        validate { credential ->
-                            if (credential.payload.subject != null) JWTPrincipal(credential.payload) else null
-                        }
-                        challenge { _, _ ->
-                            call.respond(HttpStatusCode.Unauthorized, mapOf("error" to "Unauthorized"))
-                        }
+                    routing {
+                        route("openapi.json") { openApi() }
+                        registerAppRoutes()
                     }
                 }
-                routing {
-                    route("openapi.json") { openApi() }
-                    registerAppRoutes()
-                }
-            }
 
-            val spec = client.get("/openapi.json")
-                .bodyAsText()
-            val output = System.getProperty("openapi.output")
-                ?: error("System property 'openapi.output' not set — run via :master:generateOpenApiSpec")
-            val outputFile = File(output)
-            outputFile.parentFile.mkdirs()
-            outputFile.writeText(spec)
+                val spec = client.get("/openapi.json")
+                    .bodyAsText()
+                val output = System.getProperty("openapi.output")
+                    ?: error("System property 'openapi.output' not set — run via :master:generateOpenApiSpec")
+                val outputFile = File(output)
+                outputFile.parentFile.mkdirs()
+                outputFile.writeText(spec)
             }
-        } finally {
+        }
+        finally {
             migrationScope.cancel()
         }
     }

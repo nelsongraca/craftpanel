@@ -9,6 +9,7 @@ import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.service.*
+import io.craftpanel.master.service.repo.GroupRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -72,7 +73,7 @@ class GroupsRoutesTest : FunSpec({
                 }
             }
         }
-        routing { groupsRoutes(GroupService()) }
+        routing { groupsRoutes(GroupService(GroupRepositoryImpl())) }
     }
 
     fun ApplicationTestBuilder.jsonClient() = createClient {
