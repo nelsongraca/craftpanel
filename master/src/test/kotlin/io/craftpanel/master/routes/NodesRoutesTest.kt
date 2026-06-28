@@ -7,6 +7,8 @@ import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
+import io.craftpanel.master.service.repo.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.craftpanel.master.service.*
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -75,7 +77,7 @@ class NodesRoutesTest : FunSpec({
                 }
             }
         }
-        routing { nodesRoutes(NodeService(gateway)) }
+        routing { nodesRoutes(NodeService(gateway, NodeRepositoryImpl(), ServerRepositoryImpl())) }
     }
 
     fun ApplicationTestBuilder.jsonClient() = createClient {

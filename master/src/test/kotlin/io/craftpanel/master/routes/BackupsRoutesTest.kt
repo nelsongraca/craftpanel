@@ -12,6 +12,8 @@ import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.service.*
+import io.craftpanel.master.service.repo.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.ktor.client.call.*
@@ -50,7 +52,7 @@ class BackupsRoutesTest : FunSpec({
         expirySeconds = 900,
     )
     val jwtManager = JwtManager(jwtConfig)
-    val noopControlSvc = ControlServiceImpl(NodeConfig("test-token", 50052))
+    val noopControlSvc = ControlServiceImpl(NodeConfig("test-token", 50052), NodeStateReconciler(ServerRepositoryImpl(), NodeRepositoryImpl()))
     val noopProxy = DataServiceProxy(noopControlSvc, BulkDataServiceImpl(noopControlSvc))
     val noopGateway = TestAgentGateway()
 
@@ -81,7 +83,7 @@ class BackupsRoutesTest : FunSpec({
                 }
             }
         }
-        routing { backupsRoutes(BackupService(noopGateway, noopProxy)) }
+        routing { backupsRoutes(BackupService(noopGateway, noopProxy, ServerRepositoryImpl())) }
     }
 
     fun ApplicationTestBuilder.jsonClient() = createClient {

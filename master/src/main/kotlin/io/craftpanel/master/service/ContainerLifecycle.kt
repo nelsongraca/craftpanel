@@ -1,10 +1,10 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.config.ImagesConfig
-import io.craftpanel.master.database.schema.ServerEnvVars
-import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.ServerStatus
+import io.craftpanel.master.service.repo.ServerRepository
+import io.craftpanel.master.service.repo.ServerRow
 import io.craftpanel.proto.MasterMessage
 import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.removeContainerCommand
@@ -16,12 +16,6 @@ import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.yield
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
-import org.jetbrains.exposed.v1.core.*
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -30,6 +24,7 @@ import kotlin.uuid.Uuid
 class ContainerLifecycle(
     private val gateway: AgentGateway,
     private val modService: ModService,
+    private val serverRepository: ServerRepository,
     private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
     private val containerNamePrefix: String = "craftpanel",
     private val clock: Clock = Clock.System,
@@ -40,24 +35,24 @@ class ContainerLifecycle(
 
     // ── Fire-and-forget (used by ServerService route handlers) ────────────────
 
-    fun sendStart(server: ResultRow, needsRecreate: Boolean, publicHostname: String? = null, nodeId: String = server[Servers.nodeId].toString()) {
+    fun sendStart(server: ServerRow, needsRecreate: Boolean, publicHostname: String? = null, nodeId: String = server.nodeId.toString()) {
         sendOrThrow(nodeId, buildStartMessage(server, needsRecreate, publicHostname, nodeId))
     }
 
-    fun sendStop(server: ResultRow, nodeId: String) {
-        val id = server[Servers.id]
+    fun sendStop(server: ServerRow, nodeId: String) {
+        val id = server.id
         sendOrThrow(nodeId, masterMessage {
             stopContainer = stopContainerCommand {
                 serverId = id.toString()
                 containerName = "$containerNamePrefix-$id"
                 timeoutSeconds = 30
-                stopCommand = server[Servers.stopCommand]
+                stopCommand = server.stopCommand
             }
         })
     }
 
-    fun sendRemove(server: ResultRow, nodeId: String, force: Boolean = false) {
-        val id = server[Servers.id]
+    fun sendRemove(server: ServerRow, nodeId: String, force: Boolean = false) {
+        val id = server.id
         sendOrThrow(nodeId, masterMessage {
             removeContainer = removeContainerCommand {
                 serverId = id.toString()
@@ -69,8 +64,8 @@ class ContainerLifecycle(
 
     // ── Public compound operations (with await, used by MigrationService) ─────
 
-    suspend fun start(server: ResultRow, needsRecreate: Boolean, publicHostname: String? = null, nodeId: String = server[Servers.nodeId].toString()) {
-        val id = server[Servers.id]
+    suspend fun start(server: ServerRow, needsRecreate: Boolean, publicHostname: String? = null, nodeId: String = server.nodeId.toString()) {
+        val id = server.id
         awaitStatus(id.toString(), ServerStatus.HEALTHY, startTimeout) {
             sendStart(server, needsRecreate, publicHostname, nodeId)
         }
@@ -79,15 +74,15 @@ class ContainerLifecycle(
 
     // ── Public primitives (used by MigrationService for cross-node relocation) ─
 
-    suspend fun stop(server: ResultRow, nodeId: String) {
-        val id = server[Servers.id]
+    suspend fun stop(server: ServerRow, nodeId: String) {
+        val id = server.id
         awaitStatus(id.toString(), ServerStatus.STOPPED, stopTimeout) {
             sendStop(server, nodeId)
         }
     }
 
-    suspend fun remove(server: ResultRow, nodeId: String, force: Boolean = false) {
-        val id = server[Servers.id]
+    suspend fun remove(server: ServerRow, nodeId: String, force: Boolean = false) {
+        val id = server.id
         awaitStatus(id.toString(), ServerStatus.STOPPED, removeTimeout) {
             sendRemove(server, nodeId, force)
         }
@@ -95,45 +90,40 @@ class ContainerLifecycle(
 
     // ── Build helpers ─────────────────────────────────────────────────────────
 
-    fun buildStartMessage(server: ResultRow, needsRecreate: Boolean, publicHostname: String? = null, nodeId: String = server[Servers.nodeId].toString()): MasterMessage {
-        val id = server[Servers.id]
-        val image = deriveImage(server[Servers.serverType], server[Servers.itzgImageTag])
-        val allVars = buildAllVars(id, server)
-        // Always provide a routing hostname so mc-router can label the container and
-        // the agent's MetricsCollector can ping it for player-count collection.
-        val resolvedHostname = publicHostname ?: server[Servers.dnsRecordName] ?: "$id.mc.internal"
+    fun buildStartMessage(server: ServerRow, needsRecreate: Boolean, publicHostname: String? = null, nodeId: String = server.nodeId.toString()): MasterMessage {
+        val id = server.id
+        val image = deriveImage(server.serverType, server.itzgImageTag)
+        val allVars = buildAllVars(server)
+        val resolvedHostname = publicHostname ?: server.dnsRecordName ?: "$id.mc.internal"
         return masterMessage {
             startContainer = startContainerCommand {
                 serverId = id.toString()
                 containerName = "$containerNamePrefix-$id"
-                stopCommand = server[Servers.stopCommand]
+                stopCommand = server.stopCommand
                 this.needsRecreate = needsRecreate
                 this.image = image
                 envVars.putAll(allVars)
                 this.publicHostname = resolvedHostname
-                hostPort = server[Servers.hostPort]
-                memoryMb = server[Servers.memoryMb]
-                cpuShares = server[Servers.cpuShares]
-                dockerNetwork = server[Servers.networkId]
+                hostPort = server.hostPort
+                memoryMb = server.memoryMb
+                cpuShares = server.cpuShares
+                dockerNetwork = server.networkId
                     ?.let { "$containerNamePrefix-net-$it" }
                     ?: "$containerNamePrefix-server-$id"
             }
         }
     }
 
-    fun buildAllVars(id: Uuid, server: ResultRow): Map<String, String> {
-        val serverType = server[Servers.serverType]
+    private fun buildAllVars(server: ServerRow): Map<String, String> {
+        val id = server.id
         val modrinthProjects = modService.buildModrinthEnvVar(id)
-        val dbEnvVars = transaction {
-            ServerEnvVars.selectAll()
-                .where { ServerEnvVars.serverId eq id }
-                .associate { it[ServerEnvVars.key] to it[ServerEnvVars.value] }
-        }
+        val dbEnvVars = serverRepository.getEnvVars(id)
+            .associate { it.key to it.value }
         val systemVars = buildMap {
             put("EULA", "TRUE")
-            put("TYPE", serverType)
-            put("VERSION", server[Servers.mcVersion])
-            put("MEMORY", "${server[Servers.memoryMb]}M")
+            put("TYPE", server.serverType)
+            put("VERSION", server.mcVersion)
+            put("MEMORY", "${server.memoryMb}M")
             if (modrinthProjects.isNotEmpty()) put("MODRINTH_PROJECTS", modrinthProjects)
         }
         return systemVars + dbEnvVars
@@ -145,24 +135,14 @@ class ContainerLifecycle(
      * status report reconciles it. Safe no-op if the row is gone.
      */
     fun restartCrashedServer(id: Uuid) {
-        val server = transaction {
-            Servers.selectAll()
-                .where { Servers.id eq id }
-                .firstOrNull()
-        } ?: return
+        val server = serverRepository.findById(id) ?: return
         writeStatus(id, ServerStatus.STARTING)
         sendStart(server, needsRecreate = false)
     }
 
     fun writeStatus(id: Uuid, status: ServerStatus, clearNeedsRecreate: Boolean = false) {
-        transaction {
-            Servers.update({ Servers.id eq id }) {
-                it[Servers.status] = status.toDb()
-                if (clearNeedsRecreate) it[Servers.needsRecreate] = false
-                it[Servers.updatedAt] = clock.now()
-                    .toLocalDateTime(TimeZone.UTC)
-            }
-        }
+        serverRepository.updateStatus(id, status.toDb(), null)
+        if (clearNeedsRecreate) serverRepository.updateNeedsRecreate(id, false)
     }
 
     // ── Core await primitive ──────────────────────────────────────────────────

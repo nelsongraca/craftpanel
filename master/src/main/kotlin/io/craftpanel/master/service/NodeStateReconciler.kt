@@ -1,80 +1,64 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.database.schema.Backups
-import io.craftpanel.master.database.schema.Nodes
-import io.craftpanel.master.database.schema.ServerMigrations
-import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.ServerStatus
+import io.craftpanel.master.service.repo.NodeRepository
+import io.craftpanel.master.service.repo.ServerRepository
 import io.craftpanel.proto.ContainerState
 import io.craftpanel.proto.NodeStateSnapshot
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
-import org.jetbrains.exposed.v1.core.*
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
 import org.slf4j.LoggerFactory
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
-class NodeStateReconciler {
+class NodeStateReconciler(
+    private val serverRepository: ServerRepository,
+    private val nodeRepository: NodeRepository,
+) {
 
     private val log = LoggerFactory.getLogger(NodeStateReconciler::class.java)
 
     fun reconcileNodeState(nodeId: String, snapshot: NodeStateSnapshot): NodeHealth? {
         val kotlinNodeId = runCatching { Uuid.parse(nodeId) }.getOrNull() ?: return null
         val now = Clock.System.now()
-            .toLocalDateTime(TimeZone.UTC)
         var resultHealth: NodeHealth? = null
 
-        transaction {
-            val currentStatus = Nodes.selectAll()
-                .where { Nodes.id eq kotlinNodeId }
-                .firstOrNull()
-                ?.get(Nodes.status)
+        val currentStatus = nodeRepository.findById(kotlinNodeId)?.status
 
-            log.debug("Node $nodeId: reconcileNodeState — currentStatus=$currentStatus, containers=${snapshot.containersCount}")
-            val byServerId = snapshot.containersList.associateBy { it.serverId }
+        log.debug("Node $nodeId: reconcileNodeState — currentStatus=$currentStatus, containers=${snapshot.containersCount}")
+        val byServerId = snapshot.containersList.associateBy { it.serverId }
 
-            Servers.selectAll()
-                .where { Servers.nodeId eq kotlinNodeId }
-                .forEach { server ->
-                    val serverId = server[Servers.id]
-                    val dbStatus = ServerStatus.fromDb(server[Servers.status])
-                    val container = byServerId[serverId.toString()]
+        serverRepository.listByNodeId(kotlinNodeId)
+            .forEach { server ->
+                val serverId = server.id
+                val dbStatus = ServerStatus.fromDb(server.status)
+                val container = byServerId[serverId.toString()]
 
-                    val newStatus: ServerStatus? = if (container == null) {
-                        mapMissingContainer(dbStatus)
-                    }
-                    else {
-                        mapContainerState(container.runState, dbStatus)
-                    }
-
-                    if (newStatus != null) {
-                        log.info("Node $nodeId reconcile: server $serverId $dbStatus → $newStatus")
-                        Servers.update({ Servers.id eq serverId }) {
-                            it[Servers.status] = newStatus.toDb()
-                            it[Servers.lastSeenAt] = now
-                        }
-                    }
+                val newStatus: ServerStatus? = if (container == null) {
+                    mapMissingContainer(dbStatus)
+                }
+                else {
+                    mapContainerState(container.runState, dbStatus)
                 }
 
-            if (currentStatus == "ACTIVE") {
-                val newHealth = if (snapshot.routerRunning) NodeHealth.HEALTHY else NodeHealth.DEGRADED
-                Nodes.update({ Nodes.id eq kotlinNodeId }) {
-                    it[Nodes.health] = newHealth.name
-                    it[Nodes.lastSeenAt] = now
-                    it[Nodes.swarmActive] = snapshot.swarmActive
+                if (newStatus != null) {
+                    log.info("Node $nodeId reconcile: server $serverId $dbStatus → $newStatus")
+                    serverRepository.updateStatus(serverId, newStatus.toDb(), now)
                 }
-                resultHealth = newHealth
-                log.debug("Node {}: reconciled health={} (routerRunning={})", nodeId, newHealth, snapshot.routerRunning)
             }
-            else {
-                log.debug("Node $nodeId: status=$currentStatus — only updating lastSeenAt")
-                Nodes.update({ Nodes.id eq kotlinNodeId }) { it[Nodes.lastSeenAt] = now }
-            }
+
+        if (currentStatus == "ACTIVE") {
+            val newHealth = if (snapshot.routerRunning) NodeHealth.HEALTHY else NodeHealth.DEGRADED
+            nodeRepository.updateHealth(kotlinNodeId, newHealth.name)
+            nodeRepository.updateLastSeen(kotlinNodeId, now, null, null)
+            nodeRepository.updateSwarmActive(kotlinNodeId, snapshot.swarmActive)
+            resultHealth = newHealth
+            log.debug("Node {}: reconciled health={} (routerRunning={})", nodeId, newHealth, snapshot.routerRunning)
         }
+        else {
+            log.debug("Node $nodeId: status=$currentStatus — only updating lastSeenAt")
+            nodeRepository.updateLastSeen(kotlinNodeId, now, null, null)
+        }
+
         return resultHealth
     }
 
@@ -84,36 +68,18 @@ class NodeStateReconciler {
             return
         }
         val now = Clock.System.now()
-            .toLocalDateTime(TimeZone.UTC)
 
-        transaction {
-            val updated = Nodes.update({
-                (Nodes.id eq kotlinNodeId) and (Nodes.status eq "ACTIVE")
-            }) { it[Nodes.health] = "UNREACHABLE" }
-
-            if (updated == 0) {
-                log.debug("markNodeUnreachable: node $nodeId is not ACTIVE — skipping")
-                return@transaction
-            }
-
-            val migrationCount = ServerMigrations.update({
-                ((ServerMigrations.sourceNodeId eq kotlinNodeId) or (ServerMigrations.targetNodeId eq kotlinNodeId)) and
-                        (ServerMigrations.status inList listOf("PENDING", "SYNCING", "CUTTING_OVER"))
-            }) {
-                it[ServerMigrations.status] = "FAILED"
-                it[ServerMigrations.completedAt] = now
-            }
-
-            val backupCount = Backups.update({
-                (Backups.nodeId eq kotlinNodeId) and (Backups.status eq "IN_PROGRESS")
-            }) {
-                it[Backups.status] = "FAILED"
-                it[Backups.errorMessage] = "Node went offline during backup"
-                it[Backups.completedAt] = now
-            }
-
-            log.warn("Node $nodeId marked UNREACHABLE: $migrationCount migrations → FAILED, $backupCount backups → FAILED")
+        val node = nodeRepository.findById(kotlinNodeId) ?: return
+        if (node.status != "ACTIVE") {
+            log.debug("markNodeUnreachable: node $nodeId is not ACTIVE — skipping")
+            return
         }
+
+        nodeRepository.markUnreachable(kotlinNodeId, now)
+        serverRepository.failMigrationsForNode(kotlinNodeId)
+        serverRepository.failBackupsForNode(kotlinNodeId)
+
+        log.warn("Node $nodeId marked UNREACHABLE: migrations → FAILED, backups → FAILED")
     }
 
     fun updateNodeHealth(nodeId: String, health: NodeHealth) {
@@ -121,11 +87,7 @@ class NodeStateReconciler {
             log.warn("updateNodeHealth: invalid nodeId format: $nodeId")
             return
         }
-        transaction {
-            Nodes.update({ (Nodes.id eq kotlinNodeId) and (Nodes.status eq "ACTIVE") }) {
-                it[Nodes.health] = health.name
-            }
-        }
+        nodeRepository.updateHealth(kotlinNodeId, health.name)
     }
 }
 

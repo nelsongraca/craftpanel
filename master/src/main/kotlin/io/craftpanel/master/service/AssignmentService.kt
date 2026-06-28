@@ -1,16 +1,13 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.auth.ScopeType
-import io.craftpanel.master.database.schema.*
+import io.craftpanel.master.service.repo.AssignmentRow
+import io.craftpanel.master.service.repo.GroupRepository
+import io.craftpanel.master.service.repo.NetworkRepository
+import io.craftpanel.master.service.repo.ServerRepository
+import io.craftpanel.master.service.repo.UserRepository
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.core.and
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.isNull
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
 @Serializable
@@ -31,20 +28,17 @@ data class CreateAssignmentRequest(
     @SerialName("scope_id") val scopeId: String? = null,
 )
 
-class AssignmentService {
+class AssignmentService(
+    private val userRepository: UserRepository,
+    private val groupRepository: GroupRepository,
+    private val serverRepository: ServerRepository,
+    private val networkRepository: NetworkRepository,
+) {
 
     fun listAssignments(targetId: Uuid): AssignmentsListResponse {
-        val exists = transaction {
-            Users.selectAll()
-                .where { Users.id eq targetId }
-                .firstOrNull() != null
-        }
-        if (!exists) throw NotFoundException("User not found")
-        val assignments = transaction {
-            UserGroupAssignments.selectAll()
-                .where { UserGroupAssignments.userId eq targetId }
-                .map { it.toAssignmentResponse() }
-        }
+        userRepository.findById(targetId) ?: throw NotFoundException("User not found")
+        val assignments = userRepository.listAssignments(targetId)
+            .map { it.toResponse() }
         return AssignmentsListResponse(assignments)
     }
 
@@ -61,78 +55,36 @@ class AssignmentService {
                 ?: throw UnprocessableException("Invalid scope_id")
         }
 
-        val validation = transaction {
-            val userExists = Users.selectAll()
-                .where { Users.id eq targetId }
-                .firstOrNull() != null
-            val groupExists = Groups.selectAll()
-                .where { Groups.id eq groupId }
-                .firstOrNull() != null
-            val scopeExists = when {
-                scopeId == null                         -> true
-                req.scopeType == ScopeType.SERVER.name  -> Servers.selectAll()
-                    .where { Servers.id eq scopeId }
-                    .firstOrNull() != null
+        userRepository.findById(targetId) ?: throw NotFoundException("User or group not found")
+        groupRepository.findById(groupId) ?: throw NotFoundException("User or group not found")
 
-                req.scopeType == ScopeType.NETWORK.name -> ServerNetworks.selectAll()
-                    .where { ServerNetworks.id eq scopeId }
-                    .firstOrNull() != null
-
-                else                                    -> true
+        if (scopeId != null) {
+            val scopeExists = when (req.scopeType) {
+                ScopeType.SERVER.name  -> serverRepository.findById(scopeId) != null
+                ScopeType.NETWORK.name -> networkRepository.findById(scopeId) != null
+                else                   -> true
             }
-            val alreadyExists = UserGroupAssignments.selectAll()
-                .where {
-                    (UserGroupAssignments.userId eq targetId) and
-                            (UserGroupAssignments.groupId eq groupId) and
-                            (UserGroupAssignments.scopeType eq req.scopeType) and
-                            if (scopeId != null) (UserGroupAssignments.scopeId eq scopeId) else (UserGroupAssignments.scopeId.isNull())
-                }
-                .firstOrNull() != null
-            Triple(userExists && groupExists && scopeExists, alreadyExists, userExists && groupExists)
+            if (!scopeExists) throw NotFoundException("Scope target not found")
         }
 
-        if (!validation.third) throw NotFoundException("User or group not found")
-        if (!validation.first) throw NotFoundException("Scope target not found")
-        if (validation.second) throw ConflictException("Assignment already exists")
+        val exists = userRepository.findAssignment(targetId, groupId, req.scopeType, scopeId)
+        if (exists != null) throw ConflictException("Assignment already exists")
 
-        val createdId = transaction {
-            UserGroupAssignments.insert {
-                it[UserGroupAssignments.userId] = targetId
-                it[UserGroupAssignments.groupId] = groupId
-                it[UserGroupAssignments.scopeType] = req.scopeType
-                it[UserGroupAssignments.scopeId] = scopeId
-            }[UserGroupAssignments.id]
-        }
-        return transaction {
-            UserGroupAssignments.selectAll()
-                .where { UserGroupAssignments.id eq createdId }
-                .first()
-                .toAssignmentResponse()
-        }
+        return userRepository.createAssignment(targetId, groupId, req.scopeType, scopeId)
+            .toResponse()
     }
 
     fun deleteAssignment(targetId: Uuid, assignmentId: Uuid) {
-        val deleted = transaction {
-            val exists = UserGroupAssignments.selectAll()
-                .where {
-                    (UserGroupAssignments.id eq assignmentId) and
-                            (UserGroupAssignments.userId eq targetId)
-                }
-                .firstOrNull() != null
-            if (!exists) return@transaction false
-            UserGroupAssignments.deleteWhere {
-                (UserGroupAssignments.id eq assignmentId) and
-                        (UserGroupAssignments.userId eq targetId)
-            }
-            true
-        }
-        if (!deleted) throw NotFoundException("Assignment not found")
+        val all = userRepository.listAssignments(targetId)
+        val assignment = all.firstOrNull { it.id == assignmentId }
+            ?: throw NotFoundException("Assignment not found")
+        userRepository.deleteAssignment(assignment.id)
     }
 }
 
-private fun org.jetbrains.exposed.v1.core.ResultRow.toAssignmentResponse() = AssignmentResponse(
-    id = this[UserGroupAssignments.id].toString(),
-    groupId = this[UserGroupAssignments.groupId].toString(),
-    scopeType = ScopeType.valueOf(this[UserGroupAssignments.scopeType]),
-    scopeId = this[UserGroupAssignments.scopeId]?.toString(),
+private fun AssignmentRow.toResponse() = AssignmentResponse(
+    id = id.toString(),
+    groupId = groupId.toString(),
+    scopeType = ScopeType.valueOf(scopeType),
+    scopeId = scopeId?.toString(),
 )

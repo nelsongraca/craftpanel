@@ -7,6 +7,7 @@ import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.*
+import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlin.uuid.Uuid
@@ -69,7 +70,7 @@ class ModsRoutesTest : FunSpec({
                 }
             }
         }
-        routing { modsRoutes(ModService()) }
+        routing { modsRoutes(ModService(ServerRepositoryImpl())) }
     }
 
     fun ApplicationTestBuilder.jsonClient() = createClient {
@@ -400,7 +401,7 @@ class ModsRoutesTest : FunSpec({
                 it[ServerMods.pinStrategy] = "LATEST"
             }
         }
-        ModService().buildModrinthEnvVar(serverId) shouldBe "fabric-api"
+        ModService(ServerRepositoryImpl()).buildModrinthEnvVar(serverId) shouldBe "fabric-api"
     }
 
     test("modrinthProjectsEnvVar serializes PINNED correctly") {
@@ -415,7 +416,7 @@ class ModsRoutesTest : FunSpec({
                 it[ServerMods.pinnedVersionId] = "Oa9ZDzZq"
             }
         }
-        ModService().buildModrinthEnvVar(serverId) shouldBe "fabric-api:Oa9ZDzZq"
+        ModService(ServerRepositoryImpl()).buildModrinthEnvVar(serverId) shouldBe "fabric-api:Oa9ZDzZq"
     }
 
     test("modrinthProjectsEnvVar serializes BETA correctly") {
@@ -429,7 +430,7 @@ class ModsRoutesTest : FunSpec({
                 it[ServerMods.pinStrategy] = "BETA"
             }
         }
-        ModService().buildModrinthEnvVar(serverId) shouldBe "some-mod:beta"
+        ModService(ServerRepositoryImpl()).buildModrinthEnvVar(serverId) shouldBe "some-mod:beta"
     }
 
     test("modrinthProjectsEnvVar serializes ALPHA correctly") {
@@ -443,7 +444,7 @@ class ModsRoutesTest : FunSpec({
                 it[ServerMods.pinStrategy] = "ALPHA"
             }
         }
-        ModService().buildModrinthEnvVar(serverId) shouldBe "some-mod:alpha"
+        ModService(ServerRepositoryImpl()).buildModrinthEnvVar(serverId) shouldBe "some-mod:alpha"
     }
 
     test("modrinthProjectsEnvVar serializes multiple mods comma-separated") {
@@ -464,7 +465,7 @@ class ModsRoutesTest : FunSpec({
                 it[ServerMods.pinnedVersionId] = "abc123"
             }
         }
-        val result = ModService().buildModrinthEnvVar(serverId)
+        val result = ModService(ServerRepositoryImpl()).buildModrinthEnvVar(serverId)
         result.contains("fabric-api") shouldBe true
         result.contains("sodium:abc123") shouldBe true
         result.contains(",") shouldBe true

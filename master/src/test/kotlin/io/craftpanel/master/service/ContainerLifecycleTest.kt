@@ -6,6 +6,9 @@ import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.ServerStatus
+import io.craftpanel.master.service.repo.ServerRepositoryImpl
+import io.craftpanel.master.service.repo.ServerRow
+import io.craftpanel.master.util.toUtcString
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -13,7 +16,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
-import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -63,10 +66,44 @@ class ContainerLifecycleTest : FunSpec({
         }
     }
 
-    fun serverRow(): ResultRow = transaction {
+    fun serverRow(): ServerRow = transaction {
         Servers.selectAll()
             .where { Servers.id eq serverId }
             .first()
+            .let { r ->
+                ServerRow(
+                    id = r[Servers.id],
+                    name = r[Servers.name],
+                    displayName = r[Servers.displayName],
+                    description = r[Servers.description],
+                    nodeId = r[Servers.nodeId],
+                    networkId = r[Servers.networkId],
+                    serverType = r[Servers.serverType],
+                    mcVersion = r[Servers.mcVersion],
+                    status = r[Servers.status],
+                    hostPort = r[Servers.hostPort],
+                    memoryMb = r[Servers.memoryMb],
+                    cpuShares = r[Servers.cpuShares],
+                    exposedExternally = r[Servers.exposedExternally],
+                    publicSubdomain = r[Servers.publicSubdomain],
+                    dnsRecordId = r[Servers.dnsRecordId],
+                    dnsRecordName = r[Servers.dnsRecordName],
+                    customHostname = r[Servers.customHostname],
+                    configMode = r[Servers.configMode],
+                    stopCommand = r[Servers.stopCommand],
+                    itzgImageTag = r[Servers.itzgImageTag],
+                    needsRecreate = r[Servers.needsRecreate],
+                    backupSchedule = r[Servers.backupSchedule],
+                    backupMaxCount = r[Servers.backupMaxCount],
+                    backupScheduleLastFired = r[Servers.backupScheduleLastFired]?.toString(),
+                    lastPlayerCount = r[Servers.lastPlayerCount],
+                    lastPlayerNames = r[Servers.lastPlayerNames],
+                    lastPlayerUpdate = r[Servers.lastPlayerUpdate]?.toString(),
+                    lastSeenAt = r[Servers.lastSeenAt]?.toString(),
+                    createdAt = r[Servers.createdAt].toUtcString(),
+                    updatedAt = r[Servers.updatedAt].toString(),
+                )
+            }
     }
 
     fun lifecycle(
@@ -75,7 +112,8 @@ class ContainerLifecycleTest : FunSpec({
         removeTimeout: kotlin.time.Duration = 2.seconds,
     ) = ContainerLifecycle(
         gateway = gateway,
-        modService = ModService(),
+        modService = ModService(ServerRepositoryImpl()),
+        serverRepository = ServerRepositoryImpl(),
         startTimeout = startTimeout,
         stopTimeout = stopTimeout,
         removeTimeout = removeTimeout,
@@ -136,7 +174,8 @@ class ContainerLifecycleTest : FunSpec({
         val server = serverRow()
         val lc = ContainerLifecycle(
             gateway = TestAgentGateway(agentEvents = events, sendResult = false),
-            modService = ModService(),
+            modService = ModService(ServerRepositoryImpl()),
+            serverRepository = ServerRepositoryImpl(),
         )
         shouldThrow<BadGatewayException> {
             lc.stop(server, nodeId.toString())

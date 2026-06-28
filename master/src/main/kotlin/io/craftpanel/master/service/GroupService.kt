@@ -1,19 +1,11 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.auth.Permission
-import io.craftpanel.master.database.schema.GroupPermissions
-import io.craftpanel.master.database.schema.Groups
-import io.craftpanel.master.database.schema.UserGroupAssignments
+import io.craftpanel.master.service.repo.GroupRepository
+import io.craftpanel.master.service.repo.GroupRow
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.uuid.Uuid
-import io.craftpanel.master.util.toUtcString
 
 @Serializable
 data class GroupResponse(
@@ -36,104 +28,52 @@ data class PutGroupPermissionsRequest(val permissions: List<String>)
 private val VALID_PERMISSIONS = Permission.entries.map { it.node }
     .toSet()
 
-class GroupService {
+class GroupService(private val groupRepository: GroupRepository) {
 
-    fun listGroups(): List<GroupResponse> = transaction { fetchAllGroups() }
+    fun listGroups(): List<GroupResponse> =
+        groupRepository.listAll()
+            .map { it.toResponse() }
 
     fun createGroup(req: CreateGroupRequest): GroupResponse {
-        val exists = transaction {
-            Groups.selectAll()
-                .where { Groups.name eq req.name }
-                .firstOrNull() != null
-        }
-        if (exists) throw ConflictException("Group name already taken")
-        val createdId = transaction { Groups.insert { it[Groups.name] = req.name }[Groups.id] }
-        return transaction { fetchGroup(createdId)!! }
+        if (groupRepository.findByName(req.name) != null)
+            throw ConflictException("Group name already taken")
+        return groupRepository.create(req.name)
+            .toResponse()
     }
 
     fun getGroup(targetId: Uuid): GroupResponse =
-        transaction { fetchGroup(targetId) } ?: throw NotFoundException("Group not found")
+        groupRepository.findById(targetId)
+            ?.toResponse() ?: throw NotFoundException("Group not found")
 
     fun updateGroup(targetId: Uuid, req: PatchGroupRequest): GroupResponse {
-        val existing = transaction {
-            Groups.selectAll()
-                .where { Groups.id eq targetId }
-                .firstOrNull()
-        }
-            ?: throw NotFoundException("Group not found")
-        if (existing[Groups.isSystem]) throw ConflictException("Cannot modify a system group")
-        transaction { Groups.update({ Groups.id eq targetId }) { it[Groups.name] = req.name } }
-        return transaction { fetchGroup(targetId)!! }
+        val existing = groupRepository.findById(targetId) ?: throw NotFoundException("Group not found")
+        if (existing.isSystem) throw ConflictException("Cannot modify a system group")
+        groupRepository.update(targetId, req.name)
+        return groupRepository.findById(targetId)!!
+            .toResponse()
     }
 
     fun deleteGroup(targetId: Uuid) {
-        val existing = transaction {
-            Groups.selectAll()
-                .where { Groups.id eq targetId }
-                .firstOrNull()
-        }
-            ?: throw NotFoundException("Group not found")
-        if (existing[Groups.isSystem]) throw ConflictException("Cannot delete a system group")
-        transaction {
-            UserGroupAssignments.deleteWhere { UserGroupAssignments.groupId eq targetId }
-            GroupPermissions.deleteWhere { GroupPermissions.groupId eq targetId }
-            Groups.deleteWhere { Groups.id eq targetId }
-        }
+        val existing = groupRepository.findById(targetId) ?: throw NotFoundException("Group not found")
+        if (existing.isSystem) throw ConflictException("Cannot delete a system group")
+        groupRepository.delete(targetId)
     }
 
     fun setGroupPermissions(targetId: Uuid, req: PutGroupPermissionsRequest): GroupResponse {
-        val existing = transaction {
-            Groups.selectAll()
-                .where { Groups.id eq targetId }
-                .firstOrNull()
-        }
-            ?: throw NotFoundException("Group not found")
-        if (existing[Groups.isSystem]) throw ConflictException("Cannot modify a system group")
+        val existing = groupRepository.findById(targetId) ?: throw NotFoundException("Group not found")
+        if (existing.isSystem) throw ConflictException("Cannot modify a system group")
         val invalid = req.permissions.filter { it !in VALID_PERMISSIONS }
         if (invalid.isNotEmpty()) throw BadRequestException("Invalid permission nodes: ${invalid.joinToString()}")
-        transaction {
-            GroupPermissions.deleteWhere { GroupPermissions.groupId eq targetId }
-            req.permissions.distinct()
-                .forEach { perm ->
-                    GroupPermissions.insert {
-                        it[GroupPermissions.groupId] = targetId
-                        it[GroupPermissions.permission] = perm
-                    }
-                }
-        }
-        return transaction { fetchGroup(targetId)!! }
+        groupRepository.setPermissions(targetId, req.permissions.distinct())
+        return groupRepository.findById(targetId)!!
+            .toResponse()
     }
 }
 
-private fun fetchGroup(id: Uuid): GroupResponse? {
-    val row = Groups.selectAll()
-        .where { Groups.id eq id }
-        .firstOrNull() ?: return null
-    val perms = GroupPermissions.selectAll()
-        .where { GroupPermissions.groupId eq id }
-        .map { it[GroupPermissions.permission] }
-    return GroupResponse(
-        id = row[Groups.id].toString(),
-        name = row[Groups.name],
-        isSystem = row[Groups.isSystem],
-        permissions = perms,
-        createdAt = row[Groups.createdAt].toUtcString(),
-    )
-}
-
-private fun fetchAllGroups(): List<GroupResponse> {
-    val allPerms = GroupPermissions.selectAll()
-        .groupBy { it[GroupPermissions.groupId] }
-        .mapValues { (_, rows) -> rows.map { it[GroupPermissions.permission] } }
-    return Groups.selectAll()
-        .map { row ->
-            val groupId = row[Groups.id]
-            GroupResponse(
-                id = groupId.toString(),
-                name = row[Groups.name],
-                isSystem = row[Groups.isSystem],
-                permissions = allPerms[groupId] ?: emptyList(),
-                createdAt = row[Groups.createdAt].toUtcString(),
-            )
-        }
-}
+private fun GroupRow.toResponse() = GroupResponse(
+    id = id.toString(),
+    name = name,
+    isSystem = isSystem,
+    permissions = permissions,
+    createdAt = createdAt,
+)

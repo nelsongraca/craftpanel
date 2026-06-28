@@ -14,6 +14,9 @@ import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.config.NodeConfig
+import io.craftpanel.master.service.NodeStateReconciler
+import io.craftpanel.master.service.repo.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlin.uuid.Uuid
@@ -44,7 +47,7 @@ class FilesRoutesTest : FunSpec({
         expirySeconds = 900,
     )
     val jwtManager = JwtManager(jwtConfig)
-    val noopControlSvc = ControlServiceImpl(NodeConfig("test-token", 50052))
+    val noopControlSvc = ControlServiceImpl(NodeConfig("test-token", 50052), NodeStateReconciler(ServerRepositoryImpl(), NodeRepositoryImpl()))
     val noopProxy = DataServiceProxy(noopControlSvc, BulkDataServiceImpl(noopControlSvc))
 
     beforeTest {

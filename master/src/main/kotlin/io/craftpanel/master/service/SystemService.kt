@@ -1,13 +1,8 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.database.schema.SystemSettings
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
+import io.craftpanel.master.service.repo.SettingsRepository
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.upsert
 import kotlin.uuid.Uuid
 import kotlin.time.Clock
 
@@ -46,9 +41,9 @@ data class PatchSettingsRequest(
     @SerialName("image_proxy") val imageProxy: String? = null,
 )
 
-class SystemService {
+class SystemService(private val settingsRepository: SettingsRepository) {
 
-    fun getSettings(): SystemSettingsResponse = transaction { loadSettings() }
+    fun getSettings(): SystemSettingsResponse = loadSettings()
 
     fun updateSettings(updatedBy: Uuid, req: PatchSettingsRequest): SystemSettingsResponse {
         val portStart = req.defaultPortRangeStart
@@ -72,61 +67,48 @@ class SystemService {
         if (req.imageProxy != null && req.imageProxy.isBlank())
             throw UnprocessableException("image_proxy must not be blank")
 
-        val updatedByKotlin = updatedBy
-        transaction {
-            val updates = buildMap {
-                if (req.metricRetentionDays != null) put("metric_retention_days", req.metricRetentionDays.toString())
-                if (req.defaultBackupMaxCount != null) put("default_backup_max_count", req.defaultBackupMaxCount.toString())
-                if (req.defaultPortRangeStart != null) put("default_port_range_start", req.defaultPortRangeStart.toString())
-                if (req.defaultPortRangeEnd != null) put("default_port_range_end", req.defaultPortRangeEnd.toString())
-                if (req.restartMaxAttempts != null) put("restart_max_attempts", req.restartMaxAttempts.toString())
-                if (req.restartWindowSeconds != null) put("restart_window_seconds", req.restartWindowSeconds.toString())
-                if (req.rateLimitLoginPerMinute != null) put("rate_limit_login_per_minute", req.rateLimitLoginPerMinute.toString())
-                if (req.rateLimitRefreshPerMinute != null) put("rate_limit_refresh_per_minute", req.rateLimitRefreshPerMinute.toString())
-                if (req.imageMinecraft != null) put("image_minecraft", req.imageMinecraft)
-                if (req.imageProxy != null) put("image_proxy", req.imageProxy)
-            }
-            updates.forEach { (k, v) ->
-                SystemSettings.upsert {
-                    it[SystemSettings.key] = k
-                    it[SystemSettings.value] = v
-                    it[SystemSettings.updatedAt] = Clock.System.now()
-                        .toLocalDateTime(TimeZone.UTC)
-                    it[SystemSettings.updatedBy] = updatedByKotlin
-                }
-            }
+        val now = Clock.System.now()
+        val updates = buildMap {
+            if (req.metricRetentionDays != null) put("metric_retention_days", req.metricRetentionDays.toString())
+            if (req.defaultBackupMaxCount != null) put("default_backup_max_count", req.defaultBackupMaxCount.toString())
+            if (req.defaultPortRangeStart != null) put("default_port_range_start", req.defaultPortRangeStart.toString())
+            if (req.defaultPortRangeEnd != null) put("default_port_range_end", req.defaultPortRangeEnd.toString())
+            if (req.restartMaxAttempts != null) put("restart_max_attempts", req.restartMaxAttempts.toString())
+            if (req.restartWindowSeconds != null) put("restart_window_seconds", req.restartWindowSeconds.toString())
+            if (req.rateLimitLoginPerMinute != null) put("rate_limit_login_per_minute", req.rateLimitLoginPerMinute.toString())
+            if (req.rateLimitRefreshPerMinute != null) put("rate_limit_refresh_per_minute", req.rateLimitRefreshPerMinute.toString())
+            if (req.imageMinecraft != null) put("image_minecraft", req.imageMinecraft)
+            if (req.imageProxy != null) put("image_proxy", req.imageProxy)
         }
+        updates.forEach { (k, v) -> settingsRepository.upsert(k, v, now, updatedBy) }
 
-        val stored = transaction { loadSettings() }
+        val stored = loadSettings()
         val resolvedStart = req.defaultPortRangeStart ?: stored.settings.defaultPortRangeStart
         val resolvedEnd = req.defaultPortRangeEnd ?: stored.settings.defaultPortRangeEnd
         if (resolvedStart >= resolvedEnd)
             throw UnprocessableException("default_port_range_start must be less than default_port_range_end")
         return stored
     }
-}
 
-private fun loadSettings(): SystemSettingsResponse {
-    val rows = SystemSettings.selectAll()
-        .toList()
-    val map = rows.associate { it[SystemSettings.key] to it[SystemSettings.value] }
-    val latest = rows.maxByOrNull { it[SystemSettings.updatedAt] }
-    return SystemSettingsResponse(
-        settings = SettingsMap(
-            metricRetentionDays = map["metric_retention_days"]?.toIntOrNull() ?: 30,
-            defaultBackupMaxCount = map["default_backup_max_count"]?.toIntOrNull() ?: 10,
-            defaultPortRangeStart = map["default_port_range_start"]?.toIntOrNull() ?: 25570,
-            defaultPortRangeEnd = map["default_port_range_end"]?.toIntOrNull() ?: 26070,
-            restartMaxAttempts = map["restart_max_attempts"]?.toIntOrNull() ?: 5,
-            restartWindowSeconds = map["restart_window_seconds"]?.toLongOrNull() ?: 600L,
-            rateLimitLoginPerMinute = map["rate_limit_login_per_minute"]?.toIntOrNull() ?: 10,
-            rateLimitRefreshPerMinute = map["rate_limit_refresh_per_minute"]?.toIntOrNull() ?: 30,
-            imageMinecraft = map["image_minecraft"] ?: "itzg/minecraft-server",
-            imageProxy = map["image_proxy"] ?: "itzg/mc-proxy",
-        ),
-        updatedAt = latest?.get(SystemSettings.updatedAt)
-            ?.toString(),
-        updatedBy = latest?.get(SystemSettings.updatedBy)
-            ?.toString(),
-    )
+    private fun loadSettings(): SystemSettingsResponse {
+        val rows = settingsRepository.getAll()
+        val map = rows.associate { it.key to it.value }
+        val latest = rows.maxByOrNull { it.updatedAt }
+        return SystemSettingsResponse(
+            settings = SettingsMap(
+                metricRetentionDays = map["metric_retention_days"]?.toIntOrNull() ?: 30,
+                defaultBackupMaxCount = map["default_backup_max_count"]?.toIntOrNull() ?: 10,
+                defaultPortRangeStart = map["default_port_range_start"]?.toIntOrNull() ?: 25570,
+                defaultPortRangeEnd = map["default_port_range_end"]?.toIntOrNull() ?: 26070,
+                restartMaxAttempts = map["restart_max_attempts"]?.toIntOrNull() ?: 5,
+                restartWindowSeconds = map["restart_window_seconds"]?.toLongOrNull() ?: 600L,
+                rateLimitLoginPerMinute = map["rate_limit_login_per_minute"]?.toIntOrNull() ?: 10,
+                rateLimitRefreshPerMinute = map["rate_limit_refresh_per_minute"]?.toIntOrNull() ?: 30,
+                imageMinecraft = map["image_minecraft"] ?: "itzg/minecraft-server",
+                imageProxy = map["image_proxy"] ?: "itzg/mc-proxy",
+            ),
+            updatedAt = latest?.updatedAt,
+            updatedBy = latest?.updatedBy?.toString(),
+        )
+    }
 }

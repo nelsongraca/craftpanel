@@ -42,7 +42,7 @@ import kotlin.uuid.Uuid
 
 class ControlServiceImpl(
     private val nodeConfig: NodeConfig,
-    private val nodeStateReconciler: NodeStateReconciler = NodeStateReconciler(),
+    private val nodeStateReconciler: NodeStateReconciler,
     private val onNodeDisconnect: (String) -> Unit = {},
 ) : ControlServiceGrpcKt.ControlServiceCoroutineImplBase(), AgentGateway {
 

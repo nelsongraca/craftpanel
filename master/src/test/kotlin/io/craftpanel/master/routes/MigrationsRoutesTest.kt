@@ -7,6 +7,9 @@ import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.*
+import io.craftpanel.master.service.repo.NetworkRepositoryImpl
+import io.craftpanel.master.service.repo.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -46,12 +49,16 @@ class MigrationsRoutesTest : FunSpec({
     val testScope = TestScope()
 
     fun buildMigrationService(): MigrationService = MigrationService(
+        serverRepository = ServerRepositoryImpl(),
+        nodeRepository = NodeRepositoryImpl(),
+        networkRepository = NetworkRepositoryImpl(),
         gateway = noopGateway,
         dnsProvider = null,
         scope = testScope,
         lifecycle = ContainerLifecycle(
             gateway = TestAgentGateway(),
-            modService = ModService(),
+            modService = ModService(ServerRepositoryImpl()),
+            serverRepository = ServerRepositoryImpl(),
         ),
     )
 

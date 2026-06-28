@@ -1,25 +1,15 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.database.schema.ServerMods
-import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ModPinStrategy
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
+import io.craftpanel.master.service.repo.ModRow
+import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.core.and
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
 import java.net.URI
 import java.net.URLEncoder
 import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
-import kotlin.time.Clock
 import kotlin.uuid.Uuid
 import io.craftpanel.master.util.toUtcString
 
@@ -52,72 +42,52 @@ data class PatchModRequest(
 
 data class ModrinthSearchResult(val statusCode: Int, val body: String)
 
-class ModService {
+class ModService(private val serverRepository: ServerRepository) {
 
     fun listMods(serverId: Uuid): List<ModResponse> =
-        transaction {
-            ServerMods.selectAll()
-                .where { ServerMods.serverId eq serverId }
-                .map { it.toModResponse() }
-        }
+        serverRepository.listMods(serverId)
+            .map { it.toResponse() }
 
     fun addMod(serverId: Uuid, req: CreateModRequest): ModResponse {
         if (req.pinStrategy == ModPinStrategy.PINNED && req.pinnedVersionId.isNullOrEmpty())
             throw UnprocessableException("pinned_version_id is required when pin_strategy is PINNED")
-        return transaction {
-            val alreadyExists = ServerMods.selectAll()
-                .where { (ServerMods.serverId eq serverId) and (ServerMods.modrinthProjectId eq req.modrinthProjectId) }
-                .firstOrNull() != null
-            if (alreadyExists) throw ConflictException("Mod already added to this server")
-            val modId = ServerMods.insert {
-                it[ServerMods.serverId] = serverId
-                it[ServerMods.modrinthProjectId] = req.modrinthProjectId
-                it[ServerMods.displayName] = req.displayName
-                it[ServerMods.pinStrategy] = req.pinStrategy.name
-                it[ServerMods.pinnedVersionId] = req.pinnedVersionId
-            }[ServerMods.id]
-            markNeedsRecreate(serverId)
-            ServerMods.selectAll()
-                .where { ServerMods.id eq modId }
-                .first()
-                .toModResponse()
-        }
+        if (serverRepository.findModByProjectId(serverId, req.modrinthProjectId) != null)
+            throw ConflictException("Mod already added to this server")
+        val mod = serverRepository.createMod(
+            serverId = serverId,
+            modrinthProjectId = req.modrinthProjectId,
+            displayName = req.displayName,
+            pinStrategy = req.pinStrategy.name,
+            pinnedVersionId = req.pinnedVersionId,
+            installedVersionId = null,
+        )
+        serverRepository.updateNeedsRecreate(serverId, true)
+        return mod.toResponse()
     }
 
     fun updateMod(serverId: Uuid, modId: Uuid, req: PatchModRequest): ModResponse {
-        transaction {
-            ServerMods.selectAll()
-                .where { (ServerMods.id eq modId) and (ServerMods.serverId eq serverId) }
-                .firstOrNull()
-        }
+        serverRepository.findModById(modId)
+            ?.takeIf { it.serverId == serverId }
             ?: throw NotFoundException("Mod not found")
         if (req.pinStrategy == ModPinStrategy.PINNED && req.pinnedVersionId.isNullOrEmpty())
             throw UnprocessableException("pinned_version_id is required when pin_strategy is PINNED")
-        val now = Clock.System.now()
-            .toLocalDateTime(TimeZone.UTC)
-        return transaction {
-            ServerMods.update({ (ServerMods.id eq modId) and (ServerMods.serverId eq serverId) }) {
-                if (req.pinStrategy != null) it[ServerMods.pinStrategy] = req.pinStrategy.name
-                if (req.pinnedVersionId != null) {
-                    it[ServerMods.pinnedVersionId] = req.pinnedVersionId
-                }
-                else if (req.pinStrategy != null && req.pinStrategy != ModPinStrategy.PINNED) {
-                    it[ServerMods.pinnedVersionId] = null
-                }
-                it[ServerMods.updatedAt] = now
-            }
-            markNeedsRecreate(serverId)
-            ServerMods.selectAll()
-                .where { ServerMods.id eq modId }
-                .first()
-                .toModResponse()
+        val pinnedVersionId = when {
+            req.pinnedVersionId != null                                         -> req.pinnedVersionId
+            req.pinStrategy != null && req.pinStrategy != ModPinStrategy.PINNED -> null
+            else                                                                -> serverRepository.findModById(modId)?.pinnedVersionId
         }
+        serverRepository.updateMod(modId, req.pinStrategy?.name, pinnedVersionId, null)
+        serverRepository.updateNeedsRecreate(serverId, true)
+        return serverRepository.findModById(modId)!!
+            .toResponse()
     }
 
     fun deleteMod(serverId: Uuid, modId: Uuid) {
-        val deleted = transaction { ServerMods.deleteWhere { (ServerMods.id eq modId) and (ServerMods.serverId eq serverId) } }
-        if (deleted == 0) throw NotFoundException("Mod not found")
-        transaction { markNeedsRecreate(serverId) }
+        serverRepository.findModById(modId)
+            ?.takeIf { it.serverId == serverId }
+            ?: throw NotFoundException("Mod not found")
+        serverRepository.deleteMod(modId)
+        serverRepository.updateNeedsRecreate(serverId, true)
     }
 
     fun searchModrinth(query: String, limit: Int, serverType: String = "", mcVersion: String = ""): ModrinthSearchResult {
@@ -152,20 +122,12 @@ class ModService {
         }
     }
 
-    fun markNeedsRecreate(serverId: Uuid) {
-        Servers.update({ Servers.id eq serverId }) { it[Servers.needsRecreate] = true }
-    }
-
     fun buildModrinthEnvVar(serverId: Uuid): String =
-        transaction {
-            ServerMods.selectAll()
-                .where { ServerMods.serverId eq serverId }
-                .toList()
-        }
+        serverRepository.listMods(serverId)
             .joinToString(",") { row ->
-                val projectId = row[ServerMods.modrinthProjectId]
-                when (ModPinStrategy.fromDb(row[ServerMods.pinStrategy])) {
-                    ModPinStrategy.PINNED -> "${projectId}:${row[ServerMods.pinnedVersionId]}"
+                val projectId = row.modrinthProjectId
+                when (ModPinStrategy.fromDb(row.pinStrategy)) {
+                    ModPinStrategy.PINNED -> "${projectId}:${row.pinnedVersionId}"
                     ModPinStrategy.BETA   -> "$projectId:beta"
                     ModPinStrategy.ALPHA  -> "$projectId:alpha"
                     else                  -> projectId
@@ -184,14 +146,14 @@ private val LOADER_BY_SERVER_TYPE = mapOf(
     "VELOCITY" to "velocity", "BUNGEECORD" to "bungeecord", "WATERFALL" to "waterfall",
 )
 
-private fun org.jetbrains.exposed.v1.core.ResultRow.toModResponse() = ModResponse(
-    id = this[ServerMods.id].toString(),
-    serverId = this[ServerMods.serverId].toString(),
-    modrinthProjectId = this[ServerMods.modrinthProjectId],
-    displayName = this[ServerMods.displayName],
-    pinStrategy = ModPinStrategy.fromDb(this[ServerMods.pinStrategy]),
-    pinnedVersionId = this[ServerMods.pinnedVersionId],
-    installedVersionId = this[ServerMods.installedVersionId],
-    createdAt = this[ServerMods.createdAt].toUtcString(),
-    updatedAt = this[ServerMods.updatedAt].toUtcString(),
+private fun ModRow.toResponse() = ModResponse(
+    id = id.toString(),
+    serverId = serverId.toString(),
+    modrinthProjectId = modrinthProjectId,
+    displayName = displayName,
+    pinStrategy = ModPinStrategy.fromDb(pinStrategy),
+    pinnedVersionId = pinnedVersionId,
+    installedVersionId = installedVersionId,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
 )

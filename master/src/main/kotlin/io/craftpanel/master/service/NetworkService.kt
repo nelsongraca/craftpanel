@@ -1,22 +1,17 @@
 package io.craftpanel.master.service
 
 import com.github.dockerjava.api.DockerClient
-import io.craftpanel.master.database.schema.Nodes
-import io.craftpanel.master.database.schema.ServerNetworks
-import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.auth.Permission
+import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.domain.ServerStatus
-import io.craftpanel.master.util.toUtcString
+import io.craftpanel.master.service.repo.GroupRepository
+import io.craftpanel.master.service.repo.NetworkRepository
+import io.craftpanel.master.service.repo.NetworkRow
+import io.craftpanel.master.service.repo.NodeRepository
+import io.craftpanel.master.service.repo.ServerRepository
+import io.craftpanel.master.service.repo.UserRepository
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.core.and
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.core.neq
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.uuid.Uuid
 
 @Serializable
@@ -80,6 +75,11 @@ data class PatchNetworkRequest(
 class NetworkService(
     private val dockerClient: DockerClient? = null,
     private val containerNamePrefix: String = "craftpanel",
+    private val networkRepository: NetworkRepository,
+    private val serverRepository: ServerRepository,
+    private val nodeRepository: NodeRepository,
+    private val userRepository: UserRepository,
+    private val groupRepository: GroupRepository,
 ) {
 
     private val log = org.slf4j.LoggerFactory.getLogger(NetworkService::class.java)
@@ -92,12 +92,9 @@ class NetworkService(
                 "Master is not configured with a Docker endpoint — Swarm mode required for cross-node Server Networks"
             )
         }
-        val nonSwarm = transaction {
-            Nodes.selectAll()
-                .where { Nodes.id inList nodeIds }
-                .filter { !it[Nodes.swarmActive] }
-                .map { it[Nodes.displayName] }
-        }
+        val nonSwarm = nodeRepository.listByIds(nodeIds)
+            .filter { !it.swarmActive }
+            .map { it.displayName }
         if (nonSwarm.isNotEmpty()) {
             val names = nonSwarm.joinToString(", ")
             throw UnprocessableException(
@@ -135,143 +132,110 @@ class NetworkService(
         }.onFailure { log.warn("Failed to delete overlay network $name: ${it.message}") }
     }
 
-    fun listNetworks(userId: Uuid): List<NetworkResponse> {
-        val visibility = resolveServerVisibility(userId)
-        return transaction {
-            val counts = Servers.selectAll()
-                .groupBy({ it[Servers.networkId] }, { 1 })
-                .mapValues { (_, v) -> v.size }
-            val query = when {
-                visibility.isGlobal             -> ServerNetworks.selectAll()
-                visibility.networkIds.isEmpty() -> return@transaction emptyList()
-                else                            -> ServerNetworks.selectAll()
-                    .where { ServerNetworks.id inList visibility.networkIds.toList() }
-            }
-            query.map { row ->
-                val netId = row[ServerNetworks.id]
-                NetworkResponse(
-                    id = netId.toString(),
-                    name = row[ServerNetworks.name],
-                    proxyPort = row[ServerNetworks.proxyPort],
-                    description = row[ServerNetworks.description],
-                    domainSuffix = row[ServerNetworks.cfDomainSuffix],
-                    dnsZoneId = row[ServerNetworks.cfZoneId],
-                    dnsDomainSuffix = row[ServerNetworks.cfDomainSuffix],
-                    dnsProviderType = row[ServerNetworks.dnsProviderType],
-                    serverCount = counts[netId] ?: 0,
-                    createdAt = row[ServerNetworks.createdAt].toUtcString(),
-                )
+    private fun resolveServerVisibility(userId: Uuid): ServerVisibility {
+        if (!userRepository.isActive(userId)) return ServerVisibility(false, emptySet(), emptySet())
+        val assignments = userRepository.listAssignments(userId)
+        val groupIds = assignments.map { it.groupId }
+            .toSet()
+        if (groupIds.isEmpty()) return ServerVisibility(false, emptySet(), emptySet())
+        val viewGroups = groupIds.filter { gid ->
+            groupRepository.getPermissions(gid)
+                .any { p ->
+                    p == "*" || p == "server.*" || p == Permission.SERVER_VIEW.node
+                }
+        }
+            .toSet()
+        if (viewGroups.isEmpty()) return ServerVisibility(false, emptySet(), emptySet())
+        var isGlobal = false
+        val networkIds = mutableSetOf<Uuid>()
+        val serverIds = mutableSetOf<Uuid>()
+        for (a in assignments.filter { it.groupId in viewGroups }) {
+            when (a.scopeType) {
+                ScopeType.GLOBAL.name  -> isGlobal = true
+                ScopeType.NETWORK.name -> a.scopeId?.let { networkIds += it }
+                ScopeType.SERVER.name  -> a.scopeId?.let { serverIds += it }
             }
         }
+        return ServerVisibility(isGlobal, networkIds, serverIds)
+    }
+
+    fun listNetworks(userId: Uuid): List<NetworkResponse> {
+        val visibility = resolveServerVisibility(userId)
+        val networks = when {
+            visibility.isGlobal             -> networkRepository.listAll()
+            visibility.networkIds.isEmpty() -> return emptyList()
+            else                            -> networkRepository.listByIds(visibility.networkIds.toList())
+        }
+        val counts = networks.associate { it.id to serverRepository.countByNetworkId(it.id) }
+        return networks.map { it.toResponse(counts[it.id] ?: 0) }
     }
 
     fun createNetwork(req: CreateNetworkRequest): NetworkResponse {
-        val nameTaken = transaction {
-            ServerNetworks.selectAll()
-                .where { ServerNetworks.name eq req.name }
-                .firstOrNull() != null
-        }
-        if (nameTaken) throw ConflictException("Network name already taken")
-        val response = transaction {
-            val insertedId = ServerNetworks.insert {
-                it[name] = req.name
-                it[proxyPort] = req.proxyPort
-                it[description] = req.description
-                it[cfDomainSuffix] = req.domainSuffix ?: req.dnsDomainSuffix
-                it[cfZoneId] = req.dnsZoneId
-                it[dnsProviderType] = req.dnsProviderType
-            }[ServerNetworks.id]
-            val row = ServerNetworks.selectAll()
-                .where { ServerNetworks.id eq insertedId }
-                .first()
-            NetworkResponse(
-                id = insertedId.toString(),
-                name = row[ServerNetworks.name],
-                proxyPort = row[ServerNetworks.proxyPort],
-                description = row[ServerNetworks.description],
-                domainSuffix = row[ServerNetworks.cfDomainSuffix],
-                dnsZoneId = row[ServerNetworks.cfZoneId],
-                dnsDomainSuffix = row[ServerNetworks.cfDomainSuffix],
-                dnsProviderType = row[ServerNetworks.dnsProviderType],
-                serverCount = 0,
-                createdAt = row[ServerNetworks.createdAt].toUtcString(),
-            )
-        }
-        createOverlayNetwork(response.id)
-        return response
+        if (networkRepository.findByName(req.name) != null) throw ConflictException("Network name already taken")
+        val row = networkRepository.create(
+            name = req.name,
+            proxyPort = req.proxyPort,
+            description = req.description,
+            cfDomainSuffix = req.domainSuffix ?: req.dnsDomainSuffix,
+            cfZoneId = req.dnsZoneId,
+            dnsProviderType = req.dnsProviderType,
+        )
+        createOverlayNetwork(row.id.toString())
+        return row.toResponse(0)
     }
 
-    fun getNetwork(id: Uuid): NetworkDetailResponse =
-        transaction {
-            val row = ServerNetworks.selectAll()
-                .where { ServerNetworks.id eq id }
-                .firstOrNull()
-                ?: return@transaction null
-            val members = Servers.selectAll()
-                .where { Servers.networkId eq id }
-                .map { s ->
-                    NetworkServerItem(
-                        id = s[Servers.id].toString(),
-                        displayName = s[Servers.displayName],
-                        serverType = s[Servers.serverType],
-                        status = ServerStatus.fromDb(s[Servers.status]),
-                    )
-                }
-            NetworkDetailResponse(
-                id = row[ServerNetworks.id].toString(),
-                name = row[ServerNetworks.name],
-                proxyPort = row[ServerNetworks.proxyPort],
-                description = row[ServerNetworks.description],
-                domainSuffix = row[ServerNetworks.cfDomainSuffix],
-                dnsZoneId = row[ServerNetworks.cfZoneId],
-                dnsDomainSuffix = row[ServerNetworks.cfDomainSuffix],
-                dnsProviderType = row[ServerNetworks.dnsProviderType],
-                serverCount = members.size,
-                servers = members,
-                createdAt = row[ServerNetworks.createdAt].toUtcString(),
-            )
-        } ?: throw NotFoundException("Network not found")
+    fun getNetwork(id: Uuid): NetworkDetailResponse {
+        val row = networkRepository.findById(id) ?: throw NotFoundException("Network not found")
+        val members = serverRepository.listByNetworkId(id)
+            .map { s ->
+                NetworkServerItem(
+                    id = s.id.toString(),
+                    displayName = s.displayName,
+                    serverType = s.serverType,
+                    status = ServerStatus.fromDb(s.status),
+                )
+            }
+        return NetworkDetailResponse(
+            id = row.id.toString(),
+            name = row.name,
+            proxyPort = row.proxyPort,
+            description = row.description,
+            domainSuffix = row.cfDomainSuffix,
+            dnsZoneId = row.cfZoneId,
+            dnsDomainSuffix = row.cfDomainSuffix,
+            dnsProviderType = row.dnsProviderType,
+            serverCount = members.size,
+            servers = members,
+            createdAt = row.createdAt,
+        )
+    }
 
     fun updateNetwork(id: Uuid, req: PatchNetworkRequest) {
-        val result: Boolean? = transaction {
-            val exists = ServerNetworks.selectAll()
-                .where { ServerNetworks.id eq id }
-                .firstOrNull() != null
-            if (!exists) return@transaction false
-            if (req.name != null) {
-                val nameTaken = ServerNetworks.selectAll()
-                    .where { (ServerNetworks.name eq req.name) and (ServerNetworks.id neq id) }
-                    .firstOrNull() != null
-                if (nameTaken) return@transaction null
-            }
-            ServerNetworks.update({ ServerNetworks.id eq id }) {
-                if (req.name != null) it[name] = req.name
-                if (req.description != null) it[description] = req.description
-                if (req.domainSuffix != null) it[cfDomainSuffix] = req.domainSuffix
-                if (req.dnsZoneId != null) it[cfZoneId] = req.dnsZoneId
-                if (req.dnsDomainSuffix != null) it[cfDomainSuffix] = req.dnsDomainSuffix
-                if (req.dnsProviderType != null) it[dnsProviderType] = req.dnsProviderType
-            }
-            true
+        networkRepository.findById(id) ?: throw NotFoundException("Network not found")
+        if (req.name != null) {
+            val existing = networkRepository.findByName(req.name)
+            if (existing != null && existing.id != id) throw ConflictException("Network name already taken")
         }
-        when (result) {
-            null  -> throw ConflictException("Network name already taken")
-            false -> throw NotFoundException("Network not found")
-            else  -> Unit
-        }
+        networkRepository.update(id, req.name, req.description, req.domainSuffix ?: req.dnsDomainSuffix, req.dnsZoneId, req.dnsProviderType)
     }
 
     fun deleteNetwork(id: Uuid) {
-        val deleted = transaction {
-            val exists = ServerNetworks.selectAll()
-                .where { ServerNetworks.id eq id }
-                .firstOrNull() != null
-            if (!exists) return@transaction false
-            Servers.update({ Servers.networkId eq id }) { it[networkId] = null }
-            ServerNetworks.deleteWhere { ServerNetworks.id eq id }
-            true
-        }
-        if (!deleted) throw NotFoundException("Network not found")
+        networkRepository.findById(id) ?: throw NotFoundException("Network not found")
+        serverRepository.nullifyNetworkId(id)
+        networkRepository.delete(id)
         deleteOverlayNetwork(id.toString())
     }
 }
+
+private fun NetworkRow.toResponse(serverCount: Int) = NetworkResponse(
+    id = id.toString(),
+    name = name,
+    proxyPort = proxyPort,
+    description = description,
+    domainSuffix = cfDomainSuffix,
+    dnsZoneId = cfZoneId,
+    dnsDomainSuffix = cfDomainSuffix,
+    dnsProviderType = dnsProviderType,
+    serverCount = serverCount,
+    createdAt = createdAt,
+)

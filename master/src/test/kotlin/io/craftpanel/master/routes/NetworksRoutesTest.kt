@@ -10,6 +10,11 @@ import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.service.*
+import io.craftpanel.master.service.repo.GroupRepositoryImpl
+import io.craftpanel.master.service.repo.NetworkRepositoryImpl
+import io.craftpanel.master.service.repo.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.ServerRepositoryImpl
+import io.craftpanel.master.service.repo.UserRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -73,7 +78,17 @@ class NetworksRoutesTest : FunSpec({
                 }
             }
         }
-        routing { networksRoutes(NetworkService()) }
+        routing {
+            networksRoutes(
+                NetworkService(
+                    networkRepository = NetworkRepositoryImpl(),
+                    serverRepository = ServerRepositoryImpl(),
+                    nodeRepository = NodeRepositoryImpl(),
+                    userRepository = UserRepositoryImpl(),
+                    groupRepository = GroupRepositoryImpl(),
+                )
+            )
+        }
     }
 
     fun ApplicationTestBuilder.jsonClient() = createClient {

@@ -1,15 +1,10 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.database.schema.ProxyBackends
-import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.service.repo.ProxyBackendInput
+import io.craftpanel.master.service.repo.ProxyBackendRow
+import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.core.SortOrder
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
 @Serializable
@@ -33,75 +28,41 @@ data class BackendInput(
 @Serializable
 data class PutProxyBackendsRequest(val backends: List<BackendInput>)
 
-class ProxyBackendService {
+class ProxyBackendService(private val serverRepository: ServerRepository) {
 
     fun listBackends(proxyServerId: Uuid): ProxyBackendListResponse {
-        val serverRow = transaction {
-            Servers.selectAll()
-                .where { Servers.id eq proxyServerId }
-                .firstOrNull()
-        } ?: throw NotFoundException("Server not found")
-
-        if (serverRow[Servers.serverType] !in PROXY_SERVER_TYPES)
-            throw ConflictException("Server is not a proxy type")
-
-        val items = transaction {
-            ProxyBackends.selectAll()
-                .where { ProxyBackends.proxyServerId eq proxyServerId }
-                .orderBy(ProxyBackends.order, SortOrder.ASC)
-                .map {
-                    ProxyBackendItem(
-                        id = it[ProxyBackends.id].toString(),
-                        backendServerId = it[ProxyBackends.backendServerId].toString(),
-                        backendName = it[ProxyBackends.backendName],
-                        order = it[ProxyBackends.order],
-                    )
-                }
-        }
-        return ProxyBackendListResponse(items)
+        val serverRow = serverRepository.findById(proxyServerId) ?: throw NotFoundException("Server not found")
+        if (serverRow.serverType !in PROXY_SERVER_TYPES) throw ConflictException("Server is not a proxy type")
+        return ProxyBackendListResponse(
+            serverRepository.listProxyBackends(proxyServerId)
+                .map { it.toItem() })
     }
 
     fun replaceBackends(proxyServerId: Uuid, req: PutProxyBackendsRequest): ProxyBackendListResponse {
-        val serverRow = transaction {
-            Servers.selectAll()
-                .where { Servers.id eq proxyServerId }
-                .firstOrNull()
-        } ?: throw NotFoundException("Server not found")
-
-        if (serverRow[Servers.serverType] !in PROXY_SERVER_TYPES)
-            throw ConflictException("Server is not a proxy type")
+        val serverRow = serverRepository.findById(proxyServerId) ?: throw NotFoundException("Server not found")
+        if (serverRow.serverType !in PROXY_SERVER_TYPES) throw ConflictException("Server is not a proxy type")
 
         val names = req.backends.map { it.backendName.trim() }
-        if (names.size != names.toSet().size)
-            throw UnprocessableException("Duplicate backend names")
+        if (names.size != names.toSet().size) throw UnprocessableException("Duplicate backend names")
 
-        transaction {
-            for (b in req.backends) {
-                val backendId = runCatching { Uuid.parse(b.backendServerId) }.getOrNull()
-                    ?: throw UnprocessableException("Invalid backend_server_id: ${b.backendServerId}")
-
-                val backendRow = Servers.selectAll()
-                    .where { Servers.id eq backendId }
-                    .firstOrNull()
-                    ?: throw UnprocessableException("Backend server not found: ${b.backendServerId}")
-
-                if (backendRow[Servers.serverType] in PROXY_SERVER_TYPES)
-                    throw UnprocessableException("Backend server cannot be a proxy type: ${b.backendServerId}")
-            }
-
-            ProxyBackends.deleteWhere { ProxyBackends.proxyServerId eq proxyServerId }
-
-            for (b in req.backends) {
-                val backendId = Uuid.parse(b.backendServerId)
-                ProxyBackends.insert {
-                    it[ProxyBackends.proxyServerId] = proxyServerId
-                    it[ProxyBackends.backendServerId] = backendId
-                    it[ProxyBackends.backendName] = b.backendName.trim()
-                    it[ProxyBackends.order] = b.order
-                }
-            }
+        val inputs = req.backends.map { b ->
+            val backendId = runCatching { Uuid.parse(b.backendServerId) }.getOrNull()
+                ?: throw UnprocessableException("Invalid backend_server_id: ${b.backendServerId}")
+            val backendRow = serverRepository.findById(backendId)
+                ?: throw UnprocessableException("Backend server not found: ${b.backendServerId}")
+            if (backendRow.serverType in PROXY_SERVER_TYPES)
+                throw UnprocessableException("Backend server cannot be a proxy type: ${b.backendServerId}")
+            ProxyBackendInput(backendServerId = backendId, backendName = b.backendName.trim(), order = b.order)
         }
 
+        serverRepository.replaceProxyBackends(proxyServerId, inputs)
         return listBackends(proxyServerId)
     }
 }
+
+private fun ProxyBackendRow.toItem() = ProxyBackendItem(
+    id = id.toString(),
+    backendServerId = backendServerId.toString(),
+    backendName = backendName,
+    order = order,
+)
