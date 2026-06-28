@@ -79,7 +79,7 @@ class BackupService(
             serverRepository.deleteBackup(old.id)
         }
 
-        val backup = serverRepository.createBackup(serverId, serverRow.nodeId, trigger.name)
+        val backup = serverRepository.createBackup(serverId, serverRow.nodeId, trigger)
 
         val sent = gateway.sendToNode(nodeId, masterMessage {
             triggerBackup = triggerBackupCommand {
@@ -90,7 +90,7 @@ class BackupService(
         })
 
         if (!sent) {
-            serverRepository.updateBackupStatus(backup.id, "FAILED", null, null, "Agent not connected", now)
+            serverRepository.updateBackupStatus(backup.id, BackupStatus.FAILED, null, null, "Agent not connected", now)
             throw BadGatewayException("Agent not connected")
         }
 

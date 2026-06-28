@@ -181,25 +181,25 @@ class MigrationService(
 
         suspend fun emit(event: MigrationEvent) = eventFlow?.emit(event)
 
-        fun updateStatus(status: String) {
+        fun updateStatus(status: MigrationStatus) {
             val ts = now()
-            serverRepository.updateMigrationStatus(migrationId, status, if (status == "COMPLETED" || status == "FAILED") ts else null)
-            scope.launch { emit(MigrationEvent.Status(status)) }
+            serverRepository.updateMigrationStatus(migrationId, status, if (status == MigrationStatus.COMPLETED || status == MigrationStatus.FAILED) ts else null)
+            scope.launch { emit(MigrationEvent.Status(status.name)) }
         }
 
         fun startStep(stepNum: Int, description: String): Uuid {
             val step = serverRepository.createMigrationStep(migrationId, stepNum, description)
-            serverRepository.updateMigrationStepStatus(step.id, "RUNNING", now(), null, null)
+            serverRepository.updateMigrationStepStatus(step.id, MigrationStepStatus.RUNNING, now(), null, null)
             scope.launch { emit(MigrationEvent.StepStarted(stepNum, description)) }
             return step.id
         }
 
         fun completeStep(stepId: Uuid, success: Boolean, error: String? = null) {
-            serverRepository.updateMigrationStepStatus(stepId, if (success) "SUCCESS" else "FAILED", null, now(), error)
+            serverRepository.updateMigrationStepStatus(stepId, if (success) MigrationStepStatus.SUCCESS else MigrationStepStatus.FAILED, null, now(), error)
         }
 
         suspend fun failMigration(error: String) {
-            updateStatus("FAILED")
+            updateStatus(MigrationStatus.FAILED)
             emit(MigrationEvent.Failed(error))
         }
 
@@ -319,7 +319,7 @@ class MigrationService(
                 }
             }
 
-            updateStatus("SYNCING")
+            updateStatus(MigrationStatus.SYNCING)
 
             // ── Step 4: Player warning via RCON ──────────────────────────────────
             run {
@@ -410,7 +410,7 @@ class MigrationService(
                 }
             }
 
-            updateStatus("CUTTING_OVER")
+            updateStatus(MigrationStatus.CUTTING_OVER)
 
             // ── Step 7: Remove source container ──────────────────────────────────
             run {
@@ -511,7 +511,7 @@ class MigrationService(
                 completeStep(stepId, true)
             }
 
-            updateStatus("COMPLETED")
+            updateStatus(MigrationStatus.COMPLETED)
             emit(MigrationEvent.Completed)
         }
         finally {

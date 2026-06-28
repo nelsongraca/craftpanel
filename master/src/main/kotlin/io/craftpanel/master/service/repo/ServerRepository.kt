@@ -1,5 +1,9 @@
 package io.craftpanel.master.service.repo
 
+import io.craftpanel.master.domain.BackupStatus
+import io.craftpanel.master.domain.BackupTrigger
+import io.craftpanel.master.domain.MigrationStatus
+import io.craftpanel.master.domain.MigrationStepStatus
 import kotlinx.datetime.Instant
 import kotlin.uuid.Uuid
 
@@ -167,7 +171,7 @@ interface ServerRepository {
     fun listMigrations(serverId: Uuid): List<MigrationRow>
     fun findMigrationById(id: Uuid): MigrationRow?
     fun createMigration(serverId: Uuid, sourceNodeId: Uuid, targetNodeId: Uuid): MigrationRow
-    fun updateMigrationStatus(id: Uuid, status: String, completedAt: Instant?)
+    fun updateMigrationStatus(id: Uuid, status: MigrationStatus, completedAt: Instant?)
     fun failMigrationsForNode(nodeId: Uuid)
     fun failAllStuckMigrations()
     fun updateNodeId(id: Uuid, nodeId: Uuid)
@@ -175,7 +179,7 @@ interface ServerRepository {
 
     fun listMigrationSteps(migrationId: Uuid): List<MigrationStepRow>
     fun createMigrationStep(migrationId: Uuid, stepNumber: Int, description: String): MigrationStepRow
-    fun updateMigrationStepStatus(id: Uuid, status: String, startedAt: Instant?, completedAt: Instant?, errorMessage: String?)
+    fun updateMigrationStepStatus(id: Uuid, status: MigrationStepStatus, startedAt: Instant?, completedAt: Instant?, errorMessage: String?)
 
     fun findUsedPortsOnNode(nodeId: Uuid): List<Int>
     fun registerPort(nodeId: Uuid, port: Int, protocol: String, serverId: Uuid?)
@@ -185,8 +189,8 @@ interface ServerRepository {
 
     fun listBackups(serverId: Uuid): List<BackupRow>
     fun findBackupById(id: Uuid): BackupRow?
-    fun createBackup(serverId: Uuid, nodeId: Uuid, trigger: String): BackupRow
-    fun updateBackupStatus(id: Uuid, status: String, filePath: String?, sizeBytes: Long?, errorMessage: String?, completedAt: Instant?)
+    fun createBackup(serverId: Uuid, nodeId: Uuid, trigger: BackupTrigger): BackupRow
+    fun updateBackupStatus(id: Uuid, status: BackupStatus, filePath: String?, sizeBytes: Long?, errorMessage: String?, completedAt: Instant?)
     fun countCompletedBackups(serverId: Uuid): Int
     fun deleteBackup(id: Uuid)
     fun deleteBackupsForServer(serverId: Uuid)

@@ -2,6 +2,7 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.domain.AgentEvent
+import io.craftpanel.master.domain.BackupStatus
 import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.AlertRepository
@@ -142,7 +143,7 @@ class NodeObserver(
 
     private fun persistBackupComplete(event: AgentEvent.BackupCompleteEvent) {
         val backupId = runCatching { Uuid.parse(event.backupId) }.getOrNull() ?: return
-        val status = if (event.success) "COMPLETED" else "FAILED"
+        val status = if (event.success) BackupStatus.COMPLETED else BackupStatus.FAILED
         val sizeBytes = if (event.success) event.sizeBytes.takeIf { it > 0 } else null
         val errorMessage = if (!event.success) event.errorMessage.takeIf { it.isNotBlank() } else null
 

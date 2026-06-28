@@ -1,5 +1,9 @@
 package io.craftpanel.master.service.repo
 
+import io.craftpanel.master.domain.BackupStatus
+import io.craftpanel.master.domain.BackupTrigger
+import io.craftpanel.master.domain.MigrationStatus
+import io.craftpanel.master.domain.MigrationStepStatus
 import kotlinx.datetime.Instant
 import kotlin.uuid.Uuid
 
@@ -307,18 +311,20 @@ class FakeServerRepository : ServerRepository {
         return m.toRow()
     }
 
-    override fun updateMigrationStatus(id: Uuid, status: String, completedAt: Instant?) {
-        migrations[id]?.let { it.status = status; if (completedAt != null) it.completedAt = completedAt.toString() }
+    override fun updateMigrationStatus(id: Uuid, status: MigrationStatus, completedAt: Instant?) {
+        migrations[id]?.let { it.status = status.name; if (completedAt != null) it.completedAt = completedAt.toString() }
     }
 
     override fun failMigrationsForNode(nodeId: Uuid) {
-        migrations.values.filter { (it.sourceNodeId == nodeId || it.targetNodeId == nodeId) && it.status in listOf("PENDING", "SYNCING", "CUTTING_OVER") }
-            .forEach { it.status = "FAILED" }
+        val active = listOf(MigrationStatus.PENDING.name, MigrationStatus.SYNCING.name, MigrationStatus.CUTTING_OVER.name)
+        migrations.values.filter { (it.sourceNodeId == nodeId || it.targetNodeId == nodeId) && it.status in active }
+            .forEach { it.status = MigrationStatus.FAILED.name }
     }
 
     override fun failAllStuckMigrations() {
-        migrations.values.filter { it.status in listOf("PENDING", "SYNCING", "CUTTING_OVER", "RUNNING") }
-            .forEach { it.status = "FAILED"; it.completedAt = "now" }
+        val stuck = listOf(MigrationStatus.PENDING.name, MigrationStatus.SYNCING.name, MigrationStatus.CUTTING_OVER.name, MigrationStatus.RUNNING.name)
+        migrations.values.filter { it.status in stuck }
+            .forEach { it.status = MigrationStatus.FAILED.name; it.completedAt = "now" }
     }
 
     override fun updateNodeId(id: Uuid, nodeId: Uuid) {
@@ -340,10 +346,10 @@ class FakeServerRepository : ServerRepository {
         return s.toRow()
     }
 
-    override fun updateMigrationStepStatus(id: Uuid, status: String, startedAt: Instant?, completedAt: Instant?, errorMessage: String?) {
+    override fun updateMigrationStepStatus(id: Uuid, status: MigrationStepStatus, startedAt: Instant?, completedAt: Instant?, errorMessage: String?) {
         val s = steps.values.flatten()
             .firstOrNull { it.id == id } ?: return
-        s.status = status
+        s.status = status.name
         if (startedAt != null) s.startedAt = startedAt.toString()
         if (completedAt != null) s.completedAt = completedAt.toString()
         if (errorMessage != null) s.errorMessage = errorMessage
@@ -372,21 +378,21 @@ class FakeServerRepository : ServerRepository {
         .map { it.toRow() }
 
     override fun findBackupById(id: Uuid): BackupRow? = backups[id]?.toRow()
-    override fun createBackup(serverId: Uuid, nodeId: Uuid, trigger: String): BackupRow {
+    override fun createBackup(serverId: Uuid, nodeId: Uuid, trigger: BackupTrigger): BackupRow {
         val id = Uuid.random()
-        val b = MutableBackup(id, serverId, nodeId, trigger)
+        val b = MutableBackup(id, serverId, nodeId, trigger.name)
         backups[id] = b
         return b.toRow()
     }
 
-    override fun updateBackupStatus(id: Uuid, status: String, filePath: String?, sizeBytes: Long?, errorMessage: String?, completedAt: Instant?) {
+    override fun updateBackupStatus(id: Uuid, status: BackupStatus, filePath: String?, sizeBytes: Long?, errorMessage: String?, completedAt: Instant?) {
         backups[id]?.let {
-            it.status = status; if (filePath != null) it.filePath = filePath; if (sizeBytes != null) it.sizeBytes = sizeBytes; if (errorMessage != null) it.errorMessage =
+            it.status = status.name; if (filePath != null) it.filePath = filePath; if (sizeBytes != null) it.sizeBytes = sizeBytes; if (errorMessage != null) it.errorMessage =
             errorMessage; if (completedAt != null) it.completedAt = completedAt.toString()
         }
     }
 
-    override fun countCompletedBackups(serverId: Uuid): Int = backups.values.count { it.serverId == serverId && it.status == "COMPLETED" }
+    override fun countCompletedBackups(serverId: Uuid): Int = backups.values.count { it.serverId == serverId && it.status == BackupStatus.COMPLETED.name }
     override fun deleteBackup(id: Uuid) {
         backups.remove(id)
     }
@@ -396,12 +402,12 @@ class FakeServerRepository : ServerRepository {
     }
 
     override fun failBackupsForNode(nodeId: Uuid) {
-        backups.values.filter { it.nodeId == nodeId && it.status == "IN_PROGRESS" }
-            .forEach { it.status = "FAILED" }
+        backups.values.filter { it.nodeId == nodeId && it.status == BackupStatus.IN_PROGRESS.name }
+            .forEach { it.status = BackupStatus.FAILED.name }
     }
 
     override fun findOldestCompletedBackups(serverId: Uuid, keepCount: Int): List<BackupRow> {
-        val completed = backups.values.filter { it.serverId == serverId && it.status == "COMPLETED" }
+        val completed = backups.values.filter { it.serverId == serverId && it.status == BackupStatus.COMPLETED.name }
             .sortedBy { it.createdAt }
         return if (completed.size <= keepCount) emptyList()
         else completed.dropLast(keepCount)

@@ -1,0 +1,10 @@
+coverage:
+  status:
+    patch:
+      default:
+        target: auto
+        threshold: 5%
+
+ignore:
+  - "**/repo/*RepositoryImpl.kt"
+  - "**/repo/Fake*Repository.kt"

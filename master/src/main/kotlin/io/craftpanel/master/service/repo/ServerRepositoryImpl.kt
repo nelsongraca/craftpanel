@@ -9,6 +9,10 @@ import io.craftpanel.master.database.schema.ServerEnvVars
 import io.craftpanel.master.database.schema.ServerMigrations
 import io.craftpanel.master.database.schema.ServerMods
 import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.domain.BackupStatus
+import io.craftpanel.master.domain.BackupTrigger
+import io.craftpanel.master.domain.MigrationStatus
+import io.craftpanel.master.domain.MigrationStepStatus
 import io.craftpanel.master.util.toUtcString
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
@@ -69,11 +73,10 @@ class ServerRepositoryImpl : ServerRepository {
         if (networkIds.isEmpty() && serverIds.isEmpty()) return@transaction emptyList()
         Servers.selectAll()
             .where {
-                val conds = buildList<Op<Boolean>> {
+                buildList<Op<Boolean>> {
                     if (networkIds.isNotEmpty()) add(Servers.networkId inList networkIds)
                     if (serverIds.isNotEmpty()) add(Servers.id inList serverIds)
-                }
-                conds.reduce { a, b -> a or b }
+                }.reduce { a, b -> a or b }
             }
             .map { it.toServerRow() }
     }
@@ -379,7 +382,7 @@ class ServerRepositoryImpl : ServerRepository {
         ServerMigrations.selectAll()
             .where {
                 (ServerMigrations.serverId eq serverId) and
-                        (ServerMigrations.status inList listOf("PENDING", "RUNNING", "SYNCING", "CUTTING_OVER"))
+                        (ServerMigrations.status inList listOf(MigrationStatus.PENDING.name, MigrationStatus.RUNNING.name, MigrationStatus.SYNCING.name, MigrationStatus.CUTTING_OVER.name))
             }
             .firstOrNull()
             ?.toMigrationRow()
@@ -404,7 +407,7 @@ class ServerRepositoryImpl : ServerRepository {
             it[ServerMigrations.serverId] = serverId
             it[ServerMigrations.sourceNodeId] = sourceNodeId
             it[ServerMigrations.targetNodeId] = targetNodeId
-            it[ServerMigrations.status] = "PENDING"
+            it[ServerMigrations.status] = MigrationStatus.PENDING.name
         }[ServerMigrations.id]
         ServerMigrations.selectAll()
             .where { ServerMigrations.id eq id }
@@ -412,24 +415,23 @@ class ServerRepositoryImpl : ServerRepository {
             .toMigrationRow()
     }
 
-    override fun updateMigrationStatus(id: Uuid, status: String, completedAt: Instant?) {
+    override fun updateMigrationStatus(id: Uuid, status: MigrationStatus, completedAt: Instant?) {
         transaction {
             ServerMigrations.update({ ServerMigrations.id eq id }) {
-                it[ServerMigrations.status] = status
+                it[ServerMigrations.status] = status.name
                 if (completedAt != null) it[ServerMigrations.completedAt] = completedAt.toLocalDateTime(TimeZone.UTC)
             }
         }
     }
 
     override fun failMigrationsForNode(nodeId: Uuid) {
-        val now = Clock.System.now()
-            .toLocalDateTime(TimeZone.UTC)
+        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         transaction {
             ServerMigrations.update({
                 ((ServerMigrations.sourceNodeId eq nodeId) or (ServerMigrations.targetNodeId eq nodeId)) and
-                        (ServerMigrations.status inList listOf("PENDING", "SYNCING", "CUTTING_OVER"))
+                        (ServerMigrations.status inList listOf(MigrationStatus.PENDING.name, MigrationStatus.SYNCING.name, MigrationStatus.CUTTING_OVER.name))
             }) {
-                it[ServerMigrations.status] = "FAILED"
+                it[ServerMigrations.status] = MigrationStatus.FAILED.name
                 it[ServerMigrations.completedAt] = now
             }
         }
@@ -438,9 +440,9 @@ class ServerRepositoryImpl : ServerRepository {
     override fun failAllStuckMigrations() {
         transaction {
             ServerMigrations.update({
-                ServerMigrations.status inList listOf("PENDING", "SYNCING", "CUTTING_OVER", "RUNNING")
+                ServerMigrations.status inList listOf(MigrationStatus.PENDING.name, MigrationStatus.SYNCING.name, MigrationStatus.CUTTING_OVER.name, MigrationStatus.RUNNING.name)
             }) {
-                it[ServerMigrations.status] = "FAILED"
+                it[ServerMigrations.status] = MigrationStatus.FAILED.name
                 it[ServerMigrations.completedAt] = Clock.System.now()
                     .toLocalDateTime(TimeZone.UTC)
             }
@@ -473,7 +475,7 @@ class ServerRepositoryImpl : ServerRepository {
             it[MigrationStepLog.migrationId] = migrationId
             it[MigrationStepLog.stepNumber] = stepNumber
             it[MigrationStepLog.description] = description
-            it[MigrationStepLog.status] = "PENDING"
+            it[MigrationStepLog.status] = MigrationStepStatus.PENDING.name
         }[MigrationStepLog.id]
         MigrationStepLog.selectAll()
             .where { MigrationStepLog.id eq id }
@@ -481,10 +483,10 @@ class ServerRepositoryImpl : ServerRepository {
             .toMigrationStepRow()
     }
 
-    override fun updateMigrationStepStatus(id: Uuid, status: String, startedAt: Instant?, completedAt: Instant?, errorMessage: String?) {
+    override fun updateMigrationStepStatus(id: Uuid, status: MigrationStepStatus, startedAt: Instant?, completedAt: Instant?, errorMessage: String?) {
         transaction {
             MigrationStepLog.update({ MigrationStepLog.id eq id }) {
-                it[MigrationStepLog.status] = status
+                it[MigrationStepLog.status] = status.name
                 if (startedAt != null) it[MigrationStepLog.startedAt] = startedAt.toLocalDateTime(TimeZone.UTC)
                 if (completedAt != null) it[MigrationStepLog.completedAt] = completedAt.toLocalDateTime(TimeZone.UTC)
                 if (errorMessage != null) it[MigrationStepLog.errorMessage] = errorMessage
@@ -545,12 +547,12 @@ class ServerRepositoryImpl : ServerRepository {
             ?.toBackupRow()
     }
 
-    override fun createBackup(serverId: Uuid, nodeId: Uuid, trigger: String): BackupRow = transaction {
+    override fun createBackup(serverId: Uuid, nodeId: Uuid, trigger: BackupTrigger): BackupRow = transaction {
         val id = Backups.insert {
             it[Backups.serverId] = serverId
             it[Backups.nodeId] = nodeId
-            it[Backups.trigger] = trigger
-            it[Backups.status] = "IN_PROGRESS"
+            it[Backups.trigger] = trigger.name
+            it[Backups.status] = BackupStatus.IN_PROGRESS.name
         }[Backups.id]
         Backups.selectAll()
             .where { Backups.id eq id }
@@ -560,7 +562,7 @@ class ServerRepositoryImpl : ServerRepository {
 
     override fun updateBackupStatus(
         id: Uuid,
-        status: String,
+        status: BackupStatus,
         filePath: String?,
         sizeBytes: Long?,
         errorMessage: String?,
@@ -568,7 +570,7 @@ class ServerRepositoryImpl : ServerRepository {
     ) {
         transaction {
             Backups.update({ Backups.id eq id }) {
-                it[Backups.status] = status
+                it[Backups.status] = status.name
                 if (filePath != null) it[Backups.filePath] = filePath
                 if (sizeBytes != null) it[Backups.sizeBytes] = sizeBytes
                 if (errorMessage != null) it[Backups.errorMessage] = errorMessage
@@ -579,7 +581,7 @@ class ServerRepositoryImpl : ServerRepository {
 
     override fun countCompletedBackups(serverId: Uuid): Int = transaction {
         Backups.selectAll()
-            .where { (Backups.serverId eq serverId) and (Backups.status eq "COMPLETED") }
+            .where { (Backups.serverId eq serverId) and (Backups.status eq BackupStatus.COMPLETED.name) }
             .toList()
             .size
     }
@@ -593,11 +595,10 @@ class ServerRepositoryImpl : ServerRepository {
     }
 
     override fun failBackupsForNode(nodeId: Uuid) {
-        val now = Clock.System.now()
-            .toLocalDateTime(TimeZone.UTC)
+        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
         transaction {
-            Backups.update({ (Backups.nodeId eq nodeId) and (Backups.status eq "IN_PROGRESS") }) {
-                it[Backups.status] = "FAILED"
+            Backups.update({ (Backups.nodeId eq nodeId) and (Backups.status eq BackupStatus.IN_PROGRESS.name) }) {
+                it[Backups.status] = BackupStatus.FAILED.name
                 it[Backups.errorMessage] = "Node went offline during backup"
                 it[Backups.completedAt] = now
             }
@@ -606,7 +607,7 @@ class ServerRepositoryImpl : ServerRepository {
 
     override fun findOldestCompletedBackups(serverId: Uuid, keepCount: Int): List<BackupRow> = transaction {
         val rows = Backups.selectAll()
-            .where { (Backups.serverId eq serverId) and (Backups.status eq "COMPLETED") }
+            .where { (Backups.serverId eq serverId) and (Backups.status eq BackupStatus.COMPLETED.name) }
             .orderBy(Backups.createdAt to SortOrder.ASC)
             .toList()
         if (rows.size < keepCount) emptyList()
@@ -706,7 +707,7 @@ class ServerRepositoryImpl : ServerRepository {
     }
 }
 
-private fun org.jetbrains.exposed.v1.core.ResultRow.toServerRow() = ServerRow(
+private fun ResultRow.toServerRow() = ServerRow(
     id = this[Servers.id],
     name = this[Servers.name],
     displayName = this[Servers.displayName],
@@ -739,7 +740,7 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toServerRow() = ServerRow(
     updatedAt = this[Servers.updatedAt].toString(),
 )
 
-private fun org.jetbrains.exposed.v1.core.ResultRow.toModRow() = ModRow(
+private fun ResultRow.toModRow() = ModRow(
     id = this[ServerMods.id],
     serverId = this[ServerMods.serverId],
     modrinthProjectId = this[ServerMods.modrinthProjectId],
@@ -751,7 +752,7 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toModRow() = ModRow(
     updatedAt = this[ServerMods.updatedAt].toString(),
 )
 
-private fun org.jetbrains.exposed.v1.core.ResultRow.toMigrationRow() = MigrationRow(
+private fun ResultRow.toMigrationRow() = MigrationRow(
     id = this[ServerMigrations.id],
     serverId = this[ServerMigrations.serverId],
     sourceNodeId = this[ServerMigrations.sourceNodeId],
@@ -761,7 +762,7 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toMigrationRow() = Migration
     completedAt = this[ServerMigrations.completedAt]?.toUtcString(),
 )
 
-private fun org.jetbrains.exposed.v1.core.ResultRow.toMigrationStepRow() = MigrationStepRow(
+private fun ResultRow.toMigrationStepRow() = MigrationStepRow(
     id = this[MigrationStepLog.id],
     migrationId = this[MigrationStepLog.migrationId],
     stepNumber = this[MigrationStepLog.stepNumber],
@@ -772,7 +773,7 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toMigrationStepRow() = Migra
     errorMessage = this[MigrationStepLog.errorMessage],
 )
 
-private fun org.jetbrains.exposed.v1.core.ResultRow.toBackupRow() = BackupRow(
+private fun ResultRow.toBackupRow() = BackupRow(
     id = this[Backups.id],
     serverId = this[Backups.serverId],
     nodeId = this[Backups.nodeId],
@@ -785,7 +786,7 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toBackupRow() = BackupRow(
     completedAt = this[Backups.completedAt]?.toString(),
 )
 
-private fun org.jetbrains.exposed.v1.core.ResultRow.toProxyBackendRow() = ProxyBackendRow(
+private fun ResultRow.toProxyBackendRow() = ProxyBackendRow(
     id = this[ProxyBackends.id],
     proxyServerId = this[ProxyBackends.proxyServerId],
     backendServerId = this[ProxyBackends.backendServerId],
@@ -793,7 +794,7 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toProxyBackendRow() = ProxyB
     order = this[ProxyBackends.order],
 )
 
-private fun org.jetbrains.exposed.v1.core.ResultRow.toContainerMetricsRow() = ContainerMetricsRow(
+private fun ResultRow.toContainerMetricsRow() = ContainerMetricsRow(
     id = this[ContainerMetrics.id],
     serverId = this[ContainerMetrics.serverId],
     recordedAt = this[ContainerMetrics.recordedAt].toString(),

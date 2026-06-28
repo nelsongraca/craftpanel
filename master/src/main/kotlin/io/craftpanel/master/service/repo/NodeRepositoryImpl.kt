@@ -3,6 +3,7 @@ package io.craftpanel.master.service.repo
 import io.craftpanel.master.database.schema.NodeMetrics
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.domain.NodeStatus
 import io.craftpanel.master.util.toUtcString
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -112,7 +113,7 @@ class NodeRepositoryImpl : NodeRepository {
     }
 
     override fun markDecommissioned(id: Uuid) {
-        transaction { Nodes.update({ Nodes.id eq id }) { it[Nodes.status] = "DECOMMISSIONED" } }
+        transaction { Nodes.update({ Nodes.id eq id }) { it[Nodes.status] = NodeStatus.DECOMMISSIONED.name } }
     }
 
     override fun updateTokenHash(id: Uuid, tokenHash: String) {
@@ -122,15 +123,13 @@ class NodeRepositoryImpl : NodeRepository {
     override fun calculateAllocatedRam(id: Uuid): Int = transaction {
         Servers.selectAll()
             .where { Servers.nodeId eq id }
-            .map { it[Servers.memoryMb] }
-            .sum()
+            .sumOf { it[Servers.memoryMb] }
     }
 
     override fun calculateAllocatedCpu(id: Uuid): Int = transaction {
         Servers.selectAll()
             .where { Servers.nodeId eq id }
-            .map { it[Servers.cpuShares] }
-            .sum()
+            .sumOf { it[Servers.cpuShares] }
     }
 
     override fun insertMetrics(
@@ -181,7 +180,7 @@ class NodeRepositoryImpl : NodeRepository {
     }
 }
 
-private fun org.jetbrains.exposed.v1.core.ResultRow.toNodeRow() = NodeRow(
+private fun ResultRow.toNodeRow() = NodeRow(
     id = this[Nodes.id],
     displayName = this[Nodes.displayName],
     hostname = this[Nodes.hostname],
