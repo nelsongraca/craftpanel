@@ -228,7 +228,7 @@ class ServerRepositoryImpl : ServerRepository {
             Servers.update({ Servers.id eq id }) {
                 if (exposedExternally != null) it[Servers.exposedExternally] = exposedExternally
                 if (publicSubdomain != null) it[Servers.publicSubdomain] = publicSubdomain
-                if (customHostname != null) it[Servers.customHostname] = customHostname
+                it[Servers.customHostname] = customHostname
                 if (dnsRecordId != null) it[Servers.dnsRecordId] = dnsRecordId
                 if (dnsRecordName != null) it[Servers.dnsRecordName] = dnsRecordName
                 if (needsRecreate != null) it[Servers.needsRecreate] = needsRecreate

@@ -218,9 +218,12 @@ class FakeServerRepository : ServerRepository {
 
     override fun updateExposure(id: Uuid, exposedExternally: Boolean?, publicSubdomain: String?, customHostname: String?, dnsRecordId: String?, dnsRecordName: String?, needsRecreate: Boolean?) {
         servers[id]?.let {
-            if (exposedExternally != null) it.exposedExternally = exposedExternally; if (publicSubdomain != null) it.publicSubdomain = publicSubdomain; if (customHostname != null) it.customHostname =
-            customHostname; if (dnsRecordId != null) it.dnsRecordId = dnsRecordId; if (dnsRecordName != null) it.dnsRecordName = dnsRecordName; if (needsRecreate != null) it.needsRecreate =
-            needsRecreate
+            if (exposedExternally != null) it.exposedExternally = exposedExternally
+            if (publicSubdomain != null) it.publicSubdomain = publicSubdomain
+            it.customHostname = customHostname
+            if (dnsRecordId != null) it.dnsRecordId = dnsRecordId
+            if (dnsRecordName != null) it.dnsRecordName = dnsRecordName
+            if (needsRecreate != null) it.needsRecreate = needsRecreate
         }
     }
 

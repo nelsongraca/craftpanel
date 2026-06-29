@@ -18,6 +18,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
@@ -115,17 +116,26 @@ class MigrationService(
         val migration = serverRepository.createMigration(serverId, sourceNodeId, targetNodeId)
 
         eventFlows[migration.id.toString()] =
-            MutableSharedFlow(extraBufferCapacity = 128, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+            MutableSharedFlow(replay = 128, onBufferOverflow = BufferOverflow.DROP_OLDEST)
 
         scope.launch {
-            runMigration(
-                migrationId = migration.id,
-                serverId = serverId,
-                sourceNodeId = sourceNodeId,
-                targetNodeId = targetNodeId,
-                rsyncImage = req.rsyncImage,
-                playerWarningMessage = req.playerWarningMessage,
-            )
+            runCatching {
+                runMigration(
+                    migrationId = migration.id,
+                    serverId = serverId,
+                    sourceNodeId = sourceNodeId,
+                    targetNodeId = targetNodeId,
+                    rsyncImage = req.rsyncImage,
+                    playerWarningMessage = req.playerWarningMessage,
+                )
+            }.onFailure { e ->
+                if (e is CancellationException) throw e
+                if (e is ExposedSQLException && e.message?.contains("fk_migration_step_log") == true) {
+                    log.warn("Migration ${migration.id} aborted: server was deleted mid-flight")
+                } else {
+                    log.error("Migration ${migration.id} crashed unexpectedly", e)
+                }
+            }
         }
 
         return getMigration(migration.id)
