@@ -21,14 +21,14 @@ import kotlin.uuid.Uuid
 class AlertRepositoryImpl : AlertRepository {
 
     override fun listThresholds(scopeType: String?, scopeId: Uuid?): List<AlertThresholdRow> = transaction {
-        var query = AlertThresholds.selectAll()
-        if (scopeType != null) {
-            query = query.where { AlertThresholds.scopeType eq scopeType }
-        }
-        if (scopeId != null) {
-            query = query.where { AlertThresholds.scopeId eq scopeId }
-        }
-        query.map { it.toThresholdRow() }
+        AlertThresholds.selectAll()
+            .apply {
+                val scopeTypeOp = if (scopeType != null) AlertThresholds.scopeType eq scopeType else null
+                val scopeIdOp = if (scopeId != null) AlertThresholds.scopeId eq scopeId else null
+                val condition = listOfNotNull(scopeTypeOp, scopeIdOp).reduceOrNull { a, b -> a and b }
+                if (condition != null) where { condition }
+            }
+            .map { it.toThresholdRow() }
     }
 
     override fun createThreshold(
@@ -66,14 +66,14 @@ class AlertRepositoryImpl : AlertRepository {
     }
 
     override fun listEvents(thresholdIds: List<Uuid>?, activeOnly: Boolean): List<AlertEventRow> = transaction {
-        var query = AlertEvents.selectAll()
-        if (thresholdIds != null) {
-            query = query.where { AlertEvents.thresholdId inList thresholdIds }
-        }
-        if (activeOnly) {
-            query = query.where { AlertEvents.resolvedAt.isNull() }
-        }
-        query.orderBy(AlertEvents.firedAt, SortOrder.DESC)
+        AlertEvents.selectAll()
+            .apply {
+                val idsOp = if (thresholdIds != null) AlertEvents.thresholdId inList thresholdIds else null
+                val activeOp = if (activeOnly) AlertEvents.resolvedAt.isNull() else null
+                val condition = listOfNotNull(idsOp, activeOp).reduceOrNull { a, b -> a and b }
+                if (condition != null) where { condition }
+            }
+            .orderBy(AlertEvents.firedAt, SortOrder.DESC)
             .map {
                 AlertEventRow(
                     id = it[AlertEvents.id],
