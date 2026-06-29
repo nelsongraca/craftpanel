@@ -16,7 +16,11 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlin.time.Instant
 
-fun Route.serversRoutes(serverService: ServerService, lifecycleService: ServerLifecycleService) {
+fun Route.serversRoutes(
+    serverService: ServerService,
+    lifecycleService: ServerLifecycleService,
+    exposureService: ServerExposureService,
+) {
     authenticate(JWT_AUTH) {
         route("/api/servers") {
 
@@ -211,7 +215,7 @@ fun Route.serversRoutes(serverService: ServerService, lifecycleService: ServerLi
             }) {
                 val auth = call.requireServerPermission(Permission.SERVER_CONFIGURE)
                 val req = call.receive<PatchExposureRequest>()
-                serverService.updateExposure(auth.serverId, req)
+                exposureService.updateExposure(auth.serverId, req)
                 call.respond(HttpStatusCode.NoContent)
             }
         }

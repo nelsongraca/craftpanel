@@ -126,17 +126,6 @@ class ServerService(
 
     private val log = LoggerFactory.getLogger(ServerService::class.java)
 
-    private val exposureService = ServerExposureService(
-        dnsProvider = dnsProvider,
-        lifecycle = lifecycle,
-        serverRepository = serverRepository,
-        nodeRepository = nodeRepository,
-        networkRepository = networkRepository,
-        settingsRepository = settingsRepository,
-    )
-
-    fun updateExposure(id: Uuid, req: PatchExposureRequest) = exposureService.updateExposure(id, req)
-
     fun listServers(userId: Uuid): List<ServerResponse> {
         val visibility = resolveServerVisibility(userId)
         val rows = when {

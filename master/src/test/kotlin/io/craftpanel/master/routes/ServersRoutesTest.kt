@@ -92,9 +92,18 @@ class ServersRoutesTest : FunSpec({
             modService = modService,
             serverRepository = serverRepository,
         )
+        val nodeRepository = NodeRepositoryImpl()
         val lifecycleService = ServerLifecycleService(
             lifecycle = lifecycle,
             serverRepository = serverRepository,
+            networkRepository = networkRepository,
+            settingsRepository = settingsRepository,
+        )
+        val exposureService = ServerExposureService(
+            dnsProvider = null,
+            lifecycle = lifecycle,
+            serverRepository = serverRepository,
+            nodeRepository = nodeRepository,
             networkRepository = networkRepository,
             settingsRepository = settingsRepository,
         )
@@ -105,13 +114,14 @@ class ServersRoutesTest : FunSpec({
                     modService = modService,
                     lifecycle = lifecycle,
                     serverRepository = serverRepository,
-                    nodeRepository = NodeRepositoryImpl(),
+                    nodeRepository = nodeRepository,
                     networkRepository = networkRepository,
                     userRepository = UserRepositoryImpl(),
                     groupRepository = GroupRepositoryImpl(),
                     settingsRepository = settingsRepository,
                 ),
                 lifecycleService,
+                exposureService,
             )
         }
     }
