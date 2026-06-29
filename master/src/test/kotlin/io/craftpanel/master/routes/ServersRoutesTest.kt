@@ -83,11 +83,20 @@ class ServersRoutesTest : FunSpec({
                 }
             }
         }
-        val modService = ModService(ServerRepositoryImpl())
+        val serverRepository = ServerRepositoryImpl()
+        val networkRepository = NetworkRepositoryImpl()
+        val settingsRepository = SettingsRepositoryImpl()
+        val modService = ModService(serverRepository)
         val lifecycle = ContainerLifecycle(
             gateway = gateway,
             modService = modService,
-            serverRepository = ServerRepositoryImpl(),
+            serverRepository = serverRepository,
+        )
+        val lifecycleService = ServerLifecycleService(
+            lifecycle = lifecycle,
+            serverRepository = serverRepository,
+            networkRepository = networkRepository,
+            settingsRepository = settingsRepository,
         )
         routing {
             serversRoutes(
@@ -95,13 +104,14 @@ class ServersRoutesTest : FunSpec({
                     gateway = gateway,
                     modService = modService,
                     lifecycle = lifecycle,
-                    serverRepository = ServerRepositoryImpl(),
+                    serverRepository = serverRepository,
                     nodeRepository = NodeRepositoryImpl(),
-                    networkRepository = NetworkRepositoryImpl(),
+                    networkRepository = networkRepository,
                     userRepository = UserRepositoryImpl(),
                     groupRepository = GroupRepositoryImpl(),
-                    settingsRepository = SettingsRepositoryImpl(),
-                )
+                    settingsRepository = settingsRepository,
+                ),
+                lifecycleService,
             )
         }
     }
