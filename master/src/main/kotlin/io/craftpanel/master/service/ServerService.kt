@@ -336,41 +336,6 @@ class ServerService(
         serverRepository.updateResources(id, req.memoryMb, req.cpuShares, req.itzgImageTag, true)
     }
 
-    fun startServer(id: Uuid) {
-        val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
-        val status = ServerStatus.fromDb(serverRow.status)
-        if (status == ServerStatus.HEALTHY || status == ServerStatus.STARTING)
-            throw ConflictException("Server is already running")
-        val publicHostname = buildMcRouterLabel(serverRow)
-        // Write STARTING before dispatching so a late write cannot clobber HEALTHY.
-        serverRepository.updateStatus(id, "STARTING", null)
-        lifecycle.sendStart(serverRow, needsRecreate = serverRow.needsRecreate, publicHostname = publicHostname)
-    }
-
-    fun stopServer(id: Uuid) {
-        val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
-        if (serverRow.status == "STOPPED") throw ConflictException("Server is already stopped")
-        val nodeId = serverRow.nodeId.toString()
-        // Write STOPPING before dispatching so a late write cannot clobber STOPPED.
-        serverRepository.updateStatus(id, "STOPPING", null)
-        lifecycle.sendStop(serverRow, nodeId)
-    }
-
-    fun restartServer(id: Uuid) {
-        val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
-        if (ServerStatus.fromDb(serverRow.status).isStopped) throw ConflictException("Server is not running")
-        val nodeId = serverRow.nodeId.toString()
-        // Write STARTING before dispatching so a late write cannot clobber HEALTHY/STOPPED.
-        serverRepository.updateStatus(id, "STARTING", null)
-        if (serverRow.needsRecreate) {
-            lifecycle.sendStart(serverRow, needsRecreate = true, publicHostname = buildMcRouterLabel(serverRow))
-        }
-        else {
-            lifecycle.sendStop(serverRow, nodeId)
-            lifecycle.sendStart(serverRow, needsRecreate = false, publicHostname = buildMcRouterLabel(serverRow))
-        }
-    }
-
     fun getMetrics(id: Uuid, from: Instant, to: Instant): ContainerMetricsSeriesResponse {
         serverRepository.findById(id) ?: throw NotFoundException("Server not found")
         val rows = serverRepository.getContainerMetricsByRange(id, from, to)
@@ -466,7 +431,7 @@ class ServerService(
         if (currentStatus.isRunning && exposureNeedsRecreate) {
             val freshRow = serverRepository.findById(id)!!
             serverRepository.updateStatus(id, "STARTING", null)
-            lifecycle.sendStart(freshRow, needsRecreate = true, publicHostname = buildMcRouterLabel(freshRow))
+            lifecycle.sendStart(freshRow, needsRecreate = true, publicHostname = buildMcRouterLabel(freshRow, networkRepository, settingsRepository))
         }
     }
 
@@ -504,16 +469,6 @@ class ServerService(
         settingsRepository.getAll()
             .firstOrNull { it.key == "dns_domain_suffix" }?.value?.let { suffixes += it }
         return suffixes
-    }
-
-    private fun buildMcRouterLabel(row: ServerRow): String? {
-        val managed = if (row.exposedExternally && row.publicSubdomain != null) {
-            row.dnsRecordName ?: resolvePublicHostname(row.publicSubdomain, row.networkId)
-        }
-        else null
-        val custom = row.customHostname
-        val parts = listOfNotNull(managed, custom)
-        return if (parts.isEmpty()) null else parts.joinToString(",")
     }
 
     private data class NetworkDns(val zoneId: String, val domainSuffix: String)
@@ -567,6 +522,25 @@ internal data class ServerVisibility(
 )
 
 internal val PROXY_SERVER_TYPES = setOf("VELOCITY", "BUNGEECORD", "WATERFALL")
+
+internal fun buildMcRouterLabel(
+    row: ServerRow,
+    networkRepository: NetworkRepository,
+    settingsRepository: SettingsRepository,
+): String? {
+    val managed = if (row.exposedExternally && row.publicSubdomain != null) {
+        row.dnsRecordName ?: run {
+            val suffix = row.networkId?.let { networkRepository.findById(it)?.cfDomainSuffix }
+                ?: settingsRepository.getAll()
+                    .firstOrNull { it.key == "dns_domain_suffix" }?.value
+            suffix?.let { "${row.publicSubdomain}.$it" }
+        }
+    }
+    else null
+    val custom = row.customHostname
+    val parts = listOfNotNull(managed, custom)
+    return if (parts.isEmpty()) null else parts.joinToString(",")
+}
 
 private fun permGrantsServerView(granted: String) =
     granted == "*" || granted == "server.*" || granted == Permission.SERVER_VIEW.node

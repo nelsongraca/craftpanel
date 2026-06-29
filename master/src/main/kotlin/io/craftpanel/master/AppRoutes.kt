@@ -33,6 +33,7 @@ import io.craftpanel.master.service.ModService
 import io.craftpanel.master.service.NetworkService
 import io.craftpanel.master.service.NodeService
 import io.craftpanel.master.service.ProxyBackendService
+import io.craftpanel.master.service.ServerLifecycleService
 import io.craftpanel.master.service.ServerService
 import io.craftpanel.master.service.SystemService
 import io.craftpanel.master.service.UserService
@@ -45,7 +46,7 @@ fun Route.registerAppRoutes() {
     nodeIpRoutes()
     nodesRoutes(get())
     networksRoutes(get())
-    serversRoutes(get())
+    serversRoutes(get(), get())
     usersRoutes(get())
     groupsRoutes(get())
     assignmentsRoutes(get())

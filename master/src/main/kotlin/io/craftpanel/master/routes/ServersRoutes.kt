@@ -16,7 +16,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlin.time.Instant
 
-fun Route.serversRoutes(serverService: ServerService) {
+fun Route.serversRoutes(serverService: ServerService, lifecycleService: ServerLifecycleService) {
     authenticate(JWT_AUTH) {
         route("/api/servers") {
 
@@ -132,7 +132,7 @@ fun Route.serversRoutes(serverService: ServerService) {
                 }
             }) {
                 val auth = call.requireServerPermission(Permission.SERVER_START)
-                serverService.startServer(auth.serverId)
+                lifecycleService.startServer(auth.serverId)
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Server start initiated"))
             }
 
@@ -150,7 +150,7 @@ fun Route.serversRoutes(serverService: ServerService) {
                 }
             }) {
                 val auth = call.requireServerPermission(Permission.SERVER_STOP)
-                serverService.stopServer(auth.serverId)
+                lifecycleService.stopServer(auth.serverId)
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Server stop initiated"))
             }
 
@@ -167,7 +167,7 @@ fun Route.serversRoutes(serverService: ServerService) {
                 }
             }) {
                 val auth = call.requireServerPermission(Permission.SERVER_RESTART)
-                serverService.restartServer(auth.serverId)
+                lifecycleService.restartServer(auth.serverId)
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Server restart initiated"))
             }
 

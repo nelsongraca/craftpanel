@@ -26,6 +26,7 @@ import io.craftpanel.master.service.NodeService
 import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.master.service.ProxyBackendService
 import io.craftpanel.master.service.ServerRestartManager
+import io.craftpanel.master.service.ServerLifecycleService
 import io.craftpanel.master.service.ServerService
 import io.craftpanel.master.service.SystemService
 import io.craftpanel.master.service.UserService
@@ -127,6 +128,14 @@ val appModule = module {
             serverRepository = get(),
             images = images,
             containerNamePrefix = get(named("containerPrefix")),
+        )
+    }
+    single {
+        ServerLifecycleService(
+            lifecycle = get(),
+            serverRepository = get(),
+            networkRepository = get(),
+            settingsRepository = get(),
         )
     }
     single {
