@@ -32,9 +32,9 @@ internal suspend fun withStatus(
     block: suspend () -> Unit,
 ) {
     runCatching { block() }
-        .onSuccess { out.serverStatus(serverId, successStatus) }
+        .onSuccess { if (serverId.isNotEmpty()) out.serverStatus(serverId, successStatus) }
         .onFailure { e ->
             log.error(logContext, e)
-            out.serverStatus(serverId, ServerStatusUpdate.ServerStatus.UNHEALTHY)
+            if (serverId.isNotEmpty()) out.serverStatus(serverId, ServerStatusUpdate.ServerStatus.UNHEALTHY)
         }
 }

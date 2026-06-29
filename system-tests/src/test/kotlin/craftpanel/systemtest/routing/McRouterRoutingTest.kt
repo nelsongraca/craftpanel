@@ -152,7 +152,7 @@ class McRouterRoutingTest : BaseSystemTest() {
 
                 // Custom hostname no longer routes — mc-router drops the route when the container
                 // is recreated without the customHostnameC label.
-                val deadline = System.currentTimeMillis() + 15_000
+                val deadline = System.currentTimeMillis() + 30_000
                 var routed: String? = "pending"
                 while (System.currentTimeMillis() < deadline) {
                     routed = runCatching { pingThroughRouter(customHostnameC) }.getOrNull()

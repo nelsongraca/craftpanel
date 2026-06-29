@@ -76,9 +76,9 @@ open class ContainerManager(
                         ?.trimStart('/') ?: container.id
                     serverId = container.labels["craftpanel.server.id"] ?: ""
                     runState = when (container.state) {
-                        "running"                                    -> ContainerState.RunState.RUNNING
+                        "running" -> ContainerState.RunState.RUNNING
                         "exited" if container.status.contains("(0)") -> ContainerState.RunState.STOPPED
-                        else                                         -> ContainerState.RunState.EXITED
+                        else -> ContainerState.RunState.EXITED
                     }
                 }
             }
@@ -324,6 +324,16 @@ CONF
             .exec()
         docker.startContainerCmd(containerName)
             .exec()
+        // Wait for rsyncd to be accepting connections before declaring ready.
+        // The container needs to run `apk add rsync` first, so startup can take several seconds.
+        val deadline = System.currentTimeMillis() + 30_000
+        while (System.currentTimeMillis() < deadline) {
+            if (runCatching {
+                    java.net.Socket("127.0.0.1", port)
+                        .close()
+                }.isSuccess) break
+            Thread.sleep(500)
+        }
         log.info("Started rsyncd container $containerName on port $port")
         return containerName
     }

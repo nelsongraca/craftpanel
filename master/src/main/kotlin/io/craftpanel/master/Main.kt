@@ -122,6 +122,7 @@ fun Application.module() {
         control.agentEvents
             .filterIsInstance<AgentEvent.ServerStatusEvent>()
             .collect { event ->
+                if (event.serverId.isEmpty()) return@collect
                 runCatching {
                     val clearRecreate = event.status == ServerStatus.HEALTHY
                     transaction {
