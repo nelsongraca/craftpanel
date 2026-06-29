@@ -21,6 +21,8 @@ import io.craftpanel.master.service.NetworkService
 import io.craftpanel.master.service.NodeService
 import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.master.service.ProxyBackendService
+import io.craftpanel.master.service.ServerExposureService
+import io.craftpanel.master.service.ServerLifecycleService
 import io.craftpanel.master.service.ServerService
 import io.craftpanel.master.service.SystemService
 import io.craftpanel.master.service.UserService
@@ -145,13 +147,29 @@ class OpenApiSpecTask : FunSpec({
                                 single {
                                     ServerService(
                                         gateway = noopGateway,
-                                        modService = get(),
-                                        lifecycle = get(),
                                         serverRepository = get(),
                                         nodeRepository = get(),
                                         networkRepository = get(),
                                         userRepository = get(),
                                         groupRepository = get(),
+                                        settingsRepository = get(),
+                                    )
+                                }
+                                single {
+                                    ServerLifecycleService(
+                                        lifecycle = get(),
+                                        serverRepository = get(),
+                                        networkRepository = get(),
+                                        settingsRepository = get(),
+                                    )
+                                }
+                                single {
+                                    ServerExposureService(
+                                        dnsProvider = null,
+                                        lifecycle = get(),
+                                        serverRepository = get(),
+                                        nodeRepository = get(),
+                                        networkRepository = get(),
                                         settingsRepository = get(),
                                     )
                                 }

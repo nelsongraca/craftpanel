@@ -150,16 +150,11 @@ val appModule = module {
         )
     }
     single {
-        val s = get<SystemService>().getSettings().settings
-        val images = ImagesConfig(s.imageMinecraft, s.imageProxy)
         ServerService(
             gateway = get<AgentGateway>(),
-            modService = get(),
             networkService = get(),
             dnsProvider = get<DnsProviderHolder>().provider,
-            images = images,
             containerNamePrefix = get(named("containerPrefix")),
-            lifecycle = get(),
             serverRepository = get(),
             nodeRepository = get(),
             networkRepository = get(),

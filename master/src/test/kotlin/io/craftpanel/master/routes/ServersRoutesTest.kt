@@ -111,8 +111,6 @@ class ServersRoutesTest : FunSpec({
             serversRoutes(
                 ServerService(
                     gateway = gateway,
-                    modService = modService,
-                    lifecycle = lifecycle,
                     serverRepository = serverRepository,
                     nodeRepository = nodeRepository,
                     networkRepository = networkRepository,

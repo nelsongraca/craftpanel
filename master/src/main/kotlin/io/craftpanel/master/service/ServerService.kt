@@ -2,7 +2,6 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.ScopeType
-import io.craftpanel.master.config.ImagesConfig
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.ConfigMode
 import io.craftpanel.master.domain.ServerStatus
@@ -110,12 +109,9 @@ data class ContainerMetricsSeries(
 
 class ServerService(
     private val gateway: AgentGateway,
-    private val modService: ModService,
     private val networkService: NetworkService? = null,
     private val dnsProvider: DnsProvider? = null,
-    private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
     private val containerNamePrefix: String = "craftpanel",
-    private val lifecycle: ContainerLifecycle,
     private val serverRepository: ServerRepository,
     private val nodeRepository: NodeRepository,
     private val networkRepository: NetworkRepository,
@@ -360,7 +356,6 @@ class ServerService(
         val groupIds = assignments.map { it.groupId }
             .toSet()
         if (groupIds.isEmpty()) return ServerVisibility(false, emptySet(), emptySet())
-        val allPerms = groupRepository.getPermissionsForGroups(groupIds.toList())
         val viewGroups = groupIds.filter { gid ->
             groupRepository.getPermissions(gid)
                 .any { permGrantsServerView(it) }
