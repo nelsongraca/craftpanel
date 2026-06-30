@@ -8,3 +8,4 @@ coverage:
 ignore:
   - "**/repo/*RepositoryImpl.kt"
   - "**/repo/Fake*Repository.kt"
+  - "**/OpenApiSpecTask.kt"
