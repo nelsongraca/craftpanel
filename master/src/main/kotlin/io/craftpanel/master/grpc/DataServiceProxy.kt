@@ -1,5 +1,9 @@
 package io.craftpanel.master.grpc
 
+import io.craftpanel.master.service.BadGatewayException
+import io.craftpanel.master.service.ConflictException
+import io.craftpanel.master.service.NotFoundException
+import io.craftpanel.master.service.UnprocessableException
 import io.craftpanel.proto.*
 import com.google.protobuf.ByteString
 import io.craftpanel.master.database.schema.Servers
@@ -60,6 +64,16 @@ class DataServiceProxy(
 
     // ── File operations ───────────────────────────────────────────────────────
 
+    private fun agentErrorToException(msg: String): Exception = when {
+        msg.contains("not found", ignoreCase = true)                                               -> NotFoundException(msg)
+        msg.contains("already exists", ignoreCase = true)                                          -> ConflictException(msg)
+        msg.contains("not empty", ignoreCase = true)                                               -> ConflictException(msg)
+        msg.contains("timed out", ignoreCase = true) || msg.contains("timeout", ignoreCase = true) -> BadGatewayException(msg)
+        msg.contains("not connected", ignoreCase = true)                                           -> BadGatewayException(msg)
+        msg.contains("not enough space", ignoreCase = true)                                        -> UnprocessableException(msg)
+        else                                                                                       -> RuntimeException(msg)
+    }
+
     private suspend fun <R> correlate(
         serverId: Uuid,
         build: (reqId: String) -> MasterMessage,
@@ -71,7 +85,8 @@ class DataServiceProxy(
             .toString()
         val response = controlService.sendAndAwait(nodeId, reqId, build(reqId))
         val r = extract(response)
-        if (err(r).isNotBlank()) error(err(r))
+        val errorMsg = err(r)
+        if (errorMsg.isNotBlank()) throw agentErrorToException(errorMsg)
         return r
     }
 
@@ -192,7 +207,7 @@ class DataServiceProxy(
         }, timeoutMs = 120_000)
 
         val r = response.uploadFileResponse
-        if (!r.success) error(r.errorMessage.ifBlank { "Upload failed" })
+        if (!r.success) throw agentErrorToException(r.errorMessage.ifBlank { "Upload failed" })
         return r.sizeBytes
     }
 
@@ -225,7 +240,7 @@ class DataServiceProxy(
         val r = response.downloadFileResponse
         if (!r.success) {
             bulkService.cancelDownload(transferId)
-            error(r.errorMessage.ifBlank { "File not found" })
+            throw agentErrorToException(r.errorMessage.ifBlank { "File not found" })
         }
 
         return downloadFlow
@@ -257,7 +272,7 @@ class DataServiceProxy(
         val r = response.downloadFileResponse
         if (!r.success) {
             bulkService.cancelDownload(transferId)
-            error(r.errorMessage.ifBlank { "Backup file not found" })
+            throw agentErrorToException(r.errorMessage.ifBlank { "Backup file not found" })
         }
 
         return downloadFlow
