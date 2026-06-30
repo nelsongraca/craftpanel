@@ -9,7 +9,7 @@ import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import type {Network, Node, Server, ServerStatus} from "@/lib/types";
 import {useWs} from "@/lib/ws-context";
-import {fmtBytes, fmtMb, fetchReleaseVersions, timeAgo} from "@/lib/utils/format";
+import {fetchReleaseVersions} from "@/lib/utils/format";
 import {serverStatusClass, serverStatusLabel} from "@/lib/status";
 import {ConsoleTab} from "./console-tab";
 import {FilesTab} from "./files-tab";
@@ -18,93 +18,11 @@ import {ModsTab} from "./mods-tab";
 import {ConfigTab} from "./config-tab";
 import {MigrationTab} from "./migration-tab";
 import {ConfirmDialog} from "@/components/ui/confirm-dialog";
-
+import {HeaderActionButton} from "@/components/servers/header-action-button";
+import {OverviewTab} from "@/components/servers/overview-tab";
 
 type LiveMetrics = { cpuPercent: number; ramUsedMb: number; netInBytes: number; netOutBytes: number };
 type LivePlayers = { count: number; list: string[] };
-
-// ── Sub-components ────────────────────────────────────────────────────────────
-
-function StatCard({
-                      label,
-                      children,
-                  }: {
-    label: string;
-    children: React.ReactNode;
-}) {
-    return (
-        <div className="bg-surface border border-border rounded p-4 flex flex-col gap-2">
-            <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
-                {label}
-            </p>
-            {children}
-        </div>
-    );
-}
-
-function RamBarInline({usedMb, totalMb}: { usedMb: number | null; totalMb: number }) {
-    if (usedMb === null) {
-        return (
-            <div className="flex flex-col gap-1.5">
-                <p className="font-mono text-[20px] text-text-muted leading-none">—</p>
-                <p className="font-mono text-[12px] text-text-muted">— / {fmtMb(totalMb)} alloc</p>
-                <div className="h-1.5 rounded-full bg-surface-higher w-full"/>
-            </div>
-        );
-    }
-    const pct = Math.min(100, (usedMb / totalMb) * 100);
-    const barColor = pct > 85 ? "bg-error" : pct > 65 ? "bg-warning" : "bg-accent";
-    return (
-        <div className="flex flex-col gap-1.5">
-            <p className="font-mono text-[20px] text-text-primary leading-none">
-                {fmtMb(usedMb)}
-            </p>
-            <p className="font-mono text-[12px] text-text-muted">
-                {fmtMb(usedMb)} / {fmtMb(totalMb)} alloc
-            </p>
-            <div className="h-1.5 rounded-full bg-surface-higher w-full overflow-hidden">
-                <div className={`h-full rounded-full ${barColor}`} style={{width: `${pct}%`}}/>
-            </div>
-        </div>
-    );
-}
-
-function HeaderActionButton({
-                                icon,
-                                label,
-                                loading,
-                                onClick,
-                                variant,
-                            }: {
-    icon: React.ReactNode;
-    label: string;
-    loading?: boolean;
-    onClick: () => void;
-    variant: "green" | "red" | "yellow";
-}) {
-    const cls = {
-        green: "text-healthy  border-healthy/40  hover:bg-healthy/10",
-        red: "text-error    border-error/40    hover:bg-error/10",
-        yellow: "text-warning  border-warning/40  hover:bg-warning/10",
-    }[variant];
-
-    return (
-        <button
-            onClick={onClick}
-            disabled={loading}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded border text-[12px] font-heading font-bold uppercase tracking-widest transition-colors disabled:opacity-40 ${cls}`}
-        >
-            {loading ? (
-                <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin"/>
-            ) : (
-                icon
-            )}
-            {label}
-        </button>
-    );
-}
-
-// ── Tabs ──────────────────────────────────────────────────────────────────────
 
 const TABS = ["Overview", "Console", "Files", "Mods", "Backups", "Configuration", "Migration"] as const;
 type Tab = (typeof TABS)[number];
@@ -113,26 +31,11 @@ function ComingSoon({tab}: { tab: string }) {
     return (
         <div className="px-6 py-10">
             <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-[13px]">
-                {tab} — coming soon
+                {tab} \u2014 coming soon
             </div>
         </div>
     );
 }
-
-// ── Info row helper ───────────────────────────────────────────────────────────
-
-function InfoRow({label, value}: { label: string; value: React.ReactNode }) {
-    return (
-        <div className="flex items-start justify-between gap-4 py-2 border-b border-border last:border-0">
-      <span className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted shrink-0">
-        {label}
-      </span>
-            <span className="font-mono text-[12px] text-text-primary text-right">{value}</span>
-        </div>
-    );
-}
-
-// ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function ServerDetailPage() {
     const params = useParams();
@@ -158,7 +61,7 @@ export default function ServerDetailPage() {
         onConfirm: () => void;
     } | null>(null);
 
-    // ── Edit: general settings ─────────────────────────────────────────────────
+    // Edit: general settings
     const [editingGeneral, setEditingGeneral] = useState(false);
     const [editDisplayName, setEditDisplayName] = useState("");
     const [editDescription, setEditDescription] = useState("");
@@ -169,11 +72,11 @@ export default function ServerDetailPage() {
     const [networks, setNetworks] = useState<Network[]>([]);
     const [mcVersions, setMcVersions] = useState<string[]>([]);
 
-    // ── Live WS data ───────────────────────────────────────────────────────────
+    // Live WS data
     const [liveMetrics, setLiveMetrics] = useState<LiveMetrics | null>(null);
     const [livePlayers, setLivePlayers] = useState<LivePlayers | null>(null);
 
-    // ── Edit: resources ────────────────────────────────────────────────────────
+    // Edit: resources
     const [editingResources, setEditingResources] = useState(false);
     const [editRamMb, setEditRamMb] = useState(0);
     const [editCpuShares, setEditCpuShares] = useState(0);
@@ -181,7 +84,7 @@ export default function ServerDetailPage() {
     const [savingResources, setSavingResources] = useState(false);
     const [resourcesError, setResourcesError] = useState<string | null>(null);
 
-    // ── Edit: exposure ─────────────────────────────────────────────────────────
+    // Edit: exposure
     const [editingExposure, setEditingExposure] = useState(false);
     const [editExposedExternally, setEditExposedExternally] = useState(false);
     const [editPublicSubdomain, setEditPublicSubdomain] = useState("");
@@ -189,7 +92,7 @@ export default function ServerDetailPage() {
     const [savingExposure, setSavingExposure] = useState(false);
     const [exposureError, setExposureError] = useState<string | null>(null);
 
-    // ── Data fetching ──────────────────────────────────────────────────────────
+    // Data fetching
 
     const fetchServer = useCallback(async () => {
         const {data, response} = await getServer({path: {id}});
@@ -227,7 +130,7 @@ export default function ServerDetailPage() {
         return () => document.removeEventListener("click", close);
     }, []);
 
-    // ── Live WS subscriptions ──────────────────────────────────────────────────
+    // Live WS subscriptions
     useEffect(() => {
         const unsubSnapshot = subscribe("snapshot", (payload) => {
             const servers = payload.servers as Array<{
@@ -277,7 +180,7 @@ export default function ServerDetailPage() {
         };
     }, [subscribe, id]);
 
-    // ── Edit: general settings handlers ───────────────────────────────────────
+    // Edit: general settings handlers
 
     function openEditGeneral() {
         if (!server) return;
@@ -323,7 +226,7 @@ export default function ServerDetailPage() {
         }
     }
 
-    // ── Edit: resources handlers ───────────────────────────────────────────────
+    // Edit: resources handlers
 
     function openEditResources() {
         if (!server) return;
@@ -356,7 +259,7 @@ export default function ServerDetailPage() {
         }
     }
 
-    // ── Edit: exposure handlers ────────────────────────────────────────────────
+    // Edit: exposure handlers
 
     function openEditExposure() {
         if (!server) return;
@@ -393,7 +296,7 @@ export default function ServerDetailPage() {
         }
     }
 
-    // ── Actions ────────────────────────────────────────────────────────────────
+    // Actions
 
     const ACTION_FNS = {
         start: startServer,
@@ -431,7 +334,7 @@ export default function ServerDetailPage() {
         });
     }
 
-    // ── Loading / not-found guards ─────────────────────────────────────────────
+    // Loading / not-found guards
 
     if (loading) {
         return (
@@ -454,7 +357,7 @@ export default function ServerDetailPage() {
         );
     }
 
-    // ── Render ─────────────────────────────────────────────────────────────────
+    // Render
 
     const sStatus = server.status;
     const isProxy = ["VELOCITY", "BUNGEECORD", "WATERFALL"].includes(server.server_type);
@@ -462,7 +365,7 @@ export default function ServerDetailPage() {
 
     return (
         <div>
-            {/* ── Page header ── */}
+            {/* Page header */}
             <div className="px-6 pt-6 pb-5 border-b border-border">
 
                 {/* Breadcrumb */}
@@ -498,7 +401,7 @@ export default function ServerDetailPage() {
             </span>
                     </div>
 
-                    {/* Action buttons + ··· menu */}
+                    {/* Action buttons + menu */}
                     <div className="flex items-center gap-2 shrink-0">
                         {sStatus === "STOPPED" && hasPermission(permissions, "server.start") && (
                             <HeaderActionButton
@@ -536,7 +439,7 @@ export default function ServerDetailPage() {
                             />
                         )}
 
-                        {/* ··· overflow menu — only render if there are items */}
+                        {/* Overflow menu */}
                         {hasPermission(permissions, "server.migrate") && (
                             <div className="relative">
                                 <button
@@ -573,16 +476,16 @@ export default function ServerDetailPage() {
 
                 {/* Type / config badges */}
                 <div className="flex items-center gap-2 mt-3 flex-wrap">
-          <span className="font-mono text-[12px] uppercase tracking-wider text-text-dim border border-border bg-surface-high px-1.5 py-0.5 rounded">
-            {server.server_type}
-          </span>
                     <span className="font-mono text-[12px] uppercase tracking-wider text-text-dim border border-border bg-surface-high px-1.5 py-0.5 rounded">
-            {server.config_mode}
-          </span>
+                        {server.server_type}
+                    </span>
+                    <span className="font-mono text-[12px] uppercase tracking-wider text-text-dim border border-border bg-surface-high px-1.5 py-0.5 rounded">
+                        {server.config_mode}
+                    </span>
                     {server.is_migrating && (
                         <span className="font-mono text-[12px] uppercase tracking-wider text-warning border border-warning/30 bg-warning/10 px-1.5 py-0.5 rounded">
-              ⟳ Migrating
-            </span>
+                            \u27f3 Migrating
+                        </span>
                     )}
                 </div>
 
@@ -632,7 +535,7 @@ export default function ServerDetailPage() {
                 </div>
             )}
 
-            {/* ── Tab bar ── */}
+            {/* Tab bar */}
             <div className="flex items-end px-6 border-b border-border bg-surface">
                 {TABS.filter((tab) => !(isProxy && tab === "Migration")).map((tab) => (
                     <button
@@ -650,7 +553,7 @@ export default function ServerDetailPage() {
                 ))}
             </div>
 
-            {/* ── Tab content ── */}
+            {/* Tab content */}
             {activeTab === "Console" ? (
                 <ConsoleTab serverId={server.id} serverStatus={server.status}/>
             ) : activeTab === "Files" ? (
@@ -689,46 +592,52 @@ export default function ServerDetailPage() {
                     permissions={permissions}
                     liveMetrics={liveMetrics}
                     livePlayers={livePlayers}
-                    editingGeneral={editingGeneral}
-                    editDisplayName={editDisplayName}
-                    editDescription={editDescription}
-                    editNetworkId={editNetworkId}
-                    editMcVersion={editMcVersion}
-                    savingGeneral={savingGeneral}
-                    generalError={generalError}
                     networks={networks}
                     mcVersions={mcVersions}
-                    onOpenEditGeneral={openEditGeneral}
-                    onSaveGeneral={() => void saveGeneral()}
-                    onCancelGeneral={() => setEditingGeneral(false)}
-                    onChangeDisplayName={setEditDisplayName}
-                    onChangeDescription={setEditDescription}
-                    onChangeNetworkId={setEditNetworkId}
-                    onChangeMcVersion={setEditMcVersion}
-                    editingResources={editingResources}
-                    editRamMb={editRamMb}
-                    editCpuShares={editCpuShares}
-                    editItzgTag={editItzgTag}
-                    savingResources={savingResources}
-                    resourcesError={resourcesError}
-                    onOpenEditResources={openEditResources}
-                    onSaveResources={() => void saveResources()}
-                    onCancelResources={() => setEditingResources(false)}
-                    onChangeRamMb={setEditRamMb}
-                    onChangeCpuShares={setEditCpuShares}
-                    onChangeItzgTag={setEditItzgTag}
-                    editingExposure={editingExposure}
-                    editExposedExternally={editExposedExternally}
-                    editPublicSubdomain={editPublicSubdomain}
-                    editCustomHostname={editCustomHostname}
-                    savingExposure={savingExposure}
-                    exposureError={exposureError}
-                    onOpenEditExposure={openEditExposure}
-                    onSaveExposure={() => void saveExposure()}
-                    onCancelExposure={() => setEditingExposure(false)}
-                    onChangeExposedExternally={setEditExposedExternally}
-                    onChangePublicSubdomain={setEditPublicSubdomain}
-                    onChangeCustomHostname={setEditCustomHostname}
+                    generalEdit={{
+                        editing: editingGeneral,
+                        displayName: editDisplayName,
+                        description: editDescription,
+                        networkId: editNetworkId,
+                        mcVersion: editMcVersion,
+                        saving: savingGeneral,
+                        error: generalError,
+                        onOpen: openEditGeneral,
+                        onSave: () => void saveGeneral(),
+                        onCancel: () => setEditingGeneral(false),
+                        onChangeName: setEditDisplayName,
+                        onChangeDesc: setEditDescription,
+                        onChangeNetwork: setEditNetworkId,
+                        onChangeMcVersion: setEditMcVersion,
+                    }}
+                    resourcesEdit={{
+                        editing: editingResources,
+                        ramMb: editRamMb,
+                        cpuShares: editCpuShares,
+                        itzgTag: editItzgTag,
+                        saving: savingResources,
+                        error: resourcesError,
+                        onOpen: openEditResources,
+                        onSave: () => void saveResources(),
+                        onCancel: () => setEditingResources(false),
+                        onChangeRamMb: setEditRamMb,
+                        onChangeCpuShares: setEditCpuShares,
+                        onChangeItzgTag: setEditItzgTag,
+                    }}
+                    exposureEdit={{
+                        editing: editingExposure,
+                        exposedExternally: editExposedExternally,
+                        publicSubdomain: editPublicSubdomain,
+                        customHostname: editCustomHostname,
+                        saving: savingExposure,
+                        error: exposureError,
+                        onOpen: openEditExposure,
+                        onSave: () => void saveExposure(),
+                        onCancel: () => setEditingExposure(false),
+                        onChangeExposedExternally: setEditExposedExternally,
+                        onChangePublicSubdomain: setEditPublicSubdomain,
+                        onChangeCustomHostname: setEditCustomHostname,
+                    }}
                 />
             )}
             <ConfirmDialog
@@ -740,557 +649,6 @@ export default function ServerDetailPage() {
                 onConfirm={confirmDialog?.onConfirm ?? (() => {
                 })}
             />
-        </div>
-    );
-}
-
-// ── Shared field helpers (used by OverviewTab edit panels) ────────────────────
-
-function EditInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
-    return (
-        <input
-            {...props}
-            className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-[12px] font-mono text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent transition-colors disabled:opacity-50"
-        />
-    );
-}
-
-function EditSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
-    return (
-        <select
-            {...props}
-            className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-[12px] font-mono text-text-primary focus:outline-none focus:border-accent transition-colors"
-        />
-    );
-}
-
-function EditTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-    return (
-        <textarea
-            {...props}
-            rows={2}
-            className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-[12px] font-mono text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent transition-colors resize-none"
-        />
-    );
-}
-
-function EditFieldRow({label, children}: { label: string; children: React.ReactNode }) {
-    return (
-        <div className="space-y-1">
-            <p className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted">{label}</p>
-            {children}
-        </div>
-    );
-}
-
-function SaveCancelRow({
-                           onSave,
-                           onCancel,
-                           saving,
-                       }: {
-    onSave: () => void;
-    onCancel: () => void;
-    saving: boolean;
-}) {
-    return (
-        <div className="flex items-center justify-end gap-2 pt-1">
-            <button
-                onClick={onCancel}
-                className="px-3 py-1 text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-text-primary transition-colors"
-            >
-                Cancel
-            </button>
-            <button
-                onClick={onSave}
-                disabled={saving}
-                className="px-3 py-1 rounded bg-accent text-bg text-[12px] font-heading font-bold uppercase tracking-wider hover:bg-accent-bright transition-colors disabled:opacity-50"
-            >
-                {saving ? "Saving…" : "Save"}
-            </button>
-        </div>
-    );
-}
-
-// ── Overview tab ──────────────────────────────────────────────────────────────
-
-function OverviewTab({
-                         server,
-                         node,
-                         network,
-                         permissions,
-                         liveMetrics,
-                         livePlayers,
-                         editingGeneral,
-                         editDisplayName,
-                         editDescription,
-                         editNetworkId,
-                         editMcVersion,
-                         savingGeneral,
-                         generalError,
-                         networks,
-                         mcVersions,
-                         onOpenEditGeneral,
-                         onSaveGeneral,
-                         onCancelGeneral,
-                         onChangeDisplayName,
-                         onChangeDescription,
-                         onChangeNetworkId,
-                         onChangeMcVersion,
-                         editingResources,
-                         editRamMb,
-                         editCpuShares,
-                         editItzgTag,
-                         savingResources,
-                         resourcesError,
-                         onOpenEditResources,
-                         onSaveResources,
-                         onCancelResources,
-                         onChangeRamMb,
-                         onChangeCpuShares,
-                         onChangeItzgTag,
-                         editingExposure,
-                         editExposedExternally,
-                         editPublicSubdomain,
-                         editCustomHostname,
-                         savingExposure,
-                         exposureError,
-                         onOpenEditExposure,
-                         onSaveExposure,
-                         onCancelExposure,
-                         onChangeExposedExternally,
-                         onChangePublicSubdomain,
-                         onChangeCustomHostname,
-                     }: {
-    server: Server;
-    node: Node | null;
-    network: Network | null;
-    permissions: string[];
-    liveMetrics: LiveMetrics | null;
-    livePlayers: LivePlayers | null;
-    editingGeneral: boolean;
-    editDisplayName: string;
-    editDescription: string;
-    editNetworkId: string;
-    editMcVersion: string;
-    savingGeneral: boolean;
-    generalError: string | null;
-    networks: Network[];
-    mcVersions: string[];
-    onOpenEditGeneral: () => void;
-    onSaveGeneral: () => void;
-    onCancelGeneral: () => void;
-    onChangeDisplayName: (v: string) => void;
-    onChangeDescription: (v: string) => void;
-    onChangeNetworkId: (v: string) => void;
-    onChangeMcVersion: (v: string) => void;
-    editingResources: boolean;
-    editRamMb: number;
-    editCpuShares: number;
-    editItzgTag: string;
-    savingResources: boolean;
-    resourcesError: string | null;
-    onOpenEditResources: () => void;
-    onSaveResources: () => void;
-    onCancelResources: () => void;
-    onChangeRamMb: (v: number) => void;
-    onChangeCpuShares: (v: number) => void;
-    onChangeItzgTag: (v: string) => void;
-    editingExposure: boolean;
-    editExposedExternally: boolean;
-    editPublicSubdomain: string;
-    editCustomHostname: string;
-    savingExposure: boolean;
-    exposureError: string | null;
-    onOpenEditExposure: () => void;
-    onSaveExposure: () => void;
-    onCancelExposure: () => void;
-    onChangeExposedExternally: (v: boolean) => void;
-    onChangePublicSubdomain: (v: string) => void;
-    onChangeCustomHostname: (v: string) => void;
-}) {
-    const sStatus = server.status;
-    const canConfigure = hasPermission(permissions, "server.configure");
-    const canResources = hasPermission(permissions, "server.resources");
-    const isProxy = ["VELOCITY", "BUNGEECORD", "WATERFALL"].includes(server.server_type);
-    const isModServerType = ["FABRIC", "FORGE", "NEOFORGE", "QUILT"].includes(server.server_type);
-
-    const cpuColor = liveMetrics && liveMetrics.cpuPercent > 85 ? "text-error"
-        : liveMetrics && liveMetrics.cpuPercent > 65 ? "text-warning"
-            : "text-text-primary";
-
-    return (
-        <div className="px-6 py-6 space-y-6">
-
-            {/* Stat cards */}
-            <div className="grid grid-cols-4 gap-4">
-
-                {/* PLAYERS ONLINE */}
-                <StatCard label="Players Online">
-                    {livePlayers ? (
-                        <>
-                            <p className="font-mono text-[20px] text-text-primary leading-none">{livePlayers.count}</p>
-                            <p className="font-mono text-[12px] text-text-muted">online now</p>
-                        </>
-                    ) : (
-                        <>
-                            <p className="font-mono text-[20px] text-text-muted leading-none">—</p>
-                            <p className="text-[12px] text-text-muted">awaiting data</p>
-                        </>
-                    )}
-                </StatCard>
-
-                {/* RAM USAGE */}
-                <StatCard label="RAM Usage">
-                    <RamBarInline usedMb={liveMetrics?.ramUsedMb ?? null} totalMb={server.memory_mb}/>
-                </StatCard>
-
-                {/* CPU USAGE */}
-                <StatCard label="CPU Usage">
-                    {liveMetrics ? (
-                        <>
-                            <p className={`font-mono text-[20px] leading-none ${cpuColor}`}>
-                                {liveMetrics.cpuPercent.toFixed(1)}%
-                            </p>
-                            <p className="font-mono text-[12px] text-text-muted">{server.cpu_shares} shares alloc</p>
-                        </>
-                    ) : (
-                        <>
-                            <p className="font-mono text-[20px] text-text-muted leading-none">—%</p>
-                            <p className="font-mono text-[12px] text-text-muted">{server.cpu_shares} shares alloc</p>
-                        </>
-                    )}
-                </StatCard>
-
-                {/* STATUS */}
-                <StatCard label="Status">
-          <span
-              className={`self-start text-[12px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${serverStatusClass(sStatus)}`}
-          >
-            {serverStatusLabel(sStatus)}
-          </span>
-                    {node?.last_seen_at && (
-                        <p className="text-[12px] text-text-muted">
-                            last seen {timeAgo(node.last_seen_at)}
-                        </p>
-                    )}
-                </StatCard>
-            </div>
-
-            {/* Panels row */}
-            <div className="grid grid-cols-[1fr_1fr] gap-4">
-
-                {/* Live Metrics */}
-                <div className="bg-surface border border-border rounded p-4">
-                    <div className="flex items-center justify-between mb-4">
-                        <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
-                            Live Metrics
-                        </p>
-                        {!liveMetrics && (
-                            <span className="text-[12px] font-heading text-text-muted italic">awaiting data…</span>
-                        )}
-                    </div>
-                    <div className="space-y-3">
-                        {[
-                            {
-                                label: "CPU",
-                                value: liveMetrics ? `${liveMetrics.cpuPercent.toFixed(1)}%` : "—%",
-                                color: liveMetrics ? cpuColor : "text-text-muted",
-                            },
-                            {
-                                label: "RAM",
-                                value: liveMetrics
-                                    ? `${fmtMb(liveMetrics.ramUsedMb)} / ${fmtMb(server.memory_mb)}`
-                                    : "—",
-                                color: "text-text-primary",
-                            },
-                            {
-                                label: "Net ↓",
-                                value: liveMetrics ? fmtBytes(liveMetrics.netInBytes) : "—",
-                                color: "text-text-primary",
-                            },
-                            {
-                                label: "Net ↑",
-                                value: liveMetrics ? fmtBytes(liveMetrics.netOutBytes) : "—",
-                                color: "text-text-primary",
-                            },
-                        ].map(({label, value, color}) => (
-                            <div key={label} className="flex items-center justify-between">
-                <span className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted">
-                  {label}
-                </span>
-                                <span className={`font-mono text-[12px] ${liveMetrics ? color : "text-text-muted"}`}>{value}</span>
-                            </div>
-                        ))}
-                    </div>
-                    {livePlayers && livePlayers.list.length > 0 && (
-                        <div className="mt-4 pt-4 border-t border-border">
-                            <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-2">
-                                Online Players
-                            </p>
-                            <div className="flex flex-wrap gap-1">
-                                {livePlayers.list.map((name) => (
-                                    <span key={name} className="font-mono text-[12px] text-text-dim border border-border bg-surface-high px-1.5 py-0.5 rounded">
-                    {name}
-                  </span>
-                                ))}
-                            </div>
-                        </div>
-                    )}
-                </div>
-
-                {/* Server info */}
-                <div className="bg-surface border border-border rounded p-4">
-                    <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-2">
-                        Server Info
-                    </p>
-                    <InfoRow label="Type" value={server.server_type}/>
-                    <InfoRow label="Version" value={isProxy ? "—" : server.mc_version}/>
-                    <InfoRow label="Config" value={server.config_mode}/>
-                    <InfoRow label="Node" value={node?.display_name ?? server.node_id.slice(0, 8) + "…"}/>
-                    <InfoRow label="Network" value={network?.name ?? "—"}/>
-                    <InfoRow label="Port" value={server.host_port}/>
-                    <InfoRow
-                        label="Hostname"
-                        value={
-                            server.exposed_externally && server.public_subdomain
-                                ? server.public_subdomain
-                                : "—"
-                        }
-                    />
-                    <InfoRow
-                        label="Last seen"
-                        value={node?.last_seen_at ? timeAgo(node.last_seen_at) : "—"}
-                    />
-                    <InfoRow label="Created" value={new Date(server.created_at).toLocaleDateString()}/>
-                </div>
-            </div>
-
-            {/* ── General settings panel ── */}
-            {canConfigure && (
-                <div className="bg-surface border border-border rounded p-4">
-                    <div className="flex items-center justify-between mb-3">
-                        <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
-                            General Settings
-                        </p>
-                        {!editingGeneral && (
-                            <button
-                                onClick={onOpenEditGeneral}
-                                className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
-                            >
-                                Edit
-                            </button>
-                        )}
-                    </div>
-
-                    {!editingGeneral ? (
-                        <div>
-                            <InfoRow label="Display Name" value={server.display_name}/>
-                            <InfoRow label="Description" value={server.description ?? "—"}/>
-                            <InfoRow label="Network" value={network?.name ?? "—"}/>
-                            {!isProxy && <InfoRow label="MC Version" value={server.mc_version}/>}
-                        </div>
-                    ) : (
-                        <div className="space-y-3">
-                            {generalError && (
-                                <p className="text-[12px] text-error">{generalError}</p>
-                            )}
-                            <EditFieldRow label="Display Name">
-                                <EditInput
-                                    value={editDisplayName}
-                                    onChange={(e) => onChangeDisplayName(e.target.value)}
-                                    placeholder={server.display_name}
-                                />
-                            </EditFieldRow>
-                            <EditFieldRow label="Description">
-                                <EditTextarea
-                                    value={editDescription}
-                                    onChange={(e) => onChangeDescription(e.target.value)}
-                                    placeholder="Optional description"
-                                />
-                            </EditFieldRow>
-                            <EditFieldRow label="Network">
-                                <EditSelect value={editNetworkId} onChange={(e) => onChangeNetworkId(e.target.value)}>
-                                    <option value="">None</option>
-                                    {networks.map((n) => (
-                                        <option key={n.id} value={n.id}>{n.name}</option>
-                                    ))}
-                                </EditSelect>
-                            </EditFieldRow>
-                            {!isProxy && (
-                                <EditFieldRow label="Minecraft Version">
-                                    {mcVersions.length > 0 ? (
-                                        <EditSelect value={editMcVersion} onChange={(e) => onChangeMcVersion(e.target.value)}>
-                                            {mcVersions.map((v) => <option key={v} value={v}>{v}</option>)}
-                                        </EditSelect>
-                                    ) : (
-                                        <EditInput
-                                            value={editMcVersion}
-                                            onChange={(e) => onChangeMcVersion(e.target.value)}
-                                            placeholder="1.21.4"
-                                        />
-                                    )}
-                                    <p className="text-[12px] text-text-muted mt-1">Requires restart to take effect.</p>
-                                </EditFieldRow>
-                            )}
-                            <SaveCancelRow onSave={onSaveGeneral} onCancel={onCancelGeneral} saving={savingGeneral}/>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {/* ── Resources panel ── */}
-            {canResources && (
-                <div className="bg-surface border border-border rounded p-4">
-                    <div className="flex items-center justify-between mb-3">
-                        <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
-                            Resources
-                        </p>
-                        {!editingResources && (
-                            <button
-                                onClick={onOpenEditResources}
-                                className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
-                            >
-                                Edit
-                            </button>
-                        )}
-                    </div>
-
-                    {!editingResources ? (
-                        <div>
-                            <InfoRow label="RAM" value={`${server.memory_mb} MB`}/>
-                            <InfoRow label="CPU Shares" value={server.cpu_shares === 0 ? "Unlimited" : String(server.cpu_shares)}/>
-                            <InfoRow label="Image Tag" value={server.itzg_image_tag}/>
-                        </div>
-                    ) : (
-                        <div className="space-y-3">
-                            {resourcesError && (
-                                <p className="text-[12px] text-error">{resourcesError}</p>
-                            )}
-                            <EditFieldRow label="RAM (MB)">
-                                <EditInput
-                                    type="number"
-                                    value={editRamMb}
-                                    onChange={(e) => onChangeRamMb(Number(e.target.value))}
-                                    min={512}
-                                    step={256}
-                                />
-                            </EditFieldRow>
-                            <EditFieldRow label="CPU Shares">
-                                <EditInput
-                                    type="number"
-                                    value={editCpuShares}
-                                    onChange={(e) => onChangeCpuShares(Number(e.target.value))}
-                                    min={0}
-                                />
-                                <p className="text-[12px] text-text-muted mt-1">0 = unlimited</p>
-                            </EditFieldRow>
-                            <EditFieldRow label="itzg Image Tag">
-                                <EditInput
-                                    value={editItzgTag}
-                                    onChange={(e) => onChangeItzgTag(e.target.value)}
-                                    placeholder="latest"
-                                    list="itzg-tags-edit"
-                                />
-                                <datalist id="itzg-tags-edit">
-                                    <option value="latest"/>
-                                    <option value="java21"/>
-                                    <option value="java21-jdk"/>
-                                    <option value="java17"/>
-                                    <option value="java17-jdk"/>
-                                    <option value="java11"/>
-                                    <option value="java8"/>
-                                </datalist>
-                            </EditFieldRow>
-                            <p className="text-[12px] text-text-muted">All changes require a restart to take effect.</p>
-                            <SaveCancelRow onSave={onSaveResources} onCancel={onCancelResources} saving={savingResources}/>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {canConfigure && (
-                <div className="bg-surface border border-border rounded p-4">
-                    <div className="flex items-center justify-between mb-3">
-                        <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
-                            Public Access
-                        </p>
-                        {!editingExposure && (
-                            <button
-                                onClick={onOpenEditExposure}
-                                className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
-                            >
-                                Edit
-                            </button>
-                        )}
-                    </div>
-
-                    {!editingExposure ? (
-                        <div>
-                            <InfoRow label="Exposed" value={server.exposed_externally ? "Yes" : "No"}/>
-                            <InfoRow label="Public Subdomain" value={server.public_subdomain ?? "—"}/>
-                            <InfoRow label="Custom Hostname" value={server.custom_hostname ?? "—"}/>
-                            {server.canonical_hostname && <InfoRow label="Canonical" value={server.canonical_hostname}/>}
-                        </div>
-                    ) : (
-                        <div className="space-y-3">
-                            {exposureError && (
-                                <p className="text-[12px] text-error">{exposureError}</p>
-                            )}
-                            <EditFieldRow label="Expose Externally">
-                                <div className="flex items-center gap-2 pt-1">
-                                    <input
-                                        type="checkbox"
-                                        id="expose-externally"
-                                        checked={editExposedExternally}
-                                        onChange={(e) => onChangeExposedExternally(e.target.checked)}
-                                        className="accent-[var(--accent)] w-4 h-4"
-                                    />
-                                    <label htmlFor="expose-externally" className="text-[12px] font-mono text-text-primary">
-                                        Expose via mc-router
-                                    </label>
-                                </div>
-                            </EditFieldRow>
-                            {editExposedExternally && (
-                                <>
-                                    <EditFieldRow label="Public Subdomain">
-                                        <EditInput
-                                            value={editPublicSubdomain}
-                                            onChange={(e) => onChangePublicSubdomain(e.target.value)}
-                                            placeholder="myserver"
-                                        />
-                                        <p className="text-[12px] text-text-muted mt-1">Subdomain under the platform domain (e.g. myserver.mc.example.com)</p>
-                                    </EditFieldRow>
-                                    <EditFieldRow label="Custom Hostname">
-                                        <EditInput
-                                            value={editCustomHostname}
-                                            onChange={(e) => onChangeCustomHostname(e.target.value)}
-                                            placeholder="play.example.com"
-                                        />
-                                        <p className="text-[12px] text-text-muted mt-1">Your own domain (bring-your-own-DNS)</p>
-                                    </EditFieldRow>
-                                </>
-                            )}
-                            <SaveCancelRow onSave={onSaveExposure} onCancel={onCancelExposure} saving={savingExposure}/>
-                        </div>
-                    )}
-                </div>
-            )}
-
-            {livePlayers && livePlayers.count > 0 && (
-                <div className="bg-surface border border-border rounded p-4">
-                    <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-3">
-                        Online Players ({livePlayers.count})
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                        {livePlayers.list.map((name) => (
-                            <span key={name}
-                                  className="px-2 py-1 bg-surface-high border border-border rounded text-xs font-mono text-text-primary">
-                                {name}
-                            </span>
-                        ))}
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
