@@ -50,7 +50,7 @@ private enum class WsEventType(val event: String) {
     override fun toString(): String = event
 }
 
-private val wsJson = Json { ignoreUnknownKeys = true; namingStrategy = JsonNamingStrategy.SnakeCase }
+internal val wsJson = Json { ignoreUnknownKeys = true; namingStrategy = JsonNamingStrategy.SnakeCase }
 
 private inline fun <reified T> DefaultWebSocketSession.sendWs(type: WsEventType, payload: T) {
     outgoing.trySend(Frame.Text(wsJson.encodeToString(WsEnvelope(type.event, wsJson.encodeToJsonElement(payload)))))

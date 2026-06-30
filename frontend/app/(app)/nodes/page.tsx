@@ -7,7 +7,7 @@ import PageHeader from "@/app/components/PageHeader";
 import {decommissionNode, listNodes, listServers, rejectNode, rotateNodeToken, shutdownNode, trustNode, updateNode,} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
-import type {Node, NodeHealth} from "@/lib/types";
+import type {Node} from "@/lib/types";
 import {timeAgo, fmtMb, fillColor} from "@/lib/utils/format";
 import {TokenModal} from "@/components/nodes/TokenModal";
 import {ConfirmDialog} from "@/components/ui/confirm-dialog";
@@ -357,9 +357,8 @@ export default function NodesPage() {
 
     useEffect(() => {
         return subscribe("node.status", (payload) => {
-            const {node_id, health} = payload as { node_id: string; health: NodeHealth };
             setNodes((prev) =>
-                prev.map((n) => n.id === node_id ? {...n, health} : n),
+                prev.map((n) => n.id === payload.node_id ? {...n, health: payload.health} : n),
             );
         });
     }, [subscribe]);

@@ -11,7 +11,7 @@ import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.dns.DnsProviderFactory
 import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.GrpcServer
-import io.craftpanel.master.routes.ErrorResponse
+import io.craftpanel.master.routes.*
 import io.craftpanel.master.scheduler.ServerScheduler
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.AgentEvent
@@ -241,7 +241,16 @@ fun Application.module() {
             defaultSecuritySchemeNames("BearerAuth")
         }
         schemas {
-            generator = SchemaGenerator.kotlinx { referencePath = RefType.OPENAPI_SIMPLE }
+            generator = SchemaGenerator.kotlinx(json = wsJson) { referencePath = RefType.OPENAPI_SIMPLE }
+            schema<ServerMetricsPayload>("ServerMetricsPayload")
+            schema<ServerStatusPayload>("ServerStatusPayload")
+            schema<ServerPlayersPayload>("ServerPlayersPayload")
+            schema<BackupProgressPayload>("BackupProgressPayload")
+            schema<BackupCompletePayload>("BackupCompletePayload")
+            schema<AlertPayload>("AlertPayload")
+            schema<NodeMetricsPayload>("NodeMetricsPayload")
+            schema<NodeStatusPayload>("NodeStatusPayload")
+            schema<SnapshotPayload>("SnapshotPayload")
         }
     }
 

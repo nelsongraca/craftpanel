@@ -274,18 +274,18 @@ export default function AlertsPage() {
     useEffect(() => {
         const unsubFired = subscribe("alert.fired", (payload) => {
             const event: AlertEvent = {
-                id: payload.event_id as string,
-                threshold_id: payload.threshold_id as string,
-                message: payload.message as string,
-                fired_at: payload.fired_at as string,
+                id: payload.event_id,
+                threshold_id: payload.threshold_id,
+                message: payload.message,
+                fired_at: payload.fired_at!,
             };
             setEvents((prev) => [event, ...prev]);
         });
         const unsubResolved = subscribe("alert.resolved", (payload) => {
             setEvents((prev) =>
                 prev.map((e) =>
-                    e.id === (payload.event_id as string)
-                        ? {...e, resolved_at: payload.resolved_at as string}
+                    e.id === payload.event_id
+                        ? {...e, resolved_at: payload.resolved_at!}
                         : e
                 )
             );

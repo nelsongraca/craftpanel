@@ -369,19 +369,18 @@ function MetricsTab({nodeId}: { nodeId: string }) {
     // Live WS updates
     useEffect(() => {
         return subscribe("node.metrics", (payload) => {
-            if ((payload as Record<string, unknown>).node_id !== nodeId) return;
-            const p = payload as Record<string, unknown>;
-            const t = (p.recorded_at as string) ?? new Date().toISOString();
+            if (payload.node_id !== nodeId) return;
+            const t = payload.recorded_at ?? new Date().toISOString();
             const pt: MetricsPoint = {
                 t,
                 ts: new Date(t).getTime(),
-                cpu: (p.cpu_percent as number) ?? 0,
-                ramUsed: (p.ram_used_mb as number) ?? 0,
-                ramTotal: (p.ram_total_mb as number) ?? 0,
-                diskUsed: (p.disk_used_bytes as number) ?? 0,
-                diskTotal: (p.disk_total_bytes as number) ?? 0,
-                netIn: (p.net_in_bytes as number) ?? 0,
-                netOut: (p.net_out_bytes as number) ?? 0,
+                cpu: payload.cpu_percent ?? 0,
+                ramUsed: payload.ram_used_mb ?? 0,
+                ramTotal: payload.ram_total_mb ?? 0,
+                diskUsed: payload.disk_used_bytes ?? 0,
+                diskTotal: payload.disk_total_bytes ?? 0,
+                netIn: payload.net_in_bytes ?? 0,
+                netOut: payload.net_out_bytes ?? 0,
             };
             setBuffer((prev) => [...prev.slice(-(BUFFER_MAX - 1)), pt]);
         });
@@ -601,8 +600,7 @@ export default function NodeDetailPage() {
 
     useEffect(() => {
         return subscribe("node.status", (payload) => {
-            const p = payload as Record<string, unknown>;
-            if (p.node_id !== id) return;
+            if (payload.node_id !== id) return;
             void fetchNode();
         });
     }, [subscribe, id, fetchNode]);

@@ -40,6 +40,7 @@ import io.craftpanel.master.service.repo.SettingsRepository
 import io.craftpanel.master.service.repo.SettingsRepositoryImpl
 import io.craftpanel.master.service.repo.UserRepository
 import io.craftpanel.master.service.repo.UserRepositoryImpl
+import io.craftpanel.master.routes.*
 import io.github.smiley4.ktoropenapi.OpenApi
 import io.github.smiley4.ktoropenapi.config.AuthScheme
 import io.github.smiley4.ktoropenapi.config.AuthType
@@ -211,7 +212,18 @@ class OpenApiSpecTask : FunSpec({
                             }
                             defaultSecuritySchemeNames("BearerAuth")
                         }
-                        schemas { generator = SchemaGenerator.kotlinx { referencePath = RefType.OPENAPI_SIMPLE } }
+                        schemas {
+                            generator = SchemaGenerator.kotlinx(json = wsJson) { referencePath = RefType.OPENAPI_SIMPLE }
+                            schema<ServerMetricsPayload>("ServerMetricsPayload")
+                            schema<ServerStatusPayload>("ServerStatusPayload")
+                            schema<ServerPlayersPayload>("ServerPlayersPayload")
+                            schema<BackupProgressPayload>("BackupProgressPayload")
+                            schema<BackupCompletePayload>("BackupCompletePayload")
+                            schema<AlertPayload>("AlertPayload")
+                            schema<NodeMetricsPayload>("NodeMetricsPayload")
+                            schema<NodeStatusPayload>("NodeStatusPayload")
+                            schema<SnapshotPayload>("SnapshotPayload")
+                        }
                     }
                     install(Authentication) {
                         jwt("auth-jwt") {

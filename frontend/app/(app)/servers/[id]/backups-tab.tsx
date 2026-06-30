@@ -61,14 +61,14 @@ export function BackupsTab({serverId}: { serverId: string }) {
             if (payload.server_id !== serverId) return;
             setProgress((prev) => ({
                 ...prev,
-                [payload.backup_id as string]: payload.percent_complete as number,
+                [payload.backup_id]: payload.percent_complete,
             }));
         });
         const unsubComplete = subscribe("server.backup.complete", (payload) => {
             if (payload.server_id !== serverId) return;
             setProgress((prev) => {
                 const next = {...prev};
-                delete next[payload.backup_id as string];
+                delete next[payload.backup_id];
                 return next;
             });
             void load();

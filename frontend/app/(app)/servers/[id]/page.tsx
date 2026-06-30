@@ -7,7 +7,7 @@ import {ChevronRight, MoreHorizontal, Play, RotateCcw, Shuffle, Square, Trash2, 
 import {deleteServer, getNetwork, getNode, getServer, listNetworks, restartServer, startServer, stopServer, updateServer, updateServerExposure, updateServerResources} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
-import type {Network, Node, Server, ServerStatus} from "@/lib/types";
+import type {Network, Node, Server} from "@/lib/types";
 import {useWs} from "@/lib/ws-context";
 import {fetchReleaseVersions} from "@/lib/utils/format";
 import {serverStatusClass, serverStatusLabel} from "@/lib/status";
@@ -133,16 +133,7 @@ export default function ServerDetailPage() {
     // Live WS subscriptions
     useEffect(() => {
         const unsubSnapshot = subscribe("snapshot", (payload) => {
-            const servers = payload.servers as Array<{
-                id: string;
-                metrics?: {
-                    cpu_percent: number;
-                    ram_used_mb: number;
-                    net_in_bytes: number;
-                    net_out_bytes: number;
-                } | null;
-            }>;
-            const mine = servers?.find((s) => s.id === id);
+            const mine = payload.servers?.find((s) => s.id === id);
             if (mine?.metrics) {
                 setLiveMetrics({
                     cpuPercent: mine.metrics.cpu_percent,
@@ -155,21 +146,21 @@ export default function ServerDetailPage() {
         const unsubMetrics = subscribe("server.metrics", (payload) => {
             if (payload.server_id !== id) return;
             setLiveMetrics({
-                cpuPercent: payload.cpu_percent as number,
-                ramUsedMb: payload.ram_used_mb as number,
-                netInBytes: payload.net_in_bytes as number,
-                netOutBytes: payload.net_out_bytes as number,
+                cpuPercent: payload.cpu_percent,
+                ramUsedMb: payload.ram_used_mb,
+                netInBytes: payload.net_in_bytes,
+                netOutBytes: payload.net_out_bytes,
             });
         });
         const unsubStatus = subscribe("server.status", (payload) => {
             if (payload.server_id !== id) return;
-            setServer((prev) => prev ? {...prev, status: payload.status as ServerStatus} : prev);
+            setServer((prev) => prev ? {...prev, status: payload.status} : prev);
         });
         const unsubPlayers = subscribe("server.players", (payload) => {
             if (payload.server_id !== id) return;
             setLivePlayers({
-                count: payload.player_count as number,
-                list: payload.player_list as string[],
+                count: payload.player_count,
+                list: payload.player_list,
             });
         });
         return () => {
