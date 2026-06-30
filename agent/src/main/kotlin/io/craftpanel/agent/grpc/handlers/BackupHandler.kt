@@ -104,6 +104,7 @@ class BackupHandler(private val config: AgentConfig) {
                         serverId = cmd.serverId
                         success = false
                         errorMessage = ex.message ?: "Unknown error"
+                        errorCode = ErrorCode.INTERNAL
                         completedAt = nowTimestamp()
                     }
                 }

@@ -82,7 +82,10 @@ class MigrationHandler(
                     migrationId = cmd.migrationId
                     isFinalPass = cmd.isFinalPass
                     this.success = success
-                    if (!success) errorMessage = "rsync exited with non-zero code"
+                    if (!success) {
+                        errorMessage = "rsync exited with non-zero code"
+                        errorCode = ErrorCode.INTERNAL
+                    }
                     completedAt = nowTimestamp()
                 }
             }
@@ -96,6 +99,7 @@ class MigrationHandler(
                         isFinalPass = cmd.isFinalPass
                         success = false
                         errorMessage = ex.message ?: "Unknown error"
+                        errorCode = ErrorCode.INTERNAL
                         completedAt = nowTimestamp()
                     }
                 }

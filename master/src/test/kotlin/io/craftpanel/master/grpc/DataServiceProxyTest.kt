@@ -4,15 +4,22 @@ import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.service.BadGatewayException
+import io.craftpanel.master.service.ConflictException
+import io.craftpanel.master.service.ForbiddenException
 import io.craftpanel.master.service.NodeStateReconciler
+import io.craftpanel.master.service.NotFoundException
+import io.craftpanel.master.service.UnprocessableException
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
 import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.craftpanel.master.routes.dto.FileEntryResponse
 import io.craftpanel.master.routes.dto.ListFilesResponse
 import io.craftpanel.master.routes.dto.ReadFileResponse
+import io.craftpanel.proto.ErrorCode
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -105,5 +112,52 @@ class DataServiceProxyTest : FunSpec({
         runBlocking {
             result.collect { }
         }
+    }
+
+    // ── agentErrorToException ─────────────────────────────────────────────────
+
+    test("agentErrorToException maps NOT_FOUND to NotFoundException") {
+        proxy.agentErrorToException(ErrorCode.NOT_FOUND, "file not found")
+            .shouldBeInstanceOf<NotFoundException>()
+    }
+
+    test("agentErrorToException maps ALREADY_EXISTS to ConflictException") {
+        proxy.agentErrorToException(ErrorCode.ALREADY_EXISTS, "already exists")
+            .shouldBeInstanceOf<ConflictException>()
+    }
+
+    test("agentErrorToException maps CONFLICT to ConflictException") {
+        proxy.agentErrorToException(ErrorCode.CONFLICT, "not empty")
+            .shouldBeInstanceOf<ConflictException>()
+    }
+
+    test("agentErrorToException maps PERMISSION_DENIED to ForbiddenException") {
+        proxy.agentErrorToException(ErrorCode.PERMISSION_DENIED, "permission denied")
+            .shouldBeInstanceOf<ForbiddenException>()
+    }
+
+    test("agentErrorToException maps UNPROCESSABLE to UnprocessableException") {
+        proxy.agentErrorToException(ErrorCode.UNPROCESSABLE, "not enough space")
+            .shouldBeInstanceOf<UnprocessableException>()
+    }
+
+    test("agentErrorToException maps UNAVAILABLE to BadGatewayException") {
+        proxy.agentErrorToException(ErrorCode.UNAVAILABLE, "timed out")
+            .shouldBeInstanceOf<BadGatewayException>()
+    }
+
+    test("agentErrorToException maps INTERNAL to BadGatewayException") {
+        proxy.agentErrorToException(ErrorCode.INTERNAL, "internal error")
+            .shouldBeInstanceOf<BadGatewayException>()
+    }
+
+    test("agentErrorToException maps ERROR_CODE_UNSPECIFIED to BadGatewayException") {
+        proxy.agentErrorToException(ErrorCode.ERROR_CODE_UNSPECIFIED, "unknown error")
+            .shouldBeInstanceOf<BadGatewayException>()
+    }
+
+    test("agentErrorToException preserves message") {
+        val ex = proxy.agentErrorToException(ErrorCode.NOT_FOUND, "custom message")
+        ex.message shouldBe "custom message"
     }
 })

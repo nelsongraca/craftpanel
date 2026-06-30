@@ -260,6 +260,22 @@ message ContainerState {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// ERROR CODES — classified by agent exception type, consumed by master for
+// HTTP status mapping. Backward-compatible: older peers see UNSPECIFIED (0).
+// ─────────────────────────────────────────────────────────────────────────────
+
+enum ErrorCode {
+  ERROR_CODE_UNSPECIFIED = 0;
+  NOT_FOUND = 1;
+  ALREADY_EXISTS = 2;
+  CONFLICT = 3;
+  PERMISSION_DENIED = 4;
+  UNPROCESSABLE = 5;
+  UNAVAILABLE = 6;
+  INTERNAL = 7;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // MASTER → AGENT COMMANDS
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -408,6 +424,7 @@ message ListFilesResponse {
   string request_id = 1;
   repeated FileEntry entries = 2;
   string error_message = 3;
+  ErrorCode error_code = 4;
 }
 
 message FileEntry {
@@ -431,6 +448,7 @@ message ReadFileResponse {
   // "utf-8" or "binary" — master uses this to decide how to present the file.
   string encoding = 3;
   string error_message = 4;
+  ErrorCode error_code = 5;
 }
 
 message WriteFileRequest {
@@ -444,6 +462,7 @@ message WriteFileResponse {
   string request_id = 1;
   bool success = 2;
   string error_message = 3;
+  ErrorCode error_code = 4;
 }
 
 message DeleteFileRequest {
@@ -458,6 +477,7 @@ message DeleteFileResponse {
   string request_id = 1;
   bool success = 2;
   string error_message = 3;
+  ErrorCode error_code = 4;
 }
 
 message MakeDirectoryRequest {
@@ -470,6 +490,7 @@ message MakeDirectoryResponse {
   string request_id = 1;
   bool success = 2;
   string error_message = 3;
+  ErrorCode error_code = 4;
 }
 
 message MoveFileRequest {
@@ -486,6 +507,7 @@ message MoveFileResponse {
   string request_id = 1;
   bool success = 2;
   string error_message = 3;
+  ErrorCode error_code = 4;
 }
 
 message CopyFileRequest {
@@ -501,6 +523,7 @@ message CopyFileResponse {
   string request_id = 1;
   bool success = 2;
   string error_message = 3;
+  ErrorCode error_code = 4;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -541,6 +564,7 @@ message DownloadFileResponse {
   string request_id = 1;
   bool   success = 2;
   string error_message = 3;
+  ErrorCode error_code = 4;
 }
 
 // Agent → Master: result of a BulkDataService upload transfer.
@@ -549,6 +573,7 @@ message UploadFileResponse {
   bool   success = 2;
   int64  size_bytes = 3;
   string error_message = 4;
+  ErrorCode error_code = 5;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -629,6 +654,7 @@ message RsyncCompleteUpdate {
   // Present on failure.
   string error_message = 5;
   google.protobuf.Timestamp completed_at = 6;
+  ErrorCode error_code = 7;
 }
 
 message BackupProgressUpdate {
@@ -646,6 +672,7 @@ message BackupCompleteUpdate {
   int64  size_bytes = 5;
   string error_message = 6;
   google.protobuf.Timestamp completed_at = 7;
+  ErrorCode error_code = 8;
 }
 
 message ShutdownAcknowledgeUpdate {

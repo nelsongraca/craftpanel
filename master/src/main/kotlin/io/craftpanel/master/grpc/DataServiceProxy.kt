@@ -2,7 +2,9 @@ package io.craftpanel.master.grpc
 
 import io.craftpanel.master.service.BadGatewayException
 import io.craftpanel.master.service.ConflictException
+import io.craftpanel.master.service.ForbiddenException
 import io.craftpanel.master.service.NotFoundException
+import io.craftpanel.master.service.ServiceException
 import io.craftpanel.master.service.UnprocessableException
 import io.craftpanel.proto.*
 import com.google.protobuf.ByteString
@@ -64,29 +66,31 @@ class DataServiceProxy(
 
     // ── File operations ───────────────────────────────────────────────────────
 
-    private fun agentErrorToException(msg: String): Exception = when {
-        msg.contains("not found", ignoreCase = true)                                               -> NotFoundException(msg)
-        msg.contains("already exists", ignoreCase = true)                                          -> ConflictException(msg)
-        msg.contains("not empty", ignoreCase = true)                                               -> ConflictException(msg)
-        msg.contains("timed out", ignoreCase = true) || msg.contains("timeout", ignoreCase = true) -> BadGatewayException(msg)
-        msg.contains("not connected", ignoreCase = true)                                           -> BadGatewayException(msg)
-        msg.contains("not enough space", ignoreCase = true)                                        -> UnprocessableException(msg)
-        else                                                                                       -> RuntimeException(msg)
+    internal fun agentErrorToException(code: ErrorCode, msg: String): ServiceException = when (code) {
+        ErrorCode.NOT_FOUND         -> NotFoundException(msg)
+        ErrorCode.ALREADY_EXISTS    -> ConflictException(msg)
+        ErrorCode.CONFLICT          -> ConflictException(msg)
+        ErrorCode.PERMISSION_DENIED -> ForbiddenException(msg)
+        ErrorCode.UNPROCESSABLE     -> UnprocessableException(msg)
+        ErrorCode.UNAVAILABLE       -> BadGatewayException(msg)
+        ErrorCode.INTERNAL,
+        ErrorCode.ERROR_CODE_UNSPECIFIED,
+        ErrorCode.UNRECOGNIZED      -> BadGatewayException(msg)
     }
 
     private suspend fun <R> correlate(
         serverId: Uuid,
         build: (reqId: String) -> MasterMessage,
         extract: (AgentMessage) -> R,
-        err: (R) -> String,
+        err: (R) -> Pair<ErrorCode, String>,
     ): R {
         val nodeId = lookupNodeId(serverId)
         val reqId = Uuid.random()
             .toString()
         val response = controlService.sendAndAwait(nodeId, reqId, build(reqId))
         val r = extract(response)
-        val errorMsg = err(r)
-        if (errorMsg.isNotBlank()) throw agentErrorToException(errorMsg)
+        val (code, msg) = err(r)
+        if (msg.isNotBlank()) throw agentErrorToException(code, msg)
         return r
     }
 
@@ -95,7 +99,7 @@ class DataServiceProxy(
             serverId,
             build = { reqId -> masterMessage { listFiles = listFilesRequest { requestId = reqId; this.serverId = serverId.toString(); this.path = path } } },
             extract = { it.listFilesResponse },
-            err = { it.errorMessage },
+            err = { it.errorCode to it.errorMessage },
         ).let { proto ->
             ListFilesResponse(
                 path = path,
@@ -118,7 +122,7 @@ class DataServiceProxy(
             serverId,
             build = { reqId -> masterMessage { readFile = readFileRequest { requestId = reqId; this.serverId = serverId.toString(); this.path = path } } },
             extract = { it.readFileResponse },
-            err = { it.errorMessage },
+            err = { it.errorCode to it.errorMessage },
         ).let { proto ->
             ReadFileResponse(path = path, content = proto.content.toStringUtf8(), encoding = proto.encoding)
         }
@@ -132,7 +136,7 @@ class DataServiceProxy(
                 }
             },
             extract = { it.writeFileResponse },
-            err = { it.errorMessage },
+            err = { it.errorCode to it.errorMessage },
         ).let {}
 
     suspend fun deleteFile(serverId: Uuid, path: String, recursive: Boolean): Unit =
@@ -140,7 +144,7 @@ class DataServiceProxy(
             serverId,
             build = { reqId -> masterMessage { deleteFile = deleteFileRequest { requestId = reqId; this.serverId = serverId.toString(); this.path = path; this.recursive = recursive } } },
             extract = { it.deleteFileResponse },
-            err = { it.errorMessage },
+            err = { it.errorCode to it.errorMessage },
         ).let {}
 
     suspend fun makeDirectory(serverId: Uuid, path: String): Unit =
@@ -148,7 +152,7 @@ class DataServiceProxy(
             serverId,
             build = { reqId -> masterMessage { makeDirectory = makeDirectoryRequest { requestId = reqId; this.serverId = serverId.toString(); this.path = path } } },
             extract = { it.makeDirectoryResponse },
-            err = { it.errorMessage },
+            err = { it.errorCode to it.errorMessage },
         ).let {}
 
     suspend fun moveFile(serverId: Uuid, sourcePath: String, destinationPath: String): Unit =
@@ -160,7 +164,7 @@ class DataServiceProxy(
                 }
             },
             extract = { it.moveFileResponse },
-            err = { it.errorMessage },
+            err = { it.errorCode to it.errorMessage },
         ).let {}
 
     suspend fun copyFile(serverId: Uuid, sourcePath: String, destinationPath: String, recursive: Boolean): Unit =
@@ -173,7 +177,7 @@ class DataServiceProxy(
                 }
             },
             extract = { it.copyFileResponse },
-            err = { it.errorMessage },
+            err = { it.errorCode to it.errorMessage },
         ).let {}
 
     // ── Bulk transfers ────────────────────────────────────────────────────────
@@ -207,7 +211,7 @@ class DataServiceProxy(
         }, timeoutMs = 120_000)
 
         val r = response.uploadFileResponse
-        if (!r.success) throw agentErrorToException(r.errorMessage.ifBlank { "Upload failed" })
+        if (!r.success) throw agentErrorToException(r.errorCode, r.errorMessage.ifBlank { "Upload failed" })
         return r.sizeBytes
     }
 
@@ -240,7 +244,7 @@ class DataServiceProxy(
         val r = response.downloadFileResponse
         if (!r.success) {
             bulkService.cancelDownload(transferId)
-            throw agentErrorToException(r.errorMessage.ifBlank { "File not found" })
+            throw agentErrorToException(r.errorCode, r.errorMessage.ifBlank { "File not found" })
         }
 
         return downloadFlow
@@ -272,7 +276,7 @@ class DataServiceProxy(
         val r = response.downloadFileResponse
         if (!r.success) {
             bulkService.cancelDownload(transferId)
-            throw agentErrorToException(r.errorMessage.ifBlank { "Backup file not found" })
+            throw agentErrorToException(r.errorCode, r.errorMessage.ifBlank { "Backup file not found" })
         }
 
         return downloadFlow
