@@ -86,11 +86,11 @@ val appModule = module {
     single(createdAtStart = true) {
         val csi = get<ControlServiceImpl>()
         val lifecycle = get<ContainerLifecycle>()
-        lifecycle.startCrashRestartLoop(get(named("appScope")), get(named("crashRestarts")))
+        lifecycle.startCrashRestartLoop(get(named("appScope")), get<Channel<Uuid>>(named("crashRestarts")))
         NodeObserver(
             agentEvents = csi.agentEvents,
             restartManager = get(),
-            crashRestarts = get(named("crashRestarts")),
+            crashRestarts = get<Channel<Uuid>>(named("crashRestarts")),
             emitAgentEvent = { event -> csi.emitToAgentEvents(event) },
             serverRepository = get(),
             nodeRepository = get(),
