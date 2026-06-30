@@ -46,9 +46,9 @@ private class ConsoleSession {
 private class ConsoleSessionManager(private val proxy: DataServiceProxy, private val scope: CoroutineScope) {
 
     private val log = LoggerFactory.getLogger(ConsoleSessionManager::class.java)
-    private val sessions = ConcurrentHashMap<String, ConsoleSession>()
+    private val sessions = ConcurrentHashMap<Uuid, ConsoleSession>()
 
-    fun getOrCreate(serverId: String): ConsoleSession =
+    fun getOrCreate(serverId: Uuid): ConsoleSession =
         sessions.getOrPut(serverId) {
             val session = ConsoleSession()
             session.job = scope.launch {
@@ -86,7 +86,7 @@ class ConsoleRoutes(
     private fun lookupServer(rawId: String): ServerInfo? = transaction {
         val id = runCatching {
             Uuid.parse(rawId)
-                
+
         }.getOrNull() ?: return@transaction null
         val row = Servers.selectAll()
             .where { Servers.id eq id }
@@ -127,7 +127,7 @@ class ConsoleRoutes(
             }
 
             // ── Session ───────────────────────────────────────────────────────
-            val session = sessionManager.getOrCreate(serverId)
+            val session = sessionManager.getOrCreate(serverInfo.serverId)
 
             sendConsole(ConsoleEvent.Ready(serverId))
 

@@ -14,7 +14,10 @@ import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.config.NodeConfig
+import io.craftpanel.master.service.BadRequestException
+import io.craftpanel.master.service.ForbiddenException
 import io.craftpanel.master.service.NodeStateReconciler
+import io.craftpanel.master.service.NotFoundException
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
 import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
@@ -58,6 +61,9 @@ class FilesRoutesTest : FunSpec({
     fun Application.configureTest() {
         install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         install(StatusPages) {
+            exception<NotFoundException> { call, ex -> call.respond(HttpStatusCode.NotFound, mapOf("error" to (ex.message ?: "Not found"))) }
+            exception<ForbiddenException> { call, ex -> call.respond(HttpStatusCode.Forbidden, mapOf("error" to (ex.message ?: "Forbidden"))) }
+            exception<BadRequestException> { call, ex -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to (ex.message ?: "Bad request"))) }
             exception<Exception> { call, ex -> call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (ex.message ?: "error"))) }
         }
         install(Authentication) {

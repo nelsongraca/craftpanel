@@ -60,16 +60,7 @@ class DataServiceProxyTest : FunSpec({
 
     test("listFiles throws for unknown serverId") {
         shouldThrow<IllegalStateException> {
-            proxy.listFiles(
-                Uuid.random()
-                    .toString(), "/"
-            )
-        }
-    }
-
-    test("listFiles throws for invalid serverId") {
-        shouldThrow<IllegalStateException> {
-            proxy.listFiles("not-a-uuid", "/")
+            proxy.listFiles(Uuid.random(), "/")
         }
     }
 
@@ -110,7 +101,7 @@ class DataServiceProxyTest : FunSpec({
     test("console returns emptyFlow when server is STOPPED") {
         val nodeId = createNode()
         val serverId = createServer(nodeId, status = "STOPPED")
-        val result = proxy.console(serverId.toString(), emptyFlow())
+        val result = proxy.console(serverId, emptyFlow())
         runBlocking {
             result.collect { }
         }

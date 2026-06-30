@@ -12,7 +12,6 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
-import io.craftpanel.master.util.toUtcString
 
 private val CRON_REGEX = Regex("""^(\*|[0-9,\-*/]+)\s+(\*|[0-9,\-*/]+)\s+(\*|[0-9,\-*/]+)\s+(\*|[0-9,\-*/]+)\s+(\*|[0-9,\-*/]+)$""")
 
@@ -42,7 +41,7 @@ data class PutBackupScheduleRequest(
     @SerialName("backup_max_count") val backupMaxCount: Int? = null,
 )
 
-data class BackupDownloadInfo(val serverId: String, val backupId: String)
+data class BackupDownloadInfo(val serverId: Uuid, val backupId: String)
 
 class BackupService(
     private val gateway: AgentGateway,
@@ -119,7 +118,7 @@ class BackupService(
             ?.takeIf { it.serverId == serverId }
             ?: throw NotFoundException("Backup not found")
         if (backup.status != "COMPLETED") throw ConflictException("Backup is not in COMPLETED status")
-        return BackupDownloadInfo(serverId = serverId.toString(), backupId = backupId.toString())
+        return BackupDownloadInfo(serverId = serverId, backupId = backupId.toString())
     }
 
     suspend fun downloadStream(info: BackupDownloadInfo) = dataServiceProxy.downloadBackup(info.serverId, info.backupId)
