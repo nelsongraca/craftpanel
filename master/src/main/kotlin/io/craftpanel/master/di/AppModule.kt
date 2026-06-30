@@ -47,8 +47,10 @@ import io.craftpanel.master.service.repo.UserRepository
 import io.craftpanel.master.service.repo.UserRepositoryImpl
 import io.craftpanel.master.docker.MasterDockerClient
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.Channel
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
+import kotlin.uuid.Uuid
 
 val appModule = module {
     // Repositories
@@ -66,6 +68,8 @@ val appModule = module {
         ServerRestartManager(s.restartMaxAttempts, s.restartWindowSeconds)
     }
 
+    single(named("crashRestarts")) { Channel<Uuid>(Channel.BUFFERED) }
+
     // gRPC core
     single { NodeStateReconciler(serverRepository = get(), nodeRepository = get()) }
     single<AgentGateway> { get<ControlServiceImpl>() }
@@ -81,11 +85,12 @@ val appModule = module {
     // Observability — subscribes to agentEvents emitted by ControlServiceImpl
     single(createdAtStart = true) {
         val csi = get<ControlServiceImpl>()
+        val lifecycle = get<ContainerLifecycle>()
+        lifecycle.startCrashRestartLoop(get(named("appScope")), get(named("crashRestarts")))
         NodeObserver(
             agentEvents = csi.agentEvents,
             restartManager = get(),
-            // Lazy lookup breaks the NodeObserver <-> ContainerLifecycle construction cycle.
-            restartServer = { serverId -> get<ContainerLifecycle>().restartCrashedServer(serverId) },
+            crashRestarts = get(named("crashRestarts")),
             emitAgentEvent = { event -> csi.emitToAgentEvents(event) },
             serverRepository = get(),
             nodeRepository = get(),

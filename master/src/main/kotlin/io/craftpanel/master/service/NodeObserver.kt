@@ -10,6 +10,7 @@ import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
@@ -27,7 +28,7 @@ import kotlin.uuid.Uuid
 class NodeObserver(
     private val agentEvents: SharedFlow<AgentEvent>,
     private val restartManager: ServerRestartManager?,
-    private val restartServer: (Uuid) -> Unit,
+    private val crashRestarts: SendChannel<Uuid>,
     private val emitAgentEvent: suspend (AgentEvent) -> Unit,
     private val serverRepository: ServerRepository,
     private val nodeRepository: NodeRepository,
@@ -127,8 +128,7 @@ class NodeObserver(
                 (prevStatus == ServerStatus.HEALTHY || prevStatus == ServerStatus.STARTING)
         if (!crashed) return
         if (mgr.recordCrashAndShouldRestart(serverId)) {
-            runCatching { restartServer(serverId) }
-                .onFailure { e -> log.error("Crash restart for server {} failed to dispatch — {}", serverId, e.message) }
+            crashRestarts.trySend(serverId)
         }
     }
 

@@ -11,6 +11,8 @@ import io.craftpanel.proto.removeContainerCommand
 import io.craftpanel.proto.startContainerCommand
 import io.craftpanel.proto.stopContainerCommand
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
@@ -129,15 +131,14 @@ class ContainerLifecycle(
         return systemVars + dbEnvVars
     }
 
-    /**
-     * Fire-and-forget restart of a server that crashed, issued by the master crash-recovery path.
-     * Reuses the normal start command (no recreate) and marks the server STARTING so the next
-     * status report reconciles it. Safe no-op if the row is gone.
-     */
-    fun restartCrashedServer(id: Uuid) {
-        val server = serverRepository.findById(id) ?: return
-        writeStatus(id, ServerStatus.STARTING)
-        sendStart(server, needsRecreate = false)
+    fun startCrashRestartLoop(scope: CoroutineScope, channel: ReceiveChannel<Uuid>) {
+        scope.launch {
+            for (id in channel) {
+                val server = serverRepository.findById(id) ?: continue
+                writeStatus(id, ServerStatus.STARTING)
+                sendStart(server, needsRecreate = false)
+            }
+        }
     }
 
     fun writeStatus(id: Uuid, status: ServerStatus, clearNeedsRecreate: Boolean = false) {
