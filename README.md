@@ -3,6 +3,8 @@
 Self-hosted Minecraft server management platform. Manage servers across multiple nodes from a single web UI, with role-based access control, live console streaming, backups, migration, and Modrinth
 mod integration.
 
+[![codecov](https://codecov.io/gh/nelsongraca/craftpanel/graph/badge.svg?token=JZSEWQAJCH)](https://codecov.io/gh/nelsongraca/craftpanel)
+
 ## Agentic Development Experiment
 
 CraftPanel is also an experiment in agentic software development. The goal is to build the project as close to **zero human-authored code** as practically achievable, using [Claude Code](https://claude.ai/code) as the primary development agent throughout the entire lifecycle - architecture, scaffolding, implementation, and iteration.
