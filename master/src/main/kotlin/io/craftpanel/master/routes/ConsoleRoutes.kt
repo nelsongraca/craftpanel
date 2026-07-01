@@ -5,7 +5,7 @@ package io.craftpanel.master.routes
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.auth.WsTicketService
-import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.auth.ServerLookup
 import io.craftpanel.master.grpc.DataServiceProxy
 import kotlin.uuid.Uuid
 import io.ktor.server.routing.*
@@ -19,9 +19,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration.Companion.minutes
@@ -83,18 +80,10 @@ class ConsoleRoutes(
     private val log = LoggerFactory.getLogger(ConsoleRoutes::class.java)
     private val sessionManager = ConsoleSessionManager(proxy, CoroutineScope(SupervisorJob().plus(Dispatchers.IO)))
 
-    private fun lookupServer(rawId: String): ServerInfo? = transaction {
-        val id = runCatching {
-            Uuid.parse(rawId)
-
-        }.getOrNull() ?: return@transaction null
-        val row = Servers.selectAll()
-            .where { Servers.id eq id }
-            .firstOrNull() ?: return@transaction null
-        ServerInfo(
-            serverId = id,
-            networkId = row[Servers.networkId],
-        )
+    private fun lookupServer(rawId: String): ServerInfo? {
+        val id = runCatching { Uuid.parse(rawId) }.getOrNull() ?: return null
+        val scope = ServerLookup.scope(id) ?: return null
+        return ServerInfo(serverId = id, networkId = scope.networkId)
     }
 
     fun Route.register() {
