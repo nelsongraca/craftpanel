@@ -1,40 +1,57 @@
 "use client";
 
+import {useState} from "react";
 import {InfoRow} from "./server-info";
 import {EditFieldRow, EditInput, SaveCancelRow} from "./edit-fields";
+import {updateServerExposure} from "@/lib/generated/sdk.gen";
 import type {Server} from "@/lib/types";
 
 interface EditExposureProps {
     server: Server;
-    editing: boolean;
-    exposedExternally: boolean;
-    publicSubdomain: string;
-    customHostname: string;
-    saving: boolean;
-    error: string | null;
-    onOpen: () => void;
-    onSave: () => void;
-    onCancel: () => void;
-    onChangeExposedExternally: (v: boolean) => void;
-    onChangePublicSubdomain: (v: string) => void;
-    onChangeCustomHostname: (v: string) => void;
+    onSaved: () => void;
 }
 
-export function EditExposure({
-                                 server,
-                                 editing,
-                                 exposedExternally,
-                                 publicSubdomain,
-                                 customHostname,
-                                 saving,
-                                 error,
-                                 onOpen,
-                                 onSave,
-                                 onCancel,
-                                 onChangeExposedExternally,
-                                 onChangePublicSubdomain,
-                                 onChangeCustomHostname,
-                             }: EditExposureProps) {
+export function EditExposure({server, onSaved}: EditExposureProps) {
+    const [editing, setEditing] = useState(false);
+    const [exposedExternally, setExposedExternally] = useState(false);
+    const [publicSubdomain, setPublicSubdomain] = useState("");
+    const [customHostname, setCustomHostname] = useState("");
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    function open() {
+        setExposedExternally(server.exposed_externally);
+        setPublicSubdomain(server.public_subdomain ?? "");
+        setCustomHostname(server.custom_hostname ?? "");
+        setError(null);
+        setEditing(true);
+    }
+
+    async function save() {
+        setSaving(true);
+        setError(null);
+        try {
+            const {error: expErr} = await updateServerExposure({
+                path: {id: server.id},
+                body: {
+                    exposed_externally: exposedExternally,
+                    public_subdomain: publicSubdomain || null,
+                    custom_hostname: customHostname || null,
+                },
+            });
+            if (expErr) {
+                setError(expErr.message ?? "Failed to save");
+                return;
+            }
+            onSaved();
+            setEditing(false);
+        } catch {
+            setError("Failed to save");
+        } finally {
+            setSaving(false);
+        }
+    }
+
     return (
         <div className="bg-surface border border-border rounded p-4">
             <div className="flex items-center justify-between mb-3">
@@ -43,7 +60,7 @@ export function EditExposure({
                 </p>
                 {!editing && (
                     <button
-                        onClick={onOpen}
+                        onClick={open}
                         className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
                     >
                         Edit
@@ -69,7 +86,7 @@ export function EditExposure({
                                 type="checkbox"
                                 id="expose-externally"
                                 checked={exposedExternally}
-                                onChange={(e) => onChangeExposedExternally(e.target.checked)}
+                                onChange={(e) => setExposedExternally(e.target.checked)}
                                 className="accent-[var(--accent)] w-4 h-4"
                             />
                             <label htmlFor="expose-externally" className="text-[12px] font-mono text-text-primary">
@@ -82,7 +99,7 @@ export function EditExposure({
                             <EditFieldRow label="Public Subdomain">
                                 <EditInput
                                     value={publicSubdomain}
-                                    onChange={(e) => onChangePublicSubdomain(e.target.value)}
+                                    onChange={(e) => setPublicSubdomain(e.target.value)}
                                     placeholder="myserver"
                                 />
                                 <p className="text-[12px] text-text-muted mt-1">Subdomain under the platform domain (e.g. myserver.mc.example.com)</p>
@@ -90,14 +107,14 @@ export function EditExposure({
                             <EditFieldRow label="Custom Hostname">
                                 <EditInput
                                     value={customHostname}
-                                    onChange={(e) => onChangeCustomHostname(e.target.value)}
+                                    onChange={(e) => setCustomHostname(e.target.value)}
                                     placeholder="play.example.com"
                                 />
                                 <p className="text-[12px] text-text-muted mt-1">Your own domain (bring-your-own-DNS)</p>
                             </EditFieldRow>
                         </>
                     )}
-                    <SaveCancelRow onSave={onSave} onCancel={onCancel} saving={saving}/>
+                    <SaveCancelRow onSave={() => void save()} onCancel={() => setEditing(false)} saving={saving}/>
                 </div>
             )}
         </div>

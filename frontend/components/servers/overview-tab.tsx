@@ -13,53 +13,6 @@ import type {Network, Node, Server} from "@/lib/types";
 type LiveMetrics = { cpuPercent: number; ramUsedMb: number; netInBytes: number; netOutBytes: number };
 type LivePlayers = { count: number; list: string[] };
 
-export interface GeneralEditState {
-    editing: boolean;
-    displayName: string;
-    description: string;
-    networkId: string;
-    mcVersion: string;
-    saving: boolean;
-    error: string | null;
-    onOpen: () => void;
-    onSave: () => void;
-    onCancel: () => void;
-    onChangeName: (v: string) => void;
-    onChangeDesc: (v: string) => void;
-    onChangeNetwork: (v: string) => void;
-    onChangeMcVersion: (v: string) => void;
-}
-
-export interface ResourcesEditState {
-    editing: boolean;
-    ramMb: number;
-    cpuShares: number;
-    itzgTag: string;
-    saving: boolean;
-    error: string | null;
-    onOpen: () => void;
-    onSave: () => void;
-    onCancel: () => void;
-    onChangeRamMb: (v: number) => void;
-    onChangeCpuShares: (v: number) => void;
-    onChangeItzgTag: (v: string) => void;
-}
-
-export interface ExposureEditState {
-    editing: boolean;
-    exposedExternally: boolean;
-    publicSubdomain: string;
-    customHostname: string;
-    saving: boolean;
-    error: string | null;
-    onOpen: () => void;
-    onSave: () => void;
-    onCancel: () => void;
-    onChangeExposedExternally: (v: boolean) => void;
-    onChangePublicSubdomain: (v: string) => void;
-    onChangeCustomHostname: (v: string) => void;
-}
-
 export interface OverviewTabProps {
     server: Server;
     node: Node | null;
@@ -67,11 +20,9 @@ export interface OverviewTabProps {
     permissions: string[];
     liveMetrics: LiveMetrics | null;
     livePlayers: LivePlayers | null;
-    networks: Network[];
-    mcVersions: string[];
-    generalEdit: GeneralEditState;
-    resourcesEdit: ResourcesEditState;
-    exposureEdit: ExposureEditState;
+    /** Bump to force the General Settings edit form open (e.g. a link from the Configuration tab). */
+    forceOpenGeneralSignal?: number;
+    onSaved: () => void;
 }
 
 export function OverviewTab({
@@ -81,11 +32,8 @@ export function OverviewTab({
                                 permissions,
                                 liveMetrics,
                                 livePlayers,
-                                networks,
-                                mcVersions,
-                                generalEdit,
-                                resourcesEdit,
-                                exposureEdit,
+                                forceOpenGeneralSignal,
+                                onSaved,
                             }: OverviewTabProps) {
     const canConfigure = hasPermission(permissions, "server.configure");
     const canResources = hasPermission(permissions, "server.resources");
@@ -132,61 +80,19 @@ export function OverviewTab({
             {canConfigure && (
                 <EditGeneral
                     server={server}
-                    networks={networks}
-                    mcVersions={mcVersions}
-                    editing={generalEdit.editing}
-                    displayName={generalEdit.displayName}
-                    description={generalEdit.description}
-                    networkId={generalEdit.networkId}
-                    mcVersion={generalEdit.mcVersion}
-                    saving={generalEdit.saving}
-                    error={generalEdit.error}
-                    onOpen={generalEdit.onOpen}
-                    onSave={generalEdit.onSave}
-                    onCancel={generalEdit.onCancel}
-                    onChangeName={generalEdit.onChangeName}
-                    onChangeDesc={generalEdit.onChangeDesc}
-                    onChangeNetwork={generalEdit.onChangeNetwork}
-                    onChangeMcVersion={generalEdit.onChangeMcVersion}
+                    forceOpenSignal={forceOpenGeneralSignal}
+                    onSaved={onSaved}
                 />
             )}
 
             {/* Resources */}
             {canResources && (
-                <EditResources
-                    server={server}
-                    editing={resourcesEdit.editing}
-                    ramMb={resourcesEdit.ramMb}
-                    cpuShares={resourcesEdit.cpuShares}
-                    itzgTag={resourcesEdit.itzgTag}
-                    saving={resourcesEdit.saving}
-                    error={resourcesEdit.error}
-                    onOpen={resourcesEdit.onOpen}
-                    onSave={resourcesEdit.onSave}
-                    onCancel={resourcesEdit.onCancel}
-                    onChangeRamMb={resourcesEdit.onChangeRamMb}
-                    onChangeCpuShares={resourcesEdit.onChangeCpuShares}
-                    onChangeItzgTag={resourcesEdit.onChangeItzgTag}
-                />
+                <EditResources server={server} onSaved={onSaved}/>
             )}
 
             {/* Public Access */}
             {canConfigure && (
-                <EditExposure
-                    server={server}
-                    editing={exposureEdit.editing}
-                    exposedExternally={exposureEdit.exposedExternally}
-                    publicSubdomain={exposureEdit.publicSubdomain}
-                    customHostname={exposureEdit.customHostname}
-                    saving={exposureEdit.saving}
-                    error={exposureEdit.error}
-                    onOpen={exposureEdit.onOpen}
-                    onSave={exposureEdit.onSave}
-                    onCancel={exposureEdit.onCancel}
-                    onChangeExposedExternally={exposureEdit.onChangeExposedExternally}
-                    onChangePublicSubdomain={exposureEdit.onChangePublicSubdomain}
-                    onChangeCustomHostname={exposureEdit.onChangeCustomHostname}
-                />
+                <EditExposure server={server} onSaved={onSaved}/>
             )}
 
             <PlayersPanel livePlayers={livePlayers}/>

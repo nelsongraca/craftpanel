@@ -1,40 +1,53 @@
 "use client";
 
+import {useState} from "react";
 import {InfoRow} from "./server-info";
 import {EditFieldRow, EditInput, SaveCancelRow} from "./edit-fields";
+import {updateServerResources} from "@/lib/generated/sdk.gen";
 import type {Server} from "@/lib/types";
 
 interface EditResourcesProps {
     server: Server;
-    editing: boolean;
-    ramMb: number;
-    cpuShares: number;
-    itzgTag: string;
-    saving: boolean;
-    error: string | null;
-    onOpen: () => void;
-    onSave: () => void;
-    onCancel: () => void;
-    onChangeRamMb: (v: number) => void;
-    onChangeCpuShares: (v: number) => void;
-    onChangeItzgTag: (v: string) => void;
+    onSaved: () => void;
 }
 
-export function EditResources({
-                                  server,
-                                  editing,
-                                  ramMb,
-                                  cpuShares,
-                                  itzgTag,
-                                  saving,
-                                  error,
-                                  onOpen,
-                                  onSave,
-                                  onCancel,
-                                  onChangeRamMb,
-                                  onChangeCpuShares,
-                                  onChangeItzgTag,
-                              }: EditResourcesProps) {
+export function EditResources({server, onSaved}: EditResourcesProps) {
+    const [editing, setEditing] = useState(false);
+    const [ramMb, setRamMb] = useState(0);
+    const [cpuShares, setCpuShares] = useState(0);
+    const [itzgTag, setItzgTag] = useState("");
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    function open() {
+        setRamMb(server.memory_mb);
+        setCpuShares(server.cpu_shares);
+        setItzgTag(server.itzg_image_tag);
+        setError(null);
+        setEditing(true);
+    }
+
+    async function save() {
+        setSaving(true);
+        setError(null);
+        try {
+            const {error: resErr} = await updateServerResources({
+                path: {id: server.id},
+                body: {memory_mb: ramMb, cpu_shares: cpuShares, itzg_image_tag: itzgTag || undefined},
+            });
+            if (resErr) {
+                setError(resErr.message ?? "Failed to save");
+                return;
+            }
+            onSaved();
+            setEditing(false);
+        } catch {
+            setError("Failed to save");
+        } finally {
+            setSaving(false);
+        }
+    }
+
     return (
         <div className="bg-surface border border-border rounded p-4">
             <div className="flex items-center justify-between mb-3">
@@ -43,7 +56,7 @@ export function EditResources({
                 </p>
                 {!editing && (
                     <button
-                        onClick={onOpen}
+                        onClick={open}
                         className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
                     >
                         Edit
@@ -66,7 +79,7 @@ export function EditResources({
                         <EditInput
                             type="number"
                             value={ramMb}
-                            onChange={(e) => onChangeRamMb(Number(e.target.value))}
+                            onChange={(e) => setRamMb(Number(e.target.value))}
                             min={512}
                             step={256}
                         />
@@ -75,7 +88,7 @@ export function EditResources({
                         <EditInput
                             type="number"
                             value={cpuShares}
-                            onChange={(e) => onChangeCpuShares(Number(e.target.value))}
+                            onChange={(e) => setCpuShares(Number(e.target.value))}
                             min={0}
                         />
                         <p className="text-[12px] text-text-muted mt-1">0 = unlimited</p>
@@ -83,7 +96,7 @@ export function EditResources({
                     <EditFieldRow label="itzg Image Tag">
                         <EditInput
                             value={itzgTag}
-                            onChange={(e) => onChangeItzgTag(e.target.value)}
+                            onChange={(e) => setItzgTag(e.target.value)}
                             placeholder="latest"
                             list="itzg-tags-edit"
                         />
@@ -98,7 +111,7 @@ export function EditResources({
                         </datalist>
                     </EditFieldRow>
                     <p className="text-[12px] text-text-muted">All changes require a restart to take effect.</p>
-                    <SaveCancelRow onSave={onSave} onCancel={onCancel} saving={saving}/>
+                    <SaveCancelRow onSave={() => void save()} onCancel={() => setEditing(false)} saving={saving}/>
                 </div>
             )}
         </div>

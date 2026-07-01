@@ -95,6 +95,37 @@ container command sequence with status-gated awaiting.
 - Depends on C1 (`agentEvents: SharedFlow<AgentEvent>`).
 - See plan `plans/c2-container-lifecycle.md`.
 
+### Route test scaffolding (master) — planned
+
+`testApp(routing: Routing.(jwtManager: JwtManager) -> Unit)` — a
+`ApplicationTestBuilder` extension replacing the per-file `configureTest()`
+hand-rolled in all 12 `routes/*RoutesTest.kt` files.
+
+- Installs `ContentNegotiation`, `StatusPages` (fixed set of 7 exception
+  mappers — `NotFoundException`, `ForbiddenException`, `ConflictException`,
+  `UnprocessableException`, `BadGatewayException`, `BadRequestException`,
+  `ContainerLifecycleException` — always all 7, unused ones are inert),
+  and JWT `Authentication` (fixed test secret/issuer/audience) internally.
+  Confirmed byte-identical for 6 of 7 mappers + all of `ContentNegotiation`
+  + `Authentication` across all 12 files before extracting — genuine
+  copy-paste, not independent evolution. Mirrors the exception→status
+  mapping in `Main.kt` (tests had silently re-derived it with a raw
+  `mapOf` instead of `ErrorResponse`).
+- Caller supplies only the `routing { fooRoutes(...) }` block — service
+  construction stays visible at the call site, `testApp` stays generic
+  infrastructure with no knowledge of the 12 domain route modules.
+- `jwtManager` is handed back into the block (not constructed by the
+  caller) so tests can still `jwtManager.generate(TokenClaims(...))` to
+  mint auth tokens.
+- `jsonClient()` (the `ApplicationTestBuilder.createClient { ... }` helper,
+  also byte-identical across all 12 files) moves into the same seam.
+- Rejected: a `testApp(gateway, vararg services)` auto-wiring variant —
+  couples the builder to all 12 domains' service graphs, contradicts
+  "generic infrastructure only." Rejected a Kotest `ProjectConfig`-level
+  auto-install — too much magic, a reader can't see what's installed
+  without checking the extension.
+- See candidate 4, `improve-codebase-architecture` review 2026-07-01.
+
 ## Open / planned
 
 ### Server lifecycle orchestrator (master) — superseded by ContainerLifecycle

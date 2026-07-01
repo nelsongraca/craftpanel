@@ -4,12 +4,11 @@ import {useCallback, useEffect, useState} from "react";
 import {useParams, useRouter} from "next/navigation";
 import Link from "next/link";
 import {ChevronRight, MoreHorizontal, Play, RotateCcw, Shuffle, Square, Trash2, X,} from "lucide-react";
-import {deleteServer, getNetwork, getNode, getServer, listNetworks, restartServer, startServer, stopServer, updateServer, updateServerExposure, updateServerResources} from "@/lib/generated/sdk.gen";
+import {deleteServer, getNetwork, getNode, getServer, restartServer, startServer, stopServer} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import type {Network, Node, Server} from "@/lib/types";
 import {useWs} from "@/lib/ws-context";
-import {fetchReleaseVersions} from "@/lib/utils/format";
 import {serverStatusClass, serverStatusLabel} from "@/lib/status";
 import {ConsoleTab} from "./console-tab";
 import {FilesTab} from "./files-tab";
@@ -61,36 +60,12 @@ export default function ServerDetailPage() {
         onConfirm: () => void;
     } | null>(null);
 
-    // Edit: general settings
-    const [editingGeneral, setEditingGeneral] = useState(false);
-    const [editDisplayName, setEditDisplayName] = useState("");
-    const [editDescription, setEditDescription] = useState("");
-    const [editNetworkId, setEditNetworkId] = useState("");
-    const [editMcVersion, setEditMcVersion] = useState("");
-    const [savingGeneral, setSavingGeneral] = useState(false);
-    const [generalError, setGeneralError] = useState<string | null>(null);
-    const [networks, setNetworks] = useState<Network[]>([]);
-    const [mcVersions, setMcVersions] = useState<string[]>([]);
-
     // Live WS data
     const [liveMetrics, setLiveMetrics] = useState<LiveMetrics | null>(null);
     const [livePlayers, setLivePlayers] = useState<LivePlayers | null>(null);
 
-    // Edit: resources
-    const [editingResources, setEditingResources] = useState(false);
-    const [editRamMb, setEditRamMb] = useState(0);
-    const [editCpuShares, setEditCpuShares] = useState(0);
-    const [editItzgTag, setEditItzgTag] = useState("");
-    const [savingResources, setSavingResources] = useState(false);
-    const [resourcesError, setResourcesError] = useState<string | null>(null);
-
-    // Edit: exposure
-    const [editingExposure, setEditingExposure] = useState(false);
-    const [editExposedExternally, setEditExposedExternally] = useState(false);
-    const [editPublicSubdomain, setEditPublicSubdomain] = useState("");
-    const [editCustomHostname, setEditCustomHostname] = useState("");
-    const [savingExposure, setSavingExposure] = useState(false);
-    const [exposureError, setExposureError] = useState<string | null>(null);
+    // Bumped to force-open the General Settings edit form from another tab (e.g. Configuration).
+    const [generalOpenSignal, setGeneralOpenSignal] = useState<number | undefined>(undefined);
 
     // Data fetching
 
@@ -170,122 +145,6 @@ export default function ServerDetailPage() {
             unsubPlayers();
         };
     }, [subscribe, id]);
-
-    // Edit: general settings handlers
-
-    function openEditGeneral() {
-        if (!server) return;
-        setEditDisplayName(server.display_name);
-        setEditDescription(server.description ?? "");
-        setEditNetworkId(server.network_id ?? "");
-        setEditMcVersion(server.mc_version);
-        setGeneralError(null);
-        setEditingGeneral(true);
-        if (networks.length === 0) {
-            listNetworks().then(({data}) => {
-                if (data) setNetworks(data);
-            });
-        }
-        if (mcVersions.length === 0) {
-            fetchReleaseVersions().then(setMcVersions);
-        }
-    }
-
-    async function saveGeneral() {
-        if (!server) return;
-        setSavingGeneral(true);
-        setGeneralError(null);
-        try {
-            const mcVersionChanged = editMcVersion !== server.mc_version;
-            const body: Record<string, unknown> = {};
-            if (editDisplayName !== server.display_name) body.display_name = editDisplayName;
-            if (editDescription !== (server.description ?? "")) body.description = editDescription || "";
-            if (editNetworkId !== (server.network_id ?? "")) body.network_id = editNetworkId || "";
-            if (mcVersionChanged) body.mc_version = editMcVersion;
-
-            const {error: updateErr} = await updateServer({path: {id}, body: body as Parameters<typeof updateServer>[0]["body"]});
-            if (updateErr) {
-                setGeneralError(updateErr.message ?? "Failed to save");
-                return;
-            }
-            await fetchServer();
-            setEditingGeneral(false);
-        } catch {
-            setGeneralError("Failed to save");
-        } finally {
-            setSavingGeneral(false);
-        }
-    }
-
-    // Edit: resources handlers
-
-    function openEditResources() {
-        if (!server) return;
-        setEditRamMb(server.memory_mb);
-        setEditCpuShares(server.cpu_shares);
-        setEditItzgTag(server.itzg_image_tag);
-        setResourcesError(null);
-        setEditingResources(true);
-    }
-
-    async function saveResources() {
-        if (!server) return;
-        setSavingResources(true);
-        setResourcesError(null);
-        try {
-            const {error: resErr} = await updateServerResources({
-                path: {id},
-                body: {memory_mb: editRamMb, cpu_shares: editCpuShares, itzg_image_tag: editItzgTag || undefined},
-            });
-            if (resErr) {
-                setResourcesError(resErr.message ?? "Failed to save");
-                return;
-            }
-            await fetchServer();
-            setEditingResources(false);
-        } catch {
-            setResourcesError("Failed to save");
-        } finally {
-            setSavingResources(false);
-        }
-    }
-
-    // Edit: exposure handlers
-
-    function openEditExposure() {
-        if (!server) return;
-        setEditExposedExternally(server.exposed_externally);
-        setEditPublicSubdomain(server.public_subdomain ?? "");
-        setEditCustomHostname(server.custom_hostname ?? "");
-        setExposureError(null);
-        setEditingExposure(true);
-    }
-
-    async function saveExposure() {
-        if (!server) return;
-        setSavingExposure(true);
-        setExposureError(null);
-        try {
-            const {error: expErr} = await updateServerExposure({
-                path: {id},
-                body: {
-                    exposed_externally: editExposedExternally,
-                    public_subdomain: editPublicSubdomain || null,
-                    custom_hostname: editCustomHostname || null,
-                },
-            });
-            if (expErr) {
-                setExposureError(expErr.message ?? "Failed to save");
-                return;
-            }
-            await fetchServer();
-            setEditingExposure(false);
-        } catch {
-            setExposureError("Failed to save");
-        } finally {
-            setSavingExposure(false);
-        }
-    }
 
     // Actions
 
@@ -562,7 +421,7 @@ export default function ServerDetailPage() {
                     stopCommand={server.stop_command ?? "stop"}
                     onOpenGeneralSettings={() => {
                         setActiveTab("Overview");
-                        openEditGeneral();
+                        setGeneralOpenSignal((n) => (n ?? 0) + 1);
                     }}
                 />
             ) : activeTab === "Migration" ? (
@@ -583,52 +442,8 @@ export default function ServerDetailPage() {
                     permissions={permissions}
                     liveMetrics={liveMetrics}
                     livePlayers={livePlayers}
-                    networks={networks}
-                    mcVersions={mcVersions}
-                    generalEdit={{
-                        editing: editingGeneral,
-                        displayName: editDisplayName,
-                        description: editDescription,
-                        networkId: editNetworkId,
-                        mcVersion: editMcVersion,
-                        saving: savingGeneral,
-                        error: generalError,
-                        onOpen: openEditGeneral,
-                        onSave: () => void saveGeneral(),
-                        onCancel: () => setEditingGeneral(false),
-                        onChangeName: setEditDisplayName,
-                        onChangeDesc: setEditDescription,
-                        onChangeNetwork: setEditNetworkId,
-                        onChangeMcVersion: setEditMcVersion,
-                    }}
-                    resourcesEdit={{
-                        editing: editingResources,
-                        ramMb: editRamMb,
-                        cpuShares: editCpuShares,
-                        itzgTag: editItzgTag,
-                        saving: savingResources,
-                        error: resourcesError,
-                        onOpen: openEditResources,
-                        onSave: () => void saveResources(),
-                        onCancel: () => setEditingResources(false),
-                        onChangeRamMb: setEditRamMb,
-                        onChangeCpuShares: setEditCpuShares,
-                        onChangeItzgTag: setEditItzgTag,
-                    }}
-                    exposureEdit={{
-                        editing: editingExposure,
-                        exposedExternally: editExposedExternally,
-                        publicSubdomain: editPublicSubdomain,
-                        customHostname: editCustomHostname,
-                        saving: savingExposure,
-                        error: exposureError,
-                        onOpen: openEditExposure,
-                        onSave: () => void saveExposure(),
-                        onCancel: () => setEditingExposure(false),
-                        onChangeExposedExternally: setEditExposedExternally,
-                        onChangePublicSubdomain: setEditPublicSubdomain,
-                        onChangeCustomHostname: setEditCustomHostname,
-                    }}
+                    forceOpenGeneralSignal={generalOpenSignal}
+                    onSaved={() => void fetchServer()}
                 />
             )}
             <ConfirmDialog

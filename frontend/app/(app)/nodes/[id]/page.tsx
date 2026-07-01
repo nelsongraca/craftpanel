@@ -14,6 +14,7 @@ import {timeAgo, fmtBytes, fmtMb, fmtBytesNetworkIo, fillColorBg} from "@/lib/ut
 import {TokenModal} from "@/components/nodes/TokenModal";
 import type {ServerResponse as Server} from "@/lib/generated/types.gen";
 import {ConfirmDialog} from "@/components/ui/confirm-dialog";
+import {HeaderActionButton} from "@/components/servers/header-action-button";
 
 import {nodeStatusClass, nodeStatusLabel, serverStatusClass} from "@/lib/status";
 
@@ -52,39 +53,6 @@ function InfoRow({label, value}: { label: string; value: React.ReactNode }) {
       </span>
             <span className="font-mono text-[12px] text-text-primary text-right">{value}</span>
         </div>
-    );
-}
-
-function HeaderActionButton({
-                                icon, label, loading, onClick, variant, disabled,
-                            }: {
-    icon: React.ReactNode;
-    label: string;
-    loading: boolean;
-    onClick: () => void;
-    variant: "green" | "red" | "amber" | "default";
-    disabled?: boolean;
-}) {
-    const cls = {
-        green: "text-healthy  border-healthy/40  hover:bg-healthy/10",
-        red: "text-error    border-error/40    hover:bg-error/10",
-        amber: "text-warning  border-warning/40  hover:bg-warning/10",
-        default: "text-text-muted border-border   hover:bg-surface-high hover:text-text-primary",
-    }[variant];
-
-    return (
-        <button
-            onClick={onClick}
-            disabled={loading || disabled}
-            title={label}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded border text-[12px] font-heading font-bold uppercase tracking-widest transition-colors disabled:opacity-40 ${cls}`}
-        >
-            {loading ? (
-                <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin"/>
-            ) : icon}
-            {/* Label hidden on phones (icon-only) to keep the action row from overflowing */}
-            <span className="hidden sm:inline">{label}</span>
-        </button>
     );
 }
 
