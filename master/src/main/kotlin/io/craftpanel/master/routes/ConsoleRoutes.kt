@@ -68,7 +68,7 @@ private class ConsoleSessionManager(private val proxy: DataServiceProxy, private
 
 }
 
-private data class ServerInfo(val serverId: Uuid, val networkId: Uuid?)
+internal data class ServerInfo(val serverId: Uuid, val networkId: Uuid?)
 
 fun Route.consoleRoutes(wsTicketService: WsTicketService, proxy: DataServiceProxy) = with(ConsoleRoutes(wsTicketService, proxy)) { register() }
 
@@ -80,7 +80,7 @@ class ConsoleRoutes(
     private val log = LoggerFactory.getLogger(ConsoleRoutes::class.java)
     private val sessionManager = ConsoleSessionManager(proxy, CoroutineScope(SupervisorJob().plus(Dispatchers.IO)))
 
-    private fun lookupServer(rawId: String): ServerInfo? {
+    internal fun lookupServer(rawId: String): ServerInfo? {
         val id = runCatching { Uuid.parse(rawId) }.getOrNull() ?: return null
         val scope = ServerLookup.scope(id) ?: return null
         return ServerInfo(serverId = id, networkId = scope.networkId)
