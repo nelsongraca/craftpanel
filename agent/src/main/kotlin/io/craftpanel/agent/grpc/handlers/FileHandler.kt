@@ -21,6 +21,16 @@ class FileHandler(
 
     private val log = LoggerFactory.getLogger(FileHandler::class.java)
 
+    /** Fills the standard failure fields from a Result onto a proto response builder. */
+    // ponytail: private to FileHandler until a 2nd caller appears
+    private inline fun <T> Result<T>.fillFailure(
+        setMessage: (String) -> Unit,
+        setCode: (ErrorCode) -> Unit,
+    ) = onFailure {
+        setMessage(it.message ?: "Unknown error")
+        setCode(classifyFileError(it))
+    }
+
     suspend fun handleListFiles(cmd: ListFilesRequest, out: AgentOutbound) {
         val result = runCatching {
             withContext(Dispatchers.IO) {
@@ -60,11 +70,8 @@ class FileHandler(
             listFilesResponse = listFilesResponse {
                 requestId = cmd.requestId
                 result.onSuccess { entries.addAll(it) }
-                result.onFailure {
-                    errorMessage = it.message ?: "Unknown error"
-                    errorCode = classifyFileError(it)
-                    log.debug(errorMessage, it)
-                }
+                result.fillFailure({ errorMessage = it }, { errorCode = it })
+                result.onFailure { log.debug(errorMessage, it) }
             }
         }
     }
@@ -87,10 +94,7 @@ class FileHandler(
                     content = ByteString.copyFrom(bytes)
                     encoding = enc
                 }
-                result.onFailure {
-                    errorMessage = it.message ?: "Unknown error"
-                    errorCode = classifyFileError(it)
-                }
+                result.fillFailure({ errorMessage = it }, { errorCode = it })
             }
         }
     }
@@ -108,10 +112,7 @@ class FileHandler(
             writeFileResponse = writeFileResponse {
                 requestId = cmd.requestId
                 success = result.isSuccess
-                result.onFailure {
-                    errorMessage = it.message ?: "Unknown error"
-                    errorCode = classifyFileError(it)
-                }
+                result.fillFailure({ errorMessage = it }, { errorCode = it })
             }
         }
     }
@@ -142,10 +143,7 @@ class FileHandler(
             deleteFileResponse = deleteFileResponse {
                 requestId = cmd.requestId
                 success = result.isSuccess
-                result.onFailure {
-                    errorMessage = it.message ?: "Unknown error"
-                    errorCode = classifyFileError(it)
-                }
+                result.fillFailure({ errorMessage = it }, { errorCode = it })
             }
         }
     }
@@ -162,10 +160,7 @@ class FileHandler(
             makeDirectoryResponse = makeDirectoryResponse {
                 requestId = cmd.requestId
                 success = result.isSuccess
-                result.onFailure {
-                    errorMessage = it.message ?: "Unknown error"
-                    errorCode = classifyFileError(it)
-                }
+                result.fillFailure({ errorMessage = it }, { errorCode = it })
             }
         }
     }
@@ -186,10 +181,7 @@ class FileHandler(
             moveFileResponse = moveFileResponse {
                 requestId = cmd.requestId
                 success = result.isSuccess
-                result.onFailure {
-                    errorMessage = it.message ?: "Unknown error"
-                    errorCode = classifyFileError(it)
-                }
+                result.fillFailure({ errorMessage = it }, { errorCode = it })
             }
         }
     }
@@ -211,10 +203,7 @@ class FileHandler(
             copyFileResponse = copyFileResponse {
                 requestId = cmd.requestId
                 success = result.isSuccess
-                result.onFailure {
-                    errorMessage = it.message ?: "Unknown error"
-                    errorCode = classifyFileError(it)
-                }
+                result.fillFailure({ errorMessage = it }, { errorCode = it })
             }
         }
     }
@@ -232,10 +221,7 @@ class FileHandler(
             downloadFileResponse = downloadFileResponse {
                 requestId = cmd.requestId
                 success = fileResult.isSuccess
-                fileResult.onFailure {
-                    errorMessage = it.message ?: "Unknown error"
-                    errorCode = classifyFileError(it)
-                }
+                fileResult.fillFailure({ errorMessage = it }, { errorCode = it })
             }
         }
         if (fileResult.isSuccess) {
@@ -254,10 +240,7 @@ class FileHandler(
             uploadFileResponse = uploadFileResponse {
                 requestId = cmd.requestId
                 success = result.isSuccess
-                result.onFailure {
-                    errorMessage = it.message ?: "Unknown error"
-                    errorCode = classifyFileError(it)
-                }
+                result.fillFailure({ errorMessage = it }, { errorCode = it })
             }
         }
     }
@@ -279,10 +262,7 @@ class FileHandler(
             downloadFileResponse = downloadFileResponse {
                 requestId = cmd.requestId
                 success = fileResult.isSuccess
-                fileResult.onFailure {
-                    errorMessage = it.message ?: "Unknown error"
-                    errorCode = classifyFileError(it)
-                }
+                fileResult.fillFailure({ errorMessage = it }, { errorCode = it })
             }
         }
         if (fileResult.isSuccess) {
