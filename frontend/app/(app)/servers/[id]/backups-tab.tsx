@@ -103,7 +103,7 @@ export function BackupsTab({serverId}: { serverId: string }) {
         const res = await updateBackupSchedule({
             path: {id: serverId},
             body: {
-                backup_schedule: scheduleInput || undefined,
+                backup_schedule: scheduleInput || null,
                 backup_max_count: parseInt(maxCountInput, 10) || 10,
             },
         });

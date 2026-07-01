@@ -45,6 +45,7 @@ const NODE_DEFAULTS = {
     dns_domain_suffix: null,
     dns_provider_type: null,
     created_at: "2025-01-01T00:00:00Z",
+    last_seen_at: "2025-01-01T00:00:00Z",
 };
 
 export const fakeNode: NodeResponse = {
@@ -75,6 +76,11 @@ export const fakeNetwork: NetworkResponse = {
     id: "net-1",
     name: "default",
     proxy_port: null,
+    description: null,
+    domain_suffix: null,
+    dns_zone_id: null,
+    dns_domain_suffix: null,
+    dns_provider_type: null,
     server_count: 4,
     created_at: "2025-01-01T00:00:00Z",
 };
@@ -92,6 +98,9 @@ const SERVER_DEFAULTS = {
     config_mode: "MANUAL",
     stop_command: "stop",
     last_player_count: null,
+    last_player_names: null,
+    custom_hostname: null,
+    canonical_hostname: null,
     created_at: "2025-01-01T00:00:00Z",
     updated_at: "2025-01-01T00:00:00Z",
 } satisfies Partial<ServerResponse>;
@@ -118,6 +127,9 @@ export const fakeServers: ServerResponse[] = [
         config_mode: "MANUAL",
         stop_command: "stop",
         last_player_count: 3,
+        last_player_names: ["Steve", "Alex"],
+        custom_hostname: null,
+        canonical_hostname: null,
         created_at: "2025-01-01T00:00:00Z",
         updated_at: "2025-01-01T00:00:00Z",
     },

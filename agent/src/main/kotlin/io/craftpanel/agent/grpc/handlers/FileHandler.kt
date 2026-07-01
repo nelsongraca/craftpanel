@@ -43,7 +43,7 @@ class FileHandler(
                         Files.createDirectories(root)
                         return@withContext emptyList()
                     }
-                    error("Path not found")
+                    throw NoSuchFileException(target.toString(), null, "Path not found")
                 }
                 Files.list(target)
                     .use { stream ->
@@ -81,7 +81,7 @@ class FileHandler(
             withContext(Dispatchers.IO) {
                 val root = serverDataRoot(cmd.serverId)
                 val target = safeResolve(root, cmd.path)
-                if (!Files.exists(target)) error("File not found")
+                if (!Files.exists(target)) throw NoSuchFileException(target.toString(), null, "File not found")
                 if (Files.isDirectory(target)) error("Path is a directory")
                 val bytes = Files.readAllBytes(target)
                 Pair(bytes, if (isTextContent(bytes)) "utf-8" else "binary")
@@ -122,12 +122,12 @@ class FileHandler(
             withContext(Dispatchers.IO) {
                 val root = serverDataRoot(cmd.serverId)
                 val target = safeResolve(root, cmd.path)
-                if (!Files.exists(target)) error("Path not found")
+                if (!Files.exists(target)) throw NoSuchFileException(target.toString(), null, "Path not found")
                 if (Files.isDirectory(target)) {
                     if (!cmd.recursive) {
                         val isEmpty = Files.list(target)
                             .use { it.findFirst().isEmpty }
-                        if (!isEmpty) error("Directory is not empty; use recursive=true")
+                        if (!isEmpty) throw DirectoryNotEmptyException(target.toString())
                         Files.delete(target)
                     }
                     else {
@@ -171,8 +171,8 @@ class FileHandler(
                 val root = serverDataRoot(cmd.serverId)
                 val src = safeResolve(root, cmd.sourcePath)
                 val dst = safeResolve(root, cmd.destinationPath)
-                if (!Files.exists(src)) error("Source not found")
-                if (Files.exists(dst)) error("Destination already exists")
+                if (!Files.exists(src)) throw NoSuchFileException(src.toString(), null, "Source not found")
+                if (Files.exists(dst)) throw FileAlreadyExistsException(dst.toString(), null, "Destination already exists")
                 Files.createDirectories(dst.parent)
                 Files.move(src, dst, StandardCopyOption.ATOMIC_MOVE)
             }
@@ -192,8 +192,8 @@ class FileHandler(
                 val root = serverDataRoot(cmd.serverId)
                 val src = safeResolve(root, cmd.sourcePath)
                 val dst = safeResolve(root, cmd.destinationPath)
-                if (!Files.exists(src)) error("Source not found")
-                if (Files.exists(dst)) error("Destination already exists")
+                if (!Files.exists(src)) throw NoSuchFileException(src.toString(), null, "Source not found")
+                if (Files.exists(dst)) throw FileAlreadyExistsException(dst.toString(), null, "Destination already exists")
                 Files.createDirectories(dst.parent)
                 if (Files.isDirectory(src)) copyRecursively(src, dst)
                 else Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING)
@@ -213,7 +213,7 @@ class FileHandler(
             withContext(Dispatchers.IO) {
                 val root = serverDataRoot(cmd.serverId)
                 val filePath = safeResolve(root, cmd.path)
-                if (!Files.exists(filePath)) error("File not found: ${cmd.path}")
+                if (!Files.exists(filePath)) throw NoSuchFileException(filePath.toString(), null, "File not found: ${cmd.path}")
                 filePath
             }
         }
@@ -254,7 +254,7 @@ class FileHandler(
                 val filePath = backupsRoot.resolve("${cmd.backupId}.tar.gz")
                     .normalize()
                 if (!filePath.startsWith(backupsRoot)) error("Invalid backup id")
-                if (!Files.exists(filePath)) error("Backup file not found: ${cmd.backupId}")
+                if (!Files.exists(filePath)) throw NoSuchFileException(filePath.toString(), null, "Backup file not found: ${cmd.backupId}")
                 filePath
             }
         }

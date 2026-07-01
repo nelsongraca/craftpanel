@@ -16,6 +16,7 @@ import io.craftpanel.proto.uploadFileCommand
 import io.craftpanel.proto.writeFileRequest
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
 import io.mockk.coEvery
 import io.mockk.mockk
 import java.io.File
@@ -114,7 +115,7 @@ class FileHandlerTest : FunSpec({
         response.errorMessage shouldBe "Path traversal detected"
     }
 
-    test("handleReadFile reports INTERNAL when the file does not exist") {
+    test("handleReadFile reports NOT_FOUND when the file does not exist") {
         val handler = FileHandler(config(), "node-key")
         val (out, channel) = newOutbound()
 
@@ -125,8 +126,8 @@ class FileHandlerTest : FunSpec({
         val response = channel.tryReceive()
             .getOrThrow()
             .readFileResponse
-        response.errorCode shouldBe ErrorCode.INTERNAL
-        response.errorMessage shouldBe "File not found"
+        response.errorCode shouldBe ErrorCode.NOT_FOUND
+        response.errorMessage shouldContain "File not found"
     }
 
     test("handleWriteFile reports failure envelope on write error") {
@@ -145,7 +146,7 @@ class FileHandlerTest : FunSpec({
         response.errorMessage shouldBe "Path traversal detected"
     }
 
-    test("handleDeleteFile reports INTERNAL when the path does not exist") {
+    test("handleDeleteFile reports NOT_FOUND when the path does not exist") {
         val handler = FileHandler(config(), "node-key")
         val (out, channel) = newOutbound()
 
@@ -157,8 +158,8 @@ class FileHandlerTest : FunSpec({
             .getOrThrow()
             .deleteFileResponse
         response.success shouldBe false
-        response.errorCode shouldBe ErrorCode.INTERNAL
-        response.errorMessage shouldBe "Path not found"
+        response.errorCode shouldBe ErrorCode.NOT_FOUND
+        response.errorMessage shouldContain "Path not found"
     }
 
     test("handleMakeDirectory reports failure envelope on path traversal") {
@@ -177,7 +178,7 @@ class FileHandlerTest : FunSpec({
         response.errorMessage shouldBe "Path traversal detected"
     }
 
-    test("handleMoveFile reports INTERNAL when the source does not exist") {
+    test("handleMoveFile reports NOT_FOUND when the source does not exist") {
         val handler = FileHandler(config(), "node-key")
         val (out, channel) = newOutbound()
 
@@ -189,11 +190,11 @@ class FileHandlerTest : FunSpec({
             .getOrThrow()
             .moveFileResponse
         response.success shouldBe false
-        response.errorCode shouldBe ErrorCode.INTERNAL
-        response.errorMessage shouldBe "Source not found"
+        response.errorCode shouldBe ErrorCode.NOT_FOUND
+        response.errorMessage shouldContain "Source not found"
     }
 
-    test("handleCopyFile reports INTERNAL when the source does not exist") {
+    test("handleCopyFile reports NOT_FOUND when the source does not exist") {
         val handler = FileHandler(config(), "node-key")
         val (out, channel) = newOutbound()
 
@@ -205,11 +206,11 @@ class FileHandlerTest : FunSpec({
             .getOrThrow()
             .copyFileResponse
         response.success shouldBe false
-        response.errorCode shouldBe ErrorCode.INTERNAL
-        response.errorMessage shouldBe "Source not found"
+        response.errorCode shouldBe ErrorCode.NOT_FOUND
+        response.errorMessage shouldContain "Source not found"
     }
 
-    test("handleDownloadFile reports INTERNAL when the file does not exist") {
+    test("handleDownloadFile reports NOT_FOUND when the file does not exist") {
         val handler = FileHandler(config(), "node-key")
         val (out, channel) = newOutbound()
         val bulkClient = mockk<BulkDataClient>(relaxed = true)
@@ -222,8 +223,8 @@ class FileHandlerTest : FunSpec({
             .getOrThrow()
             .downloadFileResponse
         response.success shouldBe false
-        response.errorCode shouldBe ErrorCode.INTERNAL
-        response.errorMessage shouldBe "File not found: missing.txt"
+        response.errorCode shouldBe ErrorCode.NOT_FOUND
+        response.errorMessage shouldContain "File not found: missing.txt"
     }
 
     test("handleUploadFile reports failure envelope when the bulk transfer fails") {
