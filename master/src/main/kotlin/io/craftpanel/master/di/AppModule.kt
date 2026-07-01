@@ -26,6 +26,7 @@ import io.craftpanel.master.service.NodeService
 import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.master.service.ProxyBackendService
 import io.craftpanel.master.service.ServerRestartManager
+import io.craftpanel.master.service.ServerExposure
 import io.craftpanel.master.service.ServerExposureService
 import io.craftpanel.master.service.ServerLifecycleService
 import io.craftpanel.master.service.ServerService
@@ -126,6 +127,14 @@ val appModule = module {
     single { ModService(serverRepository = get()) }
 
     single {
+        ServerExposure(
+            networkRepository = get(),
+            settingsRepository = get(),
+            serverRepository = get(),
+        )
+    }
+
+    single {
         val s = get<SystemService>().getSettings().settings
         val images = ImagesConfig(s.imageMinecraft, s.imageProxy)
         ContainerLifecycle(
@@ -140,8 +149,7 @@ val appModule = module {
         ServerLifecycleService(
             lifecycle = get(),
             serverRepository = get(),
-            networkRepository = get(),
-            settingsRepository = get(),
+            serverExposure = get(),
         )
     }
     single {
@@ -150,8 +158,7 @@ val appModule = module {
             lifecycle = get(),
             serverRepository = get(),
             nodeRepository = get(),
-            networkRepository = get(),
-            settingsRepository = get(),
+            serverExposure = get(),
         )
     }
     single {
@@ -176,11 +183,11 @@ val appModule = module {
         MigrationService(
             serverRepository = get<ServerRepository>(),
             nodeRepository = get<NodeRepository>(),
-            networkRepository = get<NetworkRepository>(),
             gateway = get<AgentGateway>(),
             dnsProvider = get<DnsProviderHolder>().provider,
             scope = get(named("appScope")),
             lifecycle = get(),
+            serverExposure = get(),
             containerNamePrefix = get(named("containerPrefix")),
         )
     }

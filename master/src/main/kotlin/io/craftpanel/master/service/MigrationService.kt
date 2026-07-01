@@ -19,7 +19,6 @@ import io.craftpanel.master.service.migration.steps.UpdateNodeAssignmentStep
 import io.craftpanel.master.service.migration.steps.UpdateProxyBackendsStep
 import io.craftpanel.master.service.repo.MigrationStepRow
 import io.craftpanel.master.service.repo.NodeRepository
-import io.craftpanel.master.service.repo.NetworkRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
@@ -88,11 +87,11 @@ data class MigrationResponse(
 class MigrationService(
     private val serverRepository: ServerRepository,
     private val nodeRepository: NodeRepository,
-    private val networkRepository: NetworkRepository,
     private val gateway: AgentGateway,
     private val dnsProvider: DnsProvider?,
     private val scope: CoroutineScope,
     private val lifecycle: ContainerLifecycle,
+    private val serverExposure: ServerExposure,
     private val containerNamePrefix: String = "craftpanel",
 ) {
 
@@ -228,7 +227,6 @@ class MigrationService(
             gateway = gateway,
             serverRepository = serverRepository,
             nodeRepository = nodeRepository,
-            networkRepository = networkRepository,
             dnsProvider = dnsProvider,
             lifecycle = lifecycle,
             scope = scope,
@@ -245,7 +243,7 @@ class MigrationService(
             RemoveSourceContainerStep(),
             AssignTargetPortStep(),
             StartTargetContainerStep(),
-            UpdateDnsStep(),
+            UpdateDnsStep(serverExposure),
             UpdateNodeAssignmentStep(),
             UpdateProxyBackendsStep(),
         )

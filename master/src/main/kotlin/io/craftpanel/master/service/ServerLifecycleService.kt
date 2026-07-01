@@ -1,16 +1,13 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.domain.ServerStatus
-import io.craftpanel.master.service.repo.NetworkRepository
 import io.craftpanel.master.service.repo.ServerRepository
-import io.craftpanel.master.service.repo.SettingsRepository
 import kotlin.uuid.Uuid
 
 class ServerLifecycleService(
     private val lifecycle: ContainerLifecycle,
     private val serverRepository: ServerRepository,
-    private val networkRepository: NetworkRepository,
-    private val settingsRepository: SettingsRepository,
+    private val serverExposure: ServerExposure,
 ) {
 
     fun startServer(id: Uuid) {
@@ -18,7 +15,7 @@ class ServerLifecycleService(
         val status = ServerStatus.fromDb(serverRow.status)
         if (status == ServerStatus.HEALTHY || status == ServerStatus.STARTING)
             throw ConflictException("Server is already running")
-        val publicHostname = buildMcRouterLabel(serverRow, networkRepository, settingsRepository)
+        val publicHostname = serverExposure.mcRouterLabel(serverRow)
         serverRepository.updateStatus(id, "STARTING", null)
         lifecycle.sendStart(serverRow, needsRecreate = serverRow.needsRecreate, publicHostname = publicHostname)
     }
@@ -40,7 +37,7 @@ class ServerLifecycleService(
             lifecycle.sendStart(
                 serverRow,
                 needsRecreate = true,
-                publicHostname = buildMcRouterLabel(serverRow, networkRepository, settingsRepository),
+                publicHostname = serverExposure.mcRouterLabel(serverRow),
             )
         }
         else {
@@ -48,7 +45,7 @@ class ServerLifecycleService(
             lifecycle.sendStart(
                 serverRow,
                 needsRecreate = false,
-                publicHostname = buildMcRouterLabel(serverRow, networkRepository, settingsRepository),
+                publicHostname = serverExposure.mcRouterLabel(serverRow),
             )
         }
     }

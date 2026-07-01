@@ -53,19 +53,22 @@ class ServersRoutesTest : FunSpec({
             serverRepository = serverRepository,
         )
         val nodeRepository = NodeRepositoryImpl()
+        val serverExposure = ServerExposure(
+            networkRepository = networkRepository,
+            settingsRepository = settingsRepository,
+            serverRepository = serverRepository,
+        )
         val lifecycleService = ServerLifecycleService(
             lifecycle = lifecycle,
             serverRepository = serverRepository,
-            networkRepository = networkRepository,
-            settingsRepository = settingsRepository,
+            serverExposure = serverExposure,
         )
         val exposureService = ServerExposureService(
             dnsProvider = null,
             lifecycle = lifecycle,
             serverRepository = serverRepository,
             nodeRepository = nodeRepository,
-            networkRepository = networkRepository,
-            settingsRepository = settingsRepository,
+            serverExposure = serverExposure,
         )
         serversRoutes(
             ServerService(
