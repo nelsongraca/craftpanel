@@ -7,9 +7,11 @@ import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
+import io.craftpanel.master.jsonClient
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
 import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.craftpanel.master.service.*
+import io.craftpanel.master.testApp
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -17,17 +19,10 @@ import kotlin.uuid.Uuid
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
-import io.ktor.server.auth.jwt.*
-import io.ktor.server.plugins.statuspages.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.server.routing.Route
 import io.ktor.server.testing.*
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
@@ -35,11 +30,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-
 import kotlin.time.Clock
-import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
-import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
 class NodesRoutesTest : FunSpec({
     val jwtConfig = JwtConfig(
@@ -55,33 +46,8 @@ class NodesRoutesTest : FunSpec({
         TestDatabase.reset()
     }
 
-    fun Application.configureTest(gateway: TestAgentGateway = TestAgentGateway()) {
-        install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
-        install(StatusPages) {
-            exception<NotFoundException> { call, ex -> call.respond(HttpStatusCode.NotFound, mapOf("error" to (ex.message ?: "Not found"))) }
-            exception<ServiceForbiddenException> { call, ex -> call.respond(HttpStatusCode.Forbidden, mapOf("error" to (ex.message ?: "Forbidden"))) }
-            exception<ConflictException> { call, ex -> call.respond(HttpStatusCode.Conflict, mapOf("error" to (ex.message ?: "Conflict"))) }
-            exception<UnprocessableException> { call, ex -> call.respond(HttpStatusCode.UnprocessableEntity, mapOf("error" to (ex.message ?: "Unprocessable"))) }
-            exception<BadGatewayException> { call, ex -> call.respond(HttpStatusCode.BadGateway, mapOf("error" to (ex.message ?: "Bad gateway"))) }
-            exception<BadRequestException> { call, ex -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to (ex.message ?: "Bad request"))) }
-        }
-        install(Authentication) {
-            jwt("auth-jwt") {
-                realm = "CraftPanel"
-                verifier(jwtManager.verifier)
-                validate { credential ->
-                    if (credential.payload.subject != null) JWTPrincipal(credential.payload) else null
-                }
-                challenge { _, _ ->
-                    call.respond(HttpStatusCode.Unauthorized, mapOf("message" to "Token is not valid or has expired"))
-                }
-            }
-        }
-        routing { nodesRoutes(NodeService(gateway, NodeRepositoryImpl(), ServerRepositoryImpl())) }
-    }
-
-    fun ApplicationTestBuilder.jsonClient() = createClient {
-        install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+    fun Route.configureNodesTest(gateway: TestAgentGateway = TestAgentGateway()) {
+        nodesRoutes(NodeService(gateway, NodeRepositoryImpl(), ServerRepositoryImpl()))
     }
 
     fun createUser(
@@ -167,7 +133,7 @@ class NodesRoutesTest : FunSpec({
 
     test("GET nodes without JWT returns 401") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
 
             client.get("/api/nodes").status shouldBe HttpStatusCode.Unauthorized
         }
@@ -175,7 +141,7 @@ class NodesRoutesTest : FunSpec({
 
     test("GET nodes without system_nodes permission returns 403") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Viewer")
 
@@ -187,7 +153,7 @@ class NodesRoutesTest : FunSpec({
 
     test("GET nodes with system_nodes permission returns 200") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
 
@@ -201,7 +167,7 @@ class NodesRoutesTest : FunSpec({
 
     test("GET nodes returns empty list when no nodes exist") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val client = jsonClient()
@@ -215,7 +181,7 @@ class NodesRoutesTest : FunSpec({
 
     test("GET nodes returns node with snake_case fields") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             createNode(hostname = "alpha")
@@ -244,7 +210,7 @@ class NodesRoutesTest : FunSpec({
 
     test("GET nodes computes allocated_ram_mb from servers on that node") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val nodeId = createNode()
@@ -267,7 +233,7 @@ class NodesRoutesTest : FunSpec({
 
     test("GET node by id returns 404 for unknown node") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
 
@@ -279,7 +245,7 @@ class NodesRoutesTest : FunSpec({
 
     test("GET node by id returns 400 for invalid UUID") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
 
@@ -291,7 +257,7 @@ class NodesRoutesTest : FunSpec({
 
     test("GET node by id returns correct node") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val nodeId = createNode(hostname = "beta", totalRamMb = 4096)
@@ -312,7 +278,7 @@ class NodesRoutesTest : FunSpec({
 
     test("trust sets node status to ACTIVE") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val nodeId = createNode(status = "PENDING")
@@ -331,7 +297,7 @@ class NodesRoutesTest : FunSpec({
 
     test("trust returns 404 for unknown node") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
 
@@ -345,7 +311,7 @@ class NodesRoutesTest : FunSpec({
 
     test("reject sets node status to REJECTED") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val nodeId = createNode(status = "PENDING")
@@ -364,7 +330,7 @@ class NodesRoutesTest : FunSpec({
 
     test("reject returns 404 for unknown node") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
 
@@ -378,7 +344,7 @@ class NodesRoutesTest : FunSpec({
 
     test("token rotate returns new node_key") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val nodeId = createNode()
@@ -395,7 +361,7 @@ class NodesRoutesTest : FunSpec({
 
     test("token rotate changes the stored token hash") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val tokenHash = "a".repeat(64)
@@ -415,7 +381,7 @@ class NodesRoutesTest : FunSpec({
 
     test("token rotate returns 404 for unknown node") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
 
@@ -429,7 +395,7 @@ class NodesRoutesTest : FunSpec({
 
     test("shutdown returns 502 when agent not connected") {
         testApplication {
-            application { configureTest(TestAgentGateway(sendResult = false)) }
+            testApp { _ -> configureNodesTest(TestAgentGateway(sendResult = false)) }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val nodeId = createNode()
@@ -440,7 +406,7 @@ class NodesRoutesTest : FunSpec({
 
     test("shutdown returns 202 when agent is connected") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val nodeId = createNode()
@@ -452,7 +418,7 @@ class NodesRoutesTest : FunSpec({
     test("shutdown sends message to the correct node id") {
         testApplication {
             val gw = TestAgentGateway()
-            application { configureTest(gw) }
+            testApp { _ -> configureNodesTest(gw) }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val nodeId = createNode()
@@ -465,7 +431,7 @@ class NodesRoutesTest : FunSpec({
 
     test("shutdown returns 404 for unknown node") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
 
@@ -479,7 +445,7 @@ class NodesRoutesTest : FunSpec({
 
     test("patch updates display_name") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val nodeId = createNode(hostname = "old-name")
@@ -503,7 +469,7 @@ class NodesRoutesTest : FunSpec({
 
     test("patch validates port range start must be less than end") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val nodeId = createNode()
@@ -521,7 +487,7 @@ class NodesRoutesTest : FunSpec({
 
     test("patch validates range using current db value for unspecified field") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val nodeId = createNode()  // defaults: start=25570, end=26070
@@ -540,7 +506,7 @@ class NodesRoutesTest : FunSpec({
 
     test("patch returns 404 for unknown node") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val client = jsonClient()
@@ -561,7 +527,7 @@ class NodesRoutesTest : FunSpec({
 
     test("delete sets node status to DECOMMISSIONED") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val nodeId = createNode(status = "ACTIVE")
@@ -580,7 +546,7 @@ class NodesRoutesTest : FunSpec({
 
     test("delete returns 404 for unknown node") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
 
@@ -594,7 +560,7 @@ class NodesRoutesTest : FunSpec({
 
     test("metrics returns 404 for unknown node") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
 
@@ -604,7 +570,7 @@ class NodesRoutesTest : FunSpec({
 
     test("metrics returns empty columnar arrays when no data") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val nodeId = createNode()
@@ -621,7 +587,7 @@ class NodesRoutesTest : FunSpec({
 
     test("metrics returns columnar data for recorded metrics") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val nodeId = createNode()
@@ -642,7 +608,7 @@ class NodesRoutesTest : FunSpec({
 
     test("metrics limit parameter caps the number of returned rows") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureNodesTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val nodeId = createNode()

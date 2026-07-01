@@ -10,6 +10,8 @@ import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.NetworkRepositoryImpl
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
 import io.craftpanel.master.service.repo.ServerRepositoryImpl
+import io.craftpanel.master.jsonClient
+import io.craftpanel.master.testApp
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -17,25 +19,16 @@ import kotlin.uuid.Uuid
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
-import io.ktor.server.auth.*
-import io.ktor.server.auth.jwt.*
-import io.ktor.server.plugins.statuspages.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.server.routing.Route
 import io.ktor.server.testing.*
-import io.ktor.server.websocket.*
+import io.ktor.server.websocket.WebSockets
 import kotlinx.coroutines.test.TestScope
 import kotlinx.serialization.json.*
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
-import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
-import kotlinx.serialization.json.Json
 
 class MigrationsRoutesTest : FunSpec({
     val jwtConfig = JwtConfig(
@@ -67,39 +60,8 @@ class MigrationsRoutesTest : FunSpec({
         TestDatabase.reset()
     }
 
-    fun Application.configureTest(svc: MigrationService = buildMigrationService()) {
-        install(WebSockets)
-        install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
-        install(StatusPages) {
-            exception<NotFoundException> { call, ex ->
-                call.respond(HttpStatusCode.NotFound, mapOf("error" to (ex.message ?: "Not found")))
-            }
-            exception<ServiceForbiddenException> { call, ex ->
-                call.respond(HttpStatusCode.Forbidden, mapOf("error" to (ex.message ?: "Forbidden")))
-            }
-            exception<ConflictException> { call, ex ->
-                call.respond(HttpStatusCode.Conflict, mapOf("error" to (ex.message ?: "Conflict")))
-            }
-            exception<UnprocessableException> { call, ex ->
-                call.respond(HttpStatusCode.UnprocessableEntity, mapOf("error" to (ex.message ?: "Unprocessable")))
-            }
-            exception<BadRequestException> { call, ex ->
-                call.respond(HttpStatusCode.BadRequest, mapOf("error" to (ex.message ?: "Bad request")))
-            }
-        }
-        install(Authentication) {
-            jwt("auth-jwt") {
-                realm = "CraftPanel"
-                verifier(jwtManager.verifier)
-                validate { credential ->
-                    if (credential.payload.subject != null) JWTPrincipal(credential.payload) else null
-                }
-                challenge { _, _ ->
-                    call.respond(HttpStatusCode.Unauthorized, mapOf("message" to "Unauthorized"))
-                }
-            }
-        }
-        routing { migrationsRoutes(svc) }
+    fun Route.configureMigrationsTest(svc: MigrationService) {
+        migrationsRoutes(svc)
     }
 
     fun createSuperAdminJwt(): String {
@@ -158,8 +120,8 @@ class MigrationsRoutesTest : FunSpec({
             val (_, sourceNodeKId) = insertNode()
             val (serverJavaId, _) = insertServer(sourceNodeKId)
             val token = createSuperAdminJwt()
-            application { configureTest() }
-            val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+            testApp(extraPlugins = { install(WebSockets) }) { _ -> configureMigrationsTest(buildMigrationService()) }
+            val client = jsonClient()
 
             val response = client.get("/api/servers/$serverJavaId/migrations") {
                 bearerAuth(token)
@@ -173,8 +135,8 @@ class MigrationsRoutesTest : FunSpec({
     test("start migration returns 404 when server not found") {
         testApplication {
             val token = createSuperAdminJwt()
-            application { configureTest() }
-            val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+            testApp(extraPlugins = { install(WebSockets) }) { _ -> configureMigrationsTest(buildMigrationService()) }
+            val client = jsonClient()
 
             val response = client.post("/api/servers/${Uuid.random()}/migrations") {
                 bearerAuth(token)
@@ -190,8 +152,8 @@ class MigrationsRoutesTest : FunSpec({
             val (nodeJavaId, nodeKId) = insertNode()
             val (serverJavaId, _) = insertServer(nodeKId)
             val token = createSuperAdminJwt()
-            application { configureTest() }
-            val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+            testApp(extraPlugins = { install(WebSockets) }) { _ -> configureMigrationsTest(buildMigrationService()) }
+            val client = jsonClient()
 
             val response = client.post("/api/servers/$serverJavaId/migrations") {
                 bearerAuth(token)
@@ -207,8 +169,8 @@ class MigrationsRoutesTest : FunSpec({
             val (_, sourceKId) = insertNode()
             val (serverJavaId, _) = insertServer(sourceKId)
             val token = createSuperAdminJwt()
-            application { configureTest() }
-            val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+            testApp(extraPlugins = { install(WebSockets) }) { _ -> configureMigrationsTest(buildMigrationService()) }
+            val client = jsonClient()
 
             val response = client.post("/api/servers/$serverJavaId/migrations") {
                 bearerAuth(token)
@@ -225,8 +187,8 @@ class MigrationsRoutesTest : FunSpec({
             val (targetJavaId, _) = insertNode(status = "PENDING")
             val (serverJavaId, _) = insertServer(sourceKId)
             val token = createSuperAdminJwt()
-            application { configureTest() }
-            val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+            testApp(extraPlugins = { install(WebSockets) }) { _ -> configureMigrationsTest(buildMigrationService()) }
+            val client = jsonClient()
 
             val response = client.post("/api/servers/$serverJavaId/migrations") {
                 bearerAuth(token)
@@ -251,8 +213,8 @@ class MigrationsRoutesTest : FunSpec({
             }
             val (serverJavaId, _) = insertServer(sourceKId)
             val token = createSuperAdminJwt()
-            application { configureTest() }
-            val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+            testApp(extraPlugins = { install(WebSockets) }) { _ -> configureMigrationsTest(buildMigrationService()) }
+            val client = jsonClient()
 
             val response = client.post("/api/servers/$serverJavaId/migrations") {
                 bearerAuth(token)
@@ -270,8 +232,8 @@ class MigrationsRoutesTest : FunSpec({
     test("get migration returns 404 for unknown id") {
         testApplication {
             val token = createSuperAdminJwt()
-            application { configureTest() }
-            val client = createClient { install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) } }
+            testApp(extraPlugins = { install(WebSockets) }) { _ -> configureMigrationsTest(buildMigrationService()) }
+            val client = jsonClient()
 
             val response = client.get("/api/migrations/${Uuid.random()}") {
                 bearerAuth(token)

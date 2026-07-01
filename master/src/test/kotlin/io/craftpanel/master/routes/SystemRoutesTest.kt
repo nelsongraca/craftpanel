@@ -8,23 +8,18 @@ import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
+import io.craftpanel.master.jsonClient
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.SettingsRepositoryImpl
+import io.craftpanel.master.testApp
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
-import io.ktor.server.auth.jwt.*
-import io.ktor.server.plugins.statuspages.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.server.routing.Route
 import io.ktor.server.testing.*
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -33,9 +28,6 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
-import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
-import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
 class SystemRoutesTest : FunSpec({
     val jwtConfig = JwtConfig(
@@ -51,33 +43,8 @@ class SystemRoutesTest : FunSpec({
         TestDatabase.reset()
     }
 
-    fun Application.configureTest() {
-        install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
-        install(StatusPages) {
-            exception<NotFoundException> { call, ex -> call.respond(HttpStatusCode.NotFound, mapOf("error" to (ex.message ?: "Not found"))) }
-            exception<ServiceForbiddenException> { call, ex -> call.respond(HttpStatusCode.Forbidden, mapOf("error" to (ex.message ?: "Forbidden"))) }
-            exception<ConflictException> { call, ex -> call.respond(HttpStatusCode.Conflict, mapOf("error" to (ex.message ?: "Conflict"))) }
-            exception<UnprocessableException> { call, ex -> call.respond(HttpStatusCode.UnprocessableEntity, mapOf("error" to (ex.message ?: "Unprocessable"))) }
-            exception<BadGatewayException> { call, ex -> call.respond(HttpStatusCode.BadGateway, mapOf("error" to (ex.message ?: "Bad gateway"))) }
-            exception<BadRequestException> { call, ex -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to (ex.message ?: "Bad request"))) }
-        }
-        install(Authentication) {
-            jwt("auth-jwt") {
-                realm = "CraftPanel"
-                verifier(jwtManager.verifier)
-                validate { credential ->
-                    if (credential.payload.subject != null) JWTPrincipal(credential.payload) else null
-                }
-                challenge { _, _ ->
-                    call.respond(HttpStatusCode.Unauthorized, mapOf("message" to "Token is not valid or has expired"))
-                }
-            }
-        }
-        routing { systemRoutes(SystemService(settingsRepository = SettingsRepositoryImpl())) }
-    }
-
-    fun ApplicationTestBuilder.jsonClient() = createClient {
-        install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+    fun Route.configureSystemTest() {
+        systemRoutes(SystemService(settingsRepository = SettingsRepositoryImpl()))
     }
 
     fun createUser(username: String = "admin", email: String = "admin@example.com"): Uuid = transaction {
@@ -106,7 +73,7 @@ class SystemRoutesTest : FunSpec({
 
     test("getSystemSettings returns 403 for non-super-admin") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureSystemTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Server Admin")
 
@@ -116,7 +83,7 @@ class SystemRoutesTest : FunSpec({
 
     test("getSystemSettings returns defaults when no settings stored") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureSystemTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val client = jsonClient()
@@ -134,7 +101,7 @@ class SystemRoutesTest : FunSpec({
 
     test("updateSystemSettings returns 403 for non-super-admin") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureSystemTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Server Admin")
 
@@ -149,7 +116,7 @@ class SystemRoutesTest : FunSpec({
 
     test("updateSystemSettings persists values and returns updated_by") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureSystemTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val client = jsonClient()
@@ -171,7 +138,7 @@ class SystemRoutesTest : FunSpec({
 
     test("updateSystemSettings returns 422 for invalid port range") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureSystemTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
 
@@ -186,7 +153,7 @@ class SystemRoutesTest : FunSpec({
 
     test("updateSystemSettings returns 422 for metric_retention_days less than 1") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureSystemTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
 

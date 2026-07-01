@@ -7,32 +7,19 @@ import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
-import io.craftpanel.master.domain.AgentEvent
+import io.craftpanel.master.jsonClient
 import io.craftpanel.master.service.*
-import io.craftpanel.master.service.repo.GroupRepositoryImpl
-import io.craftpanel.master.service.repo.NetworkRepositoryImpl
-import io.craftpanel.master.service.repo.NodeRepositoryImpl
-import io.craftpanel.master.service.repo.ServerRepositoryImpl
-import io.craftpanel.master.service.repo.SettingsRepositoryImpl
-import io.craftpanel.master.service.repo.UserRepositoryImpl
+import io.craftpanel.master.service.repo.*
+import io.craftpanel.master.testApp
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
-import io.ktor.server.auth.jwt.*
-import io.ktor.server.plugins.statuspages.*
-import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.testing.*
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
@@ -40,9 +27,6 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.uuid.Uuid
-import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
-import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
 class ServersRoutesTest : FunSpec({
     val jwtConfig = JwtConfig(
@@ -58,31 +42,7 @@ class ServersRoutesTest : FunSpec({
         TestDatabase.reset()
     }
 
-    fun Application.configureTest(
-        gateway: TestAgentGateway = TestAgentGateway(),
-    ) {
-        install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
-        install(StatusPages) {
-            exception<NotFoundException> { call, ex -> call.respond(HttpStatusCode.NotFound, mapOf("error" to (ex.message ?: "Not found"))) }
-            exception<ServiceForbiddenException> { call, ex -> call.respond(HttpStatusCode.Forbidden, mapOf("error" to (ex.message ?: "Forbidden"))) }
-            exception<ConflictException> { call, ex -> call.respond(HttpStatusCode.Conflict, mapOf("error" to (ex.message ?: "Conflict"))) }
-            exception<UnprocessableException> { call, ex -> call.respond(HttpStatusCode.UnprocessableEntity, mapOf("error" to (ex.message ?: "Unprocessable"))) }
-            exception<BadGatewayException> { call, ex -> call.respond(HttpStatusCode.BadGateway, mapOf("error" to (ex.message ?: "Bad gateway"))) }
-            exception<BadRequestException> { call, ex -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to (ex.message ?: "Bad request"))) }
-            exception<ContainerLifecycleException> { call, ex -> call.respond(HttpStatusCode.BadGateway, mapOf("error" to (ex.message ?: "Lifecycle error"))) }
-        }
-        install(Authentication) {
-            jwt("auth-jwt") {
-                realm = "CraftPanel"
-                verifier(jwtManager.verifier)
-                validate { credential ->
-                    if (credential.payload.subject != null) JWTPrincipal(credential.payload) else null
-                }
-                challenge { _, _ ->
-                    call.respond(HttpStatusCode.Unauthorized, mapOf("message" to "Token is not valid or has expired"))
-                }
-            }
-        }
+    fun Route.configureServersTest(gateway: TestAgentGateway = TestAgentGateway()) {
         val serverRepository = ServerRepositoryImpl()
         val networkRepository = NetworkRepositoryImpl()
         val settingsRepository = SettingsRepositoryImpl()
@@ -107,25 +67,19 @@ class ServersRoutesTest : FunSpec({
             networkRepository = networkRepository,
             settingsRepository = settingsRepository,
         )
-        routing {
-            serversRoutes(
-                ServerService(
-                    gateway = gateway,
-                    serverRepository = serverRepository,
-                    nodeRepository = nodeRepository,
-                    networkRepository = networkRepository,
-                    userRepository = UserRepositoryImpl(),
-                    groupRepository = GroupRepositoryImpl(),
-                    settingsRepository = settingsRepository,
-                ),
-                lifecycleService,
-                exposureService,
-            )
-        }
-    }
-
-    fun ApplicationTestBuilder.jsonClient() = createClient {
-        install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+        serversRoutes(
+            ServerService(
+                gateway = gateway,
+                serverRepository = serverRepository,
+                nodeRepository = nodeRepository,
+                networkRepository = networkRepository,
+                userRepository = UserRepositoryImpl(),
+                groupRepository = GroupRepositoryImpl(),
+                settingsRepository = settingsRepository,
+            ),
+            lifecycleService,
+            exposureService,
+        )
     }
 
     fun createUser(username: String = "admin", email: String = "admin@example.com"): Uuid = transaction {
@@ -210,7 +164,7 @@ class ServersRoutesTest : FunSpec({
 
     test("GET servers returns 401 without token") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val resp = client.get("/api/servers")
             resp.status shouldBe HttpStatusCode.Unauthorized
         }
@@ -218,7 +172,7 @@ class ServersRoutesTest : FunSpec({
 
     test("GET servers returns empty list for user with no permissions") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             val nodeId = createNode()
@@ -231,7 +185,7 @@ class ServersRoutesTest : FunSpec({
 
     test("GET servers returns all servers for global viewer") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Viewer")
@@ -250,7 +204,7 @@ class ServersRoutesTest : FunSpec({
 
     test("GET servers includes is_migrating field") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Viewer")
@@ -276,7 +230,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST servers returns 403 without server-create") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Viewer")
@@ -292,7 +246,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST servers creates server and allocates port") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -322,7 +276,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST servers allocates sequential ports") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -342,7 +296,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST servers returns 422 when node not ACTIVE") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -358,7 +312,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST servers returns 409 when insufficient RAM") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -375,7 +329,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST servers returns 409 on duplicate name") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -392,7 +346,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST servers returns 422 for invalid node_id") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -407,7 +361,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST servers returns 422 for nonexistent network_id") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -424,7 +378,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST servers stores mc_version and itzg_image_tag") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -443,7 +397,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST servers derives stop_command for proxy types") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -468,7 +422,7 @@ class ServersRoutesTest : FunSpec({
 
     test("GET server by id returns 404 for unknown") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Viewer")
@@ -479,7 +433,7 @@ class ServersRoutesTest : FunSpec({
 
     test("GET server by id returns full object for viewer") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Viewer")
@@ -498,7 +452,7 @@ class ServersRoutesTest : FunSpec({
 
     test("GET server by id returns 403 for user with no permissions") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             val nodeId = createNode()
@@ -512,7 +466,7 @@ class ServersRoutesTest : FunSpec({
 
     test("PATCH server returns 403 without server-configure") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Viewer")
@@ -529,7 +483,7 @@ class ServersRoutesTest : FunSpec({
 
     test("PATCH server updates display_name") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -552,7 +506,7 @@ class ServersRoutesTest : FunSpec({
 
     test("PATCH server clears network_id when null") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -576,7 +530,7 @@ class ServersRoutesTest : FunSpec({
 
     test("PATCH server skips network_id when key absent") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -600,7 +554,7 @@ class ServersRoutesTest : FunSpec({
 
     test("PATCH server returns 422 for nonexistent network_id") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -620,7 +574,7 @@ class ServersRoutesTest : FunSpec({
 
     test("DELETE server returns 409 when not STOPPED") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -633,7 +587,7 @@ class ServersRoutesTest : FunSpec({
 
     test("DELETE server removes server and port registry entry") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -667,7 +621,7 @@ class ServersRoutesTest : FunSpec({
 
     test("DELETE server returns 404 for unknown") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -680,7 +634,7 @@ class ServersRoutesTest : FunSpec({
 
     test("PATCH resources returns 403 without server-resources permission") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Server Admin")
@@ -697,7 +651,7 @@ class ServersRoutesTest : FunSpec({
 
     test("PATCH resources updates memory and cpu") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -721,7 +675,7 @@ class ServersRoutesTest : FunSpec({
 
     test("PATCH resources returns 409 when insufficient RAM") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -739,7 +693,7 @@ class ServersRoutesTest : FunSpec({
 
     test("PATCH resources validates memory_mb positive") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -758,7 +712,7 @@ class ServersRoutesTest : FunSpec({
 
     test("PATCH exposure persists values") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -782,7 +736,7 @@ class ServersRoutesTest : FunSpec({
 
     test("PATCH exposure returns 422 when subdomain already taken") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -805,7 +759,7 @@ class ServersRoutesTest : FunSpec({
 
     test("PATCH exposure returns 403 without server-configure") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Viewer")
@@ -824,7 +778,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST start returns 401 without token") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val nodeId = createNode()
             val serverId = createServer(nodeId)
             val resp = client.post("/api/servers/$serverId/start")
@@ -834,7 +788,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST start returns 403 without server-start permission") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Viewer")
@@ -847,7 +801,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST start returns 404 for unknown server") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -858,7 +812,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST start returns 409 if server is HEALTHY") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -871,7 +825,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST start returns 409 if server is STARTING") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -884,7 +838,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST start returns 502 when agent not connected") {
         testApplication {
-            application { configureTest(TestAgentGateway(sendResult = false)) }
+            testApp { jwtManager -> configureServersTest(TestAgentGateway(sendResult = false)) }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -897,7 +851,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST start returns 202 and updates status to STARTING") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -917,7 +871,7 @@ class ServersRoutesTest : FunSpec({
     test("POST start sends single StartContainerCommand with needsRecreate=false") {
         val gw = TestAgentGateway()
         testApplication {
-            application { configureTest(gw) }
+            testApp { jwtManager -> configureServersTest(gw) }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -938,7 +892,7 @@ class ServersRoutesTest : FunSpec({
     test("POST start sends StartContainerCommand with needsRecreate=true when server needs recreate") {
         val gw = TestAgentGateway()
         testApplication {
-            application { configureTest(gw) }
+            testApp { jwtManager -> configureServersTest(gw) }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -957,7 +911,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST stop returns 403 without server-stop permission") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Viewer")
@@ -970,7 +924,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST stop returns 409 if server is already STOPPED") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -983,7 +937,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST stop returns 502 when agent not connected") {
         testApplication {
-            application { configureTest(TestAgentGateway(sendResult = false)) }
+            testApp { jwtManager -> configureServersTest(TestAgentGateway(sendResult = false)) }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -997,7 +951,7 @@ class ServersRoutesTest : FunSpec({
     test("POST stop returns 202 and sends StopContainerCommand") {
         val gw = TestAgentGateway()
         testApplication {
-            application { configureTest(gw) }
+            testApp { jwtManager -> configureServersTest(gw) }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -1015,7 +969,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST restart returns 403 without server-restart permission") {
         testApplication {
-            application { configureTest() }
+            testApp { jwtManager -> configureServersTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Viewer")
@@ -1028,7 +982,7 @@ class ServersRoutesTest : FunSpec({
 
     test("POST restart returns 502 when agent not connected") {
         testApplication {
-            application { configureTest(TestAgentGateway(sendResult = false)) }
+            testApp { jwtManager -> configureServersTest(TestAgentGateway(sendResult = false)) }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -1042,7 +996,7 @@ class ServersRoutesTest : FunSpec({
     test("POST restart returns 202 and sends StopContainerCommand then StartContainerCommand") {
         val gw = TestAgentGateway()
         testApplication {
-            application { configureTest(gw) }
+            testApp { jwtManager -> configureServersTest(gw) }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")

@@ -8,24 +8,20 @@ import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
+import io.craftpanel.master.jsonClient
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.GroupRepositoryImpl
 import io.craftpanel.master.service.repo.NetworkRepositoryImpl
 import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.craftpanel.master.service.repo.UserRepositoryImpl
+import io.craftpanel.master.testApp
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
-import io.ktor.server.auth.jwt.*
-import io.ktor.server.plugins.statuspages.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.server.routing.Route
 import io.ktor.server.testing.*
 import kotlinx.serialization.json.*
 import org.jetbrains.exposed.v1.core.eq
@@ -33,9 +29,6 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
-import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
-import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
 class AssignmentsRoutesTest : FunSpec({
     val jwtConfig = JwtConfig(
@@ -51,42 +44,15 @@ class AssignmentsRoutesTest : FunSpec({
         TestDatabase.reset()
     }
 
-    fun Application.configureTest() {
-        install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
-        install(StatusPages) {
-            exception<NotFoundException> { call, ex -> call.respond(HttpStatusCode.NotFound, mapOf("error" to (ex.message ?: "Not found"))) }
-            exception<ServiceForbiddenException> { call, ex -> call.respond(HttpStatusCode.Forbidden, mapOf("error" to (ex.message ?: "Forbidden"))) }
-            exception<ConflictException> { call, ex -> call.respond(HttpStatusCode.Conflict, mapOf("error" to (ex.message ?: "Conflict"))) }
-            exception<UnprocessableException> { call, ex -> call.respond(HttpStatusCode.UnprocessableEntity, mapOf("error" to (ex.message ?: "Unprocessable"))) }
-            exception<BadGatewayException> { call, ex -> call.respond(HttpStatusCode.BadGateway, mapOf("error" to (ex.message ?: "Bad gateway"))) }
-            exception<BadRequestException> { call, ex -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to (ex.message ?: "Bad request"))) }
-        }
-        install(Authentication) {
-            jwt("auth-jwt") {
-                realm = "CraftPanel"
-                verifier(jwtManager.verifier)
-                validate { credential ->
-                    if (credential.payload.subject != null) JWTPrincipal(credential.payload) else null
-                }
-                challenge { _, _ ->
-                    call.respond(HttpStatusCode.Unauthorized, mapOf("message" to "Token is not valid or has expired"))
-                }
-            }
-        }
-        routing {
-            assignmentsRoutes(
-                AssignmentService(
-                    userRepository = UserRepositoryImpl(),
-                    groupRepository = GroupRepositoryImpl(),
-                    serverRepository = ServerRepositoryImpl(),
-                    networkRepository = NetworkRepositoryImpl(),
-                )
+    fun Route.configureAssignmentsTest() {
+        assignmentsRoutes(
+            AssignmentService(
+                userRepository = UserRepositoryImpl(),
+                groupRepository = GroupRepositoryImpl(),
+                serverRepository = ServerRepositoryImpl(),
+                networkRepository = NetworkRepositoryImpl(),
             )
-        }
-    }
-
-    fun ApplicationTestBuilder.jsonClient() = createClient {
-        install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+        )
     }
 
     fun createUser(username: String = "admin", email: String = "admin@example.com"): Uuid = transaction {
@@ -121,7 +87,7 @@ class AssignmentsRoutesTest : FunSpec({
 
     test("listUserAssignments returns 403 without permission") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureAssignmentsTest() }
             val userId = createUser()
             val targetId = createUser(username = "target", email = "target@example.com")
 
@@ -132,7 +98,7 @@ class AssignmentsRoutesTest : FunSpec({
 
     test("listUserAssignments returns 404 for unknown user") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureAssignmentsTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
 
@@ -143,7 +109,7 @@ class AssignmentsRoutesTest : FunSpec({
 
     test("listUserAssignments returns assignments for user") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureAssignmentsTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val targetId = createUser(username = "target", email = "target@example.com")
@@ -162,7 +128,7 @@ class AssignmentsRoutesTest : FunSpec({
 
     test("createAssignment returns 403 without permission") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureAssignmentsTest() }
             val userId = createUser()
             val response = client.post("/api/users/$userId/assignments") {
                 bearerAuth(tokenFor(userId))
@@ -175,7 +141,7 @@ class AssignmentsRoutesTest : FunSpec({
 
     test("createAssignment creates GLOBAL assignment") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureAssignmentsTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val targetId = createUser(username = "target", email = "target@example.com")
@@ -197,7 +163,7 @@ class AssignmentsRoutesTest : FunSpec({
 
     test("createAssignment returns 409 for duplicate assignment") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureAssignmentsTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val targetId = createUser(username = "target", email = "target@example.com")
@@ -215,7 +181,7 @@ class AssignmentsRoutesTest : FunSpec({
 
     test("createAssignment returns 422 for NETWORK scope without scope_id") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureAssignmentsTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val targetId = createUser(username = "target", email = "target@example.com")
@@ -234,7 +200,7 @@ class AssignmentsRoutesTest : FunSpec({
 
     test("deleteAssignment returns 403 without permission") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureAssignmentsTest() }
             val userId = createUser()
             val targetId = createUser(username = "target", email = "target@example.com")
             val assignmentId = assignGlobalGroup(targetId, "Viewer")
@@ -246,7 +212,7 @@ class AssignmentsRoutesTest : FunSpec({
 
     test("deleteAssignment removes assignment and returns 204") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureAssignmentsTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val targetId = createUser(username = "target", email = "target@example.com")
@@ -266,7 +232,7 @@ class AssignmentsRoutesTest : FunSpec({
 
     test("deleteAssignment returns 404 for unknown assignment") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureAssignmentsTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val targetId = createUser(username = "target", email = "target@example.com")

@@ -8,21 +8,17 @@ import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
+import io.craftpanel.master.jsonClient
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.UserRepositoryImpl
+import io.craftpanel.master.testApp
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
-import io.ktor.server.auth.jwt.*
-import io.ktor.server.plugins.statuspages.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.server.routing.Route
 import io.ktor.server.testing.*
 import kotlinx.serialization.json.*
 import org.jetbrains.exposed.v1.core.eq
@@ -30,9 +26,6 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
-import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
-import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
 class UsersRoutesTest : FunSpec({
     val jwtConfig = JwtConfig(
@@ -48,33 +41,8 @@ class UsersRoutesTest : FunSpec({
         TestDatabase.reset()
     }
 
-    fun Application.configureTest() {
-        install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
-        install(StatusPages) {
-            exception<NotFoundException> { call, ex -> call.respond(HttpStatusCode.NotFound, mapOf("error" to (ex.message ?: "Not found"))) }
-            exception<ServiceForbiddenException> { call, ex -> call.respond(HttpStatusCode.Forbidden, mapOf("error" to (ex.message ?: "Forbidden"))) }
-            exception<ConflictException> { call, ex -> call.respond(HttpStatusCode.Conflict, mapOf("error" to (ex.message ?: "Conflict"))) }
-            exception<UnprocessableException> { call, ex -> call.respond(HttpStatusCode.UnprocessableEntity, mapOf("error" to (ex.message ?: "Unprocessable"))) }
-            exception<BadGatewayException> { call, ex -> call.respond(HttpStatusCode.BadGateway, mapOf("error" to (ex.message ?: "Bad gateway"))) }
-            exception<BadRequestException> { call, ex -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to (ex.message ?: "Bad request"))) }
-        }
-        install(Authentication) {
-            jwt("auth-jwt") {
-                realm = "CraftPanel"
-                verifier(jwtManager.verifier)
-                validate { credential ->
-                    if (credential.payload.subject != null) JWTPrincipal(credential.payload) else null
-                }
-                challenge { _, _ ->
-                    call.respond(HttpStatusCode.Unauthorized, mapOf("message" to "Token is not valid or has expired"))
-                }
-            }
-        }
-        routing { usersRoutes(UserService(UserRepositoryImpl())) }
-    }
-
-    fun ApplicationTestBuilder.jsonClient() = createClient {
-        install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+    fun Route.configureUsersTest() {
+        usersRoutes(UserService(UserRepositoryImpl()))
     }
 
     fun createUser(
@@ -109,7 +77,7 @@ class UsersRoutesTest : FunSpec({
 
     test("listUsers returns 403 without system_users permission") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureUsersTest() }
             val userId = createUser()
             val response = client.get("/api/users") { bearerAuth(tokenFor(userId)) }
             response.status shouldBe HttpStatusCode.Forbidden
@@ -118,7 +86,7 @@ class UsersRoutesTest : FunSpec({
 
     test("listUsers returns wrapped list for super admin") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureUsersTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             createUser(username = "other", email = "other@example.com")
@@ -137,7 +105,7 @@ class UsersRoutesTest : FunSpec({
 
     test("createUser returns 403 without permission") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureUsersTest() }
             val userId = createUser()
             val response = client.post("/api/users") {
                 bearerAuth(tokenFor(userId))
@@ -150,7 +118,7 @@ class UsersRoutesTest : FunSpec({
 
     test("createUser returns full user object on 201") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureUsersTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val client = jsonClient()
@@ -171,7 +139,7 @@ class UsersRoutesTest : FunSpec({
 
     test("createUser returns 409 for duplicate username") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureUsersTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
 
@@ -188,7 +156,7 @@ class UsersRoutesTest : FunSpec({
 
     test("getUser returns 404 for unknown id") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureUsersTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
 
@@ -198,7 +166,7 @@ class UsersRoutesTest : FunSpec({
 
     test("getUser returns user with created_at") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureUsersTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val client = jsonClient()
@@ -214,7 +182,7 @@ class UsersRoutesTest : FunSpec({
 
     test("updateUser returns 403 without permission") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureUsersTest() }
             val userId = createUser()
             val response = client.patch("/api/users/$userId") {
                 bearerAuth(tokenFor(userId))
@@ -227,7 +195,7 @@ class UsersRoutesTest : FunSpec({
 
     test("updateUser updates email and is_active") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureUsersTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val targetId = createUser(username = "target", email = "target@example.com")
@@ -247,7 +215,7 @@ class UsersRoutesTest : FunSpec({
 
     test("updateUser returns 422 on duplicate email") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureUsersTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             createUser(username = "other", email = "other@example.com")
@@ -263,7 +231,7 @@ class UsersRoutesTest : FunSpec({
 
     test("updateUser returns 404 for unknown user") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureUsersTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
 
@@ -280,7 +248,7 @@ class UsersRoutesTest : FunSpec({
 
     test("deleteUser returns 403 without permission") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureUsersTest() }
             val userId = createUser()
 
             client.delete("/api/users/$userId") { bearerAuth(tokenFor(userId)) }.status shouldBe HttpStatusCode.Forbidden
@@ -289,7 +257,7 @@ class UsersRoutesTest : FunSpec({
 
     test("deleteUser removes user and returns 204") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureUsersTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
             val targetId = createUser(username = "target", email = "target@example.com")
@@ -307,7 +275,7 @@ class UsersRoutesTest : FunSpec({
 
     test("deleteUser returns 404 for unknown user") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureUsersTest() }
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
 

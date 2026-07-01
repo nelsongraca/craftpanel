@@ -6,23 +6,18 @@ import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
+import io.craftpanel.master.jsonClient
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.ServerRepositoryImpl
+import io.craftpanel.master.testApp
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlin.uuid.Uuid
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
-import io.ktor.server.auth.jwt.*
-import io.ktor.server.plugins.statuspages.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.server.routing.Route
 import io.ktor.server.testing.*
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
@@ -30,9 +25,6 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
-import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
 class ModsRoutesTest : FunSpec({
     val jwtConfig = JwtConfig(
@@ -48,33 +40,8 @@ class ModsRoutesTest : FunSpec({
         TestDatabase.reset()
     }
 
-    fun Application.configureTest() {
-        install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
-        install(StatusPages) {
-            exception<NotFoundException> { call, ex -> call.respond(HttpStatusCode.NotFound, mapOf("error" to (ex.message ?: "Not found"))) }
-            exception<ServiceForbiddenException> { call, ex -> call.respond(HttpStatusCode.Forbidden, mapOf("error" to (ex.message ?: "Forbidden"))) }
-            exception<ConflictException> { call, ex -> call.respond(HttpStatusCode.Conflict, mapOf("error" to (ex.message ?: "Conflict"))) }
-            exception<UnprocessableException> { call, ex -> call.respond(HttpStatusCode.UnprocessableEntity, mapOf("error" to (ex.message ?: "Unprocessable"))) }
-            exception<BadGatewayException> { call, ex -> call.respond(HttpStatusCode.BadGateway, mapOf("error" to (ex.message ?: "Bad gateway"))) }
-            exception<BadRequestException> { call, ex -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to (ex.message ?: "Bad request"))) }
-        }
-        install(Authentication) {
-            jwt("auth-jwt") {
-                realm = "CraftPanel"
-                verifier(jwtManager.verifier)
-                validate { credential ->
-                    if (credential.payload.subject != null) JWTPrincipal(credential.payload) else null
-                }
-                challenge { _, _ ->
-                    call.respond(HttpStatusCode.Unauthorized, mapOf("message" to "Unauthorized"))
-                }
-            }
-        }
-        routing { modsRoutes(ModService(ServerRepositoryImpl())) }
-    }
-
-    fun ApplicationTestBuilder.jsonClient() = createClient {
-        install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+    fun Route.configureModsTest() {
+        modsRoutes(ModService(ServerRepositoryImpl()))
     }
 
     fun createUser(email: String = "admin@example.com"): Uuid = transaction {
@@ -129,7 +96,7 @@ class ModsRoutesTest : FunSpec({
 
     test("list mods returns empty list when none exist") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureModsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -145,7 +112,7 @@ class ModsRoutesTest : FunSpec({
 
     test("list mods requires server_mods permission") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureModsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Viewer")
@@ -162,7 +129,7 @@ class ModsRoutesTest : FunSpec({
 
     test("add mod with LATEST strategy succeeds") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureModsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -184,7 +151,7 @@ class ModsRoutesTest : FunSpec({
 
     test("add mod with PINNED strategy requires pinned_version_id") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureModsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -203,7 +170,7 @@ class ModsRoutesTest : FunSpec({
 
     test("add mod with PINNED strategy and version succeeds") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureModsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -224,7 +191,7 @@ class ModsRoutesTest : FunSpec({
 
     test("add mod with BETA strategy succeeds") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureModsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -244,7 +211,7 @@ class ModsRoutesTest : FunSpec({
 
     test("add mod with ALPHA strategy succeeds") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureModsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -264,7 +231,7 @@ class ModsRoutesTest : FunSpec({
 
     test("add duplicate mod returns 409") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureModsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -289,7 +256,7 @@ class ModsRoutesTest : FunSpec({
 
     test("add mod with invalid pin_strategy returns 400") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureModsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -311,7 +278,7 @@ class ModsRoutesTest : FunSpec({
 
     test("patch mod updates pin_strategy") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureModsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -344,7 +311,7 @@ class ModsRoutesTest : FunSpec({
 
     test("delete mod removes it") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureModsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -373,7 +340,7 @@ class ModsRoutesTest : FunSpec({
 
     test("delete nonexistent mod returns 404") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureModsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")

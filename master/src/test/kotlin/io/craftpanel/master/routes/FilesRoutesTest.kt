@@ -14,33 +14,22 @@ import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.config.NodeConfig
-import io.craftpanel.master.service.BadRequestException
-import io.craftpanel.master.service.ForbiddenException
+import io.craftpanel.master.jsonClient
 import io.craftpanel.master.service.NodeStateReconciler
-import io.craftpanel.master.service.NotFoundException
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
 import io.craftpanel.master.service.repo.ServerRepositoryImpl
+import io.craftpanel.master.testApp
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlin.uuid.Uuid
-import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
-import io.ktor.server.auth.jwt.*
-import io.ktor.server.plugins.statuspages.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.server.routing.Route
 import io.ktor.server.testing.*
-import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
-import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
 class FilesRoutesTest : FunSpec({
     val jwtConfig = JwtConfig(
@@ -58,31 +47,8 @@ class FilesRoutesTest : FunSpec({
         TestDatabase.reset()
     }
 
-    fun Application.configureTest() {
-        install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
-        install(StatusPages) {
-            exception<NotFoundException> { call, ex -> call.respond(HttpStatusCode.NotFound, mapOf("error" to (ex.message ?: "Not found"))) }
-            exception<ForbiddenException> { call, ex -> call.respond(HttpStatusCode.Forbidden, mapOf("error" to (ex.message ?: "Forbidden"))) }
-            exception<BadRequestException> { call, ex -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to (ex.message ?: "Bad request"))) }
-            exception<Exception> { call, ex -> call.respond(HttpStatusCode.InternalServerError, mapOf("error" to (ex.message ?: "error"))) }
-        }
-        install(Authentication) {
-            jwt("auth-jwt") {
-                realm = "CraftPanel"
-                verifier(jwtManager.verifier)
-                validate { credential ->
-                    if (credential.payload.subject != null) JWTPrincipal(credential.payload) else null
-                }
-                challenge { _, _ ->
-                    call.respond(HttpStatusCode.Unauthorized, mapOf("message" to "Unauthorized"))
-                }
-            }
-        }
-        routing { filesRoutes(noopProxy) }
-    }
-
-    fun ApplicationTestBuilder.jsonClient() = createClient {
-        install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+    fun Route.configureFilesTest() {
+        filesRoutes(noopProxy)
     }
 
     fun createUser(): Uuid = transaction {
@@ -137,7 +103,7 @@ class FilesRoutesTest : FunSpec({
 
     test("list files returns 401 without token") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureFilesTest() }
             val client = jsonClient()
             val nodeId = createNode()
             val serverId = createServer(nodeId)
@@ -148,7 +114,7 @@ class FilesRoutesTest : FunSpec({
 
     test("list files returns 403 without server_files permission") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureFilesTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Viewer")
@@ -162,7 +128,7 @@ class FilesRoutesTest : FunSpec({
 
     test("list files returns 404 for unknown server") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureFilesTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -174,7 +140,7 @@ class FilesRoutesTest : FunSpec({
 
     test("read file returns 401 without token") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureFilesTest() }
             val client = jsonClient()
             val nodeId = createNode()
             val serverId = createServer(nodeId)
@@ -185,7 +151,7 @@ class FilesRoutesTest : FunSpec({
 
     test("read file returns 403 without server_files permission") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureFilesTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Viewer")

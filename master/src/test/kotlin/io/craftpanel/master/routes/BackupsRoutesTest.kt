@@ -11,25 +11,20 @@ import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
+import io.craftpanel.master.jsonClient
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
 import io.craftpanel.master.service.repo.ServerRepositoryImpl
+import io.craftpanel.master.testApp
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.ktor.client.call.*
 import io.ktor.client.request.*
 import io.ktor.http.*
-import io.ktor.serialization.kotlinx.json.*
-import io.ktor.server.application.*
-import io.ktor.server.auth.*
-import io.ktor.server.auth.jwt.*
-import io.ktor.server.plugins.statuspages.*
-import io.ktor.server.response.*
-import io.ktor.server.routing.*
+import io.ktor.server.routing.Route
 import io.ktor.server.testing.*
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
@@ -40,9 +35,6 @@ import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.uuid.Uuid
-import io.craftpanel.master.service.ForbiddenException as ServiceForbiddenException
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
-import io.ktor.server.plugins.contentnegotiation.ContentNegotiation as ServerContentNegotiation
 
 class BackupsRoutesTest : FunSpec({
     val jwtConfig = JwtConfig(
@@ -61,33 +53,8 @@ class BackupsRoutesTest : FunSpec({
         TestDatabase.reset()
     }
 
-    fun Application.configureTest() {
-        install(ServerContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
-        install(StatusPages) {
-            exception<NotFoundException> { call, ex -> call.respond(HttpStatusCode.NotFound, mapOf("error" to (ex.message ?: "Not found"))) }
-            exception<ServiceForbiddenException> { call, ex -> call.respond(HttpStatusCode.Forbidden, mapOf("error" to (ex.message ?: "Forbidden"))) }
-            exception<ConflictException> { call, ex -> call.respond(HttpStatusCode.Conflict, mapOf("error" to (ex.message ?: "Conflict"))) }
-            exception<UnprocessableException> { call, ex -> call.respond(HttpStatusCode.UnprocessableEntity, mapOf("error" to (ex.message ?: "Unprocessable"))) }
-            exception<BadGatewayException> { call, ex -> call.respond(HttpStatusCode.BadGateway, mapOf("error" to (ex.message ?: "Bad gateway"))) }
-            exception<BadRequestException> { call, ex -> call.respond(HttpStatusCode.BadRequest, mapOf("error" to (ex.message ?: "Bad request"))) }
-        }
-        install(Authentication) {
-            jwt("auth-jwt") {
-                realm = "CraftPanel"
-                verifier(jwtManager.verifier)
-                validate { credential ->
-                    if (credential.payload.subject != null) JWTPrincipal(credential.payload) else null
-                }
-                challenge { _, _ ->
-                    call.respond(HttpStatusCode.Unauthorized, mapOf("message" to "Unauthorized"))
-                }
-            }
-        }
-        routing { backupsRoutes(BackupService(noopGateway, noopProxy, ServerRepositoryImpl())) }
-    }
-
-    fun ApplicationTestBuilder.jsonClient() = createClient {
-        install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+    fun Route.configureBackupsTest() {
+        backupsRoutes(BackupService(noopGateway, noopProxy, ServerRepositoryImpl()))
     }
 
     fun createUser(email: String = "admin@example.com"): Uuid = transaction {
@@ -142,7 +109,7 @@ class BackupsRoutesTest : FunSpec({
 
     test("list backups returns empty list when none exist") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureBackupsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -158,7 +125,7 @@ class BackupsRoutesTest : FunSpec({
 
     test("list backups requires server_backup permission") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureBackupsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Viewer")
@@ -173,7 +140,7 @@ class BackupsRoutesTest : FunSpec({
 
     test("list backups returns 404 for unknown server") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureBackupsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -188,7 +155,7 @@ class BackupsRoutesTest : FunSpec({
 
     test("trigger backup creates IN_PROGRESS backup") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureBackupsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -215,7 +182,7 @@ class BackupsRoutesTest : FunSpec({
 
     test("trigger backup enforces retention by deleting oldest completed") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureBackupsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -262,7 +229,7 @@ class BackupsRoutesTest : FunSpec({
 
     test("delete completed backup returns 204") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureBackupsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -297,7 +264,7 @@ class BackupsRoutesTest : FunSpec({
 
     test("delete in-progress backup returns 409") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureBackupsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -325,7 +292,7 @@ class BackupsRoutesTest : FunSpec({
 
     test("get backup schedule returns defaults") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureBackupsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -344,7 +311,7 @@ class BackupsRoutesTest : FunSpec({
 
     test("put backup schedule with valid cron succeeds") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureBackupsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -371,7 +338,7 @@ class BackupsRoutesTest : FunSpec({
 
     test("put backup schedule with invalid cron returns 422") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureBackupsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
@@ -390,7 +357,7 @@ class BackupsRoutesTest : FunSpec({
 
     test("put backup schedule with null clears schedule") {
         testApplication {
-            application { configureTest() }
+            testApp { _ -> configureBackupsTest() }
             val client = jsonClient()
             val userId = createUser()
             assignGlobalGroup(userId, "Super Admin")
