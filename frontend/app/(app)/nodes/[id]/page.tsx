@@ -13,7 +13,7 @@ import type {Node} from "@/lib/types";
 import {timeAgo, fmtBytes, fmtMb, fmtBytesNetworkIo, fillColorBg} from "@/lib/utils/format";
 import {TokenModal} from "@/components/nodes/TokenModal";
 import type {ServerResponse as Server} from "@/lib/generated/types.gen";
-import {ConfirmDialog} from "@/components/ui/confirm-dialog";
+import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {HeaderActionButton} from "@/components/servers/header-action-button";
 
 import {nodeStatusClass, nodeStatusLabel, serverStatusClass} from "@/lib/status";
@@ -539,12 +539,7 @@ export default function NodeDetailPage() {
     const [activeTab, setActiveTab] = useState<Tab>("Overview");
     const [actionError, setActionError] = useState<string | null>(null);
     const [pending, setPending] = useState<string | null>(null);
-    const [confirmDialog, setConfirmDialog] = useState<{
-        title: string;
-        description: string;
-        destructive?: boolean;
-        onConfirm: () => void;
-    } | null>(null);
+    const {confirm, dialog} = useConfirmDialog();
 
     // Modals
     const [showEdit, setShowEdit] = useState(false);
@@ -584,7 +579,7 @@ export default function NodeDetailPage() {
     }
 
     function doReject() {
-        setConfirmDialog({
+        confirm({
             title: "Reject Node?",
             description: "The agent will not be able to connect.",
             destructive: true,
@@ -599,7 +594,7 @@ export default function NodeDetailPage() {
     }
 
     function doRotateToken() {
-        setConfirmDialog({
+        confirm({
             title: "Rotate Node Key?",
             description: "The agent will need to re-register.",
             onConfirm: async () => {
@@ -614,7 +609,7 @@ export default function NodeDetailPage() {
 
     function doShutdown() {
         if (!node) return;
-        setConfirmDialog({
+        confirm({
             title: "Shutdown Node?",
             description: `Send shutdown command to "${node.display_name}"?`,
             onConfirm: async () => {
@@ -629,7 +624,7 @@ export default function NodeDetailPage() {
 
     function doDecommission() {
         if (!node) return;
-        setConfirmDialog({
+        confirm({
             title: "Decommission Node?",
             description: `Decommission "${node.display_name}"? This cannot be undone.`,
             destructive: true,
@@ -795,15 +790,7 @@ export default function NodeDetailPage() {
             {tokenKey && (
                 <TokenModal nodeKey={tokenKey} onClose={() => setTokenKey(null)}/>
             )}
-            <ConfirmDialog
-                open={confirmDialog !== null}
-                onOpenChange={(open) => !open && setConfirmDialog(null)}
-                title={confirmDialog?.title ?? ""}
-                description={confirmDialog?.description ?? ""}
-                destructive={confirmDialog?.destructive}
-                onConfirm={confirmDialog?.onConfirm ?? (() => {
-                })}
-            />
+            {dialog}
         </div>
     );
 }

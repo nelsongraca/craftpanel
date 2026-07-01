@@ -3,7 +3,7 @@
 import {useCallback, useEffect, useState} from "react";
 import {getEnvVars, replaceEnvVars, updateConfigMode, updateStopCommand} from "@/lib/generated/sdk.gen";
 import type {EnvVarItem, ConfigMode} from "@/lib/types";
-import {ConfirmDialog} from "@/components/ui/confirm-dialog";
+import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {SECTIONS, SCHEMA_KEYS} from "@/components/config/server-config-schema";
 import {FieldSection} from "@/components/config/field-section";
 import {ExtraVarsSection} from "@/components/config/extra-vars-section";
@@ -58,12 +58,7 @@ function GameServerConfigSection({
     const [savingStop, setSavingStop] = useState(false);
     const [stopError, setStopError] = useState<string | null>(null);
 
-    const [confirmDialog, setConfirmDialog] = useState<{
-        title: string;
-        description: string;
-        destructive?: boolean;
-        onConfirm: () => void;
-    } | null>(null);
+    const {confirm, dialog} = useConfirmDialog();
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -110,7 +105,7 @@ function GameServerConfigSection({
     function handleToggleMode() {
         const next = configMode === "MANAGED" ? "MANUAL" : "MANAGED";
         if (configMode === "MANAGED") {
-            setConfirmDialog({
+            confirm({
                 title: "Disable Managed Env Vars?",
                 description: "Existing vars are preserved but won't be applied to server.properties until you switch back.",
                 onConfirm: () => void applyToggleMode(next),
@@ -303,15 +298,7 @@ function GameServerConfigSection({
                 )}
             </div>
 
-            <ConfirmDialog
-                open={confirmDialog !== null}
-                onOpenChange={(open) => !open && setConfirmDialog(null)}
-                title={confirmDialog?.title ?? ""}
-                description={confirmDialog?.description ?? ""}
-                destructive={confirmDialog?.destructive}
-                onConfirm={confirmDialog?.onConfirm ?? (() => {
-                })}
-            />
+            {dialog}
         </>
     );
 }
