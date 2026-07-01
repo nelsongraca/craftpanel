@@ -178,30 +178,21 @@ class ServerService(
                 ?: return CreateResult("no_ports")
 
             val stopCommand = if (req.serverType in PROXY_SERVER_TYPES) "end" else "stop"
-            val newServer = try {
-                serverRepository.create(
-                    name = req.name,
-                    displayName = req.displayName ?: req.name,
-                    description = req.description,
-                    nodeId = nodeKotlinId,
-                    networkId = networkKotlinId,
-                    serverType = req.serverType,
-                    mcVersion = req.mcVersion,
-                    itzgImageTag = req.itzgImageTag,
-                    hostPort = port,
-                    memoryMb = req.memoryMb,
-                    cpuShares = req.cpuShares,
-                    configMode = "MANAGED",
-                    stopCommand = stopCommand,
-                )
-            }
-            catch (ex: Exception) {
-                val cause = generateSequence(ex as Throwable) { it.cause }
-                    .filterIsInstance<java.sql.SQLException>()
-                    .firstOrNull()
-                if (cause != null && cause.sqlState?.startsWith("23") == true) throw ex
-                throw ex
-            }
+            val newServer = serverRepository.create(
+                name = req.name,
+                displayName = req.displayName ?: req.name,
+                description = req.description,
+                nodeId = nodeKotlinId,
+                networkId = networkKotlinId,
+                serverType = req.serverType,
+                mcVersion = req.mcVersion,
+                itzgImageTag = req.itzgImageTag,
+                hostPort = port,
+                memoryMb = req.memoryMb,
+                cpuShares = req.cpuShares,
+                configMode = "MANAGED",
+                stopCommand = stopCommand,
+            )
 
             serverRepository.registerPort(nodeKotlinId, port, "TCP", newServer.id)
 
