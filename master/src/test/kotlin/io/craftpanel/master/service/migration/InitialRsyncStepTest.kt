@@ -10,7 +10,6 @@ import io.craftpanel.master.service.repo.NodeRepositoryImpl
 import io.craftpanel.master.service.repo.NodeRow
 import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.craftpanel.master.service.repo.ServerRow
-import io.craftpanel.master.service.repo.NetworkRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.delay
@@ -69,7 +68,6 @@ class InitialRsyncStepTest : FunSpec({
         gateway = gateway,
         serverRepository = ServerRepositoryImpl(),
         nodeRepository = NodeRepositoryImpl(),
-        networkRepository = NetworkRepositoryImpl(),
         dnsProvider = null,
         lifecycle = ContainerLifecycle(
             gateway = TestAgentGateway(),

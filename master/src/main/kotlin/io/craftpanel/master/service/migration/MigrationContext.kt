@@ -7,7 +7,6 @@ import io.craftpanel.master.service.ContainerLifecycle
 import io.craftpanel.master.service.MigrationEvent
 import io.craftpanel.master.service.NotFoundException
 import io.craftpanel.master.service.PortExhaustedException
-import io.craftpanel.master.service.repo.NetworkRepository
 import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.service.repo.NodeRow
 import io.craftpanel.master.service.repo.ServerRepository
@@ -37,7 +36,6 @@ data class MigrationContext(
     val gateway: AgentGateway,
     val serverRepository: ServerRepository,
     val nodeRepository: NodeRepository,
-    val networkRepository: NetworkRepository,
     val dnsProvider: DnsProvider?,
     val lifecycle: ContainerLifecycle,
     val scope: CoroutineScope,
@@ -106,16 +104,6 @@ data class MigrationContext(
         return port
     }
 
-    fun resolveNetworkDnsForMigration(networkId: Uuid?): NetworkDns? {
-        if (networkId == null) return null
-        return networkRepository.findById(networkId)
-            ?.let {
-                val zoneId = it.cfZoneId ?: return null
-                val suffix = it.cfDomainSuffix ?: return null
-                NetworkDns(zoneId, suffix)
-            }
-    }
-
     fun updateProxyBackendsAfterMigration(serverId: Uuid, targetIp: String, port: Int) {
         val proxyServerIds = serverRepository.findProxyServersForBackend(serverId)
         if (proxyServerIds.isEmpty()) return
@@ -133,6 +121,4 @@ data class MigrationContext(
             }
         }
     }
-
-    data class NetworkDns(val zoneId: String, val domainSuffix: String)
 }

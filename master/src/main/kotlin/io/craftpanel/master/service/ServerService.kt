@@ -375,29 +375,14 @@ internal data class ServerVisibility(
 
 internal val PROXY_SERVER_TYPES = setOf("VELOCITY", "BUNGEECORD", "WATERFALL")
 
-internal fun buildMcRouterLabel(
-    row: ServerRow,
-    networkRepository: NetworkRepository,
-    settingsRepository: SettingsRepository,
-): String? {
-    val managed = if (row.exposedExternally && row.publicSubdomain != null) {
-        row.dnsRecordName ?: run {
-            val suffix = row.networkId?.let { networkRepository.findById(it)?.cfDomainSuffix }
-                ?: settingsRepository.getAll()
-                    .firstOrNull { it.key == "dns_domain_suffix" }?.value
-            suffix?.let { "${row.publicSubdomain}.$it" }
-        }
-    }
-    else null
-    val custom = row.customHostname
-    val parts = listOfNotNull(managed, custom)
-    return if (parts.isEmpty()) null else parts.joinToString(",")
-}
-
 private fun permGrantsServerView(granted: String) =
     granted == "*" || granted == "server.*" || granted == Permission.SERVER_VIEW.node
 
 internal fun ServerRow.toResponse(isMigrating: Boolean): ServerResponse {
+    // ponytail: intentionally not routed through ServerExposure.canonicalHostname — this is a pure
+    // field derivation off the row's own columns with no repo access needed. Forcing the module
+    // through here just to dedupe two lines would add a dependency for no locality gain. Note: this
+    // diverges from ServerExposure.managedHostname's suffix fallback (this stays dnsRecordName-only).
     val managedHostname = if (exposedExternally && publicSubdomain != null) dnsRecordName else null
     val canonicalHostname = customHostname ?: managedHostname
     return ServerResponse(

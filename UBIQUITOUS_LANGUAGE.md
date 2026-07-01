@@ -20,6 +20,10 @@
 | **Minecraft Version** | The Minecraft game version string injected as the `VERSION` env var into the container (e.g. `1.21.4`) | itzg tag (different concept) |
 | **Needs Recreate** | A deferred flag on a server record indicating the container must be removed and recreated on next start, because a property requiring full recreation has changed | Restart, rebuild |
 | **Status** | The current runtime state of a server: `STOPPED`, `STARTING`, `HEALTHY`, `STOPPING`, `UNHEALTHY` | State, condition, health |
+| **Managed Hostname** | The hostname CraftPanel provisions and owns for an exposed server: `dnsRecordName` if a DNS record already exists, else `publicSubdomain` + the resolved domain suffix | Panel hostname, subdomain hostname |
+| **Custom Hostname** | A user-supplied external hostname pointing at a server, validated against RFC-1123 and checked for collisions with other servers' hostnames and panel-managed domain suffixes | Vanity hostname, alias |
+| **Canonical Hostname** | The hostname shown in the API for a server: the Custom Hostname if set, else the Managed Hostname | Public hostname (ambiguous), display hostname |
+| **mc-router Label** | The Docker label attached to a server's container instructing mc-router which hostname(s) to route to it — Managed and Custom Hostname comma-joined | Router label, routing hostname |
 
 ## Access control
 

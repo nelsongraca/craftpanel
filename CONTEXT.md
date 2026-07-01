@@ -95,6 +95,39 @@ container command sequence with status-gated awaiting.
 - Depends on C1 (`agentEvents: SharedFlow<AgentEvent>`).
 - See plan `plans/c2-container-lifecycle.md`.
 
+### ServerExposure (master)
+
+The one module that answers "what is a server's hostname?" — managed hostname,
+mc-router label, canonical hostname, network→DNS resolution, and custom-hostname
+validation. Replaces `buildMcRouterLabel` (pkg fn), the private resolvers in
+`ServerExposureService`, and the 4th DNS-resolve copy in `MigrationContext`.
+`ServerExposureService` keeps only the DNS-mutation + restart orchestration of
+`updateExposure`; all resolution/validation delegates here.
+
+- `resolveNetworkDns(networkId)` — network → `NetworkDns(zoneId, domainSuffix)`,
+  null if the network has no DNS zone. Collapses three separate copies of the
+  suffix-resolution logic (`buildMcRouterLabel`, `resolvePublicHostname`,
+  `resolveNetworkDns`) into one `resolveSuffix`.
+- `resolveSuffix(networkId)` — network's `cfDomainSuffix`, falling back to the
+  global `dns_domain_suffix` setting.
+- `managedHostname(row)` — `dnsRecordName` if present, else
+  `subdomain.resolveSuffix(networkId)` when exposed with a subdomain, else null.
+- `mcRouterLabel(row)` — managed + custom hostnames comma-joined, or null.
+- `canonicalHostname(row)` — custom hostname takes precedence over managed.
+- `validateCustomHostname(hostname, excludeServerId)` — RFC-1123 validation +
+  collision checks against other servers' custom/managed hostnames and against
+  panel-managed domain suffixes.
+- `ServerLifecycleService` and the `UpdateDnsStep` migration step call in via
+  an injected `ServerExposure` instead of holding `networkRepository`/
+  `settingsRepository` directly.
+- `ServerRow.toResponse` (in `ServerService.kt`) intentionally does **not**
+  route its inline `canonicalHostname` derivation through this module — it's a
+  pure field derivation off the row's own columns with no repo dependency, and
+  its managed-hostname computation has no suffix fallback (diverges slightly
+  from `ServerExposure.managedHostname`, which does fall back). Noted inline
+  with a `// ponytail:` comment.
+- See plan `plans/c1-server-exposure-module.md`.
+
 ### Route test scaffolding (master) — planned
 
 `testApp(routing: Routing.(jwtManager: JwtManager) -> Unit)` — a

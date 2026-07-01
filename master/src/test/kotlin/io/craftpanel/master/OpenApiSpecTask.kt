@@ -21,6 +21,7 @@ import io.craftpanel.master.service.NetworkService
 import io.craftpanel.master.service.NodeService
 import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.master.service.ProxyBackendService
+import io.craftpanel.master.service.ServerExposure
 import io.craftpanel.master.service.ServerExposureService
 import io.craftpanel.master.service.ServerLifecycleService
 import io.craftpanel.master.service.ServerService
@@ -146,6 +147,13 @@ class OpenApiSpecTask : FunSpec({
                                     )
                                 }
                                 single {
+                                    ServerExposure(
+                                        networkRepository = get(),
+                                        settingsRepository = get(),
+                                        serverRepository = get(),
+                                    )
+                                }
+                                single {
                                     ServerService(
                                         gateway = noopGateway,
                                         serverRepository = get(),
@@ -160,8 +168,7 @@ class OpenApiSpecTask : FunSpec({
                                     ServerLifecycleService(
                                         lifecycle = get(),
                                         serverRepository = get(),
-                                        networkRepository = get(),
-                                        settingsRepository = get(),
+                                        serverExposure = get(),
                                     )
                                 }
                                 single {
@@ -170,8 +177,7 @@ class OpenApiSpecTask : FunSpec({
                                         lifecycle = get(),
                                         serverRepository = get(),
                                         nodeRepository = get(),
-                                        networkRepository = get(),
-                                        settingsRepository = get(),
+                                        serverExposure = get(),
                                     )
                                 }
                                 single { BackupService(noopGateway, get(), get()) }
@@ -181,11 +187,11 @@ class OpenApiSpecTask : FunSpec({
                                     MigrationService(
                                         serverRepository = get(),
                                         nodeRepository = get(),
-                                        networkRepository = get(),
                                         gateway = noopGateway,
                                         dnsProvider = null,
                                         scope = migrationScope,
                                         lifecycle = get(),
+                                        serverExposure = get(),
                                     )
                                 }
                             }

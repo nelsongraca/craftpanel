@@ -10,6 +10,7 @@ import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.NetworkRepositoryImpl
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
 import io.craftpanel.master.service.repo.ServerRepositoryImpl
+import io.craftpanel.master.service.repo.SettingsRepositoryImpl
 import io.craftpanel.master.jsonClient
 import io.craftpanel.master.testApp
 import io.kotest.core.spec.style.FunSpec
@@ -44,13 +45,17 @@ class MigrationsRoutesTest : FunSpec({
     fun buildMigrationService(): MigrationService = MigrationService(
         serverRepository = ServerRepositoryImpl(),
         nodeRepository = NodeRepositoryImpl(),
-        networkRepository = NetworkRepositoryImpl(),
         gateway = noopGateway,
         dnsProvider = null,
         scope = testScope,
         lifecycle = ContainerLifecycle(
             gateway = TestAgentGateway(),
             modService = ModService(ServerRepositoryImpl()),
+            serverRepository = ServerRepositoryImpl(),
+        ),
+        serverExposure = ServerExposure(
+            networkRepository = NetworkRepositoryImpl(),
+            settingsRepository = SettingsRepositoryImpl(),
             serverRepository = ServerRepositoryImpl(),
         ),
     )

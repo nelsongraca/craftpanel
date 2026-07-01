@@ -1,10 +1,11 @@
 package io.craftpanel.master.service.migration.steps
 
+import io.craftpanel.master.service.ServerExposure
 import io.craftpanel.master.service.migration.MigrationContext
 import io.craftpanel.master.service.migration.MigrationStep
 import io.craftpanel.master.service.migration.StepResult
 
-class UpdateDnsStep : MigrationStep {
+class UpdateDnsStep(private val serverExposure: ServerExposure) : MigrationStep {
 
     override val stepNumber = 9
     override val description = "Update DNS A record to target node IP"
@@ -14,7 +15,7 @@ class UpdateDnsStep : MigrationStep {
         val provider = ctx.dnsProvider
         if (recordId != null && provider != null) {
             val networkId = ctx.serverRow.networkId
-            val dns = ctx.resolveNetworkDnsForMigration(networkId)
+            val dns = serverExposure.resolveNetworkDns(networkId)
             if (dns != null) {
                 return runCatching {
                     provider.updateARecord(dns.zoneId, recordId, ctx.targetNodeRow.publicIp)
