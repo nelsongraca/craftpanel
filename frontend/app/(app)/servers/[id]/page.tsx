@@ -16,7 +16,7 @@ import {BackupsTab} from "./backups-tab";
 import {ModsTab} from "./mods-tab";
 import {ConfigTab} from "./config-tab";
 import {MigrationTab} from "./migration-tab";
-import {ConfirmDialog} from "@/components/ui/confirm-dialog";
+import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {HeaderActionButton} from "@/components/servers/header-action-button";
 import {OverviewTab} from "@/components/servers/overview-tab";
 
@@ -53,12 +53,7 @@ export default function ServerDetailPage() {
     const [actionError, setActionError] = useState<string | null>(null);
     const [pending, setPending] = useState<string | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
-    const [confirmDialog, setConfirmDialog] = useState<{
-        title: string;
-        description: string;
-        destructive?: boolean;
-        onConfirm: () => void;
-    } | null>(null);
+    const {confirm, dialog} = useConfirmDialog();
 
     // Live WS data
     const [liveMetrics, setLiveMetrics] = useState<LiveMetrics | null>(null);
@@ -168,7 +163,7 @@ export default function ServerDetailPage() {
 
     function doDelete() {
         if (!server) return;
-        setConfirmDialog({
+        confirm({
             title: "Delete Server?",
             description: `Delete "${server.display_name}"? This cannot be undone.`,
             destructive: true,
@@ -446,15 +441,7 @@ export default function ServerDetailPage() {
                     onSaved={() => void fetchServer()}
                 />
             )}
-            <ConfirmDialog
-                open={confirmDialog !== null}
-                onOpenChange={(open) => !open && setConfirmDialog(null)}
-                title={confirmDialog?.title ?? ""}
-                description={confirmDialog?.description ?? ""}
-                destructive={confirmDialog?.destructive}
-                onConfirm={confirmDialog?.onConfirm ?? (() => {
-                })}
-            />
+            {dialog}
         </div>
     );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import {useCallback, useEffect, useRef, useState} from "react";
-import {ConfirmDialog} from "@/components/ui/confirm-dialog";
+import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {deleteServerFile, listServerFiles, mkdirServerFile, moveServerFile, readServerFile,} from "@/lib/generated/sdk.gen";
 import {ChevronDown, ChevronRight, Download, File, Folder, FolderPlus, Pencil, Save, Trash2, Upload, X} from "lucide-react";
 
@@ -39,12 +39,7 @@ export function FilesTab({serverId}: Props) {
     const [dirty, setDirty] = useState(false);
     const [rootLoading, setRootLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [confirmDialog, setConfirmDialog] = useState<{
-        title: string;
-        description: string;
-        destructive?: boolean;
-        onConfirm: () => void;
-    } | null>(null);
+    const {confirm, dialog} = useConfirmDialog();
     const [renameNode, setRenameNode] = useState<{ path: string; name: string } | null>(null);
     const [renameValue, setRenameValue] = useState("");
     const uploadRef = useRef<HTMLInputElement>(null);
@@ -130,7 +125,7 @@ export function FilesTab({serverId}: Props) {
     }
 
     function deleteEntry(path: string, isDir: boolean) {
-        setConfirmDialog({
+        confirm({
             title: "Delete File?",
             description: `Delete ${path}? This cannot be undone.`,
             destructive: true,
@@ -371,14 +366,7 @@ export function FilesTab({serverId}: Props) {
                 )}
             </div>
         </div>
-        <ConfirmDialog
-            open={confirmDialog !== null}
-            onOpenChange={(open) => !open && setConfirmDialog(null)}
-            title={confirmDialog?.title ?? ""}
-            description={confirmDialog?.description ?? ""}
-            destructive={confirmDialog?.destructive}
-            onConfirm={confirmDialog?.onConfirm ?? (() => {})}
-        />
+        {dialog}
         </>
     );
 }

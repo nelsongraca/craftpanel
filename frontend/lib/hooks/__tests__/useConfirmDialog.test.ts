@@ -16,13 +16,13 @@ describe('useConfirmDialog', () => {
         expect(result.current.state).toEqual({ title: 't', description: 'd', onConfirm: expect.any(Function) })
     })
 
-    it('setState(null) clears it', () => {
+    it('dialog closing (onOpenChange(false)) clears the state', () => {
         const { result } = renderHook(() => useConfirmDialog())
         act(() => {
             result.current.confirm({ title: 't', description: 'd', onConfirm: vi.fn() })
         })
         act(() => {
-            result.current.setState(null)
+            result.current.dialog.props.onOpenChange(false)
         })
         expect(result.current.state).toBeNull()
     })
