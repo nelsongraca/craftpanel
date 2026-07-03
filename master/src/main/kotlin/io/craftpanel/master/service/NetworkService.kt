@@ -2,6 +2,7 @@ package io.craftpanel.master.service
 
 import com.github.dockerjava.api.DockerClient
 import io.craftpanel.master.auth.Permission
+import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.GroupRepository
@@ -140,9 +141,7 @@ class NetworkService(
         if (groupIds.isEmpty()) return ServerVisibility(false, emptySet(), emptySet())
         val viewGroups = groupIds.filter { gid ->
             groupRepository.getPermissions(gid)
-                .any { p ->
-                    p == "*" || p == "server.*" || p == Permission.SERVER_VIEW.node
-                }
+                .any { p -> PermissionResolver.grants(p, Permission.SERVER_VIEW) }
         }
             .toSet()
         if (viewGroups.isEmpty()) return ServerVisibility(false, emptySet(), emptySet())

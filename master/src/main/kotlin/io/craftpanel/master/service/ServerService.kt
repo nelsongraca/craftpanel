@@ -1,6 +1,7 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.auth.Permission
+import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.ConfigMode
@@ -349,7 +350,7 @@ class ServerService(
         if (groupIds.isEmpty()) return ServerVisibility(false, emptySet(), emptySet())
         val viewGroups = groupIds.filter { gid ->
             groupRepository.getPermissions(gid)
-                .any { permGrantsServerView(it) }
+                .any { PermissionResolver.grants(it, Permission.SERVER_VIEW) }
         }
             .toSet()
         if (viewGroups.isEmpty()) return ServerVisibility(false, emptySet(), emptySet())
@@ -374,9 +375,6 @@ internal data class ServerVisibility(
 )
 
 internal val PROXY_SERVER_TYPES = setOf("VELOCITY", "BUNGEECORD", "WATERFALL")
-
-private fun permGrantsServerView(granted: String) =
-    granted == "*" || granted == "server.*" || granted == Permission.SERVER_VIEW.node
 
 internal fun ServerRow.toResponse(isMigrating: Boolean): ServerResponse {
     // ponytail: intentionally not routed through ServerExposure.canonicalHostname — this is a pure

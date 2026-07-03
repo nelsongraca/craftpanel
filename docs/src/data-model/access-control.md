@@ -20,7 +20,7 @@ Wildcards are supported in permission checks using dot-separated prefix matching
 | `server.*` | All `server.*` permissions |
 | `system.*` | All `system.*` permissions |
 
-Wildcards are resolved at runtime — only explicit permission nodes are stored in `group_permissions`.
+The API accepts only explicit permission nodes; wildcard grants exist only in seeded system groups (Super Admin's `*`) and are expanded at check time.
 
 ### `assignment_scope`
 
@@ -29,7 +29,8 @@ Wildcards are resolved at runtime — only explicit permission nodes are stored 
 | `GLOBAL`  | Assignment applies to all servers and networks   |
 | `SERVER`  | Assignment applies to one specific server        |
 | `NETWORK` | Assignment applies to all servers in one network |
-| `NODE`    | Assignment applies to one specific node          |
+
+`NODE` exists in the shared `ScopeType` enum for alert-threshold scoping only and is not a valid group-assignment scope.
 
 ---
 
@@ -78,7 +79,7 @@ simultaneously.
 | `id`         | UUID                    | Primary key                                          |
 | `user_id`    | UUID                    | FK → `users`, CASCADE DELETE                         |
 | `group_id`   | UUID                    | FK → `groups`, CASCADE DELETE                        |
-| `scope_type` | VARCHAR(10)          | Scope type: `GLOBAL`, `SERVER`, `NETWORK`, or `NODE`                         |
+| `scope_type` | VARCHAR(10)          | Scope type: `GLOBAL`, `SERVER`, or `NETWORK`                         |
 | `scope_id`   | UUID                    | `NULL` if `GLOBAL`; server or network UUID otherwise |
 
 **Unique constraint:** `(user_id, group_id, scope_type, scope_id)`

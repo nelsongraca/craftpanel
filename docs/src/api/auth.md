@@ -41,8 +41,7 @@ Access tokens are signed JWTs (HS256) with the following payload:
 | `exp`    | Expiry timestamp — 15 minutes after issue                   |
 
 !!! note
-Permission nodes are **not** embedded in the JWT. Effective permissions are resolved from the database on every request using the `sub` claim, scoped to the resource being accessed. This ensures
-permission changes take effect within 15 minutes (next token refresh) without requiring DB lookups on every request for the token itself.
+Permission nodes are **not** embedded in the JWT. Effective permissions are resolved from the database on every request using the `sub` claim, scoped to the resource being accessed, ensuring permission changes take effect immediately. The 15-minute token lifetime applies only to the informational claims in the token (`groups`, `name`, `email`), which are refreshed on the next token refresh.
 
     `is_active` is checked as part of every permission resolution query — inactive users are rejected even with a valid token.
 

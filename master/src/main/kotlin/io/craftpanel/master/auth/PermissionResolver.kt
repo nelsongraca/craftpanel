@@ -45,6 +45,8 @@ object PermissionResolver {
         return granted.any { matches(it, permission.node) }
     }
 
+    fun grants(granted: String, permission: Permission): Boolean = matches(granted, permission.node)
+
     private fun groupIdsForScope(userId: Uuid, scopeType: String, scopeId: Uuid?): List<Uuid> =
         UserGroupAssignments.selectAll()
             .where {

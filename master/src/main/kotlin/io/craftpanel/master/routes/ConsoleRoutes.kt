@@ -161,6 +161,10 @@ class ConsoleRoutes(
                         runCatching {
                             val event = json.decodeFromString(ConsoleInEvent.serializer(), frame.readText())
                             if (event is ConsoleInEvent.Input) {
+                                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONSOLE, serverInfo.serverId, serverInfo.networkId)) {
+                                    close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Insufficient permissions"))
+                                    return@webSocket
+                                }
                                 session.input.trySend(event.data.toByteArray())
                             }
                         }.onFailure { log.warn("Malformed console input: {}", it.message) }
