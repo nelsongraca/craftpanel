@@ -79,6 +79,7 @@ class ServersRoutesTest : FunSpec({
                 userRepository = UserRepositoryImpl(),
                 groupRepository = GroupRepositoryImpl(),
                 settingsRepository = settingsRepository,
+                serverExposure = serverExposure,
             ),
             lifecycleService,
             exposureService,

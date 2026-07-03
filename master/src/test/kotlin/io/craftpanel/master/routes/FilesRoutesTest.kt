@@ -19,6 +19,7 @@ import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
 import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.craftpanel.master.testApp
+import io.craftpanel.master.createTestControlServiceImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlin.uuid.Uuid
@@ -39,8 +40,9 @@ class FilesRoutesTest : FunSpec({
         expirySeconds = 900,
     )
     val jwtManager = JwtManager(jwtConfig)
-    val noopControlSvc = ControlServiceImpl(NodeConfig("test-token", 50052), NodeStateReconciler(ServerRepositoryImpl(), NodeRepositoryImpl()))
-    val noopProxy = DataServiceProxy(noopControlSvc, BulkDataServiceImpl(noopControlSvc))
+    val reconciler = NodeStateReconciler(ServerRepositoryImpl(), NodeRepositoryImpl())
+    val noopControlSvc = createTestControlServiceImpl(NodeConfig("test-token", 50052), reconciler)
+    val noopProxy = DataServiceProxy(noopControlSvc, BulkDataServiceImpl(noopControlSvc), ServerRepositoryImpl())
 
     beforeTest {
         TestDatabase.initIfNeeded()

@@ -119,6 +119,7 @@ class ServerService(
     private val userRepository: UserRepository,
     private val groupRepository: GroupRepository,
     private val settingsRepository: SettingsRepository,
+    private val serverExposure: ServerExposure,
 ) {
 
     private val log = LoggerFactory.getLogger(ServerService::class.java)
@@ -138,7 +139,7 @@ class ServerService(
         else rows.filter { serverRepository.findActiveMigration(it.id) != null }
             .map { it.id }
             .toSet()
-        return rows.map { row -> row.toResponse(row.id in migratingIds) }
+        return rows.map { row -> row.toResponse(serverExposure, row.id in migratingIds) }
     }
 
     fun createServer(req: CreateServerRequest): ServerResponse {
@@ -209,7 +210,7 @@ class ServerService(
                 })
             }
 
-            return CreateResult("ok", newServer.toResponse(false))
+            return CreateResult("ok", newServer.toResponse(serverExposure, false))
         }
 
         val result = run {
@@ -246,7 +247,7 @@ class ServerService(
     fun getServer(id: Uuid): ServerResponse {
         val row = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
         val isMigrating = serverRepository.findActiveMigration(id) != null
-        return row.toResponse(isMigrating)
+        return row.toResponse(serverExposure, isMigrating)
     }
 
     fun updateServer(id: Uuid, req: UpdateServerRequest) {
@@ -376,13 +377,8 @@ internal data class ServerVisibility(
 
 internal val PROXY_SERVER_TYPES = setOf("VELOCITY", "BUNGEECORD", "WATERFALL")
 
-internal fun ServerRow.toResponse(isMigrating: Boolean): ServerResponse {
-    // ponytail: intentionally not routed through ServerExposure.canonicalHostname — this is a pure
-    // field derivation off the row's own columns with no repo access needed. Forcing the module
-    // through here just to dedupe two lines would add a dependency for no locality gain. Note: this
-    // diverges from ServerExposure.managedHostname's suffix fallback (this stays dnsRecordName-only).
-    val managedHostname = if (exposedExternally && publicSubdomain != null) dnsRecordName else null
-    val canonicalHostname = customHostname ?: managedHostname
+internal fun ServerRow.toResponse(serverExposure: ServerExposure, isMigrating: Boolean): ServerResponse {
+    val canonicalHostname = serverExposure.canonicalHostname(this)
     return ServerResponse(
         id = id.toString(),
         name = name,

@@ -8,7 +8,9 @@ import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.ControlServiceImpl
+import io.craftpanel.master.grpc.DataOpContext
 import io.craftpanel.master.grpc.DataServiceProxy
+import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.service.AlertService
 import io.craftpanel.master.service.AssignmentService
 import io.craftpanel.master.service.BackupService
@@ -70,10 +72,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.serialization.json.Json
 import org.koin.dsl.module
 import org.koin.ktor.plugin.KoinIsolated
 import java.io.File
+import java.util.concurrent.ConcurrentHashMap
+import io.craftpanel.master.domain.AgentEvent
 
 class OpenApiSpecTask : FunSpec({
     test("generate") {
@@ -113,9 +118,20 @@ class OpenApiSpecTask : FunSpec({
                                 single { JwtManager(jwtConfig) }
                                 single { RefreshTokenService() }
                                 single { WsTicketService() }
-                                single { ControlServiceImpl(NodeConfig(bootstrapToken = "test", agentDataPort = 50052), NodeStateReconciler(ServerRepositoryImpl(), NodeRepositoryImpl())) }
+                                val agentEvents = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 1024)
+                                val nodeStateReconciler = NodeStateReconciler(ServerRepositoryImpl(), NodeRepositoryImpl())
+                                val dataOpContext = DataOpContext(ConcurrentHashMap(), ConcurrentHashMap())
+                                val nodeStateHandler = NodeStateHandler(agentEvents, nodeStateReconciler)
+                                val nodeMetricsHandler = NodeMetricsHandler(agentEvents, nodeStateReconciler)
+                                val containerMetricsHandler = ContainerMetricsHandler(agentEvents)
+                                val serverStatusHandler = ServerStatusHandler(agentEvents)
+                                val playerUpdateHandler = PlayerUpdateHandler(agentEvents)
+                                val backupHandler = BackupHandler(agentEvents)
+                                val migrationHandler = MigrationHandler(agentEvents)
+                                val dataOpResponseHandler = DataOpResponseHandler(dataOpContext)
+                                single { ControlServiceImpl(NodeConfig(bootstrapToken = "test", agentDataPort = 50052), nodeStateReconciler, agentEventsFlow = agentEvents, dataOpContext = dataOpContext, nodeStateHandler = nodeStateHandler, nodeMetricsHandler = nodeMetricsHandler, containerMetricsHandler = containerMetricsHandler, serverStatusHandler = serverStatusHandler, playerUpdateHandler = playerUpdateHandler, backupHandler = backupHandler, migrationHandler = migrationHandler, dataOpResponseHandler = dataOpResponseHandler) }
                                 single { BulkDataServiceImpl(get()) }
-                                single { DataServiceProxy(get(), get()) }
+                                single { DataServiceProxy(get(), get(), get<ServerRepository>()) }
                                 single<NodeRepository> { NodeRepositoryImpl() }
                                 single<AlertRepository> { AlertRepositoryImpl() }
                                 single<ServerRepository> { ServerRepositoryImpl() }
@@ -162,6 +178,7 @@ class OpenApiSpecTask : FunSpec({
                                         userRepository = get(),
                                         groupRepository = get(),
                                         settingsRepository = get(),
+                                        serverExposure = get(),
                                     )
                                 }
                                 single {

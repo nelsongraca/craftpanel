@@ -4,6 +4,7 @@ import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.service.BadGatewayException
 import io.craftpanel.master.service.ConflictException
 import io.craftpanel.master.service.ForbiddenException
@@ -21,10 +22,12 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.runBlocking
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
+import java.util.concurrent.ConcurrentHashMap
 
 class DataServiceProxyTest : FunSpec({
     lateinit var controlSvc: ControlServiceImpl
@@ -33,8 +36,32 @@ class DataServiceProxyTest : FunSpec({
     beforeTest {
         TestDatabase.initIfNeeded()
         TestDatabase.reset()
-        controlSvc = ControlServiceImpl(NodeConfig("test-token", 50052), NodeStateReconciler(ServerRepositoryImpl(), NodeRepositoryImpl()))
-        proxy = DataServiceProxy(controlSvc, BulkDataServiceImpl(controlSvc))
+        val reconciler = NodeStateReconciler(ServerRepositoryImpl(), NodeRepositoryImpl())
+        val agentEvents = MutableSharedFlow<io.craftpanel.master.domain.AgentEvent>(extraBufferCapacity = 1024)
+        val dataOpContext = DataOpContext(ConcurrentHashMap(), ConcurrentHashMap())
+        val nodeStateHandler = NodeStateHandler(agentEvents, reconciler)
+        val nodeMetricsHandler = NodeMetricsHandler(agentEvents, reconciler)
+        val containerMetricsHandler = ContainerMetricsHandler(agentEvents)
+        val serverStatusHandler = ServerStatusHandler(agentEvents)
+        val playerUpdateHandler = PlayerUpdateHandler(agentEvents)
+        val backupHandler = BackupHandler(agentEvents)
+        val migrationHandler = MigrationHandler(agentEvents)
+        val dataOpResponseHandler = DataOpResponseHandler(dataOpContext)
+        controlSvc = ControlServiceImpl(
+            nodeConfig = NodeConfig("test-token", 50052),
+            nodeStateReconciler = reconciler,
+            agentEventsFlow = agentEvents,
+            dataOpContext = dataOpContext,
+            nodeStateHandler = nodeStateHandler,
+            nodeMetricsHandler = nodeMetricsHandler,
+            containerMetricsHandler = containerMetricsHandler,
+            serverStatusHandler = serverStatusHandler,
+            playerUpdateHandler = playerUpdateHandler,
+            backupHandler = backupHandler,
+            migrationHandler = migrationHandler,
+            dataOpResponseHandler = dataOpResponseHandler,
+        )
+        proxy = DataServiceProxy(controlSvc, BulkDataServiceImpl(controlSvc), ServerRepositoryImpl())
     }
 
     fun createNode(): Uuid = transaction {

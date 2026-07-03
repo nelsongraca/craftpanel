@@ -5,10 +5,10 @@ import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.NodeHealth
-import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.AgentGateway
 import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.master.util.CryptoUtils
+import io.craftpanel.master.grpc.handlers.*
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlinx.coroutines.CompletableDeferred
@@ -44,24 +44,35 @@ class ControlServiceImpl(
     private val nodeConfig: NodeConfig,
     private val nodeStateReconciler: NodeStateReconciler,
     private val onNodeDisconnect: (String) -> Unit = {},
+    // Shared agent events flow (passed to handlers)
+    private val agentEventsFlow: MutableSharedFlow<AgentEvent>,
+    // Shared data op context (passed to DataOpResponseHandler)
+    private val dataOpContext: DataOpContext,
+    // Handlers (all share the same agentEventsFlow)
+    private val nodeStateHandler: NodeStateHandler,
+    private val nodeMetricsHandler: NodeMetricsHandler,
+    private val containerMetricsHandler: ContainerMetricsHandler,
+    private val serverStatusHandler: ServerStatusHandler,
+    private val playerUpdateHandler: PlayerUpdateHandler,
+    private val backupHandler: BackupHandler,
+    private val migrationHandler: MigrationHandler,
+    private val dataOpResponseHandler: DataOpResponseHandler,
 ) : ControlServiceGrpcKt.ControlServiceCoroutineImplBase(), AgentGateway {
 
     private val log = LoggerFactory.getLogger(ControlServiceImpl::class.java)
     private val random = SecureRandom()
     private val connectedAgents = ConcurrentHashMap<String, SendChannel<MasterMessage>>()
 
-    // ── Data op correlation (keyed by "$nodeId/$requestId") ───────────────────
-    private val pendingRequests = ConcurrentHashMap<String, CompletableDeferred<AgentMessage>>()
-    private val consoleOutputChannels = ConcurrentHashMap<String, Channel<ConsoleOutput>>()
-
     // ── Observability flows ───────────────────────────────────────────────────
-    private val _agentEvents = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 1024)
+    override val agentEvents = agentEventsFlow.asSharedFlow()
 
-    override val agentEvents = _agentEvents.asSharedFlow()
+    // ── Data op correlation (delegated to DataOpContext) ─────────────────
+    private val pendingRequests get() = dataOpContext.pendingRequests
+    private val consoleOutputChannels get() = dataOpContext.consoleOutputChannels
 
     /** Exposed so NodeObserver can emit events (alert firings) back through the bus. */
     suspend fun emitToAgentEvents(event: AgentEvent) {
-        _agentEvents.emit(event)
+        agentEventsFlow.emit(event)
     }
 
     override fun sendToNode(nodeId: String, msg: MasterMessage): Boolean {
@@ -154,8 +165,8 @@ class ControlServiceImpl(
         var connectedNodeId: String? = null
         val outChannel = this.channel
         val lastMetricsAt = AtomicReference(Clock.System.now())
+        val lastEmittedHealth = AtomicReference<NodeHealth?>(null)
         var watchdogFired = false
-        var lastEmittedHealth: NodeHealth? = null
 
         val watchdogJob = launch {
             while (!watchdogFired) {
@@ -166,7 +177,7 @@ class ControlServiceImpl(
                     connectedNodeId?.let { nodeId ->
                         log.warn("Node $nodeId: no metrics for ${elapsed.inWholeSeconds}s — marking unreachable")
                         nodeStateReconciler.markNodeUnreachable(nodeId)
-                        _agentEvents.emit(AgentEvent.NodeStatusEvent(nodeId, NodeHealth.UNREACHABLE))
+                        agentEventsFlow.emit(AgentEvent.NodeStatusEvent(nodeId, NodeHealth.UNREACHABLE))
                     }
                 }
             }
@@ -199,148 +210,26 @@ class ControlServiceImpl(
                 }
 
                 when {
-                    msg.hasNodeState()             -> {
-                        log.info("Node ${msg.nodeId} sent state snapshot with ${msg.nodeState.containersCount} containers")
-                        runCatching { nodeStateReconciler.reconcileNodeState(msg.nodeId, msg.nodeState) }
-                            .onSuccess { result ->
-                                if (result != null) {
-                                    log.debug("Node {}: reconcileNodeState ok — emitting health={}", msg.nodeId, result.name)
-                                    _agentEvents.emit(AgentEvent.NodeStatusEvent(msg.nodeId, result))
-                                }
-                                else {
-                                    log.debug("Node ${msg.nodeId}: reconcileNodeState ok but node is PENDING — skipping health emit")
-                                }
-                            }
-                            .onFailure { e -> log.error("Node ${msg.nodeId}: reconcileNodeState failed — ${e.message}", e) }
-                    }
-
-                    msg.hasNodeMetrics()           -> {
-                        lastMetricsAt.set(Clock.System.now())
-                        val recordedAt = if (msg.nodeMetrics.hasRecordedAt())
-                            Instant.fromEpochSeconds(msg.nodeMetrics.recordedAt.seconds, msg.nodeMetrics.recordedAt.nanos.toLong())
-                        else Clock.System.now()
-                        val nodeMetricEvent = AgentEvent.NodeMetricsEvent(
-                            nodeId = msg.nodeId,
-                            cpuPercent = msg.nodeMetrics.cpuPercent,
-                            ramUsedMb = msg.nodeMetrics.ramUsedMb,
-                            ramTotalMb = msg.nodeMetrics.ramTotalMb,
-                            netInBytes = msg.nodeMetrics.netInBytes,
-                            netOutBytes = msg.nodeMetrics.netOutBytes,
-                            diskUsedBytes = msg.nodeMetrics.diskUsedBytes,
-                            diskTotalBytes = msg.nodeMetrics.diskTotalBytes,
-                            recordedAt = recordedAt,
-                        )
-                        _agentEvents.emit(nodeMetricEvent)
-                        // Router health derived from the periodic report; emit only on change
-                        val newHealth = if (msg.nodeMetrics.routerRunning) NodeHealth.HEALTHY else NodeHealth.DEGRADED
-                        if (newHealth != lastEmittedHealth) {
-                            lastEmittedHealth = newHealth
-                            runCatching { nodeStateReconciler.updateNodeHealth(msg.nodeId, newHealth) }
-                                .onFailure { e -> log.warn("Node ${msg.nodeId}: updateNodeHealth failed — ${e.message}") }
-                            _agentEvents.emit(AgentEvent.NodeStatusEvent(msg.nodeId, newHealth))
-                        }
-                    }
-
-                    msg.hasContainerMetrics()      -> {
-                        val recordedAt = if (msg.containerMetrics.hasRecordedAt())
-                            Instant.fromEpochSeconds(msg.containerMetrics.recordedAt.seconds, msg.containerMetrics.recordedAt.nanos.toLong())
-                        else Clock.System.now()
-                        val containerMetricEvent = AgentEvent.ContainerMetricsEvent(
-                            serverId = msg.containerMetrics.serverId,
-                            cpuPercent = msg.containerMetrics.cpuPercent,
-                            ramUsedMb = msg.containerMetrics.ramUsedMb,
-                            netInBytes = msg.containerMetrics.netInBytes,
-                            netOutBytes = msg.containerMetrics.netOutBytes,
-                            blockInBytes = msg.containerMetrics.blockInBytes,
-                            blockOutBytes = msg.containerMetrics.blockOutBytes,
-                            recordedAt = recordedAt,
-                        )
-                        _agentEvents.emit(containerMetricEvent)
-                    }
-
-                    msg.hasServerStatus()          -> {
-                        val domainStatus = ServerStatus.fromProto(msg.serverStatus.status)
-                        val serverStatusEvent = AgentEvent.ServerStatusEvent(
-                            serverId = msg.serverStatus.serverId,
-                            status = domainStatus,
-                        )
-                        _agentEvents.emit(serverStatusEvent)
-                    }
-
-                    msg.hasPlayerUpdate()          -> {
-                        val recordedAt = if (msg.playerUpdate.hasRecordedAt())
-                            Instant.fromEpochSeconds(msg.playerUpdate.recordedAt.seconds, msg.playerUpdate.recordedAt.nanos.toLong())
-                        else Clock.System.now()
-                        val playerUpdateEvent = AgentEvent.PlayerUpdateEvent(
-                            serverId = msg.playerUpdate.serverId,
-                            playerCount = msg.playerUpdate.playerCount,
-                            playerNames = msg.playerUpdate.playerNamesList,
-                            recordedAt = recordedAt,
-                        )
-                        _agentEvents.emit(playerUpdateEvent)
-                    }
-
-                    msg.hasBackupProgress()        -> _agentEvents.emit(
-                        AgentEvent.BackupProgressEvent(
-                            serverId = msg.backupProgress.serverId,
-                            backupId = msg.backupProgress.backupId,
-                            percentComplete = msg.backupProgress.percentComplete,
-                        )
-                    )
-
-                    msg.hasBackupComplete()        -> {
-                        val completedAt = if (msg.backupComplete.hasCompletedAt())
-                            Instant.fromEpochSeconds(msg.backupComplete.completedAt.seconds, msg.backupComplete.completedAt.nanos.toLong())
-                        else Clock.System.now()
-                        val backupCompleteEvent = AgentEvent.BackupCompleteEvent(
-                            serverId = msg.backupComplete.serverId,
-                            backupId = msg.backupComplete.backupId,
-                            success = msg.backupComplete.success,
-                            sizeBytes = msg.backupComplete.sizeBytes,
-                            errorMessage = if (!msg.backupComplete.success) msg.backupComplete.errorMessage else "",
-                            completedAt = completedAt,
-                        )
-                        _agentEvents.emit(backupCompleteEvent)
-                    }
-
-                    msg.hasRsyncReady()            -> _agentEvents.emit(
-                        AgentEvent.RsyncReadyEvent(
-                            migrationId = msg.rsyncReady.migrationId,
-                            rsyncPassword = msg.rsyncReady.rsyncPassword,
-                        )
-                    )
-
-                    msg.hasRsyncProgress()         -> _agentEvents.emit(
-                        AgentEvent.RsyncProgressEvent(
-                            migrationId = msg.rsyncProgress.migrationId,
-                            isFinalPass = msg.rsyncProgress.isFinalPass,
-                            percentComplete = msg.rsyncProgress.percentComplete,
-                            bytesTransferred = msg.rsyncProgress.bytesTransferred,
-                            phase = msg.rsyncProgress.phase,
-                        )
-                    )
-
-                    msg.hasRsyncComplete()         -> _agentEvents.emit(
-                        AgentEvent.RsyncCompleteEvent(
-                            migrationId = msg.rsyncComplete.migrationId,
-                            isFinalPass = msg.rsyncComplete.isFinalPass,
-                            success = msg.rsyncComplete.success,
-                            errorMessage = msg.rsyncComplete.errorMessage,
-                        )
-                    )
-
-                    // Data op responses — route to waiting callers
-                    msg.hasConsoleOutput()         -> routeConsoleOutput(msg.nodeId, msg.consoleOutput)
-                    msg.hasListFilesResponse()     -> routeUnaryResponse(msg.nodeId, msg.listFilesResponse.requestId, msg)
-                    msg.hasReadFileResponse()      -> routeUnaryResponse(msg.nodeId, msg.readFileResponse.requestId, msg)
-                    msg.hasWriteFileResponse()     -> routeUnaryResponse(msg.nodeId, msg.writeFileResponse.requestId, msg)
-                    msg.hasDeleteFileResponse()    -> routeUnaryResponse(msg.nodeId, msg.deleteFileResponse.requestId, msg)
-                    msg.hasMakeDirectoryResponse() -> routeUnaryResponse(msg.nodeId, msg.makeDirectoryResponse.requestId, msg)
-                    msg.hasMoveFileResponse()      -> routeUnaryResponse(msg.nodeId, msg.moveFileResponse.requestId, msg)
-                    msg.hasCopyFileResponse()      -> routeUnaryResponse(msg.nodeId, msg.copyFileResponse.requestId, msg)
-                    msg.hasDownloadFileResponse()  -> routeUnaryResponse(msg.nodeId, msg.downloadFileResponse.requestId, msg)
-                    msg.hasUploadFileResponse()    -> routeUnaryResponse(msg.nodeId, msg.uploadFileResponse.requestId, msg)
-
+                    msg.hasNodeState()             -> nodeStateHandler.handle(msg, msg.nodeId)
+                    msg.hasNodeMetrics()           -> nodeMetricsHandler.handle(msg, msg.nodeId, lastMetricsAt, lastEmittedHealth)
+                    msg.hasContainerMetrics()      -> containerMetricsHandler.handle(msg, msg.nodeId)
+                    msg.hasServerStatus()          -> serverStatusHandler.handle(msg, msg.nodeId)
+                    msg.hasPlayerUpdate()          -> playerUpdateHandler.handle(msg, msg.nodeId)
+                    msg.hasBackupProgress()        -> backupHandler.handleBackupProgress(msg, msg.nodeId)
+                    msg.hasBackupComplete()        -> backupHandler.handleBackupComplete(msg, msg.nodeId)
+                    msg.hasRsyncReady()            -> migrationHandler.handleRsyncReady(msg, msg.nodeId)
+                    msg.hasRsyncProgress()         -> migrationHandler.handleRsyncProgress(msg, msg.nodeId)
+                    msg.hasRsyncComplete()         -> migrationHandler.handleRsyncComplete(msg, msg.nodeId)
+                    msg.hasConsoleOutput()         -> dataOpResponseHandler.handle(msg, msg.nodeId)
+                    msg.hasListFilesResponse()     -> dataOpResponseHandler.handle(msg, msg.nodeId)
+                    msg.hasReadFileResponse()      -> dataOpResponseHandler.handle(msg, msg.nodeId)
+                    msg.hasWriteFileResponse()     -> dataOpResponseHandler.handle(msg, msg.nodeId)
+                    msg.hasDeleteFileResponse()    -> dataOpResponseHandler.handle(msg, msg.nodeId)
+                    msg.hasMakeDirectoryResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+                    msg.hasMoveFileResponse()      -> dataOpResponseHandler.handle(msg, msg.nodeId)
+                    msg.hasCopyFileResponse()      -> dataOpResponseHandler.handle(msg, msg.nodeId)
+                    msg.hasDownloadFileResponse()  -> dataOpResponseHandler.handle(msg, msg.nodeId)
+                    msg.hasUploadFileResponse()    -> dataOpResponseHandler.handle(msg, msg.nodeId)
                     else                           -> log.debug("Node ${msg.nodeId} sent unhandled message type")
                 }
             }
@@ -359,7 +248,7 @@ class ControlServiceImpl(
                 if (wasOwner && !watchdogFired && !connectedAgents.containsKey(nodeId)) {
                     log.warn("Node $nodeId: control stream disconnected — marking unreachable")
                     nodeStateReconciler.markNodeUnreachable(nodeId)
-                    _agentEvents.emit(AgentEvent.NodeStatusEvent(nodeId, NodeHealth.UNREACHABLE))
+                    agentEventsFlow.emit(AgentEvent.NodeStatusEvent(nodeId, NodeHealth.UNREACHABLE))
                 }
                 else if (wasOwner && connectedAgents.containsKey(nodeId)) {
                     log.info("Node $nodeId: stream ended but new connection is already active — skipping degrade")
@@ -372,20 +261,6 @@ class ControlServiceImpl(
     }
 
     // ── Data op routing helpers ───────────────────────────────────────────────
-
-    private fun routeUnaryResponse(nodeId: String, requestId: String, msg: AgentMessage) {
-        pendingRequests.remove("$nodeId/$requestId")
-            ?.complete(msg)
-    }
-
-    private fun routeConsoleOutput(nodeId: String, output: ConsoleOutput) {
-        val key = "$nodeId/${output.requestId}"
-        consoleOutputChannels[key]?.trySend(output)
-        if (output.closed) {
-            consoleOutputChannels.remove(key)
-                ?.close()
-        }
-    }
 
     private fun drainNodeRequests(nodeId: String) {
         val prefix = "$nodeId/"

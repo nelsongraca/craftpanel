@@ -6,15 +6,20 @@ import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.NodeHealth
+import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.service.NodeStateReconciler
+import io.craftpanel.proto.AgentMessage
+import io.craftpanel.proto.ConsoleOutput
 import io.craftpanel.proto.agentMessage
 import io.craftpanel.proto.nodeStateSnapshot
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.filterIsInstance
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlin.time.Duration.Companion.milliseconds
@@ -25,12 +30,35 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
 import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import kotlin.uuid.Uuid
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.CompletableDeferred
+import java.util.concurrent.ConcurrentHashMap
 
 class ControlServiceImplTest : FunSpec({
     val reconciler = NodeStateReconciler(ServerRepositoryImpl(), NodeRepositoryImpl())
+    val agentEvents = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 1024)
+    val dataOpContext = DataOpContext(ConcurrentHashMap(), ConcurrentHashMap())
+    val nodeStateHandler = NodeStateHandler(agentEvents, reconciler)
+    val nodeMetricsHandler = NodeMetricsHandler(agentEvents, reconciler)
+    val containerMetricsHandler = ContainerMetricsHandler(agentEvents)
+    val serverStatusHandler = ServerStatusHandler(agentEvents)
+    val playerUpdateHandler = PlayerUpdateHandler(agentEvents)
+    val backupHandler = BackupHandler(agentEvents)
+    val migrationHandler = MigrationHandler(agentEvents)
+    val dataOpResponseHandler = DataOpResponseHandler(dataOpContext)
     val service = ControlServiceImpl(
         nodeConfig = NodeConfig(bootstrapToken = "test-token", agentDataPort = 50052),
         nodeStateReconciler = reconciler,
+        agentEventsFlow = agentEvents,
+        dataOpContext = dataOpContext,
+        nodeStateHandler = nodeStateHandler,
+        nodeMetricsHandler = nodeMetricsHandler,
+        containerMetricsHandler = containerMetricsHandler,
+        serverStatusHandler = serverStatusHandler,
+        playerUpdateHandler = playerUpdateHandler,
+        backupHandler = backupHandler,
+        migrationHandler = migrationHandler,
+        dataOpResponseHandler = dataOpResponseHandler,
     )
 
     beforeTest {

@@ -6,9 +6,9 @@ import io.craftpanel.master.service.ForbiddenException
 import io.craftpanel.master.service.NotFoundException
 import io.craftpanel.master.service.ServiceException
 import io.craftpanel.master.service.UnprocessableException
+import io.craftpanel.master.service.repo.ServerRepository
 import io.craftpanel.proto.*
 import com.google.protobuf.ByteString
-import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.routes.dto.FileEntryResponse
 import io.craftpanel.master.routes.dto.ListFilesResponse
@@ -18,10 +18,6 @@ import kotlin.uuid.Uuid
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import kotlinx.coroutines.flow.map
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-
 
 /**
  * Routes file and console operations from REST/WebSocket routes to the connected agent
@@ -32,23 +28,19 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 class DataServiceProxy(
     private val controlService: ControlServiceImpl,
     private val bulkService: BulkDataServiceImpl,
+    private val serverRepository: ServerRepository,
 ) {
 
-    private fun lookupNodeId(serverId: Uuid): String = transaction {
-        val server = Servers.selectAll()
-            .where { Servers.id eq serverId }
-            .firstOrNull() ?: error("Server $serverId not found")
-        server[Servers.nodeId].toString()
-    }
+    private fun lookupNodeId(serverId: Uuid): String =
+        serverRepository.findById(serverId)?.nodeId?.toString()
+            ?: error("Server $serverId not found")
 
     private data class ServerLookup(val nodeId: String, val status: String)
 
-    private fun lookupServer(serverId: Uuid): ServerLookup = transaction {
-        val server = Servers.selectAll()
-            .where { Servers.id eq serverId }
-            .firstOrNull() ?: error("Server $serverId not found")
-        ServerLookup(server[Servers.nodeId].toString(), server[Servers.status])
-    }
+    private fun lookupServer(serverId: Uuid): ServerLookup =
+        serverRepository.findById(serverId)
+            ?.let { ServerLookup(it.nodeId.toString(), it.status) }
+            ?: error("Server $serverId not found")
 
     // ── Console ───────────────────────────────────────────────────────────────
 

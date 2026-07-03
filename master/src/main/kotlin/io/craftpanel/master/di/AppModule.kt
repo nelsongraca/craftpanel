@@ -8,7 +8,16 @@ import io.craftpanel.master.config.ImagesConfig
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.ControlServiceImpl
+import io.craftpanel.master.grpc.DataOpContext
 import io.craftpanel.master.grpc.DataServiceProxy
+import io.craftpanel.master.grpc.handlers.*
+import io.craftpanel.master.domain.AgentEvent
+import io.craftpanel.proto.AgentMessage
+import io.craftpanel.proto.ConsoleOutput
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableSharedFlow
+import java.util.concurrent.ConcurrentHashMap
 import io.craftpanel.master.scheduler.BackupJobHandler
 import io.craftpanel.master.scheduler.ServerScheduler
 import io.craftpanel.master.service.AgentGateway
@@ -48,7 +57,6 @@ import io.craftpanel.master.service.repo.UserRepository
 import io.craftpanel.master.service.repo.UserRepositoryImpl
 import io.craftpanel.master.docker.MasterDockerClient
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.channels.Channel
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import kotlin.uuid.Uuid
@@ -69,19 +77,46 @@ val appModule = module {
         ServerRestartManager(s.restartMaxAttempts, s.restartWindowSeconds)
     }
 
-    single(named("crashRestarts")) { Channel<Uuid>(Channel.BUFFERED) }
+    single(named("crashRestarts")) { kotlinx.coroutines.channels.Channel<Uuid>(kotlinx.coroutines.channels.Channel.BUFFERED) }
 
     // gRPC core
     single { NodeStateReconciler(serverRepository = get(), nodeRepository = get()) }
     single<AgentGateway> { get<ControlServiceImpl>() }
+    
+    // Shared agent events flow
+    single { MutableSharedFlow<AgentEvent>(extraBufferCapacity = 1024) }
+    
+    // Shared data op context (passed to ControlServiceImpl and DataOpResponseHandler)
+    single { DataOpContext(ConcurrentHashMap(), ConcurrentHashMap()) }
+    
+    // Handlers
+    single { NodeStateHandler(get(), get()) }
+    single { NodeMetricsHandler(get(), get()) }
+    single { ContainerMetricsHandler(get()) }
+    single { ServerStatusHandler(get()) }
+    single { PlayerUpdateHandler(get()) }
+    single { BackupHandler(get()) }
+    single { MigrationHandler(get()) }
+    single { DataOpResponseHandler(get()) }
+    
     single {
         ControlServiceImpl(
             nodeConfig = get<AppConfig>().node,
             nodeStateReconciler = get(),
+            agentEventsFlow = get(),
+            dataOpContext = get(),
+            nodeStateHandler = get(),
+            nodeMetricsHandler = get(),
+            containerMetricsHandler = get(),
+            serverStatusHandler = get(),
+            playerUpdateHandler = get(),
+            backupHandler = get(),
+            migrationHandler = get(),
+            dataOpResponseHandler = get(),
         )
     }
     single { BulkDataServiceImpl(get()) }
-    single { DataServiceProxy(get(), get()) }
+    single { DataServiceProxy(get(), get(), get<ServerRepository>()) }
 
     // Observability — subscribes to agentEvents emitted by ControlServiceImpl
     single(createdAtStart = true) {
@@ -173,6 +208,7 @@ val appModule = module {
             userRepository = get(),
             groupRepository = get(),
             settingsRepository = get(),
+            serverExposure = get(),
         )
     }
     single { BackupService(get<AgentGateway>(), get(), get()) }

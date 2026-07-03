@@ -52,6 +52,9 @@ Single place that consumes the `{data, error, response}` envelope from the
 - `MigrationService.triggerAndAwaitStatus` accepts `ServerStatus` (domain), calls
   `ServerStatus.fromProto()` internally when comparing against incoming stream
   updates. No other service touches proto enum constants directly.
+- `lookupNodeId()` and `lookupServer()` now use `ServerRepository.findById()`
+  instead of querying the `Servers` table directly — concentrates DB access
+  in the repository layer where it belongs.
 
 ### Agent event bus (master)
 
@@ -120,12 +123,10 @@ validation. Replaces `buildMcRouterLabel` (pkg fn), the private resolvers in
 - `ServerLifecycleService` and the `UpdateDnsStep` migration step call in via
   an injected `ServerExposure` instead of holding `networkRepository`/
   `settingsRepository` directly.
-- `ServerRow.toResponse` (in `ServerService.kt`) intentionally does **not**
-  route its inline `canonicalHostname` derivation through this module — it's a
-  pure field derivation off the row's own columns with no repo dependency, and
-  its managed-hostname computation has no suffix fallback (diverges slightly
-  from `ServerExposure.managedHostname`, which does fall back). Noted inline
-  with a `// ponytail:` comment.
+- `ServerRow.toResponse` (in `ServerService.kt`) now routes through
+  `ServerExposure.canonicalHostname(row)` — single source of truth for hostname
+  resolution. The previous inline derivation (which lacked suffix fallback) was
+  removed to improve locality.
 - See plan `plans/c1-server-exposure-module.md`.
 
 ### Route test scaffolding (master) — planned
