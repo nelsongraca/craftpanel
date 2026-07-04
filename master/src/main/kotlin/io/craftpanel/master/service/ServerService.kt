@@ -1,8 +1,5 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.auth.Permission
-import io.craftpanel.master.auth.PermissionResolver
-import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.ConfigMode
 import io.craftpanel.master.domain.ServerStatus
@@ -123,9 +120,11 @@ class ServerService(
 ) {
 
     private val log = LoggerFactory.getLogger(ServerService::class.java)
+    private val visibilityResolver = ServerVisibilityResolver(userRepository, groupRepository)
+    private val capacityChecker = ResourceCapacityChecker(serverRepository)
 
     fun listServers(userId: Uuid): List<ServerResponse> {
-        val visibility = resolveServerVisibility(userId)
+        val visibility = visibilityResolver.resolve(userId)
         val rows = when {
             visibility.isGlobal                                               -> serverRepository.listAll()
             visibility.networkIds.isEmpty() && visibility.serverIds.isEmpty() -> return emptyList()
@@ -166,17 +165,15 @@ class ServerService(
                 return CreateResult("network_not_found")
             if (serverRepository.findByName(req.name) != null) return CreateResult("name_taken")
 
-            val serversOnNode = serverRepository.listByNodeId(nodeKotlinId)
-            val usedRam = serversOnNode.sumOf { it.memoryMb }
-            val usedCpu = serversOnNode.sumOf { it.cpuShares }
-            val systemRamUsed = node.systemRamUsedMb ?: 0
-            val effectiveUsedRam = maxOf(usedRam, systemRamUsed)
-            if (effectiveUsedRam + req.memoryMb > node.totalRamMb) return CreateResult("insufficient_ram")
-            if (node.totalCpuShares > 0 && usedCpu + req.cpuShares > node.totalCpuShares) return CreateResult("insufficient_cpu")
+            when (capacityChecker.check(node, excludeServerId = null, memoryMb = req.memoryMb, cpuShares = req.cpuShares)) {
+                CapacityResult.InsufficientRam -> return CreateResult("insufficient_ram")
+                CapacityResult.InsufficientCpu -> return CreateResult("insufficient_cpu")
+                CapacityResult.Ok              -> {}
+            }
 
             val usedPorts = serverRepository.findUsedPortsOnNode(nodeKotlinId)
                 .toSet()
-            val port = (node.portRangeStart..node.portRangeEnd).firstOrNull { it !in usedPorts }
+            val port = PortAllocator.pickFreePort(node.portRangeStart, node.portRangeEnd, usedPorts)
                 ?: return CreateResult("no_ports")
 
             val stopCommand = if (req.serverType in PROXY_SERVER_TYPES) "end" else "stop"
@@ -320,12 +317,11 @@ class ServerService(
         val existing = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
         val nodeKotlinId = existing.nodeId
         val node = nodeRepository.findById(nodeKotlinId) ?: throw UnprocessableException("Node not found")
-        val others = serverRepository.listByNodeId(nodeKotlinId)
-            .filter { it.id != id }
-        val usedRam = others.sumOf { it.memoryMb }
-        val usedCpu = others.sumOf { it.cpuShares }
-        if (usedRam + req.memoryMb > node.totalRamMb) throw ConflictException("Insufficient RAM capacity on node")
-        if (node.totalCpuShares > 0 && usedCpu + req.cpuShares > node.totalCpuShares) throw ConflictException("Insufficient CPU capacity on node")
+        when (capacityChecker.check(node, excludeServerId = id, memoryMb = req.memoryMb, cpuShares = req.cpuShares)) {
+            CapacityResult.InsufficientRam -> throw ConflictException("Insufficient RAM capacity on node")
+            CapacityResult.InsufficientCpu -> throw ConflictException("Insufficient CPU capacity on node")
+            CapacityResult.Ok              -> {}
+        }
         serverRepository.updateResources(id, req.memoryMb, req.cpuShares, req.itzgImageTag, true)
     }
 
@@ -341,31 +337,6 @@ class ServerService(
                 netOutBytes = rows.map { ContainerMetricsPointLong(it.recordedAt, it.netOutBytes) },
             ),
         )
-    }
-
-    private fun resolveServerVisibility(userId: Uuid): ServerVisibility {
-        if (!userRepository.isActive(userId)) return ServerVisibility(false, emptySet(), emptySet())
-        val assignments = userRepository.listAssignments(userId)
-        val groupIds = assignments.map { it.groupId }
-            .toSet()
-        if (groupIds.isEmpty()) return ServerVisibility(false, emptySet(), emptySet())
-        val viewGroups = groupIds.filter { gid ->
-            groupRepository.getPermissions(gid)
-                .any { PermissionResolver.grants(it, Permission.SERVER_VIEW) }
-        }
-            .toSet()
-        if (viewGroups.isEmpty()) return ServerVisibility(false, emptySet(), emptySet())
-        var isGlobal = false
-        val networkIds = mutableSetOf<Uuid>()
-        val serverIds = mutableSetOf<Uuid>()
-        for (a in assignments.filter { it.groupId in viewGroups }) {
-            when (a.scopeType) {
-                ScopeType.GLOBAL.name  -> isGlobal = true
-                ScopeType.NETWORK.name -> a.scopeId?.let { networkIds += it }
-                ScopeType.SERVER.name  -> a.scopeId?.let { serverIds += it }
-            }
-        }
-        return ServerVisibility(isGlobal, networkIds, serverIds)
     }
 }
 

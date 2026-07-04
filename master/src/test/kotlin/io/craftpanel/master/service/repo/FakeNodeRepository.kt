@@ -48,6 +48,10 @@ class FakeNodeRepository : NodeRepository {
         allocatedRam = ram; allocatedCpu = cpu
     }
 
+    fun setCapacity(id: Uuid, totalRamMb: Int, totalCpuShares: Int = 0, systemRamUsedMb: Int? = null) {
+        nodes[id]?.let { it.totalRamMb = totalRamMb; it.totalCpuShares = totalCpuShares; it.systemRamUsedMb = systemRamUsedMb }
+    }
+
     override fun findById(id: Uuid): NodeRow? = nodes[id]?.toRow()
     override fun findByTokenHash(tokenHash: String): NodeRow? = nodes.values.firstOrNull { it.tokenHash == tokenHash }
         ?.toRow()
