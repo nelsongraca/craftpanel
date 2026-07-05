@@ -1,10 +1,11 @@
 "use client";
 
-import {useCallback, useEffect, useState} from "react";
+import {useState} from "react";
 import {Pencil, Plus, Trash2} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
 import {createNetwork, deleteNetwork, listNetworks, updateNetwork} from "@/lib/generated/sdk.gen";
 import type {Network} from "@/lib/types";
+import {useResourceList} from "@/lib/hooks/useResourceList";
 
 import {INPUT, BTN_PRIMARY, BTN_GHOST, Modal, Field} from "@/components/ui/form-elements";
 
@@ -66,22 +67,11 @@ function NetworkForm({
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function NetworksPage() {
-    const [networks, setNetworks] = useState<Network[]>([]);
-    const [loading, setLoading] = useState(true);
+    const {data: networks, initialLoad: loading, reload: load} = useResourceList(listNetworks, {pollMs: 0});
     const [showCreate, setShowCreate] = useState(false);
     const [editing, setEditing] = useState<Network | null>(null);
     const [deleting, setDeleting] = useState<Network | null>(null);
     const [deleteError, setDeleteError] = useState("");
-
-    const load = useCallback(async () => {
-        const res = await listNetworks();
-        if (res.data) setNetworks(res.data);
-        setLoading(false);
-    }, []);
-
-    useEffect(() => {
-        load();
-    }, [load]);
 
     async function handleCreate(form: NetworkFormState) {
         const res = await createNetwork({

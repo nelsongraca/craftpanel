@@ -1,6 +1,6 @@
 "use client";
 
-import {useCallback, useEffect, useState} from "react";
+import {useEffect, useState} from "react";
 import {useRouter} from "next/navigation";
 import {Ban, Check, KeyRound, MoreHorizontal, Pencil, Power, Trash2, X} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
@@ -11,6 +11,7 @@ import type {Node} from "@/lib/types";
 import {timeAgo, fmtMb, fillColor} from "@/lib/utils/format";
 import {TokenModal} from "@/components/nodes/TokenModal";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
+import {useResourceList} from "@/lib/hooks/useResourceList";
 import {useWs} from "@/lib/ws-context";
 import {nodeDisplayStatus, nodeStatusClass, nodeStatusLabel} from "@/lib/status";
 
@@ -301,8 +302,7 @@ export default function NodesPage() {
     const {subscribe} = useWs();
     const permissions = user?.permissions ?? [];
 
-    const [nodes, setNodes] = useState<Node[]>([]);
-    const [initialLoad, setInitialLoad] = useState(true);
+    const {data: nodes, initialLoad, reload: reloadNodes, setData: setNodes} = useResourceList(listNodes);
     const [serverCounts, setServerCounts] = useState<Record<string, number>>({});
     const [actionError, setActionError] = useState<string | null>(null);
     const [pendingAction, setPendingAction] = useState<Record<string, string>>({});
@@ -314,23 +314,6 @@ export default function NodesPage() {
     // Modals
     const [editNode, setEditNode] = useState<Node | null>(null);
     const [tokenKey, setTokenKey] = useState<string | null>(null);
-
-    const reloadNodes = useCallback(async () => {
-        const {data} = await listNodes();
-        if (data) setNodes(data);
-    }, []);
-
-    useEffect(() => {
-        let cancelled = false;
-        void reloadNodes().then(() => {
-            if (!cancelled) setInitialLoad(false);
-        });
-        const id = setInterval(reloadNodes, 30_000);
-        return () => {
-            cancelled = true;
-            clearInterval(id);
-        };
-    }, [reloadNodes]);
 
     useEffect(() => {
         listServers().then(({data: serverData}) => {
@@ -356,7 +339,7 @@ export default function NodesPage() {
                 prev.map((n) => n.id === payload.node_id ? {...n, health: payload.health} : n),
             );
         });
-    }, [subscribe]);
+    }, [subscribe, setNodes]);
 
     // ── Actions ────────────────────────────────────────────────────────────────
 

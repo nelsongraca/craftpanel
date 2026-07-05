@@ -1,10 +1,11 @@
 "use client";
 
-import {useCallback, useEffect, useState} from "react";
+import {useState} from "react";
 import {Lock, Pencil, Plus, Trash2} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
 import {createGroup, deleteGroup, listGroups, setGroupPermissions, updateGroup} from "@/lib/generated/sdk.gen";
 import type {Group} from "@/lib/types";
+import {useResourceList} from "@/lib/hooks/useResourceList";
 import {INPUT, BTN_PRIMARY, BTN_GHOST, Modal, Field} from "@/components/ui/form-elements";
 
 
@@ -112,22 +113,11 @@ function GroupForm({
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function GroupsPage() {
-    const [groups, setGroups] = useState<Group[]>([]);
-    const [loading, setLoading] = useState(true);
+    const {data: groups, initialLoad: loading, reload: load} = useResourceList(listGroups, {pollMs: 0});
     const [showCreate, setShowCreate] = useState(false);
     const [editing, setEditing] = useState<Group | null>(null);
     const [deleting, setDeleting] = useState<Group | null>(null);
     const [deleteError, setDeleteError] = useState("");
-
-    const load = useCallback(async () => {
-        const res = await listGroups();
-        if (res.data) setGroups(res.data);
-        setLoading(false);
-    }, []);
-
-    useEffect(() => {
-        load();
-    }, [load]);
 
     async function handleCreate(name: string, permissions: string[]) {
         const createRes = await createGroup({body: {name}});

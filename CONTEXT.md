@@ -30,13 +30,33 @@ general-purpose service.
 Single place that consumes the `{data, error, response}` envelope from the
 `@hey-api/openapi-ts` generated client. Lives in `frontend/lib/api.ts`.
 - `call<T>(fn)` — awaits the SDK call, throws `ApiError` (has `.status`) on
-  non-2xx. Use where a 404 needs special handling or inside `useApiData`.
+  non-2xx. Use where a 404 needs special handling.
 - `tryCall<T>(fn)` — non-throwing; returns `{ok:true, data} | {ok:false, error, status?}`.
   Use in imperative event handlers where you want to `setError(res.error)`.
-- `useApiData(loader, deps, {pollMs?})` — wraps load+setInterval(pollMs) pattern.
-  Returns `{data, loading, error, reload}`. Live in `frontend/lib/hooks/useApiData.ts`.
 - Does **not** touch auth — Bearer injection and 401→refresh+retry remain in
   `lib/client.ts` interceptors.
+
+### ResourceList lifecycle hook (frontend)
+The one place that owns the list-page fetch/poll/reload lifecycle, replacing the
+byte-identical `data + initialLoad + reloadX cb + useEffect{cancelled-flag +
+setInterval(30s) + cleanup}` dance duplicated across all six list pages
+(`nodes`, `servers`, `alerts`, `users`, `groups`, `networks`). Lives in
+`frontend/lib/hooks/useResourceList.ts`.
+- `useResourceList<T>(loader, {pollMs?})` — `loader` is a bare `@hey-api` SDK fn
+  (`listServers`, `listNodes`, …); the hook swallows the `{data}` envelope
+  (`if (data) setData(data)`, load errors dropped silently — unchanged behaviour).
+  Returns `{data, initialLoad, reload, setData}`. `pollMs` defaults to `30_000`.
+- **Single-resource, polled only.** Secondary one-shot loads (nodes+networks on
+  servers, server-counts on nodes) stay as plain `useEffect` in the page — a
+  genuinely different shape (no poll, no `initialLoad` gating).
+- `setData` is the **WS patch seam** — nodes/servers/alerts apply
+  `subscribe("node.status", …)` deltas through it, so the hook stays the sole
+  owner of the list state.
+- Composes with `useAction` (existing) — the hook does **not** own the per-row
+  `pendingAction` / `actionError` machinery; mutations stay page-side.
+- Note: an earlier `useApiData` seam was documented here but never built; this
+  hook supersedes that intent with a narrower, single-resource interface.
+- See candidate 4, `improve-codebase-architecture` review 2026-07-05.
 
 ### DataServiceProxy domain boundary (master)
 `DataServiceProxy` is now the only class that knows proto types.
@@ -159,6 +179,43 @@ hand-rolled in all 12 `routes/*RoutesTest.kt` files.
   auto-install — too much magic, a reader can't see what's installed
   without checking the extension.
 - See candidate 4, `improve-codebase-architecture` review 2026-07-01.
+
+### MigrationPlan + MigrationCoordinator (master) — planned
+
+Splits the god-struct `MigrationContext` (21 ctor fields, 5 mutable vars, 8
+behavior methods, 6 live collaborators — leaked repos/gateway/DNS/lifecycle
+across all 12 `migration/steps/`) into two deep modules. Step signature becomes
+`execute(plan: MigrationPlan, coord: MigrationCoordinator): StepResult`.
+
+- **`MigrationPlan`** — pure state, NO behavior, NO collaborators. Immutable
+  per-migration facts (`migrationId`, `serverId`, source/target node ids +
+  rows, `rsyncImage`, `playerWarningMessage`, `containerNamePrefix`) plus the 5
+  mutable cross-step data vars (`rsyncPort`, `rsyncPassword`, `sourceStopped`,
+  `assignedPort`, `freshServerRow`). Mutable-state-object flow kept — step N
+  writes, step N+k reads (e.g. `rsyncPort` written by `AllocateRsyncPortStep`,
+  read by `PrepareRsyncReceiveStep`/`FinalRsyncStep`/`UpdateNodeAssignmentStep`).
+  Rejected StepResult-carries-deltas: rewrites all 12 step signatures for no
+  behaviour gain.
+- **`MigrationCoordinator`** — the seam steps call. Owns ALL collaborators
+  (`serverRepository`, `nodeRepository`, `gateway`, `dnsProvider`, `lifecycle`,
+  `serverExposure`, `scope`, `eventFlow`) + all behavior (`emit`, `updateStatus`,
+  `startStep`, `completeStep`, `failMigration`, `restartSource(plan)`,
+  `allocateRsyncPort(plan)`, `updateProxyBackendsAfterMigration`,
+  `resolveTargetDns(plan)`). The `MigrationRunner` finally-block cleanup
+  (rsync-recv `removeContainer` + `releasePort`) moves here too.
+- **DNS folded in.** `UpdateDnsStep` currently takes `serverExposure` via
+  constructor while other collaborator-using steps reach through the struct —
+  that inconsistency is resolved by folding `serverExposure.resolveNetworkDns`
+  behind `coord.resolveTargetDns(plan)`. ALL collaborators sit behind one seam;
+  no step takes a constructor collaborator arg.
+- **Testability:** a step is exercised with a fake `MigrationCoordinator` + a
+  plain `MigrationPlan` — no live `DnsProvider`, repo, or gateway. The interface
+  is the test surface. Deletion test passes both ways: drop the Coordinator and
+  collaborators+behavior scatter across 12 steps; drop the Plan and cross-step
+  data has nowhere to live.
+- `MigrationRunner(steps, plan, coord)`; `MigrationService.runMigration`
+  constructs both and passes them in.
+- See candidate 1, `improve-codebase-architecture` review 2026-07-05.
 
 ## Open / planned
 
