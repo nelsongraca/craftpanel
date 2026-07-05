@@ -1,9 +1,10 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.MigrationStatus
 import io.craftpanel.master.domain.MigrationStepStatus
-import io.craftpanel.master.dns.DnsProvider
-import io.craftpanel.master.service.migration.MigrationContext
+import io.craftpanel.master.service.migration.MigrationCoordinator
+import io.craftpanel.master.service.migration.MigrationPlan
 import io.craftpanel.master.service.migration.MigrationRunner
 import io.craftpanel.master.service.migration.steps.AllocateRsyncPortStep
 import io.craftpanel.master.service.migration.steps.AssignTargetPortStep
@@ -22,8 +23,8 @@ import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -59,7 +60,7 @@ sealed class MigrationEvent {
 data class MigrateRequest(
     @SerialName("target_node_id") val targetNodeId: String,
     @SerialName("rsync_image") val rsyncImage: String = "alpine",
-    @SerialName("player_warning_message") val playerWarningMessage: String = "Server is restarting in 60 seconds",
+    @SerialName("player_warning_message") val playerWarningMessage: String = "Server is restarting in 60 seconds"
 )
 
 @Serializable
@@ -69,7 +70,7 @@ data class MigrationStepData(
     val status: MigrationStepStatus,
     @SerialName("started_at") val startedAt: String?,
     @SerialName("completed_at") val completedAt: String?,
-    @SerialName("error_message") val errorMessage: String?,
+    @SerialName("error_message") val errorMessage: String?
 )
 
 @Serializable
@@ -81,7 +82,7 @@ data class MigrationResponse(
     val status: MigrationStatus,
     val steps: List<MigrationStepData>,
     @SerialName("created_at") val createdAt: String,
-    @SerialName("completed_at") val completedAt: String?,
+    @SerialName("completed_at") val completedAt: String?
 )
 
 class MigrationService(
@@ -92,9 +93,8 @@ class MigrationService(
     private val scope: CoroutineScope,
     private val lifecycle: ContainerLifecycle,
     private val serverExposure: ServerExposure,
-    private val containerNamePrefix: String = "craftpanel",
+    private val containerNamePrefix: String = "craftpanel"
 ) {
-
 
     private val eventFlows = ConcurrentHashMap<String, MutableSharedFlow<MigrationEvent>>()
 
@@ -108,14 +108,16 @@ class MigrationService(
             ?: throw UnprocessableException("Invalid target_node_id")
 
         val sourceNodeId = serverRow.nodeId
-        if (sourceNodeId == targetNodeId)
+        if (sourceNodeId == targetNodeId) {
             throw ConflictException("Source and target node are the same")
+        }
 
         val targetNodeRow = nodeRepository.findById(targetNodeId)
             ?: throw NotFoundException("Target node not found")
 
-        if (targetNodeRow.status != "ACTIVE")
+        if (targetNodeRow.status != "ACTIVE") {
             throw ConflictException("Target node is not ACTIVE")
+        }
 
         val inProgress = serverRepository.findActiveMigration(serverId) != null
         if (inProgress) throw ConflictException("Migration already in progress for this server")
@@ -133,14 +135,13 @@ class MigrationService(
                     sourceNodeId = sourceNodeId,
                     targetNodeId = targetNodeId,
                     rsyncImage = req.rsyncImage,
-                    playerWarningMessage = req.playerWarningMessage,
+                    playerWarningMessage = req.playerWarningMessage
                 )
             }.onFailure { e ->
                 if (e is CancellationException) throw e
                 if (e is ExposedSQLException && e.message?.contains("fk_migration_step_log") == true) {
                     log.warn("Migration ${migration.id} aborted: server was deleted mid-flight")
-                }
-                else {
+                } else {
                     log.error("Migration ${migration.id} crashed unexpectedly", e)
                 }
             }
@@ -161,37 +162,28 @@ class MigrationService(
             status = MigrationStatus.fromDb(row.status),
             steps = steps.map { it.toStepData() },
             createdAt = row.createdAt,
-            completedAt = row.completedAt,
+            completedAt = row.completedAt
         )
     }
 
-    fun listMigrations(serverId: Uuid): List<MigrationResponse> =
-        serverRepository.listMigrations(serverId)
-            .map { row ->
-                val steps = serverRepository.listMigrationSteps(row.id)
-                MigrationResponse(
-                    id = row.id.toString(),
-                    serverId = row.serverId.toString(),
-                    sourceNodeId = row.sourceNodeId.toString(),
-                    targetNodeId = row.targetNodeId.toString(),
-                    status = MigrationStatus.fromDb(row.status),
-                    steps = steps.map { it.toStepData() },
-                    createdAt = row.createdAt,
-                    completedAt = row.completedAt,
-                )
-            }
+    fun listMigrations(serverId: Uuid): List<MigrationResponse> = serverRepository.listMigrations(serverId)
+        .map { row ->
+            val steps = serverRepository.listMigrationSteps(row.id)
+            MigrationResponse(
+                id = row.id.toString(),
+                serverId = row.serverId.toString(),
+                sourceNodeId = row.sourceNodeId.toString(),
+                targetNodeId = row.targetNodeId.toString(),
+                status = MigrationStatus.fromDb(row.status),
+                steps = steps.map { it.toStepData() },
+                createdAt = row.createdAt,
+                completedAt = row.completedAt
+            )
+        }
 
-    fun getEventFlow(migrationId: String): SharedFlow<MigrationEvent>? =
-        eventFlows[migrationId]?.asSharedFlow()
+    fun getEventFlow(migrationId: String): SharedFlow<MigrationEvent>? = eventFlows[migrationId]?.asSharedFlow()
 
-    private suspend fun runMigration(
-        migrationId: Uuid,
-        serverId: Uuid,
-        sourceNodeId: Uuid,
-        targetNodeId: Uuid,
-        rsyncImage: String,
-        playerWarningMessage: String,
-    ) {
+    private suspend fun runMigration(migrationId: Uuid, serverId: Uuid, sourceNodeId: Uuid, targetNodeId: Uuid, rsyncImage: String, playerWarningMessage: String) {
         val migrationIdStr = migrationId.toString()
         val serverIdStr = serverId.toString()
         val sourceNodeIdStr = sourceNodeId.toString()
@@ -209,7 +201,7 @@ class MigrationService(
                 return
             }
 
-        val ctx = MigrationContext(
+        val plan = MigrationPlan(
             migrationId = migrationId,
             migrationIdStr = migrationIdStr,
             serverId = serverId,
@@ -223,14 +215,18 @@ class MigrationService(
             containerNamePrefix = containerNamePrefix,
             serverRow = serverRow,
             targetNodeRow = targetNodeRow,
-            targetPrivateIp = targetNodeRow.privateIp,
-            gateway = gateway,
+            targetPrivateIp = targetNodeRow.privateIp
+        )
+
+        val coord = MigrationCoordinator(
             serverRepository = serverRepository,
             nodeRepository = nodeRepository,
+            gateway = gateway,
             dnsProvider = dnsProvider,
             lifecycle = lifecycle,
+            serverExposure = serverExposure,
             scope = scope,
-            eventFlow = eventFlow,
+            eventFlow = eventFlow
         )
 
         val steps = listOf(
@@ -243,12 +239,12 @@ class MigrationService(
             RemoveSourceContainerStep(),
             AssignTargetPortStep(),
             StartTargetContainerStep(),
-            UpdateDnsStep(serverExposure),
+            UpdateDnsStep(),
             UpdateNodeAssignmentStep(),
-            UpdateProxyBackendsStep(),
+            UpdateProxyBackendsStep()
         )
 
-        MigrationRunner(steps, ctx).run()
+        MigrationRunner(steps, plan, coord).run()
     }
 
     private val log = org.slf4j.LoggerFactory.getLogger(MigrationService::class.java)
@@ -260,5 +256,5 @@ private fun MigrationStepRow.toStepData() = MigrationStepData(
     status = MigrationStepStatus.fromDb(this.status),
     startedAt = this.startedAt,
     completedAt = this.completedAt,
-    errorMessage = this.errorMessage,
+    errorMessage = this.errorMessage
 )

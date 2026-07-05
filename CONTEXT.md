@@ -180,7 +180,7 @@ hand-rolled in all 12 `routes/*RoutesTest.kt` files.
   without checking the extension.
 - See candidate 4, `improve-codebase-architecture` review 2026-07-01.
 
-### MigrationPlan + MigrationCoordinator (master) — planned
+### MigrationPlan + MigrationCoordinator (master)
 
 Splits the god-struct `MigrationContext` (21 ctor fields, 5 mutable vars, 8
 behavior methods, 6 live collaborators — leaked repos/gateway/DNS/lifecycle
@@ -215,6 +215,16 @@ across all 12 `migration/steps/`) into two deep modules. Step signature becomes
   data has nowhere to live.
 - `MigrationRunner(steps, plan, coord)`; `MigrationService.runMigration`
   constructs both and passes them in.
+- **Collaborator exposure (as built):** coordinator holds behavior as methods
+  (`allocateRsyncPort`, `updateProxyBackendsAfterMigration`, `resolveTargetDns`,
+  `restartSource`, step-log/status) but exposes plain collaborators as **public
+  vals** (`serverRepository`, `gateway`, `lifecycle`, `scope`, `dnsProvider`) for
+  steps that call straight through — the deepening is getting collaborators OUT
+  of the shared-state struct and behind ONE seam, not wrapping every call.
+  `serverExposure` + `eventFlow` stay `private` (only reached via
+  `resolveTargetDns`/`emit`). `MigrationCoordinator` is `open` so tests
+  subclass-and-override a single method (proven in `AllocateRsyncPortStepTest`,
+  `MigrationRunnerTest`).
 - See candidate 1, `improve-codebase-architecture` review 2026-07-05.
 
 ## Open / planned

@@ -9,5 +9,5 @@ interface MigrationStep {
 
     val stepNumber: Int
     val description: String
-    suspend fun execute(ctx: MigrationContext): StepResult
+    suspend fun execute(plan: MigrationPlan, coord: MigrationCoordinator): StepResult
 }
