@@ -6,6 +6,8 @@ import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataOpContext
 import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.service.NodeStateReconciler
+import io.craftpanel.master.service.repo.NodeRepository
+import io.craftpanel.master.service.repo.NodeRepositoryImpl
 import io.craftpanel.proto.AgentMessage
 import io.craftpanel.proto.ConsoleOutput
 import kotlinx.coroutines.CompletableDeferred
@@ -16,6 +18,7 @@ import java.util.concurrent.ConcurrentHashMap
 fun createTestControlServiceImpl(
     nodeConfig: NodeConfig = NodeConfig("test-token", 50052),
     nodeStateReconciler: NodeStateReconciler,
+    nodeRepository: NodeRepository = NodeRepositoryImpl()
 ): ControlServiceImpl {
     val agentEvents = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 1024)
     val dataOpContext = DataOpContext(ConcurrentHashMap(), ConcurrentHashMap())
@@ -30,6 +33,7 @@ fun createTestControlServiceImpl(
     return ControlServiceImpl(
         nodeConfig = nodeConfig,
         nodeStateReconciler = nodeStateReconciler,
+        nodeRepository = nodeRepository,
         agentEventsFlow = agentEvents,
         dataOpContext = dataOpContext,
         nodeStateHandler = nodeStateHandler,
@@ -39,6 +43,6 @@ fun createTestControlServiceImpl(
         playerUpdateHandler = playerUpdateHandler,
         backupHandler = backupHandler,
         migrationHandler = migrationHandler,
-        dataOpResponseHandler = dataOpResponseHandler,
+        dataOpResponseHandler = dataOpResponseHandler
     )
 }

@@ -6,18 +6,13 @@ import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.config.AppConfig
 import io.craftpanel.master.config.ImagesConfig
 import io.craftpanel.master.dns.DnsProvider
+import io.craftpanel.master.docker.MasterDockerClient
+import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataOpContext
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.grpc.handlers.*
-import io.craftpanel.master.domain.AgentEvent
-import io.craftpanel.proto.AgentMessage
-import io.craftpanel.proto.ConsoleOutput
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.MutableSharedFlow
-import java.util.concurrent.ConcurrentHashMap
 import io.craftpanel.master.scheduler.BackupJobHandler
 import io.craftpanel.master.scheduler.ServerScheduler
 import io.craftpanel.master.service.AgentGateway
@@ -34,10 +29,10 @@ import io.craftpanel.master.service.NodeObserver
 import io.craftpanel.master.service.NodeService
 import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.master.service.ProxyBackendService
-import io.craftpanel.master.service.ServerRestartManager
 import io.craftpanel.master.service.ServerExposure
 import io.craftpanel.master.service.ServerExposureService
 import io.craftpanel.master.service.ServerLifecycleService
+import io.craftpanel.master.service.ServerRestartManager
 import io.craftpanel.master.service.ServerService
 import io.craftpanel.master.service.SystemService
 import io.craftpanel.master.service.UserService
@@ -55,10 +50,15 @@ import io.craftpanel.master.service.repo.SettingsRepository
 import io.craftpanel.master.service.repo.SettingsRepositoryImpl
 import io.craftpanel.master.service.repo.UserRepository
 import io.craftpanel.master.service.repo.UserRepositoryImpl
-import io.craftpanel.master.docker.MasterDockerClient
+import io.craftpanel.proto.AgentMessage
+import io.craftpanel.proto.ConsoleOutput
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.MutableSharedFlow
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.uuid.Uuid
 
 val appModule = module {
@@ -82,13 +82,13 @@ val appModule = module {
     // gRPC core
     single { NodeStateReconciler(serverRepository = get(), nodeRepository = get()) }
     single<AgentGateway> { get<ControlServiceImpl>() }
-    
+
     // Shared agent events flow
     single { MutableSharedFlow<AgentEvent>(extraBufferCapacity = 1024) }
-    
+
     // Shared data op context (passed to ControlServiceImpl and DataOpResponseHandler)
     single { DataOpContext(ConcurrentHashMap(), ConcurrentHashMap()) }
-    
+
     // Handlers
     single { NodeStateHandler(get(), get()) }
     single { NodeMetricsHandler(get(), get()) }
@@ -98,11 +98,12 @@ val appModule = module {
     single { BackupHandler(get()) }
     single { MigrationHandler(get()) }
     single { DataOpResponseHandler(get()) }
-    
+
     single {
         ControlServiceImpl(
             nodeConfig = get<AppConfig>().node,
             nodeStateReconciler = get(),
+            nodeRepository = get(),
             agentEventsFlow = get(),
             dataOpContext = get(),
             nodeStateHandler = get(),
@@ -112,7 +113,7 @@ val appModule = module {
             playerUpdateHandler = get(),
             backupHandler = get(),
             migrationHandler = get(),
-            dataOpResponseHandler = get(),
+            dataOpResponseHandler = get()
         )
     }
     single { BulkDataServiceImpl(get()) }
@@ -130,7 +131,7 @@ val appModule = module {
             emitAgentEvent = { event -> csi.emitToAgentEvents(event) },
             serverRepository = get(),
             nodeRepository = get(),
-            alertRepository = get(),
+            alertRepository = get()
         ).also { it.start(get(named("appScope"))) }
     }
 
@@ -155,7 +156,7 @@ val appModule = module {
             serverRepository = get(),
             nodeRepository = get(),
             userRepository = get(),
-            groupRepository = get(),
+            groupRepository = get()
         )
     }
     single { AlertService(alertRepository = get(), nodeRepository = get(), serverRepository = get()) }
@@ -165,7 +166,7 @@ val appModule = module {
         ServerExposure(
             networkRepository = get(),
             settingsRepository = get(),
-            serverRepository = get(),
+            serverRepository = get()
         )
     }
 
@@ -177,14 +178,14 @@ val appModule = module {
             modService = get(),
             serverRepository = get(),
             images = images,
-            containerNamePrefix = get(named("containerPrefix")),
+            containerNamePrefix = get(named("containerPrefix"))
         )
     }
     single {
         ServerLifecycleService(
             lifecycle = get(),
             serverRepository = get(),
-            serverExposure = get(),
+            serverExposure = get()
         )
     }
     single {
@@ -193,7 +194,7 @@ val appModule = module {
             lifecycle = get(),
             serverRepository = get(),
             nodeRepository = get(),
-            serverExposure = get(),
+            serverExposure = get()
         )
     }
     single {
@@ -208,7 +209,7 @@ val appModule = module {
             userRepository = get(),
             groupRepository = get(),
             settingsRepository = get(),
-            serverExposure = get(),
+            serverExposure = get()
         )
     }
     single { BackupService(get<AgentGateway>(), get(), get()) }
@@ -224,7 +225,7 @@ val appModule = module {
             scope = get(named("appScope")),
             lifecycle = get(),
             serverExposure = get(),
-            containerNamePrefix = get(named("containerPrefix")),
+            containerNamePrefix = get(named("containerPrefix"))
         )
     }
     single { BackupJobHandler(get()) }

@@ -5,15 +5,15 @@ import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.NodeStatus
 import io.craftpanel.master.util.toUtcString
-import org.jetbrains.exposed.v1.core.*
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.core.SortOrder
-import org.jetbrains.exposed.v1.jdbc.update
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.SortOrder
+import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.uuid.Uuid
 
 class NodeRepositoryImpl : NodeRepository {
@@ -51,6 +51,10 @@ class NodeRepositoryImpl : NodeRepository {
         tokenHash: String,
         portRangeStart: Int,
         portRangeEnd: Int,
+        totalRamMb: Int,
+        totalCpuShares: Int,
+        agentVersion: String?,
+        lastSeenAt: Instant?
     ): NodeRow = transaction {
         val id = Nodes.insert {
             it[Nodes.displayName] = displayName
@@ -60,6 +64,10 @@ class NodeRepositoryImpl : NodeRepository {
             it[Nodes.tokenHash] = tokenHash
             it[Nodes.portRangeStart] = portRangeStart
             it[Nodes.portRangeEnd] = portRangeEnd
+            it[Nodes.totalRamMb] = totalRamMb
+            it[Nodes.totalCpuShares] = totalCpuShares
+            if (agentVersion != null) it[Nodes.agentVersion] = agentVersion
+            if (lastSeenAt != null) it[Nodes.lastSeenAt] = lastSeenAt.toLocalDateTime(TimeZone.UTC)
         }[Nodes.id]
         Nodes.selectAll()
             .where { Nodes.id eq id }
@@ -77,20 +85,21 @@ class NodeRepositoryImpl : NodeRepository {
         }
     }
 
-    override fun updateStatus(id: Uuid, status: String) {
-        transaction { Nodes.update({ Nodes.id eq id }) { it[Nodes.status] = status } }
+    override fun updateStatus(id: Uuid, status: NodeStatus) {
+        transaction { Nodes.update({ Nodes.id eq id }) { it[Nodes.status] = status.toDb() } }
     }
 
     override fun updateHealth(id: Uuid, health: String) {
         transaction { Nodes.update({ Nodes.id eq id }) { it[Nodes.health] = health } }
     }
 
-    override fun updateLastSeen(id: Uuid, lastSeenAt: Instant, publicIp: String?, agentVersion: String?) {
+    override fun updateLastSeen(id: Uuid, lastSeenAt: Instant, publicIp: String?, agentVersion: String?, privateIp: String?) {
         transaction {
             Nodes.update({ Nodes.id eq id }) {
                 it[Nodes.lastSeenAt] = lastSeenAt.toLocalDateTime(TimeZone.UTC)
                 if (publicIp != null) it[Nodes.publicIp] = publicIp
                 if (agentVersion != null) it[Nodes.agentVersion] = agentVersion
+                if (privateIp != null) it[Nodes.privateIp] = privateIp
             }
         }
     }
@@ -132,17 +141,7 @@ class NodeRepositoryImpl : NodeRepository {
             .sumOf { it[Servers.cpuShares] }
     }
 
-    override fun insertMetrics(
-        nodeId: Uuid,
-        cpuPercent: Double,
-        ramUsedMb: Int,
-        ramTotalMb: Int,
-        netInBytes: Long,
-        netOutBytes: Long,
-        diskUsedBytes: Long,
-        diskTotalBytes: Long,
-        recordedAt: Instant,
-    ) {
+    override fun insertMetrics(nodeId: Uuid, cpuPercent: Double, ramUsedMb: Int, ramTotalMb: Int, netInBytes: Long, netOutBytes: Long, diskUsedBytes: Long, diskTotalBytes: Long, recordedAt: Instant) {
         transaction {
             NodeMetrics.insert {
                 it[NodeMetrics.nodeId] = nodeId
@@ -174,7 +173,7 @@ class NodeRepositoryImpl : NodeRepository {
                     netInBytes = it[NodeMetrics.netInBytes],
                     netOutBytes = it[NodeMetrics.netOutBytes],
                     diskUsedBytes = it[NodeMetrics.diskUsedBytes],
-                    diskTotalBytes = it[NodeMetrics.diskTotalBytes],
+                    diskTotalBytes = it[NodeMetrics.diskTotalBytes]
                 )
             }
     }
@@ -198,5 +197,5 @@ private fun ResultRow.toNodeRow() = NodeRow(
     agentVersion = this[Nodes.agentVersion],
     lastSeenAt = this[Nodes.lastSeenAt]?.toString(),
     createdAt = this[Nodes.createdAt].toUtcString(),
-    updatedAt = this[Nodes.updatedAt].toString(),
+    updatedAt = this[Nodes.updatedAt].toString()
 )

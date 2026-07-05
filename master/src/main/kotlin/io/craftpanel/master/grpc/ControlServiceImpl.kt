@@ -1,14 +1,15 @@
 package io.craftpanel.master.grpc
 
-import io.craftpanel.proto.*
 import io.craftpanel.master.config.NodeConfig
-import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.NodeHealth
+import io.craftpanel.master.domain.NodeStatus
+import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.service.AgentGateway
 import io.craftpanel.master.service.NodeStateReconciler
+import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.util.CryptoUtils
-import io.craftpanel.master.grpc.handlers.*
+import io.craftpanel.proto.*
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlinx.coroutines.CompletableDeferred
@@ -21,13 +22,6 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.channelFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
-import org.jetbrains.exposed.v1.core.*
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
 import org.slf4j.LoggerFactory
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -37,12 +31,12 @@ import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 class ControlServiceImpl(
     private val nodeConfig: NodeConfig,
     private val nodeStateReconciler: NodeStateReconciler,
+    private val nodeRepository: NodeRepository,
     private val onNodeDisconnect: (String) -> Unit = {},
     // Shared agent events flow (passed to handlers)
     private val agentEventsFlow: MutableSharedFlow<AgentEvent>,
@@ -56,12 +50,21 @@ class ControlServiceImpl(
     private val playerUpdateHandler: PlayerUpdateHandler,
     private val backupHandler: BackupHandler,
     private val migrationHandler: MigrationHandler,
-    private val dataOpResponseHandler: DataOpResponseHandler,
-) : ControlServiceGrpcKt.ControlServiceCoroutineImplBase(), AgentGateway {
+    private val dataOpResponseHandler: DataOpResponseHandler
+) : ControlServiceGrpcKt.ControlServiceCoroutineImplBase(),
+    AgentGateway {
 
     private val log = LoggerFactory.getLogger(ControlServiceImpl::class.java)
     private val random = SecureRandom()
     private val connectedAgents = ConcurrentHashMap<String, SendChannel<MasterMessage>>()
+
+    companion object {
+
+        // Mirrors Nodes.portRangeStart/portRangeEnd column defaults — actual range is assigned
+        // by an admin at node-approval time (trustNode), not at registration.
+        private const val DEFAULT_PORT_RANGE_START = 25570
+        private const val DEFAULT_PORT_RANGE_END = 26070
+    }
 
     // ── Observability flows ───────────────────────────────────────────────────
     override val agentEvents = agentEventsFlow.asSharedFlow()
@@ -90,7 +93,7 @@ class ControlServiceImpl(
         require(
             MessageDigest.isEqual(
                 request.bootstrapToken.toByteArray(Charsets.UTF_8),
-                nodeConfig.bootstrapToken.toByteArray(Charsets.UTF_8),
+                nodeConfig.bootstrapToken.toByteArray(Charsets.UTF_8)
             )
         ) { "Invalid bootstrap token" }
 
@@ -98,58 +101,50 @@ class ControlServiceImpl(
         val keyHash = sha256Hex(rawKey)
         val meta = request.metadata
         val now = Clock.System.now()
-            .toLocalDateTime(TimeZone.UTC)
 
-        val generatedId = transaction {
-            Nodes.insert {
-                it[displayName] = meta.hostname
-                it[hostname] = meta.hostname
-                it[publicIp] = meta.publicIp
-                it[privateIp] = meta.privateIp
-                it[tokenHash] = keyHash
-                it[status] = "PENDING"
-                it[totalRamMb] = meta.totalRamMb
-                it[totalCpuShares] = meta.totalCpuShares
-                it[agentVersion] = meta.agentVersion.takeIf { v -> v.isNotEmpty() }
-                it[lastSeenAt] = now
-            }[Nodes.id]
-        }
+        val created = nodeRepository.create(
+            displayName = meta.hostname,
+            hostname = meta.hostname,
+            publicIp = meta.publicIp,
+            privateIp = meta.privateIp,
+            tokenHash = keyHash,
+            portRangeStart = DEFAULT_PORT_RANGE_START,
+            portRangeEnd = DEFAULT_PORT_RANGE_END,
+            totalRamMb = meta.totalRamMb,
+            totalCpuShares = meta.totalCpuShares,
+            agentVersion = meta.agentVersion.takeIf { v -> v.isNotEmpty() },
+            lastSeenAt = now
+        )
 
-        log.info("Node registered: $generatedId (${meta.hostname}) — status PENDING, awaiting admin approval")
+        log.info("Node registered: ${created.id} (${meta.hostname}) — status PENDING, awaiting admin approval")
         return registerNodeResponse {
             nodeKey = rawKey
-            nodeId = generatedId.toString()
+            nodeId = created.id.toString()
         }
     }
 
     override suspend fun identifyNode(request: IdentifyNodeRequest): IdentifyNodeResponse {
         val keyHash = sha256Hex(request.nodeKey)
         val now = Clock.System.now()
-            .toLocalDateTime(TimeZone.UTC)
 
-        val row = transaction {
-            val r = Nodes.selectAll()
-                .where { Nodes.tokenHash eq keyHash }
-                .firstOrNull()
-
-            if (r != null) {
-                Nodes.update({ Nodes.tokenHash eq keyHash }) {
-                    it[lastSeenAt] = now
-                    it[publicIp] = request.metadata.publicIp
-                    it[privateIp] = request.metadata.privateIp
-                    it[agentVersion] = request.metadata.agentVersion.takeIf { v -> v.isNotEmpty() }
-                }
-            }
-            r
+        val existing = nodeRepository.findByTokenHash(keyHash)
+        if (existing != null) {
+            nodeRepository.updateLastSeen(
+                id = existing.id,
+                lastSeenAt = now,
+                publicIp = request.metadata.publicIp,
+                agentVersion = request.metadata.agentVersion.takeIf { v -> v.isNotEmpty() },
+                privateIp = request.metadata.privateIp
+            )
         }
 
-        val identifyStatus = when (row?.get(Nodes.status)) {
-            "ACTIVE"  -> IdentifyNodeResponse.IdentifyStatus.ACTIVE
-            "PENDING" -> IdentifyNodeResponse.IdentifyStatus.PENDING
-            else      -> IdentifyNodeResponse.IdentifyStatus.REJECTED
+        val identifyStatus = when (existing?.let { NodeStatus.fromDb(it.status) }) {
+            NodeStatus.ACTIVE -> IdentifyNodeResponse.IdentifyStatus.ACTIVE
+            NodeStatus.PENDING -> IdentifyNodeResponse.IdentifyStatus.PENDING
+            else -> IdentifyNodeResponse.IdentifyStatus.REJECTED
         }
 
-        val rowId = row?.get(Nodes.id)
+        val rowId = existing?.id
             ?.toString() ?: ""
         log.info("Node identified: $rowId — $identifyStatus")
         return identifyNodeResponse {
@@ -188,19 +183,14 @@ class ControlServiceImpl(
                 log.info("control stream msg: nodeId=${msg.nodeId}, hasNodeState=${msg.hasNodeState()}, hasNodeMetrics=${msg.hasNodeMetrics()}")
                 if (connectedNodeId == null) {
                     val nodeId = msg.nodeId
-                    val nodeStatus = transaction {
-                        Nodes.selectAll()
-                            .where { Nodes.id eq Uuid.parse(nodeId) }
-                            .firstOrNull()
-                            ?.get(Nodes.status)
-                    }
+                    val nodeStatus = nodeRepository.findById(Uuid.parse(nodeId))?.status
                     log.info("Node $nodeId: first message, db status=$nodeStatus")
                     if (nodeStatus != "ACTIVE") {
                         val reason = when (nodeStatus) {
-                            "PENDING"        -> "Node $nodeId is pending admin approval"
-                            "REJECTED"       -> "Node $nodeId has been rejected"
+                            "PENDING" -> "Node $nodeId is pending admin approval"
+                            "REJECTED" -> "Node $nodeId has been rejected"
                             "DECOMMISSIONED" -> "Node $nodeId has been decommissioned"
-                            else             -> "Node $nodeId is not authorized to connect"
+                            else -> "Node $nodeId is not authorized to connect"
                         }
                         throw StatusException(Status.PERMISSION_DENIED.withDescription(reason))
                     }
@@ -210,31 +200,30 @@ class ControlServiceImpl(
                 }
 
                 when {
-                    msg.hasNodeState()             -> nodeStateHandler.handle(msg, msg.nodeId)
-                    msg.hasNodeMetrics()           -> nodeMetricsHandler.handle(msg, msg.nodeId, lastMetricsAt, lastEmittedHealth)
-                    msg.hasContainerMetrics()      -> containerMetricsHandler.handle(msg, msg.nodeId)
-                    msg.hasServerStatus()          -> serverStatusHandler.handle(msg, msg.nodeId)
-                    msg.hasPlayerUpdate()          -> playerUpdateHandler.handle(msg, msg.nodeId)
-                    msg.hasBackupProgress()        -> backupHandler.handleBackupProgress(msg, msg.nodeId)
-                    msg.hasBackupComplete()        -> backupHandler.handleBackupComplete(msg, msg.nodeId)
-                    msg.hasRsyncReady()            -> migrationHandler.handleRsyncReady(msg, msg.nodeId)
-                    msg.hasRsyncProgress()         -> migrationHandler.handleRsyncProgress(msg, msg.nodeId)
-                    msg.hasRsyncComplete()         -> migrationHandler.handleRsyncComplete(msg, msg.nodeId)
-                    msg.hasConsoleOutput()         -> dataOpResponseHandler.handle(msg, msg.nodeId)
-                    msg.hasListFilesResponse()     -> dataOpResponseHandler.handle(msg, msg.nodeId)
-                    msg.hasReadFileResponse()      -> dataOpResponseHandler.handle(msg, msg.nodeId)
-                    msg.hasWriteFileResponse()     -> dataOpResponseHandler.handle(msg, msg.nodeId)
-                    msg.hasDeleteFileResponse()    -> dataOpResponseHandler.handle(msg, msg.nodeId)
+                    msg.hasNodeState() -> nodeStateHandler.handle(msg, msg.nodeId)
+                    msg.hasNodeMetrics() -> nodeMetricsHandler.handle(msg, msg.nodeId, lastMetricsAt, lastEmittedHealth)
+                    msg.hasContainerMetrics() -> containerMetricsHandler.handle(msg, msg.nodeId)
+                    msg.hasServerStatus() -> serverStatusHandler.handle(msg, msg.nodeId)
+                    msg.hasPlayerUpdate() -> playerUpdateHandler.handle(msg, msg.nodeId)
+                    msg.hasBackupProgress() -> backupHandler.handleBackupProgress(msg, msg.nodeId)
+                    msg.hasBackupComplete() -> backupHandler.handleBackupComplete(msg, msg.nodeId)
+                    msg.hasRsyncReady() -> migrationHandler.handleRsyncReady(msg, msg.nodeId)
+                    msg.hasRsyncProgress() -> migrationHandler.handleRsyncProgress(msg, msg.nodeId)
+                    msg.hasRsyncComplete() -> migrationHandler.handleRsyncComplete(msg, msg.nodeId)
+                    msg.hasConsoleOutput() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+                    msg.hasListFilesResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+                    msg.hasReadFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+                    msg.hasWriteFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+                    msg.hasDeleteFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
                     msg.hasMakeDirectoryResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
-                    msg.hasMoveFileResponse()      -> dataOpResponseHandler.handle(msg, msg.nodeId)
-                    msg.hasCopyFileResponse()      -> dataOpResponseHandler.handle(msg, msg.nodeId)
-                    msg.hasDownloadFileResponse()  -> dataOpResponseHandler.handle(msg, msg.nodeId)
-                    msg.hasUploadFileResponse()    -> dataOpResponseHandler.handle(msg, msg.nodeId)
-                    else                           -> log.debug("Node ${msg.nodeId} sent unhandled message type")
+                    msg.hasMoveFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+                    msg.hasCopyFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+                    msg.hasDownloadFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+                    msg.hasUploadFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+                    else -> log.debug("Node ${msg.nodeId} sent unhandled message type")
                 }
             }
-        }
-        finally {
+        } finally {
             watchdogJob.cancel()
             connectedNodeId?.let { nodeId ->
                 val wasOwner = connectedAgents.remove(nodeId, outChannel)
@@ -249,11 +238,9 @@ class ControlServiceImpl(
                     log.warn("Node $nodeId: control stream disconnected — marking unreachable")
                     nodeStateReconciler.markNodeUnreachable(nodeId)
                     agentEventsFlow.emit(AgentEvent.NodeStatusEvent(nodeId, NodeHealth.UNREACHABLE))
-                }
-                else if (wasOwner && connectedAgents.containsKey(nodeId)) {
+                } else if (wasOwner && connectedAgents.containsKey(nodeId)) {
                     log.info("Node $nodeId: stream ended but new connection is already active — skipping degrade")
-                }
-                else if (!wasOwner) {
+                } else if (!wasOwner) {
                     log.debug("Node $nodeId: stream finally skipped — not owner (superseded by newer connection)")
                 }
             }
@@ -268,15 +255,17 @@ class ControlServiceImpl(
             if (k.startsWith(prefix)) {
                 v.completeExceptionally(Exception("Node $nodeId disconnected"))
                 true
+            } else {
+                false
             }
-            else false
         }
         consoleOutputChannels.entries.removeIf { (k, v) ->
             if (k.startsWith(prefix)) {
                 v.close(Exception("Node $nodeId disconnected"))
                 true
+            } else {
+                false
             }
-            else false
         }
     }
 
@@ -292,74 +281,82 @@ class ControlServiceImpl(
         }
         return try {
             withTimeout(timeoutMs.milliseconds) { deferred.await() }
-        }
-        finally {
+        } finally {
             pendingRequests.remove("$nodeId/$reqId")
         }
     }
 
     /** Open a multiplexed console session over the control stream. */
-    internal fun openConsole(nodeId: String, serverId: String, input: Flow<ByteArray>): Flow<ConsoleOutput> =
-        channelFlow {
-            val reqId = Uuid.random()
-                .toString()
-            val outputChannel = Channel<ConsoleOutput>(Channel.BUFFERED)
-            consoleOutputChannels["$nodeId/$reqId"] = outputChannel
+    internal fun openConsole(nodeId: String, serverId: String, input: Flow<ByteArray>): Flow<ConsoleOutput> = channelFlow {
+        val reqId = Uuid.random()
+            .toString()
+        val outputChannel = Channel<ConsoleOutput>(Channel.BUFFERED)
+        consoleOutputChannels["$nodeId/$reqId"] = outputChannel
 
-            if (!sendToNode(nodeId, masterMessage {
-                    consoleAttach = consoleAttach { requestId = reqId; this.serverId = serverId }
-                })) {
-                consoleOutputChannels.remove("$nodeId/$reqId")
-                error("Node $nodeId is not connected")
-            }
-
-            // Forward browser input to agent
-            val inputJob = launch {
-                try {
-                    input.collect { bytes ->
-                        sendToNode(nodeId, masterMessage {
-                            consoleInput = consoleInput { requestId = reqId; data = com.google.protobuf.ByteString.copyFrom(bytes) }
-                        })
+        if (!sendToNode(
+                nodeId,
+                masterMessage {
+                    consoleAttach = consoleAttach {
+                        requestId = reqId
+                        this.serverId = serverId
                     }
                 }
-                finally {
-                    sendToNode(nodeId, masterMessage {
-                        consoleDetach = consoleDetach { requestId = reqId }
-                    })
-                }
-            }
+            )
+        ) {
+            consoleOutputChannels.remove("$nodeId/$reqId")
+            error("Node $nodeId is not connected")
+        }
 
-            // Forward agent output to caller
+        // Forward browser input to agent
+        val inputJob = launch {
             try {
-                for (output in outputChannel) {
-                    send(output)
-                    if (output.closed) break
+                input.collect { bytes ->
+                    sendToNode(
+                        nodeId,
+                        masterMessage {
+                            consoleInput = consoleInput {
+                                requestId = reqId
+                                data = com.google.protobuf.ByteString.copyFrom(bytes)
+                            }
+                        }
+                    )
                 }
-            }
-            finally {
-                consoleOutputChannels.remove("$nodeId/$reqId")
-                    ?.close()
-                inputJob.cancel()
+            } finally {
+                sendToNode(
+                    nodeId,
+                    masterMessage {
+                        consoleDetach = consoleDetach { requestId = reqId }
+                    }
+                )
             }
         }
 
+        // Forward agent output to caller
+        try {
+            for (output in outputChannel) {
+                send(output)
+                if (output.closed) break
+            }
+        } finally {
+            consoleOutputChannels.remove("$nodeId/$reqId")
+                ?.close()
+            inputJob.cancel()
+        }
+    }
+
     /** Verify a node key from a bulk transfer auth header against the DB. */
-    internal fun verifyNodeKey(rawNodeKey: String): Boolean = transaction {
+    internal fun verifyNodeKey(rawNodeKey: String): Boolean {
         val hash = sha256Hex(rawNodeKey)
-        Nodes.selectAll()
-            .where { Nodes.tokenHash eq hash }
-            .firstOrNull()
-            ?.get(Nodes.status) == "ACTIVE"
+        return nodeRepository.findByTokenHash(hash)?.status == "ACTIVE"
     }
 
     // ── Utility ───────────────────────────────────────────────────────────────
 
     fun generateNodeKey(): String = CryptoUtils.generateToken(32)
 
-    private fun sha256Hex(input: String): String =
-        HexFormat.of()
-            .formatHex(
-                MessageDigest.getInstance("SHA-256")
-                    .digest(input.toByteArray())
-            )
+    private fun sha256Hex(input: String): String = HexFormat.of()
+        .formatHex(
+            MessageDigest.getInstance("SHA-256")
+                .digest(input.toByteArray())
+        )
 }

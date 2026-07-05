@@ -1,5 +1,6 @@
 package io.craftpanel.master.service.repo
 
+import io.craftpanel.master.domain.NodeStatus
 import kotlinx.datetime.Instant
 import kotlin.uuid.Uuid
 
@@ -26,7 +27,7 @@ class FakeNodeRepository : NodeRepository {
         var agentVersion: String? = null,
         var lastSeenAt: String? = null,
         var createdAt: String = "2025-01-01T00:00:00Z",
-        var updatedAt: String = "2025-01-01T00:00:00Z",
+        var updatedAt: String = "2025-01-01T00:00:00Z"
     )
 
     data class MutableNodeMetrics(
@@ -38,7 +39,7 @@ class FakeNodeRepository : NodeRepository {
         val netInBytes: Long,
         val netOutBytes: Long,
         val diskUsedBytes: Long,
-        val diskTotalBytes: Long,
+        val diskTotalBytes: Long
     )
 
     private var allocatedRam: (Uuid) -> Int = { 0 }
@@ -64,9 +65,34 @@ class FakeNodeRepository : NodeRepository {
     override fun listAll(): List<NodeRow> = nodes.values.map { it.toRow() }
     override fun listByIds(ids: List<Uuid>): List<NodeRow> = ids.mapNotNull { nodes[it]?.toRow() }
 
-    override fun create(displayName: String, hostname: String, publicIp: String, privateIp: String, tokenHash: String, portRangeStart: Int, portRangeEnd: Int): NodeRow {
+    override fun create(
+        displayName: String,
+        hostname: String,
+        publicIp: String,
+        privateIp: String,
+        tokenHash: String,
+        portRangeStart: Int,
+        portRangeEnd: Int,
+        totalRamMb: Int,
+        totalCpuShares: Int,
+        agentVersion: String?,
+        lastSeenAt: Instant?
+    ): NodeRow {
         val id = Uuid.random()
-        val n = MutableNode(id, displayName, hostname, publicIp, privateIp, tokenHash, portRangeStart = portRangeStart, portRangeEnd = portRangeEnd)
+        val n = MutableNode(
+            id,
+            displayName,
+            hostname,
+            publicIp,
+            privateIp,
+            tokenHash,
+            portRangeStart = portRangeStart,
+            portRangeEnd = portRangeEnd,
+            totalRamMb = totalRamMb,
+            totalCpuShares = totalCpuShares,
+            agentVersion = agentVersion,
+            lastSeenAt = lastSeenAt?.toString()
+        )
         nodes[id] = n
         return n.toRow()
     }
@@ -78,19 +104,20 @@ class FakeNodeRepository : NodeRepository {
         if (portRangeEnd != null) n.portRangeEnd = portRangeEnd
     }
 
-    override fun updateStatus(id: Uuid, status: String) {
-        nodes[id]?.status = status
+    override fun updateStatus(id: Uuid, status: NodeStatus) {
+        nodes[id]?.status = status.toDb()
     }
 
     override fun updateHealth(id: Uuid, health: String) {
         nodes[id]?.health = health
     }
 
-    override fun updateLastSeen(id: Uuid, lastSeenAt: Instant, publicIp: String?, agentVersion: String?) {
+    override fun updateLastSeen(id: Uuid, lastSeenAt: Instant, publicIp: String?, agentVersion: String?, privateIp: String?) {
         nodes[id]?.let {
             it.lastSeenAt = lastSeenAt.toString()
             if (publicIp != null) it.publicIp = publicIp
             if (agentVersion != null) it.agentVersion = agentVersion
+            if (privateIp != null) it.privateIp = privateIp
         }
     }
 
@@ -146,6 +173,6 @@ class FakeNodeRepository : NodeRepository {
         agentVersion,
         lastSeenAt,
         createdAt,
-        updatedAt,
+        updatedAt
     )
 }
