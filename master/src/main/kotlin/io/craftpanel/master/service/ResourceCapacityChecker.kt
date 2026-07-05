@@ -5,12 +5,12 @@ import io.craftpanel.master.service.repo.ServerRepository
 import kotlin.uuid.Uuid
 
 internal enum class CapacityResult {
-    Ok, InsufficientRam, InsufficientCpu,
+    Ok,
+    InsufficientRam,
+    InsufficientCpu,
 }
 
-internal class ResourceCapacityChecker(
-    private val serverRepository: ServerRepository,
-) {
+internal class ResourceCapacityChecker(private val serverRepository: ServerRepository) {
 
     fun check(node: NodeRow, excludeServerId: Uuid?, memoryMb: Int, cpuShares: Int): CapacityResult {
         val others = serverRepository.listByNodeId(node.id)

@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.ktor) apply false
     alias(libs.plugins.bmuschko.docker) apply false
     alias(libs.plugins.kover)
+    alias(libs.plugins.spotless)
 }
 
 // ---------------------------------------------------------------------------
@@ -12,9 +13,10 @@ plugins {
 // ---------------------------------------------------------------------------
 version = project.property("craftpanel_version") as String
 
-val imageVersion: String = findProperty("imageVersion")?.toString()
-    ?: findProperty("craftpanel_version")?.toString()
-    ?: "latest"
+val imageVersion: String =
+    findProperty("imageVersion")?.toString()
+        ?: findProperty("craftpanel_version")?.toString()
+        ?: "latest"
 
 // ---------------------------------------------------------------------------
 // Kover merged reporting (aggregates master and agent subprojects)
@@ -89,7 +91,33 @@ tasks.register("test") {
 }
 
 subprojects {
-    tasks.withType<Test>().configureEach {
-        jvmArgs("-Dnet.bytebuddy.experimental=true")
+    tasks.withType<Test>()
+        .configureEach {
+            jvmArgs("-Dnet.bytebuddy.experimental=true")
+        }
+
+    plugins.withId("org.jetbrains.kotlin.jvm") {
+        apply(plugin = "com.diffplug.spotless")
+        configure<com.diffplug.gradle.spotless.SpotlessExtension> {
+            kotlin {
+                ktlint(libs.versions.ktlint.get()).editorConfigOverride(
+                    mapOf(
+                        "max_line_length" to "200",
+                        "ktlint_standard_no-wildcard-imports" to "disabled",
+                    ),
+                )
+                ratchetFrom("origin/master")
+            }
+        }
+        tasks.named("check") { dependsOn("spotlessCheck") }
     }
 }
+
+spotless {
+    kotlinGradle {
+        target("**/*.gradle.kts")
+        ktlint(libs.versions.ktlint.get())
+        ratchetFrom("origin/master")
+    }
+}
+tasks.named("check") { dependsOn("spotlessCheck") }

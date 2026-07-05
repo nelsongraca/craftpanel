@@ -3,14 +3,7 @@ package io.craftpanel.master.service
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.ConfigMode
 import io.craftpanel.master.domain.ServerStatus
-import io.craftpanel.master.service.repo.GroupRepository
-import io.craftpanel.master.service.repo.NetworkRepository
-import io.craftpanel.master.service.repo.NodeRepository
-import io.craftpanel.master.service.repo.ServerRepository
-import io.craftpanel.master.service.repo.EnvVarRow
-import io.craftpanel.master.service.repo.ServerRow
-import io.craftpanel.master.service.repo.SettingsRepository
-import io.craftpanel.master.service.repo.UserRepository
+import io.craftpanel.master.service.repo.*
 import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.removeContainerCommand
 import kotlinx.serialization.SerialName
@@ -72,11 +65,7 @@ data class UpdateServerRequest(
 )
 
 @Serializable
-data class PatchResourcesRequest(
-    @SerialName("memory_mb") val memoryMb: Int,
-    @SerialName("cpu_shares") val cpuShares: Int,
-    @SerialName("itzg_image_tag") val itzgImageTag: String? = null,
-)
+data class PatchResourcesRequest(@SerialName("memory_mb") val memoryMb: Int, @SerialName("cpu_shares") val cpuShares: Int, @SerialName("itzg_image_tag") val itzgImageTag: String? = null)
 
 @Serializable
 data class PatchExposureRequest(
@@ -92,10 +81,7 @@ data class ContainerMetricsPoint(val t: String, val v: Double)
 data class ContainerMetricsPointLong(val t: String, val v: Long)
 
 @Serializable
-data class ContainerMetricsSeriesResponse(
-    @SerialName("server_id") val serverId: String,
-    val series: ContainerMetricsSeries,
-)
+data class ContainerMetricsSeriesResponse(@SerialName("server_id") val serverId: String, val series: ContainerMetricsSeries)
 
 @Serializable
 data class ContainerMetricsSeries(
@@ -126,18 +112,24 @@ class ServerService(
     fun listServers(userId: Uuid): List<ServerResponse> {
         val visibility = visibilityResolver.resolve(userId)
         val rows = when {
-            visibility.isGlobal                                               -> serverRepository.listAll()
+            visibility.isGlobal -> serverRepository.listAll()
+
             visibility.networkIds.isEmpty() && visibility.serverIds.isEmpty() -> return emptyList()
-            else                                                              -> serverRepository.listByVisibility(
+
+            else                -> serverRepository.listByVisibility(
                 visibility.networkIds.toList(),
                 visibility.serverIds.toList(),
             )
         }
         val ids = rows.map { it.id }
-        val migratingIds = if (ids.isEmpty()) emptySet()
-        else rows.filter { serverRepository.findActiveMigration(it.id) != null }
-            .map { it.id }
-            .toSet()
+        val migratingIds = if (ids.isEmpty()) {
+            emptySet()
+        }
+        else {
+            rows.filter { serverRepository.findActiveMigration(it.id) != null }
+                .map { it.id }
+                .toSet()
+        }
         return rows.map { row -> row.toResponse(serverExposure, row.id in migratingIds) }
     }
 
@@ -161,14 +153,15 @@ class ServerService(
         fun attemptCreate(): CreateResult {
             val node = nodeRepository.findById(nodeKotlinId) ?: return CreateResult("node_not_found")
             if (node.status != "ACTIVE") return CreateResult("node_not_active")
-            if (networkKotlinId != null && networkRepository.findById(networkKotlinId) == null)
+            if (networkKotlinId != null && networkRepository.findById(networkKotlinId) == null) {
                 return CreateResult("network_not_found")
+            }
             if (serverRepository.findByName(req.name) != null) return CreateResult("name_taken")
 
             when (capacityChecker.check(node, excludeServerId = null, memoryMb = req.memoryMb, cpuShares = req.cpuShares)) {
                 CapacityResult.InsufficientRam -> return CreateResult("insufficient_ram")
                 CapacityResult.InsufficientCpu -> return CreateResult("insufficient_cpu")
-                CapacityResult.Ok              -> {}
+                CapacityResult.Ok -> {}
             }
 
             val usedPorts = serverRepository.findUsedPortsOnNode(nodeKotlinId)
@@ -202,9 +195,12 @@ class ServerService(
                 val serverTypeDisplay = req.serverType.lowercase()
                     .replaceFirstChar { it.uppercase() }
                 val defaults = buildDefaultEnvVars(req.mcVersion, serverTypeDisplay, platformName)
-                serverRepository.replaceEnvVars(newServer.id, defaults.map { (k, v) ->
-                    EnvVarRow(k, v)
-                })
+                serverRepository.replaceEnvVars(
+                    newServer.id,
+                    defaults.map { (k, v) ->
+                        EnvVarRow(k, v)
+                    },
+                )
             }
 
             return CreateResult("ok", newServer.toResponse(serverExposure, false))
@@ -223,21 +219,23 @@ class ServerService(
                     if (cause != null && cause.sqlState?.startsWith("23") == true) {
                         lastEx = cause
                     }
-                    else throw ex
+                    else {
+                        throw ex
+                    }
                 }
             }
             throw lastEx ?: RuntimeException("port allocation failed after retries")
         }
 
         return when (result.status) {
-            "ok"                -> result.server!!
-            "node_not_found"    -> throw UnprocessableException("Node not found")
-            "node_not_active"   -> throw UnprocessableException("Node is not active")
+            "ok"               -> result.server!!
+            "node_not_found"   -> throw UnprocessableException("Node not found")
+            "node_not_active"  -> throw UnprocessableException("Node is not active")
             "network_not_found" -> throw UnprocessableException("Network not found")
-            "name_taken"        -> throw ConflictException("Server name already taken")
-            "insufficient_ram"  -> throw ConflictException("Insufficient RAM capacity on node")
-            "insufficient_cpu"  -> throw ConflictException("Insufficient CPU capacity on node")
-            else                -> throw ConflictException("No free ports available on node")
+            "name_taken"       -> throw ConflictException("Server name already taken")
+            "insufficient_ram" -> throw ConflictException("Insufficient RAM capacity on node")
+            "insufficient_cpu" -> throw ConflictException("Insufficient CPU capacity on node")
+            else               -> throw ConflictException("No free ports available on node")
         }
     }
 
@@ -260,8 +258,9 @@ class ServerService(
                 .distinct()
             val allNodeIds = (existingNodeIds + serverRow.nodeId).distinct()
             if (allNodeIds.size > 1) networkService?.validateCrossNodeAssignment(allNodeIds)
-            if (networkRepository.findById(newNetworkId) == null)
+            if (networkRepository.findById(newNetworkId) == null) {
                 throw UnprocessableException("Network not found")
+            }
         }
 
         val needsRecreate = req.mcVersion != null || req.itzgImageTag != null
@@ -293,20 +292,24 @@ class ServerService(
             val networkRow = networkId?.let { networkRepository.findById(it) }
             val zoneId = networkRow?.cfZoneId
             val domainSuffix = networkRow?.cfDomainSuffix
-            if (zoneId == null || domainSuffix == null)
+            if (zoneId == null || domainSuffix == null) {
                 throw ConflictException("Cannot delete server with DNS record: network has no DNS config")
+            }
             runCatching { provider.deleteARecord(zoneId, recordId) }
                 .onFailure { log.warn("Failed to delete DNS record $recordId during server delete", it) }
         }
 
         val nodeId = existing.nodeId.toString()
-        gateway.sendToNode(nodeId, masterMessage {
-            removeContainer = removeContainerCommand {
-                serverId = id.toString()
-                containerName = "$containerNamePrefix-$id"
-                force = true
-            }
-        })
+        gateway.sendToNode(
+            nodeId,
+            masterMessage {
+                removeContainer = removeContainerCommand {
+                    serverId = id.toString()
+                    containerName = "$containerNamePrefix-$id"
+                    force = true
+                }
+            },
+        )
 
         serverRepository.delete(id)
     }
@@ -320,7 +323,7 @@ class ServerService(
         when (capacityChecker.check(node, excludeServerId = id, memoryMb = req.memoryMb, cpuShares = req.cpuShares)) {
             CapacityResult.InsufficientRam -> throw ConflictException("Insufficient RAM capacity on node")
             CapacityResult.InsufficientCpu -> throw ConflictException("Insufficient CPU capacity on node")
-            CapacityResult.Ok              -> {}
+            CapacityResult.Ok -> {}
         }
         serverRepository.updateResources(id, req.memoryMb, req.cpuShares, req.itzgImageTag, true)
     }
@@ -340,11 +343,7 @@ class ServerService(
     }
 }
 
-internal data class ServerVisibility(
-    val isGlobal: Boolean,
-    val networkIds: Set<Uuid>,
-    val serverIds: Set<Uuid>,
-)
+internal data class ServerVisibility(val isGlobal: Boolean, val networkIds: Set<Uuid>, val serverIds: Set<Uuid>)
 
 internal val PROXY_SERVER_TYPES = setOf("VELOCITY", "BUNGEECORD", "WATERFALL")
 
@@ -383,7 +382,7 @@ internal fun ServerRow.toResponse(serverExposure: ServerExposure, isMigrating: B
 private fun parseUuid(raw: String): Uuid? = runCatching { Uuid.parse(raw) }.getOrNull()
 
 private fun buildDefaultEnvVars(mcVersion: String, serverTypeDisplay: String, platformName: String) = mapOf(
-    "MOTD" to "${mcVersion} $serverTypeDisplay powered by $platformName",
+    "MOTD" to "$mcVersion $serverTypeDisplay powered by $platformName",
     "DIFFICULTY" to "easy",
     "MODE" to "survival",
     "HARDCORE" to "false",

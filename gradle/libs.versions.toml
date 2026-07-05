@@ -27,6 +27,8 @@ gson = "2.14.0"
 ktor-openapi-tools = "5.7.0"
 schema-kenerator = "2.7.2"
 koin = "4.2.2"
+spotless = "8.8.0"
+ktlint = "1.8.0"
 
 [libraries]
 # Ktor server
@@ -171,3 +173,4 @@ frontend = { id = "org.siouan.frontend-jdk17", version.ref = "frontend-plugin" }
 openapi-generator = { id = "org.openapi.generator", version.ref = "openapi-generator" }
 bmuschko-docker = { id = "com.bmuschko.docker-remote-api", version = "10.0.0" }
 mkdocs = { id = "ru.vyarus.mkdocs", version = "4.0.1" }
+spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }

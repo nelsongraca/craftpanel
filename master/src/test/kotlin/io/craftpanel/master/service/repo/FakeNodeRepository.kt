@@ -45,11 +45,16 @@ class FakeNodeRepository : NodeRepository {
     private var allocatedCpu: (Uuid) -> Int = { 0 }
 
     fun setAllocations(ram: (Uuid) -> Int, cpu: (Uuid) -> Int) {
-        allocatedRam = ram; allocatedCpu = cpu
+        allocatedRam = ram
+        allocatedCpu = cpu
     }
 
     fun setCapacity(id: Uuid, totalRamMb: Int, totalCpuShares: Int = 0, systemRamUsedMb: Int? = null) {
-        nodes[id]?.let { it.totalRamMb = totalRamMb; it.totalCpuShares = totalCpuShares; it.systemRamUsedMb = systemRamUsedMb }
+        nodes[id]?.let {
+            it.totalRamMb = totalRamMb
+            it.totalCpuShares = totalCpuShares
+            it.systemRamUsedMb = systemRamUsedMb
+        }
     }
 
     override fun findById(id: Uuid): NodeRow? = nodes[id]?.toRow()
@@ -82,7 +87,11 @@ class FakeNodeRepository : NodeRepository {
     }
 
     override fun updateLastSeen(id: Uuid, lastSeenAt: Instant, publicIp: String?, agentVersion: String?) {
-        nodes[id]?.let { it.lastSeenAt = lastSeenAt.toString(); if (publicIp != null) it.publicIp = publicIp; if (agentVersion != null) it.agentVersion = agentVersion }
+        nodes[id]?.let {
+            it.lastSeenAt = lastSeenAt.toString()
+            if (publicIp != null) it.publicIp = publicIp
+            if (agentVersion != null) it.agentVersion = agentVersion
+        }
     }
 
     override fun updateSystemRam(id: Uuid, ramUsedMb: Int) {
@@ -94,7 +103,10 @@ class FakeNodeRepository : NodeRepository {
     }
 
     override fun markUnreachable(id: Uuid, lastSeenAt: Instant?) {
-        nodes[id]?.let { it.health = "UNREACHABLE"; if (lastSeenAt != null) it.lastSeenAt = lastSeenAt.toString() }
+        nodes[id]?.let {
+            it.health = "UNREACHABLE"
+            if (lastSeenAt != null) it.lastSeenAt = lastSeenAt.toString()
+        }
     }
 
     override fun markDecommissioned(id: Uuid) {
@@ -134,6 +146,6 @@ class FakeNodeRepository : NodeRepository {
         agentVersion,
         lastSeenAt,
         createdAt,
-        updatedAt
+        updatedAt,
     )
 }
