@@ -4,19 +4,23 @@ import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.domain.MigrationStatus
+import io.craftpanel.master.domain.MigrationStepStatus
 import io.craftpanel.master.service.ContainerLifecycle
 import io.craftpanel.master.service.ModService
+import io.craftpanel.master.service.PortExhaustedException
 import io.craftpanel.master.service.ServerExposure
-import io.craftpanel.master.service.migration.steps.StopSourceStep
 import io.craftpanel.master.service.repo.NetworkRepositoryImpl
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
 import io.craftpanel.master.service.repo.NodeRow
+import io.craftpanel.master.service.repo.ProxyBackendInput
 import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.craftpanel.master.service.repo.ServerRow
 import io.craftpanel.master.service.repo.SettingsRepositoryImpl
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
+import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
@@ -24,10 +28,11 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
-class StopSourceStepTest :
+class MigrationCoordinatorTest :
     FunSpec({
         lateinit var nodeId: Uuid
         lateinit var serverId: Uuid
+        lateinit var targetNodeId: Uuid
         lateinit var plan: MigrationPlan
         lateinit var coord: MigrationCoordinator
 
@@ -36,8 +41,8 @@ class StopSourceStepTest :
             TestDatabase.reset()
             nodeId = transaction {
                 Nodes.insert {
-                    it[Nodes.hostname] = "source-node"
-                    it[Nodes.displayName] = "source-node"
+                    it[Nodes.hostname] = "test-node"
+                    it[Nodes.displayName] = "test-node"
                     it[Nodes.publicIp] = "1.2.3.4"
                     it[Nodes.privateIp] = "10.0.0.1"
                     it[Nodes.tokenHash] = "a".repeat(64)
@@ -62,7 +67,7 @@ class StopSourceStepTest :
                     it[Servers.status] = "STOPPED"
                 }[Servers.id].let { Uuid.parse(it.toString()) }
             }
-            val targetNodeId = transaction {
+            targetNodeId = transaction {
                 Nodes.insert {
                     it[Nodes.hostname] = "target-node"
                     it[Nodes.displayName] = "target-node"
@@ -78,7 +83,7 @@ class StopSourceStepTest :
             }
             plan = MigrationPlan(
                 migrationId = Uuid.random(),
-                migrationIdStr = "mig-1",
+                migrationIdStr = Uuid.random().toString(),
                 serverId = serverId,
                 serverIdStr = serverId.toString(),
                 sourceNodeId = nodeId,
@@ -115,7 +120,7 @@ class StopSourceStepTest :
             coord = MigrationCoordinator(
                 serverRepository = serverRepository,
                 nodeRepository = NodeRepositoryImpl(),
-                gateway = TestAgentGateway(agentEvents = MutableSharedFlow()),
+                gateway = TestAgentGateway(),
                 dnsProvider = null,
                 lifecycle = ContainerLifecycle(
                     gateway = TestAgentGateway(),
@@ -124,23 +129,124 @@ class StopSourceStepTest :
                 ),
                 serverExposure = ServerExposure(NetworkRepositoryImpl(), SettingsRepositoryImpl(), serverRepository),
                 scope = TestScope(),
-                eventFlow = null
+                eventFlow = MutableSharedFlow()
             )
         }
 
-        test("Success when server already stopped") {
+        test("startStep creates step and returns step id") {
             runTest {
-                val result = StopSourceStep().execute(plan, coord)
-                result.shouldBeInstanceOf<StepResult.Success>()
-                plan.sourceStopped shouldBe true
+                val migration = coord.serverRepository.createMigration(plan.serverId, plan.sourceNodeId, plan.targetNodeId)
+                val p = plan.copy(migrationId = migration.id, migrationIdStr = migration.id.toString())
+                val stepId = coord.startStep(p, 1, "Test step")
+                stepId.shouldNotBeNull()
+                val steps = coord.serverRepository.listMigrationSteps(p.migrationId)
+                steps.size shouldBe 1
+                steps[0].stepNumber shouldBe 1
+                steps[0].description shouldBe "Test step"
+                steps[0].status shouldBe MigrationStepStatus.RUNNING.name
             }
         }
 
-        test("Failure when server running - lifecycle stop returns failure") {
+        test("completeStep marks step success") {
             runTest {
-                val runningPlan = plan.copy(serverRow = plan.serverRow.copy(status = "RUNNING"))
-                val result = StopSourceStep().execute(runningPlan, coord)
-                result.shouldBeInstanceOf<StepResult.Failure>()
+                val migration = coord.serverRepository.createMigration(plan.serverId, plan.sourceNodeId, plan.targetNodeId)
+                val p = plan.copy(migrationId = migration.id, migrationIdStr = migration.id.toString())
+                val stepId = coord.startStep(p, 1, "Test step")
+                coord.completeStep(stepId, true)
+                val step = coord.serverRepository.listMigrationSteps(p.migrationId).first()
+                step.status shouldBe MigrationStepStatus.SUCCESS.name
+            }
+        }
+
+        test("completeStep marks step failure with error") {
+            runTest {
+                val migration = coord.serverRepository.createMigration(plan.serverId, plan.sourceNodeId, plan.targetNodeId)
+                val p = plan.copy(migrationId = migration.id, migrationIdStr = migration.id.toString())
+                val stepId = coord.startStep(p, 1, "Test step")
+                coord.completeStep(stepId, false, "Something went wrong")
+                val step = coord.serverRepository.listMigrationSteps(p.migrationId).first()
+                step.status shouldBe MigrationStepStatus.FAILED.name
+                step.errorMessage shouldBe "Something went wrong"
+            }
+        }
+
+        test("failMigration sets FAILED status") {
+            runTest {
+                val migration = coord.serverRepository.createMigration(plan.serverId, plan.sourceNodeId, plan.targetNodeId)
+                val p = plan.copy(migrationId = migration.id, migrationIdStr = migration.id.toString())
+                coord.failMigration(p, "Test error")
+                val row = coord.serverRepository.findMigrationById(p.migrationId)
+                row.shouldNotBeNull()
+                row.status shouldBe MigrationStatus.FAILED.name
+            }
+        }
+
+        test("restartSource does nothing when sourceStopped is false") {
+            runTest {
+                plan.sourceStopped = false
+                coord.restartSource(plan)
+            }
+        }
+
+        test("allocateRsyncPort allocates first free port") {
+            runTest {
+                val port = coord.allocateRsyncPort(plan)
+                port shouldBe 25565
+            }
+        }
+
+        test("allocateRsyncPort throws when port range exhausted") {
+            runTest {
+                for (i in 25565..25600) {
+                    coord.serverRepository.registerPort(plan.targetNodeId, i, "TCP", null)
+                }
+                shouldThrow<PortExhaustedException> {
+                    coord.allocateRsyncPort(plan)
+                }
+            }
+        }
+
+        test("updateProxyBackendsAfterMigration does nothing when no proxies front the server") {
+            runTest {
+                val gateway = coord.gateway as TestAgentGateway
+                coord.updateProxyBackendsAfterMigration(plan.serverId, plan.targetNodeRow.privateIp, 25565)
+                gateway.sent shouldBe emptyList()
+            }
+        }
+
+        test("updateProxyBackendsAfterMigration restarts proxies fronting the server") {
+            runTest {
+                val proxyServerId = transaction {
+                    Servers.insert {
+                        it[Servers.nodeId] = nodeId
+                        it[Servers.name] = "proxy-server"
+                        it[Servers.displayName] = "proxy-server"
+                        it[Servers.serverType] = "PROXY"
+                        it[Servers.mcVersion] = "1.21.4"
+                        it[Servers.itzgImageTag] = "latest"
+                        it[Servers.hostPort] = 25577
+                        it[Servers.memoryMb] = 512
+                        it[Servers.cpuShares] = 0
+                        it[Servers.status] = "RUNNING"
+                    }[Servers.id].let { id -> Uuid.parse(id.toString()) }
+                }
+                coord.serverRepository.replaceProxyBackends(
+                    proxyServerId,
+                    listOf(ProxyBackendInput(plan.serverId, "backend", 0))
+                )
+
+                val gateway = coord.gateway as TestAgentGateway
+                coord.updateProxyBackendsAfterMigration(plan.serverId, plan.targetNodeRow.privateIp, 25565)
+
+                gateway.sent.size shouldBe 1
+                gateway.sent[0].first shouldBe nodeId.toString()
+                gateway.sent[0].second.restartContainer.serverId shouldBe proxyServerId.toString()
+            }
+        }
+
+        test("resolveTargetDns returns null when server has no network") {
+            runTest {
+                coord.resolveTargetDns(plan) shouldBe null
             }
         }
     })
