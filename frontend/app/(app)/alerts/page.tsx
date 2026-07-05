@@ -1,14 +1,20 @@
 "use client";
 
-import {useCallback, useEffect, useState} from "react";
+import {useEffect, useState} from "react";
 import {AlertTriangle, CheckCircle, Plus, Trash2, X} from "lucide-react";
 import {createAlertThreshold, deleteAlertThreshold, listAlertEvents, listAlertThresholds, listNodes, listServers,} from "@/lib/generated/sdk.gen";
 import type {CreateAlertThresholdRequest as CreateRequest} from "@/lib/generated/types.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import type {AlertEvent, AlertThreshold} from "@/lib/types";
+import {useResourceList} from "@/lib/hooks/useResourceList";
 import {useWs} from "@/lib/ws-context";
 import {timeAgo} from "@/lib/utils/format";
+
+async function loadThresholds() {
+    const {data} = await listAlertThresholds();
+    return {data: data?.thresholds};
+}
 
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -250,25 +256,18 @@ export default function AlertsPage() {
     const canManage = hasPermission(permissions, "system.settings");
     const {subscribe} = useWs();
 
-    const [thresholds, setThresholds] = useState<AlertThreshold[]>([]);
+    const {data: thresholds, initialLoad: loading, setData: setThresholds} = useResourceList(loadThresholds, {pollMs: 0});
     const [events, setEvents] = useState<AlertEvent[]>([]);
-    const [loading, setLoading] = useState(true);
     const [activeOnly, setActiveOnly] = useState(false);
     const [showCreate, setShowCreate] = useState(false);
     const [deleteId, setDeleteId] = useState<string | null>(null);
     const [deleteError, setDeleteError] = useState<string | null>(null);
 
-    const load = useCallback(async () => {
-        setLoading(true);
-        const [tr, er] = await Promise.all([listAlertThresholds(), listAlertEvents()]);
-        if (tr.data) setThresholds(tr.data.thresholds ?? []);
-        if (er.data) setEvents(er.data.events ?? []);
-        setLoading(false);
-    }, []);
-
     useEffect(() => {
-        void load();
-    }, [load]);
+        void listAlertEvents().then(({data}) => {
+            if (data?.events) setEvents(data.events);
+        });
+    }, []);
 
     // Live alert.fired / alert.resolved updates via WS
     useEffect(() => {

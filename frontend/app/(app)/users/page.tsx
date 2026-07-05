@@ -5,7 +5,13 @@ import {Pencil, Plus, Trash2, Users2} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
 import {createAssignment, createUser, deleteAssignment, deleteUser, listGroups, listNetworks, listServers, listUserAssignments, listUsers, updateUser,} from "@/lib/generated/sdk.gen";
 import type {Assignment, Group, User} from "@/lib/types";
+import {useResourceList} from "@/lib/hooks/useResourceList";
 import {INPUT, BTN_PRIMARY, BTN_GHOST, Modal, Field} from "@/components/ui/form-elements";
+
+async function loadUsers() {
+    const {data} = await listUsers();
+    return {data: data?.users};
+}
 
 
 // ── Create User Modal ─────────────────────────────────────────────────────────
@@ -257,25 +263,19 @@ function AssignmentsModal({
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function UsersPage() {
-    const [users, setUsers] = useState<User[]>([]);
+    const {data: users, initialLoad: loading, reload: load} = useResourceList(loadUsers, {pollMs: 0});
     const [groups, setGroups] = useState<Group[]>([]);
-    const [loading, setLoading] = useState(true);
     const [showCreate, setShowCreate] = useState(false);
     const [editing, setEditing] = useState<User | null>(null);
     const [managingGroups, setManagingGroups] = useState<User | null>(null);
     const [deleting, setDeleting] = useState<User | null>(null);
     const [deleteError, setDeleteError] = useState("");
 
-    const load = useCallback(async () => {
-        const [uRes, gRes] = await Promise.all([listUsers(), listGroups()]);
-        if (uRes.data) setUsers(uRes.data.users);
-        if (gRes.data) setGroups(gRes.data);
-        setLoading(false);
-    }, []);
-
     useEffect(() => {
-        load();
-    }, [load]);
+        void listGroups().then(({data}) => {
+            if (data) setGroups(data);
+        });
+    }, []);
 
     async function handleDelete() {
         if (!deleting) return;

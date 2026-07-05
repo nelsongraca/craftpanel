@@ -1,6 +1,6 @@
 "use client";
 
-import {useCallback, useEffect, useState} from "react";
+import {useEffect, useState} from "react";
 import {useRouter} from "next/navigation";
 import Link from "next/link";
 import {MoreHorizontal, Play, Plus, RotateCcw, Square, Trash2, X} from "lucide-react";
@@ -10,6 +10,7 @@ import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import type {Network, Node, Server} from "@/lib/types";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
+import {useResourceList} from "@/lib/hooks/useResourceList";
 import {fillColor} from "@/lib/utils/format";
 import {serverStatusClass, serverStatusLabel} from "@/lib/status";
 
@@ -184,8 +185,7 @@ export default function ServersPage() {
     const {user} = useAuth();
     const permissions = user?.permissions ?? [];
 
-    const [servers, setServers] = useState<Server[]>([]);
-    const [initialLoad, setInitialLoad] = useState(true);
+    const {data: servers, initialLoad, reload: reloadServers} = useResourceList(listServers);
     const [nodes, setNodes] = useState<Node[]>([]);
     const [networks, setNetworks] = useState<Network[]>([]);
     const [actionError, setActionError] = useState<string | null>(null);
@@ -198,26 +198,12 @@ export default function ServersPage() {
     const [filterNetwork, setFilterNetwork] = useState("");
     const [filterNode, setFilterNode] = useState("");
 
-    const reloadServers = useCallback(async () => {
-        const {data} = await listServers();
-        if (data) setServers(data);
-    }, []);
-
     useEffect(() => {
-        let cancelled = false;
-        async function init() {
-            await reloadServers();
-            if (!cancelled) setInitialLoad(false);
-        }
-        void init();
-        const id = setInterval(reloadServers, 30_000);
         void Promise.all([listNodes(), listNetworks()]).then(([nRes, netRes]) => {
-            if (cancelled) return;
             if (nRes.data) setNodes(nRes.data);
             if (netRes.data) setNetworks(netRes.data);
         });
-        return () => { cancelled = true; clearInterval(id); };
-    }, [reloadServers]);
+    }, []);
 
     // Close ··· menu on any document click
     useEffect(() => {
