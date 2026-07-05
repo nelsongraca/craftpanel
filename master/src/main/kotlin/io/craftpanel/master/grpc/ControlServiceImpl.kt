@@ -13,7 +13,9 @@ import io.craftpanel.proto.*
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.channels.ProducerScope
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -27,10 +29,12 @@ import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.HexFormat
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 class ControlServiceImpl(
@@ -157,93 +161,101 @@ class ControlServiceImpl(
 
     override fun control(requests: Flow<AgentMessage>): Flow<MasterMessage> = channelFlow {
         log.info("control stream opened")
-        var connectedNodeId: String? = null
         val outChannel = this.channel
+        val connectedNodeId = AtomicReference<String?>(null)
         val lastMetricsAt = AtomicReference(Clock.System.now())
         val lastEmittedHealth = AtomicReference<NodeHealth?>(null)
-        var watchdogFired = false
+        val watchdogFired = AtomicBoolean(false)
 
-        val watchdogJob = launch {
-            while (!watchdogFired) {
-                delay(60.seconds)
-                val elapsed = Clock.System.now() - lastMetricsAt.get()
-                if (elapsed.inWholeSeconds > 120 && !watchdogFired) {
-                    watchdogFired = true
-                    connectedNodeId?.let { nodeId ->
-                        log.warn("Node $nodeId: no metrics for ${elapsed.inWholeSeconds}s — marking unreachable")
-                        nodeStateReconciler.markNodeUnreachable(nodeId)
-                        agentEventsFlow.emit(AgentEvent.NodeStatusEvent(nodeId, NodeHealth.UNREACHABLE))
-                    }
-                }
-            }
-        }
-
+        val watchdogJob = startWatchdog(connectedNodeId, lastMetricsAt, watchdogFired)
         try {
             requests.collect { msg ->
                 log.info("control stream msg: nodeId=${msg.nodeId}, hasNodeState=${msg.hasNodeState()}, hasNodeMetrics=${msg.hasNodeMetrics()}")
-                if (connectedNodeId == null) {
-                    val nodeId = msg.nodeId
-                    val nodeStatus = nodeRepository.findById(Uuid.parse(nodeId))?.status
-                    log.info("Node $nodeId: first message, db status=$nodeStatus")
-                    if (nodeStatus != "ACTIVE") {
-                        val reason = when (nodeStatus) {
-                            "PENDING" -> "Node $nodeId is pending admin approval"
-                            "REJECTED" -> "Node $nodeId has been rejected"
-                            "DECOMMISSIONED" -> "Node $nodeId has been decommissioned"
-                            else -> "Node $nodeId is not authorized to connect"
-                        }
-                        throw StatusException(Status.PERMISSION_DENIED.withDescription(reason))
-                    }
-                    connectedNodeId = nodeId
-                    connectedAgents[nodeId] = outChannel
-                    log.debug("Node $nodeId: registered in connectedAgents (channel=${System.identityHashCode(outChannel)})")
+                if (connectedNodeId.get() == null) {
+                    authenticate(msg.nodeId, outChannel)
+                    connectedNodeId.set(msg.nodeId)
                 }
-
-                when {
-                    msg.hasNodeState() -> nodeStateHandler.handle(msg, msg.nodeId)
-                    msg.hasNodeMetrics() -> nodeMetricsHandler.handle(msg, msg.nodeId, lastMetricsAt, lastEmittedHealth)
-                    msg.hasContainerMetrics() -> containerMetricsHandler.handle(msg, msg.nodeId)
-                    msg.hasServerStatus() -> serverStatusHandler.handle(msg, msg.nodeId)
-                    msg.hasPlayerUpdate() -> playerUpdateHandler.handle(msg, msg.nodeId)
-                    msg.hasBackupProgress() -> backupHandler.handleBackupProgress(msg, msg.nodeId)
-                    msg.hasBackupComplete() -> backupHandler.handleBackupComplete(msg, msg.nodeId)
-                    msg.hasRsyncReady() -> migrationHandler.handleRsyncReady(msg, msg.nodeId)
-                    msg.hasRsyncProgress() -> migrationHandler.handleRsyncProgress(msg, msg.nodeId)
-                    msg.hasRsyncComplete() -> migrationHandler.handleRsyncComplete(msg, msg.nodeId)
-                    msg.hasConsoleOutput() -> dataOpResponseHandler.handle(msg, msg.nodeId)
-                    msg.hasListFilesResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
-                    msg.hasReadFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
-                    msg.hasWriteFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
-                    msg.hasDeleteFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
-                    msg.hasMakeDirectoryResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
-                    msg.hasMoveFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
-                    msg.hasCopyFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
-                    msg.hasDownloadFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
-                    msg.hasUploadFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
-                    else -> log.debug("Node ${msg.nodeId} sent unhandled message type")
-                }
+                dispatch(msg, lastMetricsAt, lastEmittedHealth)
             }
         } finally {
             watchdogJob.cancel()
-            connectedNodeId?.let { nodeId ->
-                val wasOwner = connectedAgents.remove(nodeId, outChannel)
-                log.debug(
-                    "Node $nodeId: stream finally — wasOwner=$wasOwner, watchdogFired=$watchdogFired, channel=${System.identityHashCode(outChannel)}, stillConnected=${
-                        connectedAgents.containsKey(nodeId)
-                    }"
-                )
-                drainNodeRequests(nodeId)
-                onNodeDisconnect(nodeId)
-                if (wasOwner && !watchdogFired && !connectedAgents.containsKey(nodeId)) {
-                    log.warn("Node $nodeId: control stream disconnected — marking unreachable")
+            connectedNodeId.get()?.let { teardown(it, outChannel, watchdogFired.get()) }
+        }
+    }
+
+    private fun ProducerScope<MasterMessage>.startWatchdog(connectedNodeId: AtomicReference<String?>, lastMetricsAt: AtomicReference<Instant>, watchdogFired: AtomicBoolean): Job = launch {
+        while (!watchdogFired.get()) {
+            delay(60.seconds)
+            val elapsed = Clock.System.now() - lastMetricsAt.get()
+            if (elapsed.inWholeSeconds > 120 && watchdogFired.compareAndSet(false, true)) {
+                connectedNodeId.get()?.let { nodeId ->
+                    log.warn("Node $nodeId: no metrics for ${elapsed.inWholeSeconds}s — marking unreachable")
                     nodeStateReconciler.markNodeUnreachable(nodeId)
                     agentEventsFlow.emit(AgentEvent.NodeStatusEvent(nodeId, NodeHealth.UNREACHABLE))
-                } else if (wasOwner && connectedAgents.containsKey(nodeId)) {
-                    log.info("Node $nodeId: stream ended but new connection is already active — skipping degrade")
-                } else if (!wasOwner) {
-                    log.debug("Node $nodeId: stream finally skipped — not owner (superseded by newer connection)")
                 }
             }
+        }
+    }
+
+    private fun authenticate(nodeId: String, outChannel: SendChannel<MasterMessage>) {
+        val nodeStatus = nodeRepository.findById(Uuid.parse(nodeId))?.status
+        log.info("Node $nodeId: first message, db status=$nodeStatus")
+        if (nodeStatus != "ACTIVE") {
+            val reason = when (nodeStatus) {
+                "PENDING" -> "Node $nodeId is pending admin approval"
+                "REJECTED" -> "Node $nodeId has been rejected"
+                "DECOMMISSIONED" -> "Node $nodeId has been decommissioned"
+                else -> "Node $nodeId is not authorized to connect"
+            }
+            throw StatusException(Status.PERMISSION_DENIED.withDescription(reason))
+        }
+        connectedAgents[nodeId] = outChannel
+        log.debug("Node $nodeId: registered in connectedAgents (channel=${System.identityHashCode(outChannel)})")
+    }
+
+    private suspend fun dispatch(msg: AgentMessage, lastMetricsAt: AtomicReference<Instant>, lastEmittedHealth: AtomicReference<NodeHealth?>) {
+        when {
+            msg.hasNodeState() -> nodeStateHandler.handle(msg, msg.nodeId)
+            msg.hasNodeMetrics() -> nodeMetricsHandler.handle(msg, msg.nodeId, lastMetricsAt, lastEmittedHealth)
+            msg.hasContainerMetrics() -> containerMetricsHandler.handle(msg, msg.nodeId)
+            msg.hasServerStatus() -> serverStatusHandler.handle(msg, msg.nodeId)
+            msg.hasPlayerUpdate() -> playerUpdateHandler.handle(msg, msg.nodeId)
+            msg.hasBackupProgress() -> backupHandler.handleBackupProgress(msg, msg.nodeId)
+            msg.hasBackupComplete() -> backupHandler.handleBackupComplete(msg, msg.nodeId)
+            msg.hasRsyncReady() -> migrationHandler.handleRsyncReady(msg, msg.nodeId)
+            msg.hasRsyncProgress() -> migrationHandler.handleRsyncProgress(msg, msg.nodeId)
+            msg.hasRsyncComplete() -> migrationHandler.handleRsyncComplete(msg, msg.nodeId)
+            msg.hasConsoleOutput() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+            msg.hasListFilesResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+            msg.hasReadFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+            msg.hasWriteFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+            msg.hasDeleteFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+            msg.hasMakeDirectoryResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+            msg.hasMoveFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+            msg.hasCopyFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+            msg.hasDownloadFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+            msg.hasUploadFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+            else -> log.debug("Node ${msg.nodeId} sent unhandled message type")
+        }
+    }
+
+    private suspend fun teardown(nodeId: String, outChannel: SendChannel<MasterMessage>, watchdogFired: Boolean) {
+        val wasOwner = connectedAgents.remove(nodeId, outChannel)
+        log.debug(
+            "Node $nodeId: stream finally — wasOwner=$wasOwner, watchdogFired=$watchdogFired, channel=${System.identityHashCode(outChannel)}, stillConnected=${
+                connectedAgents.containsKey(nodeId)
+            }"
+        )
+        drainNodeRequests(nodeId)
+        onNodeDisconnect(nodeId)
+        if (wasOwner && !watchdogFired && !connectedAgents.containsKey(nodeId)) {
+            log.warn("Node $nodeId: control stream disconnected — marking unreachable")
+            nodeStateReconciler.markNodeUnreachable(nodeId)
+            agentEventsFlow.emit(AgentEvent.NodeStatusEvent(nodeId, NodeHealth.UNREACHABLE))
+        } else if (wasOwner && connectedAgents.containsKey(nodeId)) {
+            log.info("Node $nodeId: stream ended but new connection is already active — skipping degrade")
+        } else if (!wasOwner) {
+            log.debug("Node $nodeId: stream finally skipped — not owner (superseded by newer connection)")
         }
     }
 
