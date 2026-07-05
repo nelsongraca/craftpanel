@@ -1,5 +1,6 @@
 package io.craftpanel.master.service.repo
 
+import io.craftpanel.master.domain.NodeStatus
 import kotlinx.datetime.Instant
 import kotlin.uuid.Uuid
 
@@ -21,7 +22,7 @@ data class NodeRow(
     val agentVersion: String?,
     val lastSeenAt: String?,
     val createdAt: String,
-    val updatedAt: String,
+    val updatedAt: String
 )
 
 data class NodeMetricsRow(
@@ -34,7 +35,7 @@ data class NodeMetricsRow(
     val netInBytes: Long,
     val netOutBytes: Long,
     val diskUsedBytes: Long,
-    val diskTotalBytes: Long,
+    val diskTotalBytes: Long
 )
 
 interface NodeRepository {
@@ -51,12 +52,16 @@ interface NodeRepository {
         tokenHash: String,
         portRangeStart: Int,
         portRangeEnd: Int,
+        totalRamMb: Int = 0,
+        totalCpuShares: Int = 0,
+        agentVersion: String? = null,
+        lastSeenAt: Instant? = null
     ): NodeRow
 
     fun update(id: Uuid, displayName: String?, portRangeStart: Int?, portRangeEnd: Int?)
-    fun updateStatus(id: Uuid, status: String)
+    fun updateStatus(id: Uuid, status: NodeStatus)
     fun updateHealth(id: Uuid, health: String)
-    fun updateLastSeen(id: Uuid, lastSeenAt: Instant, publicIp: String?, agentVersion: String?)
+    fun updateLastSeen(id: Uuid, lastSeenAt: Instant, publicIp: String?, agentVersion: String?, privateIp: String? = null)
     fun updateSystemRam(id: Uuid, ramUsedMb: Int)
     fun updateSwarmActive(id: Uuid, swarmActive: Boolean)
     fun markUnreachable(id: Uuid, lastSeenAt: Instant?)
@@ -66,17 +71,7 @@ interface NodeRepository {
     fun calculateAllocatedRam(id: Uuid): Int
     fun calculateAllocatedCpu(id: Uuid): Int
 
-    fun insertMetrics(
-        nodeId: Uuid,
-        cpuPercent: Double,
-        ramUsedMb: Int,
-        ramTotalMb: Int,
-        netInBytes: Long,
-        netOutBytes: Long,
-        diskUsedBytes: Long,
-        diskTotalBytes: Long,
-        recordedAt: Instant,
-    )
+    fun insertMetrics(nodeId: Uuid, cpuPercent: Double, ramUsedMb: Int, ramTotalMb: Int, netInBytes: Long, netOutBytes: Long, diskUsedBytes: Long, diskTotalBytes: Long, recordedAt: Instant)
 
     fun getMetrics(nodeId: Uuid, limit: Int): List<NodeMetricsRow>
 }

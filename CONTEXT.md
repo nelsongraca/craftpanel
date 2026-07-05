@@ -227,6 +227,37 @@ across all 12 `migration/steps/`) into two deep modules. Step signature becomes
   `MigrationRunnerTest`).
 - See candidate 1, `improve-codebase-architecture` review 2026-07-05.
 
+### NodeRepository seam — ControlServiceImpl (master) — Tier A of candidate 2
+
+`ControlServiceImpl` no longer opens `transaction { Nodes.* }`; all four raw
+sites (`registerNode`, `identifyNode`, `control()` status read, `verifyNodeKey`)
+route through the injected `NodeRepository`. The gRPC transport stops owning
+schema — registration/identify/verify are now testable through a fake repo with
+no live DB (see the three FakeNodeRepository-backed tests in
+`ControlServiceImplTest`).
+
+- **`create()` widened**, not duplicated: gained `totalRamMb`, `totalCpuShares`,
+  `agentVersion`, `lastSeenAt` (all defaulted so existing callers are untouched).
+- **`updateStatus(id, NodeStatus)`** (was `String`) — folds the `NodeStatus`
+  enum (`toDb()`) in at the seam. `identifyNode` maps via
+  `NodeStatus.fromDb(row.status)` instead of stringly `when`. Callers
+  `NodeService` `ACTIVE`/`REJECTED` converted.
+- **`updateLastSeen` gained `privateIp: String? = null`** to preserve
+  `identifyNode`'s inline privateIp write under the shared null-means-skip
+  contract.
+- **Behavior note (intentional):** `identifyNode` previously wrote
+  `agentVersion` unconditionally (empty string → cleared stored version).
+  `updateLastSeen`'s null-means-skip means an empty agentVersion no longer
+  clobbers a stored value — the shared method's contract (5+ metric callers) is
+  kept; the old clobber-on-empty was incidental.
+- **portRange:** `registerNode`'s inline insert never set port range (DB column
+  default). `ControlServiceImpl` now passes explicit `DEFAULT_PORT_RANGE_START/
+  END` constants mirroring the `Nodes` schema defaults; real range assignment
+  still happens at admin approval via `NodeService.updateNode`, unchanged.
+- Tier B (AuthRoutes/ServerScheduler/DashboardWs) + Tier C (RefreshTokenService)
+  from `plans/c2-exposed-repo-seam.md` remain unbuilt.
+- See candidate 2, `improve-codebase-architecture` review 2026-07-05.
+
 ## Open / planned
 
 ### Server lifecycle orchestrator (master) — superseded by ContainerLifecycle

@@ -1,13 +1,13 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.proto.masterMessage
-import io.craftpanel.proto.shutdownCommand
 import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.NodeStatus
 import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.service.repo.NodeRow
 import io.craftpanel.master.service.repo.ServerRepository
 import io.craftpanel.master.util.CryptoUtils
+import io.craftpanel.proto.masterMessage
+import io.craftpanel.proto.shutdownCommand
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.security.MessageDigest
@@ -32,14 +32,14 @@ data class NodeResponse(
     @SerialName("agent_version") val agentVersion: String?,
     @SerialName("last_seen_at") val lastSeenAt: String?,
     @SerialName("created_at") val createdAt: String,
-    @SerialName("updated_at") val updatedAt: String,
+    @SerialName("updated_at") val updatedAt: String
 )
 
 @Serializable
 data class PatchNodeRequest(
     @SerialName("display_name") val displayName: String? = null,
     @SerialName("port_range_start") val portRangeStart: Int? = null,
-    @SerialName("port_range_end") val portRangeEnd: Int? = null,
+    @SerialName("port_range_end") val portRangeEnd: Int? = null
 )
 
 @Serializable
@@ -51,23 +51,17 @@ data class NodeMetricsResponse(
     @SerialName("net_in_bytes") val netInBytes: List<Long>,
     @SerialName("net_out_bytes") val netOutBytes: List<Long>,
     @SerialName("disk_used_bytes") val diskUsedBytes: List<Long>,
-    @SerialName("disk_total_bytes") val diskTotalBytes: List<Long>,
+    @SerialName("disk_total_bytes") val diskTotalBytes: List<Long>
 )
 
-class NodeService(
-    private val gateway: AgentGateway,
-    private val nodeRepository: NodeRepository,
-    private val serverRepository: ServerRepository,
-) {
+class NodeService(private val gateway: AgentGateway, private val nodeRepository: NodeRepository, private val serverRepository: ServerRepository) {
 
-    fun listNodes(): List<NodeResponse> {
-        return nodeRepository.listAll()
-            .map { node ->
-                val ram = nodeRepository.calculateAllocatedRam(node.id)
-                val cpu = nodeRepository.calculateAllocatedCpu(node.id)
-                node.toNodeResponse(ram, cpu)
-            }
-    }
+    fun listNodes(): List<NodeResponse> = nodeRepository.listAll()
+        .map { node ->
+            val ram = nodeRepository.calculateAllocatedRam(node.id)
+            val cpu = nodeRepository.calculateAllocatedCpu(node.id)
+            node.toNodeResponse(ram, cpu)
+        }
 
     fun getNode(id: kotlin.uuid.Uuid): NodeResponse {
         val node = nodeRepository.findById(id) ?: throw NotFoundException("Node not found")
@@ -79,14 +73,14 @@ class NodeService(
     fun trustNode(id: kotlin.uuid.Uuid) {
         val node = nodeRepository.findById(id) ?: throw NotFoundException("Node not found")
         if (node.status == "ACTIVE") throw ConflictException("Node is already active")
-        nodeRepository.updateStatus(id, "ACTIVE")
+        nodeRepository.updateStatus(id, NodeStatus.ACTIVE)
         nodeRepository.updateHealth(id, "UNREACHABLE")
     }
 
     fun rejectNode(id: kotlin.uuid.Uuid) {
         val node = nodeRepository.findById(id) ?: throw NotFoundException("Node not found")
         if (node.status == "ACTIVE") throw ConflictException("Cannot reject an active node")
-        nodeRepository.updateStatus(id, "REJECTED")
+        nodeRepository.updateStatus(id, NodeStatus.REJECTED)
     }
 
     fun rotateToken(id: kotlin.uuid.Uuid): String {
@@ -130,7 +124,7 @@ class NodeService(
             netInBytes = metrics.map { it.netInBytes },
             netOutBytes = metrics.map { it.netOutBytes },
             diskUsedBytes = metrics.map { it.diskUsedBytes },
-            diskTotalBytes = metrics.map { it.diskTotalBytes },
+            diskTotalBytes = metrics.map { it.diskTotalBytes }
         )
     }
 }
@@ -153,14 +147,13 @@ private fun NodeRow.toNodeResponse(allocatedRamMb: Int, allocatedCpuShares: Int)
     agentVersion = agentVersion,
     lastSeenAt = lastSeenAt,
     createdAt = createdAt,
-    updatedAt = updatedAt,
+    updatedAt = updatedAt
 )
 
 private fun generateNodeKey(): String = CryptoUtils.generateToken(32)
 
-private fun sha256Hex(input: String): String =
-    HexFormat.of()
-        .formatHex(
-            MessageDigest.getInstance("SHA-256")
-                .digest(input.toByteArray())
-        )
+private fun sha256Hex(input: String): String = HexFormat.of()
+    .formatHex(
+        MessageDigest.getInstance("SHA-256")
+            .digest(input.toByteArray())
+    )
