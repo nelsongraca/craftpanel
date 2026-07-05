@@ -117,7 +117,7 @@ class OpenApiSpecTask :
                                     single { stubAppConfig }
                                     single { jwtConfig }
                                     single { JwtManager(jwtConfig) }
-                                    single { RefreshTokenService() }
+                                    single { RefreshTokenService(userRepository = get()) }
                                     single { WsTicketService() }
                                     val agentEvents = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 1024)
                                     val nodeRepositoryForControlService = NodeRepositoryImpl()

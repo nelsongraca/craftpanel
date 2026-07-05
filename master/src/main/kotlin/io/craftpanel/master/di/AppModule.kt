@@ -137,7 +137,7 @@ val appModule = module {
 
     // Auth
     single { JwtManager(get<AppConfig>().jwt) }
-    single { RefreshTokenService() }
+    single { RefreshTokenService(userRepository = get()) }
     single { WsTicketService() }
 
     // Domain services
@@ -229,5 +229,5 @@ val appModule = module {
         )
     }
     single { BackupJobHandler(get()) }
-    single { ServerScheduler(mapOf("BACKUP" to get<BackupJobHandler>()), get(named("appScope"))) }
+    single { ServerScheduler(mapOf("BACKUP" to get<BackupJobHandler>()), get(named("appScope")), get<ServerRepository>()) }
 }

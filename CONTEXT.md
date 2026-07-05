@@ -254,9 +254,43 @@ no live DB (see the three FakeNodeRepository-backed tests in
   default). `ControlServiceImpl` now passes explicit `DEFAULT_PORT_RANGE_START/
   END` constants mirroring the `Nodes` schema defaults; real range assignment
   still happens at admin approval via `NodeService.updateNode`, unchanged.
-- Tier B (AuthRoutes/ServerScheduler/DashboardWs) + Tier C (RefreshTokenService)
-  from `plans/c2-exposed-repo-seam.md` remain unbuilt.
 - See candidate 2, `improve-codebase-architecture` review 2026-07-05.
+
+**Tier B (route/scheduler leaks → existing repos):**
+- `AuthRoutes` `lookupUser`/`lookupUserById` → `UserRepository` (new
+  `findCredentials(email): CredentialRow` for the passwordHash `UserRow` doesn't
+  expose; `findById` + `getUserGlobalGroups` reused). Route takes a
+  `UserRepository` param.
+- `ServerScheduler` backup half → existing `listWithBackupSchedule` +
+  `updateBackupScheduleLastFired`; generic-job half → NEW
+  `ServerRepository.listEnabledServerJobs()` + `updateServerJobLastFired()` +
+  `ServerJobRow` (ServerJobs is server-scoped → lives on ServerRepository, not a
+  separate JobRepository). **Removed dead duplicate `ServerJobRow`/
+  `findJobsByType`/`updateJobLastFired`/`findEnabledJobs` from
+  `SettingsRepository`** — confirmed 0 external callers; consolidates ServerJobs
+  ownership on ServerRepository.
+- `DashboardWsRoutes` `serverNetworkId` → `findById(id)?.networkId`; snapshot →
+  `ServerRepository.listAll()` + `getLatestContainerMetricsForServers` +
+  `NodeRepository.listAll()`. Chose **typed rows out, DTOs assembled in the
+  route** — `ServerSnapshot`/`NodeSnapshot` are `@Serializable` WS-wire types, so
+  repo-built DTOs would invert the dependency (repo → API contract). Permission
+  filtering stays in the route (needs `PermissionResolver`). Note: snapshot is no
+  longer one atomic `transaction{}` (each repo call opens its own) — acceptable
+  for a best-effort dashboard read.
+
+**Tier C — `RefreshTokenService` → `UserRepository`:**
+- issue/rotate/revoke/revokeAll now call the existing `UserRepository` token
+  methods (`issueRefreshToken`/`findRefreshTokenByHash`/`rotateRefreshToken`/
+  `revokeRefreshToken`/`revokeAllRefreshTokens`/`isActive`).
+- **Gap preserved:** `findRefreshTokenByHash` has no revoked/expiry filter (the
+  old inline query did) — the service replicates the `revoked ||
+  expiresAt <= now` gate on the returned row before proceeding.
+- `revokeAllRefreshTokens` confirmed soft-delete (`UPDATE SET revoked=true`),
+  matching the CLAUDE.md constraint. `rotateRefreshToken` confirmed atomic.
+- `RefreshTokenService` is NOT a pure pass-through (`rotate` keeps the
+  expiry/revoked/isActive gate + token generation) — kept, not deleted.
+
+`PermissionResolver` + `ServerLookup` remain deliberate seams (not touched).
 
 ## Open / planned
 

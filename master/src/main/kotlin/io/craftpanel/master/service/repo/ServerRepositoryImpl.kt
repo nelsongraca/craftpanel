@@ -6,6 +6,7 @@ import io.craftpanel.master.database.schema.MigrationStepLog
 import io.craftpanel.master.database.schema.PortRegistry
 import io.craftpanel.master.database.schema.ProxyBackends
 import io.craftpanel.master.database.schema.ServerEnvVars
+import io.craftpanel.master.database.schema.ServerJobs
 import io.craftpanel.master.database.schema.ServerMigrations
 import io.craftpanel.master.database.schema.ServerMods
 import io.craftpanel.master.database.schema.Servers
@@ -14,16 +15,16 @@ import io.craftpanel.master.domain.BackupTrigger
 import io.craftpanel.master.domain.MigrationStatus
 import io.craftpanel.master.domain.MigrationStepStatus
 import io.craftpanel.master.util.toUtcString
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import org.jetbrains.exposed.v1.core.SortOrder
-import kotlinx.datetime.Instant
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
@@ -138,7 +139,7 @@ class ServerRepositoryImpl : ServerRepository {
         memoryMb: Int,
         cpuShares: Int,
         configMode: String,
-        stopCommand: String,
+        stopCommand: String
     ): ServerRow = transaction {
         val id = Servers.insert {
             it[Servers.name] = name
@@ -161,14 +162,7 @@ class ServerRepositoryImpl : ServerRepository {
             .toServerRow()
     }
 
-    override fun updateDetails(
-        id: Uuid,
-        displayName: String?,
-        description: String?,
-        networkId: Uuid?,
-        mcVersion: String?,
-        itzgImageTag: String?,
-    ) {
+    override fun updateDetails(id: Uuid, displayName: String?, description: String?, networkId: Uuid?, mcVersion: String?, itzgImageTag: String?) {
         if (displayName == null && description == null && networkId == null && mcVersion == null && itzgImageTag == null) return
         transaction {
             Servers.update({ Servers.id eq id }) {
@@ -187,13 +181,7 @@ class ServerRepositoryImpl : ServerRepository {
         }
     }
 
-    override fun updateResources(
-        id: Uuid,
-        memoryMb: Int,
-        cpuShares: Int,
-        itzgImageTag: String?,
-        needsRecreate: Boolean,
-    ) {
+    override fun updateResources(id: Uuid, memoryMb: Int, cpuShares: Int, itzgImageTag: String?, needsRecreate: Boolean) {
         transaction {
             Servers.update({ Servers.id eq id }) {
                 it[Servers.memoryMb] = memoryMb
@@ -215,15 +203,7 @@ class ServerRepositoryImpl : ServerRepository {
         }
     }
 
-    override fun updateExposure(
-        id: Uuid,
-        exposedExternally: Boolean?,
-        publicSubdomain: String?,
-        customHostname: String?,
-        dnsRecordId: String?,
-        dnsRecordName: String?,
-        needsRecreate: Boolean?,
-    ) {
+    override fun updateExposure(id: Uuid, exposedExternally: Boolean?, publicSubdomain: String?, customHostname: String?, dnsRecordId: String?, dnsRecordName: String?, needsRecreate: Boolean?) {
         transaction {
             Servers.update({ Servers.id eq id }) {
                 if (exposedExternally != null) it[Servers.exposedExternally] = exposedExternally
@@ -338,14 +318,7 @@ class ServerRepositoryImpl : ServerRepository {
             ?.toModRow()
     }
 
-    override fun createMod(
-        serverId: Uuid,
-        modrinthProjectId: String,
-        displayName: String,
-        pinStrategy: String,
-        pinnedVersionId: String?,
-        installedVersionId: String?,
-    ): ModRow = transaction {
+    override fun createMod(serverId: Uuid, modrinthProjectId: String, displayName: String, pinStrategy: String, pinnedVersionId: String?, installedVersionId: String?): ModRow = transaction {
         val id = ServerMods.insert {
             it[ServerMods.serverId] = serverId
             it[ServerMods.modrinthProjectId] = modrinthProjectId
@@ -382,7 +355,7 @@ class ServerRepositoryImpl : ServerRepository {
         ServerMigrations.selectAll()
             .where {
                 (ServerMigrations.serverId eq serverId) and
-                        (ServerMigrations.status inList listOf(MigrationStatus.PENDING.name, MigrationStatus.RUNNING.name, MigrationStatus.SYNCING.name, MigrationStatus.CUTTING_OVER.name))
+                    (ServerMigrations.status inList listOf(MigrationStatus.PENDING.name, MigrationStatus.RUNNING.name, MigrationStatus.SYNCING.name, MigrationStatus.CUTTING_OVER.name))
             }
             .firstOrNull()
             ?.toMigrationRow()
@@ -429,7 +402,7 @@ class ServerRepositoryImpl : ServerRepository {
         transaction {
             ServerMigrations.update({
                 ((ServerMigrations.sourceNodeId eq nodeId) or (ServerMigrations.targetNodeId eq nodeId)) and
-                        (ServerMigrations.status inList listOf(MigrationStatus.PENDING.name, MigrationStatus.SYNCING.name, MigrationStatus.CUTTING_OVER.name))
+                    (ServerMigrations.status inList listOf(MigrationStatus.PENDING.name, MigrationStatus.SYNCING.name, MigrationStatus.CUTTING_OVER.name))
             }) {
                 it[ServerMigrations.status] = MigrationStatus.FAILED.name
                 it[ServerMigrations.completedAt] = now
@@ -515,8 +488,8 @@ class ServerRepositoryImpl : ServerRepository {
         transaction {
             PortRegistry.deleteWhere {
                 (PortRegistry.nodeId eq nodeId) and
-                        (PortRegistry.port eq port) and
-                        (PortRegistry.protocol eq protocol)
+                    (PortRegistry.port eq port) and
+                    (PortRegistry.protocol eq protocol)
             }
         }
     }
@@ -560,14 +533,7 @@ class ServerRepositoryImpl : ServerRepository {
             .toBackupRow()
     }
 
-    override fun updateBackupStatus(
-        id: Uuid,
-        status: BackupStatus,
-        filePath: String?,
-        sizeBytes: Long?,
-        errorMessage: String?,
-        completedAt: Instant?,
-    ) {
+    override fun updateBackupStatus(id: Uuid, status: BackupStatus, filePath: String?, sizeBytes: Long?, errorMessage: String?, completedAt: Instant?) {
         transaction {
             Backups.update({ Backups.id eq id }) {
                 it[Backups.status] = status.name
@@ -610,9 +576,12 @@ class ServerRepositoryImpl : ServerRepository {
             .where { (Backups.serverId eq serverId) and (Backups.status eq BackupStatus.COMPLETED.name) }
             .orderBy(Backups.createdAt to SortOrder.ASC)
             .toList()
-        if (rows.size < keepCount) emptyList()
-        else rows.dropLast(keepCount - 1)
-            .map { it.toBackupRow() }
+        if (rows.size < keepCount) {
+            emptyList()
+        } else {
+            rows.dropLast(keepCount - 1)
+                .map { it.toBackupRow() }
+        }
     }
 
     override fun listProxyBackends(proxyServerId: Uuid): List<ProxyBackendRow> = transaction {
@@ -642,16 +611,7 @@ class ServerRepositoryImpl : ServerRepository {
             .map { it[ProxyBackends.proxyServerId] }
     }
 
-    override fun insertContainerMetrics(
-        serverId: Uuid,
-        cpuPercent: Double,
-        ramUsedMb: Int,
-        netInBytes: Long,
-        netOutBytes: Long,
-        blockInBytes: Long,
-        blockOutBytes: Long,
-        recordedAt: Instant,
-    ) {
+    override fun insertContainerMetrics(serverId: Uuid, cpuPercent: Double, ramUsedMb: Int, netInBytes: Long, netOutBytes: Long, blockInBytes: Long, blockOutBytes: Long, recordedAt: Instant) {
         transaction {
             ContainerMetrics.insert {
                 it[ContainerMetrics.serverId] = serverId
@@ -679,8 +639,8 @@ class ServerRepositoryImpl : ServerRepository {
         ContainerMetrics.selectAll()
             .where {
                 (ContainerMetrics.serverId eq serverId) and
-                        (ContainerMetrics.recordedAt greaterEq fromLdt) and
-                        (ContainerMetrics.recordedAt lessEq toLdt)
+                    (ContainerMetrics.recordedAt greaterEq fromLdt) and
+                    (ContainerMetrics.recordedAt lessEq toLdt)
             }
             .orderBy(ContainerMetrics.recordedAt to SortOrder.ASC)
             .map { it.toContainerMetricsRow() }
@@ -703,6 +663,20 @@ class ServerRepositoryImpl : ServerRepository {
                 .limit(1)
                 .firstOrNull()
                 ?.toContainerMetricsRow()
+        }
+    }
+
+    override fun listEnabledServerJobs(): List<ServerJobRow> = transaction {
+        ServerJobs.selectAll()
+            .where { ServerJobs.enabled eq true }
+            .map { it.toServerJobRow() }
+    }
+
+    override fun updateServerJobLastFired(jobId: Uuid, lastFired: Instant) {
+        transaction {
+            ServerJobs.update({ ServerJobs.id eq jobId }) {
+                it[ServerJobs.lastFiredAt] = lastFired.toLocalDateTime(TimeZone.UTC)
+            }
         }
     }
 }
@@ -737,7 +711,15 @@ private fun ResultRow.toServerRow() = ServerRow(
     lastPlayerUpdate = this[Servers.lastPlayerUpdate]?.toString(),
     lastSeenAt = this[Servers.lastSeenAt]?.toString(),
     createdAt = this[Servers.createdAt].toUtcString(),
-    updatedAt = this[Servers.updatedAt].toString(),
+    updatedAt = this[Servers.updatedAt].toString()
+)
+
+private fun ResultRow.toServerJobRow() = ServerJobRow(
+    id = this[ServerJobs.id],
+    serverId = this[ServerJobs.serverId],
+    type = this[ServerJobs.type],
+    cronExpression = this[ServerJobs.cronExpression],
+    lastFiredAt = this[ServerJobs.lastFiredAt]?.toString()
 )
 
 private fun ResultRow.toModRow() = ModRow(
@@ -749,7 +731,7 @@ private fun ResultRow.toModRow() = ModRow(
     pinnedVersionId = this[ServerMods.pinnedVersionId],
     installedVersionId = this[ServerMods.installedVersionId],
     createdAt = this[ServerMods.createdAt].toUtcString(),
-    updatedAt = this[ServerMods.updatedAt].toString(),
+    updatedAt = this[ServerMods.updatedAt].toString()
 )
 
 private fun ResultRow.toMigrationRow() = MigrationRow(
@@ -759,7 +741,7 @@ private fun ResultRow.toMigrationRow() = MigrationRow(
     targetNodeId = this[ServerMigrations.targetNodeId],
     status = this[ServerMigrations.status],
     createdAt = this[ServerMigrations.createdAt].toUtcString(),
-    completedAt = this[ServerMigrations.completedAt]?.toUtcString(),
+    completedAt = this[ServerMigrations.completedAt]?.toUtcString()
 )
 
 private fun ResultRow.toMigrationStepRow() = MigrationStepRow(
@@ -770,7 +752,7 @@ private fun ResultRow.toMigrationStepRow() = MigrationStepRow(
     status = this[MigrationStepLog.status],
     startedAt = this[MigrationStepLog.startedAt]?.toString(),
     completedAt = this[MigrationStepLog.completedAt]?.toString(),
-    errorMessage = this[MigrationStepLog.errorMessage],
+    errorMessage = this[MigrationStepLog.errorMessage]
 )
 
 private fun ResultRow.toBackupRow() = BackupRow(
@@ -783,7 +765,7 @@ private fun ResultRow.toBackupRow() = BackupRow(
     sizeBytes = this[Backups.sizeBytes],
     errorMessage = this[Backups.errorMessage],
     createdAt = this[Backups.createdAt].toUtcString(),
-    completedAt = this[Backups.completedAt]?.toString(),
+    completedAt = this[Backups.completedAt]?.toString()
 )
 
 private fun ResultRow.toProxyBackendRow() = ProxyBackendRow(
@@ -791,7 +773,7 @@ private fun ResultRow.toProxyBackendRow() = ProxyBackendRow(
     proxyServerId = this[ProxyBackends.proxyServerId],
     backendServerId = this[ProxyBackends.backendServerId],
     backendName = this[ProxyBackends.backendName],
-    order = this[ProxyBackends.order],
+    order = this[ProxyBackends.order]
 )
 
 private fun ResultRow.toContainerMetricsRow() = ContainerMetricsRow(
@@ -803,5 +785,5 @@ private fun ResultRow.toContainerMetricsRow() = ContainerMetricsRow(
     netInBytes = this[ContainerMetrics.netInBytes],
     netOutBytes = this[ContainerMetrics.netOutBytes],
     blockInBytes = this[ContainerMetrics.blockInBytes],
-    blockOutBytes = this[ContainerMetrics.blockOutBytes],
+    blockOutBytes = this[ContainerMetrics.blockOutBytes]
 )

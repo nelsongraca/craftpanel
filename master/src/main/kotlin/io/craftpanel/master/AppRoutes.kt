@@ -43,7 +43,7 @@ import org.koin.ktor.ext.get
 
 fun Route.registerAppRoutes() {
     val cfg = get<AppConfig>()
-    authRoutes(get(), get(), get(), cfg.rateLimit, cfg.auth.secureCookies)
+    authRoutes(get(), get(), get(), get(), cfg.rateLimit, cfg.auth.secureCookies)
     nodeIpRoutes()
     nodesRoutes(get())
     networksRoutes(get())
@@ -57,7 +57,7 @@ fun Route.registerAppRoutes() {
     backupsRoutes(get())
     configRoutes(get(), get())
     modsRoutes(get())
-    dashboardWsRoutes(get(), get<ControlServiceImpl>().agentEvents)
+    dashboardWsRoutes(get(), get<ControlServiceImpl>().agentEvents, get(), get())
     alertsRoutes(get())
     migrationsRoutes(get())
 }

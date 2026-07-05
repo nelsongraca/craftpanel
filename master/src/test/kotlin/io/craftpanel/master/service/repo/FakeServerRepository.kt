@@ -18,6 +18,7 @@ class FakeServerRepository : ServerRepository {
     private val backups = mutableMapOf<Uuid, MutableBackup>()
     private val proxyBackends = mutableMapOf<Uuid, MutableList<MutableProxyBackend>>()
     private val containerMetrics = mutableListOf<MutableContainerMetrics>()
+    private val serverJobs = mutableMapOf<Uuid, MutableServerJob>()
 
     data class MutableServer(
         val id: Uuid,
@@ -49,7 +50,7 @@ class FakeServerRepository : ServerRepository {
         var lastPlayerUpdate: String? = null,
         var lastSeenAt: String? = null,
         var createdAt: String = "2025-01-01T00:00:00Z",
-        var updatedAt: String = "2025-01-01T00:00:00Z",
+        var updatedAt: String = "2025-01-01T00:00:00Z"
     )
 
     data class MutableMod(
@@ -61,7 +62,7 @@ class FakeServerRepository : ServerRepository {
         var pinnedVersionId: String?,
         var installedVersionId: String?,
         val createdAt: String = "2025-01-01T00:00:00Z",
-        var updatedAt: String = "2025-01-01T00:00:00Z",
+        var updatedAt: String = "2025-01-01T00:00:00Z"
     )
 
     data class MutableMigration(
@@ -71,7 +72,7 @@ class FakeServerRepository : ServerRepository {
         val targetNodeId: Uuid,
         var status: String = "PENDING",
         val createdAt: String = "2025-01-01T00:00:00Z",
-        var completedAt: String? = null,
+        var completedAt: String? = null
     )
 
     data class MutableMigrationStep(
@@ -82,15 +83,10 @@ class FakeServerRepository : ServerRepository {
         var status: String = "PENDING",
         var startedAt: String? = null,
         var completedAt: String? = null,
-        var errorMessage: String? = null,
+        var errorMessage: String? = null
     )
 
-    data class MutablePort(
-        val nodeId: Uuid,
-        val port: Int,
-        val protocol: String,
-        val serverId: Uuid?,
-    )
+    data class MutablePort(val nodeId: Uuid, val port: Int, val protocol: String, val serverId: Uuid?)
 
     data class MutableBackup(
         val id: Uuid,
@@ -102,16 +98,10 @@ class FakeServerRepository : ServerRepository {
         var sizeBytes: Long? = null,
         var errorMessage: String? = null,
         val createdAt: String = "2025-01-01T00:00:00Z",
-        var completedAt: String? = null,
+        var completedAt: String? = null
     )
 
-    data class MutableProxyBackend(
-        val id: Uuid,
-        val proxyServerId: Uuid,
-        val backendServerId: Uuid,
-        val backendName: String,
-        val order: Int,
-    )
+    data class MutableProxyBackend(val id: Uuid, val proxyServerId: Uuid, val backendServerId: Uuid, val backendName: String, val order: Int)
 
     data class MutableContainerMetrics(
         val serverId: Uuid,
@@ -121,8 +111,10 @@ class FakeServerRepository : ServerRepository {
         val netInBytes: Long,
         val netOutBytes: Long,
         val blockInBytes: Long,
-        val blockOutBytes: Long,
+        val blockOutBytes: Long
     )
+
+    data class MutableServerJob(val id: Uuid, val serverId: Uuid, val type: String, val cronExpression: String, var enabled: Boolean = true, var lastFiredAt: String? = null)
 
     override fun findById(id: Uuid): ServerRow? = servers[id]?.toRow()
     override fun findByName(name: String): ServerRow? = servers.values.firstOrNull { it.name == name }
@@ -138,9 +130,8 @@ class FakeServerRepository : ServerRepository {
         ?.toRow()
 
     override fun listAll(): List<ServerRow> = servers.values.map { it.toRow() }
-    override fun listByVisibility(networkIds: List<Uuid>, serverIds: List<Uuid>): List<ServerRow> =
-        servers.values.filter { it.networkId in networkIds || it.id in serverIds }
-            .map { it.toRow() }
+    override fun listByVisibility(networkIds: List<Uuid>, serverIds: List<Uuid>): List<ServerRow> = servers.values.filter { it.networkId in networkIds || it.id in serverIds }
+        .map { it.toRow() }
 
     override fun listByNetworkId(networkId: Uuid): List<ServerRow> = servers.values.filter { it.networkId == networkId }
         .map { it.toRow() }
@@ -208,12 +199,17 @@ class FakeServerRepository : ServerRepository {
 
     override fun updateResources(id: Uuid, memoryMb: Int, cpuShares: Int, itzgImageTag: String?, needsRecreate: Boolean) {
         val s = servers[id] ?: return
-        s.memoryMb = memoryMb; s.cpuShares = cpuShares; s.needsRecreate = needsRecreate
+        s.memoryMb = memoryMb
+        s.cpuShares = cpuShares
+        s.needsRecreate = needsRecreate
         if (itzgImageTag != null) s.itzgImageTag = itzgImageTag
     }
 
     override fun updateStatus(id: Uuid, status: String, lastSeenAt: Instant?) {
-        servers[id]?.let { it.status = status; if (lastSeenAt != null) it.lastSeenAt = lastSeenAt.toString() }
+        servers[id]?.let {
+            it.status = status
+            if (lastSeenAt != null) it.lastSeenAt = lastSeenAt.toString()
+        }
     }
 
     override fun updateExposure(id: Uuid, exposedExternally: Boolean?, publicSubdomain: String?, customHostname: String?, dnsRecordId: String?, dnsRecordName: String?, needsRecreate: Boolean?) {
@@ -233,12 +229,17 @@ class FakeServerRepository : ServerRepository {
 
     override fun updatePlayerInfo(id: Uuid, playerCount: Int?, playerNames: String?, lastUpdate: Instant?) {
         servers[id]?.let {
-            if (playerCount != null) it.lastPlayerCount = playerCount; if (playerNames != null) it.lastPlayerNames = playerNames; if (lastUpdate != null) it.lastPlayerUpdate = lastUpdate.toString()
+            if (playerCount != null) it.lastPlayerCount = playerCount
+            if (playerNames != null) it.lastPlayerNames = playerNames
+            if (lastUpdate != null) it.lastPlayerUpdate = lastUpdate.toString()
         }
     }
 
     override fun updateBackupSchedule(id: Uuid, schedule: String?, maxCount: Int?) {
-        servers[id]?.let { if (schedule != null) it.backupSchedule = schedule; if (maxCount != null) it.backupMaxCount = maxCount }
+        servers[id]?.let {
+            if (schedule != null) it.backupSchedule = schedule
+            if (maxCount != null) it.backupMaxCount = maxCount
+        }
     }
 
     override fun updateBackupScheduleLastFired(id: Uuid, lastFired: Instant?) {
@@ -254,7 +255,12 @@ class FakeServerRepository : ServerRepository {
     }
 
     override fun delete(id: Uuid) {
-        servers.remove(id); mods.remove(id); envVars.remove(id); backups.values.removeAll { it.serverId == id }; containerMetrics.removeAll { it.serverId == id }; ports.removeAll { it.serverId == id }
+        servers.remove(id)
+        mods.remove(id)
+        envVars.remove(id)
+        backups.values.removeAll { it.serverId == id }
+        containerMetrics.removeAll { it.serverId == id }
+        ports.removeAll { it.serverId == id }
     }
 
     override fun nullifyNetworkId(networkId: Uuid) {
@@ -315,7 +321,10 @@ class FakeServerRepository : ServerRepository {
     }
 
     override fun updateMigrationStatus(id: Uuid, status: MigrationStatus, completedAt: Instant?) {
-        migrations[id]?.let { it.status = status.name; if (completedAt != null) it.completedAt = completedAt.toString() }
+        migrations[id]?.let {
+            it.status = status.name
+            if (completedAt != null) it.completedAt = completedAt.toString()
+        }
     }
 
     override fun failMigrationsForNode(nodeId: Uuid) {
@@ -327,7 +336,10 @@ class FakeServerRepository : ServerRepository {
     override fun failAllStuckMigrations() {
         val stuck = listOf(MigrationStatus.PENDING.name, MigrationStatus.SYNCING.name, MigrationStatus.CUTTING_OVER.name, MigrationStatus.RUNNING.name)
         migrations.values.filter { it.status in stuck }
-            .forEach { it.status = MigrationStatus.FAILED.name; it.completedAt = "now" }
+            .forEach {
+                it.status = MigrationStatus.FAILED.name
+                it.completedAt = "now"
+            }
     }
 
     override fun updateNodeId(id: Uuid, nodeId: Uuid) {
@@ -390,8 +402,14 @@ class FakeServerRepository : ServerRepository {
 
     override fun updateBackupStatus(id: Uuid, status: BackupStatus, filePath: String?, sizeBytes: Long?, errorMessage: String?, completedAt: Instant?) {
         backups[id]?.let {
-            it.status = status.name; if (filePath != null) it.filePath = filePath; if (sizeBytes != null) it.sizeBytes = sizeBytes; if (errorMessage != null) it.errorMessage =
-            errorMessage; if (completedAt != null) it.completedAt = completedAt.toString()
+            it.status = status.name
+            if (filePath != null) it.filePath = filePath
+            if (sizeBytes != null) it.sizeBytes = sizeBytes
+            if (errorMessage != null) {
+                it.errorMessage =
+                    errorMessage
+            }
+            if (completedAt != null) it.completedAt = completedAt.toString()
         }
     }
 
@@ -412,9 +430,12 @@ class FakeServerRepository : ServerRepository {
     override fun findOldestCompletedBackups(serverId: Uuid, keepCount: Int): List<BackupRow> {
         val completed = backups.values.filter { it.serverId == serverId && it.status == BackupStatus.COMPLETED.name }
             .sortedBy { it.createdAt }
-        return if (completed.size <= keepCount) emptyList()
-        else completed.dropLast(keepCount)
-            .map { it.toRow() }
+        return if (completed.size <= keepCount) {
+            emptyList()
+        } else {
+            completed.dropLast(keepCount)
+                .map { it.toRow() }
+        }
     }
 
     override fun listProxyBackends(proxyServerId: Uuid): List<ProxyBackendRow> = proxyBackends[proxyServerId]?.map { it.toRow() }
@@ -436,15 +457,27 @@ class FakeServerRepository : ServerRepository {
     override fun getContainerMetrics(serverId: Uuid, seconds: Int): List<ContainerMetricsRow> = containerMetrics.filter { it.serverId == serverId }
         .map { ContainerMetricsRow(Uuid.random(), it.serverId, it.recordedAt, it.cpuPercent, it.ramUsedMb, it.netInBytes, it.netOutBytes, it.blockInBytes, it.blockOutBytes) }
 
-    override fun getContainerMetricsByRange(serverId: Uuid, from: Instant, to: Instant): List<ContainerMetricsRow> =
-        containerMetrics.filter { it.serverId == serverId }
-            .map { ContainerMetricsRow(Uuid.random(), it.serverId, it.recordedAt, it.cpuPercent, it.ramUsedMb, it.netInBytes, it.netOutBytes, it.blockInBytes, it.blockOutBytes) }
+    override fun getContainerMetricsByRange(serverId: Uuid, from: Instant, to: Instant): List<ContainerMetricsRow> = containerMetrics.filter { it.serverId == serverId }
+        .map { ContainerMetricsRow(Uuid.random(), it.serverId, it.recordedAt, it.cpuPercent, it.ramUsedMb, it.netInBytes, it.netOutBytes, it.blockInBytes, it.blockOutBytes) }
 
     override fun getLatestContainerMetrics(serverId: Uuid): ContainerMetricsRow? = containerMetrics.filter { it.serverId == serverId }
         .maxByOrNull { it.recordedAt }
         ?.let { ContainerMetricsRow(Uuid.random(), it.serverId, it.recordedAt, it.cpuPercent, it.ramUsedMb, it.netInBytes, it.netOutBytes, it.blockInBytes, it.blockOutBytes) }
 
     override fun getLatestContainerMetricsForServers(serverIds: List<Uuid>): Map<Uuid, ContainerMetricsRow?> = serverIds.associateWith { getLatestContainerMetrics(it) }
+
+    override fun listEnabledServerJobs(): List<ServerJobRow> = serverJobs.values.filter { it.enabled }
+        .map { it.toRow() }
+
+    override fun updateServerJobLastFired(jobId: Uuid, lastFired: Instant) {
+        serverJobs[jobId]?.lastFiredAt = lastFired.toString()
+    }
+
+    fun addServerJob(job: MutableServerJob) {
+        serverJobs[job.id] = job
+    }
+
+    private fun MutableServerJob.toRow() = ServerJobRow(id, serverId, type, cronExpression, lastFiredAt)
 
     private fun MutableServer.toRow() = ServerRow(
         id,
