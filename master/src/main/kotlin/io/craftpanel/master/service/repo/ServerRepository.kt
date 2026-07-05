@@ -37,7 +37,7 @@ data class ServerRow(
     val lastPlayerUpdate: String?,
     val lastSeenAt: String?,
     val createdAt: String,
-    val updatedAt: String,
+    val updatedAt: String
 )
 
 data class EnvVarRow(val key: String, val value: String)
@@ -51,18 +51,10 @@ data class ModRow(
     val pinnedVersionId: String?,
     val installedVersionId: String?,
     val createdAt: String,
-    val updatedAt: String,
+    val updatedAt: String
 )
 
-data class MigrationRow(
-    val id: Uuid,
-    val serverId: Uuid,
-    val sourceNodeId: Uuid,
-    val targetNodeId: Uuid,
-    val status: String,
-    val createdAt: String,
-    val completedAt: String?,
-)
+data class MigrationRow(val id: Uuid, val serverId: Uuid, val sourceNodeId: Uuid, val targetNodeId: Uuid, val status: String, val createdAt: String, val completedAt: String?)
 
 data class MigrationStepRow(
     val id: Uuid,
@@ -72,7 +64,7 @@ data class MigrationStepRow(
     val status: String,
     val startedAt: String?,
     val completedAt: String?,
-    val errorMessage: String?,
+    val errorMessage: String?
 )
 
 data class BackupRow(
@@ -85,8 +77,10 @@ data class BackupRow(
     val sizeBytes: Long?,
     val errorMessage: String?,
     val createdAt: String,
-    val completedAt: String?,
+    val completedAt: String?
 )
+
+data class ServerJobRow(val id: Uuid, val serverId: Uuid, val type: String, val cronExpression: String, val lastFiredAt: String?)
 
 data class ContainerMetricsRow(
     val id: Uuid,
@@ -97,7 +91,7 @@ data class ContainerMetricsRow(
     val netInBytes: Long,
     val netOutBytes: Long,
     val blockInBytes: Long,
-    val blockOutBytes: Long,
+    val blockOutBytes: Long
 )
 
 interface ServerRepository {
@@ -130,7 +124,7 @@ interface ServerRepository {
         memoryMb: Int,
         cpuShares: Int,
         configMode: String,
-        stopCommand: String,
+        stopCommand: String
     ): ServerRow
 
     fun updateDetails(id: Uuid, displayName: String?, description: String?, networkId: Uuid?, mcVersion: String?, itzgImageTag: String?)
@@ -154,14 +148,7 @@ interface ServerRepository {
     fun listMods(serverId: Uuid): List<ModRow>
     fun findModById(id: Uuid): ModRow?
     fun findModByProjectId(serverId: Uuid, projectId: String): ModRow?
-    fun createMod(
-        serverId: Uuid,
-        modrinthProjectId: String,
-        displayName: String,
-        pinStrategy: String,
-        pinnedVersionId: String?,
-        installedVersionId: String?,
-    ): ModRow
+    fun createMod(serverId: Uuid, modrinthProjectId: String, displayName: String, pinStrategy: String, pinnedVersionId: String?, installedVersionId: String?): ModRow
 
     fun updateMod(id: Uuid, pinStrategy: String?, pinnedVersionId: String?, installedVersionId: String?)
     fun deleteMod(id: Uuid)
@@ -206,18 +193,11 @@ interface ServerRepository {
     fun getContainerMetricsByRange(serverId: Uuid, from: Instant, to: Instant): List<ContainerMetricsRow>
     fun getLatestContainerMetrics(serverId: Uuid): ContainerMetricsRow?
     fun getLatestContainerMetricsForServers(serverIds: List<Uuid>): Map<Uuid, ContainerMetricsRow?>
+
+    fun listEnabledServerJobs(): List<ServerJobRow>
+    fun updateServerJobLastFired(jobId: Uuid, lastFired: Instant)
 }
 
-data class ProxyBackendRow(
-    val id: Uuid,
-    val proxyServerId: Uuid,
-    val backendServerId: Uuid,
-    val backendName: String,
-    val order: Int,
-)
+data class ProxyBackendRow(val id: Uuid, val proxyServerId: Uuid, val backendServerId: Uuid, val backendName: String, val order: Int)
 
-data class ProxyBackendInput(
-    val backendServerId: Uuid,
-    val backendName: String,
-    val order: Int,
-)
+data class ProxyBackendInput(val backendServerId: Uuid, val backendName: String, val order: Int)

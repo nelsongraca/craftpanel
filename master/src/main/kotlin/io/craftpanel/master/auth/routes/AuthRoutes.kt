@@ -1,14 +1,11 @@
 package io.craftpanel.master.auth.routes
 
-import io.craftpanel.master.auth.ScopeType
-import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.*
+import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.config.RateLimitConfig
-import io.craftpanel.master.database.schema.Groups
-import io.craftpanel.master.database.schema.UserGroupAssignments
-import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.routes.ErrorResponse
 import io.craftpanel.master.routes.userId
+import io.craftpanel.master.service.repo.UserRepository
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.post
 import io.ktor.http.*
@@ -20,92 +17,53 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import org.jetbrains.exposed.v1.core.and
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
 @Serializable
 data class LoginRequest(val email: String, val password: String)
 
 @Serializable
-data class LoginResponse(
-    @SerialName("access_token") val accessToken: String,
-    @SerialName("expires_in") val expiresIn: Long,
-)
+data class LoginResponse(@SerialName("access_token") val accessToken: String, @SerialName("expires_in") val expiresIn: Long)
 
 @Serializable
-data class WsTicketResponse(
-    val ticket: String,
-    @SerialName("expires_in") val expiresIn: Int,
-)
+data class WsTicketResponse(val ticket: String, @SerialName("expires_in") val expiresIn: Int)
 
 @Serializable
-data class MeResponse(
-    val id: String,
-    val username: String,
-    val email: String,
-    val groups: List<String>,
-    val permissions: List<String>,
-)
+data class MeResponse(val id: String, val username: String, val email: String, val groups: List<String>, val permissions: List<String>)
 
-private data class UserRecord(
-    val userId: Uuid,
-    val username: String,
-    val email: String,
-    val passwordHash: String,
-    val isActive: Boolean,
-    val groupNames: List<String>,
-)
+private data class UserRecord(val userId: Uuid, val username: String, val email: String, val passwordHash: String, val isActive: Boolean, val groupNames: List<String>)
 
-private fun lookupUser(email: String): UserRecord? = transaction {
-    val user = Users.selectAll()
-        .where { Users.email eq email }
-        .firstOrNull() ?: return@transaction null
+private fun lookupUser(userRepository: UserRepository, email: String): UserRecord? {
+    val credentials = userRepository.findCredentials(email) ?: return null
+    val groups = userRepository.getUserGlobalGroups(credentials.userId).map { it.groupName }
 
-    val userId = user[Users.id]
-
-    val groups = (UserGroupAssignments innerJoin Groups)
-        .selectAll()
-        .where {
-            (UserGroupAssignments.userId eq userId) and
-                    (UserGroupAssignments.scopeType eq ScopeType.GLOBAL.name)
-        }
-        .map { it[Groups.name] }
-
-    UserRecord(
-        userId = userId,
-        username = user[Users.username],
-        email = user[Users.email],
-        passwordHash = user[Users.passwordHash],
-        isActive = user[Users.isActive],
-        groupNames = groups,
+    return UserRecord(
+        userId = credentials.userId,
+        username = credentials.username,
+        email = credentials.email,
+        passwordHash = credentials.passwordHash,
+        isActive = credentials.isActive,
+        groupNames = groups
     )
 }
 
-private fun lookupUserById(userId: Uuid): Triple<String, String, List<String>>? = transaction {
-    val user = Users.selectAll()
-        .where { (Users.id eq userId) and (Users.isActive eq true) }
-        .firstOrNull() ?: return@transaction null
+private fun lookupUserById(userRepository: UserRepository, userId: Uuid): Triple<String, String, List<String>>? {
+    val user = userRepository.findById(userId)
+        ?.takeIf { it.isActive }
+        ?: return null
 
-    val groups = (UserGroupAssignments innerJoin Groups)
-        .selectAll()
-        .where {
-            (UserGroupAssignments.userId eq userId) and
-                    (UserGroupAssignments.scopeType eq ScopeType.GLOBAL.name)
-        }
-        .map { it[Groups.name] }
+    val groups = userRepository.getUserGlobalGroups(userId).map { it.groupName }
 
-    Triple(user[Users.username], user[Users.email], groups)
+    return Triple(user.username, user.email, groups)
 }
 
 fun Route.authRoutes(
     jwtManager: JwtManager,
     refreshTokenService: RefreshTokenService,
     wsTicketService: WsTicketService,
+    userRepository: UserRepository,
     @Suppress("UNUSED_PARAMETER") rateLimitConfig: RateLimitConfig = RateLimitConfig(10, 30),
-    secureCookies: Boolean = true,
+    secureCookies: Boolean = true
 ) {
     route("/api/auth") {
         rateLimit(RateLimitName("auth-login")) {
@@ -120,7 +78,7 @@ fun Route.authRoutes(
                 }
             }) {
                 val req = call.receive<LoginRequest>()
-                val record = lookupUser(req.email)
+                val record = lookupUser(userRepository, req.email)
                 val hashToVerify = record?.passwordHash ?: Argon2Hasher.DUMMY_HASH
                 val passwordOk = Argon2Hasher.verify(req.password, hashToVerify)
 
@@ -140,7 +98,7 @@ fun Route.authRoutes(
                     httpOnly = true,
                     secure = secureCookies,
                     extensions = mapOf("SameSite" to "Strict"),
-                    path = "/api/auth",
+                    path = "/api/auth"
                 )
                 call.respond(LoginResponse(accessToken, jwtManager.expirySeconds))
             }
@@ -168,8 +126,11 @@ fun Route.authRoutes(
                         return@post
                     }
 
-                val (name, email, groupNames) = lookupUserById(userId)
-                    ?: run { call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found or inactive")); return@post }
+                val (name, email, groupNames) = lookupUserById(userRepository, userId)
+                    ?: run {
+                        call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found or inactive"))
+                        return@post
+                    }
 
                 val accessToken = jwtManager.generate(
                     TokenClaims(userId = userId, name = name, email = email, groups = groupNames)
@@ -181,7 +142,7 @@ fun Route.authRoutes(
                     httpOnly = true,
                     secure = secureCookies,
                     extensions = mapOf("SameSite" to "Strict"),
-                    path = "/api/auth",
+                    path = "/api/auth"
                 )
                 call.respond(LoginResponse(accessToken, jwtManager.expirySeconds))
             }
@@ -199,8 +160,13 @@ fun Route.authRoutes(
                 val rawToken = call.request.cookies["refresh_token"]
                 if (rawToken != null) refreshTokenService.revoke(rawToken)
                 call.response.cookies.append(
-                    name = "refresh_token", value = "", httpOnly = true, secure = secureCookies,
-                    extensions = mapOf("SameSite" to "Strict"), path = "/api/auth", maxAge = 0,
+                    name = "refresh_token",
+                    value = "",
+                    httpOnly = true,
+                    secure = secureCookies,
+                    extensions = mapOf("SameSite" to "Strict"),
+                    path = "/api/auth",
+                    maxAge = 0
                 )
                 call.respond(HttpStatusCode.NoContent)
             }
@@ -217,8 +183,13 @@ fun Route.authRoutes(
                 val userId = call.userId()
                 refreshTokenService.revokeAll(userId)
                 call.response.cookies.append(
-                    name = "refresh_token", value = "", httpOnly = true, secure = secureCookies,
-                    extensions = mapOf("SameSite" to "Strict"), path = "/api/auth", maxAge = 0,
+                    name = "refresh_token",
+                    value = "",
+                    httpOnly = true,
+                    secure = secureCookies,
+                    extensions = mapOf("SameSite" to "Strict"),
+                    path = "/api/auth",
+                    maxAge = 0
                 )
                 call.respond(HttpStatusCode.NoContent)
             }
@@ -246,8 +217,11 @@ fun Route.authRoutes(
             }) {
                 val userId = call.userId()
 
-                val (username, email, groupNames) = lookupUserById(userId)
-                    ?: run { call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found or inactive")); return@get }
+                val (username, email, groupNames) = lookupUserById(userRepository, userId)
+                    ?: run {
+                        call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found or inactive"))
+                        return@get
+                    }
 
                 val permissions = PermissionResolver.resolve(userId)
                     .toList()
@@ -259,7 +233,7 @@ fun Route.authRoutes(
                         username = username,
                         email = email,
                         groups = groupNames,
-                        permissions = permissions,
+                        permissions = permissions
                     )
                 )
             }

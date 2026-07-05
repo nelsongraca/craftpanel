@@ -5,18 +5,18 @@ import io.craftpanel.master.database.schema.RefreshTokens
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.util.toUtcString
+import kotlinx.datetime.Instant
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.isNull
-import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
-import kotlinx.datetime.Instant
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import kotlin.uuid.Uuid
 
 class UserRepositoryImpl : UserRepository {
@@ -40,6 +40,21 @@ class UserRepositoryImpl : UserRepository {
             .where { Users.username eq username }
             .firstOrNull()
             ?.toUserRow()
+    }
+
+    override fun findCredentials(email: String): CredentialRow? = transaction {
+        Users.selectAll()
+            .where { Users.email eq email }
+            .firstOrNull()
+            ?.let {
+                CredentialRow(
+                    userId = it[Users.id],
+                    username = it[Users.username],
+                    email = it[Users.email],
+                    passwordHash = it[Users.passwordHash],
+                    isActive = it[Users.isActive]
+                )
+            }
     }
 
     override fun listAll(): List<UserRow> = transaction {
@@ -114,9 +129,9 @@ class UserRepositoryImpl : UserRepository {
         UserGroupAssignments.selectAll()
             .where {
                 (UserGroupAssignments.userId eq userId) and
-                        (UserGroupAssignments.groupId eq groupId) and
-                        (UserGroupAssignments.scopeType eq scopeType) and
-                        (if (scopeId != null) (UserGroupAssignments.scopeId eq scopeId) else (UserGroupAssignments.scopeId.isNull()))
+                    (UserGroupAssignments.groupId eq groupId) and
+                    (UserGroupAssignments.scopeType eq scopeType) and
+                    (if (scopeId != null) (UserGroupAssignments.scopeId eq scopeId) else (UserGroupAssignments.scopeId.isNull()))
             }
             .firstOrNull()
             ?.toAssignmentRow()
@@ -150,7 +165,7 @@ class UserRepositoryImpl : UserRepository {
                     userId = it[RefreshTokens.userId],
                     tokenHash = it[RefreshTokens.tokenHash],
                     expiresAt = it[RefreshTokens.expiresAt].toString(),
-                    revoked = it[RefreshTokens.revoked],
+                    revoked = it[RefreshTokens.revoked]
                 )
             }
     }
@@ -193,12 +208,12 @@ class UserRepositoryImpl : UserRepository {
             .selectAll()
             .where {
                 (UserGroupAssignments.userId eq userId) and
-                        (UserGroupAssignments.scopeType eq "GLOBAL")
+                    (UserGroupAssignments.scopeType eq "GLOBAL")
             }
             .map {
                 GroupAssignmentRow(
                     groupId = it[Groups.id],
-                    groupName = it[Groups.name],
+                    groupName = it[Groups.name]
                 )
             }
     }
@@ -209,7 +224,7 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toUserRow() = UserRow(
     username = this[Users.username],
     email = this[Users.email],
     isActive = this[Users.isActive],
-    createdAt = this[Users.createdAt].toUtcString(),
+    createdAt = this[Users.createdAt].toUtcString()
 )
 
 private fun org.jetbrains.exposed.v1.core.ResultRow.toAssignmentRow() = AssignmentRow(
@@ -217,5 +232,5 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toAssignmentRow() = Assignme
     userId = this[UserGroupAssignments.userId],
     groupId = this[UserGroupAssignments.groupId],
     scopeType = this[UserGroupAssignments.scopeType],
-    scopeId = this[UserGroupAssignments.scopeId],
+    scopeId = this[UserGroupAssignments.scopeId]
 )

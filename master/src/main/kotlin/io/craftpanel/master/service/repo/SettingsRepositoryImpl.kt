@@ -1,15 +1,12 @@
 package io.craftpanel.master.service.repo
 
-import io.craftpanel.master.database.schema.ServerJobs
 import io.craftpanel.master.database.schema.SystemSettings
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
-import org.jetbrains.exposed.v1.jdbc.upsert
 import kotlinx.datetime.Instant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.upsert
 import kotlin.uuid.Uuid
 
 class SettingsRepositoryImpl : SettingsRepository {
@@ -21,7 +18,7 @@ class SettingsRepositoryImpl : SettingsRepository {
                     key = it[SystemSettings.key],
                     value = it[SystemSettings.value],
                     updatedAt = it[SystemSettings.updatedAt].toString(),
-                    updatedBy = it[SystemSettings.updatedBy],
+                    updatedBy = it[SystemSettings.updatedBy]
                 )
             }
     }
@@ -36,33 +33,4 @@ class SettingsRepositoryImpl : SettingsRepository {
             }
         }
     }
-
-    override fun findJobsByType(type: String): List<ServerJobRow> = transaction {
-        ServerJobs.selectAll()
-            .where { ServerJobs.type eq type }
-            .map { it.toServerJobRow() }
-    }
-
-    override fun updateJobLastFired(jobId: Uuid, lastFiredAt: Instant) {
-        transaction {
-            ServerJobs.update({ ServerJobs.id eq jobId }) {
-                it[ServerJobs.lastFiredAt] = lastFiredAt.toLocalDateTime(TimeZone.UTC)
-            }
-        }
-    }
-
-    override fun findEnabledJobs(): List<ServerJobRow> = transaction {
-        ServerJobs.selectAll()
-            .where { ServerJobs.enabled eq true }
-            .map { it.toServerJobRow() }
-    }
 }
-
-private fun org.jetbrains.exposed.v1.core.ResultRow.toServerJobRow() = ServerJobRow(
-    id = this[ServerJobs.id],
-    serverId = this[ServerJobs.serverId],
-    type = this[ServerJobs.type],
-    cronExpression = this[ServerJobs.cronExpression],
-    enabled = this[ServerJobs.enabled],
-    lastFiredAt = this[ServerJobs.lastFiredAt]?.toString(),
-)

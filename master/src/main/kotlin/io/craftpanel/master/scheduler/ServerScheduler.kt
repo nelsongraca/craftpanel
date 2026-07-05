@@ -4,20 +4,15 @@ import com.cronutils.model.CronType
 import com.cronutils.model.definition.CronDefinitionBuilder
 import com.cronutils.model.time.ExecutionTime
 import com.cronutils.parser.CronParser
-import io.craftpanel.master.database.schema.ServerJobs
-import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.datetime.LocalDateTime
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toJavaLocalDateTime
-import kotlinx.datetime.toLocalDateTime
-import org.jetbrains.exposed.v1.core.*
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
 import org.slf4j.LoggerFactory
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
@@ -26,10 +21,7 @@ import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
-class ServerScheduler(
-    private val handlers: Map<String, ScheduledJobHandler>,
-    private val scope: CoroutineScope,
-) {
+class ServerScheduler(private val handlers: Map<String, ScheduledJobHandler>, private val scope: CoroutineScope, private val serverRepository: ServerRepository) {
 
     private val log = LoggerFactory.getLogger(ServerScheduler::class.java)
     private val cronParser = CronParser(CronDefinitionBuilder.instanceDefinitionFor(CronType.UNIX))
@@ -69,27 +61,19 @@ class ServerScheduler(
             .atZone(ZoneOffset.UTC)
         val nowMinute = nowZdt.truncatedTo(ChronoUnit.MINUTES)
 
-        val backupRows = transaction {
-            Servers.selectAll()
-                .where { Servers.backupSchedule.isNotNull() }
-                .toList()
-        }
+        val backupRows = serverRepository.listWithBackupSchedule()
         for (row in backupRows) {
-            val expr = row[Servers.backupSchedule] ?: continue
+            val expr = row.backupSchedule ?: continue
             if (!fires(expr, nowZdt)) continue
-            val lastFired = row[Servers.backupScheduleLastFired]
+            val lastFired = row.backupScheduleLastFired
             if (lastFired != null) {
-                val lastFiredMinute = lastFired.toJavaLocalDateTime()
+                val lastFiredMinute = LocalDateTime.parse(lastFired).toJavaLocalDateTime()
                     .atZone(ZoneOffset.UTC)
                     .truncatedTo(ChronoUnit.MINUTES)
                 if (lastFiredMinute == nowMinute) continue
             }
-            val serverId = row[Servers.id]
-            transaction {
-                Servers.update({ Servers.id eq serverId }) {
-                    it[backupScheduleLastFired] = now.toLocalDateTime(TimeZone.UTC)
-                }
-            }
+            val serverId = row.id
+            serverRepository.updateBackupScheduleLastFired(serverId, now)
             handlers["BACKUP"]?.let { handler ->
                 scope.launch {
                     handler.execute(JobExecutionContext(serverId, jobId = null, scheduledAt = now))
@@ -97,29 +81,21 @@ class ServerScheduler(
             }
         }
 
-        val genericRows = transaction {
-            ServerJobs.selectAll()
-                .where { ServerJobs.enabled eq true }
-                .toList()
-        }
+        val genericRows = serverRepository.listEnabledServerJobs()
         for (row in genericRows) {
-            val expr = row[ServerJobs.cronExpression]
+            val expr = row.cronExpression
             if (!fires(expr, nowZdt)) continue
-            val lastFired = row[ServerJobs.lastFiredAt]
+            val lastFired = row.lastFiredAt
             if (lastFired != null) {
-                val lastFiredMinute = lastFired.toJavaLocalDateTime()
+                val lastFiredMinute = LocalDateTime.parse(lastFired).toJavaLocalDateTime()
                     .atZone(ZoneOffset.UTC)
                     .truncatedTo(ChronoUnit.MINUTES)
                 if (lastFiredMinute == nowMinute) continue
             }
-            val jobId = row[ServerJobs.id]
-            val serverId = row[ServerJobs.serverId]
-            val type = row[ServerJobs.type]
-            transaction {
-                ServerJobs.update({ ServerJobs.id eq jobId }) {
-                    it[lastFiredAt] = now.toLocalDateTime(TimeZone.UTC)
-                }
-            }
+            val jobId = row.id
+            val serverId = row.serverId
+            val type = row.type
+            serverRepository.updateServerJobLastFired(jobId, now)
             handlers[type]?.let { handler ->
                 scope.launch {
                     handler.execute(JobExecutionContext(serverId, jobId = jobId, scheduledAt = now))

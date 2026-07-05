@@ -9,30 +9,11 @@ class FakeUserRepository : UserRepository {
     private val assignments = mutableMapOf<Uuid, MutableAssignment>()
     private val tokens = mutableMapOf<String, MutableToken>()
 
-    data class MutableUser(
-        val id: Uuid,
-        var username: String,
-        var email: String,
-        var passwordHash: String,
-        var isActive: Boolean = true,
-        val createdAt: String = "2025-01-01T00:00:00Z",
-    )
+    data class MutableUser(val id: Uuid, var username: String, var email: String, var passwordHash: String, var isActive: Boolean = true, val createdAt: String = "2025-01-01T00:00:00Z")
 
-    data class MutableAssignment(
-        val id: Uuid,
-        val userId: Uuid,
-        val groupId: Uuid,
-        val scopeType: String,
-        val scopeId: Uuid?,
-    )
+    data class MutableAssignment(val id: Uuid, val userId: Uuid, val groupId: Uuid, val scopeType: String, val scopeId: Uuid?)
 
-    data class MutableToken(
-        val id: Uuid,
-        val userId: Uuid,
-        val tokenHash: String,
-        val expiresAt: String,
-        var revoked: Boolean = false,
-    )
+    data class MutableToken(val id: Uuid, val userId: Uuid, val tokenHash: String, val expiresAt: String, var revoked: Boolean = false)
 
     override fun findById(id: Uuid): UserRow? = users[id]?.toRow()
     override fun findByEmail(email: String): UserRow? = users.values.firstOrNull { it.email == email }
@@ -40,6 +21,9 @@ class FakeUserRepository : UserRepository {
 
     override fun findByUsername(username: String): UserRow? = users.values.firstOrNull { it.username == username }
         ?.toRow()
+
+    override fun findCredentials(email: String): CredentialRow? = users.values.firstOrNull { it.email == email }
+        ?.let { CredentialRow(it.id, it.username, it.email, it.passwordHash, it.isActive) }
 
     override fun listAll(): List<UserRow> = users.values.map { it.toRow() }
     override fun create(username: String, email: String, passwordHash: String): UserRow {
@@ -57,7 +41,9 @@ class FakeUserRepository : UserRepository {
     }
 
     override fun delete(id: Uuid) {
-        users.remove(id); assignments.values.removeAll { it.userId == id }; tokens.values.removeAll { it.userId == id }
+        users.remove(id)
+        assignments.values.removeAll { it.userId == id }
+        tokens.values.removeAll { it.userId == id }
     }
 
     override fun isActive(id: Uuid): Boolean = users[id]?.isActive ?: false

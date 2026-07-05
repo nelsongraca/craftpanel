@@ -3,37 +3,32 @@
 package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.Permission
-import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.auth.PermissionResolver
+import io.craftpanel.master.auth.ScopeType
+import io.craftpanel.master.auth.WsTicketService
+import io.craftpanel.master.domain.AgentEvent
+import io.craftpanel.master.domain.BackupStatus
 import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.NodeStatus
 import io.craftpanel.master.domain.ServerStatus
-import io.craftpanel.master.domain.BackupStatus
-import io.craftpanel.master.auth.WsTicketService
-import io.craftpanel.master.database.schema.ContainerMetrics
-import io.craftpanel.master.database.schema.Nodes
-import io.craftpanel.master.database.schema.Servers
-import io.craftpanel.master.domain.AgentEvent
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.filterIsInstance
-import kotlin.reflect.KClass
-import kotlin.uuid.Uuid
+import io.craftpanel.master.service.repo.NodeRepository
+import io.craftpanel.master.service.repo.ServerRepository
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import io.ktor.websocket.DefaultWebSocketSession
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
 import kotlinx.serialization.json.encodeToJsonElement
-import org.jetbrains.exposed.v1.core.SortOrder
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import kotlin.reflect.KClass
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
+import kotlin.uuid.Uuid
 
 private enum class WsEventType(val event: String) {
     SNAPSHOT("snapshot"),
@@ -50,7 +45,10 @@ private enum class WsEventType(val event: String) {
     override fun toString(): String = event
 }
 
-internal val wsJson = Json { ignoreUnknownKeys = true; namingStrategy = JsonNamingStrategy.SnakeCase }
+internal val wsJson = Json {
+    ignoreUnknownKeys = true
+    namingStrategy = JsonNamingStrategy.SnakeCase
+}
 
 private inline fun <reified T> DefaultWebSocketSession.sendWs(type: WsEventType, payload: T) {
     outgoing.trySend(Frame.Text(wsJson.encodeToString(WsEnvelope(type.event, wsJson.encodeToJsonElement(payload)))))
@@ -60,7 +58,7 @@ private fun DefaultWebSocketSession.sendWsRaw(envelope: WsEnvelope) {
     outgoing.trySend(Frame.Text(wsJson.encodeToString(envelope)))
 }
 
-fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, agentEvents: SharedFlow<AgentEvent>) {
+fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, agentEvents: SharedFlow<AgentEvent>, serverRepository: ServerRepository, nodeRepository: NodeRepository) {
     // operationId: dashboardWebSocket
     // Requires: ?ticket=<ws-ticket> (from POST /api/auth/ws-ticket)
     // Emits server/node status, metrics, alerts, and player updates as JSON envelopes.
@@ -76,60 +74,48 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, agentEvents: Share
 
         fun hasNodes() = PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES)
 
-        fun canViewServer(serverId: Uuid, networkId: Uuid?): Boolean =
-            PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW, serverId, networkId)
+        fun canViewServer(serverId: Uuid, networkId: Uuid?): Boolean = PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW, serverId, networkId)
 
-        fun serverNetworkId(serverId: String): Uuid? = transaction {
-            val kId = runCatching { Uuid.parse(serverId) }.getOrNull() ?: return@transaction null
-            Servers.selectAll()
-                .where { Servers.id eq kId }
-                .firstOrNull()
-                ?.get(Servers.networkId)
+        fun serverNetworkId(serverId: String): Uuid? {
+            val kId = runCatching { Uuid.parse(serverId) }.getOrNull() ?: return null
+            return serverRepository.findById(kId)?.networkId
         }
 
         // ── Initial snapshot ──────────────────────────────────────────────────
-        val snapshot = transaction {
-            val serverRows = Servers.selectAll()
-                .toList()
-            val latestMetrics = serverRows.associate { row ->
-                val sid = row[Servers.id]
-                val metricsRow = ContainerMetrics.selectAll()
-                    .where { ContainerMetrics.serverId eq sid }
-                    .orderBy(ContainerMetrics.recordedAt, SortOrder.DESC)
-                    .limit(1)
-                    .firstOrNull()
-                sid to metricsRow?.let {
-                    ServerMetricsSnapshot(
-                        it[ContainerMetrics.cpuPercent],
-                        it[ContainerMetrics.ramUsedMb],
-                        it[ContainerMetrics.netInBytes],
-                        it[ContainerMetrics.netOutBytes],
-                        it[ContainerMetrics.blockInBytes],
-                        it[ContainerMetrics.blockOutBytes],
-                        it[ContainerMetrics.recordedAt].toString(),
-                    )
-                }
-            }
+        val snapshot = run {
+            val serverRows = serverRepository.listAll()
+            val latestMetrics = serverRepository.getLatestContainerMetricsForServers(serverRows.map { it.id })
+
             val servers = serverRows.mapNotNull { row ->
-                val sid = row[Servers.id]
-                val netId = row[Servers.networkId]
-                if (!canViewServer(sid, netId)) return@mapNotNull null
+                if (!canViewServer(row.id, row.networkId)) return@mapNotNull null
+                val metricsRow = latestMetrics[row.id]
                 ServerSnapshot(
-                    sid.toString(),
-                    row[Servers.displayName],
-                    ServerStatus.fromDb(row[Servers.status]),
-                    row[Servers.nodeId].toString(),
-                    row[Servers.networkId]?.toString(),
-                    latestMetrics[sid],
+                    row.id.toString(),
+                    row.displayName,
+                    ServerStatus.fromDb(row.status),
+                    row.nodeId.toString(),
+                    row.networkId?.toString(),
+                    metricsRow?.let {
+                        ServerMetricsSnapshot(
+                            it.cpuPercent,
+                            it.ramUsedMb,
+                            it.netInBytes,
+                            it.netOutBytes,
+                            it.blockInBytes,
+                            it.blockOutBytes,
+                            it.recordedAt
+                        )
+                    }
                 )
             }
             val nodes = if (hasNodes()) {
-                Nodes.selectAll()
+                nodeRepository.listAll()
                     .map { row ->
-                        NodeSnapshot(row[Nodes.id].toString(), row[Nodes.displayName], NodeStatus.fromDb(row[Nodes.status]), NodeHealth.valueOf(row[Nodes.health]))
+                        NodeSnapshot(row.id.toString(), row.displayName, NodeStatus.fromDb(row.status), NodeHealth.valueOf(row.health))
                     }
+            } else {
+                emptyList()
             }
-            else emptyList()
 
             WsEnvelope(WsEventType.SNAPSHOT.event, wsJson.encodeToJsonElement(SnapshotPayload(servers, nodes)))
         }
@@ -142,10 +128,11 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, agentEvents: Share
                 val e = event as AgentEvent.NodeMetricsEvent
                 if (!hasNodes()) return@to
                 sendWs(
-                    WsEventType.NODE_METRICS, NodeMetricsPayload(
+                    WsEventType.NODE_METRICS,
+                    NodeMetricsPayload(
                         e.nodeId, e.cpuPercent, e.ramUsedMb, e.ramTotalMb,
                         e.netInBytes, e.netOutBytes, e.diskUsedBytes, e.diskTotalBytes,
-                        e.recordedAt.toString(),
+                        e.recordedAt.toString()
                     )
                 )
             },
@@ -153,11 +140,12 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, agentEvents: Share
                 val e = event as AgentEvent.NodeStatusEvent
                 if (!hasNodes()) return@to
                 sendWs(
-                    WsEventType.NODE_STATUS, NodeStatusPayload(
+                    WsEventType.NODE_STATUS,
+                    NodeStatusPayload(
                         e.nodeId,
                         e.health,
                         Clock.System.now()
-                            .toString(),
+                            .toString()
                     )
                 )
             },
@@ -167,10 +155,16 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, agentEvents: Share
                 val netId = serverNetworkId(e.serverId)
                 if (!canViewServer(sid, netId)) return@to
                 sendWs(
-                    WsEventType.SERVER_METRICS, ServerMetricsPayload(
-                        e.serverId, e.cpuPercent, e.ramUsedMb,
-                        e.netInBytes, e.netOutBytes,
-                        e.blockInBytes, e.blockOutBytes, e.recordedAt.toString(),
+                    WsEventType.SERVER_METRICS,
+                    ServerMetricsPayload(
+                        e.serverId,
+                        e.cpuPercent,
+                        e.ramUsedMb,
+                        e.netInBytes,
+                        e.netOutBytes,
+                        e.blockInBytes,
+                        e.blockOutBytes,
+                        e.recordedAt.toString()
                     )
                 )
             },
@@ -180,11 +174,12 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, agentEvents: Share
                 val netId = serverNetworkId(e.serverId)
                 if (!canViewServer(sid, netId)) return@to
                 sendWs(
-                    WsEventType.SERVER_STATUS, ServerStatusPayload(
+                    WsEventType.SERVER_STATUS,
+                    ServerStatusPayload(
                         e.serverId,
                         e.status,
                         Clock.System.now()
-                            .toString(),
+                            .toString()
                     )
                 )
             },
@@ -194,8 +189,12 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, agentEvents: Share
                 val netId = serverNetworkId(e.serverId)
                 if (!canViewServer(sid, netId)) return@to
                 sendWs(
-                    WsEventType.SERVER_PLAYERS, ServerPlayersPayload(
-                        e.serverId, e.playerCount, e.playerNames, e.recordedAt.toString(),
+                    WsEventType.SERVER_PLAYERS,
+                    ServerPlayersPayload(
+                        e.serverId,
+                        e.playerCount,
+                        e.playerNames,
+                        e.recordedAt.toString()
                     )
                 )
             },
@@ -205,12 +204,13 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, agentEvents: Share
                 val netId = serverNetworkId(e.serverId)
                 if (!canViewServer(sid, netId)) return@to
                 sendWs(
-                    WsEventType.SERVER_BACKUP_PROGRESS, BackupProgressPayload(
+                    WsEventType.SERVER_BACKUP_PROGRESS,
+                    BackupProgressPayload(
                         e.serverId,
                         e.backupId,
                         e.percentComplete,
                         Clock.System.now()
-                            .toString(),
+                            .toString()
                     )
                 )
             },
@@ -221,10 +221,14 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, agentEvents: Share
                 if (!canViewServer(sid, netId)) return@to
                 val status = if (e.success) BackupStatus.COMPLETED else BackupStatus.FAILED
                 sendWs(
-                    WsEventType.SERVER_BACKUP_COMPLETE, BackupCompletePayload(
-                        e.serverId, e.backupId, status,
-                        e.sizeBytes, if (!e.success) e.errorMessage else null,
-                        e.completedAt.toString(),
+                    WsEventType.SERVER_BACKUP_COMPLETE,
+                    BackupCompletePayload(
+                        e.serverId,
+                        e.backupId,
+                        status,
+                        e.sizeBytes,
+                        if (!e.success) e.errorMessage else null,
+                        e.completedAt.toString()
                     )
                 )
             },
@@ -239,14 +243,19 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, agentEvents: Share
                 }
                 val type = if (isResolved) WsEventType.ALERT_RESOLVED else WsEventType.ALERT_FIRED
                 sendWs(
-                    type, AlertPayload(
-                        alert.eventId, alert.thresholdId, ScopeType.valueOf(alert.scopeType), alert.scopeId,
-                        alert.metric, alert.message,
+                    type,
+                    AlertPayload(
+                        alert.eventId,
+                        alert.thresholdId,
+                        ScopeType.valueOf(alert.scopeType),
+                        alert.scopeId,
+                        alert.metric,
+                        alert.message,
                         if (!isResolved) alert.firedAt else null,
-                        if (isResolved) alert.resolvedAt else null,
+                        if (isResolved) alert.resolvedAt else null
                     )
                 )
-            },
+            }
         )
 
         val subscriptionsJob = launch {
@@ -268,8 +277,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, agentEvents: Share
 
         try {
             incoming.consumeEach { }
-        }
-        finally {
+        } finally {
             subscriptionsJob.cancel()
             revalidationJob.cancel()
         }
