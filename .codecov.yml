@@ -5,12 +5,11 @@ coverage:
         target: auto
         threshold: 5%
 
-flag_management:
-  individual_flags:
-    - name: system
-      carryforward: true
-    - name: e2e
-      carryforward: true
+flags:
+  system:
+    carryforward: true
+  e2e:
+    carryforward: true
 
 ignore:
   - "**/repo/*RepositoryImpl.kt"
