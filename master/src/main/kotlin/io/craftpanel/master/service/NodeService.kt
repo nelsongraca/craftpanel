@@ -27,6 +27,7 @@ data class NodeResponse(
     @SerialName("allocated_ram_mb") val allocatedRamMb: Int,
     @SerialName("allocated_cpu_shares") val allocatedCpuShares: Int,
     @SerialName("system_ram_used_mb") val systemRamUsedMb: Int?,
+    @SerialName("reserved_ram_mb") val reservedRamMb: Int,
     @SerialName("port_range_start") val portRangeStart: Int,
     @SerialName("port_range_end") val portRangeEnd: Int,
     @SerialName("agent_version") val agentVersion: String?,
@@ -39,7 +40,8 @@ data class NodeResponse(
 data class PatchNodeRequest(
     @SerialName("display_name") val displayName: String? = null,
     @SerialName("port_range_start") val portRangeStart: Int? = null,
-    @SerialName("port_range_end") val portRangeEnd: Int? = null
+    @SerialName("port_range_end") val portRangeEnd: Int? = null,
+    @SerialName("reserved_ram_mb") val reservedRamMb: Int? = null,
 )
 
 @Serializable
@@ -102,7 +104,8 @@ class NodeService(private val gateway: AgentGateway, private val nodeRepository:
         val newStart = req.portRangeStart ?: node.portRangeStart
         val newEnd = req.portRangeEnd ?: node.portRangeEnd
         if (newStart >= newEnd) throw UnprocessableException("Port range start must be less than end")
-        nodeRepository.update(id, req.displayName, newStart, newEnd)
+        if (req.reservedRamMb != null && req.reservedRamMb < 0) throw UnprocessableException("reserved_ram_mb must not be negative")
+        nodeRepository.update(id, req.displayName, newStart, newEnd, req.reservedRamMb)
     }
 
     fun decommissionNode(id: kotlin.uuid.Uuid) {
@@ -142,6 +145,7 @@ private fun NodeRow.toNodeResponse(allocatedRamMb: Int, allocatedCpuShares: Int)
     allocatedRamMb = allocatedRamMb,
     allocatedCpuShares = allocatedCpuShares,
     systemRamUsedMb = systemRamUsedMb,
+    reservedRamMb = reservedRamMb,
     portRangeStart = portRangeStart,
     portRangeEnd = portRangeEnd,
     agentVersion = agentVersion,

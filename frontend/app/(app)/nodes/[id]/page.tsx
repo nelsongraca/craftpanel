@@ -62,6 +62,7 @@ function EditModal({node, onClose, onSaved}: { node: Node; onClose: () => void; 
     const [displayName, setDisplayName] = useState(node.display_name);
     const [portStart, setPortStart] = useState(String(node.port_range_start));
     const [portEnd, setPortEnd] = useState(String(node.port_range_end));
+    const [reservedRam, setReservedRam] = useState(String(node.reserved_ram_mb));
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -74,6 +75,7 @@ function EditModal({node, onClose, onSaved}: { node: Node; onClose: () => void; 
                 display_name: displayName || undefined,
                 port_range_start: portStart ? parseInt(portStart) : undefined,
                 port_range_end: portEnd ? parseInt(portEnd) : undefined,
+                reserved_ram_mb: reservedRam ? parseInt(reservedRam) : undefined,
             },
         });
         if (error) {
@@ -113,6 +115,11 @@ function EditModal({node, onClose, onSaved}: { node: Node; onClose: () => void; 
                                    className="w-full h-8 bg-surface border border-border rounded px-2.5 text-[12px] font-mono text-text-primary focus:outline-none focus:border-accent"/>
                         </label>
                     </div>
+                    <label className="block">
+                        <span className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">Reserved RAM (MB)</span>
+                        <input type="number" value={reservedRam} onChange={(e) => setReservedRam(e.target.value)}
+                               className="w-full h-8 bg-surface border border-border rounded px-2.5 text-[12px] font-mono text-text-primary focus:outline-none focus:border-accent"/>
+                    </label>
                 </div>
                 <div className="flex justify-end gap-2 mt-6">
                     <button onClick={onClose}
@@ -194,6 +201,7 @@ function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
                 <InfoRow label="Port Range" value={`${node.port_range_start}–${node.port_range_end}`}/>
                 <InfoRow label="Agent" value={node.agent_version ?? "—"}/>
                 <InfoRow label="RAM Total" value={fmtMb(node.total_ram_mb)}/>
+                <InfoRow label="RAM Reserved" value={fmtMb(node.reserved_ram_mb)}/>
                 <InfoRow label="CPU Shares" value={String(node.total_cpu_shares)}/>
                 <InfoRow label="Last Seen" value={node.last_seen_at ? timeAgo(node.last_seen_at) : "—"}/>
                 <InfoRow label="Created" value={new Date(node.created_at).toLocaleDateString()}/>

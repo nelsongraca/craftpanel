@@ -36,6 +36,7 @@ const NODE_DEFAULTS = {
     allocated_ram_mb: 2048,
     allocated_cpu_shares: 1024,
     system_ram_used_mb: null,
+    reserved_ram_mb: 1024,
     port_range_start: 25565,
     port_range_end: 25600,
     agent_version: "1.0.0",

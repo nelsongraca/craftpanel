@@ -21,6 +21,7 @@ class FakeNodeRepository : NodeRepository {
         var totalRamMb: Int = 0,
         var totalCpuShares: Int = 0,
         var systemRamUsedMb: Int? = null,
+        var reservedRamMb: Int = 1024,
         var portRangeStart: Int = 25570,
         var portRangeEnd: Int = 26070,
         var swarmActive: Boolean = false,
@@ -50,11 +51,12 @@ class FakeNodeRepository : NodeRepository {
         allocatedCpu = cpu
     }
 
-    fun setCapacity(id: Uuid, totalRamMb: Int, totalCpuShares: Int = 0, systemRamUsedMb: Int? = null) {
+    fun setCapacity(id: Uuid, totalRamMb: Int, totalCpuShares: Int = 0, systemRamUsedMb: Int? = null, reservedRamMb: Int = 1024) {
         nodes[id]?.let {
             it.totalRamMb = totalRamMb
             it.totalCpuShares = totalCpuShares
             it.systemRamUsedMb = systemRamUsedMb
+            it.reservedRamMb = reservedRamMb
         }
     }
 
@@ -97,11 +99,12 @@ class FakeNodeRepository : NodeRepository {
         return n.toRow()
     }
 
-    override fun update(id: Uuid, displayName: String?, portRangeStart: Int?, portRangeEnd: Int?) {
+    override fun update(id: Uuid, displayName: String?, portRangeStart: Int?, portRangeEnd: Int?, reservedRamMb: Int?) {
         val n = nodes[id] ?: return
         if (displayName != null) n.displayName = displayName
         if (portRangeStart != null) n.portRangeStart = portRangeStart
         if (portRangeEnd != null) n.portRangeEnd = portRangeEnd
+        if (reservedRamMb != null) n.reservedRamMb = reservedRamMb
     }
 
     override fun updateStatus(id: Uuid, status: NodeStatus) {
@@ -167,6 +170,7 @@ class FakeNodeRepository : NodeRepository {
         totalRamMb,
         totalCpuShares,
         systemRamUsedMb,
+        reservedRamMb,
         portRangeStart,
         portRangeEnd,
         swarmActive,

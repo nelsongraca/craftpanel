@@ -7,7 +7,7 @@ import kotlin.uuid.Uuid
 internal enum class CapacityResult {
     Ok,
     InsufficientRam,
-    InsufficientCpu,
+    InsufficientCpu
 }
 
 internal class ResourceCapacityChecker(private val serverRepository: ServerRepository) {
@@ -17,8 +17,7 @@ internal class ResourceCapacityChecker(private val serverRepository: ServerRepos
             .filter { it.id != excludeServerId }
         val usedRam = others.sumOf { it.memoryMb }
         val usedCpu = others.sumOf { it.cpuShares }
-        val effectiveUsedRam = maxOf(usedRam, node.systemRamUsedMb ?: 0)
-        if (effectiveUsedRam + memoryMb > node.totalRamMb) return CapacityResult.InsufficientRam
+        if (usedRam + memoryMb > node.totalRamMb - node.reservedRamMb) return CapacityResult.InsufficientRam
         if (node.totalCpuShares > 0 && usedCpu + cpuShares > node.totalCpuShares) return CapacityResult.InsufficientCpu
         return CapacityResult.Ok
     }

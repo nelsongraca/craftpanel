@@ -16,6 +16,7 @@ data class NodeRow(
     val totalRamMb: Int,
     val totalCpuShares: Int,
     val systemRamUsedMb: Int?,
+    val reservedRamMb: Int = 1024,
     val portRangeStart: Int,
     val portRangeEnd: Int,
     val swarmActive: Boolean,
@@ -55,10 +56,10 @@ interface NodeRepository {
         totalRamMb: Int = 0,
         totalCpuShares: Int = 0,
         agentVersion: String? = null,
-        lastSeenAt: Instant? = null
+        lastSeenAt: Instant? = null,
     ): NodeRow
 
-    fun update(id: Uuid, displayName: String?, portRangeStart: Int?, portRangeEnd: Int?)
+    fun update(id: Uuid, displayName: String?, portRangeStart: Int?, portRangeEnd: Int?, reservedRamMb: Int?)
     fun updateStatus(id: Uuid, status: NodeStatus)
     fun updateHealth(id: Uuid, health: String)
     fun updateLastSeen(id: Uuid, lastSeenAt: Instant, publicIp: String?, agentVersion: String?, privateIp: String? = null)

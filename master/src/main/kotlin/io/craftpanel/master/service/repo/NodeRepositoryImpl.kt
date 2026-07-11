@@ -54,7 +54,7 @@ class NodeRepositoryImpl : NodeRepository {
         totalRamMb: Int,
         totalCpuShares: Int,
         agentVersion: String?,
-        lastSeenAt: Instant?
+        lastSeenAt: Instant?,
     ): NodeRow = transaction {
         val id = Nodes.insert {
             it[Nodes.displayName] = displayName
@@ -75,12 +75,13 @@ class NodeRepositoryImpl : NodeRepository {
             .toNodeRow()
     }
 
-    override fun update(id: Uuid, displayName: String?, portRangeStart: Int?, portRangeEnd: Int?) {
+    override fun update(id: Uuid, displayName: String?, portRangeStart: Int?, portRangeEnd: Int?, reservedRamMb: Int?) {
         transaction {
             Nodes.update({ Nodes.id eq id }) {
                 if (displayName != null) it[Nodes.displayName] = displayName
                 if (portRangeStart != null) it[Nodes.portRangeStart] = portRangeStart
                 if (portRangeEnd != null) it[Nodes.portRangeEnd] = portRangeEnd
+                if (reservedRamMb != null) it[Nodes.reservedRamMb] = reservedRamMb
             }
         }
     }
@@ -191,6 +192,7 @@ private fun ResultRow.toNodeRow() = NodeRow(
     totalRamMb = this[Nodes.totalRamMb],
     totalCpuShares = this[Nodes.totalCpuShares],
     systemRamUsedMb = this[Nodes.systemRamUsedMb],
+    reservedRamMb = this[Nodes.reservedRamMb],
     portRangeStart = this[Nodes.portRangeStart],
     portRangeEnd = this[Nodes.portRangeEnd],
     swarmActive = this[Nodes.swarmActive],

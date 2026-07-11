@@ -14,7 +14,7 @@ class ResourceCapacityCheckerTest :
             val checker = ResourceCapacityChecker(servers)
 
             val node = nodes.create("node-1", "host", "1.2.3.4", "10.0.0.1", "hash", 25570, 26070)
-            nodes.setCapacity(node.id, totalRamMb = 4096, totalCpuShares = 2048)
+            nodes.setCapacity(node.id, totalRamMb = 4096, totalCpuShares = 2048, reservedRamMb = 0)
             val freshNode = nodes.findById(node.id)!!
 
             val result = checker.check(freshNode, excludeServerId = null, memoryMb = 1024, cpuShares = 512)
@@ -28,7 +28,7 @@ class ResourceCapacityCheckerTest :
             val checker = ResourceCapacityChecker(servers)
 
             val node = nodes.create("node-1", "host", "1.2.3.4", "10.0.0.1", "hash", 25570, 26070)
-            nodes.setCapacity(node.id, totalRamMb = 1024, totalCpuShares = 2048)
+            nodes.setCapacity(node.id, totalRamMb = 1024, totalCpuShares = 2048, reservedRamMb = 0)
             val freshNode = nodes.findById(node.id)!!
 
             val result = checker.check(freshNode, excludeServerId = null, memoryMb = 2048, cpuShares = 512)
@@ -42,7 +42,7 @@ class ResourceCapacityCheckerTest :
             val checker = ResourceCapacityChecker(servers)
 
             val node = nodes.create("node-1", "host", "1.2.3.4", "10.0.0.1", "hash", 25570, 26070)
-            nodes.setCapacity(node.id, totalRamMb = 8192, totalCpuShares = 1024)
+            nodes.setCapacity(node.id, totalRamMb = 8192, totalCpuShares = 1024, reservedRamMb = 0)
             val freshNode = nodes.findById(node.id)!!
 
             val result = checker.check(freshNode, excludeServerId = null, memoryMb = 1024, cpuShares = 2048)
@@ -56,7 +56,7 @@ class ResourceCapacityCheckerTest :
             val checker = ResourceCapacityChecker(servers)
 
             val node = nodes.create("node-1", "host", "1.2.3.4", "10.0.0.1", "hash", 25570, 26070)
-            nodes.setCapacity(node.id, totalRamMb = 8192, totalCpuShares = 0)
+            nodes.setCapacity(node.id, totalRamMb = 8192, totalCpuShares = 0, reservedRamMb = 0)
             val freshNode = nodes.findById(node.id)!!
 
             val result = checker.check(freshNode, excludeServerId = null, memoryMb = 1024, cpuShares = 999999)
@@ -70,13 +70,13 @@ class ResourceCapacityCheckerTest :
             val checker = ResourceCapacityChecker(servers)
 
             val node = nodes.create("node-1", "host", "1.2.3.4", "10.0.0.1", "hash", 25570, 26070)
-            nodes.setCapacity(node.id, totalRamMb = 2048, totalCpuShares = 2048)
+            nodes.setCapacity(node.id, totalRamMb = 2048, totalCpuShares = 2048, reservedRamMb = 0)
             val freshNode = nodes.findById(node.id)!!
             servers.create(
                 name = "existing", displayName = "existing", description = null,
                 nodeId = node.id, networkId = null, serverType = "VANILLA",
                 mcVersion = "1.21.4", itzgImageTag = "latest", hostPort = 25565,
-                memoryMb = 1500, cpuShares = 0, configMode = "MANAGED", stopCommand = "stop",
+                memoryMb = 1500, cpuShares = 0, configMode = "MANAGED", stopCommand = "stop"
             )
 
             val result = checker.check(freshNode, excludeServerId = null, memoryMb = 1024, cpuShares = 0)
@@ -90,13 +90,13 @@ class ResourceCapacityCheckerTest :
             val checker = ResourceCapacityChecker(servers)
 
             val node = nodes.create("node-1", "host", "1.2.3.4", "10.0.0.1", "hash", 25570, 26070)
-            nodes.setCapacity(node.id, totalRamMb = 2048, totalCpuShares = 2048)
+            nodes.setCapacity(node.id, totalRamMb = 2048, totalCpuShares = 2048, reservedRamMb = 0)
             val freshNode = nodes.findById(node.id)!!
             val existing = servers.create(
                 name = "existing", displayName = "existing", description = null,
                 nodeId = node.id, networkId = null, serverType = "VANILLA",
                 mcVersion = "1.21.4", itzgImageTag = "latest", hostPort = 25565,
-                memoryMb = 1500, cpuShares = 0, configMode = "MANAGED", stopCommand = "stop",
+                memoryMb = 1500, cpuShares = 0, configMode = "MANAGED", stopCommand = "stop"
             )
 
             val result = checker.check(freshNode, excludeServerId = existing.id, memoryMb = 2048, cpuShares = 0)
@@ -104,17 +104,45 @@ class ResourceCapacityCheckerTest :
             result shouldBe CapacityResult.Ok
         }
 
-        test("node systemRamUsedMb is factored in via maxOf against server-tracked usage") {
+        test("reservedRamMb is withheld from allocatable capacity") {
             val nodes = FakeNodeRepository()
             val servers = FakeServerRepository()
             val checker = ResourceCapacityChecker(servers)
 
             val node = nodes.create("node-1", "host", "1.2.3.4", "10.0.0.1", "hash", 25570, 26070)
-            nodes.setCapacity(node.id, totalRamMb = 2048, totalCpuShares = 2048, systemRamUsedMb = 1800)
+            nodes.setCapacity(node.id, totalRamMb = 2048, totalCpuShares = 2048, reservedRamMb = 1024)
+            val freshNode = nodes.findById(node.id)!!
+
+            val result = checker.check(freshNode, excludeServerId = null, memoryMb = 1200, cpuShares = 0)
+
+            result shouldBe CapacityResult.InsufficientRam
+        }
+
+        test("request that fits after accounting for reservedRamMb returns Ok") {
+            val nodes = FakeNodeRepository()
+            val servers = FakeServerRepository()
+            val checker = ResourceCapacityChecker(servers)
+
+            val node = nodes.create("node-1", "host", "1.2.3.4", "10.0.0.1", "hash", 25570, 26070)
+            nodes.setCapacity(node.id, totalRamMb = 2048, totalCpuShares = 2048, reservedRamMb = 1024)
+            val freshNode = nodes.findById(node.id)!!
+
+            val result = checker.check(freshNode, excludeServerId = null, memoryMb = 1024, cpuShares = 0)
+
+            result shouldBe CapacityResult.Ok
+        }
+
+        test("stale systemRamUsedMb no longer gates capacity") {
+            val nodes = FakeNodeRepository()
+            val servers = FakeServerRepository()
+            val checker = ResourceCapacityChecker(servers)
+
+            val node = nodes.create("node-1", "host", "1.2.3.4", "10.0.0.1", "hash", 25570, 26070)
+            nodes.setCapacity(node.id, totalRamMb = 2048, totalCpuShares = 2048, systemRamUsedMb = 1800, reservedRamMb = 0)
             val freshNode = nodes.findById(node.id)!!
 
             val result = checker.check(freshNode, excludeServerId = null, memoryMb = 500, cpuShares = 0)
 
-            result shouldBe CapacityResult.InsufficientRam
+            result shouldBe CapacityResult.Ok
         }
     })
