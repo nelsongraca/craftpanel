@@ -10,6 +10,7 @@ import io.craftpanel.proto.StartContainerCommand
 import io.craftpanel.proto.containerState
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
+import java.io.InputStream
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
@@ -205,7 +206,8 @@ open class ContainerManager(
                 .withTimeout(if (stopCommand.isNotEmpty()) 5 else timeout)
                 .exec()
             log.info("Stopped container {}", containerName)
-        } catch (_: NotFoundException) {
+        }
+        catch (_: NotFoundException) {
             // Container already gone (e.g. server was never started) — stopping is
             // idempotent, the desired end state (not running) already holds.
             log.info("Container {} does not exist — treating stop as already-stopped", containerName)
@@ -237,7 +239,8 @@ open class ContainerManager(
                 .withForce(force)
                 .exec()
             log.info("Removed container $containerName")
-        } catch (_: NotFoundException) {
+        }
+        catch (_: NotFoundException) {
             // Container already gone — removal is idempotent.
             log.info("Container {} does not exist — treating remove as already-removed", containerName)
         }
@@ -274,6 +277,21 @@ open class ContainerManager(
                 .withDetach(true)
                 .exec(ResultCallback.Adapter())
         }.onFailure { log.warn("RCON exec failed for server $serverId: command='$command'", it) }
+    }
+
+    fun isSwarmActive(): Boolean = runCatching {
+        docker.infoCmd()
+            .exec().swarm?.localNodeState?.name?.lowercase() == "active"
+    }.getOrDefault(false)
+
+    fun attachInteractive(containerName: String, inputStream: InputStream, callback: ResultCallback<Frame>): ResultCallback<Frame> {
+        return docker.attachContainerCmd(containerName)
+            .withStdIn(inputStream)
+            .withStdOut(true)
+            .withStdErr(true)
+            .withFollowStream(true)
+            .withLogs(false)
+            .exec(callback)
     }
 
     fun shutdownAll(timeoutSeconds: Int): Pair<Int, Int> {

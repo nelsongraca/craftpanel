@@ -1,13 +1,15 @@
 package io.craftpanel.agent.grpc
 
-import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.config.AgentConfig
+import io.craftpanel.agent.docker.ContainerEventWatcher
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.McRouterProvisioner
 import io.craftpanel.agent.docker.MetricsCollector
 import io.craftpanel.agent.docker.NetworkManager
 import io.craftpanel.agent.docker.RouterSupervisor
+import io.craftpanel.agent.docker.RsyncMigrator
 import io.craftpanel.agent.grpc.handlers.BackupHandler
+import io.craftpanel.agent.grpc.handlers.ConsoleHandler
 import io.craftpanel.agent.grpc.handlers.ContainerHandler
 import io.craftpanel.proto.*
 import io.kotest.core.spec.style.FunSpec
@@ -22,7 +24,6 @@ import java.nio.file.Files
 class ControlStreamHandlerTest : FunSpec({
     val containerManager: ContainerManager = mockk(relaxed = true)
     val metricsCollector: MetricsCollector = mockk(relaxed = true)
-    val docker: DockerClient = mockk(relaxed = true)
     val identity = NodeIdentity(nodeId = "node-1", nodeKey = "test-key")
     val config = AgentConfig(
         profile = "dev",
@@ -51,7 +52,10 @@ class ControlStreamHandlerTest : FunSpec({
     val containerHandler = ContainerHandler(containerManager, config, mockk<NetworkManager>(relaxed = true))
     val backupHandler = BackupHandler(config)
     val routerSupervisor = RouterSupervisor(mockk<McRouterProvisioner>(relaxed = true))
-    val handler = ControlStreamHandler(identity, config, containerManager, metricsCollector, docker, routerSupervisor, containerHandler)
+    val eventWatcher = ContainerEventWatcher(mockk(relaxed = true))
+    val rsyncMigrator = RsyncMigrator(mockk(relaxed = true), config.craftpanelNetwork, config.containerNamePrefix)
+    val consoleHandler = ConsoleHandler(containerManager)
+    val handler = ControlStreamHandler(identity, config, containerManager, metricsCollector, routerSupervisor, containerHandler, eventWatcher, backupHandler, rsyncMigrator, console = consoleHandler)
 
     var tempDir: File = File("")
 
@@ -136,7 +140,7 @@ class ControlStreamHandlerTest : FunSpec({
 
             outboundChannel.messages()
                 .single().serverStatus.status shouldBe
-                    ServerStatusUpdate.ServerStatus.UNHEALTHY
+                ServerStatusUpdate.ServerStatus.UNHEALTHY
         }
     }
 
@@ -160,7 +164,7 @@ class ControlStreamHandlerTest : FunSpec({
             verify { containerManager.removeContainer("craftpanel-recreate", force = true) }
             outboundChannel.messages()
                 .single().serverStatus.status shouldBe
-                    ServerStatusUpdate.ServerStatus.HEALTHY
+                ServerStatusUpdate.ServerStatus.HEALTHY
         }
     }
 
@@ -195,7 +199,7 @@ class ControlStreamHandlerTest : FunSpec({
 
             outboundChannel.messages()
                 .single().serverStatus.status shouldBe
-                    ServerStatusUpdate.ServerStatus.UNHEALTHY
+                ServerStatusUpdate.ServerStatus.UNHEALTHY
         }
     }
 
@@ -214,7 +218,7 @@ class ControlStreamHandlerTest : FunSpec({
 
             outboundChannel.messages()
                 .single().serverStatus.status shouldBe
-                    ServerStatusUpdate.ServerStatus.HEALTHY
+                ServerStatusUpdate.ServerStatus.HEALTHY
             verify { containerManager.stopContainer("craftpanel-restart", 10, "") }
             verify { containerManager.startContainer("craftpanel-restart") }
         }
@@ -232,7 +236,7 @@ class ControlStreamHandlerTest : FunSpec({
 
             outboundChannel.messages()
                 .single().serverStatus.status shouldBe
-                    ServerStatusUpdate.ServerStatus.UNHEALTHY
+                ServerStatusUpdate.ServerStatus.UNHEALTHY
         }
     }
 
@@ -251,7 +255,7 @@ class ControlStreamHandlerTest : FunSpec({
             verify { containerManager.removeContainer("craftpanel-remove", true) }
             outboundChannel.messages()
                 .single().serverStatus.status shouldBe
-                    ServerStatusUpdate.ServerStatus.STOPPED
+                ServerStatusUpdate.ServerStatus.STOPPED
         }
     }
 
@@ -268,7 +272,7 @@ class ControlStreamHandlerTest : FunSpec({
 
             outboundChannel.messages()
                 .single().serverStatus.status shouldBe
-                    ServerStatusUpdate.ServerStatus.UNHEALTHY
+                ServerStatusUpdate.ServerStatus.UNHEALTHY
         }
     }
 

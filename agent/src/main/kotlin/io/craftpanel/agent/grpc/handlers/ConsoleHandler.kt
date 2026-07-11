@@ -1,6 +1,5 @@
 package io.craftpanel.agent.grpc.handlers
 
-import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.model.Frame
 import com.google.protobuf.ByteString
@@ -19,7 +18,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 class ConsoleHandler(
     private val containerManager: ContainerManager,
-    private val docker: DockerClient,
 ) {
 
     private val log = LoggerFactory.getLogger(ConsoleHandler::class.java)
@@ -81,14 +79,7 @@ class ConsoleHandler(
 
                 log.info("Attaching console to container ${container.containerName} (session=$reqId)")
                 runCatching {
-                    docker.attachContainerCmd(container.containerName)
-                        .withStdIn(inputStream)
-                        .withStdOut(true)
-                        .withStdErr(true)
-                        .withFollowStream(true)
-                        .withLogs(false)
-                        .exec(callback)
-                        .awaitCompletion()
+                    containerManager.attachInteractive(container.containerName, inputStream, callback)
                 }.onFailure { e ->
                     log.warn("Console attach failed (session=$reqId): ${e.message}")
                     out.tryConsoleOutput(reqId) { closed = true }

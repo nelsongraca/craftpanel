@@ -1,6 +1,5 @@
 package io.craftpanel.agent.grpc
 
-import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerEventWatcher
 import io.craftpanel.agent.docker.ContainerManager
@@ -21,15 +20,14 @@ class ControlStreamHandler(
     private val config: AgentConfig,
     private val containerManager: ContainerManager,
     private val metricsCollector: MetricsCollector,
-    private val docker: DockerClient,
     private val routerSupervisor: RouterSupervisor,
     private val container: ContainerHandler,
-    private val eventWatcher: ContainerEventWatcher = ContainerEventWatcher(docker),
+    private val eventWatcher: ContainerEventWatcher,
     private val backup: BackupHandler = BackupHandler(config),
-    private val rsyncMigrator: RsyncMigrator = RsyncMigrator(docker, config.craftpanelNetwork, config.containerNamePrefix),
+    private val rsyncMigrator: RsyncMigrator,
     private val migration: MigrationHandler = MigrationHandler(config, containerManager, rsyncMigrator),
     private val file: FileHandler = FileHandler(config, identity.nodeKey),
-    private val console: ConsoleHandler = ConsoleHandler(containerManager, docker)
+    private val console: ConsoleHandler
 ) {
 
     private val log = LoggerFactory.getLogger(ControlStreamHandler::class.java)
@@ -89,56 +87,56 @@ class ControlStreamHandler(
         stream.collect { msg ->
             log.debug("Received master command: {}", msg.payloadCase)
             when {
-                msg.hasStartContainer() -> launch { dispatch { container.handleStart(msg.startContainer, out) } }
+                msg.hasStartContainer()      -> launch { dispatch { container.handleStart(msg.startContainer, out) } }
 
-                msg.hasStopContainer() -> launch { dispatch { container.handleStop(msg.stopContainer, out) } }
+                msg.hasStopContainer()       -> launch { dispatch { container.handleStop(msg.stopContainer, out) } }
 
-                msg.hasRestartContainer() -> launch { dispatch { container.handleRestart(msg.restartContainer, out) } }
+                msg.hasRestartContainer()    -> launch { dispatch { container.handleRestart(msg.restartContainer, out) } }
 
-                msg.hasRemoveContainer() -> dispatch { container.handleRemove(msg.removeContainer, out) }
+                msg.hasRemoveContainer()     -> dispatch { container.handleRemove(msg.removeContainer, out) }
 
-                msg.hasShutdown() -> dispatch { container.handleShutdown(msg.shutdown, out) }
+                msg.hasShutdown()            -> dispatch { container.handleShutdown(msg.shutdown, out) }
 
-                msg.hasTriggerBackup() -> launch { dispatch { backup.handleTriggerBackup(msg.triggerBackup, out) } }
+                msg.hasTriggerBackup()       -> launch { dispatch { backup.handleTriggerBackup(msg.triggerBackup, out) } }
 
-                msg.hasDeleteBackup() -> launch { dispatch { backup.handleDeleteBackup(msg.deleteBackup) } }
+                msg.hasDeleteBackup()        -> launch { dispatch { backup.handleDeleteBackup(msg.deleteBackup) } }
 
                 msg.hasPrepareRsyncReceive() -> launch { dispatch { migration.handlePrepareRsyncReceive(msg.prepareRsyncReceive, out) } }
 
-                msg.hasStartRsync() -> launch { dispatch { migration.handleStartRsync(msg.startRsync, out) } }
+                msg.hasStartRsync()          -> launch { dispatch { migration.handleStartRsync(msg.startRsync, out) } }
 
-                msg.hasSendRcon() -> launch { dispatch { migration.handleSendRcon(msg.sendRcon) } }
+                msg.hasSendRcon()            -> launch { dispatch { migration.handleSendRcon(msg.sendRcon) } }
 
                 // Console
-                msg.hasConsoleAttach() -> launch { dispatch { console.handleConsoleAttach(msg.consoleAttach, out) } }
+                msg.hasConsoleAttach()       -> launch { dispatch { console.handleConsoleAttach(msg.consoleAttach, out) } }
 
-                msg.hasConsoleInput() -> dispatch { console.handleConsoleInput(msg.consoleInput) }
+                msg.hasConsoleInput()        -> dispatch { console.handleConsoleInput(msg.consoleInput) }
 
-                msg.hasConsoleDetach() -> dispatch { console.handleConsoleDetach(msg.consoleDetach) }
+                msg.hasConsoleDetach()       -> dispatch { console.handleConsoleDetach(msg.consoleDetach) }
 
                 // File ops (unary) — each in its own coroutine so it does not block the stream
-                msg.hasListFiles() -> launch { dispatch { file.handleListFiles(msg.listFiles, out) } }
+                msg.hasListFiles()           -> launch { dispatch { file.handleListFiles(msg.listFiles, out) } }
 
-                msg.hasReadFile() -> launch { dispatch { file.handleReadFile(msg.readFile, out) } }
+                msg.hasReadFile()            -> launch { dispatch { file.handleReadFile(msg.readFile, out) } }
 
-                msg.hasWriteFile() -> launch { dispatch { file.handleWriteFile(msg.writeFile, out) } }
+                msg.hasWriteFile()           -> launch { dispatch { file.handleWriteFile(msg.writeFile, out) } }
 
-                msg.hasDeleteFile() -> launch { dispatch { file.handleDeleteFile(msg.deleteFile, out) } }
+                msg.hasDeleteFile()          -> launch { dispatch { file.handleDeleteFile(msg.deleteFile, out) } }
 
-                msg.hasMakeDirectory() -> launch { dispatch { file.handleMakeDirectory(msg.makeDirectory, out) } }
+                msg.hasMakeDirectory()       -> launch { dispatch { file.handleMakeDirectory(msg.makeDirectory, out) } }
 
-                msg.hasMoveFile() -> launch { dispatch { file.handleMoveFile(msg.moveFile, out) } }
+                msg.hasMoveFile()            -> launch { dispatch { file.handleMoveFile(msg.moveFile, out) } }
 
-                msg.hasCopyFile() -> launch { dispatch { file.handleCopyFile(msg.copyFile, out) } }
+                msg.hasCopyFile()            -> launch { dispatch { file.handleCopyFile(msg.copyFile, out) } }
 
                 // Bulk transfers — agent dials master's BulkDataService
-                msg.hasDownloadFile() -> launch { dispatch { file.handleDownloadFile(msg.downloadFile, bulkClient, out) } }
+                msg.hasDownloadFile()        -> launch { dispatch { file.handleDownloadFile(msg.downloadFile, bulkClient, out) } }
 
-                msg.hasUploadFile() -> launch { dispatch { file.handleUploadFile(msg.uploadFile, bulkClient, out) } }
+                msg.hasUploadFile()          -> launch { dispatch { file.handleUploadFile(msg.uploadFile, bulkClient, out) } }
 
-                msg.hasDownloadBackup() -> launch { dispatch { file.handleDownloadBackup(msg.downloadBackup, bulkClient, out) } }
+                msg.hasDownloadBackup()      -> launch { dispatch { file.handleDownloadBackup(msg.downloadBackup, bulkClient, out) } }
 
-                else -> log.warn("Unhandled master message: ${msg.payloadCase}")
+                else                         -> log.warn("Unhandled master message: ${msg.payloadCase}")
             }
         }
     }
@@ -148,10 +146,7 @@ class ControlStreamHandler(
             .onFailure { if (it is CancellationException) throw it else log.error("Unexpected handler failure", it) }
     }
 
-    private fun isSwarmActive(): Boolean = runCatching {
-        docker.infoCmd()
-            .exec().swarm?.localNodeState?.name?.lowercase() == "active"
-    }.getOrDefault(false)
+    private fun isSwarmActive(): Boolean = containerManager.isSwarmActive()
 
     internal fun buildStateSnapshot(): NodeStateSnapshot {
         val containers = containerManager.listContainers()

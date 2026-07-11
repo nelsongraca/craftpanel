@@ -315,6 +315,37 @@ private methods (`evaluateNodeAlerts`/`evaluateServerAlerts`) trapped inside
   previously untestable without spinning the event bus.
 - See candidate 1, `improve-codebase-architecture` review 2026-07-11.
 
+### ContainerManager deepening (agent)
+
+`ContainerManager` absorbs two operations previously scattered across handler
+constructors:
+
+- **`isSwarmActive(): Boolean`** — wraps `docker.infoCmd()` with `runCatching`,
+  returns `false` on any exception. Used by `ControlStreamHandler` for
+  `buildStateSnapshot()`.
+- **`attachInteractive(containerName, inputStream, callback): ResultCallback<Frame>`**
+  — wraps `attachContainerCmd` with `withLogs(false)` (live interactive session,
+  no log replay). Distinct from `sendStopCommandToStdin` which uses
+  `withLogs(true)`.
+
+`ControlStreamHandler` no longer takes `DockerClient` directly. The `docker`
+field is constructed by `ConnectionManager` and passed to `ContainerEventWatcher`
+and `RsyncMigrator` (both need daemon-level Docker access not in
+`ContainerManager`'s surface). `ConsoleHandler` no longer takes `DockerClient`
+— its `handleConsoleAttach` calls `containerManager.attachInteractive()`.
+
+`RsyncMigrator` stays independent: its `createContainer` is semantically
+incompatible (ephemeral utility containers vs. managed game servers),
+`logContainerCmd` streaming is migration-specific, and only `startContainer`/`removeContainer`
+are trivially reusable. `MigrationHandler` already uses `ContainerManager`
+for `pullImage` — the right seam.
+
+`MetricsCollector`, `NetworkManager`, `McRouterProvisioner`, and
+`ContainerEventWatcher` each own their Docker concerns and are not
+handler-dispatch candidates.
+
+See candidate 4, `improve-codebase-architecture` review 2026-07-11.
+
 ## Open / planned
 
 ### Server lifecycle orchestrator (master) — superseded by ContainerLifecycle

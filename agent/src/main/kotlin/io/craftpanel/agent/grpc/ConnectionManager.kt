@@ -4,11 +4,13 @@ import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.auth.NodeKeyStore
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.di.ConnectionScope
+import io.craftpanel.agent.docker.ContainerEventWatcher
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.McRouterProvisioner
 import io.craftpanel.agent.docker.MetricsCollector
 import io.craftpanel.agent.docker.NetworkManager
 import io.craftpanel.agent.docker.RouterSupervisor
+import io.craftpanel.agent.docker.RsyncMigrator
 import io.grpc.ManagedChannel
 import io.grpc.netty.GrpcSslContexts
 import io.grpc.netty.NettyChannelBuilder
@@ -93,10 +95,12 @@ class ConnectionManager(
                     }
 
                     ControlStreamHandler(
-                        identity, config, containerManager, metricsCollector, docker,
+                        identity, config, containerManager, metricsCollector,
                         routerSupervisor = checkNotNull(routerSupervisor),
                         container = scope.get { parametersOf(checkNotNull(networkManager)) },
+                        eventWatcher = ContainerEventWatcher(docker),
                         backup = scope.get(),
+                        rsyncMigrator = RsyncMigrator(docker, config.craftpanelNetwork, config.containerNamePrefix),
                         migration = scope.get(),
                         file = scope.get { parametersOf(identity.nodeKey) },
                         console = scope.get(),

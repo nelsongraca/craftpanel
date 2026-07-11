@@ -58,7 +58,7 @@ val agentModule = module {
         )
     }
     scope<ConnectionScope> {
-        scoped { ConsoleHandler(get(), get()) }
+        scoped { ConsoleHandler(get()) }
         scoped { (nodeKey: String) -> FileHandler(get(), nodeKey) }
         scoped { (networkManager: NetworkManager) -> ContainerHandler(get(), get(), networkManager) }
         scoped { BackupHandler(get()) }
