@@ -1,33 +1,18 @@
 "use client";
 
 import type React from "react";
+import {SelectField, TextAreaField, TextField} from "@/components/ui/form-elements";
 
 export function EditInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
-    return (
-        <input
-            {...props}
-            className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-[12px] font-mono text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent transition-colors disabled:opacity-50"
-        />
-    );
+    return <TextField {...props} surface="bg" fieldSize="sm"/>;
 }
 
 export function EditSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
-    return (
-        <select
-            {...props}
-            className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-[12px] font-mono text-text-primary focus:outline-none focus:border-accent transition-colors"
-        />
-    );
+    return <SelectField {...props} surface="bg" fieldSize="sm"/>;
 }
 
 export function EditTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-    return (
-        <textarea
-            {...props}
-            rows={2}
-            className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-[12px] font-mono text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent transition-colors resize-none"
-        />
-    );
+    return <TextAreaField {...props} surface="bg" fieldSize="sm"/>;
 }
 
 export function EditFieldRow({label, children}: { label: string; children: React.ReactNode }) {

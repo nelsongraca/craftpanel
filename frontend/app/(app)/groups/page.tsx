@@ -6,7 +6,7 @@ import PageHeader from "@/app/components/PageHeader";
 import {createGroup, deleteGroup, listGroups, setGroupPermissions, updateGroup} from "@/lib/generated/sdk.gen";
 import type {Group} from "@/lib/types";
 import {useResourceList} from "@/lib/hooks/useResourceList";
-import {INPUT, BTN_PRIMARY, BTN_GHOST, Modal, Field} from "@/components/ui/form-elements";
+import {BTN_PRIMARY, BTN_GHOST, Modal, Field, TextField} from "@/components/ui/form-elements";
 
 
 // ── Permission nodes ───────────────────────────────────────────────────────────
@@ -72,7 +72,7 @@ function GroupForm({
     return (
         <form onSubmit={handleSubmit} className="space-y-5">
             <Field label="Name">
-                <input className={INPUT} value={name} onChange={(e) => setName(e.target.value)} required/>
+                <TextField value={name} onChange={(e) => setName(e.target.value)} required/>
             </Field>
 
             <div>

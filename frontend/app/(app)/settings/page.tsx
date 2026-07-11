@@ -4,7 +4,7 @@ import {useCallback, useEffect, useState} from "react";
 import PageHeader from "@/app/components/PageHeader";
 import {getSystemSettings, updateSystemSettings} from "@/lib/generated/sdk.gen";
 import type {SettingsMap} from "@/lib/types";
-import {BTN_PRIMARY, Field, INPUT} from "@/components/ui/form-elements";
+import {BTN_PRIMARY, Field, TextField} from "@/components/ui/form-elements";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 
@@ -119,8 +119,7 @@ export default function SettingsPage() {
                                 Metrics &amp; Backups
                             </h2>
                             <Field label="Metric Retention (days)">
-                                <input
-                                    className={INPUT}
+                                <TextField
                                     type="number"
                                     min={1}
                                     value={form.metric_retention_days}
@@ -129,8 +128,7 @@ export default function SettingsPage() {
                                 />
                             </Field>
                             <Field label="Default Max Backup Count">
-                                <input
-                                    className={INPUT}
+                                <TextField
                                     type="number"
                                     min={1}
                                     value={form.default_backup_max_count}
@@ -147,8 +145,7 @@ export default function SettingsPage() {
                             </h2>
                             <div className="grid grid-cols-2 gap-4">
                                 <Field label="Start">
-                                    <input
-                                        className={INPUT}
+                                    <TextField
                                         type="number"
                                         min={1024}
                                         max={65534}
@@ -158,8 +155,7 @@ export default function SettingsPage() {
                                     />
                                 </Field>
                                 <Field label="End">
-                                    <input
-                                        className={INPUT}
+                                    <TextField
                                         type="number"
                                         min={1025}
                                         max={65535}
@@ -177,8 +173,7 @@ export default function SettingsPage() {
                                 Crash Restart
                             </h2>
                             <Field label="Max Restart Attempts">
-                                <input
-                                    className={INPUT}
+                                <TextField
                                     type="number"
                                     min={0}
                                     value={form.restart_max_attempts}
@@ -188,8 +183,7 @@ export default function SettingsPage() {
                                 <p className="text-[11px] text-text-muted mt-1">Set to 0 to disable automatic crash restarts. Takes effect on master restart.</p>
                             </Field>
                             <Field label="Restart Window (seconds)">
-                                <input
-                                    className={INPUT}
+                                <TextField
                                     type="number"
                                     min={1}
                                     value={form.restart_window_seconds}
@@ -208,8 +202,7 @@ export default function SettingsPage() {
                             <p className="text-[11px] text-text-muted -mt-2">Rate limit changes take effect on master restart.</p>
                             <div className="grid grid-cols-2 gap-4">
                                 <Field label="Login requests / minute">
-                                    <input
-                                        className={INPUT}
+                                    <TextField
                                         type="number"
                                         min={1}
                                         value={form.rate_limit_login_per_minute}
@@ -218,8 +211,7 @@ export default function SettingsPage() {
                                     />
                                 </Field>
                                 <Field label="Token refresh / minute">
-                                    <input
-                                        className={INPUT}
+                                    <TextField
                                         type="number"
                                         min={1}
                                         value={form.rate_limit_refresh_per_minute}
@@ -237,8 +229,7 @@ export default function SettingsPage() {
                             </h2>
                             <p className="text-[11px] text-text-muted -mt-2">Image overrides take effect on master restart.</p>
                             <Field label="Minecraft image">
-                                <input
-                                    className={INPUT}
+                                <TextField
                                     type="text"
                                     placeholder="itzg/minecraft-server"
                                     value={form.image_minecraft}
@@ -247,8 +238,7 @@ export default function SettingsPage() {
                                 />
                             </Field>
                             <Field label="Proxy image">
-                                <input
-                                    className={INPUT}
+                                <TextField
                                     type="text"
                                     placeholder="itzg/mc-proxy"
                                     value={form.image_proxy}

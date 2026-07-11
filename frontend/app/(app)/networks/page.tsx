@@ -7,7 +7,7 @@ import {createNetwork, deleteNetwork, listNetworks, updateNetwork} from "@/lib/g
 import type {Network} from "@/lib/types";
 import {useResourceList} from "@/lib/hooks/useResourceList";
 
-import {INPUT, BTN_PRIMARY, BTN_GHOST, Modal, Field} from "@/components/ui/form-elements";
+import {BTN_PRIMARY, BTN_GHOST, Modal, Field, TextField} from "@/components/ui/form-elements";
 
 // ── Network form ──────────────────────────────────────────────────────────────
 
@@ -50,10 +50,10 @@ function NetworkForm({
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
             <Field label="Name">
-                <input className={INPUT} value={form.name} onChange={(e) => setForm((f) => ({...f, name: e.target.value}))} required/>
+                <TextField value={form.name} onChange={(e) => setForm((f) => ({...f, name: e.target.value}))} required/>
             </Field>
             <Field label="Description">
-                <input className={INPUT} value={form.description} placeholder="Optional" onChange={(e) => setForm((f) => ({...f, description: e.target.value}))}/>
+                <TextField value={form.description} placeholder="Optional" onChange={(e) => setForm((f) => ({...f, description: e.target.value}))}/>
             </Field>
             {error && <p className="text-[12px] text-error">{error}</p>}
             <div className="flex justify-end gap-2 pt-1">

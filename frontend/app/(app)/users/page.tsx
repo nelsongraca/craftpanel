@@ -6,7 +6,7 @@ import PageHeader from "@/app/components/PageHeader";
 import {createAssignment, createUser, deleteAssignment, deleteUser, listGroups, listNetworks, listServers, listUserAssignments, listUsers, updateUser,} from "@/lib/generated/sdk.gen";
 import type {Assignment, Group, User} from "@/lib/types";
 import {useResourceList} from "@/lib/hooks/useResourceList";
-import {INPUT, BTN_PRIMARY, BTN_GHOST, Modal, Field} from "@/components/ui/form-elements";
+import {BTN_PRIMARY, BTN_GHOST, Modal, Field, TextField, SelectField} from "@/components/ui/form-elements";
 
 async function loadUsers() {
     const {data} = await listUsers();
@@ -38,13 +38,13 @@ function CreateUserModal({onClose, onDone}: { onClose: () => void; onDone: () =>
         <Modal title="Create User" onClose={onClose}>
             <form onSubmit={handleSubmit} className="space-y-4">
                 <Field label="Username">
-                    <input className={INPUT} value={form.username} onChange={(e) => setForm((f) => ({...f, username: e.target.value}))} required/>
+                    <TextField value={form.username} onChange={(e) => setForm((f) => ({...f, username: e.target.value}))} required/>
                 </Field>
                 <Field label="Email">
-                    <input className={INPUT} type="email" value={form.email} onChange={(e) => setForm((f) => ({...f, email: e.target.value}))} required/>
+                    <TextField type="email" value={form.email} onChange={(e) => setForm((f) => ({...f, email: e.target.value}))} required/>
                 </Field>
                 <Field label="Password">
-                    <input className={INPUT} type="password" value={form.password} onChange={(e) => setForm((f) => ({...f, password: e.target.value}))} required/>
+                    <TextField type="password" value={form.password} onChange={(e) => setForm((f) => ({...f, password: e.target.value}))} required/>
                 </Field>
                 {error && <p className="text-[12px] text-error">{error}</p>}
                 <div className="flex justify-end gap-2 pt-1">
@@ -87,10 +87,10 @@ function EditUserModal({user, onClose, onDone}: { user: User; onClose: () => voi
         <Modal title="Edit User" onClose={onClose}>
             <form onSubmit={handleSubmit} className="space-y-4">
                 <Field label="Username">
-                    <input className={INPUT} value={form.username} onChange={(e) => setForm((f) => ({...f, username: e.target.value}))} required/>
+                    <TextField value={form.username} onChange={(e) => setForm((f) => ({...f, username: e.target.value}))} required/>
                 </Field>
                 <Field label="Email">
-                    <input className={INPUT} type="email" value={form.email} onChange={(e) => setForm((f) => ({...f, email: e.target.value}))} required/>
+                    <TextField type="email" value={form.email} onChange={(e) => setForm((f) => ({...f, email: e.target.value}))} required/>
                 </Field>
                 <Field label="Active">
                     <label className="flex items-center gap-2 cursor-pointer">
@@ -219,37 +219,37 @@ function AssignmentsModal({
                 <div className="border-t border-border pt-4 space-y-3">
                     <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Add Assignment</p>
                     <Field label="Group">
-                        <select className={INPUT} value={newGroup} onChange={(e) => setNewGroup(e.target.value)}>
+                        <SelectField value={newGroup} onChange={(e) => setNewGroup(e.target.value)}>
                             <option value="">Select…</option>
                             {groups.map((g) => (
                                 <option key={g.id} value={g.id}>{g.name}</option>
                             ))}
-                        </select>
+                        </SelectField>
                     </Field>
                     <Field label="Scope">
-                        <select className={INPUT} value={newScope} onChange={(e) => {
+                        <SelectField value={newScope} onChange={(e) => {
                             setNewScope(e.target.value);
                             setNewScopeId("");
                         }}>
                             <option value="GLOBAL">Global</option>
                             <option value="SERVER">Server</option>
                             <option value="NETWORK">Network</option>
-                        </select>
+                        </SelectField>
                     </Field>
                     {newScope === "SERVER" && (
                         <Field label="Server">
-                            <select className={INPUT} value={newScopeId} onChange={(e) => setNewScopeId(e.target.value)}>
+                            <SelectField value={newScopeId} onChange={(e) => setNewScopeId(e.target.value)}>
                                 <option value="">Select…</option>
                                 {servers.map((s) => <option key={s.id} value={s.id}>{s.display_name}</option>)}
-                            </select>
+                            </SelectField>
                         </Field>
                     )}
                     {newScope === "NETWORK" && (
                         <Field label="Network">
-                            <select className={INPUT} value={newScopeId} onChange={(e) => setNewScopeId(e.target.value)}>
+                            <SelectField value={newScopeId} onChange={(e) => setNewScopeId(e.target.value)}>
                                 <option value="">Select…</option>
                                 {networks.map((n) => <option key={n.id} value={n.id}>{n.name}</option>)}
-                            </select>
+                            </SelectField>
                         </Field>
                     )}
                     {addError && <p className="text-[12px] text-error">{addError}</p>}

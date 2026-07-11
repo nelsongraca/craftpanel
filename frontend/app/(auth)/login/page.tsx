@@ -3,6 +3,7 @@
 import {type FormEvent, useEffect, useState} from "react";
 import {useRouter} from "next/navigation";
 import {useAuth} from "@/lib/auth-context";
+import {TextField} from "@/components/ui/form-elements";
 
 export default function LoginPage() {
     const {user, isLoading, login} = useAuth();
@@ -48,11 +49,12 @@ export default function LoginPage() {
                         <label className="block text-xs font-medium text-text-dim mb-1.5">
                             Email
                         </label>
-                        <input
+                        <TextField
                             type="email"
                             value={email}
                             onChange={(e) => setEmail(e.target.value)}
-                            className="w-full bg-surface-high border border-border rounded px-3 py-2 text-sm font-mono text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent transition-colors"
+                            surface="surface-high"
+                            fieldSize="md"
                             placeholder="you@example.com"
                             required
                             autoComplete="email"
@@ -64,11 +66,12 @@ export default function LoginPage() {
                         <label className="block text-xs font-medium text-text-dim mb-1.5">
                             Password
                         </label>
-                        <input
+                        <TextField
                             type="password"
                             value={password}
                             onChange={(e) => setPassword(e.target.value)}
-                            className="w-full bg-surface-high border border-border rounded px-3 py-2 text-sm font-mono text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent transition-colors"
+                            surface="surface-high"
+                            fieldSize="md"
                             placeholder="••••••••"
                             required
                             autoComplete="current-password"

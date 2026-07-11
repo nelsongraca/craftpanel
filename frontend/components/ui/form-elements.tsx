@@ -1,8 +1,8 @@
 "use client";
 
+import type React from "react";
 import {X} from "lucide-react";
 
-const INPUT = "w-full bg-surface-high border border-border rounded px-3 py-2 text-[13px] text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent/60";
 const BTN_PRIMARY = "px-4 py-2 rounded text-[12px] font-heading font-bold uppercase tracking-wider bg-accent text-bg hover:bg-accent-bright transition-colors";
 const BTN_GHOST = "px-4 py-2 rounded text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-text-primary hover:bg-surface-high transition-colors border border-border";
 
@@ -31,4 +31,47 @@ function Field({label, children}: { label: string; children: React.ReactNode }) 
     );
 }
 
-export {INPUT, BTN_PRIMARY, BTN_GHOST, Modal, Field};
+// ── Field styling ─────────────────────────────────────────────────────────────
+
+type FieldStyleProps = {
+    fieldSize?: "sm" | "md";
+    surface?: "bg" | "surface" | "surface-high" | "surface-higher";
+};
+
+const SIZE_CLASSES: Record<NonNullable<FieldStyleProps["fieldSize"]>, string> = {
+    md: "text-[13px] px-3 py-2",
+    sm: "text-[12px] px-2.5 py-1.5",
+};
+
+const SURFACE_CLASSES: Record<NonNullable<FieldStyleProps["surface"]>, string> = {
+    bg: "bg-bg",
+    surface: "bg-surface",
+    "surface-high": "bg-surface-high",
+    "surface-higher": "bg-surface-higher",
+};
+
+const FIELD_BASE = "w-full border border-border rounded font-mono text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent transition-colors disabled:opacity-50";
+
+function fieldClassName({fieldSize = "md", surface = "surface-high"}: FieldStyleProps, extra?: string): string {
+    return `${FIELD_BASE} ${SIZE_CLASSES[fieldSize]} ${SURFACE_CLASSES[surface]}${extra ? ` ${extra}` : ""}`;
+}
+
+export function TextField({fieldSize, surface, className, ...props}: React.InputHTMLAttributes<HTMLInputElement> & FieldStyleProps) {
+    return <input {...props} className={fieldClassName({fieldSize, surface}, className)}/>;
+}
+
+export function SelectField({fieldSize, surface, className, ...props}: React.SelectHTMLAttributes<HTMLSelectElement> & FieldStyleProps) {
+    return <select {...props} className={fieldClassName({fieldSize, surface}, className)}/>;
+}
+
+export function TextAreaField({fieldSize, surface, className, rows, ...props}: React.TextareaHTMLAttributes<HTMLTextAreaElement> & FieldStyleProps) {
+    return (
+        <textarea
+            {...props}
+            rows={rows ?? (fieldSize === "sm" ? 2 : 3)}
+            className={fieldClassName({fieldSize, surface}, `resize-none${className ? ` ${className}` : ""}`)}
+        />
+    );
+}
+
+export {BTN_PRIMARY, BTN_GHOST, Modal, Field};

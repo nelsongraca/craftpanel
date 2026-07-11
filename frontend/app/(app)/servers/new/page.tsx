@@ -7,6 +7,7 @@ import {ChevronLeft} from "lucide-react";
 import {createServer, listNetworks, listNodes} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
+import {SelectField, TextAreaField, TextField} from "@/components/ui/form-elements";
 import type {Network, Node} from "@/lib/types";
 
 // ── Mojang version manifest ───────────────────────────────────────────────────
@@ -44,31 +45,15 @@ function Label({children, required}: { children: React.ReactNode; required?: boo
 }
 
 function FieldInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
-    return (
-        <input
-            {...props}
-            className="w-full bg-surface border border-border rounded px-3 py-2 text-[13px] font-mono text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent transition-colors disabled:opacity-50"
-        />
-    );
+    return <TextField {...props} surface="surface" fieldSize="md"/>;
 }
 
 function FieldSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
-    return (
-        <select
-            {...props}
-            className="w-full bg-surface border border-border rounded px-3 py-2 text-[13px] font-mono text-text-primary focus:outline-none focus:border-accent transition-colors disabled:opacity-50"
-        />
-    );
+    return <SelectField {...props} surface="surface" fieldSize="md"/>;
 }
 
 function FieldTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-    return (
-        <textarea
-            {...props}
-            rows={3}
-            className="w-full bg-surface border border-border rounded px-3 py-2 text-[13px] font-mono text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent transition-colors resize-none"
-        />
-    );
+    return <TextAreaField {...props} surface="surface" fieldSize="md"/>;
 }
 
 function SectionHeading({children}: { children: React.ReactNode }) {

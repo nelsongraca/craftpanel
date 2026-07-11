@@ -3,6 +3,7 @@
 import {useState} from "react";
 import {Plus, X} from "lucide-react";
 import {Switch} from "@/components/ui/switch";
+import {SelectField, TextAreaField, TextField} from "@/components/ui/form-elements";
 import type {FieldDef} from "./field-types";
 
 function ToggleField({
@@ -121,7 +122,7 @@ export function FieldRow({
     form: Record<string, string>;
     setField: (key: string, value: string) => void;
 }) {
-    const inputCls = `bg-surface-higher border border-border rounded px-2 py-1.5 text-[12px] text-text-primary focus:border-accent/50 focus:outline-none ${dimmed ? "opacity-60" : ""}`;
+    const dimmedCls = dimmed ? "opacity-60" : "";
 
     return (
         <div className={`px-4 py-3 flex items-start gap-4 ${dimmed ? "opacity-80" : ""}`}>
@@ -143,44 +144,52 @@ export function FieldRow({
                     />
                 )}
                 {field.type === "select" && (
-                    <select
+                    <SelectField
                         value={value}
                         onChange={(e) => onChange(e.target.value)}
                         disabled={dimmed}
-                        className={`${inputCls} w-48`}
+                        surface="surface-higher"
+                        fieldSize="sm"
+                        className={`w-48 ${dimmedCls}`}
                     >
                         {field.options?.map((opt) => (
                             <option key={opt} value={opt}>
                                 {opt}
                             </option>
                         ))}
-                    </select>
+                    </SelectField>
                 )}
                 {field.type === "text" && (
-                    <input
+                    <TextField
                         type="text"
                         value={value}
                         onChange={(e) => onChange(e.target.value)}
                         disabled={dimmed}
-                        className={`${inputCls} w-full max-w-sm`}
+                        surface="surface-higher"
+                        fieldSize="sm"
+                        className={`w-full max-w-sm ${dimmedCls}`}
                     />
                 )}
                 {field.type === "number" && (
-                    <input
+                    <TextField
                         type="number"
                         value={value}
                         onChange={(e) => onChange(e.target.value)}
                         disabled={dimmed}
-                        className={`${inputCls} w-32`}
+                        surface="surface-higher"
+                        fieldSize="sm"
+                        className={`w-32 ${dimmedCls}`}
                     />
                 )}
                 {field.type === "textarea" && (
-                    <textarea
+                    <TextAreaField
                         value={value}
                         onChange={(e) => onChange(e.target.value)}
                         disabled={dimmed}
                         rows={4}
-                        className={`${inputCls} w-full max-w-lg font-mono resize-y`}
+                        surface="surface-higher"
+                        fieldSize="sm"
+                        className={`w-full max-w-lg resize-y ${dimmedCls}`}
                     />
                 )}
                 {field.type === "tag-input" && (
