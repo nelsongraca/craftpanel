@@ -115,7 +115,7 @@ val appModule = module {
         ServerRestartManager(s.restartMaxAttempts, s.restartWindowSeconds)
     }
 
-    single(named("crashRestarts")) { kotlinx.coroutines.channels.Channel<Uuid>(kotlinx.coroutines.channels.Channel.BUFFERED) }
+    single(named("crashRestarts")) { Channel<Uuid>(Channel.BUFFERED) }
 
     // gRPC core
     single { NodeStateReconciler(serverRepository = get(), nodeRepository = get(), migrationRepository = get(), backupRepository = get()) }
