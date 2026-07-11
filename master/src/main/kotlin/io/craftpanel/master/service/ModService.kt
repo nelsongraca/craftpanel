@@ -1,6 +1,7 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.domain.ModPinStrategy
+import io.craftpanel.master.service.repo.ModRepository
 import io.craftpanel.master.service.repo.ModRow
 import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.serialization.SerialName
@@ -42,18 +43,18 @@ data class PatchModRequest(
 
 data class ModrinthSearchResult(val statusCode: Int, val body: String)
 
-class ModService(private val serverRepository: ServerRepository) {
+class ModService(private val serverRepository: ServerRepository, private val modRepository: ModRepository) {
 
     fun listMods(serverId: Uuid): List<ModResponse> =
-        serverRepository.listMods(serverId)
+        modRepository.listMods(serverId)
             .map { it.toResponse() }
 
     fun addMod(serverId: Uuid, req: CreateModRequest): ModResponse {
         if (req.pinStrategy == ModPinStrategy.PINNED && req.pinnedVersionId.isNullOrEmpty())
             throw UnprocessableException("pinned_version_id is required when pin_strategy is PINNED")
-        if (serverRepository.findModByProjectId(serverId, req.modrinthProjectId) != null)
+        if (modRepository.findModByProjectId(serverId, req.modrinthProjectId) != null)
             throw ConflictException("Mod already added to this server")
-        val mod = serverRepository.createMod(
+        val mod = modRepository.createMod(
             serverId = serverId,
             modrinthProjectId = req.modrinthProjectId,
             displayName = req.displayName,
@@ -66,7 +67,7 @@ class ModService(private val serverRepository: ServerRepository) {
     }
 
     fun updateMod(serverId: Uuid, modId: Uuid, req: PatchModRequest): ModResponse {
-        serverRepository.findModById(modId)
+        modRepository.findModById(modId)
             ?.takeIf { it.serverId == serverId }
             ?: throw NotFoundException("Mod not found")
         if (req.pinStrategy == ModPinStrategy.PINNED && req.pinnedVersionId.isNullOrEmpty())
@@ -74,19 +75,19 @@ class ModService(private val serverRepository: ServerRepository) {
         val pinnedVersionId = when {
             req.pinnedVersionId != null                                         -> req.pinnedVersionId
             req.pinStrategy != null && req.pinStrategy != ModPinStrategy.PINNED -> null
-            else                                                                -> serverRepository.findModById(modId)?.pinnedVersionId
+            else                                                                -> modRepository.findModById(modId)?.pinnedVersionId
         }
-        serverRepository.updateMod(modId, req.pinStrategy?.name, pinnedVersionId, null)
+        modRepository.updateMod(modId, req.pinStrategy?.name, pinnedVersionId, null)
         serverRepository.updateNeedsRecreate(serverId, true)
-        return serverRepository.findModById(modId)!!
+        return modRepository.findModById(modId)!!
             .toResponse()
     }
 
     fun deleteMod(serverId: Uuid, modId: Uuid) {
-        serverRepository.findModById(modId)
+        modRepository.findModById(modId)
             ?.takeIf { it.serverId == serverId }
             ?: throw NotFoundException("Mod not found")
-        serverRepository.deleteMod(modId)
+        modRepository.deleteMod(modId)
         serverRepository.updateNeedsRecreate(serverId, true)
     }
 
@@ -123,7 +124,7 @@ class ModService(private val serverRepository: ServerRepository) {
     }
 
     fun buildModrinthEnvVar(serverId: Uuid): String =
-        serverRepository.listMods(serverId)
+        modRepository.listMods(serverId)
             .joinToString(",") { row ->
                 val projectId = row.modrinthProjectId
                 when (ModPinStrategy.fromDb(row.pinStrategy)) {

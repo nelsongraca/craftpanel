@@ -1,6 +1,7 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.service.repo.FakeNodeRepository
+import io.craftpanel.master.service.repo.FakeRepositories
 import io.craftpanel.master.service.repo.FakeServerRepository
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -10,7 +11,7 @@ class ResourceCapacityCheckerTest :
 
         test("fits within capacity returns Ok") {
             val nodes = FakeNodeRepository()
-            val servers = FakeServerRepository()
+            val servers = FakeServerRepository(FakeRepositories())
             val checker = ResourceCapacityChecker(servers)
 
             val node = nodes.create("node-1", "host", "1.2.3.4", "10.0.0.1", "hash", 25570, 26070)
@@ -24,7 +25,7 @@ class ResourceCapacityCheckerTest :
 
         test("exceeding RAM capacity returns InsufficientRam") {
             val nodes = FakeNodeRepository()
-            val servers = FakeServerRepository()
+            val servers = FakeServerRepository(FakeRepositories())
             val checker = ResourceCapacityChecker(servers)
 
             val node = nodes.create("node-1", "host", "1.2.3.4", "10.0.0.1", "hash", 25570, 26070)
@@ -38,7 +39,7 @@ class ResourceCapacityCheckerTest :
 
         test("exceeding CPU capacity returns InsufficientCpu") {
             val nodes = FakeNodeRepository()
-            val servers = FakeServerRepository()
+            val servers = FakeServerRepository(FakeRepositories())
             val checker = ResourceCapacityChecker(servers)
 
             val node = nodes.create("node-1", "host", "1.2.3.4", "10.0.0.1", "hash", 25570, 26070)
@@ -52,7 +53,7 @@ class ResourceCapacityCheckerTest :
 
         test("totalCpuShares of 0 means unlimited CPU, never blocks") {
             val nodes = FakeNodeRepository()
-            val servers = FakeServerRepository()
+            val servers = FakeServerRepository(FakeRepositories())
             val checker = ResourceCapacityChecker(servers)
 
             val node = nodes.create("node-1", "host", "1.2.3.4", "10.0.0.1", "hash", 25570, 26070)
@@ -66,7 +67,7 @@ class ResourceCapacityCheckerTest :
 
         test("existing servers on node count toward used RAM") {
             val nodes = FakeNodeRepository()
-            val servers = FakeServerRepository()
+            val servers = FakeServerRepository(FakeRepositories())
             val checker = ResourceCapacityChecker(servers)
 
             val node = nodes.create("node-1", "host", "1.2.3.4", "10.0.0.1", "hash", 25570, 26070)
@@ -86,7 +87,7 @@ class ResourceCapacityCheckerTest :
 
         test("excludeServerId excludes that server's own usage from the check") {
             val nodes = FakeNodeRepository()
-            val servers = FakeServerRepository()
+            val servers = FakeServerRepository(FakeRepositories())
             val checker = ResourceCapacityChecker(servers)
 
             val node = nodes.create("node-1", "host", "1.2.3.4", "10.0.0.1", "hash", 25570, 26070)
@@ -106,7 +107,7 @@ class ResourceCapacityCheckerTest :
 
         test("reservedRamMb is withheld from allocatable capacity") {
             val nodes = FakeNodeRepository()
-            val servers = FakeServerRepository()
+            val servers = FakeServerRepository(FakeRepositories())
             val checker = ResourceCapacityChecker(servers)
 
             val node = nodes.create("node-1", "host", "1.2.3.4", "10.0.0.1", "hash", 25570, 26070)
@@ -120,7 +121,7 @@ class ResourceCapacityCheckerTest :
 
         test("request that fits after accounting for reservedRamMb returns Ok") {
             val nodes = FakeNodeRepository()
-            val servers = FakeServerRepository()
+            val servers = FakeServerRepository(FakeRepositories())
             val checker = ResourceCapacityChecker(servers)
 
             val node = nodes.create("node-1", "host", "1.2.3.4", "10.0.0.1", "hash", 25570, 26070)
@@ -134,7 +135,7 @@ class ResourceCapacityCheckerTest :
 
         test("stale systemRamUsedMb no longer gates capacity") {
             val nodes = FakeNodeRepository()
-            val servers = FakeServerRepository()
+            val servers = FakeServerRepository(FakeRepositories())
             val checker = ResourceCapacityChecker(servers)
 
             val node = nodes.create("node-1", "host", "1.2.3.4", "10.0.0.1", "hash", 25570, 26070)

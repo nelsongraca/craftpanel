@@ -33,12 +33,28 @@ import io.craftpanel.master.service.SystemService
 import io.craftpanel.master.service.UserService
 import io.craftpanel.master.service.repo.AlertRepository
 import io.craftpanel.master.service.repo.AlertRepositoryImpl
+import io.craftpanel.master.service.repo.BackupRepository
+import io.craftpanel.master.service.repo.BackupRepositoryImpl
+import io.craftpanel.master.service.repo.ContainerMetricsRepository
+import io.craftpanel.master.service.repo.ContainerMetricsRepositoryImpl
+import io.craftpanel.master.service.repo.EnvVarsRepository
+import io.craftpanel.master.service.repo.EnvVarsRepositoryImpl
 import io.craftpanel.master.service.repo.GroupRepository
 import io.craftpanel.master.service.repo.GroupRepositoryImpl
+import io.craftpanel.master.service.repo.MigrationRepository
+import io.craftpanel.master.service.repo.MigrationRepositoryImpl
+import io.craftpanel.master.service.repo.ModRepository
+import io.craftpanel.master.service.repo.ModRepositoryImpl
 import io.craftpanel.master.service.repo.NetworkRepository
 import io.craftpanel.master.service.repo.NetworkRepositoryImpl
 import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.PortRepository
+import io.craftpanel.master.service.repo.PortRepositoryImpl
+import io.craftpanel.master.service.repo.ProxyBackendRepository
+import io.craftpanel.master.service.repo.ProxyBackendRepositoryImpl
+import io.craftpanel.master.service.repo.ServerJobRepository
+import io.craftpanel.master.service.repo.ServerJobRepositoryImpl
 import io.craftpanel.master.service.repo.ServerRepository
 import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.craftpanel.master.service.repo.SettingsRepository
@@ -121,7 +137,8 @@ class OpenApiSpecTask :
                                     single { WsTicketService() }
                                     val agentEvents = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 1024)
                                     val nodeRepositoryForControlService = NodeRepositoryImpl()
-                                    val nodeStateReconciler = NodeStateReconciler(ServerRepositoryImpl(), nodeRepositoryForControlService)
+                                    val testRepos = TestRepositories()
+                                    val nodeStateReconciler = NodeStateReconciler(testRepos.serverRepository, nodeRepositoryForControlService, testRepos.migrationRepository, testRepos.backupRepository)
                                     val dataOpContext = DataOpContext(ConcurrentHashMap(), ConcurrentHashMap())
                                     val nodeStateHandler = NodeStateHandler(agentEvents, nodeStateReconciler)
                                     val nodeMetricsHandler = NodeMetricsHandler(agentEvents, nodeStateReconciler)
@@ -152,12 +169,31 @@ class OpenApiSpecTask :
                                     single { DataServiceProxy(get(), get(), get<ServerRepository>()) }
                                     single<NodeRepository> { NodeRepositoryImpl() }
                                     single<AlertRepository> { AlertRepositoryImpl() }
-                                    single<ServerRepository> { ServerRepositoryImpl() }
+                                    single<EnvVarsRepository> { EnvVarsRepositoryImpl() }
+                                    single<ModRepository> { ModRepositoryImpl() }
+                                    single<MigrationRepository> { MigrationRepositoryImpl() }
+                                    single<PortRepository> { PortRepositoryImpl() }
+                                    single<BackupRepository> { BackupRepositoryImpl() }
+                                    single<ProxyBackendRepository> { ProxyBackendRepositoryImpl() }
+                                    single<ContainerMetricsRepository> { ContainerMetricsRepositoryImpl() }
+                                    single<ServerJobRepository> { ServerJobRepositoryImpl() }
+                                    single<ServerRepository> {
+                                        ServerRepositoryImpl(
+                                            envVarsRepository = get(),
+                                            modRepository = get(),
+                                            migrationRepository = get(),
+                                            portRepository = get(),
+                                            backupRepository = get(),
+                                            proxyBackendRepository = get(),
+                                            containerMetricsRepository = get(),
+                                            serverJobRepository = get()
+                                        )
+                                    }
                                     single<NetworkRepository> { NetworkRepositoryImpl() }
                                     single<GroupRepository> { GroupRepositoryImpl() }
                                     single<UserRepository> { UserRepositoryImpl() }
                                     single<SettingsRepository> { SettingsRepositoryImpl() }
-                                    single { ModService(get()) }
+                                    single { ModService(modRepository = get(), serverRepository = get()) }
                                     single { NodeService(noopGateway, get(), get()) }
                                     single {
                                         NetworkService(
@@ -177,7 +213,8 @@ class OpenApiSpecTask :
                                         ContainerLifecycle(
                                             gateway = noopGateway,
                                             modService = get(),
-                                            serverRepository = get()
+                                            serverRepository = get(),
+                                            envVarsRepository = get()
                                         )
                                     }
                                     single {
@@ -196,7 +233,11 @@ class OpenApiSpecTask :
                                             userRepository = get(),
                                             groupRepository = get(),
                                             settingsRepository = get(),
-                                            serverExposure = get()
+                                            serverExposure = get(),
+                                            portRepository = get(),
+                                            envVarsRepository = get(),
+                                            containerMetricsRepository = get(),
+                                            migrationRepository = get()
                                         )
                                     }
                                     single {
@@ -215,12 +256,15 @@ class OpenApiSpecTask :
                                             serverExposure = get()
                                         )
                                     }
-                                    single { BackupService(noopGateway, get(), get()) }
-                                    single { ProxyBackendService(get()) }
-                                    single { EnvVarsService(get()) }
+                                    single { BackupService(noopGateway, get(), get(), get()) }
+                                    single { ProxyBackendService(get(), get()) }
+                                    single { EnvVarsService(get(), get()) }
                                     single {
                                         MigrationService(
+                                            migrationRepository = get(),
                                             serverRepository = get(),
+                                            portRepository = get(),
+                                            proxyBackendRepository = get(),
                                             nodeRepository = get(),
                                             gateway = noopGateway,
                                             dnsProvider = null,

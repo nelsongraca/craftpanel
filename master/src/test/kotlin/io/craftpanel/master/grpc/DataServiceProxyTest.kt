@@ -15,7 +15,7 @@ import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.master.service.NotFoundException
 import io.craftpanel.master.service.UnprocessableException
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
-import io.craftpanel.master.service.repo.ServerRepositoryImpl
+import io.craftpanel.master.TestRepositories
 import io.craftpanel.proto.ErrorCode
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -37,8 +37,9 @@ class DataServiceProxyTest :
         beforeTest {
             TestDatabase.initIfNeeded()
             TestDatabase.reset()
+            val repos = TestRepositories()
             val nodeRepository = NodeRepositoryImpl()
-            val reconciler = NodeStateReconciler(ServerRepositoryImpl(), nodeRepository)
+            val reconciler = NodeStateReconciler(repos.serverRepository, nodeRepository, repos.migrationRepository, repos.backupRepository)
             val agentEvents = MutableSharedFlow<io.craftpanel.master.domain.AgentEvent>(extraBufferCapacity = 1024)
             val dataOpContext = DataOpContext(ConcurrentHashMap(), ConcurrentHashMap())
             val nodeStateHandler = NodeStateHandler(agentEvents, reconciler)
@@ -64,7 +65,7 @@ class DataServiceProxyTest :
                 migrationHandler = migrationHandler,
                 dataOpResponseHandler = dataOpResponseHandler
             )
-            proxy = DataServiceProxy(controlSvc, BulkDataServiceImpl(controlSvc), ServerRepositoryImpl())
+            proxy = DataServiceProxy(controlSvc, BulkDataServiceImpl(controlSvc), repos.serverRepository)
         }
 
         fun createNode(): Uuid = transaction {

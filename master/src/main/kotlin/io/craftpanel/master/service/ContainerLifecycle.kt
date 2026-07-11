@@ -3,6 +3,7 @@ package io.craftpanel.master.service
 import io.craftpanel.master.config.ImagesConfig
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.ServerStatus
+import io.craftpanel.master.service.repo.EnvVarsRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import io.craftpanel.master.service.repo.ServerRow
 import io.craftpanel.proto.MasterMessage
@@ -27,6 +28,7 @@ class ContainerLifecycle(
     private val gateway: AgentGateway,
     private val modService: ModService,
     private val serverRepository: ServerRepository,
+    private val envVarsRepository: EnvVarsRepository,
     private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
     private val containerNamePrefix: String = "craftpanel",
     private val clock: Clock = Clock.System,
@@ -119,7 +121,7 @@ class ContainerLifecycle(
     private fun buildAllVars(server: ServerRow): Map<String, String> {
         val id = server.id
         val modrinthProjects = modService.buildModrinthEnvVar(id)
-        val dbEnvVars = serverRepository.getEnvVars(id)
+        val dbEnvVars = envVarsRepository.getEnvVars(id)
             .associate { it.key to it.value }
         val systemVars = buildMap {
             put("EULA", "TRUE")

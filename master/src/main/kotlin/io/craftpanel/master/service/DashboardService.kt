@@ -2,9 +2,9 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.PermissionResolver
-import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.routes.DashboardEventFilter
 import io.craftpanel.master.routes.WsEnvelope
+import io.craftpanel.master.service.repo.ContainerMetricsRepository
 import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.coroutines.flow.Flow
@@ -15,13 +15,14 @@ class DashboardService(
     private val agentGateway: AgentGateway,
     private val serverRepository: ServerRepository,
     private val nodeRepository: NodeRepository,
+    private val containerMetricsRepository: ContainerMetricsRepository,
     private val permissionResolver: PermissionResolver
 ) {
 
     fun getSnapshot(userId: Uuid): WsEnvelope {
         val filter = buildFilter(userId)
         val serverRows = serverRepository.listAll()
-        val latestMetrics = serverRepository.getLatestContainerMetricsForServers(serverRows.map { it.id })
+        val latestMetrics = containerMetricsRepository.getLatestContainerMetricsForServers(serverRows.map { it.id })
         val nodeRows = nodeRepository.listAll()
         return filter.snapshot(serverRows, latestMetrics, nodeRows)
     }

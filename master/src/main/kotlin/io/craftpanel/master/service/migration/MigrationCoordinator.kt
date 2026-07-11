@@ -8,7 +8,10 @@ import io.craftpanel.master.service.ContainerLifecycle
 import io.craftpanel.master.service.MigrationEvent
 import io.craftpanel.master.service.PortExhaustedException
 import io.craftpanel.master.service.ServerExposure
+import io.craftpanel.master.service.repo.MigrationRepository
 import io.craftpanel.master.service.repo.NodeRepository
+import io.craftpanel.master.service.repo.PortRepository
+import io.craftpanel.master.service.repo.ProxyBackendRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.restartContainerCommand
@@ -23,7 +26,10 @@ import kotlin.uuid.Uuid
  * State that individual steps read/write lives on [MigrationPlan] instead.
  */
 open class MigrationCoordinator(
+    val migrationRepository: MigrationRepository,
     val serverRepository: ServerRepository,
+    val portRepository: PortRepository,
+    val proxyBackendRepository: ProxyBackendRepository,
     val nodeRepository: NodeRepository,
     val gateway: AgentGateway,
     val dnsProvider: DnsProvider?,
@@ -42,7 +48,7 @@ open class MigrationCoordinator(
 
     open fun updateStatus(plan: MigrationPlan, status: MigrationStatus) {
         val ts = clock.now()
-        serverRepository.updateMigrationStatus(
+        migrationRepository.updateMigrationStatus(
             plan.migrationId,
             status,
             if (status == MigrationStatus.COMPLETED || status == MigrationStatus.FAILED) ts else null
@@ -51,14 +57,14 @@ open class MigrationCoordinator(
     }
 
     open fun startStep(plan: MigrationPlan, stepNum: Int, description: String): Uuid {
-        val step = serverRepository.createMigrationStep(plan.migrationId, stepNum, description)
-        serverRepository.updateMigrationStepStatus(step.id, MigrationStepStatus.RUNNING, clock.now(), null, null)
+        val step = migrationRepository.createMigrationStep(plan.migrationId, stepNum, description)
+        migrationRepository.updateMigrationStepStatus(step.id, MigrationStepStatus.RUNNING, clock.now(), null, null)
         scope.launch { emit(MigrationEvent.StepStarted(stepNum, description)) }
         return step.id
     }
 
     open fun completeStep(stepId: Uuid, success: Boolean, error: String? = null) {
-        serverRepository.updateMigrationStepStatus(
+        migrationRepository.updateMigrationStepStatus(
             stepId,
             if (success) MigrationStepStatus.SUCCESS else MigrationStepStatus.FAILED,
             null,
@@ -81,19 +87,19 @@ open class MigrationCoordinator(
     }
 
     open fun allocateRsyncPort(plan: MigrationPlan): Int {
-        val usedPorts = serverRepository.findUsedPortsOnNode(plan.targetNodeId)
+        val usedPorts = portRepository.findUsedPortsOnNode(plan.targetNodeId)
             .toSet()
         val port = (plan.targetNodeRow.portRangeStart..plan.targetNodeRow.portRangeEnd)
             .firstOrNull { it !in usedPorts }
             ?: throw PortExhaustedException(
                 "No free ports in range ${plan.targetNodeRow.portRangeStart}-${plan.targetNodeRow.portRangeEnd} on node ${plan.targetNodeId}"
             )
-        serverRepository.registerPort(plan.targetNodeId, port, "TCP", null)
+        portRepository.registerPort(plan.targetNodeId, port, "TCP", null)
         return port
     }
 
     open fun updateProxyBackendsAfterMigration(serverId: Uuid, targetIp: String, port: Int) {
-        val proxyServerIds = serverRepository.findProxyServersForBackend(serverId)
+        val proxyServerIds = proxyBackendRepository.findProxyServersForBackend(serverId)
         if (proxyServerIds.isEmpty()) return
         for (proxyServerId in proxyServerIds) {
             val proxyServer = serverRepository.findById(proxyServerId) ?: continue
@@ -106,7 +112,8 @@ open class MigrationCoordinator(
             )
             if (sent) {
                 log.info("Triggered proxy restart for server $proxyServerId on node $nodeIdStr after migration of $serverId to $targetIp:$port")
-            } else {
+            }
+            else {
                 log.warn("Could not reach node $nodeIdStr to restart proxy $proxyServerId after migration of $serverId — manual restart may be required")
             }
         }

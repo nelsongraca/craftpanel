@@ -2,6 +2,7 @@ package io.craftpanel.master.service.migration
 
 import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.TestDatabase
+import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.MigrationStatus
@@ -11,7 +12,6 @@ import io.craftpanel.master.service.ServerExposure
 import io.craftpanel.master.service.repo.NetworkRepositoryImpl
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
 import io.craftpanel.master.service.repo.NodeRow
-import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.craftpanel.master.service.repo.ServerRow
 import io.craftpanel.master.service.repo.SettingsRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
@@ -111,18 +111,22 @@ class MigrationRunnerTest :
                     it[Servers.status] = "STOPPED"
                 }[Servers.id].let { Uuid.parse(it.toString()) }
             }
-            val serverRepository = ServerRepositoryImpl()
+            val repos = TestRepositories()
             coord = MigrationCoordinator(
-                serverRepository = serverRepository,
+                migrationRepository = repos.migrationRepository,
+                serverRepository = repos.serverRepository,
+                portRepository = repos.portRepository,
+                proxyBackendRepository = repos.proxyBackendRepository,
                 nodeRepository = NodeRepositoryImpl(),
                 gateway = TestAgentGateway(agentEvents = MutableSharedFlow()),
                 dnsProvider = null,
                 lifecycle = ContainerLifecycle(
                     gateway = TestAgentGateway(),
-                    modService = ModService(serverRepository),
-                    serverRepository = serverRepository
+                    modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
+                    serverRepository = repos.serverRepository,
+                    envVarsRepository = repos.envVarsRepository
                 ),
-                serverExposure = ServerExposure(NetworkRepositoryImpl(), SettingsRepositoryImpl(), serverRepository),
+                serverExposure = ServerExposure(NetworkRepositoryImpl(), SettingsRepositoryImpl(), repos.serverRepository),
                 scope = TestScope(),
                 eventFlow = MutableSharedFlow()
             )
@@ -130,7 +134,7 @@ class MigrationRunnerTest :
 
         test("all steps succeed - status COMPLETED") {
             runTest {
-                val migration = coord.serverRepository.createMigration(serverId, nodeId, targetNodeId)
+                val migration = coord.migrationRepository.createMigration(serverId, nodeId, targetNodeId)
                 val plan = createPlan(migration.id)
 
                 val allSuccess = object : MigrationStep {
@@ -140,7 +144,7 @@ class MigrationRunnerTest :
                 }
 
                 MigrationRunner(listOf(allSuccess), plan, coord).run()
-                val row = coord.serverRepository.findMigrationById(plan.migrationId)
+                val row = coord.migrationRepository.findMigrationById(plan.migrationId)
                 row?.status shouldBe MigrationStatus.COMPLETED.name
             }
         }
@@ -148,7 +152,7 @@ class MigrationRunnerTest :
         test("step fails - runner stops and remaining steps not executed") {
             runTest {
                 var secondExecuted = false
-                val migration = coord.serverRepository.createMigration(serverId, nodeId, targetNodeId)
+                val migration = coord.migrationRepository.createMigration(serverId, nodeId, targetNodeId)
                 val plan = createPlan(migration.id)
 
                 val steps = listOf(
@@ -168,7 +172,7 @@ class MigrationRunnerTest :
                 )
 
                 MigrationRunner(steps, plan, coord).run()
-                val row = coord.serverRepository.findMigrationById(plan.migrationId)
+                val row = coord.migrationRepository.findMigrationById(plan.migrationId)
                 row?.status shouldBe MigrationStatus.FAILED.name
                 secondExecuted shouldBe false
             }
@@ -176,10 +180,10 @@ class MigrationRunnerTest :
 
         test("finally block cleans up rsync port even on failure") {
             runTest {
-                val migration = coord.serverRepository.createMigration(serverId, nodeId, targetNodeId)
+                val migration = coord.migrationRepository.createMigration(serverId, nodeId, targetNodeId)
                 val plan = createPlan(migration.id)
                 plan.rsyncPort = 25566
-                coord.serverRepository.registerPort(plan.targetNodeId, 25566, "TCP", null)
+                coord.portRepository.registerPort(plan.targetNodeId, 25566, "TCP", null)
 
                 val failing = object : MigrationStep {
                     override val stepNumber = 1
@@ -188,19 +192,22 @@ class MigrationRunnerTest :
                 }
 
                 MigrationRunner(listOf(failing), plan, coord).run()
-                val usedPorts = coord.serverRepository.findUsedPortsOnNode(plan.targetNodeId)
+                val usedPorts = coord.portRepository.findUsedPortsOnNode(plan.targetNodeId)
                 usedPorts shouldBe emptyList()
             }
         }
 
         test("runner works against a fake coordinator subclass (proves plan/coord seam is swappable)") {
             runTest {
-                val migration = coord.serverRepository.createMigration(serverId, nodeId, targetNodeId)
+                val migration = coord.migrationRepository.createMigration(serverId, nodeId, targetNodeId)
                 val plan = createPlan(migration.id)
                 var completeStepCalls = 0
 
                 val fakeCoord = object : MigrationCoordinator(
+                    migrationRepository = coord.migrationRepository,
                     serverRepository = coord.serverRepository,
+                    portRepository = coord.portRepository,
+                    proxyBackendRepository = coord.proxyBackendRepository,
                     nodeRepository = coord.nodeRepository,
                     gateway = coord.gateway,
                     dnsProvider = null,

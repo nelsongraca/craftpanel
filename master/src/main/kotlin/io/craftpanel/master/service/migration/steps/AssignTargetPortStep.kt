@@ -14,22 +14,23 @@ class AssignTargetPortStep : MigrationStep {
     override suspend fun execute(plan: MigrationPlan, coord: MigrationCoordinator): StepResult {
         return try {
             val existingPort = plan.serverRow.hostPort
-            val usedPorts = coord.serverRepository.findUsedPortsOnNode(plan.targetNodeId)
+            val usedPorts = coord.portRepository.findUsedPortsOnNode(plan.targetNodeId)
                 .toSet()
 
             plan.assignedPort = if (existingPort in usedPorts) {
                 val range = plan.targetNodeRow.portRangeStart..plan.targetNodeRow.portRangeEnd
                 range.firstOrNull { it !in usedPorts }
                     ?: throw PortExhaustedException("No free ports on target node")
-            } else {
+            }
+            else {
                 existingPort
             }
 
-            coord.serverRepository.releasePortsForServer(plan.serverId)
-            coord.serverRepository.registerPort(plan.targetNodeId, plan.assignedPort, "TCP", plan.serverId)
+            coord.portRepository.releasePortsForServer(plan.serverId)
+            coord.portRepository.registerPort(plan.targetNodeId, plan.assignedPort, "TCP", plan.serverId)
 
             if (plan.assignedPort != existingPort) {
-                coord.serverRepository.updateMigrationHostPort(plan.serverId, plan.assignedPort)
+                coord.migrationRepository.updateMigrationHostPort(plan.serverId, plan.assignedPort)
             }
 
             plan.freshServerRow = coord.serverRepository.findById(plan.serverId)
@@ -38,7 +39,8 @@ class AssignTargetPortStep : MigrationStep {
                 return StepResult.Failure("Server row not found after port assignment")
             }
             StepResult.Success
-        } catch (e: Exception) {
+        }
+        catch (e: Exception) {
             coord.restartSource(plan)
             StepResult.Failure("Port assignment failed: ${e.message}")
         }

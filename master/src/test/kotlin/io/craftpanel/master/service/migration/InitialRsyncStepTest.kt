@@ -2,6 +2,7 @@ package io.craftpanel.master.service.migration
 
 import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.TestDatabase
+import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.service.ContainerLifecycle
 import io.craftpanel.master.service.ModService
@@ -10,7 +11,6 @@ import io.craftpanel.master.service.migration.steps.InitialRsyncStep
 import io.craftpanel.master.service.repo.NetworkRepositoryImpl
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
 import io.craftpanel.master.service.repo.NodeRow
-import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.craftpanel.master.service.repo.ServerRow
 import io.craftpanel.master.service.repo.SettingsRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
@@ -75,18 +75,22 @@ class InitialRsyncStepTest :
         }
 
         fun coord(scope: TestScope, gw: TestAgentGateway = gateway): MigrationCoordinator {
-            val serverRepository = ServerRepositoryImpl()
+            val repos = TestRepositories()
             return MigrationCoordinator(
-                serverRepository = serverRepository,
+                migrationRepository = repos.migrationRepository,
+                serverRepository = repos.serverRepository,
+                portRepository = repos.portRepository,
+                proxyBackendRepository = repos.proxyBackendRepository,
                 nodeRepository = NodeRepositoryImpl(),
                 gateway = gw,
                 dnsProvider = null,
                 lifecycle = ContainerLifecycle(
                     gateway = TestAgentGateway(),
-                    modService = ModService(serverRepository),
-                    serverRepository = serverRepository
+                    modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
+                    serverRepository = repos.serverRepository,
+                    envVarsRepository = repos.envVarsRepository
                 ),
-                serverExposure = ServerExposure(NetworkRepositoryImpl(), SettingsRepositoryImpl(), serverRepository),
+                serverExposure = ServerExposure(NetworkRepositoryImpl(), SettingsRepositoryImpl(), repos.serverRepository),
                 scope = scope,
                 eventFlow = null
             )

@@ -2,6 +2,7 @@ package io.craftpanel.master.service.migration
 
 import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.TestDatabase
+import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.service.ContainerLifecycle
 import io.craftpanel.master.service.ModService
@@ -10,7 +11,6 @@ import io.craftpanel.master.service.migration.steps.AllocateRsyncPortStep
 import io.craftpanel.master.service.repo.NetworkRepositoryImpl
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
 import io.craftpanel.master.service.repo.NodeRow
-import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.craftpanel.master.service.repo.ServerRow
 import io.craftpanel.master.service.repo.SettingsRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
@@ -81,18 +81,22 @@ class AllocateRsyncPortStepTest :
                 ),
                 targetPrivateIp = "10.0.0.2"
             )
-            val serverRepository = ServerRepositoryImpl()
+            val repos = TestRepositories()
             coord = MigrationCoordinator(
-                serverRepository = serverRepository,
+                migrationRepository = repos.migrationRepository,
+                serverRepository = repos.serverRepository,
+                portRepository = repos.portRepository,
+                proxyBackendRepository = repos.proxyBackendRepository,
                 nodeRepository = NodeRepositoryImpl(),
                 gateway = TestAgentGateway(),
                 dnsProvider = null,
                 lifecycle = ContainerLifecycle(
                     gateway = TestAgentGateway(),
-                    modService = ModService(serverRepository),
-                    serverRepository = serverRepository
+                    modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
+                    serverRepository = repos.serverRepository,
+                    envVarsRepository = repos.envVarsRepository
                 ),
-                serverExposure = ServerExposure(NetworkRepositoryImpl(), SettingsRepositoryImpl(), serverRepository),
+                serverExposure = ServerExposure(NetworkRepositoryImpl(), SettingsRepositoryImpl(), repos.serverRepository),
                 scope = TestScope(),
                 eventFlow = MutableSharedFlow()
             )
@@ -109,7 +113,7 @@ class AllocateRsyncPortStepTest :
 
         test("returns Success with next port when first port taken") {
             runTest {
-                coord.serverRepository.registerPort(plan.targetNodeId, 25565, "TCP", null)
+                coord.portRepository.registerPort(plan.targetNodeId, 25565, "TCP", null)
                 val step = AllocateRsyncPortStep()
                 val result = step.execute(plan, coord)
                 result.shouldBeInstanceOf<StepResult.Success>()
@@ -120,7 +124,7 @@ class AllocateRsyncPortStepTest :
         test("returns Failure when port range exhausted") {
             runTest {
                 for (i in 25565..25600) {
-                    coord.serverRepository.registerPort(plan.targetNodeId, i, "TCP", null)
+                    coord.portRepository.registerPort(plan.targetNodeId, i, "TCP", null)
                 }
                 val step = AllocateRsyncPortStep()
                 val result = step.execute(plan, coord)
@@ -132,7 +136,10 @@ class AllocateRsyncPortStepTest :
         test("allocateRsyncPort is testable with a fake coordinator and plain plan (no DB)") {
             runTest {
                 val fakeCoord = object : MigrationCoordinator(
+                    migrationRepository = coord.migrationRepository,
                     serverRepository = coord.serverRepository,
+                    portRepository = coord.portRepository,
+                    proxyBackendRepository = coord.proxyBackendRepository,
                     nodeRepository = coord.nodeRepository,
                     gateway = coord.gateway,
                     dnsProvider = null,

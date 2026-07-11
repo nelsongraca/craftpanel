@@ -1,6 +1,7 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.service.repo.FakeNetworkRepository
+import io.craftpanel.master.service.repo.FakeRepositories
 import io.craftpanel.master.service.repo.FakeServerRepository
 import io.craftpanel.master.service.repo.FakeSettingsRepository
 import io.craftpanel.master.service.repo.ServerRow
@@ -59,7 +60,7 @@ class ServerExposureTest : FunSpec({
     beforeTest {
         networkRepository = FakeNetworkRepository()
         settingsRepository = FakeSettingsRepository()
-        serverRepository = FakeServerRepository()
+        serverRepository = FakeServerRepository(FakeRepositories())
         serverExposure = ServerExposure(networkRepository, settingsRepository, serverRepository)
     }
 

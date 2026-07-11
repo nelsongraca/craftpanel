@@ -1,6 +1,7 @@
 package io.craftpanel.master.routes
 
 import io.craftpanel.master.TestDatabase
+import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.TokenClaims
@@ -8,7 +9,7 @@ import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.jsonClient
 import io.craftpanel.master.service.*
-import io.craftpanel.master.service.repo.ServerRepositoryImpl
+
 import io.craftpanel.master.testApp
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -40,8 +41,10 @@ class ModsRoutesTest : FunSpec({
         TestDatabase.reset()
     }
 
+    val repos = TestRepositories()
+
     fun Route.configureModsTest() {
-        modsRoutes(ModService(ServerRepositoryImpl()))
+        modsRoutes(ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository))
     }
 
     fun createUser(email: String = "admin@example.com"): Uuid = transaction {
@@ -368,7 +371,7 @@ class ModsRoutesTest : FunSpec({
                 it[ServerMods.pinStrategy] = "LATEST"
             }
         }
-        ModService(ServerRepositoryImpl()).buildModrinthEnvVar(serverId) shouldBe "fabric-api"
+        ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository).buildModrinthEnvVar(serverId) shouldBe "fabric-api"
     }
 
     test("modrinthProjectsEnvVar serializes PINNED correctly") {
@@ -383,7 +386,7 @@ class ModsRoutesTest : FunSpec({
                 it[ServerMods.pinnedVersionId] = "Oa9ZDzZq"
             }
         }
-        ModService(ServerRepositoryImpl()).buildModrinthEnvVar(serverId) shouldBe "fabric-api:Oa9ZDzZq"
+        ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository).buildModrinthEnvVar(serverId) shouldBe "fabric-api:Oa9ZDzZq"
     }
 
     test("modrinthProjectsEnvVar serializes BETA correctly") {
@@ -397,7 +400,7 @@ class ModsRoutesTest : FunSpec({
                 it[ServerMods.pinStrategy] = "BETA"
             }
         }
-        ModService(ServerRepositoryImpl()).buildModrinthEnvVar(serverId) shouldBe "some-mod:beta"
+        ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository).buildModrinthEnvVar(serverId) shouldBe "some-mod:beta"
     }
 
     test("modrinthProjectsEnvVar serializes ALPHA correctly") {
@@ -411,7 +414,7 @@ class ModsRoutesTest : FunSpec({
                 it[ServerMods.pinStrategy] = "ALPHA"
             }
         }
-        ModService(ServerRepositoryImpl()).buildModrinthEnvVar(serverId) shouldBe "some-mod:alpha"
+        ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository).buildModrinthEnvVar(serverId) shouldBe "some-mod:alpha"
     }
 
     test("modrinthProjectsEnvVar serializes multiple mods comma-separated") {
@@ -432,7 +435,7 @@ class ModsRoutesTest : FunSpec({
                 it[ServerMods.pinnedVersionId] = "abc123"
             }
         }
-        val result = ModService(ServerRepositoryImpl()).buildModrinthEnvVar(serverId)
+        val result = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository).buildModrinthEnvVar(serverId)
         result.contains("fabric-api") shouldBe true
         result.contains("sodium:abc123") shouldBe true
         result.contains(",") shouldBe true

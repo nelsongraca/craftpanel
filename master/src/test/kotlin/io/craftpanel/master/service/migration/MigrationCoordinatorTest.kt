@@ -2,6 +2,7 @@ package io.craftpanel.master.service.migration
 
 import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.TestDatabase
+import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.MigrationStatus
@@ -14,7 +15,6 @@ import io.craftpanel.master.service.repo.NetworkRepositoryImpl
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
 import io.craftpanel.master.service.repo.NodeRow
 import io.craftpanel.master.service.repo.ProxyBackendInput
-import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.craftpanel.master.service.repo.ServerRow
 import io.craftpanel.master.service.repo.SettingsRepositoryImpl
 import io.kotest.assertions.throwables.shouldThrow
@@ -116,18 +116,22 @@ class MigrationCoordinatorTest :
                 ),
                 targetPrivateIp = "10.0.0.2"
             )
-            val serverRepository = ServerRepositoryImpl()
+            val repos = TestRepositories()
             coord = MigrationCoordinator(
-                serverRepository = serverRepository,
+                migrationRepository = repos.migrationRepository,
+                serverRepository = repos.serverRepository,
+                portRepository = repos.portRepository,
+                proxyBackendRepository = repos.proxyBackendRepository,
                 nodeRepository = NodeRepositoryImpl(),
                 gateway = TestAgentGateway(),
                 dnsProvider = null,
                 lifecycle = ContainerLifecycle(
                     gateway = TestAgentGateway(),
-                    modService = ModService(serverRepository),
-                    serverRepository = serverRepository
+                    modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
+                    serverRepository = repos.serverRepository,
+                    envVarsRepository = repos.envVarsRepository
                 ),
-                serverExposure = ServerExposure(NetworkRepositoryImpl(), SettingsRepositoryImpl(), serverRepository),
+                serverExposure = ServerExposure(NetworkRepositoryImpl(), SettingsRepositoryImpl(), repos.serverRepository),
                 scope = TestScope(),
                 eventFlow = MutableSharedFlow()
             )
@@ -135,11 +139,11 @@ class MigrationCoordinatorTest :
 
         test("startStep creates step and returns step id") {
             runTest {
-                val migration = coord.serverRepository.createMigration(plan.serverId, plan.sourceNodeId, plan.targetNodeId)
+                val migration = coord.migrationRepository.createMigration(plan.serverId, plan.sourceNodeId, plan.targetNodeId)
                 val p = plan.copy(migrationId = migration.id, migrationIdStr = migration.id.toString())
                 val stepId = coord.startStep(p, 1, "Test step")
                 stepId.shouldNotBeNull()
-                val steps = coord.serverRepository.listMigrationSteps(p.migrationId)
+                val steps = coord.migrationRepository.listMigrationSteps(p.migrationId)
                 steps.size shouldBe 1
                 steps[0].stepNumber shouldBe 1
                 steps[0].description shouldBe "Test step"
@@ -149,22 +153,22 @@ class MigrationCoordinatorTest :
 
         test("completeStep marks step success") {
             runTest {
-                val migration = coord.serverRepository.createMigration(plan.serverId, plan.sourceNodeId, plan.targetNodeId)
+                val migration = coord.migrationRepository.createMigration(plan.serverId, plan.sourceNodeId, plan.targetNodeId)
                 val p = plan.copy(migrationId = migration.id, migrationIdStr = migration.id.toString())
                 val stepId = coord.startStep(p, 1, "Test step")
                 coord.completeStep(stepId, true)
-                val step = coord.serverRepository.listMigrationSteps(p.migrationId).first()
+                val step = coord.migrationRepository.listMigrationSteps(p.migrationId).first()
                 step.status shouldBe MigrationStepStatus.SUCCESS.name
             }
         }
 
         test("completeStep marks step failure with error") {
             runTest {
-                val migration = coord.serverRepository.createMigration(plan.serverId, plan.sourceNodeId, plan.targetNodeId)
+                val migration = coord.migrationRepository.createMigration(plan.serverId, plan.sourceNodeId, plan.targetNodeId)
                 val p = plan.copy(migrationId = migration.id, migrationIdStr = migration.id.toString())
                 val stepId = coord.startStep(p, 1, "Test step")
                 coord.completeStep(stepId, false, "Something went wrong")
-                val step = coord.serverRepository.listMigrationSteps(p.migrationId).first()
+                val step = coord.migrationRepository.listMigrationSteps(p.migrationId).first()
                 step.status shouldBe MigrationStepStatus.FAILED.name
                 step.errorMessage shouldBe "Something went wrong"
             }
@@ -172,10 +176,10 @@ class MigrationCoordinatorTest :
 
         test("failMigration sets FAILED status") {
             runTest {
-                val migration = coord.serverRepository.createMigration(plan.serverId, plan.sourceNodeId, plan.targetNodeId)
+                val migration = coord.migrationRepository.createMigration(plan.serverId, plan.sourceNodeId, plan.targetNodeId)
                 val p = plan.copy(migrationId = migration.id, migrationIdStr = migration.id.toString())
                 coord.failMigration(p, "Test error")
-                val row = coord.serverRepository.findMigrationById(p.migrationId)
+                val row = coord.migrationRepository.findMigrationById(p.migrationId)
                 row.shouldNotBeNull()
                 row.status shouldBe MigrationStatus.FAILED.name
             }
@@ -198,7 +202,7 @@ class MigrationCoordinatorTest :
         test("allocateRsyncPort throws when port range exhausted") {
             runTest {
                 for (i in 25565..25600) {
-                    coord.serverRepository.registerPort(plan.targetNodeId, i, "TCP", null)
+                    coord.portRepository.registerPort(plan.targetNodeId, i, "TCP", null)
                 }
                 shouldThrow<PortExhaustedException> {
                     coord.allocateRsyncPort(plan)
@@ -230,7 +234,7 @@ class MigrationCoordinatorTest :
                         it[Servers.status] = "RUNNING"
                     }[Servers.id].let { id -> Uuid.parse(id.toString()) }
                 }
-                coord.serverRepository.replaceProxyBackends(
+                coord.proxyBackendRepository.replaceProxyBackends(
                     proxyServerId,
                     listOf(ProxyBackendInput(plan.serverId, "backend", 0))
                 )

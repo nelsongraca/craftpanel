@@ -6,6 +6,7 @@ import io.craftpanel.proto.triggerBackupCommand
 import io.craftpanel.master.domain.BackupStatus
 import io.craftpanel.master.domain.BackupTrigger
 import io.craftpanel.master.grpc.DataServiceProxy
+import io.craftpanel.master.service.repo.BackupRepository
 import io.craftpanel.master.service.repo.BackupRow
 import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.serialization.SerialName
@@ -47,12 +48,13 @@ class BackupService(
     private val gateway: AgentGateway,
     private val dataServiceProxy: DataServiceProxy,
     private val serverRepository: ServerRepository,
+    private val backupRepository: BackupRepository,
 ) {
 
     private val log = org.slf4j.LoggerFactory.getLogger(BackupService::class.java)
 
     fun listBackups(serverId: Uuid): List<BackupResponse> =
-        serverRepository.listBackups(serverId)
+        backupRepository.listBackups(serverId)
             .map { it.toResponse() }
 
     fun triggerBackup(serverId: Uuid, trigger: BackupTrigger = BackupTrigger.MANUAL): BackupResponse {
@@ -61,7 +63,7 @@ class BackupService(
         val now = Clock.System.now()
 
         val maxCount = serverRow.backupMaxCount
-        val toRotate = serverRepository.findOldestCompletedBackups(serverId, maxCount)
+        val toRotate = backupRepository.findOldestCompletedBackups(serverId, maxCount)
         for (old in toRotate) {
             if (!old.filePath.isNullOrEmpty()) {
                 val sent = gateway.sendToNode(old.nodeId.toString(), masterMessage {
@@ -75,10 +77,10 @@ class BackupService(
                     continue
                 }
             }
-            serverRepository.deleteBackup(old.id)
+            backupRepository.deleteBackup(old.id)
         }
 
-        val backup = serverRepository.createBackup(serverId, serverRow.nodeId, trigger)
+        val backup = backupRepository.createBackup(serverId, serverRow.nodeId, trigger)
 
         val sent = gateway.sendToNode(nodeId, masterMessage {
             triggerBackup = triggerBackupCommand {
@@ -89,16 +91,16 @@ class BackupService(
         })
 
         if (!sent) {
-            serverRepository.updateBackupStatus(backup.id, BackupStatus.FAILED, null, null, "Agent not connected", now)
+            backupRepository.updateBackupStatus(backup.id, BackupStatus.FAILED, null, null, "Agent not connected", now)
             throw BadGatewayException("Agent not connected")
         }
 
-        return serverRepository.findBackupById(backup.id)!!
+        return backupRepository.findBackupById(backup.id)!!
             .toResponse()
     }
 
     fun deleteBackup(serverId: Uuid, backupId: Uuid) {
-        val backup = serverRepository.findBackupById(backupId)
+        val backup = backupRepository.findBackupById(backupId)
             ?.takeIf { it.serverId == serverId }
             ?: throw NotFoundException("Backup not found")
         if (backup.status == "IN_PROGRESS") throw ConflictException("Cannot delete a backup that is in progress")
@@ -110,11 +112,11 @@ class BackupService(
                 }
             })
         }
-        serverRepository.deleteBackup(backupId)
+        backupRepository.deleteBackup(backupId)
     }
 
     fun resolveDownload(serverId: Uuid, backupId: Uuid): BackupDownloadInfo {
-        val backup = serverRepository.findBackupById(backupId)
+        val backup = backupRepository.findBackupById(backupId)
             ?.takeIf { it.serverId == serverId }
             ?: throw NotFoundException("Backup not found")
         if (backup.status != "COMPLETED") throw ConflictException("Backup is not in COMPLETED status")

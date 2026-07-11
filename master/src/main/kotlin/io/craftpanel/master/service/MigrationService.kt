@@ -18,9 +18,12 @@ import io.craftpanel.master.service.migration.steps.StopSourceStep
 import io.craftpanel.master.service.migration.steps.UpdateDnsStep
 import io.craftpanel.master.service.migration.steps.UpdateNodeAssignmentStep
 import io.craftpanel.master.service.migration.steps.UpdateProxyBackendsStep
+import io.craftpanel.master.service.repo.MigrationRepository
 import io.craftpanel.master.service.repo.MigrationRow
 import io.craftpanel.master.service.repo.MigrationStepRow
 import io.craftpanel.master.service.repo.NodeRepository
+import io.craftpanel.master.service.repo.PortRepository
+import io.craftpanel.master.service.repo.ProxyBackendRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
@@ -87,7 +90,10 @@ data class MigrationResponse(
 )
 
 class MigrationService(
+    private val migrationRepository: MigrationRepository,
     private val serverRepository: ServerRepository,
+    private val portRepository: PortRepository,
+    private val proxyBackendRepository: ProxyBackendRepository,
     private val nodeRepository: NodeRepository,
     private val gateway: AgentGateway,
     private val dnsProvider: DnsProvider?,
@@ -99,7 +105,7 @@ class MigrationService(
 
     private val eventFlows = ConcurrentHashMap<String, MutableSharedFlow<MigrationEvent>>()
 
-    fun failStuckMigrations() = serverRepository.failAllStuckMigrations()
+    fun failStuckMigrations() = migrationRepository.failAllStuckMigrations()
 
     fun startMigration(serverId: Uuid, req: MigrateRequest): MigrationResponse {
         val serverRow = serverRepository.findById(serverId)
@@ -120,10 +126,10 @@ class MigrationService(
             throw ConflictException("Target node is not ACTIVE")
         }
 
-        val inProgress = serverRepository.findActiveMigration(serverId) != null
+        val inProgress = migrationRepository.findActiveMigration(serverId) != null
         if (inProgress) throw ConflictException("Migration already in progress for this server")
 
-        val migration = serverRepository.createMigration(serverId, sourceNodeId, targetNodeId)
+        val migration = migrationRepository.createMigration(serverId, sourceNodeId, targetNodeId)
 
         eventFlows[migration.id.toString()] =
             MutableSharedFlow(replay = 128, onBufferOverflow = BufferOverflow.DROP_OLDEST)
@@ -142,7 +148,8 @@ class MigrationService(
                 if (e is CancellationException) throw e
                 if (e is ExposedSQLException && e.message?.contains("fk_migration_step_log") == true) {
                     log.warn("Migration ${migration.id} aborted: server was deleted mid-flight")
-                } else {
+                }
+                else {
                     log.error("Migration ${migration.id} crashed unexpectedly", e)
                 }
             }
@@ -152,14 +159,14 @@ class MigrationService(
     }
 
     fun getMigration(migrationId: Uuid): MigrationResponse {
-        val row = serverRepository.findMigrationById(migrationId)
+        val row = migrationRepository.findMigrationById(migrationId)
             ?: throw NotFoundException("Migration not found")
-        val steps = serverRepository.listMigrationSteps(migrationId)
+        val steps = migrationRepository.listMigrationSteps(migrationId)
         return row.toResponse(steps)
     }
 
-    fun listMigrations(serverId: Uuid): List<MigrationResponse> = serverRepository.listMigrations(serverId)
-        .map { row -> row.toResponse(serverRepository.listMigrationSteps(row.id)) }
+    fun listMigrations(serverId: Uuid): List<MigrationResponse> = migrationRepository.listMigrations(serverId)
+        .map { row -> row.toResponse(migrationRepository.listMigrationSteps(row.id)) }
 
     fun getEventFlow(migrationId: String): SharedFlow<MigrationEvent>? = eventFlows[migrationId]?.asSharedFlow()
 
@@ -199,7 +206,10 @@ class MigrationService(
         )
 
         val coord = MigrationCoordinator(
+            migrationRepository = migrationRepository,
             serverRepository = serverRepository,
+            portRepository = portRepository,
+            proxyBackendRepository = proxyBackendRepository,
             nodeRepository = nodeRepository,
             gateway = gateway,
             dnsProvider = dnsProvider,

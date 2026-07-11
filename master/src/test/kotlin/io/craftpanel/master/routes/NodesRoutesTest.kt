@@ -2,6 +2,7 @@ package io.craftpanel.master.routes
 
 import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.TestDatabase
+import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.TokenClaims
@@ -9,7 +10,6 @@ import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.jsonClient
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
-import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.craftpanel.master.service.*
 import io.craftpanel.master.testApp
 import io.kotest.core.spec.style.FunSpec
@@ -46,8 +46,10 @@ class NodesRoutesTest : FunSpec({
         TestDatabase.reset()
     }
 
+    val repos = TestRepositories()
+
     fun Route.configureNodesTest(gateway: TestAgentGateway = TestAgentGateway()) {
-        nodesRoutes(NodeService(gateway, NodeRepositoryImpl(), ServerRepositoryImpl()))
+        nodesRoutes(NodeService(gateway, NodeRepositoryImpl(), repos.serverRepository))
     }
 
     fun createUser(

@@ -1,24 +1,9 @@
 package io.craftpanel.master.service.repo
 
-import io.craftpanel.master.domain.BackupStatus
-import io.craftpanel.master.domain.BackupTrigger
-import io.craftpanel.master.domain.MigrationStatus
-import io.craftpanel.master.domain.MigrationStepStatus
 import kotlinx.datetime.Instant
 import kotlin.uuid.Uuid
 
-class FakeServerRepository : ServerRepository {
-
-    private val servers = mutableMapOf<Uuid, MutableServer>()
-    private val envVars = mutableMapOf<Uuid, MutableList<EnvVarRow>>()
-    private val mods = mutableMapOf<Uuid, MutableMap<Uuid, MutableMod>>()
-    private val migrations = mutableMapOf<Uuid, MutableMigration>()
-    private val steps = mutableMapOf<Uuid, MutableList<MutableMigrationStep>>()
-    private val ports = mutableListOf<MutablePort>()
-    private val backups = mutableMapOf<Uuid, MutableBackup>()
-    private val proxyBackends = mutableMapOf<Uuid, MutableList<MutableProxyBackend>>()
-    private val containerMetrics = mutableListOf<MutableContainerMetrics>()
-    private val serverJobs = mutableMapOf<Uuid, MutableServerJob>()
+class FakeServerRepository(private val state: FakeRepositories) : ServerRepository {
 
     data class MutableServer(
         val id: Uuid,
@@ -116,36 +101,36 @@ class FakeServerRepository : ServerRepository {
 
     data class MutableServerJob(val id: Uuid, val serverId: Uuid, val type: String, val cronExpression: String, var enabled: Boolean = true, var lastFiredAt: String? = null)
 
-    override fun findById(id: Uuid): ServerRow? = servers[id]?.toRow()
-    override fun findByName(name: String): ServerRow? = servers.values.firstOrNull { it.name == name }
+    override fun findById(id: Uuid): ServerRow? = state.servers[id]?.toRow()
+    override fun findByName(name: String): ServerRow? = state.servers.values.firstOrNull { it.name == name }
         ?.toRow()
 
-    override fun findBySubdomain(subdomain: String): ServerRow? = servers.values.firstOrNull { it.publicSubdomain == subdomain }
+    override fun findBySubdomain(subdomain: String): ServerRow? = state.servers.values.firstOrNull { it.publicSubdomain == subdomain }
         ?.toRow()
 
-    override fun findByCustomHostname(hostname: String): ServerRow? = servers.values.firstOrNull { it.customHostname == hostname }
+    override fun findByCustomHostname(hostname: String): ServerRow? = state.servers.values.firstOrNull { it.customHostname == hostname }
         ?.toRow()
 
-    override fun findByDnsRecordName(hostname: String): ServerRow? = servers.values.firstOrNull { it.dnsRecordName == hostname }
+    override fun findByDnsRecordName(hostname: String): ServerRow? = state.servers.values.firstOrNull { it.dnsRecordName == hostname }
         ?.toRow()
 
-    override fun listAll(): List<ServerRow> = servers.values.map { it.toRow() }
-    override fun listByVisibility(networkIds: List<Uuid>, serverIds: List<Uuid>): List<ServerRow> = servers.values.filter { it.networkId in networkIds || it.id in serverIds }
+    override fun listAll(): List<ServerRow> = state.servers.values.map { it.toRow() }
+    override fun listByVisibility(networkIds: List<Uuid>, serverIds: List<Uuid>): List<ServerRow> = state.servers.values.filter { it.networkId in networkIds || it.id in serverIds }
         .map { it.toRow() }
 
-    override fun listByNetworkId(networkId: Uuid): List<ServerRow> = servers.values.filter { it.networkId == networkId }
+    override fun listByNetworkId(networkId: Uuid): List<ServerRow> = state.servers.values.filter { it.networkId == networkId }
         .map { it.toRow() }
 
-    override fun listByNodeId(nodeId: Uuid): List<ServerRow> = servers.values.filter { it.nodeId == nodeId }
+    override fun listByNodeId(nodeId: Uuid): List<ServerRow> = state.servers.values.filter { it.nodeId == nodeId }
         .map { it.toRow() }
 
-    override fun listIds(ids: List<Uuid>): List<ServerRow> = ids.mapNotNull { servers[it]?.toRow() }
-    override fun listWithBackupSchedule(): List<ServerRow> = servers.values.filter { it.backupSchedule != null }
+    override fun listIds(ids: List<Uuid>): List<ServerRow> = ids.mapNotNull { state.servers[it]?.toRow() }
+    override fun listWithBackupSchedule(): List<ServerRow> = state.servers.values.filter { it.backupSchedule != null }
         .map { it.toRow() }
 
-    override fun countByNetworkId(networkId: Uuid): Int = servers.values.count { it.networkId == networkId }
-    override fun countByNodeId(nodeId: Uuid): Int = servers.values.count { it.nodeId == nodeId }
-    override fun findIdsNeedingRecreateByNode(nodeId: Uuid): List<Uuid> = servers.values.filter { it.nodeId == nodeId && it.needsRecreate }
+    override fun countByNetworkId(networkId: Uuid): Int = state.servers.values.count { it.networkId == networkId }
+    override fun countByNodeId(nodeId: Uuid): Int = state.servers.values.count { it.nodeId == nodeId }
+    override fun findIdsNeedingRecreateByNode(nodeId: Uuid): List<Uuid> = state.servers.values.filter { it.nodeId == nodeId && it.needsRecreate }
         .map { it.id }
 
     override fun create(
@@ -180,12 +165,12 @@ class FakeServerRepository : ServerRepository {
             stopCommand = stopCommand,
             itzgImageTag = itzgImageTag
         )
-        servers[id] = s
+        state.servers[id] = s
         return s.toRow()
     }
 
     override fun updateDetails(id: Uuid, displayName: String?, description: String?, networkId: Uuid?, mcVersion: String?, itzgImageTag: String?) {
-        val s = servers[id] ?: return
+        val s = state.servers[id] ?: return
         if (displayName != null) s.displayName = displayName
         if (description != null) s.description = description
         if (networkId != null) s.networkId = networkId
@@ -194,11 +179,11 @@ class FakeServerRepository : ServerRepository {
     }
 
     override fun clearNetworkId(id: Uuid) {
-        servers[id]?.networkId = null
+        state.servers[id]?.networkId = null
     }
 
     override fun updateResources(id: Uuid, memoryMb: Int, cpuShares: Int, itzgImageTag: String?, needsRecreate: Boolean) {
-        val s = servers[id] ?: return
+        val s = state.servers[id] ?: return
         s.memoryMb = memoryMb
         s.cpuShares = cpuShares
         s.needsRecreate = needsRecreate
@@ -206,14 +191,14 @@ class FakeServerRepository : ServerRepository {
     }
 
     override fun updateStatus(id: Uuid, status: String, lastSeenAt: Instant?) {
-        servers[id]?.let {
+        state.servers[id]?.let {
             it.status = status
             if (lastSeenAt != null) it.lastSeenAt = lastSeenAt.toString()
         }
     }
 
     override fun updateExposure(id: Uuid, exposedExternally: Boolean?, publicSubdomain: String?, customHostname: String?, dnsRecordId: String?, dnsRecordName: String?, needsRecreate: Boolean?) {
-        servers[id]?.let {
+        state.servers[id]?.let {
             if (exposedExternally != null) it.exposedExternally = exposedExternally
             if (publicSubdomain != null) it.publicSubdomain = publicSubdomain
             it.customHostname = customHostname
@@ -224,11 +209,11 @@ class FakeServerRepository : ServerRepository {
     }
 
     override fun updateNeedsRecreate(id: Uuid, needsRecreate: Boolean) {
-        servers[id]?.needsRecreate = needsRecreate
+        state.servers[id]?.needsRecreate = needsRecreate
     }
 
     override fun updatePlayerInfo(id: Uuid, playerCount: Int?, playerNames: String?, lastUpdate: Instant?) {
-        servers[id]?.let {
+        state.servers[id]?.let {
             if (playerCount != null) it.lastPlayerCount = playerCount
             if (playerNames != null) it.lastPlayerNames = playerNames
             if (lastUpdate != null) it.lastPlayerUpdate = lastUpdate.toString()
@@ -236,248 +221,37 @@ class FakeServerRepository : ServerRepository {
     }
 
     override fun updateBackupSchedule(id: Uuid, schedule: String?, maxCount: Int?) {
-        servers[id]?.let {
+        state.servers[id]?.let {
             if (schedule != null) it.backupSchedule = schedule
             if (maxCount != null) it.backupMaxCount = maxCount
         }
     }
 
     override fun updateBackupScheduleLastFired(id: Uuid, lastFired: Instant?) {
-        servers[id]?.backupScheduleLastFired = lastFired?.toString()
+        state.servers[id]?.backupScheduleLastFired = lastFired?.toString()
     }
 
     override fun updateConfigMode(id: Uuid, configMode: String) {
-        servers[id]?.configMode = configMode
+        state.servers[id]?.configMode = configMode
     }
 
     override fun updateStopCommand(id: Uuid, stopCommand: String) {
-        servers[id]?.stopCommand = stopCommand
+        state.servers[id]?.stopCommand = stopCommand
     }
 
     override fun delete(id: Uuid) {
-        servers.remove(id)
-        mods.remove(id)
-        envVars.remove(id)
-        backups.values.removeAll { it.serverId == id }
-        containerMetrics.removeAll { it.serverId == id }
-        ports.removeAll { it.serverId == id }
+        state.servers.remove(id)
+        state.mods.remove(id)
+        state.envVars.remove(id)
+        state.backups.values.removeAll { it.serverId == id }
+        state.containerMetrics.removeAll { it.serverId == id }
+        state.ports.removeAll { it.serverId == id }
     }
 
     override fun nullifyNetworkId(networkId: Uuid) {
-        servers.values.filter { it.networkId == networkId }
+        state.servers.values.filter { it.networkId == networkId }
             .forEach { it.networkId = null }
     }
-
-    override fun getEnvVars(serverId: Uuid): List<EnvVarRow> = envVars[serverId]?.toList() ?: emptyList()
-    override fun replaceEnvVars(serverId: Uuid, envVars: List<EnvVarRow>) {
-        this.envVars[serverId] = envVars.toMutableList()
-    }
-
-    override fun listMods(serverId: Uuid): List<ModRow> = mods[serverId]?.values?.map { it.toRow() }
-        ?.toList() ?: emptyList()
-
-    override fun findModById(id: Uuid): ModRow? = mods.values.flatMap { it.values }
-        .firstOrNull { it.id == id }
-        ?.toRow()
-
-    override fun findModByProjectId(serverId: Uuid, projectId: String): ModRow? = mods[serverId]?.values?.firstOrNull { it.modrinthProjectId == projectId }
-        ?.toRow()
-
-    override fun createMod(serverId: Uuid, modrinthProjectId: String, displayName: String, pinStrategy: String, pinnedVersionId: String?, installedVersionId: String?): ModRow {
-        val id = Uuid.random()
-        val m = MutableMod(id, serverId, modrinthProjectId, displayName, pinStrategy, pinnedVersionId, installedVersionId)
-        mods.getOrPut(serverId) { mutableMapOf() }[id] = m
-        return m.toRow()
-    }
-
-    override fun updateMod(id: Uuid, pinStrategy: String?, pinnedVersionId: String?, installedVersionId: String?) {
-        val m = mods.values.flatMap { it.values }
-            .firstOrNull { it.id == id } ?: return
-        if (pinStrategy != null) m.pinStrategy = pinStrategy
-        if (pinnedVersionId != null) m.pinnedVersionId = pinnedVersionId
-        if (installedVersionId != null) m.installedVersionId = installedVersionId
-    }
-
-    override fun deleteMod(id: Uuid) {
-        mods.values.forEach { it.remove(id) }
-    }
-
-    override fun deleteModsForServer(serverId: Uuid) {
-        mods.remove(serverId)
-    }
-
-    override fun findActiveMigration(serverId: Uuid): MigrationRow? = migrations.values.firstOrNull { it.serverId == serverId && it.status in listOf("PENDING", "SYNCING", "CUTTING_OVER") }
-        ?.toRow()
-
-    override fun listMigrations(serverId: Uuid): List<MigrationRow> = migrations.values.filter { it.serverId == serverId }
-        .map { it.toRow() }
-
-    override fun findMigrationById(id: Uuid): MigrationRow? = migrations[id]?.toRow()
-    override fun createMigration(serverId: Uuid, sourceNodeId: Uuid, targetNodeId: Uuid): MigrationRow {
-        val id = Uuid.random()
-        val m = MutableMigration(id, serverId, sourceNodeId, targetNodeId)
-        migrations[id] = m
-        return m.toRow()
-    }
-
-    override fun updateMigrationStatus(id: Uuid, status: MigrationStatus, completedAt: Instant?) {
-        migrations[id]?.let {
-            it.status = status.name
-            if (completedAt != null) it.completedAt = completedAt.toString()
-        }
-    }
-
-    override fun failMigrationsForNode(nodeId: Uuid) {
-        val active = listOf(MigrationStatus.PENDING.name, MigrationStatus.SYNCING.name, MigrationStatus.CUTTING_OVER.name)
-        migrations.values.filter { (it.sourceNodeId == nodeId || it.targetNodeId == nodeId) && it.status in active }
-            .forEach { it.status = MigrationStatus.FAILED.name }
-    }
-
-    override fun failAllStuckMigrations() {
-        val stuck = listOf(MigrationStatus.PENDING.name, MigrationStatus.SYNCING.name, MigrationStatus.CUTTING_OVER.name, MigrationStatus.RUNNING.name)
-        migrations.values.filter { it.status in stuck }
-            .forEach {
-                it.status = MigrationStatus.FAILED.name
-                it.completedAt = "now"
-            }
-    }
-
-    override fun updateNodeId(id: Uuid, nodeId: Uuid) {
-        servers[id]?.nodeId = nodeId
-    }
-
-    override fun updateMigrationHostPort(id: Uuid, hostPort: Int) {
-        servers[id]?.hostPort = hostPort
-    }
-
-    override fun listMigrationSteps(migrationId: Uuid): List<MigrationStepRow> = steps[migrationId]?.map { it.toRow() }
-        ?.toList() ?: emptyList()
-
-    override fun createMigrationStep(migrationId: Uuid, stepNumber: Int, description: String): MigrationStepRow {
-        val id = Uuid.random()
-        val s = MutableMigrationStep(id, migrationId, stepNumber, description)
-        steps.getOrPut(migrationId) { mutableListOf() }
-            .add(s)
-        return s.toRow()
-    }
-
-    override fun updateMigrationStepStatus(id: Uuid, status: MigrationStepStatus, startedAt: Instant?, completedAt: Instant?, errorMessage: String?) {
-        val s = steps.values.flatten()
-            .firstOrNull { it.id == id } ?: return
-        s.status = status.name
-        if (startedAt != null) s.startedAt = startedAt.toString()
-        if (completedAt != null) s.completedAt = completedAt.toString()
-        if (errorMessage != null) s.errorMessage = errorMessage
-    }
-
-    override fun findUsedPortsOnNode(nodeId: Uuid): List<Int> = ports.filter { it.nodeId == nodeId }
-        .map { it.port }
-
-    override fun registerPort(nodeId: Uuid, port: Int, protocol: String, serverId: Uuid?) {
-        ports.add(MutablePort(nodeId, port, protocol, serverId))
-    }
-
-    override fun releasePort(nodeId: Uuid, port: Int, protocol: String) {
-        ports.removeAll { it.nodeId == nodeId && it.port == port && it.protocol == protocol }
-    }
-
-    override fun releasePortsForServer(serverId: Uuid) {
-        ports.removeAll { it.serverId == serverId }
-    }
-
-    override fun releasePortsForServerOnNode(serverId: Uuid, nodeId: Uuid) {
-        ports.removeAll { it.serverId == serverId && it.nodeId == nodeId }
-    }
-
-    override fun listBackups(serverId: Uuid): List<BackupRow> = backups.values.filter { it.serverId == serverId }
-        .map { it.toRow() }
-
-    override fun findBackupById(id: Uuid): BackupRow? = backups[id]?.toRow()
-    override fun createBackup(serverId: Uuid, nodeId: Uuid, trigger: BackupTrigger): BackupRow {
-        val id = Uuid.random()
-        val b = MutableBackup(id, serverId, nodeId, trigger.name)
-        backups[id] = b
-        return b.toRow()
-    }
-
-    override fun updateBackupStatus(id: Uuid, status: BackupStatus, filePath: String?, sizeBytes: Long?, errorMessage: String?, completedAt: Instant?) {
-        backups[id]?.let {
-            it.status = status.name
-            if (filePath != null) it.filePath = filePath
-            if (sizeBytes != null) it.sizeBytes = sizeBytes
-            if (errorMessage != null) {
-                it.errorMessage =
-                    errorMessage
-            }
-            if (completedAt != null) it.completedAt = completedAt.toString()
-        }
-    }
-
-    override fun countCompletedBackups(serverId: Uuid): Int = backups.values.count { it.serverId == serverId && it.status == BackupStatus.COMPLETED.name }
-    override fun deleteBackup(id: Uuid) {
-        backups.remove(id)
-    }
-
-    override fun deleteBackupsForServer(serverId: Uuid) {
-        backups.values.removeAll { it.serverId == serverId }
-    }
-
-    override fun failBackupsForNode(nodeId: Uuid) {
-        backups.values.filter { it.nodeId == nodeId && it.status == BackupStatus.IN_PROGRESS.name }
-            .forEach { it.status = BackupStatus.FAILED.name }
-    }
-
-    override fun findOldestCompletedBackups(serverId: Uuid, keepCount: Int): List<BackupRow> {
-        val completed = backups.values.filter { it.serverId == serverId && it.status == BackupStatus.COMPLETED.name }
-            .sortedBy { it.createdAt }
-        return if (completed.size <= keepCount) {
-            emptyList()
-        } else {
-            completed.dropLast(keepCount)
-                .map { it.toRow() }
-        }
-    }
-
-    override fun listProxyBackends(proxyServerId: Uuid): List<ProxyBackendRow> = proxyBackends[proxyServerId]?.map { it.toRow() }
-        ?.toList() ?: emptyList()
-
-    override fun replaceProxyBackends(proxyServerId: Uuid, backends: List<ProxyBackendInput>) {
-        proxyBackends[proxyServerId] = backends.mapIndexed { i, b -> MutableProxyBackend(Uuid.random(), proxyServerId, b.backendServerId, b.backendName, b.order) }
-            .toMutableList()
-    }
-
-    override fun findProxyServersForBackend(backendServerId: Uuid): List<Uuid> = proxyBackends.values.flatten()
-        .filter { it.backendServerId == backendServerId }
-        .map { it.proxyServerId }
-
-    override fun insertContainerMetrics(serverId: Uuid, cpuPercent: Double, ramUsedMb: Int, netInBytes: Long, netOutBytes: Long, blockInBytes: Long, blockOutBytes: Long, recordedAt: Instant) {
-        containerMetrics.add(MutableContainerMetrics(serverId, recordedAt.toString(), cpuPercent, ramUsedMb, netInBytes, netOutBytes, blockInBytes, blockOutBytes))
-    }
-
-    override fun getContainerMetrics(serverId: Uuid, seconds: Int): List<ContainerMetricsRow> = containerMetrics.filter { it.serverId == serverId }
-        .map { ContainerMetricsRow(Uuid.random(), it.serverId, it.recordedAt, it.cpuPercent, it.ramUsedMb, it.netInBytes, it.netOutBytes, it.blockInBytes, it.blockOutBytes) }
-
-    override fun getContainerMetricsByRange(serverId: Uuid, from: Instant, to: Instant): List<ContainerMetricsRow> = containerMetrics.filter { it.serverId == serverId }
-        .map { ContainerMetricsRow(Uuid.random(), it.serverId, it.recordedAt, it.cpuPercent, it.ramUsedMb, it.netInBytes, it.netOutBytes, it.blockInBytes, it.blockOutBytes) }
-
-    override fun getLatestContainerMetrics(serverId: Uuid): ContainerMetricsRow? = containerMetrics.filter { it.serverId == serverId }
-        .maxByOrNull { it.recordedAt }
-        ?.let { ContainerMetricsRow(Uuid.random(), it.serverId, it.recordedAt, it.cpuPercent, it.ramUsedMb, it.netInBytes, it.netOutBytes, it.blockInBytes, it.blockOutBytes) }
-
-    override fun getLatestContainerMetricsForServers(serverIds: List<Uuid>): Map<Uuid, ContainerMetricsRow?> = serverIds.associateWith { getLatestContainerMetrics(it) }
-
-    override fun listEnabledServerJobs(): List<ServerJobRow> = serverJobs.values.filter { it.enabled }
-        .map { it.toRow() }
-
-    override fun updateServerJobLastFired(jobId: Uuid, lastFired: Instant) {
-        serverJobs[jobId]?.lastFiredAt = lastFired.toString()
-    }
-
-    fun addServerJob(job: MutableServerJob) {
-        serverJobs[job.id] = job
-    }
-
-    private fun MutableServerJob.toRow() = ServerJobRow(id, serverId, type, cronExpression, lastFiredAt)
 
     private fun MutableServer.toRow() = ServerRow(
         id,
@@ -511,10 +285,4 @@ class FakeServerRepository : ServerRepository {
         createdAt,
         updatedAt
     )
-
-    private fun MutableMod.toRow() = ModRow(id, serverId, modrinthProjectId, displayName, pinStrategy, pinnedVersionId, installedVersionId, createdAt, updatedAt)
-    private fun MutableMigration.toRow() = MigrationRow(id, serverId, sourceNodeId, targetNodeId, status, createdAt, completedAt)
-    private fun MutableMigrationStep.toRow() = MigrationStepRow(id, migrationId, stepNumber, description, status, startedAt, completedAt, errorMessage)
-    private fun MutableBackup.toRow() = BackupRow(id, serverId, nodeId, trigger, status, filePath, sizeBytes, errorMessage, createdAt, completedAt)
-    private fun MutableProxyBackend.toRow() = ProxyBackendRow(id, proxyServerId, backendServerId, backendName, order)
 }

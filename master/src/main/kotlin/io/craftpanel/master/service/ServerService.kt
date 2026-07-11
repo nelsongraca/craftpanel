@@ -103,6 +103,10 @@ class ServerService(
     private val groupRepository: GroupRepository,
     private val settingsRepository: SettingsRepository,
     private val serverExposure: ServerExposure,
+    private val portRepository: PortRepository,
+    private val envVarsRepository: EnvVarsRepository,
+    private val containerMetricsRepository: ContainerMetricsRepository,
+    private val migrationRepository: MigrationRepository,
 ) {
 
     private val log = LoggerFactory.getLogger(ServerService::class.java)
@@ -112,11 +116,11 @@ class ServerService(
     fun listServers(userId: Uuid): List<ServerResponse> {
         val visibility = visibilityResolver.resolve(userId)
         val rows = when {
-            visibility.isGlobal -> serverRepository.listAll()
+            visibility.isGlobal                                               -> serverRepository.listAll()
 
             visibility.networkIds.isEmpty() && visibility.serverIds.isEmpty() -> return emptyList()
 
-            else                -> serverRepository.listByVisibility(
+            else                                                              -> serverRepository.listByVisibility(
                 visibility.networkIds.toList(),
                 visibility.serverIds.toList(),
             )
@@ -126,7 +130,7 @@ class ServerService(
             emptySet()
         }
         else {
-            rows.filter { serverRepository.findActiveMigration(it.id) != null }
+            rows.filter { migrationRepository.findActiveMigration(it.id) != null }
                 .map { it.id }
                 .toSet()
         }
@@ -161,10 +165,10 @@ class ServerService(
             when (capacityChecker.check(node, excludeServerId = null, memoryMb = req.memoryMb, cpuShares = req.cpuShares)) {
                 CapacityResult.InsufficientRam -> return CreateResult("insufficient_ram")
                 CapacityResult.InsufficientCpu -> return CreateResult("insufficient_cpu")
-                CapacityResult.Ok -> {}
+                CapacityResult.Ok              -> {}
             }
 
-            val usedPorts = serverRepository.findUsedPortsOnNode(nodeKotlinId)
+            val usedPorts = portRepository.findUsedPortsOnNode(nodeKotlinId)
                 .toSet()
             val port = PortAllocator.pickFreePort(node.portRangeStart, node.portRangeEnd, usedPorts)
                 ?: return CreateResult("no_ports")
@@ -186,7 +190,7 @@ class ServerService(
                 stopCommand = stopCommand,
             )
 
-            serverRepository.registerPort(nodeKotlinId, port, "TCP", newServer.id)
+            portRepository.registerPort(nodeKotlinId, port, "TCP", newServer.id)
 
             if (req.serverType !in PROXY_SERVER_TYPES) {
                 val platformName = settingsRepository.getAll()
@@ -195,7 +199,7 @@ class ServerService(
                 val serverTypeDisplay = req.serverType.lowercase()
                     .replaceFirstChar { it.uppercase() }
                 val defaults = buildDefaultEnvVars(req.mcVersion, serverTypeDisplay, platformName)
-                serverRepository.replaceEnvVars(
+                envVarsRepository.replaceEnvVars(
                     newServer.id,
                     defaults.map { (k, v) ->
                         EnvVarRow(k, v)
@@ -228,20 +232,20 @@ class ServerService(
         }
 
         return when (result.status) {
-            "ok"               -> result.server!!
-            "node_not_found"   -> throw UnprocessableException("Node not found")
-            "node_not_active"  -> throw UnprocessableException("Node is not active")
+            "ok"                -> result.server!!
+            "node_not_found"    -> throw UnprocessableException("Node not found")
+            "node_not_active"   -> throw UnprocessableException("Node is not active")
             "network_not_found" -> throw UnprocessableException("Network not found")
-            "name_taken"       -> throw ConflictException("Server name already taken")
-            "insufficient_ram" -> throw ConflictException("Insufficient RAM capacity on node")
-            "insufficient_cpu" -> throw ConflictException("Insufficient CPU capacity on node")
-            else               -> throw ConflictException("No free ports available on node")
+            "name_taken"        -> throw ConflictException("Server name already taken")
+            "insufficient_ram"  -> throw ConflictException("Insufficient RAM capacity on node")
+            "insufficient_cpu"  -> throw ConflictException("Insufficient CPU capacity on node")
+            else                -> throw ConflictException("No free ports available on node")
         }
     }
 
     fun getServer(id: Uuid): ServerResponse {
         val row = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
-        val isMigrating = serverRepository.findActiveMigration(id) != null
+        val isMigrating = migrationRepository.findActiveMigration(id) != null
         return row.toResponse(serverExposure, isMigrating)
     }
 
@@ -323,14 +327,14 @@ class ServerService(
         when (capacityChecker.check(node, excludeServerId = id, memoryMb = req.memoryMb, cpuShares = req.cpuShares)) {
             CapacityResult.InsufficientRam -> throw ConflictException("Insufficient RAM capacity on node")
             CapacityResult.InsufficientCpu -> throw ConflictException("Insufficient CPU capacity on node")
-            CapacityResult.Ok -> {}
+            CapacityResult.Ok              -> {}
         }
         serverRepository.updateResources(id, req.memoryMb, req.cpuShares, req.itzgImageTag, true)
     }
 
     fun getMetrics(id: Uuid, from: Instant, to: Instant): ContainerMetricsSeriesResponse {
         serverRepository.findById(id) ?: throw NotFoundException("Server not found")
-        val rows = serverRepository.getContainerMetricsByRange(id, from, to)
+        val rows = containerMetricsRepository.getContainerMetricsByRange(id, from, to)
         return ContainerMetricsSeriesResponse(
             serverId = id.toString(),
             series = ContainerMetricsSeries(

@@ -5,6 +5,8 @@ import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.BackupStatus
 import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.ServerStatus
+import io.craftpanel.master.service.repo.BackupRepository
+import io.craftpanel.master.service.repo.ContainerMetricsRepository
 import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.coroutines.CoroutineScope
@@ -31,6 +33,8 @@ class NodeObserver(
     private val emitAgentEvent: suspend (AgentEvent) -> Unit,
     private val serverRepository: ServerRepository,
     private val nodeRepository: NodeRepository,
+    private val containerMetricsRepository: ContainerMetricsRepository,
+    private val backupRepository: BackupRepository,
     private val alertEvaluator: AlertEvaluator,
     private val clock: Clock = Clock.System
 ) {
@@ -41,7 +45,7 @@ class NodeObserver(
         agentEvents.collect { event ->
             try {
                 when (event) {
-                    is AgentEvent.NodeMetricsEvent -> {
+                    is AgentEvent.NodeMetricsEvent      -> {
                         persistNodeMetrics(event)
                         evaluateNodeAlerts(event)
                     }
@@ -51,17 +55,18 @@ class NodeObserver(
                         evaluateServerAlerts(event)
                     }
 
-                    is AgentEvent.ServerStatusEvent -> persistServerStatus(event)
+                    is AgentEvent.ServerStatusEvent     -> persistServerStatus(event)
 
-                    is AgentEvent.PlayerUpdateEvent -> persistPlayerUpdate(event)
+                    is AgentEvent.PlayerUpdateEvent     -> persistPlayerUpdate(event)
 
-                    is AgentEvent.BackupCompleteEvent -> persistBackupComplete(event)
+                    is AgentEvent.BackupCompleteEvent   -> persistBackupComplete(event)
 
-                    else -> {
+                    else                                -> {
                         /* unrelated events */
                     }
                 }
-            } catch (e: Exception) {
+            }
+            catch (e: Exception) {
                 log.warn("NodeObserver: failed to process event {} — {}", event::class.simpleName, e.message)
             }
         }
@@ -91,7 +96,7 @@ class NodeObserver(
     private fun persistContainerMetrics(event: AgentEvent.ContainerMetricsEvent) {
         val kotlinServerId = runCatching { Uuid.parse(event.serverId) }.getOrNull() ?: return
 
-        serverRepository.insertContainerMetrics(
+        containerMetricsRepository.insertContainerMetrics(
             serverId = kotlinServerId,
             cpuPercent = event.cpuPercent,
             ramUsedMb = event.ramUsedMb,
@@ -149,7 +154,7 @@ class NodeObserver(
         val sizeBytes = if (event.success) event.sizeBytes.takeIf { it > 0 } else null
         val errorMessage = if (!event.success) event.errorMessage.takeIf { it.isNotBlank() } else null
 
-        serverRepository.updateBackupStatus(backupId, status, null, sizeBytes, errorMessage, event.completedAt)
+        backupRepository.updateBackupStatus(backupId, status, null, sizeBytes, errorMessage, event.completedAt)
     }
 
     // ── Alert evaluation ──────────────────────────────────────────────────────

@@ -1,6 +1,7 @@
 package io.craftpanel.master.routes
 
 import io.craftpanel.master.TestDatabase
+import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.TokenClaims
@@ -12,7 +13,6 @@ import io.craftpanel.master.jsonClient
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.GroupRepositoryImpl
 import io.craftpanel.master.service.repo.NetworkRepositoryImpl
-import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.craftpanel.master.service.repo.UserRepositoryImpl
 import io.craftpanel.master.testApp
 import io.kotest.core.spec.style.FunSpec
@@ -45,11 +45,12 @@ class AssignmentsRoutesTest : FunSpec({
     }
 
     fun Route.configureAssignmentsTest() {
+        val repos = TestRepositories()
         assignmentsRoutes(
             AssignmentService(
                 userRepository = UserRepositoryImpl(),
                 groupRepository = GroupRepositoryImpl(),
-                serverRepository = ServerRepositoryImpl(),
+                serverRepository = repos.serverRepository,
                 networkRepository = NetworkRepositoryImpl(),
             )
         )

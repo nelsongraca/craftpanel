@@ -2,6 +2,7 @@ package io.craftpanel.master.routes
 
 import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.TestDatabase
+import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
@@ -9,7 +10,6 @@ import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.NetworkRepositoryImpl
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
-import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.craftpanel.master.service.repo.SettingsRepositoryImpl
 import io.craftpanel.master.jsonClient
 import io.craftpanel.master.testApp
@@ -42,21 +42,27 @@ class MigrationsRoutesTest : FunSpec({
     val noopGateway = TestAgentGateway()
     val testScope = TestScope()
 
+    val repos = TestRepositories()
+
     fun buildMigrationService(): MigrationService = MigrationService(
-        serverRepository = ServerRepositoryImpl(),
+        migrationRepository = repos.migrationRepository,
+        serverRepository = repos.serverRepository,
+        portRepository = repos.portRepository,
+        proxyBackendRepository = repos.proxyBackendRepository,
         nodeRepository = NodeRepositoryImpl(),
         gateway = noopGateway,
         dnsProvider = null,
         scope = testScope,
         lifecycle = ContainerLifecycle(
             gateway = TestAgentGateway(),
-            modService = ModService(ServerRepositoryImpl()),
-            serverRepository = ServerRepositoryImpl(),
+            modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
+            serverRepository = repos.serverRepository,
+            envVarsRepository = repos.envVarsRepository,
         ),
         serverExposure = ServerExposure(
             networkRepository = NetworkRepositoryImpl(),
             settingsRepository = SettingsRepositoryImpl(),
-            serverRepository = ServerRepositoryImpl(),
+            serverRepository = repos.serverRepository,
         ),
     )
 

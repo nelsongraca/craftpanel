@@ -1,6 +1,7 @@
 package io.craftpanel.master.routes
 
 import io.craftpanel.master.TestDatabase
+import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.TokenClaims
@@ -9,7 +10,6 @@ import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.jsonClient
 import io.craftpanel.master.service.repo.AlertRepositoryImpl
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
-import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.craftpanel.master.service.*
 import io.craftpanel.master.testApp
 import io.kotest.core.spec.style.FunSpec
@@ -44,7 +44,8 @@ class AlertsRoutesTest : FunSpec({
     }
 
     fun Route.configureAlertsTest() {
-        alertsRoutes(AlertService(AlertRepositoryImpl(), NodeRepositoryImpl(), ServerRepositoryImpl()))
+        val repos = TestRepositories()
+        alertsRoutes(AlertService(AlertRepositoryImpl(), NodeRepositoryImpl(), repos.serverRepository))
     }
 
     fun createUser(email: String = "admin@example.com"): Uuid = transaction {

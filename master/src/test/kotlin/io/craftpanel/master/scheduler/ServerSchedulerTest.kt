@@ -1,10 +1,10 @@
 package io.craftpanel.master.scheduler
 
+import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.ServerJobs
 import io.craftpanel.master.database.schema.Servers
-import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.mockk.coEvery
@@ -28,7 +28,8 @@ import kotlin.uuid.Uuid
 class ServerSchedulerTest :
     FunSpec({
 
-        val serverRepository = ServerRepositoryImpl()
+        val repos = TestRepositories()
+        val serverRepository = repos.serverRepository
 
         beforeTest {
             TestDatabase.initIfNeeded()
@@ -38,21 +39,21 @@ class ServerSchedulerTest :
         // ── fires() ──────────────────────────────────────────────────────────────
 
         test("fires returns true when cron matches ZonedDateTime") {
-            val scheduler = ServerScheduler(emptyMap(), TestScope(), serverRepository)
+            val scheduler = ServerScheduler(emptyMap(), TestScope(), serverRepository, repos.serverJobRepository)
             // "* * * * *" matches every minute
             val at = ZonedDateTime.of(2025, 6, 1, 12, 0, 0, 0, ZoneOffset.UTC)
             scheduler.fires("* * * * *", at) shouldBe true
         }
 
         test("fires returns false when cron does not match") {
-            val scheduler = ServerScheduler(emptyMap(), TestScope(), serverRepository)
+            val scheduler = ServerScheduler(emptyMap(), TestScope(), serverRepository, repos.serverJobRepository)
             // "0 3 * * *" = 03:00 every day; test at 12:00
             val at = ZonedDateTime.of(2025, 6, 1, 12, 0, 0, 0, ZoneOffset.UTC)
             scheduler.fires("0 3 * * *", at) shouldBe false
         }
 
         test("fires returns false for malformed cron expression") {
-            val scheduler = ServerScheduler(emptyMap(), TestScope(), serverRepository)
+            val scheduler = ServerScheduler(emptyMap(), TestScope(), serverRepository, repos.serverJobRepository)
             val at = ZonedDateTime.of(2025, 6, 1, 12, 0, 0, 0, ZoneOffset.UTC)
             scheduler.fires("not-a-cron", at) shouldBe false
         }
@@ -90,7 +91,7 @@ class ServerSchedulerTest :
 
             val now = kotlin.time.Clock.System.now()
             runTest {
-                val scheduler = ServerScheduler(mapOf("BACKUP" to handler), this, serverRepository)
+                val scheduler = ServerScheduler(mapOf("BACKUP" to handler), this, serverRepository, repos.serverJobRepository)
                 scheduler.tick(now)
             }
 
@@ -106,7 +107,7 @@ class ServerSchedulerTest :
 
             val now = kotlin.time.Clock.System.now()
             runTest {
-                val scheduler = ServerScheduler(mapOf("BACKUP" to handler), this, serverRepository)
+                val scheduler = ServerScheduler(mapOf("BACKUP" to handler), this, serverRepository, repos.serverJobRepository)
                 scheduler.tick(now)
                 scheduler.tick(now) // same instant = same minute
             }
@@ -128,7 +129,7 @@ class ServerSchedulerTest :
                     .toEpochMilli()
             )
             runTest {
-                val scheduler = ServerScheduler(mapOf("BACKUP" to handler), this, serverRepository)
+                val scheduler = ServerScheduler(mapOf("BACKUP" to handler), this, serverRepository, repos.serverJobRepository)
                 scheduler.tick(atNoon)
             }
 
@@ -153,7 +154,7 @@ class ServerSchedulerTest :
 
             val now = kotlin.time.Clock.System.now()
             runTest {
-                val scheduler = ServerScheduler(mapOf("MY_JOB" to handler), this, serverRepository)
+                val scheduler = ServerScheduler(mapOf("MY_JOB" to handler), this, serverRepository, repos.serverJobRepository)
                 scheduler.tick(now)
             }
 
@@ -162,7 +163,7 @@ class ServerSchedulerTest :
 
         test("tick with missing handler for job type does not throw") {
             val scope = TestScope()
-            val scheduler = ServerScheduler(emptyMap(), scope, serverRepository) // no handlers
+            val scheduler = ServerScheduler(emptyMap(), scope, serverRepository, repos.serverJobRepository) // no handlers
 
             val nodeId = createNode()
             val serverId = createServer(nodeId, null)
@@ -184,7 +185,7 @@ class ServerSchedulerTest :
 
         test("stop cancels the running job") {
             val scope = TestScope()
-            val scheduler = ServerScheduler(emptyMap(), scope, serverRepository)
+            val scheduler = ServerScheduler(emptyMap(), scope, serverRepository, repos.serverJobRepository)
 
             scheduler.start()
             scheduler.stop()

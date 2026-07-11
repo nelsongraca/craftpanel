@@ -1,6 +1,7 @@
 package io.craftpanel.master.routes
 
 import io.craftpanel.master.TestDatabase
+import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.config.NodeConfig
@@ -11,7 +12,6 @@ import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
-import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.craftpanel.master.createTestControlServiceImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
@@ -21,9 +21,15 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
 class ConsoleRoutesTest : FunSpec({
-    val reconciler = NodeStateReconciler(ServerRepositoryImpl(), NodeRepositoryImpl())
+    val repos = TestRepositories()
+    val reconciler = NodeStateReconciler(
+        serverRepository = repos.serverRepository,
+        nodeRepository = NodeRepositoryImpl(),
+        migrationRepository = repos.migrationRepository,
+        backupRepository = repos.backupRepository,
+    )
     val noopControlSvc = createTestControlServiceImpl(NodeConfig("test-token", 50052), reconciler)
-    val noopProxy = DataServiceProxy(noopControlSvc, BulkDataServiceImpl(noopControlSvc), ServerRepositoryImpl())
+    val noopProxy = DataServiceProxy(noopControlSvc, BulkDataServiceImpl(noopControlSvc), repos.serverRepository)
     val consoleRoutes = ConsoleRoutes(WsTicketService(), noopProxy, PermissionResolver)
 
     beforeTest {

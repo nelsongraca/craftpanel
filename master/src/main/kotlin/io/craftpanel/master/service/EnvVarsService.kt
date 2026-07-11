@@ -2,6 +2,7 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.domain.ConfigMode
 import io.craftpanel.master.service.repo.EnvVarRow
+import io.craftpanel.master.service.repo.EnvVarsRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -22,11 +23,11 @@ data class PatchConfigModeRequest(@SerialName("config_mode") val configMode: Con
 @Serializable
 data class PatchStopCommandRequest(@SerialName("stop_command") val stopCommand: String)
 
-class EnvVarsService(private val serverRepository: ServerRepository) {
+class EnvVarsService(private val serverRepository: ServerRepository, private val envVarsRepository: EnvVarsRepository) {
 
     fun getEnvVars(serverId: Uuid): EnvVarsResponse {
         serverRepository.findById(serverId) ?: throw NotFoundException("Server not found")
-        val items = serverRepository.getEnvVars(serverId)
+        val items = envVarsRepository.getEnvVars(serverId)
             .map { EnvVarItem(it.key, it.value) }
         return EnvVarsResponse(items)
     }
@@ -35,7 +36,7 @@ class EnvVarsService(private val serverRepository: ServerRepository) {
         serverRepository.findById(serverId) ?: throw NotFoundException("Server not found")
         val keys = req.envVars.map { it.key.trim() }
         if (keys.size != keys.toSet().size) throw UnprocessableException("Duplicate env var keys")
-        serverRepository.replaceEnvVars(serverId, req.envVars.map { EnvVarRow(it.key.trim(), it.value) })
+        envVarsRepository.replaceEnvVars(serverId, req.envVars.map { EnvVarRow(it.key.trim(), it.value) })
         serverRepository.updateNeedsRecreate(serverId, true)
         return getEnvVars(serverId)
     }

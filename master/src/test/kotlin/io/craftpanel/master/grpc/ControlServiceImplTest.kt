@@ -10,7 +10,7 @@ import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.master.service.repo.FakeNodeRepository
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
-import io.craftpanel.master.service.repo.ServerRepositoryImpl
+import io.craftpanel.master.TestRepositories
 import io.craftpanel.proto.AgentMessage
 import io.craftpanel.proto.ConsoleOutput
 import io.craftpanel.proto.agentMessage
@@ -41,8 +41,9 @@ import kotlin.uuid.Uuid
 
 class ControlServiceImplTest :
     FunSpec({
+        val repos = TestRepositories()
         val nodeRepository = NodeRepositoryImpl()
-        val reconciler = NodeStateReconciler(ServerRepositoryImpl(), nodeRepository)
+        val reconciler = NodeStateReconciler(repos.serverRepository, nodeRepository, repos.migrationRepository, repos.backupRepository)
         val agentEvents = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 1024)
         val dataOpContext = DataOpContext(ConcurrentHashMap(), ConcurrentHashMap())
         val nodeStateHandler = NodeStateHandler(agentEvents, reconciler)
@@ -230,7 +231,8 @@ class ControlServiceImplTest :
 
         fun buildFakeService(fakeRepo: FakeNodeRepository): ControlServiceImpl {
             val fakeAgentEvents = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 1024)
-            val fakeReconciler = NodeStateReconciler(ServerRepositoryImpl(), fakeRepo)
+            val fakeRepos = TestRepositories()
+            val fakeReconciler = NodeStateReconciler(fakeRepos.serverRepository, fakeRepo, fakeRepos.migrationRepository, fakeRepos.backupRepository)
             val fakeDataOpContext = DataOpContext(ConcurrentHashMap(), ConcurrentHashMap())
             return ControlServiceImpl(
                 nodeConfig = NodeConfig(bootstrapToken = "test-token", agentDataPort = 50052),

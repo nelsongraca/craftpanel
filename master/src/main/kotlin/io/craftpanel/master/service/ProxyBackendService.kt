@@ -1,6 +1,7 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.service.repo.ProxyBackendInput
+import io.craftpanel.master.service.repo.ProxyBackendRepository
 import io.craftpanel.master.service.repo.ProxyBackendRow
 import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.serialization.SerialName
@@ -28,13 +29,13 @@ data class BackendInput(
 @Serializable
 data class PutProxyBackendsRequest(val backends: List<BackendInput>)
 
-class ProxyBackendService(private val serverRepository: ServerRepository) {
+class ProxyBackendService(private val serverRepository: ServerRepository, private val proxyBackendRepository: ProxyBackendRepository) {
 
     fun listBackends(proxyServerId: Uuid): ProxyBackendListResponse {
         val serverRow = serverRepository.findById(proxyServerId) ?: throw NotFoundException("Server not found")
         if (serverRow.serverType !in PROXY_SERVER_TYPES) throw ConflictException("Server is not a proxy type")
         return ProxyBackendListResponse(
-            serverRepository.listProxyBackends(proxyServerId)
+            proxyBackendRepository.listProxyBackends(proxyServerId)
                 .map { it.toItem() })
     }
 
@@ -55,7 +56,7 @@ class ProxyBackendService(private val serverRepository: ServerRepository) {
             ProxyBackendInput(backendServerId = backendId, backendName = b.backendName.trim(), order = b.order)
         }
 
-        serverRepository.replaceProxyBackends(proxyServerId, inputs)
+        proxyBackendRepository.replaceProxyBackends(proxyServerId, inputs)
         return listBackends(proxyServerId)
     }
 }

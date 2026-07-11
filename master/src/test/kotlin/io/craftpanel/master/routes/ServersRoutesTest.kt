@@ -2,6 +2,7 @@ package io.craftpanel.master.routes
 
 import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.TestDatabase
+import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.TokenClaims
@@ -43,14 +44,16 @@ class ServersRoutesTest : FunSpec({
     }
 
     fun Route.configureServersTest(gateway: TestAgentGateway = TestAgentGateway()) {
-        val serverRepository = ServerRepositoryImpl()
+        val repos = TestRepositories()
+        val serverRepository = repos.serverRepository
         val networkRepository = NetworkRepositoryImpl()
         val settingsRepository = SettingsRepositoryImpl()
-        val modService = ModService(serverRepository)
+        val modService = ModService(modRepository = repos.modRepository, serverRepository = serverRepository)
         val lifecycle = ContainerLifecycle(
             gateway = gateway,
             modService = modService,
             serverRepository = serverRepository,
+            envVarsRepository = repos.envVarsRepository,
         )
         val nodeRepository = NodeRepositoryImpl()
         val serverExposure = ServerExposure(
@@ -80,6 +83,10 @@ class ServersRoutesTest : FunSpec({
                 groupRepository = GroupRepositoryImpl(),
                 settingsRepository = settingsRepository,
                 serverExposure = serverExposure,
+                portRepository = repos.portRepository,
+                envVarsRepository = repos.envVarsRepository,
+                containerMetricsRepository = repos.containerMetricsRepository,
+                migrationRepository = repos.migrationRepository,
             ),
             lifecycleService,
             exposureService,

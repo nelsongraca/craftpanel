@@ -41,12 +41,28 @@ import io.craftpanel.master.service.SystemService
 import io.craftpanel.master.service.UserService
 import io.craftpanel.master.service.repo.AlertRepository
 import io.craftpanel.master.service.repo.AlertRepositoryImpl
+import io.craftpanel.master.service.repo.BackupRepository
+import io.craftpanel.master.service.repo.BackupRepositoryImpl
+import io.craftpanel.master.service.repo.ContainerMetricsRepository
+import io.craftpanel.master.service.repo.ContainerMetricsRepositoryImpl
+import io.craftpanel.master.service.repo.EnvVarsRepository
+import io.craftpanel.master.service.repo.EnvVarsRepositoryImpl
 import io.craftpanel.master.service.repo.GroupRepository
 import io.craftpanel.master.service.repo.GroupRepositoryImpl
+import io.craftpanel.master.service.repo.MigrationRepository
+import io.craftpanel.master.service.repo.MigrationRepositoryImpl
+import io.craftpanel.master.service.repo.ModRepository
+import io.craftpanel.master.service.repo.ModRepositoryImpl
 import io.craftpanel.master.service.repo.NetworkRepository
 import io.craftpanel.master.service.repo.NetworkRepositoryImpl
 import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.PortRepository
+import io.craftpanel.master.service.repo.PortRepositoryImpl
+import io.craftpanel.master.service.repo.ProxyBackendRepository
+import io.craftpanel.master.service.repo.ProxyBackendRepositoryImpl
+import io.craftpanel.master.service.repo.ServerJobRepository
+import io.craftpanel.master.service.repo.ServerJobRepositoryImpl
 import io.craftpanel.master.service.repo.ServerRepository
 import io.craftpanel.master.service.repo.ServerRepositoryImpl
 import io.craftpanel.master.service.repo.SettingsRepository
@@ -68,7 +84,26 @@ val appModule = module {
     // Repositories
     single<NodeRepository> { NodeRepositoryImpl() }
     single<AlertRepository> { AlertRepositoryImpl() }
-    single<ServerRepository> { ServerRepositoryImpl() }
+    single<EnvVarsRepository> { EnvVarsRepositoryImpl() }
+    single<ModRepository> { ModRepositoryImpl() }
+    single<MigrationRepository> { MigrationRepositoryImpl() }
+    single<PortRepository> { PortRepositoryImpl() }
+    single<BackupRepository> { BackupRepositoryImpl() }
+    single<ProxyBackendRepository> { ProxyBackendRepositoryImpl() }
+    single<ContainerMetricsRepository> { ContainerMetricsRepositoryImpl() }
+    single<ServerJobRepository> { ServerJobRepositoryImpl() }
+    single<ServerRepository> {
+        ServerRepositoryImpl(
+            envVarsRepository = get(),
+            modRepository = get(),
+            migrationRepository = get(),
+            portRepository = get(),
+            backupRepository = get(),
+            proxyBackendRepository = get(),
+            containerMetricsRepository = get(),
+            serverJobRepository = get()
+        )
+    }
     single<NetworkRepository> { NetworkRepositoryImpl() }
     single<GroupRepository> { GroupRepositoryImpl() }
     single<UserRepository> { UserRepositoryImpl() }
@@ -83,7 +118,7 @@ val appModule = module {
     single(named("crashRestarts")) { kotlinx.coroutines.channels.Channel<Uuid>(kotlinx.coroutines.channels.Channel.BUFFERED) }
 
     // gRPC core
-    single { NodeStateReconciler(serverRepository = get(), nodeRepository = get()) }
+    single { NodeStateReconciler(serverRepository = get(), nodeRepository = get(), migrationRepository = get(), backupRepository = get()) }
     single<AgentGateway> { get<ControlServiceImpl>() }
 
     // Shared agent events flow
@@ -135,7 +170,9 @@ val appModule = module {
             emitAgentEvent = { event -> csi.emitToAgentEvents(event) },
             serverRepository = get(),
             nodeRepository = get(),
-            alertEvaluator = get()
+            alertEvaluator = get(),
+            containerMetricsRepository = get(),
+            backupRepository = get()
         ).also { it.start(get(named("appScope"))) }
     }
 
@@ -165,7 +202,7 @@ val appModule = module {
         )
     }
     single { AlertService(alertRepository = get(), nodeRepository = get(), serverRepository = get()) }
-    single { ModService(serverRepository = get()) }
+    single { ModService(modRepository = get(), serverRepository = get()) }
 
     single {
         ServerExposure(
@@ -182,6 +219,7 @@ val appModule = module {
             gateway = get<AgentGateway>(),
             modService = get(),
             serverRepository = get(),
+            envVarsRepository = get(),
             images = images,
             containerNamePrefix = get(named("containerPrefix"))
         )
@@ -214,17 +252,24 @@ val appModule = module {
             userRepository = get(),
             groupRepository = get(),
             settingsRepository = get(),
-            serverExposure = get()
+            serverExposure = get(),
+            portRepository = get(),
+            envVarsRepository = get(),
+            containerMetricsRepository = get(),
+            migrationRepository = get()
         )
     }
-    single { BackupService(get<AgentGateway>(), get(), get()) }
-    single { ProxyBackendService(get()) }
-    single { EnvVarsService(get()) }
-    single { DashboardService(get(), get(), get(), get()) }
+    single { BackupService(get<AgentGateway>(), get(), get(), get()) }
+    single { ProxyBackendService(get(), get()) }
+    single { EnvVarsService(get(), get()) }
+    single { DashboardService(get(), get(), get(), get(), get()) }
 
     single {
         MigrationService(
+            migrationRepository = get<MigrationRepository>(),
             serverRepository = get<ServerRepository>(),
+            portRepository = get<PortRepository>(),
+            proxyBackendRepository = get<ProxyBackendRepository>(),
             nodeRepository = get<NodeRepository>(),
             gateway = get<AgentGateway>(),
             dnsProvider = get<DnsProviderHolder>().provider,
@@ -235,5 +280,5 @@ val appModule = module {
         )
     }
     single { BackupJobHandler(get()) }
-    single { ServerScheduler(mapOf("BACKUP" to get<BackupJobHandler>()), get(named("appScope")), get<ServerRepository>()) }
+    single { ServerScheduler(mapOf("BACKUP" to get<BackupJobHandler>()), get(named("appScope")), get(), get()) }
 }

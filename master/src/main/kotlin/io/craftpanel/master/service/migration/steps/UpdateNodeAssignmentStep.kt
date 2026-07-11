@@ -11,10 +11,11 @@ class UpdateNodeAssignmentStep : MigrationStep {
     override val description = "Update server node assignment in database"
 
     override suspend fun execute(plan: MigrationPlan, coord: MigrationCoordinator): StepResult = try {
-        coord.serverRepository.updateNodeId(plan.serverId, plan.targetNodeId)
-        coord.serverRepository.releasePort(plan.targetNodeId, plan.rsyncPort, "TCP")
+        coord.migrationRepository.updateNodeId(plan.serverId, plan.targetNodeId)
+        coord.portRepository.releasePort(plan.targetNodeId, plan.rsyncPort, "TCP")
         StepResult.Success
-    } catch (e: Exception) {
+    }
+    catch (e: Exception) {
         StepResult.Failure("DB update failed: ${e.message}")
     }
 }

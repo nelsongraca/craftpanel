@@ -2,6 +2,8 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.ServerStatus
+import io.craftpanel.master.service.repo.BackupRepository
+import io.craftpanel.master.service.repo.MigrationRepository
 import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import io.craftpanel.proto.ContainerState
@@ -13,6 +15,8 @@ import kotlin.uuid.Uuid
 class NodeStateReconciler(
     private val serverRepository: ServerRepository,
     private val nodeRepository: NodeRepository,
+    private val migrationRepository: MigrationRepository,
+    private val backupRepository: BackupRepository,
 ) {
 
     private val log = LoggerFactory.getLogger(NodeStateReconciler::class.java)
@@ -76,8 +80,8 @@ class NodeStateReconciler(
         }
 
         nodeRepository.markUnreachable(kotlinNodeId, now)
-        serverRepository.failMigrationsForNode(kotlinNodeId)
-        serverRepository.failBackupsForNode(kotlinNodeId)
+        migrationRepository.failMigrationsForNode(kotlinNodeId)
+        backupRepository.failBackupsForNode(kotlinNodeId)
 
         log.warn("Node $nodeId marked UNREACHABLE: migrations → FAILED, backups → FAILED")
     }

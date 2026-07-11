@@ -17,11 +17,12 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
-import io.craftpanel.master.service.repo.ServerRepositoryImpl
+import io.craftpanel.master.TestRepositories
 import kotlin.uuid.Uuid
 
 class NodeStateReconcilerTest : FunSpec({
-    val reconciler = NodeStateReconciler(ServerRepositoryImpl(), NodeRepositoryImpl())
+    val repos = TestRepositories()
+    val reconciler = NodeStateReconciler(repos.serverRepository, NodeRepositoryImpl(), repos.migrationRepository, repos.backupRepository)
 
     beforeTest {
         TestDatabase.initIfNeeded()

@@ -4,6 +4,7 @@ import com.cronutils.model.CronType
 import com.cronutils.model.definition.CronDefinitionBuilder
 import com.cronutils.model.time.ExecutionTime
 import com.cronutils.parser.CronParser
+import io.craftpanel.master.service.repo.ServerJobRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -21,7 +22,12 @@ import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
-class ServerScheduler(private val handlers: Map<String, ScheduledJobHandler>, private val scope: CoroutineScope, private val serverRepository: ServerRepository) {
+class ServerScheduler(
+    private val handlers: Map<String, ScheduledJobHandler>,
+    private val scope: CoroutineScope,
+    private val serverRepository: ServerRepository,
+    private val serverJobRepository: ServerJobRepository
+) {
 
     private val log = LoggerFactory.getLogger(ServerScheduler::class.java)
     private val cronParser = CronParser(CronDefinitionBuilder.instanceDefinitionFor(CronType.UNIX))
@@ -67,7 +73,8 @@ class ServerScheduler(private val handlers: Map<String, ScheduledJobHandler>, pr
             if (!fires(expr, nowZdt)) continue
             val lastFired = row.backupScheduleLastFired
             if (lastFired != null) {
-                val lastFiredMinute = LocalDateTime.parse(lastFired).toJavaLocalDateTime()
+                val lastFiredMinute = LocalDateTime.parse(lastFired)
+                    .toJavaLocalDateTime()
                     .atZone(ZoneOffset.UTC)
                     .truncatedTo(ChronoUnit.MINUTES)
                 if (lastFiredMinute == nowMinute) continue
@@ -81,13 +88,14 @@ class ServerScheduler(private val handlers: Map<String, ScheduledJobHandler>, pr
             }
         }
 
-        val genericRows = serverRepository.listEnabledServerJobs()
+        val genericRows = serverJobRepository.listEnabledServerJobs()
         for (row in genericRows) {
             val expr = row.cronExpression
             if (!fires(expr, nowZdt)) continue
             val lastFired = row.lastFiredAt
             if (lastFired != null) {
-                val lastFiredMinute = LocalDateTime.parse(lastFired).toJavaLocalDateTime()
+                val lastFiredMinute = LocalDateTime.parse(lastFired)
+                    .toJavaLocalDateTime()
                     .atZone(ZoneOffset.UTC)
                     .truncatedTo(ChronoUnit.MINUTES)
                 if (lastFiredMinute == nowMinute) continue
@@ -95,7 +103,7 @@ class ServerScheduler(private val handlers: Map<String, ScheduledJobHandler>, pr
             val jobId = row.id
             val serverId = row.serverId
             val type = row.type
-            serverRepository.updateServerJobLastFired(jobId, now)
+            serverJobRepository.updateServerJobLastFired(jobId, now)
             handlers[type]?.let { handler ->
                 scope.launch {
                     handler.execute(JobExecutionContext(serverId, jobId = jobId, scheduledAt = now))

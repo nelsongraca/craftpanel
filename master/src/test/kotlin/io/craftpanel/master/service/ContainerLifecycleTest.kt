@@ -6,7 +6,7 @@ import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.ServerStatus
-import io.craftpanel.master.service.repo.ServerRepositoryImpl
+import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.service.repo.ServerRow
 import io.craftpanel.master.util.toUtcString
 import io.kotest.assertions.throwables.shouldThrow
@@ -25,6 +25,7 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 
 class ContainerLifecycleTest : FunSpec({
+    val repos = TestRepositories()
     val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
     lateinit var nodeId: Uuid
     lateinit var serverId: Uuid
@@ -112,8 +113,9 @@ class ContainerLifecycleTest : FunSpec({
         removeTimeout: kotlin.time.Duration = 2.seconds,
     ) = ContainerLifecycle(
         gateway = gateway,
-        modService = ModService(ServerRepositoryImpl()),
-        serverRepository = ServerRepositoryImpl(),
+        modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
+        serverRepository = repos.serverRepository,
+        envVarsRepository = repos.envVarsRepository,
         startTimeout = startTimeout,
         stopTimeout = stopTimeout,
         removeTimeout = removeTimeout,
@@ -174,8 +176,9 @@ class ContainerLifecycleTest : FunSpec({
         val server = serverRow()
         val lc = ContainerLifecycle(
             gateway = TestAgentGateway(agentEvents = events, sendResult = false),
-            modService = ModService(ServerRepositoryImpl()),
-            serverRepository = ServerRepositoryImpl(),
+            modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
+            serverRepository = repos.serverRepository,
+            envVarsRepository = repos.envVarsRepository,
         )
         shouldThrow<BadGatewayException> {
             lc.stop(server, nodeId.toString())
