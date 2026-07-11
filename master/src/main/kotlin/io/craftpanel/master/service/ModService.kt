@@ -12,7 +12,6 @@ import java.net.http.HttpClient
 import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import kotlin.uuid.Uuid
-import io.craftpanel.master.util.toUtcString
 
 @Serializable
 data class ModResponse(
@@ -24,7 +23,7 @@ data class ModResponse(
     @SerialName("pinned_version_id") val pinnedVersionId: String?,
     @SerialName("installed_version_id") val installedVersionId: String?,
     @SerialName("created_at") val createdAt: String,
-    @SerialName("updated_at") val updatedAt: String,
+    @SerialName("updated_at") val updatedAt: String
 )
 
 @Serializable
@@ -32,35 +31,33 @@ data class CreateModRequest(
     @SerialName("modrinth_project_id") val modrinthProjectId: String,
     @SerialName("display_name") val displayName: String,
     @SerialName("pin_strategy") val pinStrategy: ModPinStrategy,
-    @SerialName("pinned_version_id") val pinnedVersionId: String? = null,
+    @SerialName("pinned_version_id") val pinnedVersionId: String? = null
 )
 
 @Serializable
-data class PatchModRequest(
-    @SerialName("pin_strategy") val pinStrategy: ModPinStrategy? = null,
-    @SerialName("pinned_version_id") val pinnedVersionId: String? = null,
-)
+data class PatchModRequest(@SerialName("pin_strategy") val pinStrategy: ModPinStrategy? = null, @SerialName("pinned_version_id") val pinnedVersionId: String? = null)
 
 data class ModrinthSearchResult(val statusCode: Int, val body: String)
 
 class ModService(private val serverRepository: ServerRepository, private val modRepository: ModRepository) {
 
-    fun listMods(serverId: Uuid): List<ModResponse> =
-        modRepository.listMods(serverId)
-            .map { it.toResponse() }
+    fun listMods(serverId: Uuid): List<ModResponse> = modRepository.listMods(serverId)
+        .map { it.toResponse() }
 
     fun addMod(serverId: Uuid, req: CreateModRequest): ModResponse {
-        if (req.pinStrategy == ModPinStrategy.PINNED && req.pinnedVersionId.isNullOrEmpty())
+        if (req.pinStrategy == ModPinStrategy.PINNED && req.pinnedVersionId.isNullOrEmpty()) {
             throw UnprocessableException("pinned_version_id is required when pin_strategy is PINNED")
-        if (modRepository.findModByProjectId(serverId, req.modrinthProjectId) != null)
+        }
+        if (modRepository.findModByProjectId(serverId, req.modrinthProjectId) != null) {
             throw ConflictException("Mod already added to this server")
+        }
         val mod = modRepository.createMod(
             serverId = serverId,
             modrinthProjectId = req.modrinthProjectId,
             displayName = req.displayName,
             pinStrategy = req.pinStrategy.name,
             pinnedVersionId = req.pinnedVersionId,
-            installedVersionId = null,
+            installedVersionId = null
         )
         serverRepository.updateNeedsRecreate(serverId, true)
         return mod.toResponse()
@@ -70,12 +67,13 @@ class ModService(private val serverRepository: ServerRepository, private val mod
         modRepository.findModById(modId)
             ?.takeIf { it.serverId == serverId }
             ?: throw NotFoundException("Mod not found")
-        if (req.pinStrategy == ModPinStrategy.PINNED && req.pinnedVersionId.isNullOrEmpty())
+        if (req.pinStrategy == ModPinStrategy.PINNED && req.pinnedVersionId.isNullOrEmpty()) {
             throw UnprocessableException("pinned_version_id is required when pin_strategy is PINNED")
+        }
         val pinnedVersionId = when {
-            req.pinnedVersionId != null                                         -> req.pinnedVersionId
+            req.pinnedVersionId != null -> req.pinnedVersionId
             req.pinStrategy != null && req.pinStrategy != ModPinStrategy.PINNED -> null
-            else                                                                -> modRepository.findModById(modId)?.pinnedVersionId
+            else                        -> modRepository.findModById(modId)?.pinnedVersionId
         }
         modRepository.updateMod(modId, req.pinStrategy?.name, pinnedVersionId, null)
         serverRepository.updateNeedsRecreate(serverId, true)
@@ -123,28 +121,32 @@ class ModService(private val serverRepository: ServerRepository, private val mod
         }
     }
 
-    fun buildModrinthEnvVar(serverId: Uuid): String =
-        modRepository.listMods(serverId)
-            .joinToString(",") { row ->
-                val projectId = row.modrinthProjectId
-                when (ModPinStrategy.fromDb(row.pinStrategy)) {
-                    ModPinStrategy.PINNED -> "${projectId}:${row.pinnedVersionId}"
-                    ModPinStrategy.BETA   -> "$projectId:beta"
-                    ModPinStrategy.ALPHA  -> "$projectId:alpha"
-                    else                  -> projectId
-                }
+    fun buildModrinthEnvVar(serverId: Uuid): String = modRepository.listMods(serverId)
+        .joinToString(",") { row ->
+            val projectId = row.modrinthProjectId
+            when (ModPinStrategy.fromDb(row.pinStrategy)) {
+                ModPinStrategy.PINNED -> "$projectId:${row.pinnedVersionId}"
+                ModPinStrategy.BETA   -> "$projectId:beta"
+                ModPinStrategy.ALPHA  -> "$projectId:alpha"
+                else                  -> projectId
             }
+        }
 }
 
 private val PLUGIN_SERVER_TYPES = setOf(
-    "PAPER", "PURPUR", "SPIGOT", "BUKKIT",
-    "VELOCITY", "BUNGEECORD", "WATERFALL",
+    "PAPER",
+    "PURPUR",
+    "SPIGOT",
+    "BUKKIT",
+    "VELOCITY",
+    "BUNGEECORD",
+    "WATERFALL"
 )
 
 private val LOADER_BY_SERVER_TYPE = mapOf(
     "FABRIC" to "fabric", "FORGE" to "forge", "NEOFORGE" to "neoforge", "QUILT" to "quilt",
     "PAPER" to "paper", "PURPUR" to "purpur", "SPIGOT" to "spigot", "BUKKIT" to "bukkit",
-    "VELOCITY" to "velocity", "BUNGEECORD" to "bungeecord", "WATERFALL" to "waterfall",
+    "VELOCITY" to "velocity", "BUNGEECORD" to "bungeecord", "WATERFALL" to "waterfall"
 )
 
 private fun ModRow.toResponse() = ModResponse(
@@ -156,5 +158,5 @@ private fun ModRow.toResponse() = ModResponse(
     pinnedVersionId = pinnedVersionId,
     installedVersionId = installedVersionId,
     createdAt = createdAt,
-    updatedAt = updatedAt,
+    updatedAt = updatedAt
 )

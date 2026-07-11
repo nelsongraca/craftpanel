@@ -16,9 +16,7 @@ import java.io.PipedOutputStream
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 
-class ConsoleHandler(
-    private val containerManager: ContainerManager,
-) {
+class ConsoleHandler(private val containerManager: ContainerManager) {
 
     private val log = LoggerFactory.getLogger(ConsoleHandler::class.java)
 
@@ -35,14 +33,24 @@ class ConsoleHandler(
         val containers = containerManager.listContainers()
         val container = containers.find { it.serverId == cmd.serverId }
         if (container == null) {
-            out.send { consoleOutput = consoleOutput { requestId = reqId; closed = true } }
+            out.send {
+                consoleOutput = consoleOutput {
+                    requestId = reqId
+                    closed = true
+                }
+            }
             log.warn("Console attach: server ${cmd.serverId} not found")
             return
         }
 
         if (container.runState != ContainerState.RunState.RUNNING) {
             log.warn("Console attach: server ${cmd.serverId} container is ${container.runState}, not RUNNING")
-            out.send { consoleOutput = consoleOutput { requestId = reqId; closed = true } }
+            out.send {
+                consoleOutput = consoleOutput {
+                    requestId = reqId
+                    closed = true
+                }
+            }
             return
         }
 

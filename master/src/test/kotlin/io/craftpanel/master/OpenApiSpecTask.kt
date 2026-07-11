@@ -138,7 +138,8 @@ class OpenApiSpecTask :
                                     val agentEvents = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 1024)
                                     val nodeRepositoryForControlService = NodeRepositoryImpl()
                                     val testRepos = TestRepositories()
-                                    val nodeStateReconciler = NodeStateReconciler(testRepos.serverRepository, nodeRepositoryForControlService, testRepos.migrationRepository, testRepos.backupRepository)
+                                    val nodeStateReconciler =
+                                        NodeStateReconciler(testRepos.serverRepository, nodeRepositoryForControlService, testRepos.migrationRepository, testRepos.backupRepository)
                                     val dataOpContext = DataOpContext(ConcurrentHashMap(), ConcurrentHashMap())
                                     val nodeStateHandler = NodeStateHandler(agentEvents, nodeStateReconciler)
                                     val nodeMetricsHandler = NodeMetricsHandler(agentEvents, nodeStateReconciler)

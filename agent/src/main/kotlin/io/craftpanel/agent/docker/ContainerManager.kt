@@ -284,15 +284,13 @@ open class ContainerManager(
             .exec().swarm?.localNodeState?.name?.lowercase() == "active"
     }.getOrDefault(false)
 
-    fun attachInteractive(containerName: String, inputStream: InputStream, callback: ResultCallback<Frame>): ResultCallback<Frame> {
-        return docker.attachContainerCmd(containerName)
-            .withStdIn(inputStream)
-            .withStdOut(true)
-            .withStdErr(true)
-            .withFollowStream(true)
-            .withLogs(false)
-            .exec(callback)
-    }
+    fun attachInteractive(containerName: String, inputStream: InputStream, callback: ResultCallback<Frame>): ResultCallback<Frame> = docker.attachContainerCmd(containerName)
+        .withStdIn(inputStream)
+        .withStdOut(true)
+        .withStdErr(true)
+        .withFollowStream(true)
+        .withLogs(false)
+        .exec(callback)
 
     fun shutdownAll(timeoutSeconds: Int): Pair<Int, Int> {
         val containers = docker.listContainersCmd()

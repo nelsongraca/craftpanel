@@ -4,10 +4,9 @@ package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.PermissionResolver
-import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.auth.ServerLookup
+import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.grpc.DataServiceProxy
-import kotlin.uuid.Uuid
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
@@ -22,8 +21,13 @@ import kotlinx.serialization.json.JsonNamingStrategy
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration.Companion.minutes
+import kotlin.uuid.Uuid
 
-private val json = Json { ignoreUnknownKeys = true; classDiscriminator = "type"; namingStrategy = JsonNamingStrategy.SnakeCase }
+private val json = Json {
+    ignoreUnknownKeys = true
+    classDiscriminator = "type"
+    namingStrategy = JsonNamingStrategy.SnakeCase
+}
 
 private fun DefaultWebSocketSession.sendConsole(event: ConsoleEvent) {
     outgoing.trySend(Frame.Text(json.encodeToString(ConsoleEvent.serializer(), event)))
@@ -33,7 +37,8 @@ private class ConsoleSession {
 
     val input = Channel<ByteArray>(Channel.BUFFERED)
     val output = MutableSharedFlow<ByteArray>(
-        replay = 2000, extraBufferCapacity = 512,
+        replay = 2000,
+        extraBufferCapacity = 512,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
     val closed = MutableStateFlow(false)
@@ -45,27 +50,25 @@ private class ConsoleSessionManager(private val proxy: DataServiceProxy, private
     private val log = LoggerFactory.getLogger(ConsoleSessionManager::class.java)
     private val sessions = ConcurrentHashMap<Uuid, ConsoleSession>()
 
-    fun getOrCreate(serverId: Uuid): ConsoleSession =
-        sessions.getOrPut(serverId) {
-            val session = ConsoleSession()
-            session.job = scope.launch {
-                try {
-                    proxy.console(serverId, session.input.receiveAsFlow())
-                        .collect { bytes ->
-                            session.output.emit(bytes)
-                        }
-                }
-                catch (e: Exception) {
-                    log.warn("Console stream for {} ended: {}", serverId, e.message)
-                }
-                finally {
-                    sessions.remove(serverId)
-                    session.closed.value = true
-                }
+    fun getOrCreate(serverId: Uuid): ConsoleSession = sessions.getOrPut(serverId) {
+        val session = ConsoleSession()
+        session.job = scope.launch {
+            try {
+                proxy.console(serverId, session.input.receiveAsFlow())
+                    .collect { bytes ->
+                        session.output.emit(bytes)
+                    }
             }
-            session
+            catch (e: Exception) {
+                log.warn("Console stream for {} ended: {}", serverId, e.message)
+            }
+            finally {
+                sessions.remove(serverId)
+                session.closed.value = true
+            }
         }
-
+        session
+    }
 }
 
 internal data class ServerInfo(val serverId: Uuid, val networkId: Uuid?)
@@ -73,11 +76,7 @@ internal data class ServerInfo(val serverId: Uuid, val networkId: Uuid?)
 fun Route.consoleRoutes(wsTicketService: WsTicketService, proxy: DataServiceProxy, permissionResolver: PermissionResolver) =
     with(ConsoleRoutes(wsTicketService, proxy, permissionResolver)) { register() }
 
-class ConsoleRoutes(
-    private val wsTicketService: WsTicketService,
-    proxy: DataServiceProxy,
-    private val permissionResolver: PermissionResolver
-) {
+class ConsoleRoutes(private val wsTicketService: WsTicketService, proxy: DataServiceProxy, private val permissionResolver: PermissionResolver) {
 
     private val log = LoggerFactory.getLogger(ConsoleRoutes::class.java)
     private val sessionManager = ConsoleSessionManager(proxy, CoroutineScope(SupervisorJob().plus(Dispatchers.IO)))
@@ -179,6 +178,5 @@ class ConsoleRoutes(
                 closeWatcherJob.cancel()
             }
         }
-
     }
 }

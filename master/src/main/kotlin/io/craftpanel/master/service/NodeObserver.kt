@@ -3,7 +3,6 @@ package io.craftpanel.master.service
 import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.BackupStatus
-import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.BackupRepository
 import io.craftpanel.master.service.repo.ContainerMetricsRepository
@@ -45,7 +44,7 @@ class NodeObserver(
         agentEvents.collect { event ->
             try {
                 when (event) {
-                    is AgentEvent.NodeMetricsEvent      -> {
+                    is AgentEvent.NodeMetricsEvent    -> {
                         persistNodeMetrics(event)
                         evaluateNodeAlerts(event)
                     }
@@ -55,13 +54,13 @@ class NodeObserver(
                         evaluateServerAlerts(event)
                     }
 
-                    is AgentEvent.ServerStatusEvent     -> persistServerStatus(event)
+                    is AgentEvent.ServerStatusEvent   -> persistServerStatus(event)
 
-                    is AgentEvent.PlayerUpdateEvent     -> persistPlayerUpdate(event)
+                    is AgentEvent.PlayerUpdateEvent   -> persistPlayerUpdate(event)
 
-                    is AgentEvent.BackupCompleteEvent   -> persistBackupComplete(event)
+                    is AgentEvent.BackupCompleteEvent -> persistBackupComplete(event)
 
-                    else                                -> {
+                    else                              -> {
                         /* unrelated events */
                     }
                 }

@@ -38,7 +38,7 @@ data class ServerResponse(
     @SerialName("last_player_count") val lastPlayerCount: Int?,
     @SerialName("last_player_names") val lastPlayerNames: List<String>?,
     @SerialName("created_at") val createdAt: String,
-    @SerialName("updated_at") val updatedAt: String,
+    @SerialName("updated_at") val updatedAt: String
 )
 
 @Serializable
@@ -52,7 +52,7 @@ data class CreateServerRequest(
     @SerialName("mc_version") val mcVersion: String = "LATEST",
     @SerialName("itzg_image_tag") val itzgImageTag: String = "latest",
     @SerialName("memory_mb") val memoryMb: Int,
-    @SerialName("cpu_shares") val cpuShares: Int = 0,
+    @SerialName("cpu_shares") val cpuShares: Int = 0
 )
 
 @Serializable
@@ -61,7 +61,7 @@ data class UpdateServerRequest(
     val description: String? = null,
     @SerialName("network_id") val networkId: String? = null,
     @SerialName("mc_version") val mcVersion: String? = null,
-    @SerialName("itzg_image_tag") val itzgImageTag: String? = null,
+    @SerialName("itzg_image_tag") val itzgImageTag: String? = null
 )
 
 @Serializable
@@ -71,7 +71,7 @@ data class PatchResourcesRequest(@SerialName("memory_mb") val memoryMb: Int, @Se
 data class PatchExposureRequest(
     @SerialName("exposed_externally") val exposedExternally: Boolean,
     @SerialName("public_subdomain") val publicSubdomain: String? = null,
-    @SerialName("custom_hostname") val customHostname: String? = null,
+    @SerialName("custom_hostname") val customHostname: String? = null
 )
 
 @Serializable
@@ -88,7 +88,7 @@ data class ContainerMetricsSeries(
     @SerialName("cpu_percent") val cpuPercent: List<ContainerMetricsPoint>,
     @SerialName("ram_used_mb") val ramUsedMb: List<ContainerMetricsPoint>,
     @SerialName("net_in_bytes") val netInBytes: List<ContainerMetricsPointLong>,
-    @SerialName("net_out_bytes") val netOutBytes: List<ContainerMetricsPointLong>,
+    @SerialName("net_out_bytes") val netOutBytes: List<ContainerMetricsPointLong>
 )
 
 class ServerService(
@@ -106,7 +106,7 @@ class ServerService(
     private val portRepository: PortRepository,
     private val envVarsRepository: EnvVarsRepository,
     private val containerMetricsRepository: ContainerMetricsRepository,
-    private val migrationRepository: MigrationRepository,
+    private val migrationRepository: MigrationRepository
 ) {
 
     private val log = LoggerFactory.getLogger(ServerService::class.java)
@@ -116,13 +116,13 @@ class ServerService(
     fun listServers(userId: Uuid): List<ServerResponse> {
         val visibility = visibilityResolver.resolve(userId)
         val rows = when {
-            visibility.isGlobal                                               -> serverRepository.listAll()
+            visibility.isGlobal -> serverRepository.listAll()
 
             visibility.networkIds.isEmpty() && visibility.serverIds.isEmpty() -> return emptyList()
 
-            else                                                              -> serverRepository.listByVisibility(
+            else                -> serverRepository.listByVisibility(
                 visibility.networkIds.toList(),
-                visibility.serverIds.toList(),
+                visibility.serverIds.toList()
             )
         }
         val ids = rows.map { it.id }
@@ -165,7 +165,7 @@ class ServerService(
             when (capacityChecker.check(node, excludeServerId = null, memoryMb = req.memoryMb, cpuShares = req.cpuShares)) {
                 CapacityResult.InsufficientRam -> return CreateResult("insufficient_ram")
                 CapacityResult.InsufficientCpu -> return CreateResult("insufficient_cpu")
-                CapacityResult.Ok              -> {}
+                CapacityResult.Ok -> {}
             }
 
             val usedPorts = portRepository.findUsedPortsOnNode(nodeKotlinId)
@@ -187,7 +187,7 @@ class ServerService(
                 memoryMb = req.memoryMb,
                 cpuShares = req.cpuShares,
                 configMode = "MANAGED",
-                stopCommand = stopCommand,
+                stopCommand = stopCommand
             )
 
             portRepository.registerPort(nodeKotlinId, port, "TCP", newServer.id)
@@ -203,7 +203,7 @@ class ServerService(
                     newServer.id,
                     defaults.map { (k, v) ->
                         EnvVarRow(k, v)
-                    },
+                    }
                 )
             }
 
@@ -232,14 +232,14 @@ class ServerService(
         }
 
         return when (result.status) {
-            "ok"                -> result.server!!
-            "node_not_found"    -> throw UnprocessableException("Node not found")
-            "node_not_active"   -> throw UnprocessableException("Node is not active")
+            "ok"               -> result.server!!
+            "node_not_found"   -> throw UnprocessableException("Node not found")
+            "node_not_active"  -> throw UnprocessableException("Node is not active")
             "network_not_found" -> throw UnprocessableException("Network not found")
-            "name_taken"        -> throw ConflictException("Server name already taken")
-            "insufficient_ram"  -> throw ConflictException("Insufficient RAM capacity on node")
-            "insufficient_cpu"  -> throw ConflictException("Insufficient CPU capacity on node")
-            else                -> throw ConflictException("No free ports available on node")
+            "name_taken"       -> throw ConflictException("Server name already taken")
+            "insufficient_ram" -> throw ConflictException("Insufficient RAM capacity on node")
+            "insufficient_cpu" -> throw ConflictException("Insufficient CPU capacity on node")
+            else               -> throw ConflictException("No free ports available on node")
         }
     }
 
@@ -279,7 +279,7 @@ class ServerService(
             req.description?.ifEmpty { null },
             newNetworkId,
             req.mcVersion,
-            req.itzgImageTag,
+            req.itzgImageTag
         )
         if (needsRecreate) serverRepository.updateNeedsRecreate(id, true)
     }
@@ -312,7 +312,7 @@ class ServerService(
                     containerName = "$containerNamePrefix-$id"
                     force = true
                 }
-            },
+            }
         )
 
         serverRepository.delete(id)
@@ -327,7 +327,7 @@ class ServerService(
         when (capacityChecker.check(node, excludeServerId = id, memoryMb = req.memoryMb, cpuShares = req.cpuShares)) {
             CapacityResult.InsufficientRam -> throw ConflictException("Insufficient RAM capacity on node")
             CapacityResult.InsufficientCpu -> throw ConflictException("Insufficient CPU capacity on node")
-            CapacityResult.Ok              -> {}
+            CapacityResult.Ok -> {}
         }
         serverRepository.updateResources(id, req.memoryMb, req.cpuShares, req.itzgImageTag, true)
     }
@@ -341,8 +341,8 @@ class ServerService(
                 cpuPercent = rows.map { ContainerMetricsPoint(it.recordedAt, it.cpuPercent) },
                 ramUsedMb = rows.map { ContainerMetricsPoint(it.recordedAt, it.ramUsedMb.toDouble()) },
                 netInBytes = rows.map { ContainerMetricsPointLong(it.recordedAt, it.netInBytes) },
-                netOutBytes = rows.map { ContainerMetricsPointLong(it.recordedAt, it.netOutBytes) },
-            ),
+                netOutBytes = rows.map { ContainerMetricsPointLong(it.recordedAt, it.netOutBytes) }
+            )
         )
     }
 }
@@ -379,7 +379,7 @@ internal fun ServerRow.toResponse(serverExposure: ServerExposure, isMigrating: B
         lastPlayerNames = lastPlayerNames?.split(",")
             ?.filter { it.isNotBlank() },
         createdAt = createdAt,
-        updatedAt = updatedAt,
+        updatedAt = updatedAt
     )
 }
 
@@ -420,5 +420,5 @@ private fun buildDefaultEnvVars(mcVersion: String, serverTypeDisplay: String, pl
     "FUNCTION_PERMISSION_LEVEL" to "2",
     "BROADCAST_CONSOLE_TO_OPS" to "true",
     "TZ" to "UTC",
-    "USE_AIKAR_FLAGS" to "true",
+    "USE_AIKAR_FLAGS" to "true"
 )

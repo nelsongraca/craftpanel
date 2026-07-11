@@ -4,13 +4,7 @@ import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.auth.NodeKeyStore
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.di.ConnectionScope
-import io.craftpanel.agent.docker.ContainerEventWatcher
-import io.craftpanel.agent.docker.ContainerManager
-import io.craftpanel.agent.docker.McRouterProvisioner
-import io.craftpanel.agent.docker.MetricsCollector
-import io.craftpanel.agent.docker.NetworkManager
-import io.craftpanel.agent.docker.RouterSupervisor
-import io.craftpanel.agent.docker.RsyncMigrator
+import io.craftpanel.agent.docker.*
 import io.grpc.ManagedChannel
 import io.grpc.netty.GrpcSslContexts
 import io.grpc.netty.NettyChannelBuilder
@@ -32,7 +26,7 @@ class ConnectionManager(
     private val config: AgentConfig,
     private val containerManager: ContainerManager,
     private val metricsCollector: MetricsCollector,
-    private val docker: DockerClient,
+    private val docker: DockerClient
 ) {
 
     private val log = LoggerFactory.getLogger(ConnectionManager::class.java)
@@ -42,7 +36,7 @@ class ConnectionManager(
 
         val certPem: String? = when {
             config.tlsEnabled -> File(config.tlsCertPath).readText()
-            else              -> NodeKeyStore.readCaCert(config.caCertFilePath)
+            else -> NodeKeyStore.readCaCert(config.caCertFilePath)
         }
 
         if (certPem != null) {
@@ -73,11 +67,11 @@ class ConnectionManager(
 
                 val scope = koin.createScope(
                     scopeId = "connection-" + System.nanoTime(),
-                    qualifier = named<ConnectionScope>(),
+                    qualifier = named<ConnectionScope>()
                 )
                 try {
                     val identity = NodeAuthenticator(config, metricsCollector).authenticate(channel)
-                    backoffSeconds = 5L  // reset on successful auth
+                    backoffSeconds = 5L // reset on successful auth
 
                     if (routerSupervisor == null) {
                         val provisioner = McRouterProvisioner(
@@ -85,7 +79,7 @@ class ConnectionManager(
                             config.mcRouterImage,
                             config.mcRouterUpdateOnStart,
                             config.craftpanelNetwork,
-                            config.mcRouterContainerName,
+                            config.mcRouterContainerName
                         )
                         networkManager = NetworkManager(docker, provisioner.containerName)
                         metricsCollector.mcRouterContainerName = provisioner.containerName
@@ -103,7 +97,7 @@ class ConnectionManager(
                         rsyncMigrator = RsyncMigrator(docker, config.craftpanelNetwork, config.containerNamePrefix),
                         migration = scope.get(),
                         file = scope.get { parametersOf(identity.nodeKey) },
-                        console = scope.get(),
+                        console = scope.get()
                     ).run(channel)
                 }
                 finally {

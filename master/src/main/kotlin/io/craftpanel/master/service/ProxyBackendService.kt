@@ -9,22 +9,13 @@ import kotlinx.serialization.Serializable
 import kotlin.uuid.Uuid
 
 @Serializable
-data class ProxyBackendItem(
-    val id: String,
-    @SerialName("backend_server_id") val backendServerId: String,
-    @SerialName("backend_name") val backendName: String,
-    val order: Int,
-)
+data class ProxyBackendItem(val id: String, @SerialName("backend_server_id") val backendServerId: String, @SerialName("backend_name") val backendName: String, val order: Int)
 
 @Serializable
 data class ProxyBackendListResponse(val backends: List<ProxyBackendItem>)
 
 @Serializable
-data class BackendInput(
-    @SerialName("backend_server_id") val backendServerId: String,
-    @SerialName("backend_name") val backendName: String,
-    val order: Int,
-)
+data class BackendInput(@SerialName("backend_server_id") val backendServerId: String, @SerialName("backend_name") val backendName: String, val order: Int)
 
 @Serializable
 data class PutProxyBackendsRequest(val backends: List<BackendInput>)
@@ -36,7 +27,8 @@ class ProxyBackendService(private val serverRepository: ServerRepository, privat
         if (serverRow.serverType !in PROXY_SERVER_TYPES) throw ConflictException("Server is not a proxy type")
         return ProxyBackendListResponse(
             proxyBackendRepository.listProxyBackends(proxyServerId)
-                .map { it.toItem() })
+                .map { it.toItem() }
+        )
     }
 
     fun replaceBackends(proxyServerId: Uuid, req: PutProxyBackendsRequest): ProxyBackendListResponse {
@@ -51,8 +43,9 @@ class ProxyBackendService(private val serverRepository: ServerRepository, privat
                 ?: throw UnprocessableException("Invalid backend_server_id: ${b.backendServerId}")
             val backendRow = serverRepository.findById(backendId)
                 ?: throw UnprocessableException("Backend server not found: ${b.backendServerId}")
-            if (backendRow.serverType in PROXY_SERVER_TYPES)
+            if (backendRow.serverType in PROXY_SERVER_TYPES) {
                 throw UnprocessableException("Backend server cannot be a proxy type: ${b.backendServerId}")
+            }
             ProxyBackendInput(backendServerId = backendId, backendName = b.backendName.trim(), order = b.order)
         }
 
@@ -65,5 +58,5 @@ private fun ProxyBackendRow.toItem() = ProxyBackendItem(
     id = id.toString(),
     backendServerId = backendServerId.toString(),
     backendName = backendName,
-    order = order,
+    order = order
 )

@@ -16,7 +16,7 @@ class NodeStateReconciler(
     private val serverRepository: ServerRepository,
     private val nodeRepository: NodeRepository,
     private val migrationRepository: MigrationRepository,
-    private val backupRepository: BackupRepository,
+    private val backupRepository: BackupRepository
 ) {
 
     private val log = LoggerFactory.getLogger(NodeStateReconciler::class.java)
@@ -96,11 +96,10 @@ class NodeStateReconciler(
 }
 
 fun mapContainerState(runState: ContainerState.RunState, dbStatus: ServerStatus): ServerStatus? = when {
-    runState == ContainerState.RunState.RUNNING && dbStatus != ServerStatus.HEALTHY  -> ServerStatus.HEALTHY
-    runState == ContainerState.RunState.STOPPED && dbStatus.isRunning                -> ServerStatus.STOPPED
+    runState == ContainerState.RunState.RUNNING && dbStatus != ServerStatus.HEALTHY -> ServerStatus.HEALTHY
+    runState == ContainerState.RunState.STOPPED && dbStatus.isRunning               -> ServerStatus.STOPPED
     runState == ContainerState.RunState.EXITED && dbStatus != ServerStatus.UNHEALTHY -> ServerStatus.UNHEALTHY
-    else                                                                             -> null
+    else                                                                            -> null
 }
 
-fun mapMissingContainer(dbStatus: ServerStatus): ServerStatus? =
-    if (dbStatus != ServerStatus.STOPPED) ServerStatus.STOPPED else null
+fun mapMissingContainer(dbStatus: ServerStatus): ServerStatus? = if (dbStatus != ServerStatus.STOPPED) ServerStatus.STOPPED else null

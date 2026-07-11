@@ -6,19 +6,10 @@ import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.EnvVarsRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import io.craftpanel.master.service.repo.ServerRow
-import io.craftpanel.proto.MasterMessage
-import io.craftpanel.proto.masterMessage
-import io.craftpanel.proto.removeContainerCommand
-import io.craftpanel.proto.startContainerCommand
-import io.craftpanel.proto.stopContainerCommand
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineScope
+import io.craftpanel.proto.*
+import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ReceiveChannel
-import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.filterIsInstance
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeoutOrNull
-import kotlinx.coroutines.yield
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -34,7 +25,7 @@ class ContainerLifecycle(
     private val clock: Clock = Clock.System,
     private val stopTimeout: Duration = 45.seconds,
     private val startTimeout: Duration = 30.seconds,
-    private val removeTimeout: Duration = 10.seconds,
+    private val removeTimeout: Duration = 10.seconds
 ) {
 
     // ── Fire-and-forget (used by ServerService route handlers) ────────────────
@@ -45,25 +36,31 @@ class ContainerLifecycle(
 
     fun sendStop(server: ServerRow, nodeId: String) {
         val id = server.id
-        sendOrThrow(nodeId, masterMessage {
-            stopContainer = stopContainerCommand {
-                serverId = id.toString()
-                containerName = "$containerNamePrefix-$id"
-                timeoutSeconds = 30
-                stopCommand = server.stopCommand
+        sendOrThrow(
+            nodeId,
+            masterMessage {
+                stopContainer = stopContainerCommand {
+                    serverId = id.toString()
+                    containerName = "$containerNamePrefix-$id"
+                    timeoutSeconds = 30
+                    stopCommand = server.stopCommand
+                }
             }
-        })
+        )
     }
 
     fun sendRemove(server: ServerRow, nodeId: String, force: Boolean = false) {
         val id = server.id
-        sendOrThrow(nodeId, masterMessage {
-            removeContainer = removeContainerCommand {
-                serverId = id.toString()
-                containerName = "$containerNamePrefix-$id"
-                this.force = force
+        sendOrThrow(
+            nodeId,
+            masterMessage {
+                removeContainer = removeContainerCommand {
+                    serverId = id.toString()
+                    containerName = "$containerNamePrefix-$id"
+                    this.force = force
+                }
             }
-        })
+        )
     }
 
     // ── Public compound operations (with await, used by MigrationService) ─────
@@ -150,12 +147,7 @@ class ContainerLifecycle(
 
     // ── Core await primitive ──────────────────────────────────────────────────
 
-    private suspend fun awaitStatus(
-        serverId: String,
-        expected: ServerStatus,
-        timeout: Duration,
-        sendCommand: () -> Unit,
-    ): Unit = coroutineScope {
+    private suspend fun awaitStatus(serverId: String, expected: ServerStatus, timeout: Duration, sendCommand: () -> Unit): Unit = coroutineScope {
         val found = CompletableDeferred<Unit>()
         val job = launch {
             gateway.agentEvents
@@ -163,7 +155,7 @@ class ContainerLifecycle(
                 .collect { event ->
                     if (event.serverId == serverId) {
                         when {
-                            event.status == expected               ->
+                            event.status == expected ->
                                 found.complete(Unit)
 
                             event.status == ServerStatus.UNHEALTHY ->
