@@ -292,6 +292,29 @@ no live DB (see the three FakeNodeRepository-backed tests in
 
 `PermissionResolver` + `ServerLookup` remain deliberate seams (not touched).
 
+### AlertEvaluator (master)
+
+The one module that decides "did a metric cross its threshold, and should an
+alert event open or resolve?" Extracted from two near-identical ~55-line
+private methods (`evaluateNodeAlerts`/`evaluateServerAlerts`) trapped inside
+`NodeObserver`'s flow subscriber.
+
+- `evaluate(scopeType, scopeId, scopeLabel, metricValues): List<AlertFiredEvent>`
+  — side effects limited to `AlertRepository` writes; caller emits the returned
+  notifications (keeps the evaluator off the event bus).
+- **Caller builds the metric snapshot.** The two `buildMap` blocks are genuinely
+  different shapes (node: totals from the event; server: `memoryMb` lookup via
+  `ServerRepository`) — they stay in `NodeObserver`, which keeps the evaluator
+  scope-agnostic and free of a second repo dependency.
+- `scopeLabel` ("Node <id>" / "Server <id>") keeps message text caller-owned.
+- Clock injected (`kotlin.time.Clock`), matching the `NodeObserver` pattern.
+- Rejected: folding evaluation into `AlertService` (route-facing CRUD service;
+  `NodeObserver` shouldn't depend on it). Rejected: evaluator consuming raw
+  events + repos (couples it to event types for no depth gain).
+- Tested via `FakeAlertRepository` + fixed clock (`AlertEvaluatorTest`) —
+  previously untestable without spinning the event bus.
+- See candidate 1, `improve-codebase-architecture` review 2026-07-11.
+
 ## Open / planned
 
 ### Server lifecycle orchestrator (master) — superseded by ContainerLifecycle

@@ -5,7 +5,6 @@ import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.BackupStatus
 import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.ServerStatus
-import io.craftpanel.master.service.repo.AlertRepository
 import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.coroutines.CoroutineScope
@@ -32,8 +31,8 @@ class NodeObserver(
     private val emitAgentEvent: suspend (AgentEvent) -> Unit,
     private val serverRepository: ServerRepository,
     private val nodeRepository: NodeRepository,
-    private val alertRepository: AlertRepository,
-    private val clock: Clock = Clock.System,
+    private val alertEvaluator: AlertEvaluator,
+    private val clock: Clock = Clock.System
 ) {
 
     private val log = LoggerFactory.getLogger(NodeObserver::class.java)
@@ -42,7 +41,7 @@ class NodeObserver(
         agentEvents.collect { event ->
             try {
                 when (event) {
-                    is AgentEvent.NodeMetricsEvent      -> {
+                    is AgentEvent.NodeMetricsEvent -> {
                         persistNodeMetrics(event)
                         evaluateNodeAlerts(event)
                     }
@@ -52,14 +51,17 @@ class NodeObserver(
                         evaluateServerAlerts(event)
                     }
 
-                    is AgentEvent.ServerStatusEvent     -> persistServerStatus(event)
-                    is AgentEvent.PlayerUpdateEvent     -> persistPlayerUpdate(event)
-                    is AgentEvent.BackupCompleteEvent   -> persistBackupComplete(event)
-                    else                                -> { /* unrelated events */
+                    is AgentEvent.ServerStatusEvent -> persistServerStatus(event)
+
+                    is AgentEvent.PlayerUpdateEvent -> persistPlayerUpdate(event)
+
+                    is AgentEvent.BackupCompleteEvent -> persistBackupComplete(event)
+
+                    else -> {
+                        /* unrelated events */
                     }
                 }
-            }
-            catch (e: Exception) {
+            } catch (e: Exception) {
                 log.warn("NodeObserver: failed to process event {} — {}", event::class.simpleName, e.message)
             }
         }
@@ -79,7 +81,7 @@ class NodeObserver(
             netOutBytes = event.netOutBytes,
             diskUsedBytes = event.diskUsedBytes,
             diskTotalBytes = event.diskTotalBytes,
-            recordedAt = event.recordedAt,
+            recordedAt = event.recordedAt
         )
         if (event.ramUsedMb > 0) {
             nodeRepository.updateSystemRam(kotlinNodeId, event.ramUsedMb)
@@ -97,7 +99,7 @@ class NodeObserver(
             netOutBytes = event.netOutBytes,
             blockInBytes = event.blockInBytes,
             blockOutBytes = event.blockOutBytes,
-            recordedAt = event.recordedAt,
+            recordedAt = event.recordedAt
         )
     }
 
@@ -125,7 +127,7 @@ class NodeObserver(
             return
         }
         val crashed = newStatus == ServerStatus.UNHEALTHY &&
-                (prevStatus == ServerStatus.HEALTHY || prevStatus == ServerStatus.STARTING)
+            (prevStatus == ServerStatus.HEALTHY || prevStatus == ServerStatus.STARTING)
         if (!crashed) return
         if (mgr.recordCrashAndShouldRestart(serverId)) {
             crashRestarts.trySend(serverId)
@@ -154,117 +156,34 @@ class NodeObserver(
 
     private suspend fun evaluateNodeAlerts(event: AgentEvent.NodeMetricsEvent) {
         val kotlinNodeId = runCatching { Uuid.parse(event.nodeId) }.getOrNull() ?: return
-        val now = clock.now()
 
         val metricValues = buildMap {
             put("cpu_percent", event.cpuPercent)
-            if (event.ramTotalMb > 0)
+            if (event.ramTotalMb > 0) {
                 put("ram_percent", event.ramUsedMb.toDouble() / event.ramTotalMb * 100.0)
-            if (event.diskTotalBytes > 0)
+            }
+            if (event.diskTotalBytes > 0) {
                 put("disk_percent", event.diskUsedBytes.toDouble() / event.diskTotalBytes * 100.0)
-        }
-
-        val notifications = mutableListOf<AgentEvent.AlertFiredEvent>()
-        val thresholds = alertRepository.listThresholds(ScopeType.NODE.name, kotlinNodeId)
-            .filter { it.thresholdValue != null }
-
-        for (threshold in thresholds) {
-            val thresholdId = threshold.id
-            val metric = threshold.metric
-            val limitValue = threshold.thresholdValue ?: continue
-            val currentValue = metricValues[metric] ?: continue
-            val triggered = currentValue > limitValue
-            val openEvent = alertRepository.findOpenEvent(thresholdId)
-
-            if (triggered && openEvent == null) {
-                val msg = "Node ${event.nodeId}: $metric at ${"%.1f".format(currentValue)}%"
-                val newEvent = alertRepository.createEvent(thresholdId, msg)
-                notifications += AgentEvent.AlertFiredEvent(
-                    eventId = newEvent.id.toString(),
-                    thresholdId = thresholdId.toString(),
-                    scopeType = ScopeType.NODE.name,
-                    scopeId = event.nodeId,
-                    metric = metric,
-                    message = msg,
-                    firedAt = newEvent.firedAt,
-                    resolvedAt = null,
-                )
-            }
-            else if (!triggered && openEvent != null) {
-                val eventId = openEvent.id
-                alertRepository.resolveEventsForThreshold(thresholdId, now)
-                val msg = "Node ${event.nodeId}: $metric normalised"
-                notifications += AgentEvent.AlertFiredEvent(
-                    eventId = eventId.toString(),
-                    thresholdId = thresholdId.toString(),
-                    scopeType = ScopeType.NODE.name,
-                    scopeId = event.nodeId,
-                    metric = metric,
-                    message = msg,
-                    firedAt = openEvent.firedAt,
-                    resolvedAt = now.toString(),
-                )
             }
         }
 
-        notifications.forEach { emitAgentEvent(it) }
+        alertEvaluator.evaluate(ScopeType.NODE, kotlinNodeId, "Node ${event.nodeId}", metricValues)
+            .forEach { emitAgentEvent(it) }
     }
 
     private suspend fun evaluateServerAlerts(event: AgentEvent.ContainerMetricsEvent) {
         val kotlinServerId = runCatching { Uuid.parse(event.serverId) }.getOrNull() ?: return
-        val now = clock.now()
 
         val serverMemMb = serverRepository.findById(kotlinServerId)?.memoryMb ?: return
 
         val metricValues = buildMap {
             put("cpu_percent", event.cpuPercent)
-            if (serverMemMb > 0)
+            if (serverMemMb > 0) {
                 put("ram_percent", event.ramUsedMb.toDouble() / serverMemMb * 100.0)
-        }
-
-        val notifications = mutableListOf<AgentEvent.AlertFiredEvent>()
-        val thresholds = alertRepository.listThresholds(ScopeType.SERVER.name, kotlinServerId)
-            .filter { it.thresholdValue != null }
-
-        for (threshold in thresholds) {
-            val thresholdId = threshold.id
-            val metric = threshold.metric
-            val limitValue = threshold.thresholdValue ?: continue
-            val currentValue = metricValues[metric] ?: continue
-            val triggered = currentValue > limitValue
-            val openEvent = alertRepository.findOpenEvent(thresholdId)
-
-            if (triggered && openEvent == null) {
-                val msg = "Server ${event.serverId}: $metric at ${"%.1f".format(currentValue)}%"
-                val newEvent = alertRepository.createEvent(thresholdId, msg)
-                notifications += AgentEvent.AlertFiredEvent(
-                    eventId = newEvent.id.toString(),
-                    thresholdId = thresholdId.toString(),
-                    scopeType = ScopeType.SERVER.name,
-                    scopeId = event.serverId,
-                    metric = metric,
-                    message = msg,
-                    firedAt = newEvent.firedAt,
-                    resolvedAt = null,
-                )
-            }
-            else if (!triggered && openEvent != null) {
-                val eventId = openEvent.id
-                alertRepository.resolveEventsForThreshold(thresholdId, now)
-                val msg = "Server ${event.serverId}: $metric normalised"
-                notifications += AgentEvent.AlertFiredEvent(
-                    eventId = eventId.toString(),
-                    thresholdId = thresholdId.toString(),
-                    scopeType = ScopeType.SERVER.name,
-                    scopeId = event.serverId,
-                    metric = metric,
-                    message = msg,
-                    firedAt = openEvent.firedAt,
-                    resolvedAt = now.toString(),
-                )
             }
         }
 
-        notifications.forEach { emitAgentEvent(it) }
+        alertEvaluator.evaluate(ScopeType.SERVER, kotlinServerId, "Server ${event.serverId}", metricValues)
+            .forEach { emitAgentEvent(it) }
     }
 }

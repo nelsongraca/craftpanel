@@ -16,6 +16,7 @@ import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.scheduler.BackupJobHandler
 import io.craftpanel.master.scheduler.ServerScheduler
 import io.craftpanel.master.service.AgentGateway
+import io.craftpanel.master.service.AlertEvaluator
 import io.craftpanel.master.service.AlertService
 import io.craftpanel.master.service.AssignmentService
 import io.craftpanel.master.service.BackupService
@@ -120,6 +121,7 @@ val appModule = module {
     single { DataServiceProxy(get(), get(), get<ServerRepository>()) }
 
     // Observability — subscribes to agentEvents emitted by ControlServiceImpl
+    single { AlertEvaluator(alertRepository = get()) }
     single(createdAtStart = true) {
         val csi = get<ControlServiceImpl>()
         val lifecycle = get<ContainerLifecycle>()
@@ -131,7 +133,7 @@ val appModule = module {
             emitAgentEvent = { event -> csi.emitToAgentEvents(event) },
             serverRepository = get(),
             nodeRepository = get(),
-            alertRepository = get()
+            alertEvaluator = get()
         ).also { it.start(get(named("appScope"))) }
     }
 
