@@ -3,8 +3,8 @@ package io.craftpanel.master.service
 import io.craftpanel.master.service.repo.SettingsRepository
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
-import kotlin.uuid.Uuid
 import kotlin.time.Clock
+import kotlin.uuid.Uuid
 
 @Serializable
 data class SettingsMap(
@@ -17,15 +17,11 @@ data class SettingsMap(
     @SerialName("rate_limit_login_per_minute") val rateLimitLoginPerMinute: Int,
     @SerialName("rate_limit_refresh_per_minute") val rateLimitRefreshPerMinute: Int,
     @SerialName("image_minecraft") val imageMinecraft: String,
-    @SerialName("image_proxy") val imageProxy: String,
+    @SerialName("image_proxy") val imageProxy: String
 )
 
 @Serializable
-data class SystemSettingsResponse(
-    val settings: SettingsMap,
-    @SerialName("updated_at") val updatedAt: String?,
-    @SerialName("updated_by") val updatedBy: String?,
-)
+data class SystemSettingsResponse(val settings: SettingsMap, @SerialName("updated_at") val updatedAt: String?, @SerialName("updated_by") val updatedBy: String?)
 
 @Serializable
 data class PatchSettingsRequest(
@@ -38,7 +34,7 @@ data class PatchSettingsRequest(
     @SerialName("rate_limit_login_per_minute") val rateLimitLoginPerMinute: Int? = null,
     @SerialName("rate_limit_refresh_per_minute") val rateLimitRefreshPerMinute: Int? = null,
     @SerialName("image_minecraft") val imageMinecraft: String? = null,
-    @SerialName("image_proxy") val imageProxy: String? = null,
+    @SerialName("image_proxy") val imageProxy: String? = null
 )
 
 class SystemService(private val settingsRepository: SettingsRepository) {
@@ -48,24 +44,33 @@ class SystemService(private val settingsRepository: SettingsRepository) {
     fun updateSettings(updatedBy: Uuid, req: PatchSettingsRequest): SystemSettingsResponse {
         val portStart = req.defaultPortRangeStart
         val portEnd = req.defaultPortRangeEnd
-        if (portStart != null && portEnd != null && portStart >= portEnd)
+        if (portStart != null && portEnd != null && portStart >= portEnd) {
             throw UnprocessableException("default_port_range_start must be less than default_port_range_end")
-        if (req.metricRetentionDays != null && req.metricRetentionDays < 1)
+        }
+        if (req.metricRetentionDays != null && req.metricRetentionDays < 1) {
             throw UnprocessableException("metric_retention_days must be at least 1")
-        if (req.defaultBackupMaxCount != null && req.defaultBackupMaxCount < 1)
+        }
+        if (req.defaultBackupMaxCount != null && req.defaultBackupMaxCount < 1) {
             throw UnprocessableException("default_backup_max_count must be at least 1")
-        if (req.restartMaxAttempts != null && req.restartMaxAttempts < 0)
+        }
+        if (req.restartMaxAttempts != null && req.restartMaxAttempts < 0) {
             throw UnprocessableException("restart_max_attempts must be at least 0")
-        if (req.restartWindowSeconds != null && req.restartWindowSeconds < 1)
+        }
+        if (req.restartWindowSeconds != null && req.restartWindowSeconds < 1) {
             throw UnprocessableException("restart_window_seconds must be at least 1")
-        if (req.rateLimitLoginPerMinute != null && req.rateLimitLoginPerMinute < 1)
+        }
+        if (req.rateLimitLoginPerMinute != null && req.rateLimitLoginPerMinute < 1) {
             throw UnprocessableException("rate_limit_login_per_minute must be at least 1")
-        if (req.rateLimitRefreshPerMinute != null && req.rateLimitRefreshPerMinute < 1)
+        }
+        if (req.rateLimitRefreshPerMinute != null && req.rateLimitRefreshPerMinute < 1) {
             throw UnprocessableException("rate_limit_refresh_per_minute must be at least 1")
-        if (req.imageMinecraft != null && req.imageMinecraft.isBlank())
+        }
+        if (req.imageMinecraft != null && req.imageMinecraft.isBlank()) {
             throw UnprocessableException("image_minecraft must not be blank")
-        if (req.imageProxy != null && req.imageProxy.isBlank())
+        }
+        if (req.imageProxy != null && req.imageProxy.isBlank()) {
             throw UnprocessableException("image_proxy must not be blank")
+        }
 
         val now = Clock.System.now()
         val updates = buildMap {
@@ -85,8 +90,9 @@ class SystemService(private val settingsRepository: SettingsRepository) {
         val stored = loadSettings()
         val resolvedStart = req.defaultPortRangeStart ?: stored.settings.defaultPortRangeStart
         val resolvedEnd = req.defaultPortRangeEnd ?: stored.settings.defaultPortRangeEnd
-        if (resolvedStart >= resolvedEnd)
+        if (resolvedStart >= resolvedEnd) {
             throw UnprocessableException("default_port_range_start must be less than default_port_range_end")
+        }
         return stored
     }
 
@@ -105,10 +111,10 @@ class SystemService(private val settingsRepository: SettingsRepository) {
                 rateLimitLoginPerMinute = map["rate_limit_login_per_minute"]?.toIntOrNull() ?: 10,
                 rateLimitRefreshPerMinute = map["rate_limit_refresh_per_minute"]?.toIntOrNull() ?: 30,
                 imageMinecraft = map["image_minecraft"] ?: "itzg/minecraft-server",
-                imageProxy = map["image_proxy"] ?: "itzg/mc-proxy",
+                imageProxy = map["image_proxy"] ?: "itzg/mc-proxy"
             ),
             updatedAt = latest?.updatedAt,
-            updatedBy = latest?.updatedBy?.toString(),
+            updatedBy = latest?.updatedBy?.toString()
         )
     }
 }

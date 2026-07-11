@@ -4,25 +4,17 @@ import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.proto.AgentMessage
-import io.craftpanel.proto.NodeMetricsUpdate
 import kotlinx.coroutines.flow.MutableSharedFlow
 import org.slf4j.LoggerFactory
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Clock
 import kotlin.time.Instant
 
-class NodeMetricsHandler(
-    private val agentEvents: MutableSharedFlow<AgentEvent>,
-    private val nodeStateReconciler: NodeStateReconciler,
-) {
+class NodeMetricsHandler(private val agentEvents: MutableSharedFlow<AgentEvent>, private val nodeStateReconciler: NodeStateReconciler) {
+
     private val log = LoggerFactory.getLogger(NodeMetricsHandler::class.java)
 
-    suspend fun handle(
-        msg: AgentMessage,
-        nodeId: String,
-        lastMetricsAt: AtomicReference<Instant>,
-        lastEmittedHealth: AtomicReference<NodeHealth?>,
-    ) {
+    suspend fun handle(msg: AgentMessage, nodeId: String, lastMetricsAt: AtomicReference<Instant>, lastEmittedHealth: AtomicReference<NodeHealth?>) {
         if (!msg.hasNodeMetrics()) {
             log.warn("NodeMetricsHandler called with non-nodeMetrics message: ${msg.payloadCase}")
             return
@@ -43,7 +35,7 @@ class NodeMetricsHandler(
             netOutBytes = nodeMetrics.netOutBytes,
             diskUsedBytes = nodeMetrics.diskUsedBytes,
             diskTotalBytes = nodeMetrics.diskTotalBytes,
-            recordedAt = recordedAt,
+            recordedAt = recordedAt
         )
         agentEvents.emit(nodeMetricEvent)
         val newHealth = if (nodeMetrics.routerRunning) NodeHealth.HEALTHY else NodeHealth.DEGRADED

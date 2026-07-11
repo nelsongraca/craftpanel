@@ -5,9 +5,7 @@ import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.command.PullImageResultCallback
 import com.github.dockerjava.api.exception.NotFoundException
 import com.github.dockerjava.api.model.*
-import io.craftpanel.proto.ContainerState
-import io.craftpanel.proto.StartContainerCommand
-import io.craftpanel.proto.containerState
+import io.craftpanel.proto.*
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
 import java.io.InputStream

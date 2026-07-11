@@ -14,10 +14,7 @@ import kotlin.uuid.Uuid
  * when the window lapses. Intentionally not persisted: a master restart clears the counters, which
  * is acceptable for a crash-loop guard.
  */
-class ServerRestartManager(
-    private val maxAttempts: Int,
-    private val windowSeconds: Long,
-) {
+class ServerRestartManager(private val maxAttempts: Int, private val windowSeconds: Long) {
 
     private val log = LoggerFactory.getLogger(ServerRestartManager::class.java)
 

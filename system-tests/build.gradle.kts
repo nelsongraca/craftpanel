@@ -11,7 +11,8 @@ kotlin {
 }
 
 val openApiSpecFile = rootProject.layout.buildDirectory.file("openapi.json")
-val generatedDir = layout.buildDirectory.dir("generated/openapi").get().asFile
+val generatedDir = layout.buildDirectory.dir("generated/openapi")
+    .get().asFile
 
 val generateApiClient by tasks.registering(GenerateTask::class) {
     notCompatibleWithConfigurationCache("Generated code is patched in doLast")
@@ -36,12 +37,15 @@ val generateApiClient by tasks.registering(GenerateTask::class) {
     // OAG jvm-okhttp4 does not null-guard response.body (ResponseBody?) — patch
     // so the generated ApiClient.kt compiles under Kotlin strict null safety.
     doLast {
-        val apiClientFile = file("${generatedDir}/src/main/kotlin/craftpanel/systemtest/client/api/ApiClient.kt")
+        val apiClientFile = file("$generatedDir/src/main/kotlin/craftpanel/systemtest/client/api/ApiClient.kt")
         if (apiClientFile.exists()) {
-            apiClientFile.writeText(apiClientFile.readText().replace(
-                "val body = response.body",
-                "val body = response.body ?: return null"
-            ))
+            apiClientFile.writeText(
+                apiClientFile.readText()
+                    .replace(
+                        "val body = response.body",
+                        "val body = response.body ?: return null"
+                    )
+            )
         }
     }
 }
@@ -49,7 +53,7 @@ val generateApiClient by tasks.registering(GenerateTask::class) {
 sourceSets {
     test {
         kotlin {
-            srcDir("${generatedDir}/src/main/kotlin")
+            srcDir("$generatedDir/src/main/kotlin")
         }
     }
 }
@@ -92,7 +96,7 @@ tasks.named<Test>("test") {
     dependsOn(
         ":master:dockerBuildImage",
         ":agent:dockerBuildImage",
-        ":fake-server:dockerBuildImage",
+        ":fake-server:dockerBuildImage"
     )
 
     val withCoverage = project.hasProperty("withCoverage")
@@ -127,10 +131,16 @@ tasks.registerKoverCliReport(
     icDirs = listOf(coverageOutputDir.get().asFile),
     classfiles = classfiles,
     srcDirs = srcDirs,
-    htmlOut = layout.buildDirectory.dir("reports/kover/system-tests/html").get().asFile,
-    xmlOut = layout.buildDirectory.file("reports/kover/system-tests/report.xml").get().asFile,
-    cliClasspath = cliFiles,
-).configure { enabled = project.hasProperty("withCoverage"); mustRunAfter("test") }
+    htmlOut = layout.buildDirectory.dir("reports/kover/system-tests/html")
+        .get().asFile,
+    xmlOut = layout.buildDirectory.file("reports/kover/system-tests/report.xml")
+        .get().asFile,
+    cliClasspath = cliFiles
+)
+    .configure {
+        enabled = project.hasProperty("withCoverage")
+        mustRunAfter("test")
+    }
 
 tasks.registerKoverCliReport(
     taskName = "koverMergedReport",
@@ -139,18 +149,23 @@ tasks.registerKoverCliReport(
     icDirs = listOf(
         coverageOutputDir.get().asFile,
         rootProject.layout.projectDirectory.dir("master/build/kover/bin-reports").asFile,
-        rootProject.layout.projectDirectory.dir("agent/build/kover/bin-reports").asFile,
+        rootProject.layout.projectDirectory.dir("agent/build/kover/bin-reports").asFile
     ),
     classfiles = classfiles,
     srcDirs = srcDirs,
-    htmlOut = rootProject.layout.buildDirectory.dir("reports/kover/merged/html").get().asFile,
-    xmlOut = rootProject.layout.buildDirectory.file("reports/kover/merged/report.xml").get().asFile,
-    cliClasspath = cliFiles,
-).configure { enabled = project.hasProperty("withCoverage"); mustRunAfter(":master:test", ":agent:test", ":system-tests:test") }
+    htmlOut = rootProject.layout.buildDirectory.dir("reports/kover/merged/html")
+        .get().asFile,
+    xmlOut = rootProject.layout.buildDirectory.file("reports/kover/merged/report.xml")
+        .get().asFile,
+    cliClasspath = cliFiles
+)
+    .configure {
+        enabled = project.hasProperty("withCoverage")
+        mustRunAfter(":master:test", ":agent:test", ":system-tests:test")
+    }
 
 if (project.hasProperty("withCoverage")) {
     tasks.named("test") {
         finalizedBy("koverSystemTestReport")
     }
 }
-

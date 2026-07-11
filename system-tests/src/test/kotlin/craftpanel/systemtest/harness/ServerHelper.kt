@@ -4,17 +4,10 @@ import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.model.Frame
 import craftpanel.systemtest.client.api.DefaultApi
-import craftpanel.systemtest.client.model.CreateServerRequest
-import craftpanel.systemtest.client.model.ServerResponse
-import craftpanel.systemtest.client.model.BackupStatus
-import craftpanel.systemtest.client.model.ServerStatus
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
+import craftpanel.systemtest.client.model.*
+import kotlinx.coroutines.*
+import okhttp3.*
 import okhttp3.MediaType.Companion.toMediaType
-import okhttp3.MultipartBody
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.openapitools.client.infrastructure.ClientException
 import kotlin.random.Random
@@ -36,19 +29,15 @@ class ServerHelper(private val api: DefaultApi) {
                 .addHeader("Authorization", "Bearer $token")
                 .post(body)
                 .build()
-            val response = httpClient.newCall(request).execute()
+            val response = httpClient.newCall(request)
+                .execute()
             response.use {
                 if (!it.isSuccessful) error("Upload failed: ${it.code} ${it.body?.string()}")
             }
         }
     }
 
-    suspend fun createTestServer(
-        nodeId: String,
-        memoryMb: Int = 512,
-        cpuShares: Int = 0,
-        networkId: String? = null,
-    ): String {
+    suspend fun createTestServer(nodeId: String, memoryMb: Int = 512, cpuShares: Int = 0, networkId: String? = null): String {
         val response = api.createServer(
             CreateServerRequest(
                 name = "test-${System.currentTimeMillis()}-${Random.nextInt(100000)}",
@@ -58,7 +47,7 @@ class ServerHelper(private val api: DefaultApi) {
                 itzgImageTag = "latest",
                 memoryMb = memoryMb,
                 cpuShares = cpuShares,
-                networkId = networkId,
+                networkId = networkId
             )
         )
         return response.id
@@ -73,7 +62,7 @@ class ServerHelper(private val api: DefaultApi) {
         }
         return result ?: error(
             "Server $id did not reach status $status within ${timeoutMs}ms. " +
-                    "Last status: ${lastResponse?.status ?: "none"}"
+                "Last status: ${lastResponse?.status ?: "none"}"
         )
     }
 
@@ -111,10 +100,9 @@ class ServerHelper(private val api: DefaultApi) {
         }
         return result ?: error(
             "Server $id did not reach lastPlayerCount=$expected within ${timeoutMs}ms. " +
-                    "Last count: ${lastResponse?.lastPlayerCount ?: "none"}"
+                "Last count: ${lastResponse?.lastPlayerCount ?: "none"}"
         )
     }
-
 
     suspend fun awaitBackupCompleted(serverId: String, backupId: String, timeoutMs: Long = 60_000) {
         pollUntilNotNull(timeoutMs) {
@@ -131,10 +119,10 @@ class ServerHelper(private val api: DefaultApi) {
         while (System.currentTimeMillis() < deadline) {
             val result = runCatching { api.getServer(id) }
             when {
-                result.exceptionOrNull() is ClientException
-                        && (result.exceptionOrNull() as ClientException).statusCode == 404 -> return
+                result.exceptionOrNull() is ClientException &&
+                    (result.exceptionOrNull() as ClientException).statusCode == 404 -> return
 
-                result.getOrNull()?.status.also { lastStatus = it } == ServerStatus.STOPPED           -> return
+                result.getOrNull()?.status.also { lastStatus = it } == ServerStatus.STOPPED -> return
             }
             val jitter = Random.nextLong(-(interval / 5), interval / 5 + 1)
             delay((interval + jitter).coerceAtLeast(50).milliseconds)

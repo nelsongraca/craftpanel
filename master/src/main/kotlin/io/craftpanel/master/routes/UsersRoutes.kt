@@ -1,13 +1,8 @@
 package io.craftpanel.master.routes
 
-import io.craftpanel.master.auth.Permission
-import io.craftpanel.master.auth.JWT_AUTH
-import io.craftpanel.master.auth.requirePermission
+import io.craftpanel.master.auth.*
 import io.craftpanel.master.service.*
-import io.github.smiley4.ktoropenapi.delete
-import io.github.smiley4.ktoropenapi.get
-import io.github.smiley4.ktoropenapi.patch
-import io.github.smiley4.ktoropenapi.post
+import io.github.smiley4.ktoropenapi.*
 import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*
@@ -18,7 +13,6 @@ import kotlin.uuid.Uuid
 fun Route.usersRoutes(userService: UserService) {
     authenticate(JWT_AUTH) {
         route("/api/users") {
-
             get("", {
                 operationId = "listUsers"
                 summary = "List users"
@@ -68,7 +62,10 @@ fun Route.usersRoutes(userService: UserService) {
             patch("/{id}", {
                 operationId = "updateUser"
                 summary = "Update user"
-                request { pathParameter<String>("id"); body<PatchUserRequest>() }
+                request {
+                    pathParameter<String>("id")
+                    body<PatchUserRequest>()
+                }
                 response {
                     code(HttpStatusCode.OK) { body<UserResponse>() }
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
@@ -100,8 +97,9 @@ fun Route.usersRoutes(userService: UserService) {
                 val userId = call.userId()
                 val targetId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@delete call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
-                if (userId == targetId)
+                if (userId == targetId) {
                     return@delete call.respond(HttpStatusCode.Conflict, ErrorResponse("Cannot delete yourself"))
+                }
                 userService.deleteUser(targetId)
                 call.respond(HttpStatusCode.NoContent)
             }

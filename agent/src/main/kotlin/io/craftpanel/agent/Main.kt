@@ -16,7 +16,9 @@ fun main(): Unit = runBlocking {
 
     val koin = startKoin { modules(agentModule) }.koin
     val config = koin.get<AgentConfig>()
-    log.info("Master: ${config.masterAddress}:${config.masterPort} | TLS: ${config.tlsConfigured} | profile: ${config.profile} | dataPath: ${config.dataBasePath} | hostDataPath: ${config.hostDataBasePath}")
+    log.info(
+        "Master: ${config.masterAddress}:${config.masterPort} | TLS: ${config.tlsConfigured} | profile: ${config.profile} | dataPath: ${config.dataBasePath} | hostDataPath: ${config.hostDataBasePath}"
+    )
 
     val docker = koin.get<DockerClient>()
 
@@ -24,7 +26,8 @@ fun main(): Unit = runBlocking {
         docker.listNetworksCmd()
             .withNameFilter(config.craftpanelNetwork)
             .exec()
-            .any { it.name == config.craftpanelNetwork }) {
+            .any { it.name == config.craftpanelNetwork }
+    ) {
         "Docker network '${config.craftpanelNetwork}' not found — create it: docker network create ${config.craftpanelNetwork}"
     }
     val ownHostname = System.getenv("HOSTNAME") ?: ""
@@ -36,8 +39,8 @@ fun main(): Unit = runBlocking {
             if (config.craftpanelNetwork !in ownNetworks) {
                 log.warn(
                     "Agent container is not attached to network '${config.craftpanelNetwork}' — " +
-                            "add it to the Compose networks section. " +
-                            "mc-router and game server containers will not be reachable."
+                        "add it to the Compose networks section. " +
+                        "mc-router and game server containers will not be reachable."
                 )
             }
         }.onFailure {

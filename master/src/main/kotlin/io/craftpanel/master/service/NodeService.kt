@@ -2,16 +2,14 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.NodeStatus
-import io.craftpanel.master.service.repo.NodeRepository
-import io.craftpanel.master.service.repo.NodeRow
-import io.craftpanel.master.service.repo.ServerRepository
+import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.util.CryptoUtils
 import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.shutdownCommand
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import java.security.MessageDigest
-import java.util.HexFormat
+import java.util.*
 
 @Serializable
 data class NodeResponse(
@@ -41,7 +39,7 @@ data class PatchNodeRequest(
     @SerialName("display_name") val displayName: String? = null,
     @SerialName("port_range_start") val portRangeStart: Int? = null,
     @SerialName("port_range_end") val portRangeEnd: Int? = null,
-    @SerialName("reserved_ram_mb") val reservedRamMb: Int? = null,
+    @SerialName("reserved_ram_mb") val reservedRamMb: Int? = null
 )
 
 @Serializable

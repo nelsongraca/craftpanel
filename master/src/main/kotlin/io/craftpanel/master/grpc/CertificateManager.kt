@@ -1,13 +1,8 @@
 package io.craftpanel.master.grpc
 
 import org.bouncycastle.asn1.x500.X500Name
-import org.bouncycastle.asn1.x509.BasicConstraints
-import org.bouncycastle.asn1.x509.Extension
-import org.bouncycastle.asn1.x509.GeneralName
-import org.bouncycastle.asn1.x509.GeneralNames
-import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter
-import org.bouncycastle.cert.jcajce.JcaX509ExtensionUtils
-import org.bouncycastle.cert.jcajce.JcaX509v3CertificateBuilder
+import org.bouncycastle.asn1.x509.*
+import org.bouncycastle.cert.jcajce.*
 import org.bouncycastle.jce.provider.BouncyCastleProvider
 import org.bouncycastle.openssl.jcajce.JcaPEMWriter
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder
@@ -17,23 +12,13 @@ import java.io.StringWriter
 import java.math.BigInteger
 import java.net.InetAddress
 import java.security.KeyPairGenerator
-import java.security.PrivateKey
 import java.security.Security
-import java.security.cert.X509Certificate
-import java.util.Date
+import java.util.*
 import java.util.concurrent.TimeUnit
 
-data class GeneratedCerts(
-    val caCertPem: String,
-    val caKeyPem: String,
-    val serverCertPem: String,
-    val serverKeyPem: String,
-)
+data class GeneratedCerts(val caCertPem: String, val caKeyPem: String, val serverCertPem: String, val serverKeyPem: String)
 
-class CertificateManager(
-    private val certStorePath: String,
-    private val additionalSans: List<String> = emptyList(),
-) {
+class CertificateManager(private val certStorePath: String, private val additionalSans: List<String> = emptyList()) {
 
     private val log = LoggerFactory.getLogger(CertificateManager::class.java)
 
@@ -55,7 +40,7 @@ class CertificateManager(
                 caCertPem = caCertFile.readText(),
                 caKeyPem = caKeyFile.readText(),
                 serverCertPem = serverCertFile.readText(),
-                serverKeyPem = serverKeyFile.readText(),
+                serverKeyPem = serverKeyFile.readText()
             )
         }
 
@@ -87,12 +72,13 @@ class CertificateManager(
             notBefore,
             notAfter,
             caName,
-            caKeyPair.public,
+            caKeyPair.public
         )
         caCertBuilder.addExtension(Extension.basicConstraints, true, BasicConstraints(true))
         caCertBuilder.addExtension(
-            Extension.subjectKeyIdentifier, false,
-            extUtils.createSubjectKeyIdentifier(caKeyPair.public),
+            Extension.subjectKeyIdentifier,
+            false,
+            extUtils.createSubjectKeyIdentifier(caKeyPair.public)
         )
 
         val caSigner = JcaContentSignerBuilder("SHA256withRSA").build(caKeyPair.private)
@@ -107,20 +93,23 @@ class CertificateManager(
             notBefore,
             notAfter,
             serverName,
-            serverKeyPair.public,
+            serverKeyPair.public
         )
         serverCertBuilder.addExtension(Extension.basicConstraints, true, BasicConstraints(false))
         serverCertBuilder.addExtension(
-            Extension.subjectKeyIdentifier, false,
-            extUtils.createSubjectKeyIdentifier(serverKeyPair.public),
+            Extension.subjectKeyIdentifier,
+            false,
+            extUtils.createSubjectKeyIdentifier(serverKeyPair.public)
         )
         serverCertBuilder.addExtension(
-            Extension.authorityKeyIdentifier, false,
-            extUtils.createAuthorityKeyIdentifier(caCert),
+            Extension.authorityKeyIdentifier,
+            false,
+            extUtils.createAuthorityKeyIdentifier(caCert)
         )
         serverCertBuilder.addExtension(
-            Extension.subjectAlternativeName, false,
-            buildSans(),
+            Extension.subjectAlternativeName,
+            false,
+            buildSans()
         )
 
         val serverCert = JcaX509CertificateConverter().setProvider(BouncyCastleProvider.PROVIDER_NAME)
@@ -130,7 +119,7 @@ class CertificateManager(
             caCertPem = toPem(caCert),
             caKeyPem = toPem(caKeyPair.private),
             serverCertPem = toPem(serverCert),
-            serverKeyPem = toPem(serverKeyPair.private),
+            serverKeyPem = toPem(serverKeyPair.private)
         )
     }
 
@@ -160,7 +149,10 @@ class CertificateManager(
             }
         }
 
-        return GeneralNames(sans.distinctBy { it.toString() }.toTypedArray())
+        return GeneralNames(
+            sans.distinctBy { it.toString() }
+                .toTypedArray()
+        )
     }
 
     private fun generateKeyPair() = KeyPairGenerator.getInstance("RSA", BouncyCastleProvider.PROVIDER_NAME)

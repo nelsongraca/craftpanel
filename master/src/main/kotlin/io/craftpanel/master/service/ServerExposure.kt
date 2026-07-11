@@ -1,9 +1,6 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.service.repo.NetworkRepository
-import io.craftpanel.master.service.repo.ServerRepository
-import io.craftpanel.master.service.repo.ServerRow
-import io.craftpanel.master.service.repo.SettingsRepository
+import io.craftpanel.master.service.repo.*
 import kotlin.uuid.Uuid
 
 /**
@@ -11,11 +8,7 @@ import kotlin.uuid.Uuid
  * mc-router label, canonical hostname, network→DNS resolution, and custom-hostname
  * validation.
  */
-class ServerExposure(
-    private val networkRepository: NetworkRepository,
-    private val settingsRepository: SettingsRepository,
-    private val serverRepository: ServerRepository,
-) {
+class ServerExposure(private val networkRepository: NetworkRepository, private val settingsRepository: SettingsRepository, private val serverRepository: ServerRepository) {
 
     /** network → (zoneId, suffix), null if the network has no DNS zone. */
     fun resolveNetworkDns(networkId: Uuid?): NetworkDns? {
@@ -27,10 +20,9 @@ class ServerExposure(
     }
 
     /** the domain suffix for a network, falling back to the global setting. */
-    fun resolveSuffix(networkId: Uuid?): String? =
-        networkId?.let { networkRepository.findById(it)?.cfDomainSuffix }
-            ?: settingsRepository.getAll()
-                .firstOrNull { it.key == "dns_domain_suffix" }?.value
+    fun resolveSuffix(networkId: Uuid?): String? = networkId?.let { networkRepository.findById(it)?.cfDomainSuffix }
+        ?: settingsRepository.getAll()
+            .firstOrNull { it.key == "dns_domain_suffix" }?.value
 
     /** managed hostname for an exposed server (subdomain.suffix), or null. */
     fun managedHostname(row: ServerRow): String? {
@@ -56,19 +48,21 @@ class ServerExposure(
         }
 
         val customTaken = serverRepository.findByCustomHostname(hostname)
-        if (customTaken != null && customTaken.id != excludeServerId)
+        if (customTaken != null && customTaken.id != excludeServerId) {
             throw UnprocessableException("custom_hostname is already in use by another server")
+        }
 
         val managedTaken = serverRepository.findByDnsRecordName(hostname)
-        if (managedTaken != null && managedTaken.id != excludeServerId)
+        if (managedTaken != null && managedTaken.id != excludeServerId) {
             throw UnprocessableException("custom_hostname conflicts with a managed DNS record name")
+        }
 
         val managedSuffixes = collectManagedSuffixes()
         for (suffix in managedSuffixes) {
             if (hostname.endsWith(".$suffix") || hostname == suffix) {
                 throw UnprocessableException(
                     "custom_hostname must not be under a panel-managed domain suffix ($suffix). " +
-                            "Use the managed subdomain path instead."
+                        "Use the managed subdomain path instead."
                 )
             }
         }

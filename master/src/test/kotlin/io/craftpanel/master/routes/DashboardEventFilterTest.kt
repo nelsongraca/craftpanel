@@ -1,9 +1,7 @@
 package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.ScopeType
-import io.craftpanel.master.domain.AgentEvent
-import io.craftpanel.master.domain.NodeHealth
-import io.craftpanel.master.domain.ServerStatus
+import io.craftpanel.master.domain.*
 import io.craftpanel.master.service.repo.NodeRow
 import io.craftpanel.master.service.repo.ServerRow
 import io.kotest.core.spec.style.FunSpec
@@ -17,6 +15,7 @@ import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 private class FixedClock(private val instant: Instant) : Clock {
+
     override fun now(): Instant = instant
 }
 
@@ -77,7 +76,8 @@ class DashboardEventFilterTest :
                     netInBytes = 1, netOutBytes = 1, diskUsedBytes = 1, diskTotalBytes = 1,
                     recordedAt = FIXED_INSTANT
                 )
-            ).shouldBeNull()
+            )
+                .shouldBeNull()
         }
 
         test("NodeStatusEvent uses injected clock and passes gate") {
@@ -90,7 +90,8 @@ class DashboardEventFilterTest :
 
         test("NodeStatusEvent blocked when hasNodes=false") {
             val f = filter(hasNodes = false)
-            f.toEnvelope(AgentEvent.NodeStatusEvent(nodeId = "node-1", health = NodeHealth.HEALTHY)).shouldBeNull()
+            f.toEnvelope(AgentEvent.NodeStatusEvent(nodeId = "node-1", health = NodeHealth.HEALTHY))
+                .shouldBeNull()
         }
 
         test("ContainerMetricsEvent passes gate and produces envelope") {
@@ -126,7 +127,8 @@ class DashboardEventFilterTest :
                     blockOutBytes = 4,
                     recordedAt = FIXED_INSTANT
                 )
-            ).shouldBeNull()
+            )
+                .shouldBeNull()
         }
 
         test("ContainerMetricsEvent with unparseable serverId returns null") {
@@ -142,7 +144,8 @@ class DashboardEventFilterTest :
                     blockOutBytes = 4,
                     recordedAt = FIXED_INSTANT
                 )
-            ).shouldBeNull()
+            )
+                .shouldBeNull()
         }
 
         test("ServerStatusEvent passes gate and uses injected clock") {
@@ -157,12 +160,14 @@ class DashboardEventFilterTest :
         test("ServerStatusEvent blocked when canViewServer=false") {
             val sid = Uuid.random()
             val f = filter(canView = false)
-            f.toEnvelope(AgentEvent.ServerStatusEvent(serverId = sid.toString(), status = ServerStatus.HEALTHY)).shouldBeNull()
+            f.toEnvelope(AgentEvent.ServerStatusEvent(serverId = sid.toString(), status = ServerStatus.HEALTHY))
+                .shouldBeNull()
         }
 
         test("ServerStatusEvent with unparseable serverId returns null") {
             val f = filter(canView = true)
-            f.toEnvelope(AgentEvent.ServerStatusEvent(serverId = "nope", status = ServerStatus.HEALTHY)).shouldBeNull()
+            f.toEnvelope(AgentEvent.ServerStatusEvent(serverId = "nope", status = ServerStatus.HEALTHY))
+                .shouldBeNull()
         }
 
         test("PlayerUpdateEvent passes gate and produces envelope") {
@@ -185,7 +190,8 @@ class DashboardEventFilterTest :
             val f = filter(canView = false)
             f.toEnvelope(
                 AgentEvent.PlayerUpdateEvent(serverId = sid.toString(), playerCount = 0, playerNames = emptyList(), recordedAt = FIXED_INSTANT)
-            ).shouldBeNull()
+            )
+                .shouldBeNull()
         }
 
         test("BackupProgressEvent passes gate and uses injected clock") {
@@ -202,7 +208,8 @@ class DashboardEventFilterTest :
         test("BackupProgressEvent blocked when canViewServer=false") {
             val sid = Uuid.random()
             val f = filter(canView = false)
-            f.toEnvelope(AgentEvent.BackupProgressEvent(serverId = sid.toString(), backupId = "b1", percentComplete = 1)).shouldBeNull()
+            f.toEnvelope(AgentEvent.BackupProgressEvent(serverId = sid.toString(), backupId = "b1", percentComplete = 1))
+                .shouldBeNull()
         }
 
         test("BackupCompleteEvent success produces COMPLETED status envelope") {
@@ -247,7 +254,8 @@ class DashboardEventFilterTest :
             val f = filter(canView = false)
             f.toEnvelope(
                 AgentEvent.BackupCompleteEvent(serverId = sid.toString(), backupId = "b1", success = true, sizeBytes = 0, errorMessage = "", completedAt = FIXED_INSTANT)
-            ).shouldBeNull()
+            )
+                .shouldBeNull()
         }
 
         test("AlertFiredEvent NODE scope gated by hasNodes") {
@@ -263,7 +271,8 @@ class DashboardEventFilterTest :
                     firedAt = FIXED_INSTANT.toString(),
                     resolvedAt = null
                 )
-            ).shouldBeNull()
+            )
+                .shouldBeNull()
 
             val fAllowed = filter(hasNodes = true)
             fAllowed.toEnvelope(
@@ -277,7 +286,8 @@ class DashboardEventFilterTest :
                     firedAt = FIXED_INSTANT.toString(),
                     resolvedAt = null
                 )
-            ).shouldNotBeNull()
+            )
+                .shouldNotBeNull()
         }
 
         test("AlertFiredEvent SERVER scope gated by canViewServer") {
@@ -294,7 +304,8 @@ class DashboardEventFilterTest :
                     firedAt = FIXED_INSTANT.toString(),
                     resolvedAt = null
                 )
-            ).shouldBeNull()
+            )
+                .shouldBeNull()
 
             val fAllowed = filter(canView = true)
             fAllowed.toEnvelope(
@@ -308,7 +319,8 @@ class DashboardEventFilterTest :
                     firedAt = FIXED_INSTANT.toString(),
                     resolvedAt = null
                 )
-            ).shouldNotBeNull()
+            )
+                .shouldNotBeNull()
         }
 
         test("AlertFiredEvent with unparseable SERVER scopeId returns null") {
@@ -324,7 +336,8 @@ class DashboardEventFilterTest :
                     firedAt = FIXED_INSTANT.toString(),
                     resolvedAt = null
                 )
-            ).shouldBeNull()
+            )
+                .shouldBeNull()
         }
 
         test("AlertFiredEvent unresolved maps to alert.fired") {

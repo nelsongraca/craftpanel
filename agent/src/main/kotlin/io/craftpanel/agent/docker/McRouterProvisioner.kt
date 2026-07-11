@@ -8,13 +8,7 @@ import com.github.dockerjava.api.exception.NotModifiedException
 import com.github.dockerjava.api.model.*
 import org.slf4j.LoggerFactory
 
-class McRouterProvisioner(
-    private val docker: DockerClient,
-    private val image: String,
-    private val updateOnStart: Boolean,
-    private val networkName: String = "",
-    containerNameOverride: String = "",
-) {
+class McRouterProvisioner(private val docker: DockerClient, private val image: String, private val updateOnStart: Boolean, private val networkName: String = "", containerNameOverride: String = "") {
 
     private val log = LoggerFactory.getLogger(McRouterProvisioner::class.java)
 
@@ -50,13 +44,11 @@ class McRouterProvisioner(
                         .exec()
                 }
                     .onFailure { log.warn("Failed to remove stale mc-router — continuing to recreate: ${it.message}") }
-            }
-            else if (existing.state?.running == true) {
+            } else if (existing.state?.running == true) {
                 log.info("mc-router already running")
                 connectToNetwork(existing.id)
                 return
-            }
-            else {
+            } else {
                 log.info("mc-router container exists but not running — starting")
                 runCatching {
                     docker.startContainerCmd(existing.id)
@@ -90,8 +82,7 @@ class McRouterProvisioner(
                 .withHostConfig(hostConfig)
                 .withLabels(mapOf("craftpanel.managed" to "true"))
                 .exec().id
-        }
-        catch (e: ConflictException) {
+        } catch (e: ConflictException) {
             // Race: another colocated agent created the container between our inspect-check
             // and create. The name conflict is itself proof the container exists, so we
             // reuse it rather than rethrow. The winner may still be mid-provisioning, so
@@ -150,19 +141,18 @@ class McRouterProvisioner(
         log.info("mc-router provisioned and started")
     }
 
-    private fun findExistingRouterOnPort(port: Int): InspectContainerResponse? =
-        runCatching {
-            docker.listContainersCmd()
-                .exec()
-                .firstOrNull { c ->
-                    c.ports?.any { p -> p.publicPort == port } == true &&
-                            c.image?.contains("mc-router") == true
-                }
-                ?.let {
-                    docker.inspectContainerCmd(it.id)
-                        .exec()
-                }
-        }.getOrNull()
+    private fun findExistingRouterOnPort(port: Int): InspectContainerResponse? = runCatching {
+        docker.listContainersCmd()
+            .exec()
+            .firstOrNull { c ->
+                c.ports?.any { p -> p.publicPort == port } == true &&
+                    c.image?.contains("mc-router") == true
+            }
+            ?.let {
+                docker.inspectContainerCmd(it.id)
+                    .exec()
+            }
+    }.getOrNull()
 
     private fun connectToNetwork(containerId: String) {
         if (networkName.isEmpty()) return

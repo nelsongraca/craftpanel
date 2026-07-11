@@ -8,9 +8,7 @@ import io.craftpanel.agent.docker.*
 import io.grpc.ManagedChannel
 import io.grpc.netty.GrpcSslContexts
 import io.grpc.netty.NettyChannelBuilder
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import org.koin.core.Koin
 import org.koin.core.parameter.parametersOf
 import org.koin.core.qualifier.named

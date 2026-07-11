@@ -4,17 +4,12 @@ import com.auth0.jwt.JWT
 import com.auth0.jwt.JWTVerifier
 import com.auth0.jwt.algorithms.Algorithm
 import io.craftpanel.master.config.JwtConfig
-import kotlin.uuid.Uuid
 import java.time.Instant
+import kotlin.uuid.Uuid
 
 const val JWT_AUTH = "auth-jwt"
 
-data class TokenClaims(
-    val userId: Uuid,
-    val name: String,
-    val email: String,
-    val groups: List<String>,
-)
+data class TokenClaims(val userId: Uuid, val name: String, val email: String, val groups: List<String>)
 
 class JwtManager(private val config: JwtConfig) {
 
@@ -41,5 +36,4 @@ class JwtManager(private val config: JwtConfig) {
             .withExpiresAt(now.plusSeconds(config.expirySeconds))
             .sign(algorithm)
     }
-
 }

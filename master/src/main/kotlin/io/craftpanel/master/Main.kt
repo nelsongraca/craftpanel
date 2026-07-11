@@ -5,30 +5,24 @@ import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.config.AppConfig
 import io.craftpanel.master.database.DatabaseFactory
 import io.craftpanel.master.database.migrations.seedAdminUser
+import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.di.DnsProviderHolder
 import io.craftpanel.master.di.appModule
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.dns.DnsProviderFactory
+import io.craftpanel.master.domain.AgentEvent
+import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.GrpcServer
 import io.craftpanel.master.routes.*
 import io.craftpanel.master.scheduler.ServerScheduler
-import io.craftpanel.master.database.schema.Servers
-import io.craftpanel.master.domain.AgentEvent
-import io.craftpanel.master.domain.ServerStatus
-import io.craftpanel.master.service.SystemService
+import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.SettingsRepositoryImpl
-import io.craftpanel.master.service.BadGatewayException
-import io.craftpanel.master.service.BadRequestException
-import io.craftpanel.master.service.ConflictException
-import io.craftpanel.master.service.ForbiddenException
-import io.craftpanel.master.service.MigrationService
-import io.craftpanel.master.service.NotFoundException
-import io.craftpanel.master.service.PortExhaustedException
-import io.craftpanel.master.service.UnprocessableException
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
+import io.github.smiley4.ktoropenapi.OpenApi
+import io.github.smiley4.ktoropenapi.config.*
+import io.github.smiley4.ktoropenapi.openApi
+import io.github.smiley4.ktorswaggerui.swaggerUI
+import io.github.smiley4.schemakenerator.swagger.data.RefType
 import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.application.*
@@ -41,34 +35,29 @@ import io.ktor.server.plugins.cors.routing.*
 import io.ktor.server.plugins.defaultheaders.*
 import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.plugins.statuspages.*
-import io.ktor.server.request.httpMethod
-import io.ktor.server.request.path
+import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
-import io.github.smiley4.ktoropenapi.OpenApi
-import io.github.smiley4.ktoropenapi.config.AuthScheme
-import io.github.smiley4.ktoropenapi.config.AuthType
-import io.github.smiley4.ktoropenapi.config.SchemaGenerator
-import io.github.smiley4.schemakenerator.swagger.data.RefType
-import io.github.smiley4.ktoropenapi.openApi
-import io.github.smiley4.ktorswaggerui.swaggerUI
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import kotlin.time.Clock
 import kotlinx.serialization.json.Json
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import org.koin.core.qualifier.named
-import kotlin.uuid.Uuid
 import org.koin.dsl.module
 import org.koin.ktor.ext.get
 import org.koin.ktor.plugin.Koin
 import org.koin.logger.slf4jLogger
 import org.slf4j.LoggerFactory
 import org.slf4j.event.Level
+import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
+import kotlin.uuid.Uuid
 
 private object SecurityHeaderNames {
 
@@ -105,7 +94,7 @@ fun Application.module() {
                 single { DnsProviderHolder(dnsProvider) }
                 single { GrpcServer(get(), get(), get()) }
             },
-            appModule,
+            appModule
         )
     }
 
@@ -171,8 +160,7 @@ fun Application.module() {
                 this@module.log.warn("CORS: no allowedHosts configured — allowing all origins (dev mode)")
                 anyHost()
             }
-        }
-        else {
+        } else {
             for (host in appConfig.cors.allowedHosts) {
                 allowHost(host, schemes = appConfig.cors.allowedSchemes)
             }

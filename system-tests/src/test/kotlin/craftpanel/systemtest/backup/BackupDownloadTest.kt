@@ -1,7 +1,7 @@
 package craftpanel.systemtest.backup
 
-import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.client.model.BackupStatus
+import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.pollUntilNotNull
 import io.kotest.assertions.throwables.shouldThrow

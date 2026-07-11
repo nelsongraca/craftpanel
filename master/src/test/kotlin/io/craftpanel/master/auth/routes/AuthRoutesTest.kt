@@ -1,14 +1,9 @@
 package io.craftpanel.master.auth.routes
 
 import io.craftpanel.master.TestDatabase
-import io.craftpanel.master.auth.Argon2Hasher
-import io.craftpanel.master.auth.JwtManager
-import io.craftpanel.master.auth.RefreshTokenService
-import io.craftpanel.master.auth.WsTicketService
+import io.craftpanel.master.auth.*
 import io.craftpanel.master.config.JwtConfig
-import io.craftpanel.master.database.schema.Groups
-import io.craftpanel.master.database.schema.UserGroupAssignments
-import io.craftpanel.master.database.schema.Users
+import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.repo.UserRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -28,10 +23,8 @@ import io.ktor.server.routing.*
 import io.ktor.server.testing.*
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.time.Duration
 import kotlin.uuid.Uuid
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation

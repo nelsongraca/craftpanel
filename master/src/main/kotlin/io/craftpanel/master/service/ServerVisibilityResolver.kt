@@ -1,8 +1,6 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.auth.Permission
-import io.craftpanel.master.auth.PermissionResolver
-import io.craftpanel.master.auth.ScopeType
+import io.craftpanel.master.auth.*
 import io.craftpanel.master.service.repo.GroupRepository
 import io.craftpanel.master.service.repo.UserRepository
 import kotlin.uuid.Uuid

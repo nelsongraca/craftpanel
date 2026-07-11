@@ -1,7 +1,7 @@
 package craftpanel.systemtest.dashboard
 
-import craftpanel.systemtest.client.model.ServerStatus
 import com.google.gson.JsonParser
+import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -22,14 +22,15 @@ class DashboardWsTest : BaseSystemTest() {
 
             should("connects with valid ticket and receives SNAPSHOT event") {
                 val ticket = api.authWsTicket()
-                val url = "${wsBaseUrl}/api/ws?ticket=${ticket.ticket}"
+                val url = "$wsBaseUrl/api/ws?ticket=${ticket.ticket}"
                 val latch = CountDownLatch(1)
                 var messageType: String? = null
 
                 val ws = wsClient.newWebSocket(
                     Request.Builder()
                         .url(url)
-                        .build(), object : WebSocketListener() {
+                        .build(),
+                    object : WebSocketListener() {
                         override fun onMessage(webSocket: WebSocket, text: String) {
                             val json = JsonParser.parseString(text).asJsonObject
                             messageType = json.get("type")?.asString
@@ -39,7 +40,8 @@ class DashboardWsTest : BaseSystemTest() {
                         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                             latch.countDown()
                         }
-                    })
+                    }
+                )
 
                 latch.await(10, TimeUnit.SECONDS)
                 messageType shouldBe "snapshot"
@@ -48,7 +50,7 @@ class DashboardWsTest : BaseSystemTest() {
 
             should("snapshot payload has expected structure") {
                 val ticket = api.authWsTicket()
-                val url = "${wsBaseUrl}/api/ws?ticket=${ticket.ticket}"
+                val url = "$wsBaseUrl/api/ws?ticket=${ticket.ticket}"
                 val latch = CountDownLatch(1)
                 var servers: com.google.gson.JsonArray? = null
                 var nodes: com.google.gson.JsonArray? = null
@@ -56,7 +58,8 @@ class DashboardWsTest : BaseSystemTest() {
                 val ws = wsClient.newWebSocket(
                     Request.Builder()
                         .url(url)
-                        .build(), object : WebSocketListener() {
+                        .build(),
+                    object : WebSocketListener() {
                         override fun onMessage(webSocket: WebSocket, text: String) {
                             val json = JsonParser.parseString(text).asJsonObject
                             val payload = json.getAsJsonObject("payload")
@@ -68,7 +71,8 @@ class DashboardWsTest : BaseSystemTest() {
                         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                             latch.countDown()
                         }
-                    })
+                    }
+                )
 
                 latch.await(10, TimeUnit.SECONDS)
                 servers shouldNotBe null
@@ -77,26 +81,31 @@ class DashboardWsTest : BaseSystemTest() {
             }
 
             should("rejects connection with invalid ticket") {
-                val url = "${wsBaseUrl}/api/ws?ticket=invalid-fake-ticket"
+                val url = "$wsBaseUrl/api/ws?ticket=invalid-fake-ticket"
                 val latch = CountDownLatch(1)
                 var closeCode = -1
 
                 wsClient.newWebSocket(
                     Request.Builder()
                         .url(url)
-                        .build(), object : WebSocketListener() {
+                        .build(),
+                    object : WebSocketListener() {
                         override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                            closeCode = code; latch.countDown()
+                            closeCode = code
+                            latch.countDown()
                         }
 
                         override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                            if (closeCode == -1) closeCode = code; latch.countDown()
+                            if (closeCode == -1) closeCode = code
+                            latch.countDown()
                         }
 
                         override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                            closeCode = response?.code ?: -1; latch.countDown()
+                            closeCode = response?.code ?: -1
+                            latch.countDown()
                         }
-                    })
+                    }
+                )
 
                 latch.await(5, TimeUnit.SECONDS)
                 closeCode shouldBe 1008
@@ -108,7 +117,7 @@ class DashboardWsTest : BaseSystemTest() {
                 val serverId = helper.createTestServer(nodeId)
                 try {
                     val ticket = api.authWsTicket()
-                    val url = "${wsBaseUrl}/api/ws?ticket=${ticket.ticket}"
+                    val url = "$wsBaseUrl/api/ws?ticket=${ticket.ticket}"
                     val healthyLatch = CountDownLatch(1)
                     val stoppedLatch = CountDownLatch(1)
                     val seenStatuses = mutableListOf<String>()
@@ -116,7 +125,8 @@ class DashboardWsTest : BaseSystemTest() {
                     val ws = wsClient.newWebSocket(
                         Request.Builder()
                             .url(url)
-                            .build(), object : WebSocketListener() {
+                            .build(),
+                        object : WebSocketListener() {
                             override fun onMessage(webSocket: WebSocket, text: String) {
                                 val json = JsonParser.parseString(text).asJsonObject
                                 if (json.get("type")?.asString == "server.status") {
@@ -129,7 +139,8 @@ class DashboardWsTest : BaseSystemTest() {
                                     }
                                 }
                             }
-                        })
+                        }
+                    )
 
                     // Wait for initial SNAPSHOT
                     Thread.sleep(1000)
@@ -145,8 +156,7 @@ class DashboardWsTest : BaseSystemTest() {
                     seenStatuses shouldContain "STOPPED"
 
                     ws.close(1000, "test done")
-                }
-                finally {
+                } finally {
                     runCatching { api.stopServer(serverId) }
                     helper.awaitStoppedOrGone(serverId)
                     runCatching { api.deleteServer(serverId) }

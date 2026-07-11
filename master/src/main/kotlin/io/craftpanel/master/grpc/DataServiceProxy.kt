@@ -1,23 +1,16 @@
 package io.craftpanel.master.grpc
 
-import io.craftpanel.master.service.BadGatewayException
-import io.craftpanel.master.service.ConflictException
-import io.craftpanel.master.service.ForbiddenException
-import io.craftpanel.master.service.NotFoundException
-import io.craftpanel.master.service.ServiceException
-import io.craftpanel.master.service.UnprocessableException
-import io.craftpanel.master.service.repo.ServerRepository
-import io.craftpanel.proto.*
 import com.google.protobuf.ByteString
 import io.craftpanel.master.domain.ServerStatus
-import io.craftpanel.master.routes.dto.FileEntryResponse
+import io.craftpanel.master.routes.dto.*
 import io.craftpanel.master.routes.dto.ListFilesResponse
 import io.craftpanel.master.routes.dto.ReadFileResponse
+import io.craftpanel.master.service.*
+import io.craftpanel.master.service.repo.ServerRepository
+import io.craftpanel.proto.*
+import kotlinx.coroutines.flow.*
 import java.time.Instant
 import kotlin.uuid.Uuid
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.emptyFlow
-import kotlinx.coroutines.flow.map
 
 /**
  * Routes file and console operations from REST/WebSocket routes to the connected agent
@@ -25,22 +18,16 @@ import kotlinx.coroutines.flow.map
  *
  * Master never dials agents — all connections are agent-initiated.
  */
-class DataServiceProxy(
-    private val controlService: ControlServiceImpl,
-    private val bulkService: BulkDataServiceImpl,
-    private val serverRepository: ServerRepository,
-) {
+class DataServiceProxy(private val controlService: ControlServiceImpl, private val bulkService: BulkDataServiceImpl, private val serverRepository: ServerRepository) {
 
-    private fun lookupNodeId(serverId: Uuid): String =
-        serverRepository.findById(serverId)?.nodeId?.toString()
-            ?: error("Server $serverId not found")
+    private fun lookupNodeId(serverId: Uuid): String = serverRepository.findById(serverId)?.nodeId?.toString()
+        ?: error("Server $serverId not found")
 
     private data class ServerLookup(val nodeId: String, val status: String)
 
-    private fun lookupServer(serverId: Uuid): ServerLookup =
-        serverRepository.findById(serverId)
-            ?.let { ServerLookup(it.nodeId.toString(), it.status) }
-            ?: error("Server $serverId not found")
+    private fun lookupServer(serverId: Uuid): ServerLookup = serverRepository.findById(serverId)
+        ?.let { ServerLookup(it.nodeId.toString(), it.status) }
+        ?: error("Server $serverId not found")
 
     // ── Console ───────────────────────────────────────────────────────────────
 
@@ -59,23 +46,24 @@ class DataServiceProxy(
     // ── File operations ───────────────────────────────────────────────────────
 
     internal fun agentErrorToException(code: ErrorCode, msg: String): ServiceException = when (code) {
-        ErrorCode.NOT_FOUND         -> NotFoundException(msg)
-        ErrorCode.ALREADY_EXISTS    -> ConflictException(msg)
-        ErrorCode.CONFLICT          -> ConflictException(msg)
+        ErrorCode.NOT_FOUND -> NotFoundException(msg)
+
+        ErrorCode.ALREADY_EXISTS -> ConflictException(msg)
+
+        ErrorCode.CONFLICT -> ConflictException(msg)
+
         ErrorCode.PERMISSION_DENIED -> ForbiddenException(msg)
-        ErrorCode.UNPROCESSABLE     -> UnprocessableException(msg)
-        ErrorCode.UNAVAILABLE       -> BadGatewayException(msg)
+
+        ErrorCode.UNPROCESSABLE -> UnprocessableException(msg)
+
+        ErrorCode.UNAVAILABLE -> BadGatewayException(msg)
+
         ErrorCode.INTERNAL,
         ErrorCode.ERROR_CODE_UNSPECIFIED,
-        ErrorCode.UNRECOGNIZED      -> BadGatewayException(msg)
+        ErrorCode.UNRECOGNIZED -> BadGatewayException(msg)
     }
 
-    private suspend fun <R> correlate(
-        serverId: Uuid,
-        build: (reqId: String) -> MasterMessage,
-        extract: (AgentMessage) -> R,
-        err: (R) -> Pair<ErrorCode, String>,
-    ): R {
+    private suspend fun <R> correlate(serverId: Uuid, build: (reqId: String) -> MasterMessage, extract: (AgentMessage) -> R, err: (R) -> Pair<ErrorCode, String>): R {
         val nodeId = lookupNodeId(serverId)
         val reqId = Uuid.random()
             .toString()
@@ -86,91 +74,136 @@ class DataServiceProxy(
         return r
     }
 
-    suspend fun listFiles(serverId: Uuid, path: String): ListFilesResponse =
-        correlate(
-            serverId,
-            build = { reqId -> masterMessage { listFiles = listFilesRequest { requestId = reqId; this.serverId = serverId.toString(); this.path = path } } },
-            extract = { it.listFilesResponse },
-            err = { it.errorCode to it.errorMessage },
-        ).let { proto ->
-            ListFilesResponse(
-                path = path,
-                entries = proto.entriesList.map { e ->
-                    FileEntryResponse(
-                        name = e.name,
-                        isDirectory = e.isDirectory,
-                        sizeBytes = e.sizeBytes,
-                        modifiedAt = if (e.hasModifiedAt()) Instant.ofEpochSecond(e.modifiedAt.seconds)
+    suspend fun listFiles(serverId: Uuid, path: String): ListFilesResponse = correlate(
+        serverId,
+        build = { reqId ->
+            masterMessage {
+                listFiles = listFilesRequest {
+                    requestId = reqId
+                    this.serverId = serverId.toString()
+                    this.path = path
+                }
+            }
+        },
+        extract = { it.listFilesResponse },
+        err = { it.errorCode to it.errorMessage }
+    ).let { proto ->
+        ListFilesResponse(
+            path = path,
+            entries = proto.entriesList.map { e ->
+                FileEntryResponse(
+                    name = e.name,
+                    isDirectory = e.isDirectory,
+                    sizeBytes = e.sizeBytes,
+                    modifiedAt = if (e.hasModifiedAt()) {
+                        Instant.ofEpochSecond(e.modifiedAt.seconds)
                             .toString()
-                        else null,
-                        permissions = e.permissions,
-                    )
-                },
-            )
-        }
+                    } else {
+                        null
+                    },
+                    permissions = e.permissions
+                )
+            }
+        )
+    }
 
-    suspend fun readFile(serverId: Uuid, path: String): ReadFileResponse =
-        correlate(
-            serverId,
-            build = { reqId -> masterMessage { readFile = readFileRequest { requestId = reqId; this.serverId = serverId.toString(); this.path = path } } },
-            extract = { it.readFileResponse },
-            err = { it.errorCode to it.errorMessage },
-        ).let { proto ->
-            ReadFileResponse(path = path, content = proto.content.toStringUtf8(), encoding = proto.encoding)
-        }
-
-    suspend fun writeFile(serverId: Uuid, path: String, content: ByteArray): Unit =
-        correlate(
-            serverId,
-            build = { reqId ->
-                masterMessage {
-                    writeFile = writeFileRequest { requestId = reqId; this.serverId = serverId.toString(); this.path = path; this.content = ByteString.copyFrom(content) }
+    suspend fun readFile(serverId: Uuid, path: String): ReadFileResponse = correlate(
+        serverId,
+        build = { reqId ->
+            masterMessage {
+                readFile = readFileRequest {
+                    requestId = reqId
+                    this.serverId = serverId.toString()
+                    this.path = path
                 }
-            },
-            extract = { it.writeFileResponse },
-            err = { it.errorCode to it.errorMessage },
-        ).let {}
+            }
+        },
+        extract = { it.readFileResponse },
+        err = { it.errorCode to it.errorMessage }
+    ).let { proto ->
+        ReadFileResponse(path = path, content = proto.content.toStringUtf8(), encoding = proto.encoding)
+    }
 
-    suspend fun deleteFile(serverId: Uuid, path: String, recursive: Boolean): Unit =
-        correlate(
-            serverId,
-            build = { reqId -> masterMessage { deleteFile = deleteFileRequest { requestId = reqId; this.serverId = serverId.toString(); this.path = path; this.recursive = recursive } } },
-            extract = { it.deleteFileResponse },
-            err = { it.errorCode to it.errorMessage },
-        ).let {}
-
-    suspend fun makeDirectory(serverId: Uuid, path: String): Unit =
-        correlate(
-            serverId,
-            build = { reqId -> masterMessage { makeDirectory = makeDirectoryRequest { requestId = reqId; this.serverId = serverId.toString(); this.path = path } } },
-            extract = { it.makeDirectoryResponse },
-            err = { it.errorCode to it.errorMessage },
-        ).let {}
-
-    suspend fun moveFile(serverId: Uuid, sourcePath: String, destinationPath: String): Unit =
-        correlate(
-            serverId,
-            build = { reqId ->
-                masterMessage {
-                    moveFile = moveFileRequest { requestId = reqId; this.serverId = serverId.toString(); this.sourcePath = sourcePath; this.destinationPath = destinationPath }
+    suspend fun writeFile(serverId: Uuid, path: String, content: ByteArray): Unit = correlate(
+        serverId,
+        build = { reqId ->
+            masterMessage {
+                writeFile = writeFileRequest {
+                    requestId = reqId
+                    this.serverId = serverId.toString()
+                    this.path = path
+                    this.content = ByteString.copyFrom(content)
                 }
-            },
-            extract = { it.moveFileResponse },
-            err = { it.errorCode to it.errorMessage },
-        ).let {}
+            }
+        },
+        extract = { it.writeFileResponse },
+        err = { it.errorCode to it.errorMessage }
+    ).let {}
 
-    suspend fun copyFile(serverId: Uuid, sourcePath: String, destinationPath: String, recursive: Boolean): Unit =
-        correlate(
-            serverId,
-            build = { reqId ->
-                masterMessage {
-                    copyFile =
-                        copyFileRequest { requestId = reqId; this.serverId = serverId.toString(); this.sourcePath = sourcePath; this.destinationPath = destinationPath; this.recursive = recursive }
+    suspend fun deleteFile(serverId: Uuid, path: String, recursive: Boolean): Unit = correlate(
+        serverId,
+        build = { reqId ->
+            masterMessage {
+                deleteFile = deleteFileRequest {
+                    requestId = reqId
+                    this.serverId = serverId.toString()
+                    this.path = path
+                    this.recursive = recursive
                 }
-            },
-            extract = { it.copyFileResponse },
-            err = { it.errorCode to it.errorMessage },
-        ).let {}
+            }
+        },
+        extract = { it.deleteFileResponse },
+        err = { it.errorCode to it.errorMessage }
+    ).let {}
+
+    suspend fun makeDirectory(serverId: Uuid, path: String): Unit = correlate(
+        serverId,
+        build = { reqId ->
+            masterMessage {
+                makeDirectory = makeDirectoryRequest {
+                    requestId = reqId
+                    this.serverId = serverId.toString()
+                    this.path = path
+                }
+            }
+        },
+        extract = { it.makeDirectoryResponse },
+        err = { it.errorCode to it.errorMessage }
+    ).let {}
+
+    suspend fun moveFile(serverId: Uuid, sourcePath: String, destinationPath: String): Unit = correlate(
+        serverId,
+        build = { reqId ->
+            masterMessage {
+                moveFile = moveFileRequest {
+                    requestId = reqId
+                    this.serverId = serverId.toString()
+                    this.sourcePath = sourcePath
+                    this.destinationPath = destinationPath
+                }
+            }
+        },
+        extract = { it.moveFileResponse },
+        err = { it.errorCode to it.errorMessage }
+    ).let {}
+
+    suspend fun copyFile(serverId: Uuid, sourcePath: String, destinationPath: String, recursive: Boolean): Unit = correlate(
+        serverId,
+        build = { reqId ->
+            masterMessage {
+                copyFile =
+                    copyFileRequest {
+                        requestId = reqId
+                        this.serverId = serverId.toString()
+                        this.sourcePath = sourcePath
+                        this.destinationPath = destinationPath
+                        this.recursive = recursive
+                    }
+            }
+        },
+        extract = { it.copyFileResponse },
+        err = { it.errorCode to it.errorMessage }
+    ).let {}
 
     // ── Bulk transfers ────────────────────────────────────────────────────────
 
@@ -196,11 +229,19 @@ class DataServiceProxy(
         uploadChannel.close()
 
         // Signal agent to open BulkDataService ReceiveFromMaster connection.
-        val response = controlService.sendAndAwait(nodeId, reqId, masterMessage {
-            uploadFile = uploadFileCommand {
-                requestId = reqId; this.serverId = serverId.toString(); this.path = path; this.transferId = transferId
-            }
-        }, timeoutMs = 120_000)
+        val response = controlService.sendAndAwait(
+            nodeId,
+            reqId,
+            masterMessage {
+                uploadFile = uploadFileCommand {
+                    requestId = reqId
+                    this.serverId = serverId.toString()
+                    this.path = path
+                    this.transferId = transferId
+                }
+            },
+            timeoutMs = 120_000
+        )
 
         val r = response.uploadFileResponse
         if (!r.success) throw agentErrorToException(r.errorCode, r.errorMessage.ifBlank { "Upload failed" })
@@ -223,11 +264,18 @@ class DataServiceProxy(
         val downloadFlow = bulkService.registerDownload(transferId)
 
         val response = runCatching {
-            controlService.sendAndAwait(nodeId, reqId, masterMessage {
-                downloadFile = downloadFileCommand {
-                    requestId = reqId; this.serverId = serverId.toString(); this.path = path; this.transferId = transferId
+            controlService.sendAndAwait(
+                nodeId,
+                reqId,
+                masterMessage {
+                    downloadFile = downloadFileCommand {
+                        requestId = reqId
+                        this.serverId = serverId.toString()
+                        this.path = path
+                        this.transferId = transferId
+                    }
                 }
-            })
+            )
         }.getOrElse { ex ->
             bulkService.cancelDownload(transferId)
             throw ex
@@ -252,14 +300,18 @@ class DataServiceProxy(
         val downloadFlow = bulkService.registerDownload(transferId)
 
         val response = runCatching {
-            controlService.sendAndAwait(nodeId, reqId, masterMessage {
-                downloadBackup = downloadBackupCommand {
-                    requestId = reqId
-                    this.serverId = serverId.toString()
-                    this.backupId = backupId
-                    this.transferId = transferId
+            controlService.sendAndAwait(
+                nodeId,
+                reqId,
+                masterMessage {
+                    downloadBackup = downloadBackupCommand {
+                        requestId = reqId
+                        this.serverId = serverId.toString()
+                        this.backupId = backupId
+                        this.transferId = transferId
+                    }
                 }
-            })
+            )
         }.getOrElse { ex ->
             bulkService.cancelDownload(transferId)
             throw ex

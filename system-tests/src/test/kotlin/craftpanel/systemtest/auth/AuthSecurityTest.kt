@@ -1,14 +1,8 @@
 package craftpanel.systemtest.auth
 
 import craftpanel.systemtest.client.api.DefaultApi
-import craftpanel.systemtest.client.model.CreateUserRequest
-import craftpanel.systemtest.client.model.LoginRequest
-import craftpanel.systemtest.client.model.PatchUserRequest
-import craftpanel.systemtest.harness.ADMIN_EMAIL
-import craftpanel.systemtest.harness.ADMIN_PASSWORD
-import craftpanel.systemtest.harness.AuthHelper
-import craftpanel.systemtest.harness.BaseSystemTest
-import craftpanel.systemtest.harness.SharedStack
+import craftpanel.systemtest.client.model.*
+import craftpanel.systemtest.harness.*
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeEmpty
@@ -75,7 +69,7 @@ class AuthSecurityTest : BaseSystemTest() {
                     CreateUserRequest(
                         username = "authsec-deact-${System.currentTimeMillis()}",
                         email = tempEmail,
-                        password = tempPw,
+                        password = tempPw
                     )
                 )
                 val userId = userObj.id

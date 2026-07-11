@@ -1,24 +1,16 @@
 package io.craftpanel.master.routes
 
-import io.craftpanel.master.auth.JWT_AUTH
-import io.craftpanel.master.auth.Permission
-import io.craftpanel.master.auth.requireServerPermission
-import io.craftpanel.master.service.CreateModRequest
-import io.craftpanel.master.service.ModResponse
-import io.craftpanel.master.service.ModService
-import io.craftpanel.master.service.PatchModRequest
-import kotlinx.serialization.Serializable
-import kotlin.uuid.Uuid
-import io.github.smiley4.ktoropenapi.delete
-import io.github.smiley4.ktoropenapi.get
-import io.github.smiley4.ktoropenapi.patch
-import io.github.smiley4.ktoropenapi.post
+import io.craftpanel.master.auth.*
+import io.craftpanel.master.service.*
+import io.github.smiley4.ktoropenapi.*
 import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import kotlinx.serialization.Serializable
 import org.slf4j.LoggerFactory
+import kotlin.uuid.Uuid
 
 @Serializable
 data class ModsListResponse(val mods: List<ModResponse>)
@@ -32,7 +24,6 @@ class ModsRoutes(val modService: ModService) {
     fun Route.register() {
         authenticate(JWT_AUTH) {
             route("/api/servers/{id}/mods") {
-
                 get("", {
                     operationId = "listMods"
                     summary = "List server mods"
@@ -51,7 +42,10 @@ class ModsRoutes(val modService: ModService) {
                 post("", {
                     operationId = "addMod"
                     summary = "Add mod to server"
-                    request { pathParameter<String>("id"); body<CreateModRequest>() }
+                    request {
+                        pathParameter<String>("id")
+                        body<CreateModRequest>()
+                    }
                     response {
                         code(HttpStatusCode.Created) { body<ModResponse>() }
                         code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
@@ -69,7 +63,11 @@ class ModsRoutes(val modService: ModService) {
                 patch("/{modId}", {
                     operationId = "updateMod"
                     summary = "Update server mod"
-                    request { pathParameter<String>("id"); pathParameter<String>("modId"); body<PatchModRequest>() }
+                    request {
+                        pathParameter<String>("id")
+                        pathParameter<String>("modId")
+                        body<PatchModRequest>()
+                    }
                     response {
                         code(HttpStatusCode.OK) { body<ModResponse>() }
                         code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
@@ -82,7 +80,6 @@ class ModsRoutes(val modService: ModService) {
                     val modId = call.parameters["modId"]?.let {
                         runCatching {
                             Uuid.parse(it)
-
                         }.getOrNull()
                     }
                         ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid mod ID"))
@@ -93,7 +90,10 @@ class ModsRoutes(val modService: ModService) {
                 delete("/{modId}", {
                     operationId = "deleteMod"
                     summary = "Remove mod from server"
-                    request { pathParameter<String>("id"); pathParameter<String>("modId") }
+                    request {
+                        pathParameter<String>("id")
+                        pathParameter<String>("modId")
+                    }
                     response {
                         code(HttpStatusCode.NoContent) { }
                         code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
@@ -105,7 +105,6 @@ class ModsRoutes(val modService: ModService) {
                     val modId = call.parameters["modId"]?.let {
                         runCatching {
                             Uuid.parse(it)
-
                         }.getOrNull()
                     }
                         ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid mod ID"))
@@ -116,7 +115,13 @@ class ModsRoutes(val modService: ModService) {
                 get("/search", {
                     operationId = "searchMods"
                     summary = "Search Modrinth mods"
-                    request { pathParameter<String>("id"); queryParameter<String>("query"); queryParameter<Int>("limit"); queryParameter<String>("serverType"); queryParameter<String>("mcVersion") }
+                    request {
+                        pathParameter<String>("id")
+                        queryParameter<String>("query")
+                        queryParameter<Int>("limit")
+                        queryParameter<String>("serverType")
+                        queryParameter<String>("mcVersion")
+                    }
                     response {
                         code(HttpStatusCode.OK) { }
                         code(HttpStatusCode.BadGateway) { body<ErrorResponse>() }
@@ -141,8 +146,5 @@ class ModsRoutes(val modService: ModService) {
                 }
             }
         }
-
     }
 }
-
-

@@ -1,16 +1,8 @@
 package io.craftpanel.master.routes
 
-import io.craftpanel.master.auth.Permission
-import io.craftpanel.master.auth.JWT_AUTH
-import io.craftpanel.master.auth.requirePermission
-import io.craftpanel.master.service.NodeMetricsResponse
-import io.craftpanel.master.service.NodeResponse
-import io.craftpanel.master.service.NodeService
-import io.craftpanel.master.service.PatchNodeRequest
-import io.github.smiley4.ktoropenapi.delete
-import io.github.smiley4.ktoropenapi.get
-import io.github.smiley4.ktoropenapi.patch
-import io.github.smiley4.ktoropenapi.post
+import io.craftpanel.master.auth.*
+import io.craftpanel.master.service.*
+import io.github.smiley4.ktoropenapi.*
 import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*
@@ -21,7 +13,6 @@ import kotlin.uuid.Uuid
 fun Route.nodesRoutes(nodeService: NodeService) {
     authenticate(JWT_AUTH) {
         route("/api/nodes") {
-
             get("", {
                 operationId = "listNodes"
                 summary = "List nodes"
@@ -128,7 +119,10 @@ fun Route.nodesRoutes(nodeService: NodeService) {
             patch("/{id}", {
                 operationId = "updateNode"
                 summary = "Update node"
-                request { pathParameter<String>("id"); body<PatchNodeRequest>() }
+                request {
+                    pathParameter<String>("id")
+                    body<PatchNodeRequest>()
+                }
                 response {
                     code(HttpStatusCode.NoContent) { }
                     code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
@@ -185,10 +179,8 @@ fun Route.nodesRoutes(nodeService: NodeService) {
     }
 }
 
-private fun parseNodeId(raw: String?): Uuid? =
-    raw?.let {
-        runCatching {
-            Uuid.parse(it)
-
-        }.getOrNull()
-    }
+private fun parseNodeId(raw: String?): Uuid? = raw?.let {
+    runCatching {
+        Uuid.parse(it)
+    }.getOrNull()
+}

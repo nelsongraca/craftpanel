@@ -1,26 +1,16 @@
 package io.craftpanel.master.routes
 
-import io.craftpanel.master.auth.JWT_AUTH
-import io.craftpanel.master.auth.Permission
-import io.craftpanel.master.auth.requireServerPermission
+import io.craftpanel.master.auth.*
 import io.craftpanel.master.grpc.DataServiceProxy
-import io.craftpanel.master.routes.dto.CopyRequest
-import io.craftpanel.master.routes.dto.ListFilesResponse
-import io.craftpanel.master.routes.dto.MkdirRequest
-import io.craftpanel.master.routes.dto.MoveRequest
-import io.craftpanel.master.routes.dto.ReadFileResponse
-import io.craftpanel.master.routes.dto.UploadResponse
-import io.github.smiley4.ktoropenapi.delete
-import io.github.smiley4.ktoropenapi.get
-import io.github.smiley4.ktoropenapi.post
-import io.github.smiley4.ktoropenapi.put
+import io.craftpanel.master.routes.dto.*
+import io.github.smiley4.ktoropenapi.*
 import io.ktor.http.*
 import io.ktor.http.content.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-import io.ktor.utils.io.readTo
+import io.ktor.utils.io.*
 import kotlinx.io.asSink
 
 // ── Route setup ───────────────────────────────────────────────────────────────
@@ -28,11 +18,13 @@ import kotlinx.io.asSink
 fun Route.filesRoutes(proxy: DataServiceProxy) {
     authenticate(JWT_AUTH) {
         route("/api/servers/{id}/files") {
-
             get("", {
                 operationId = "listServerFiles"
                 summary = "List server files"
-                request { pathParameter<String>("id"); queryParameter<String>("path") { required = false } }
+                request {
+                    pathParameter<String>("id")
+                    queryParameter<String>("path") { required = false }
+                }
                 response {
                     code(HttpStatusCode.OK) { body<ListFilesResponse>() }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
@@ -48,7 +40,10 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
             get("/content", {
                 operationId = "readServerFile"
                 summary = "Read server file content"
-                request { pathParameter<String>("id"); queryParameter<String>("path") { required = true } }
+                request {
+                    pathParameter<String>("id")
+                    queryParameter<String>("path") { required = true }
+                }
                 response {
                     code(HttpStatusCode.OK) { body<ReadFileResponse>() }
                     code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
@@ -122,6 +117,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     .forEachPart { part ->
                         when {
                             part is PartData.FormItem && part.name == "path" -> uploadPath = part.value
+
                             part is PartData.FileItem && part.name == "file" -> {
                                 val baos = java.io.ByteArrayOutputStream()
                                 part.provider()
@@ -144,7 +140,10 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
             get("/download", {
                 operationId = "downloadServerFile"
                 summary = "Download a file from the server"
-                request { pathParameter<String>("id"); queryParameter<String>("path") { required = true } }
+                request {
+                    pathParameter<String>("id")
+                    queryParameter<String>("path") { required = true }
+                }
                 response {
                     code(HttpStatusCode.OK) { body<ByteArray>() }
                     code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
@@ -202,7 +201,10 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
             post("/move", {
                 operationId = "moveServerFile"
                 summary = "Move or rename a file"
-                request { pathParameter<String>("id"); body<MoveRequest>() }
+                request {
+                    pathParameter<String>("id")
+                    body<MoveRequest>()
+                }
                 response {
                     code(HttpStatusCode.NoContent) { }
                     code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
@@ -220,7 +222,10 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
             post("/copy", {
                 operationId = "copyServerFile"
                 summary = "Copy a file or directory"
-                request { pathParameter<String>("id"); body<CopyRequest>() }
+                request {
+                    pathParameter<String>("id")
+                    body<CopyRequest>()
+                }
                 response {
                     code(HttpStatusCode.NoContent) { }
                     code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
@@ -238,7 +243,10 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
             post("/mkdir", {
                 operationId = "mkdirServerFile"
                 summary = "Create a directory"
-                request { pathParameter<String>("id"); body<MkdirRequest>() }
+                request {
+                    pathParameter<String>("id")
+                    body<MkdirRequest>()
+                }
                 response {
                     code(HttpStatusCode.NoContent) { }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }

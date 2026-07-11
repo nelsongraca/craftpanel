@@ -1,22 +1,12 @@
 package craftpanel.systemtest.routing
 
-import craftpanel.systemtest.client.model.CreateNetworkRequest
-import craftpanel.systemtest.client.model.EnvVarItem
-import craftpanel.systemtest.client.model.PatchExposureRequest
-import craftpanel.systemtest.client.model.PutEnvVarsRequest
-import craftpanel.systemtest.client.model.ServerStatus
+import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.SharedStack
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
-import java.io.DataInputStream
-import java.io.DataOutputStream
-import java.io.EOFException
-import java.io.OutputStream
+import kotlinx.coroutines.*
+import java.io.*
 import java.net.InetSocketAddress
 import java.net.Socket
 import kotlin.time.Duration.Companion.milliseconds
@@ -69,7 +59,7 @@ class McRouterRoutingTest : BaseSystemTest() {
             val network = api.createNetwork(
                 CreateNetworkRequest(
                     name = "mcrouter-net-${System.currentTimeMillis()}",
-                    domainSuffix = domainSuffix,
+                    domainSuffix = domainSuffix
                 )
             )
             networkId = network.id
@@ -141,7 +131,7 @@ class McRouterRoutingTest : BaseSystemTest() {
                     PatchExposureRequest(
                         exposedExternally = true,
                         publicSubdomain = subdomainC,
-                        customHostname = "",  // empty string = clear
+                        customHostname = "" // empty string = clear
                     )
                 )
                 api.startServer(serverIdC)
@@ -189,11 +179,7 @@ class McRouterRoutingTest : BaseSystemTest() {
      * Creates a server with both a managed subdomain and a custom hostname.
      * Both hostnames should route to the same backend via mc-router.
      */
-    private suspend fun startExposedServerWithCustomHostname(
-        subdomain: String,
-        customHostname: String,
-        motd: String,
-    ): String {
+    private suspend fun startExposedServerWithCustomHostname(subdomain: String, customHostname: String, motd: String): String {
         val serverId = helper.createTestServer(nodeId, networkId = networkId)
         api.replaceEnvVars(
             serverId,
@@ -204,7 +190,7 @@ class McRouterRoutingTest : BaseSystemTest() {
             PatchExposureRequest(
                 exposedExternally = true,
                 publicSubdomain = subdomain,
-                customHostname = customHostname,
+                customHostname = customHostname
             )
         )
         api.startServer(serverId)
@@ -245,7 +231,8 @@ class McRouterRoutingTest : BaseSystemTest() {
             System.err.println("[mcrouter-diag] router host port bindings: ${router.networkSettings?.ports?.bindings}")
             System.err.println(
                 "[mcrouter-diag] router env IN_DOCKER: " +
-                        (router.config?.env?.firstOrNull { it.startsWith("IN_DOCKER") } ?: "<unset>"))
+                    (router.config?.env?.firstOrNull { it.startsWith("IN_DOCKER") } ?: "<unset>")
+            )
 
             // Backends carrying the routing label and the networks they live on.
             docker.listContainersCmd()
@@ -258,7 +245,7 @@ class McRouterRoutingTest : BaseSystemTest() {
                     }.getOrNull() ?: emptySet()
                     System.err.println(
                         "[mcrouter-diag] backend ${c.names?.joinToString()} " +
-                                "host=${c.labels?.get("mc-router.host")} network=${c.labels?.get("mc-router.network")} attachedTo=$nets"
+                            "host=${c.labels?.get("mc-router.host")} network=${c.labels?.get("mc-router.network")} attachedTo=$nets"
                     )
                     System.err.println("[mcrouter-diag] backend ${c.names?.joinToString()} logs:\n${tailLogs(c.id)}")
                 }
@@ -297,11 +284,11 @@ class McRouterRoutingTest : BaseSystemTest() {
             // Handshake (packet id 0x00): protocolVersion, serverAddress, serverPort, nextState=1 (status)
             val handshake = buildPacket {
                 writeVarInt(it, 0x00)
-                writeVarInt(it, 769)            // protocol 1.21.4
+                writeVarInt(it, 769) // protocol 1.21.4
                 writeString(it, serverAddress)
                 it.write((SharedStack.mcRouterPort ushr 8) and 0xFF)
                 it.write(SharedStack.mcRouterPort and 0xFF)
-                writeVarInt(it, 1)              // next state: status
+                writeVarInt(it, 1) // next state: status
             }
             out.write(handshake)
 
@@ -310,7 +297,7 @@ class McRouterRoutingTest : BaseSystemTest() {
             out.flush()
 
             // Status response: VarInt(len) VarInt(0x00) VarInt(jsonLen) json
-            readVarInt(input)                   // packet length
+            readVarInt(input) // packet length
             val packetId = readVarInt(input)
             require(packetId == 0x00) { "Unexpected status packet id $packetId" }
             val jsonLen = readVarInt(input)

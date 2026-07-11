@@ -7,9 +7,8 @@ import org.slf4j.LoggerFactory
 import kotlin.time.Clock
 import kotlin.time.Instant
 
-class BackupHandler(
-    private val agentEvents: MutableSharedFlow<AgentEvent>,
-) {
+class BackupHandler(private val agentEvents: MutableSharedFlow<AgentEvent>) {
+
     private val log = LoggerFactory.getLogger(BackupHandler::class.java)
 
     suspend fun handleBackupProgress(msg: AgentMessage, nodeId: String) {
@@ -21,7 +20,7 @@ class BackupHandler(
             AgentEvent.BackupProgressEvent(
                 serverId = msg.backupProgress.serverId,
                 backupId = msg.backupProgress.backupId,
-                percentComplete = msg.backupProgress.percentComplete,
+                percentComplete = msg.backupProgress.percentComplete
             )
         )
     }
@@ -42,7 +41,7 @@ class BackupHandler(
             success = msg.backupComplete.success,
             sizeBytes = msg.backupComplete.sizeBytes,
             errorMessage = if (!msg.backupComplete.success) msg.backupComplete.errorMessage else "",
-            completedAt = completedAt,
+            completedAt = completedAt
         )
         agentEvents.emit(backupCompleteEvent)
     }

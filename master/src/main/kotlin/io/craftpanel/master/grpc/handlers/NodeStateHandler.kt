@@ -1,16 +1,13 @@
 package io.craftpanel.master.grpc.handlers
 
+import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.proto.AgentMessage
-import io.craftpanel.proto.NodeStateSnapshot
 import kotlinx.coroutines.flow.MutableSharedFlow
 import org.slf4j.LoggerFactory
-import io.craftpanel.master.domain.AgentEvent
 
-class NodeStateHandler(
-    private val agentEvents: MutableSharedFlow<AgentEvent>,
-    private val nodeStateReconciler: NodeStateReconciler,
-) {
+class NodeStateHandler(private val agentEvents: MutableSharedFlow<AgentEvent>, private val nodeStateReconciler: NodeStateReconciler) {
+
     private val log = LoggerFactory.getLogger(NodeStateHandler::class.java)
 
     suspend fun handle(msg: AgentMessage, nodeId: String) {

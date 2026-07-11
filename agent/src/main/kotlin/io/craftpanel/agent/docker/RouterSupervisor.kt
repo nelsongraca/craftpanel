@@ -6,24 +6,22 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.min
 import kotlin.time.Duration.Companion.seconds
 
-class RouterSupervisor(
-    private val provisioner: McRouterProvisioner,
-) {
+class RouterSupervisor(private val provisioner: McRouterProvisioner) {
 
     private val log = LoggerFactory.getLogger(RouterSupervisor::class.java)
-    private val _running = AtomicBoolean(false)
+    private val _isRunning = AtomicBoolean(false)
 
-    val isRunning: Boolean get() = _running.get()
+    val isRunning: Boolean get() = _isRunning.get()
 
     suspend fun run() {
         var backoffSeconds = 5L
         while (true) {
             val ok = runCatching {
                 provisioner.ensureRunning()
-                _running.set(true)
+                _isRunning.set(true)
                 log.info("mc-router running")
             }.onFailure { e ->
-                _running.set(false)
+                _isRunning.set(false)
                 log.warn("mc-router provisioning failed — retrying in ${backoffSeconds}s: ${e.message}")
             }.isSuccess
 
@@ -41,6 +39,7 @@ class RouterSupervisor(
     }
 
     companion object {
+
         private val HEALTHY_INTERVAL = 60.seconds
     }
 }

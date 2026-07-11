@@ -5,15 +5,8 @@ import com.github.dockerjava.core.DefaultDockerClientConfig
 import com.github.dockerjava.core.DockerClientImpl
 import com.github.dockerjava.httpclient5.ApacheDockerHttpClient
 import io.craftpanel.agent.config.AgentConfig
-import io.craftpanel.agent.docker.ContainerManager
-import io.craftpanel.agent.docker.MetricsCollector
-import io.craftpanel.agent.docker.NetworkManager
-import io.craftpanel.agent.docker.RsyncMigrator
-import io.craftpanel.agent.grpc.handlers.BackupHandler
-import io.craftpanel.agent.grpc.handlers.ConsoleHandler
-import io.craftpanel.agent.grpc.handlers.ContainerHandler
-import io.craftpanel.agent.grpc.handlers.FileHandler
-import io.craftpanel.agent.grpc.handlers.MigrationHandler
+import io.craftpanel.agent.docker.*
+import io.craftpanel.agent.grpc.handlers.*
 import org.koin.dsl.module
 import java.time.Duration
 

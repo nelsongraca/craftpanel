@@ -1,8 +1,6 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.service.repo.FakeNodeRepository
-import io.craftpanel.master.service.repo.FakeRepositories
-import io.craftpanel.master.service.repo.FakeServerRepository
+import io.craftpanel.master.service.repo.*
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 

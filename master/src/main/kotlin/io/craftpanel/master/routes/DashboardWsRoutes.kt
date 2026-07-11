@@ -2,14 +2,11 @@
 
 package io.craftpanel.master.routes
 
-import io.craftpanel.master.auth.Permission
-import io.craftpanel.master.auth.PermissionResolver
-import io.craftpanel.master.auth.WsTicketService
+import io.craftpanel.master.auth.*
 import io.craftpanel.master.service.DashboardService
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
-import io.ktor.websocket.DefaultWebSocketSession
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch

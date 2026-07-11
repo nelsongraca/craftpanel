@@ -13,8 +13,7 @@ class MigrationRunner(private val steps: List<MigrationStep>, private val plan: 
         try {
             for (step in steps) {
                 val stepId = coord.startStep(plan, step.stepNumber, step.description)
-                val result = step.execute(plan, coord)
-                when (result) {
+                when (val result = step.execute(plan, coord)) {
                     is StepResult.Success -> coord.completeStep(stepId, true)
 
                     is StepResult.Failure -> {

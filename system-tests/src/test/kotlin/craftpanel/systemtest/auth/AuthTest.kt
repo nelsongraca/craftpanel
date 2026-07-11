@@ -1,13 +1,10 @@
 package craftpanel.systemtest.auth
 
 import craftpanel.systemtest.client.model.LoginRequest
-import craftpanel.systemtest.harness.ADMIN_EMAIL
-import craftpanel.systemtest.harness.ADMIN_PASSWORD
-import craftpanel.systemtest.harness.BaseSystemTest
+import craftpanel.systemtest.harness.*
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeEmpty
-import org.openapitools.client.infrastructure.ApiClient
 import org.openapitools.client.infrastructure.ClientException
 
 class AuthTest : BaseSystemTest() {

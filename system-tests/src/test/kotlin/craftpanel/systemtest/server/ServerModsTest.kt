@@ -1,9 +1,6 @@
 package craftpanel.systemtest.server
 
-import craftpanel.systemtest.client.model.CreateModRequest
-import craftpanel.systemtest.client.model.PatchModRequest
-import craftpanel.systemtest.client.model.ServerStatus
-import craftpanel.systemtest.client.model.ModPinStrategy
+import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain
@@ -47,7 +44,7 @@ class ServerModsTest : BaseSystemTest() {
                         modrinthProjectId = "lithium",
                         displayName = "Lithium",
                         pinStrategy = ModPinStrategy.PINNED,
-                        pinnedVersionId = "mc1.21-0.13.0",
+                        pinnedVersionId = "mc1.21-0.13.0"
                     )
                 )
                 val mods = api.listMods(serverId)
@@ -63,7 +60,7 @@ class ServerModsTest : BaseSystemTest() {
                         modrinthProjectId = "lithium",
                         displayName = "Lithium",
                         pinStrategy = ModPinStrategy.PINNED,
-                        pinnedVersionId = "mc1.21-0.13.0",
+                        pinnedVersionId = "mc1.21-0.13.0"
                     )
                 )
                 api.addMod(
@@ -72,7 +69,7 @@ class ServerModsTest : BaseSystemTest() {
                         modrinthProjectId = "sodium",
                         displayName = "Sodium",
                         pinStrategy = ModPinStrategy.PINNED,
-                        pinnedVersionId = "mc1.21-0.5.0",
+                        pinnedVersionId = "mc1.21-0.5.0"
                     )
                 )
                 val mods = api.listMods(serverId)
@@ -93,7 +90,7 @@ class ServerModsTest : BaseSystemTest() {
                         modrinthProjectId = "lithium",
                         displayName = "Lithium",
                         pinStrategy = ModPinStrategy.PINNED,
-                        pinnedVersionId = "mc1.21-0.13.0",
+                        pinnedVersionId = "mc1.21-0.13.0"
                     )
                 )
                 val ex = shouldThrow<ClientException> {
@@ -103,7 +100,7 @@ class ServerModsTest : BaseSystemTest() {
                             modrinthProjectId = "lithium",
                             displayName = "Lithium",
                             pinStrategy = ModPinStrategy.PINNED,
-                            pinnedVersionId = "mc1.21-0.13.0",
+                            pinnedVersionId = "mc1.21-0.13.0"
                         )
                     )
                 }
@@ -120,11 +117,12 @@ class ServerModsTest : BaseSystemTest() {
                         modrinthProjectId = "lithium",
                         displayName = "Lithium",
                         pinStrategy = ModPinStrategy.PINNED,
-                        pinnedVersionId = "mc1.21-0.13.0",
+                        pinnedVersionId = "mc1.21-0.13.0"
                     )
                 )
                 api.updateMod(
-                    serverId, mod.id,
+                    serverId,
+                    mod.id,
                     PatchModRequest(pinnedVersionId = "mc1.21-0.14.0")
                 )
                 val mods = api.listMods(serverId)
@@ -140,11 +138,12 @@ class ServerModsTest : BaseSystemTest() {
                         modrinthProjectId = "lithium",
                         displayName = "Lithium",
                         pinStrategy = ModPinStrategy.PINNED,
-                        pinnedVersionId = "mc1.21-0.13.0",
+                        pinnedVersionId = "mc1.21-0.13.0"
                     )
                 )
                 api.updateMod(
-                    serverId, mod.id,
+                    serverId,
+                    mod.id,
                     PatchModRequest(pinStrategy = ModPinStrategy.LATEST, pinnedVersionId = null)
                 )
                 val mods = api.listMods(serverId)
@@ -164,7 +163,7 @@ class ServerModsTest : BaseSystemTest() {
                         modrinthProjectId = "lithium",
                         displayName = "Lithium",
                         pinStrategy = ModPinStrategy.PINNED,
-                        pinnedVersionId = "mc1.21-0.13.0",
+                        pinnedVersionId = "mc1.21-0.13.0"
                     )
                 )
                 api.deleteMod(serverId, mod.id)

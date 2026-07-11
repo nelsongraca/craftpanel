@@ -16,12 +16,8 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.filterIsInstance
-import kotlinx.coroutines.flow.flow
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.*
+import kotlinx.coroutines.flow.*
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -278,7 +274,10 @@ class ControlServiceImplTest :
                 val rawKey = "raw-node-key"
                 val keyHash = java.security.MessageDigest.getInstance("SHA-256")
                     .digest(rawKey.toByteArray())
-                    .let { java.util.HexFormat.of().formatHex(it) }
+                    .let {
+                        java.util.HexFormat.of()
+                            .formatHex(it)
+                    }
 
                 val created = fakeRepo.create(
                     displayName = "n",
@@ -301,7 +300,7 @@ class ControlServiceImplTest :
                     }
                 )
 
-                response.status shouldBe io.craftpanel.proto.IdentifyNodeResponse.IdentifyStatus.ACTIVE
+                response.status shouldBe IdentifyNodeResponse.IdentifyStatus.ACTIVE
                 response.nodeId shouldBe created.id.toString()
 
                 val updated = fakeRepo.findById(created.id)

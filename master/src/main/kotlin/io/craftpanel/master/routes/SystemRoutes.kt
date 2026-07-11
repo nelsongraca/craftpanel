@@ -1,11 +1,7 @@
 package io.craftpanel.master.routes
 
-import io.craftpanel.master.auth.Permission
-import io.craftpanel.master.auth.JWT_AUTH
-import io.craftpanel.master.auth.requirePermission
-import io.craftpanel.master.service.PatchSettingsRequest
-import io.craftpanel.master.service.SystemService
-import io.craftpanel.master.service.SystemSettingsResponse
+import io.craftpanel.master.auth.*
+import io.craftpanel.master.service.*
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.patch
 import io.ktor.http.*
@@ -17,7 +13,6 @@ import io.ktor.server.routing.*
 fun Route.systemRoutes(systemService: SystemService) {
     authenticate(JWT_AUTH) {
         route("/api/system/settings") {
-
             get("", {
                 operationId = "getSystemSettings"
                 summary = "Get system settings"

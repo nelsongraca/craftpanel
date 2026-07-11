@@ -1,9 +1,6 @@
 package craftpanel.systemtest.server
 
-import craftpanel.systemtest.client.model.CopyRequest
-import craftpanel.systemtest.client.model.MkdirRequest
-import craftpanel.systemtest.client.model.MoveRequest
-import craftpanel.systemtest.client.model.ServerStatus
+import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.annotation.Isolate
@@ -212,8 +209,11 @@ class ServerFilesTest : BaseSystemTest() {
                 should("downloads an existing file") {
                     api.writeServerFile(serverId, path = "/download-me.txt", body = "download content")
                     val bytes = api.downloadServerFile(serverId, path = "/download-me.txt")
-                    String(bytes.map { it.toByte() }
-                        .toByteArray(), StandardCharsets.UTF_8) shouldBe "download content"
+                    String(
+                        bytes.map { it.toByte() }
+                            .toByteArray(),
+                        StandardCharsets.UTF_8
+                    ) shouldBe "download content"
                 }
 
                 should("download non-existent file returns 404") {

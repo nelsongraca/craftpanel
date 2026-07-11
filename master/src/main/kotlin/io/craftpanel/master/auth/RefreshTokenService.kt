@@ -2,11 +2,10 @@ package io.craftpanel.master.auth
 
 import io.craftpanel.master.service.repo.UserRepository
 import io.craftpanel.master.util.CryptoUtils
-import kotlinx.datetime.LocalDateTime
+import kotlinx.datetime.*
 import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import java.security.MessageDigest
-import java.util.HexFormat
+import java.util.*
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
 import kotlin.uuid.Uuid
@@ -61,5 +60,9 @@ class RefreshTokenService(private val userRepository: UserRepository) {
     private fun generateRaw(): String = CryptoUtils.generateToken(48)
 
     private fun sha256Hex(input: String): String = // Result is used only as a DB lookup key (SQL WHERE) — never compared in Kotlin code.
-        HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(input.toByteArray()))
+        HexFormat.of()
+            .formatHex(
+                MessageDigest.getInstance("SHA-256")
+                    .digest(input.toByteArray())
+            )
 }

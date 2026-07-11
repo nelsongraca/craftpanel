@@ -2,33 +2,21 @@ package io.craftpanel.master
 
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.config.JwtConfig
-import io.craftpanel.master.service.BadGatewayException
-import io.craftpanel.master.service.BadRequestException
-import io.craftpanel.master.service.ConflictException
-import io.craftpanel.master.service.ContainerLifecycleException
-import io.craftpanel.master.service.ForbiddenException
-import io.craftpanel.master.service.NotFoundException
-import io.craftpanel.master.service.UnprocessableException
-import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
-import io.ktor.http.HttpStatusCode
-import io.ktor.serialization.kotlinx.json.json
-import io.ktor.server.application.Application
-import io.ktor.server.application.install
-import io.ktor.server.auth.Authentication
-import io.ktor.server.auth.jwt.JWTPrincipal
-import io.ktor.server.auth.jwt.jwt
-import io.ktor.server.plugins.contentnegotiation.ContentNegotiation
-import io.ktor.server.plugins.statuspages.StatusPages
-import io.ktor.server.response.respond
-import io.ktor.server.routing.Route
-import io.ktor.server.routing.routing
-import io.ktor.server.testing.ApplicationTestBuilder
+import io.craftpanel.master.service.*
+import io.ktor.http.*
+import io.ktor.serialization.kotlinx.json.*
+import io.ktor.server.application.*
+import io.ktor.server.auth.*
+import io.ktor.server.auth.jwt.*
+import io.ktor.server.plugins.contentnegotiation.*
+import io.ktor.server.plugins.statuspages.*
+import io.ktor.server.response.*
+import io.ktor.server.routing.*
+import io.ktor.server.testing.*
 import kotlinx.serialization.json.Json
+import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
 
-fun ApplicationTestBuilder.testApp(
-    extraPlugins: Application.() -> Unit = {},
-    routes: Route.(jwtManager: JwtManager) -> Unit,
-) {
+fun ApplicationTestBuilder.testApp(extraPlugins: Application.() -> Unit = {}, routes: Route.(jwtManager: JwtManager) -> Unit) {
     application {
         install(ContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         install(StatusPages) {
@@ -45,7 +33,7 @@ fun ApplicationTestBuilder.testApp(
             secret = "test-secret-that-is-at-least-32-characters!!",
             issuer = "craftpanel-test",
             audience = "craftpanel-test",
-            expirySeconds = 900,
+            expirySeconds = 900
         )
         val jwtManager = JwtManager(jwtConfig)
         install(Authentication) {

@@ -2,14 +2,7 @@ package io.craftpanel.agent.docker
 
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
-import com.github.dockerjava.api.model.AccessMode
-import com.github.dockerjava.api.model.Bind
-import com.github.dockerjava.api.model.ExposedPort
-import com.github.dockerjava.api.model.Frame
-import com.github.dockerjava.api.model.HostConfig
-import com.github.dockerjava.api.model.Ports
-import com.github.dockerjava.api.model.RestartPolicy
-import com.github.dockerjava.api.model.Volume
+import com.github.dockerjava.api.model.*
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.net.Socket

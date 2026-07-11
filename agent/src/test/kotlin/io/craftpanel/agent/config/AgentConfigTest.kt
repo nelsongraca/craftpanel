@@ -1,72 +1,73 @@
 package io.craftpanel.agent.config
 
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.booleans.shouldBeFalse
+import io.kotest.matchers.booleans.shouldBeTrue
+import io.kotest.matchers.shouldBe
 
-class AgentConfigTest : FunSpec({
-    test("fromEnv returns defaults when no overrides set") {
-        val config = AgentConfig.fromEnv()
-        config.masterPort.let { if (System.getenv("MASTER_GRPC_PORT") == null) it else 50051 } shouldBe 50051
-    }
+class AgentConfigTest :
+    FunSpec({
+        test("fromEnv returns defaults when no overrides set") {
+            val config = AgentConfig.fromEnv()
+            config.masterPort.let { if (System.getenv("MASTER_GRPC_PORT") == null) it else 50051 } shouldBe 50051
+        }
 
-    test("tlsEnabled is true when tlsCertPath is non-blank") {
-        val config = config(tlsCertPath = "/etc/certs/ca.pem")
-        config.tlsEnabled.shouldBeTrue()
-    }
+        test("tlsEnabled is true when tlsCertPath is non-blank") {
+            val config = config(tlsCertPath = "/etc/certs/ca.pem")
+            config.tlsEnabled.shouldBeTrue()
+        }
 
-    test("tlsEnabled is false when tlsCertPath is blank") {
-        val config = config(tlsCertPath = "")
-        config.tlsEnabled.shouldBeFalse()
-    }
+        test("tlsEnabled is false when tlsCertPath is blank") {
+            val config = config(tlsCertPath = "")
+            config.tlsEnabled.shouldBeFalse()
+        }
 
-    test("tlsEnabled is false when tlsCertPath is whitespace") {
-        val config = config(tlsCertPath = "   ")
-        config.tlsEnabled.shouldBeFalse()
-    }
+        test("tlsEnabled is false when tlsCertPath is whitespace") {
+            val config = config(tlsCertPath = "   ")
+            config.tlsEnabled.shouldBeFalse()
+        }
 
-    test("validate throws in prod when bootstrapToken is changeme") {
-        val config = config(profile = "prod", bootstrapToken = "changeme")
-        val ex = runCatching { config.validate() }.exceptionOrNull()
-        (ex is IllegalStateException) shouldBe true
-    }
+        test("validate throws in prod when bootstrapToken is changeme") {
+            val config = config(profile = "prod", bootstrapToken = "changeme")
+            val ex = runCatching { config.validate() }.exceptionOrNull()
+            (ex is IllegalStateException) shouldBe true
+        }
 
-    test("validate throws in prod when TLS paths missing") {
-        val config = config(profile = "prod", bootstrapToken = "valid-token-at-least-16", tlsCertPath = "")
-        val ex = runCatching { config.validate() }.exceptionOrNull()
-        (ex is IllegalStateException) shouldBe true
-    }
+        test("validate throws in prod when TLS paths missing") {
+            val config = config(profile = "prod", bootstrapToken = "valid-token-at-least-16", tlsCertPath = "")
+            val ex = runCatching { config.validate() }.exceptionOrNull()
+            (ex is IllegalStateException) shouldBe true
+        }
 
-    test("validate passes in dev profile regardless of tls") {
-        val config = config(profile = "dev", tlsCertPath = "", bootstrapToken = "changeme")
-        config.validate() // must not throw
-    }
+        test("validate passes in dev profile regardless of tls") {
+            val config = config(profile = "dev", tlsCertPath = "", bootstrapToken = "changeme")
+            config.validate() // must not throw
+        }
 
-    test("hostnameOverride defaults to empty string") {
-        val config = config()
-        config.hostnameOverride shouldBe ""
-    }
+        test("hostnameOverride defaults to empty string") {
+            val config = config()
+            config.hostnameOverride shouldBe ""
+        }
 
-    test("hostnameOverride reflects configured value") {
-        val config = config(hostnameOverride = "my-node.example.com")
-        config.hostnameOverride shouldBe "my-node.example.com"
-    }
+        test("hostnameOverride reflects configured value") {
+            val config = config(hostnameOverride = "my-node.example.com")
+            config.hostnameOverride shouldBe "my-node.example.com"
+        }
 
-    test("data class equality holds for identical configs") {
-        val a = config()
-        val b = config()
-        a shouldBe b
-    }
+        test("data class equality holds for identical configs") {
+            val a = config()
+            val b = config()
+            a shouldBe b
+        }
 
-    test("copy preserves all fields") {
-        val original = config(masterAddress = "master.example.com", masterPort = 9090)
-        val copy = original.copy(masterPort = 9091)
-        copy.masterAddress shouldBe "master.example.com"
-        copy.masterPort shouldBe 9091
-        copy.tlsCertPath shouldBe original.tlsCertPath
-    }
-}) {
+        test("copy preserves all fields") {
+            val original = config(masterAddress = "master.example.com", masterPort = 9090)
+            val copy = original.copy(masterPort = 9091)
+            copy.masterAddress shouldBe "master.example.com"
+            copy.masterPort shouldBe 9091
+            copy.tlsCertPath shouldBe original.tlsCertPath
+        }
+    }) {
 
     companion object {
 
@@ -88,7 +89,7 @@ class AgentConfigTest : FunSpec({
             hostnameOverride: String = "",
             craftpanelNetwork: String = "craftpanel",
             containerNamePrefix: String = "craftpanel",
-            metricsPollIntervalSeconds: Int = 60,
+            metricsPollIntervalSeconds: Int = 60
         ) = AgentConfig(
             profile = profile,
             masterAddress = masterAddress,

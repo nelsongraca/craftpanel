@@ -85,7 +85,7 @@ class CraftPanelStack {
     private var coverageMode = false
     private var agentJar: File? = null
     private var coverageDir: File? = null
-    private var _gatewayIp: String? = null
+    private var cachedGatewayIp: String? = null
     private val agentDataDirs = mutableMapOf<String, File>()
 
     var nodeId: String = ""
@@ -123,19 +123,13 @@ class CraftPanelStack {
         nodeId = ids.firstOrNull() ?: ""
     }
 
-    fun start(
-        coverageEnabled: Boolean = false,
-        agentJar: File? = null,
-        coverageDir: File? = null,
-        nodeCount: Int = 1,
-    ) {
+    fun start(coverageEnabled: Boolean = false, agentJar: File? = null, coverageDir: File? = null, nodeCount: Int = 1) {
         this.coverageMode = coverageEnabled
         this.agentJar = agentJar
         this.coverageDir = coverageDir
         try {
             startInternal(nodeCount)
-        }
-        catch (t: Throwable) {
+        } catch (t: Throwable) {
             runCatching { stop() }.onFailure { stopErr ->
                 System.err.println("[start-cleanup] stop() after failed start threw: ${stopErr.message}")
             }
@@ -268,9 +262,13 @@ class CraftPanelStack {
         Files.setPosixFilePermissions(
             dataDir.toPath(),
             EnumSet.of(
-                PosixFilePermission.OWNER_READ, PosixFilePermission.OWNER_WRITE, PosixFilePermission.OWNER_EXECUTE,
-                PosixFilePermission.GROUP_READ, PosixFilePermission.GROUP_EXECUTE,
-                PosixFilePermission.OTHERS_READ, PosixFilePermission.OTHERS_EXECUTE,
+                PosixFilePermission.OWNER_READ,
+                PosixFilePermission.OWNER_WRITE,
+                PosixFilePermission.OWNER_EXECUTE,
+                PosixFilePermission.GROUP_READ,
+                PosixFilePermission.GROUP_EXECUTE,
+                PosixFilePermission.OTHERS_READ,
+                PosixFilePermission.OTHERS_EXECUTE
             )
         )
         dataDir.deleteOnExit()
@@ -317,19 +315,19 @@ class CraftPanelStack {
     }
 
     private fun computeGatewayIp(): String {
-        if (_gatewayIp == null) {
+        if (cachedGatewayIp == null) {
             val networkId = dockerClient.listNetworksCmd()
                 .withNameFilter(networkName)
                 .exec()
                 .firstOrNull()?.id
                 ?: error("Network '$networkName' not found")
-            _gatewayIp = dockerClient.inspectNetworkCmd()
+            cachedGatewayIp = dockerClient.inspectNetworkCmd()
                 .withNetworkId(networkId)
                 .exec()
                 .ipam?.config?.firstOrNull()?.gateway
                 ?: error("No gateway IP for network '$networkName'")
         }
-        return _gatewayIp!!
+        return cachedGatewayIp!!
     }
 
     fun addAgent(): String {
@@ -407,11 +405,10 @@ class CraftPanelStack {
                             .exec()
                     }
                 }
-            }
-            else {
+            } else {
                 System.err.println(
                     "[cleanup] WARNING: ${remaining.size} container(s) still present after $attempts attempts: " +
-                            remaining.joinToString { it.names.firstOrNull() ?: it.id }
+                        remaining.joinToString { it.names.firstOrNull() ?: it.id }
                 )
             }
         }

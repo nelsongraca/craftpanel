@@ -2,9 +2,7 @@ package io.craftpanel.agent.grpc
 
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.*
-import io.craftpanel.agent.grpc.handlers.BackupHandler
-import io.craftpanel.agent.grpc.handlers.ConsoleHandler
-import io.craftpanel.agent.grpc.handlers.ContainerHandler
+import io.craftpanel.agent.grpc.handlers.*
 import io.craftpanel.proto.*
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue

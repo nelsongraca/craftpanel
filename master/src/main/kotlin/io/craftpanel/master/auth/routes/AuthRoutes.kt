@@ -1,7 +1,6 @@
 package io.craftpanel.master.auth.routes
 
 import io.craftpanel.master.auth.*
-import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.config.RateLimitConfig
 import io.craftpanel.master.routes.ErrorResponse
 import io.craftpanel.master.routes.userId
@@ -35,7 +34,8 @@ private data class UserRecord(val userId: Uuid, val username: String, val email:
 
 private fun lookupUser(userRepository: UserRepository, email: String): UserRecord? {
     val credentials = userRepository.findCredentials(email) ?: return null
-    val groups = userRepository.getUserGlobalGroups(credentials.userId).map { it.groupName }
+    val groups = userRepository.getUserGlobalGroups(credentials.userId)
+        .map { it.groupName }
 
     return UserRecord(
         userId = credentials.userId,
@@ -52,7 +52,8 @@ private fun lookupUserById(userRepository: UserRepository, userId: Uuid): Triple
         ?.takeIf { it.isActive }
         ?: return null
 
-    val groups = userRepository.getUserGlobalGroups(userId).map { it.groupName }
+    val groups = userRepository.getUserGlobalGroups(userId)
+        .map { it.groupName }
 
     return Triple(user.username, user.email, groups)
 }

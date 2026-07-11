@@ -1,9 +1,6 @@
 package craftpanel.systemtest.config
 
-import craftpanel.systemtest.client.model.BackendInput
-import craftpanel.systemtest.client.model.CreateServerRequest
-import craftpanel.systemtest.client.model.PutProxyBackendsRequest
-import craftpanel.systemtest.client.model.ServerStatus
+import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.assertions.throwables.shouldThrow
@@ -85,8 +82,7 @@ class ProxyBackendTest : BaseSystemTest() {
                     result.backends.shouldHaveSize(2)
                     result.backends[0].order shouldBe 1
                     result.backends[1].order shouldBe 2
-                }
-                finally {
+                } finally {
                     runCatching { api.deleteServer(secondGame) }
                 }
             }
@@ -118,8 +114,7 @@ class ProxyBackendTest : BaseSystemTest() {
                         )
                     }
                     ex.statusCode shouldBe 409
-                }
-                finally {
+                } finally {
                     runCatching { api.deleteServer(sId) }
                 }
             }
@@ -159,15 +154,14 @@ class ProxyBackendTest : BaseSystemTest() {
                         )
                     }
                     ex.statusCode shouldBe 422
-                }
-                finally {
+                } finally {
                     runCatching { api.deleteServer(proxy.id) }
                 }
             }
 
             should("starts proxy server after backends configured") {
 
-            api.replaceProxyBackends(
+                api.replaceProxyBackends(
                     proxyServerId,
                     PutProxyBackendsRequest(
                         backends = listOf(

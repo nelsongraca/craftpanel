@@ -1,20 +1,11 @@
 package io.craftpanel.master.routes
 
-import io.craftpanel.master.TestDatabase
-import io.craftpanel.master.TestRepositories
-import io.craftpanel.master.auth.Argon2Hasher
-import io.craftpanel.master.auth.JwtManager
-import io.craftpanel.master.auth.TokenClaims
+import io.craftpanel.master.*
+import io.craftpanel.master.auth.*
 import io.craftpanel.master.config.JwtConfig
-import io.craftpanel.master.database.schema.Groups
-import io.craftpanel.master.database.schema.UserGroupAssignments
-import io.craftpanel.master.database.schema.Users
-import io.craftpanel.master.jsonClient
+import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.AssignmentService
-import io.craftpanel.master.service.repo.GroupRepositoryImpl
-import io.craftpanel.master.service.repo.NetworkRepositoryImpl
-import io.craftpanel.master.service.repo.UserRepositoryImpl
-import io.craftpanel.master.testApp
+import io.craftpanel.master.service.repo.*
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -23,10 +14,7 @@ import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.server.routing.*
 import io.ktor.server.testing.*
-import kotlinx.serialization.json.JsonObject
-import kotlinx.serialization.json.jsonArray
-import kotlinx.serialization.json.jsonObject
-import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.*
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll

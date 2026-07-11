@@ -2,10 +2,7 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.ServerStatus
-import io.craftpanel.master.service.repo.BackupRepository
-import io.craftpanel.master.service.repo.MigrationRepository
-import io.craftpanel.master.service.repo.NodeRepository
-import io.craftpanel.master.service.repo.ServerRepository
+import io.craftpanel.master.service.repo.*
 import io.craftpanel.proto.ContainerState
 import io.craftpanel.proto.NodeStateSnapshot
 import org.slf4j.LoggerFactory

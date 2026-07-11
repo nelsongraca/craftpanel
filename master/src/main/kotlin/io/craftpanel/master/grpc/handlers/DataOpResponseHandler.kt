@@ -5,9 +5,8 @@ import io.craftpanel.proto.AgentMessage
 import io.craftpanel.proto.ConsoleOutput
 import org.slf4j.LoggerFactory
 
-class DataOpResponseHandler(
-    private val context: DataOpContext,
-) {
+class DataOpResponseHandler(private val context: DataOpContext) {
+
     private val log = LoggerFactory.getLogger(DataOpResponseHandler::class.java)
 
     fun routeUnaryResponse(nodeId: String, requestId: String, msg: AgentMessage) {

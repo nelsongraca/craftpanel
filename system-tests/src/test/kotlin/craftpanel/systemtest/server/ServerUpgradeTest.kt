@@ -1,7 +1,7 @@
 package craftpanel.systemtest.server
 
-import craftpanel.systemtest.client.model.UpdateServerRequest
 import craftpanel.systemtest.client.model.ServerStatus
+import craftpanel.systemtest.client.model.UpdateServerRequest
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.matchers.shouldBe
 
@@ -12,7 +12,7 @@ class ServerUpgradeTest : BaseSystemTest() {
 
             context("mc_version change") {
 
-            lateinit var serverId: String
+                lateinit var serverId: String
 
                 beforeEach {
                     serverId = helper.createTestServer(nodeId)
@@ -62,7 +62,7 @@ class ServerUpgradeTest : BaseSystemTest() {
 
             context("itzg_image_tag change") {
 
-            lateinit var serverId: String
+                lateinit var serverId: String
 
                 beforeEach {
                     serverId = helper.createTestServer(nodeId)

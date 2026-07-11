@@ -6,9 +6,7 @@ import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.grpc.handlers.*
-import io.craftpanel.master.routes.dto.FileEntryResponse
-import io.craftpanel.master.routes.dto.ListFilesResponse
-import io.craftpanel.master.routes.dto.ReadFileResponse
+import io.craftpanel.master.routes.dto.*
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
 import io.craftpanel.proto.ErrorCode

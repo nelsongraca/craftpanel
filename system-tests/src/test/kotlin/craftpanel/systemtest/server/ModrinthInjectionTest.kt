@@ -1,8 +1,6 @@
 package craftpanel.systemtest.server
 
-import craftpanel.systemtest.client.model.CreateModRequest
-import craftpanel.systemtest.client.model.ServerStatus
-import craftpanel.systemtest.client.model.ModPinStrategy
+import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.matchers.collections.shouldContain
@@ -32,9 +30,10 @@ class ModrinthInjectionTest : BaseSystemTest() {
         afterTest {
             // Clear all mods so each test starts from a clean mod state
             runCatching {
-                api.listMods(serverId).values.flatten().forEach { mod ->
-                    runCatching { api.deleteMod(serverId, mod.id) }
-                }
+                api.listMods(serverId).values.flatten()
+                    .forEach { mod ->
+                        runCatching { api.deleteMod(serverId, mod.id) }
+                    }
             }
         }
 
@@ -57,7 +56,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                             modrinthProjectId = "lithium",
                             displayName = "Lithium",
                             pinStrategy = ModPinStrategy.PINNED,
-                            pinnedVersionId = "mc1.21-0.13.0",
+                            pinnedVersionId = "mc1.21-0.13.0"
                         )
                     )
 
@@ -78,7 +77,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                             modrinthProjectId = "lithium",
                             displayName = "Lithium",
                             pinStrategy = ModPinStrategy.PINNED,
-                            pinnedVersionId = "mc1.21-0.13.0",
+                            pinnedVersionId = "mc1.21-0.13.0"
                         )
                     )
                     api.addMod(
@@ -87,7 +86,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                             modrinthProjectId = "sodium",
                             displayName = "Sodium",
                             pinStrategy = ModPinStrategy.PINNED,
-                            pinnedVersionId = "mc1.21-0.5.0",
+                            pinnedVersionId = "mc1.21-0.5.0"
                         )
                     )
 
@@ -113,7 +112,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                             modrinthProjectId = "lithium",
                             displayName = "Lithium",
                             pinStrategy = ModPinStrategy.PINNED,
-                            pinnedVersionId = "mc1.21-0.13.0",
+                            pinnedVersionId = "mc1.21-0.13.0"
                         )
                     )
                     val sodium = api.addMod(
@@ -122,7 +121,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                             modrinthProjectId = "sodium",
                             displayName = "Sodium",
                             pinStrategy = ModPinStrategy.PINNED,
-                            pinnedVersionId = "mc1.21-0.5.0",
+                            pinnedVersionId = "mc1.21-0.5.0"
                         )
                     )
 
@@ -155,7 +154,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                         CreateModRequest(
                             modrinthProjectId = "lithium",
                             displayName = "Lithium",
-                            pinStrategy = ModPinStrategy.LATEST,
+                            pinStrategy = ModPinStrategy.LATEST
                         )
                     )
 
@@ -175,7 +174,6 @@ class ModrinthInjectionTest : BaseSystemTest() {
                     projects.none { it.startsWith("lithium:") } shouldBe true
                 }
             }
-
         }
     }
 

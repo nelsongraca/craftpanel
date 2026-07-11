@@ -1,8 +1,6 @@
 package craftpanel.systemtest.node
 
-import craftpanel.systemtest.client.model.NodeStatus
-import craftpanel.systemtest.client.model.PatchNodeRequest
-import craftpanel.systemtest.client.model.ServerStatus
+import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.SharedStack
 import io.kotest.assertions.throwables.shouldThrow
@@ -83,8 +81,7 @@ class NodeOperationsTest : BaseSystemTest() {
                     api.rejectNode(pending.id)
                     val rejected = api.getNode(pending.id)
                     rejected.status shouldBe NodeStatus.REJECTED
-                }
-                finally {
+                } finally {
                     SharedStack.removeAgent(containerId)
                 }
             }
@@ -97,8 +94,7 @@ class NodeOperationsTest : BaseSystemTest() {
 
                     val ex = shouldThrow<ClientException> { api.rejectNode(nodeId) }
                     ex.statusCode shouldBe 409
-                }
-                finally {
+                } finally {
                     runCatching { api.decommissionNode(nodeId) }
                     SharedStack.removeAgent(containerId)
                 }
@@ -117,8 +113,7 @@ class NodeOperationsTest : BaseSystemTest() {
 
                     val node = api.getNode(nodeId)
                     node.status shouldBe NodeStatus.ACTIVE
-                }
-                finally {
+                } finally {
                     runCatching { api.decommissionNode(nodeId) }
                     SharedStack.removeAgent(containerId)
                 }
@@ -131,8 +126,7 @@ class NodeOperationsTest : BaseSystemTest() {
                     nodeId = nodeHelper.trustFirstPendingNode()
                     val keyResponse = api.rotateNodeToken(nodeId)
                     keyResponse.nodeKey.shouldNotBeEmpty()
-                }
-                finally {
+                } finally {
                     runCatching { api.decommissionNode(nodeId) }
                     SharedStack.removeAgent(containerId)
                 }
@@ -150,8 +144,7 @@ class NodeOperationsTest : BaseSystemTest() {
                     api.decommissionNode(nodeId)
                     val node = api.getNode(nodeId)
                     node.status shouldBe NodeStatus.DECOMMISSIONED
-                }
-                finally {
+                } finally {
                     SharedStack.removeAgent(containerId)
                 }
             }
@@ -181,8 +174,7 @@ class NodeOperationsTest : BaseSystemTest() {
                         api.decommissionNode(nodeId)
                     }
                     ex.statusCode shouldBe 409
-                }
-                finally {
+                } finally {
                     runCatching { api.stopServer(serverId) }
                     runCatching { api.deleteServer(serverId) }
                     runCatching { api.decommissionNode(nodeId) }

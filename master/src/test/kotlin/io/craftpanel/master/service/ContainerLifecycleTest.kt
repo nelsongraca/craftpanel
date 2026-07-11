@@ -1,8 +1,6 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.TestAgentGateway
-import io.craftpanel.master.TestDatabase
-import io.craftpanel.master.TestRepositories
+import io.craftpanel.master.*
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.AgentEvent

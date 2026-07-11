@@ -1,10 +1,10 @@
 package craftpanel.systemtest.server
 
-import craftpanel.systemtest.client.model.ServerStatus
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.exception.NotFoundException
 import com.github.dockerjava.api.model.Frame
+import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.annotation.Isolate
@@ -18,7 +18,6 @@ import io.kotest.matchers.string.shouldContain as stringContain
 class ServerLifecycleTest : BaseSystemTest() {
 
     init {
-
 
         context("Server lifecycle") {
             lateinit var serverId: String
@@ -105,7 +104,6 @@ class ServerLifecycleTest : BaseSystemTest() {
                     val servers = api.listServers()
                     servers.map { it.id } shouldNotContain serverId
                 }
-
             }
 
             context("stop") {

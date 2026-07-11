@@ -1,19 +1,8 @@
 package io.craftpanel.master.routes
 
-import io.craftpanel.master.auth.Permission
-import io.craftpanel.master.auth.JWT_AUTH
-import io.craftpanel.master.auth.requireServerPermission
-import io.craftpanel.master.service.EnvVarsResponse
-import io.craftpanel.master.service.EnvVarsService
-import io.craftpanel.master.service.PatchConfigModeRequest
-import io.craftpanel.master.service.PatchStopCommandRequest
-import io.craftpanel.master.service.ProxyBackendListResponse
-import io.craftpanel.master.service.ProxyBackendService
-import io.craftpanel.master.service.PutEnvVarsRequest
-import io.craftpanel.master.service.PutProxyBackendsRequest
-import io.github.smiley4.ktoropenapi.get
-import io.github.smiley4.ktoropenapi.patch
-import io.github.smiley4.ktoropenapi.put
+import io.craftpanel.master.auth.*
+import io.craftpanel.master.service.*
+import io.github.smiley4.ktoropenapi.*
 import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*
@@ -23,7 +12,6 @@ import io.ktor.server.routing.*
 fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService: EnvVarsService) {
     authenticate(JWT_AUTH) {
         route("/api/servers/{id}/config") {
-
             get("/proxy", {
                 operationId = "getProxyBackends"
                 summary = "Get proxy backend list"

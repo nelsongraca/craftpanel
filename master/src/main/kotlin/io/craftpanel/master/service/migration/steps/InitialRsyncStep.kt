@@ -2,10 +2,7 @@ package io.craftpanel.master.service.migration.steps
 
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.MigrationStatus
-import io.craftpanel.master.service.migration.MigrationCoordinator
-import io.craftpanel.master.service.migration.MigrationPlan
-import io.craftpanel.master.service.migration.MigrationStep
-import io.craftpanel.master.service.migration.StepResult
+import io.craftpanel.master.service.migration.*
 import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.startRsyncCommand
 import kotlinx.coroutines.channels.Channel

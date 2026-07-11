@@ -2,15 +2,13 @@ package io.craftpanel.master.grpc.handlers
 
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.proto.AgentMessage
-import io.craftpanel.proto.ContainerMetricsUpdate
 import kotlinx.coroutines.flow.MutableSharedFlow
 import org.slf4j.LoggerFactory
 import kotlin.time.Clock
 import kotlin.time.Instant
 
-class ContainerMetricsHandler(
-    private val agentEvents: MutableSharedFlow<AgentEvent>,
-) {
+class ContainerMetricsHandler(private val agentEvents: MutableSharedFlow<AgentEvent>) {
+
     private val log = LoggerFactory.getLogger(ContainerMetricsHandler::class.java)
 
     suspend fun handle(msg: AgentMessage, nodeId: String) {
@@ -32,7 +30,7 @@ class ContainerMetricsHandler(
             netOutBytes = containerMetrics.netOutBytes,
             blockInBytes = containerMetrics.blockInBytes,
             blockOutBytes = containerMetrics.blockOutBytes,
-            recordedAt = recordedAt,
+            recordedAt = recordedAt
         )
         agentEvents.emit(containerMetricEvent)
     }

@@ -1,22 +1,11 @@
 package io.craftpanel.master.service.repo
 
-import io.craftpanel.master.database.schema.Groups
-import io.craftpanel.master.database.schema.RefreshTokens
-import io.craftpanel.master.database.schema.UserGroupAssignments
-import io.craftpanel.master.database.schema.Users
+import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.util.toUtcString
-import kotlinx.datetime.Instant
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
-import org.jetbrains.exposed.v1.core.and
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.isNull
-import org.jetbrains.exposed.v1.core.or
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.selectAll
+import kotlinx.datetime.*
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.uuid.Uuid
 
 class UserRepositoryImpl : UserRepository {
@@ -219,7 +208,7 @@ class UserRepositoryImpl : UserRepository {
     }
 }
 
-private fun org.jetbrains.exposed.v1.core.ResultRow.toUserRow() = UserRow(
+private fun ResultRow.toUserRow() = UserRow(
     id = this[Users.id],
     username = this[Users.username],
     email = this[Users.email],
@@ -227,7 +216,7 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toUserRow() = UserRow(
     createdAt = this[Users.createdAt].toUtcString()
 )
 
-private fun org.jetbrains.exposed.v1.core.ResultRow.toAssignmentRow() = AssignmentRow(
+private fun ResultRow.toAssignmentRow() = AssignmentRow(
     id = this[UserGroupAssignments.id],
     userId = this[UserGroupAssignments.userId],
     groupId = this[UserGroupAssignments.groupId],

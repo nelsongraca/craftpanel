@@ -1,18 +1,14 @@
 package io.craftpanel.agent.grpc
 
 import com.google.protobuf.ByteString
-import io.craftpanel.proto.BulkDataServiceGrpcKt
-import io.craftpanel.proto.bulkChunk
-import io.craftpanel.proto.bulkTransferInit
+import io.craftpanel.proto.*
 import io.grpc.ManagedChannel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
-import java.nio.file.Files
-import java.nio.file.Path
-import java.nio.file.StandardCopyOption
+import java.nio.file.*
 
 class BulkDataClient(channel: ManagedChannel) {
 
@@ -35,28 +31,32 @@ class BulkDataClient(channel: ManagedChannel) {
                     while (true) {
                         val read = stream.read(buffer)
                         if (read == -1) {
-                            emit(bulkChunk {
-                                if (firstChunk) {
-                                    this.transferId = transferId
-                                    this.nodeKey = nodeKey
-                                    firstChunk = false
+                            emit(
+                                bulkChunk {
+                                    if (firstChunk) {
+                                        this.transferId = transferId
+                                        this.nodeKey = nodeKey
+                                        firstChunk = false
+                                    }
+                                    data = if (pending != null) ByteString.copyFrom(pending) else ByteString.EMPTY
+                                    isLast = true
                                 }
-                                data = if (pending != null) ByteString.copyFrom(pending) else ByteString.EMPTY
-                                isLast = true
-                            })
+                            )
                             break
                         }
                         val current = buffer.copyOf(read)
                         pending?.let {
-                            emit(bulkChunk {
-                                if (firstChunk) {
-                                    this.transferId = transferId
-                                    this.nodeKey = nodeKey
-                                    firstChunk = false
+                            emit(
+                                bulkChunk {
+                                    if (firstChunk) {
+                                        this.transferId = transferId
+                                        this.nodeKey = nodeKey
+                                        firstChunk = false
+                                    }
+                                    data = ByteString.copyFrom(it)
+                                    isLast = false
                                 }
-                                data = ByteString.copyFrom(it)
-                                isLast = false
-                            })
+                            )
                         }
                         pending = current
                     }
@@ -67,8 +67,7 @@ class BulkDataClient(channel: ManagedChannel) {
             val ack = stub.streamToMaster(chunks)
             if (!ack.success) {
                 log.error("BulkData: master rejected upload transfer={}: {}", transferId, ack.errorMessage)
-            }
-            else {
+            } else {
                 log.info("BulkData: upload complete transfer={} size={}", transferId, ack.sizeBytes)
             }
         }.onFailure { log.error("BulkData: upload error transfer={}", transferId, it) }
@@ -89,7 +88,7 @@ class BulkDataClient(channel: ManagedChannel) {
                         if (chunk.errorMessage.isNotBlank()) {
                             error("Master signalled error: ${chunk.errorMessage}")
                         }
-                        Files.newOutputStream(tempFile, java.nio.file.StandardOpenOption.APPEND)
+                        Files.newOutputStream(tempFile, StandardOpenOption.APPEND)
                             .use { out ->
                                 out.write(chunk.data.toByteArray())
                             }

@@ -2,7 +2,6 @@ package craftpanel.systemtest.auth
 
 import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.client.model.*
-import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.AuthHelper
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
@@ -13,7 +12,6 @@ import org.openapitools.client.infrastructure.ApiClient
 import org.openapitools.client.infrastructure.ClientException
 
 class PermissionResolutionTest : BaseSystemTest() {
-
 
     private lateinit var serverId: String
 
@@ -34,7 +32,8 @@ class PermissionResolutionTest : BaseSystemTest() {
                     CreateGroupRequest(name = "wild-server-group-${System.currentTimeMillis()}")
                 )
                 api.setGroupPermissions(
-                    group.id, PutGroupPermissionsRequest(
+                    group.id,
+                    PutGroupPermissionsRequest(
                         permissions = listOf(
                             "server.view", "server.start", "server.stop", "server.restart",
                             "server.configure", "server.create", "server.delete", "server.files",
@@ -44,11 +43,14 @@ class PermissionResolutionTest : BaseSystemTest() {
                 )
                 val user = api.createUser(
                     CreateUserRequest(
-                        username = "wild-server-${System.currentTimeMillis()}", email = email, password = "pw"
+                        username = "wild-server-${System.currentTimeMillis()}",
+                        email = email,
+                        password = "pw"
                     )
                 )
                 api.createAssignment(
-                    user.id, CreateAssignmentRequest(groupId = group.id, scopeType = "GLOBAL")
+                    user.id,
+                    CreateAssignmentRequest(groupId = group.id, scopeType = "GLOBAL")
                 )
                 try {
                     withViewerApi(email, "pw") { vApi ->
@@ -61,8 +63,7 @@ class PermissionResolutionTest : BaseSystemTest() {
                         vApi.stopServer(serverId)
                         helper.awaitStoppedOrGone(serverId)
                     }
-                }
-                finally {
+                } finally {
                     runCatching { api.stopServer(serverId) }
                     helper.awaitStoppedOrGone(serverId)
                     api.deleteGroup(group.id)
@@ -76,11 +77,14 @@ class PermissionResolutionTest : BaseSystemTest() {
                     .first { it.name == "Super Admin" }
                 val user = api.createUser(
                     CreateUserRequest(
-                        username = "wild-all-${System.currentTimeMillis()}", email = email, password = "pw"
+                        username = "wild-all-${System.currentTimeMillis()}",
+                        email = email,
+                        password = "pw"
                     )
                 )
                 api.createAssignment(
-                    user.id, CreateAssignmentRequest(groupId = superAdminGroup.id, scopeType = "GLOBAL")
+                    user.id,
+                    CreateAssignmentRequest(groupId = superAdminGroup.id, scopeType = "GLOBAL")
                 )
                 try {
                     withViewerApi(email, "pw") { vApi ->
@@ -89,8 +93,7 @@ class PermissionResolutionTest : BaseSystemTest() {
                         vApi.getSystemSettings()
                         vApi.listServers()
                     }
-                }
-                finally {
+                } finally {
                     cleanupUser(email)
                 }
             }
@@ -106,25 +109,33 @@ class PermissionResolutionTest : BaseSystemTest() {
                         CreateGroupRequest(name = "scope-union-view-${System.currentTimeMillis()}")
                     )
                     api.setGroupPermissions(
-                        viewGroup.id, PutGroupPermissionsRequest(permissions = listOf("server.view"))
+                        viewGroup.id,
+                        PutGroupPermissionsRequest(permissions = listOf("server.view"))
                     )
                     val startGroup = api.createGroup(
                         CreateGroupRequest(name = "scope-union-start-${System.currentTimeMillis()}")
                     )
                     api.setGroupPermissions(
-                        startGroup.id, PutGroupPermissionsRequest(permissions = listOf("server.start"))
+                        startGroup.id,
+                        PutGroupPermissionsRequest(permissions = listOf("server.start"))
                     )
                     val user = api.createUser(
                         CreateUserRequest(
-                            username = "scope-union-${System.currentTimeMillis()}", email = email, password = "pw"
+                            username = "scope-union-${System.currentTimeMillis()}",
+                            email = email,
+                            password = "pw"
                         )
                     )
                     api.createAssignment(
-                        user.id, CreateAssignmentRequest(groupId = viewGroup.id, scopeType = "GLOBAL")
+                        user.id,
+                        CreateAssignmentRequest(groupId = viewGroup.id, scopeType = "GLOBAL")
                     )
                     api.createAssignment(
-                        user.id, CreateAssignmentRequest(
-                            groupId = startGroup.id, scopeType = "SERVER", scopeId = serverId
+                        user.id,
+                        CreateAssignmentRequest(
+                            groupId = startGroup.id,
+                            scopeType = "SERVER",
+                            scopeId = serverId
                         )
                     )
                     withViewerApi(email, "pw") { vApi ->
@@ -132,8 +143,7 @@ class PermissionResolutionTest : BaseSystemTest() {
 
                         shouldThrow<ClientException> { vApi.startServer(otherServer) }.statusCode shouldBe 403
                     }
-                }
-                finally {
+                } finally {
                     runCatching { api.stopServer(serverId) }
                     helper.awaitStoppedOrGone(serverId)
                     api.deleteGroup(
@@ -158,9 +168,14 @@ class PermissionResolutionTest : BaseSystemTest() {
                 )
                 val movedServer = api.createServer(
                     CreateServerRequest(
-                        name = "perm-move-srv-${System.currentTimeMillis()}", nodeId = nodeId,
-                        serverType = "PAPER", mcVersion = "1.21.4", itzgImageTag = "latest",
-                        memoryMb = 256, cpuShares = 64, networkId = netA.id
+                        name = "perm-move-srv-${System.currentTimeMillis()}",
+                        nodeId = nodeId,
+                        serverType = "PAPER",
+                        mcVersion = "1.21.4",
+                        itzgImageTag = "latest",
+                        memoryMb = 256,
+                        cpuShares = 64,
+                        networkId = netA.id
                     )
                 )
                 val email = "perm-move-${System.currentTimeMillis()}@test.com"
@@ -168,16 +183,22 @@ class PermissionResolutionTest : BaseSystemTest() {
                     CreateGroupRequest(name = "perm-move-group-${System.currentTimeMillis()}")
                 )
                 api.setGroupPermissions(
-                    group.id, PutGroupPermissionsRequest(permissions = listOf("server.view"))
+                    group.id,
+                    PutGroupPermissionsRequest(permissions = listOf("server.view"))
                 )
                 val user = api.createUser(
                     CreateUserRequest(
-                        username = "perm-move-${System.currentTimeMillis()}", email = email, password = "pw"
+                        username = "perm-move-${System.currentTimeMillis()}",
+                        email = email,
+                        password = "pw"
                     )
                 )
                 api.createAssignment(
-                    user.id, CreateAssignmentRequest(
-                        groupId = group.id, scopeType = "NETWORK", scopeId = netA.id
+                    user.id,
+                    CreateAssignmentRequest(
+                        groupId = group.id,
+                        scopeType = "NETWORK",
+                        scopeId = netA.id
                     )
                 )
                 try {
@@ -192,8 +213,7 @@ class PermissionResolutionTest : BaseSystemTest() {
                         val serversAfterMove = vApi.listServers()
                         serversAfterMove.map { it.id } shouldNotContain movedServer.id
                     }
-                }
-                finally {
+                } finally {
                     api.deleteGroup(group.id)
                     cleanupUser(email)
                     runCatching { api.deleteServer(movedServer.id) }
@@ -208,24 +228,30 @@ class PermissionResolutionTest : BaseSystemTest() {
                     CreateGroupRequest(name = "dedup-a-${System.currentTimeMillis()}")
                 )
                 api.setGroupPermissions(
-                    groupA.id, PutGroupPermissionsRequest(permissions = listOf("server.view", "server.start"))
+                    groupA.id,
+                    PutGroupPermissionsRequest(permissions = listOf("server.view", "server.start"))
                 )
                 val groupB = api.createGroup(
                     CreateGroupRequest(name = "dedup-b-${System.currentTimeMillis()}")
                 )
                 api.setGroupPermissions(
-                    groupB.id, PutGroupPermissionsRequest(permissions = listOf("server.view", "server.stop"))
+                    groupB.id,
+                    PutGroupPermissionsRequest(permissions = listOf("server.view", "server.stop"))
                 )
                 val user = api.createUser(
                     CreateUserRequest(
-                        username = "perm-dedup-${System.currentTimeMillis()}", email = email, password = "pw"
+                        username = "perm-dedup-${System.currentTimeMillis()}",
+                        email = email,
+                        password = "pw"
                     )
                 )
                 api.createAssignment(
-                    user.id, CreateAssignmentRequest(groupId = groupA.id, scopeType = "GLOBAL")
+                    user.id,
+                    CreateAssignmentRequest(groupId = groupA.id, scopeType = "GLOBAL")
                 )
                 api.createAssignment(
-                    user.id, CreateAssignmentRequest(groupId = groupB.id, scopeType = "GLOBAL")
+                    user.id,
+                    CreateAssignmentRequest(groupId = groupB.id, scopeType = "GLOBAL")
                 )
                 try {
                     withViewerApi(email, "pw") { vApi ->
@@ -238,8 +264,7 @@ class PermissionResolutionTest : BaseSystemTest() {
                         vApi.stopServer(serverId)
                         helper.awaitStoppedOrGone(serverId)
                     }
-                }
-                finally {
+                } finally {
                     api.deleteGroup(groupA.id)
                     api.deleteGroup(groupB.id)
                     cleanupUser(email)
@@ -252,8 +277,7 @@ class PermissionResolutionTest : BaseSystemTest() {
         try {
             val user = api.listUsers().users.first { it.email == email }
             runCatching { api.deleteUser(user.id) }
-        }
-        catch (_: Exception) {
+        } catch (_: Exception) {
         }
     }
 
@@ -263,8 +287,7 @@ class PermissionResolutionTest : BaseSystemTest() {
             val viewerApi = DefaultApi(basePath = masterApiUrl)
             AuthHelper(viewerApi).login(email = email, password = password)
             return block(viewerApi)
-        }
-        finally {
+        } finally {
             ApiClient.accessToken = savedToken
         }
     }

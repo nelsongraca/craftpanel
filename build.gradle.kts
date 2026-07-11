@@ -45,15 +45,15 @@ kover {
 if (project.hasProperty("withCoverage")) {
     tasks.register("koverFullReport") {
         group = "verification"
-        description = "Unit tests + system tests + all coverage reports (per-module + merged)"
-        dependsOn(
-            ":master:test",
-            ":agent:test",
-            ":frontend:testFrontend",
-            ":system-tests:test",
-            ":system-tests:koverSystemTestReport",
-            ":system-tests:koverMergedReport",
-        )
+        description = "Unit tests + all coverage reports (per-module + merged). Add -PsystemTest to include system tests."
+        dependsOn(":master:test", ":agent:test", ":frontend:testFrontend", "koverHtmlReport", "koverXmlReport")
+        if (project.hasProperty("systemTest")) {
+            dependsOn(
+                ":system-tests:test",
+                ":system-tests:koverSystemTestReport",
+                ":system-tests:koverMergedReport"
+            )
+        }
     }
 }
 
@@ -66,7 +66,7 @@ val dockerBuildAll by tasks.registering {
     dependsOn(
         ":master:dockerBuildImage",
         ":agent:dockerBuildImage",
-        ":frontend:dockerBuildImage",
+        ":frontend:dockerBuildImage"
     )
 }
 
@@ -76,7 +76,7 @@ val dockerPushAll by tasks.registering {
     dependsOn(
         ":master:dockerPushImage",
         ":agent:dockerPushImage",
-        ":frontend:dockerPushImage",
+        ":frontend:dockerPushImage"
     )
 }
 
@@ -86,8 +86,11 @@ tasks.named("check") {
 
 tasks.register("test") {
     group = "verification"
-    description = "Runs all tests (JVM subprojects + frontend)"
+    description = "Runs all tests (JVM subprojects + frontend). Add -PsystemTest to include system-tests."
     dependsOn(":master:test", ":agent:test", ":frontend:typecheckFrontend", ":frontend:testFrontend")
+    if (project.hasProperty("systemTest")) {
+        dependsOn(":system-tests:test")
+    }
 }
 
 subprojects {
@@ -103,8 +106,8 @@ subprojects {
                 ktlint(libs.versions.ktlint.get()).editorConfigOverride(
                     mapOf(
                         "max_line_length" to "200",
-                        "ktlint_standard_no-wildcard-imports" to "disabled",
-                    ),
+                        "ktlint_standard_no-wildcard-imports" to "disabled"
+                    )
                 )
                 ratchetFrom("origin/master")
             }

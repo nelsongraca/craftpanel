@@ -2,9 +2,7 @@ package io.craftpanel.master.database.migrations
 
 import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.auth.ScopeType
-import io.craftpanel.master.database.schema.Groups
-import io.craftpanel.master.database.schema.UserGroupAssignments
-import io.craftpanel.master.database.schema.Users
+import io.craftpanel.master.database.schema.*
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll

@@ -1,12 +1,7 @@
 package io.craftpanel.master.grpc
 
-import io.craftpanel.proto.BulkDataServiceGrpcKt
-import io.craftpanel.proto.BulkChunk
-import io.craftpanel.proto.BulkTransferInit
-import io.craftpanel.proto.BulkTransferAck
-import io.craftpanel.proto.bulkChunk
-import io.craftpanel.proto.bulkTransferAck
 import com.google.protobuf.ByteString
+import io.craftpanel.proto.*
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlinx.coroutines.channels.Channel
@@ -15,8 +10,7 @@ import kotlinx.coroutines.flow.flow
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 
-class BulkDataServiceImpl(private val controlService: ControlServiceImpl) :
-    BulkDataServiceGrpcKt.BulkDataServiceCoroutineImplBase() {
+class BulkDataServiceImpl(private val controlService: ControlServiceImpl) : BulkDataServiceGrpcKt.BulkDataServiceCoroutineImplBase() {
 
     private val log = LoggerFactory.getLogger(BulkDataServiceImpl::class.java)
 
@@ -38,8 +32,7 @@ class BulkDataServiceImpl(private val controlService: ControlServiceImpl) :
                 for (bytes in channel) {
                     emit(bytes)
                 }
-            }
-            finally {
+            } finally {
                 pendingDownloads.remove(transferId)
             }
         }
@@ -107,7 +100,10 @@ class BulkDataServiceImpl(private val controlService: ControlServiceImpl) :
             log.error("BulkData: download transfer {} error", transferId, ex)
         }
 
-        return bulkTransferAck { success = true; this.sizeBytes = sizeBytes }
+        return bulkTransferAck {
+            success = true
+            this.sizeBytes = sizeBytes
+        }
     }
 
     // ── gRPC: master → agent (file upload from user perspective) ─────────────
@@ -123,12 +119,21 @@ class BulkDataServiceImpl(private val controlService: ControlServiceImpl) :
         log.info("BulkData: upload transfer {} starting", request.transferId)
         try {
             for (bytes in channel) {
-                emit(bulkChunk { data = ByteString.copyFrom(bytes); isLast = false })
+                emit(
+                    bulkChunk {
+                        data = ByteString.copyFrom(bytes)
+                        isLast = false
+                    }
+                )
             }
-            emit(bulkChunk { data = ByteString.EMPTY; isLast = true })
+            emit(
+                bulkChunk {
+                    data = ByteString.EMPTY
+                    isLast = true
+                }
+            )
             log.info("BulkData: upload transfer {} complete", request.transferId)
-        }
-        finally {
+        } finally {
             pendingUploads.remove(request.transferId)
         }
     }

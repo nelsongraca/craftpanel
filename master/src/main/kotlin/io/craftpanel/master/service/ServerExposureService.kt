@@ -12,7 +12,7 @@ class ServerExposureService(
     private val lifecycle: ContainerLifecycle,
     private val serverRepository: ServerRepository,
     private val nodeRepository: NodeRepository,
-    private val serverExposure: ServerExposure,
+    private val serverExposure: ServerExposure
 ) {
 
     private val log = LoggerFactory.getLogger(ServerExposureService::class.java)
@@ -27,13 +27,15 @@ class ServerExposureService(
 
         val resolvedCustomHostname: String? = if (req.customHostname != null) {
             val ch = req.customHostname.trim()
-            if (ch.isEmpty()) null
-            else {
+            if (ch.isEmpty()) {
+                null
+            } else {
                 serverExposure.validateCustomHostname(ch, id)
                 ch
             }
+        } else {
+            serverRow.customHostname
         }
-        else serverRow.customHostname
 
         val existingRecordId = serverRow.dnsRecordId
         var newHostname: String? = null
@@ -49,8 +51,12 @@ class ServerExposureService(
                 )
             }
 
-            val fullHostname = if (dns != null) "${req.publicSubdomain}.${dns.domainSuffix}"
-            else serverExposure.resolveSuffix(serverRow.networkId)?.let { "${req.publicSubdomain}.$it" }
+            val fullHostname = if (dns != null) {
+                "${req.publicSubdomain}.${dns.domainSuffix}"
+            } else {
+                serverExposure.resolveSuffix(serverRow.networkId)
+                    ?.let { "${req.publicSubdomain}.$it" }
+            }
 
             newRecordId = if (provider != null && dns != null) {
                 val node = nodeRepository.findById(serverRow.nodeId)
@@ -59,13 +65,13 @@ class ServerExposureService(
                     if (existingRecordId != null) {
                         provider.updateARecord(dns.zoneId, existingRecordId, node.publicIp)
                         existingRecordId
-                    }
-                    else {
+                    } else {
                         provider.createARecord(dns.zoneId, fullHostname ?: req.publicSubdomain, node.publicIp)
                     }
                 }.getOrElse { ex -> throw BadGatewayException("DNS provider error: ${ex.message}") }
+            } else {
+                null
             }
-            else null
 
             newHostname = fullHostname
         }
@@ -87,11 +93,21 @@ class ServerExposureService(
             exposedExternally = req.exposedExternally,
             publicSubdomain = if (!req.exposedExternally) null else req.publicSubdomain,
             customHostname = resolvedCustomHostname,
-            dnsRecordId = if (req.exposedExternally && req.publicSubdomain != null) newRecordId
-            else if (!req.exposedExternally) null else existingRecordId,
-            dnsRecordName = if (req.exposedExternally && req.publicSubdomain != null) newHostname
-            else if (!req.exposedExternally) null else serverRow.dnsRecordName,
-            needsRecreate = if (exposureNeedsRecreate) true else null,
+            dnsRecordId = if (req.exposedExternally && req.publicSubdomain != null) {
+                newRecordId
+            } else if (!req.exposedExternally) {
+                null
+            } else {
+                existingRecordId
+            },
+            dnsRecordName = if (req.exposedExternally && req.publicSubdomain != null) {
+                newHostname
+            } else if (!req.exposedExternally) {
+                null
+            } else {
+                serverRow.dnsRecordName
+            },
+            needsRecreate = if (exposureNeedsRecreate) true else null
         )
 
         val currentStatus = ServerStatus.fromDb(serverRow.status)

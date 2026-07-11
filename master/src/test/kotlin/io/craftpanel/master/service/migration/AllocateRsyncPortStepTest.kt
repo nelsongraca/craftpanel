@@ -1,18 +1,10 @@
 package io.craftpanel.master.service.migration
 
-import io.craftpanel.master.TestAgentGateway
-import io.craftpanel.master.TestDatabase
-import io.craftpanel.master.TestRepositories
+import io.craftpanel.master.*
 import io.craftpanel.master.database.schema.Nodes
-import io.craftpanel.master.service.ContainerLifecycle
-import io.craftpanel.master.service.ModService
-import io.craftpanel.master.service.ServerExposure
+import io.craftpanel.master.service.*
 import io.craftpanel.master.service.migration.steps.AllocateRsyncPortStep
-import io.craftpanel.master.service.repo.NetworkRepositoryImpl
-import io.craftpanel.master.service.repo.NodeRepositoryImpl
-import io.craftpanel.master.service.repo.NodeRow
-import io.craftpanel.master.service.repo.ServerRow
-import io.craftpanel.master.service.repo.SettingsRepositoryImpl
+import io.craftpanel.master.service.repo.*
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
@@ -48,11 +40,14 @@ class AllocateRsyncPortStepTest :
             }
             plan = MigrationPlan(
                 migrationId = Uuid.random(),
-                migrationIdStr = Uuid.random().toString(),
+                migrationIdStr = Uuid.random()
+                    .toString(),
                 serverId = Uuid.random(),
-                serverIdStr = Uuid.random().toString(),
+                serverIdStr = Uuid.random()
+                    .toString(),
                 sourceNodeId = Uuid.random(),
-                sourceNodeIdStr = Uuid.random().toString(),
+                sourceNodeIdStr = Uuid.random()
+                    .toString(),
                 targetNodeId = nodeId,
                 targetNodeIdStr = nodeId.toString(),
                 rsyncImage = "alpine",

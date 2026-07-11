@@ -62,7 +62,9 @@ class NodeObserverTest :
         }
 
         fun dbStatus(): String = transaction {
-            Servers.selectAll().where { Servers.id eq serverId }.first()[Servers.status]
+            Servers.selectAll()
+                .where { Servers.id eq serverId }
+                .first()[Servers.status]
         }
 
         fun observer(restartManager: ServerRestartManager?, crashRestarts: Channel<Uuid>, events: MutableSharedFlow<AgentEvent>) = NodeObserver(
@@ -89,7 +91,8 @@ class NodeObserverTest :
                 delay(50.milliseconds)
 
                 dbStatus() shouldBe "UNHEALTHY"
-                crashRestarts.tryReceive().getOrNull() shouldBe serverId
+                crashRestarts.tryReceive()
+                    .getOrNull() shouldBe serverId
                 job.cancel()
             }
         }
@@ -107,7 +110,8 @@ class NodeObserverTest :
                 delay(50.milliseconds)
 
                 dbStatus() shouldBe "UNHEALTHY"
-                crashRestarts.tryReceive().getOrNull() shouldBe null
+                crashRestarts.tryReceive()
+                    .getOrNull() shouldBe null
                 job.cancel()
             }
         }
@@ -122,14 +126,16 @@ class NodeObserverTest :
 
                 events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.UNHEALTHY))
                 delay(50.milliseconds)
-                crashRestarts.tryReceive().getOrNull() shouldBe serverId
+                crashRestarts.tryReceive()
+                    .getOrNull() shouldBe serverId
 
                 events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY))
                 delay(50.milliseconds)
                 events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.UNHEALTHY))
                 delay(50.milliseconds)
 
-                crashRestarts.tryReceive().getOrNull() shouldBe serverId
+                crashRestarts.tryReceive()
+                    .getOrNull() shouldBe serverId
                 job.cancel()
             }
         }
@@ -146,7 +152,8 @@ class NodeObserverTest :
                 delay(50.milliseconds)
                 events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.UNHEALTHY))
                 delay(50.milliseconds)
-                crashRestarts.tryReceive().getOrNull() shouldBe serverId
+                crashRestarts.tryReceive()
+                    .getOrNull() shouldBe serverId
 
                 events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STARTING))
                 delay(50.milliseconds)
@@ -154,7 +161,8 @@ class NodeObserverTest :
                 delay(50.milliseconds)
 
                 dbStatus() shouldBe "UNHEALTHY"
-                crashRestarts.tryReceive().getOrNull() shouldBe null
+                crashRestarts.tryReceive()
+                    .getOrNull() shouldBe null
                 job.cancel()
             }
         }
@@ -170,7 +178,8 @@ class NodeObserverTest :
                 delay(50.milliseconds)
 
                 dbStatus() shouldBe "UNHEALTHY"
-                crashRestarts.tryReceive().getOrNull() shouldBe null
+                crashRestarts.tryReceive()
+                    .getOrNull() shouldBe null
                 job.cancel()
             }
         }

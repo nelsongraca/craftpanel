@@ -1,22 +1,14 @@
 package io.craftpanel.master.routes
 
-import io.craftpanel.master.auth.Permission
-import io.craftpanel.master.auth.JWT_AUTH
-import io.craftpanel.master.auth.requireServerPermission
-import io.craftpanel.master.service.BackupResponse
-import io.craftpanel.master.service.BackupScheduleResponse
-import io.craftpanel.master.service.BackupService
-import io.craftpanel.master.service.PutBackupScheduleRequest
-import kotlinx.serialization.Serializable
-import io.github.smiley4.ktoropenapi.delete
-import io.github.smiley4.ktoropenapi.get
-import io.github.smiley4.ktoropenapi.post
-import io.github.smiley4.ktoropenapi.put
+import io.craftpanel.master.auth.*
+import io.craftpanel.master.service.*
+import io.github.smiley4.ktoropenapi.*
 import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
+import kotlinx.serialization.Serializable
 import kotlin.uuid.Uuid
 
 @Serializable
@@ -25,7 +17,6 @@ data class BackupsListResponse(val backups: List<BackupResponse>)
 fun Route.backupsRoutes(backupService: BackupService) {
     authenticate(JWT_AUTH) {
         route("/api/servers/{id}/backups") {
-
             get("", {
                 operationId = "listBackups"
                 summary = "List server backups"
@@ -60,7 +51,10 @@ fun Route.backupsRoutes(backupService: BackupService) {
             delete("/{backupId}", {
                 operationId = "deleteBackup"
                 summary = "Delete server backup"
-                request { pathParameter<String>("id"); pathParameter<String>("backupId") }
+                request {
+                    pathParameter<String>("id")
+                    pathParameter<String>("backupId")
+                }
                 response {
                     code(HttpStatusCode.NoContent) { }
                     code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
@@ -81,7 +75,10 @@ fun Route.backupsRoutes(backupService: BackupService) {
             get("/{backupId}/download", {
                 operationId = "downloadBackup"
                 summary = "Download backup file"
-                request { pathParameter<String>("id"); pathParameter<String>("backupId") }
+                request {
+                    pathParameter<String>("id")
+                    pathParameter<String>("backupId")
+                }
                 response {
                     code(HttpStatusCode.OK) { body<ByteArray>() }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
@@ -97,15 +94,15 @@ fun Route.backupsRoutes(backupService: BackupService) {
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid backup ID"))
                 val info = backupService.resolveDownload(auth.serverId, backupId)
                 val byteList = mutableListOf<Int>()
-                backupService.downloadStream(info).collect { chunk ->
-                    chunk.forEach { byte -> byteList.add(byte.toInt() and 0xFF) }
-                }
+                backupService.downloadStream(info)
+                    .collect { chunk ->
+                        chunk.forEach { byte -> byteList.add(byte.toInt() and 0xFF) }
+                    }
                 call.respond(byteList)
             }
         }
 
         route("/api/servers/{id}/backup-schedule") {
-
             get("", {
                 operationId = "getBackupSchedule"
                 summary = "Get server backup schedule"
@@ -124,7 +121,10 @@ fun Route.backupsRoutes(backupService: BackupService) {
             put("", {
                 operationId = "updateBackupSchedule"
                 summary = "Update server backup schedule"
-                request { pathParameter<String>("id"); body<PutBackupScheduleRequest>() }
+                request {
+                    pathParameter<String>("id")
+                    body<PutBackupScheduleRequest>()
+                }
                 response {
                     code(HttpStatusCode.OK) { body<BackupScheduleResponse>() }
                     code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }

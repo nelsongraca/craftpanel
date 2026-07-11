@@ -2,17 +2,8 @@
 
 package io.craftpanel.master.routes
 
-import io.craftpanel.master.auth.Permission
-import io.craftpanel.master.auth.JWT_AUTH
-import io.craftpanel.master.auth.requireServerPermission
-import io.craftpanel.master.service.MigrateRequest
-import io.craftpanel.master.service.MigrationEvent
-import io.craftpanel.master.service.MigrationResponse
-import io.craftpanel.master.service.MigrationService
-import kotlinx.serialization.Serializable
-import kotlinx.serialization.encodeToString
-import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.JsonNamingStrategy
+import io.craftpanel.master.auth.*
+import io.craftpanel.master.service.*
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.post
 import io.ktor.http.*
@@ -23,19 +14,23 @@ import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.channels.consumeEach
-import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonNamingStrategy
 import kotlin.uuid.Uuid
 
 @Serializable
 data class MigrationsListResponse(val migrations: List<MigrationResponse>)
 
-private val migrationJson = Json { classDiscriminator = "type"; namingStrategy = JsonNamingStrategy.SnakeCase }
+private val migrationJson = Json {
+    classDiscriminator = "type"
+    namingStrategy = JsonNamingStrategy.SnakeCase
+}
 
 fun Route.migrationsRoutes(migrationService: MigrationService) {
     authenticate(JWT_AUTH) {
         route("/api/servers/{id}/migrations") {
-
             get("", {
                 operationId = "listMigrations"
                 summary = "List server migrations"
@@ -54,7 +49,10 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
             post("", {
                 operationId = "startMigration"
                 summary = "Start server migration to another node"
-                request { pathParameter<String>("id"); body<MigrateRequest>() }
+                request {
+                    pathParameter<String>("id")
+                    body<MigrateRequest>()
+                }
                 response {
                     code(HttpStatusCode.Accepted) { body<MigrationResponse>() }
                     code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
@@ -71,7 +69,6 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
         }
 
         route("/api/migrations/{migrationId}") {
-
             get("", {
                 operationId = "getMigration"
                 summary = "Get migration status"
@@ -87,7 +84,6 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
                     ?.let {
                         runCatching {
                             Uuid.parse(it)
-
                         }.getOrNull()
                     }
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid migration ID"))
@@ -116,8 +112,7 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
         }
         try {
             incoming.consumeEach { }
-        }
-        finally {
+        } finally {
             job.cancel()
         }
     }

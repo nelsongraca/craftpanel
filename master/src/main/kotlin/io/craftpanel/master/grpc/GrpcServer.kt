@@ -9,11 +9,7 @@ import java.io.ByteArrayInputStream
 import java.io.File
 import java.security.Security
 
-class GrpcServer(
-    private val config: AppConfig,
-    private val controlService: ControlServiceImpl,
-    private val bulkDataService: BulkDataServiceImpl,
-) {
+class GrpcServer(private val config: AppConfig, private val controlService: ControlServiceImpl, private val bulkDataService: BulkDataServiceImpl) {
 
     private val log = LoggerFactory.getLogger(GrpcServer::class.java)
     private lateinit var server: Server
@@ -32,7 +28,7 @@ class GrpcServer(
             config.grpc.tlsEnabled -> {
                 builder.useTransportSecurity(
                     File(config.grpc.tlsCertPath),
-                    File(config.grpc.tlsKeyPath),
+                    File(config.grpc.tlsKeyPath)
                 )
                 log.info("gRPC TLS enabled — using provided cert: ${config.grpc.tlsCertPath}")
             }
@@ -47,13 +43,14 @@ class GrpcServer(
                 val certs = mgr.loadOrGenerate()
                 builder.useTransportSecurity(
                     ByteArrayInputStream(certs.serverCertPem.toByteArray()),
-                    ByteArrayInputStream(certs.serverKeyPem.toByteArray()),
+                    ByteArrayInputStream(certs.serverKeyPem.toByteArray())
                 )
                 log.info("gRPC TLS enabled — auto-generated cert (store: ${config.grpc.certStorePath})")
             }
         }
 
-        server = builder.build().start()
+        server = builder.build()
+            .start()
         log.info("gRPC server started on port ${config.grpc.port}")
         return this
     }

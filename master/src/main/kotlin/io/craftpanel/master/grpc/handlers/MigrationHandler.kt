@@ -5,9 +5,8 @@ import io.craftpanel.proto.AgentMessage
 import kotlinx.coroutines.flow.MutableSharedFlow
 import org.slf4j.LoggerFactory
 
-class MigrationHandler(
-    private val agentEvents: MutableSharedFlow<AgentEvent>,
-) {
+class MigrationHandler(private val agentEvents: MutableSharedFlow<AgentEvent>) {
+
     private val log = LoggerFactory.getLogger(MigrationHandler::class.java)
 
     suspend fun handleRsyncReady(msg: AgentMessage, nodeId: String) {
@@ -18,7 +17,7 @@ class MigrationHandler(
         agentEvents.emit(
             AgentEvent.RsyncReadyEvent(
                 migrationId = msg.rsyncReady.migrationId,
-                rsyncPassword = msg.rsyncReady.rsyncPassword,
+                rsyncPassword = msg.rsyncReady.rsyncPassword
             )
         )
     }
@@ -34,7 +33,7 @@ class MigrationHandler(
                 isFinalPass = msg.rsyncProgress.isFinalPass,
                 percentComplete = msg.rsyncProgress.percentComplete,
                 bytesTransferred = msg.rsyncProgress.bytesTransferred,
-                phase = msg.rsyncProgress.phase,
+                phase = msg.rsyncProgress.phase
             )
         )
     }
@@ -49,7 +48,7 @@ class MigrationHandler(
                 migrationId = msg.rsyncComplete.migrationId,
                 isFinalPass = msg.rsyncComplete.isFinalPass,
                 success = msg.rsyncComplete.success,
-                errorMessage = msg.rsyncComplete.errorMessage,
+                errorMessage = msg.rsyncComplete.errorMessage
             )
         )
     }

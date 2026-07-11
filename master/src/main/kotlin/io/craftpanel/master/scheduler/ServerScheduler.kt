@@ -6,13 +6,8 @@ import com.cronutils.model.time.ExecutionTime
 import com.cronutils.parser.CronParser
 import io.craftpanel.master.service.repo.ServerJobRepository
 import io.craftpanel.master.service.repo.ServerRepository
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.*
 import kotlinx.datetime.LocalDateTime
-import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toJavaLocalDateTime
 import org.slf4j.LoggerFactory
 import java.time.ZoneOffset

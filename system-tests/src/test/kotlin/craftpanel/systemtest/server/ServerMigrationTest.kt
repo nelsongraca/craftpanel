@@ -1,13 +1,8 @@
 package craftpanel.systemtest.server
 
 import craftpanel.systemtest.client.api.DefaultApi
-import craftpanel.systemtest.client.model.MigrateRequest
-import craftpanel.systemtest.client.model.MigrationResponse
-import craftpanel.systemtest.client.model.ServerStatus
-import craftpanel.systemtest.client.model.MigrationStatus
-import craftpanel.systemtest.harness.BaseSystemTest
-import craftpanel.systemtest.harness.SharedStack
-import craftpanel.systemtest.harness.pollUntilNotNull
+import craftpanel.systemtest.client.model.*
+import craftpanel.systemtest.harness.*
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.annotation.Isolate
 import io.kotest.matchers.collections.shouldNotBeEmpty
@@ -19,7 +14,6 @@ import java.util.concurrent.TimeUnit
 
 @Isolate
 class ServerMigrationTest : BaseSystemTest() {
-
 
     private val serverIds = mutableListOf<String>()
     private val sourceNodeId: String = SharedStack.nodeIds[0]
@@ -201,14 +195,8 @@ class ServerMigrationTest : BaseSystemTest() {
         }
     }
 
-    private suspend fun pollMigrationStatus(
-        api: DefaultApi,
-        migrationId: String,
-        timeoutMs: Long,
-    ): MigrationResponse {
-        return pollUntilNotNull(timeoutMs) {
-            api.getMigration(migrationId)
-                .takeIf { it.status == MigrationStatus.COMPLETED || it.status == MigrationStatus.FAILED }
-        } ?: error("Migration $migrationId did not reach terminal state within ${timeoutMs}ms")
-    }
+    private suspend fun pollMigrationStatus(api: DefaultApi, migrationId: String, timeoutMs: Long): MigrationResponse = pollUntilNotNull(timeoutMs) {
+        api.getMigration(migrationId)
+            .takeIf { it.status == MigrationStatus.COMPLETED || it.status == MigrationStatus.FAILED }
+    } ?: error("Migration $migrationId did not reach terminal state within ${timeoutMs}ms")
 }

@@ -1,15 +1,8 @@
 package io.craftpanel.master.routes
 
-import io.craftpanel.master.auth.Permission
-import io.craftpanel.master.auth.JWT_AUTH
-import io.craftpanel.master.auth.requirePermission
-import io.craftpanel.master.service.AssignmentResponse
-import io.craftpanel.master.service.AssignmentService
-import io.craftpanel.master.service.AssignmentsListResponse
-import io.craftpanel.master.service.CreateAssignmentRequest
-import io.github.smiley4.ktoropenapi.delete
-import io.github.smiley4.ktoropenapi.get
-import io.github.smiley4.ktoropenapi.post
+import io.craftpanel.master.auth.*
+import io.craftpanel.master.service.*
+import io.github.smiley4.ktoropenapi.*
 import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*
@@ -20,7 +13,6 @@ import kotlin.uuid.Uuid
 fun Route.assignmentsRoutes(assignmentService: AssignmentService) {
     authenticate(JWT_AUTH) {
         route("/api/users/{userId}/assignments") {
-
             get("", {
                 operationId = "listUserAssignments"
                 summary = "List group assignments for a user"
@@ -41,7 +33,10 @@ fun Route.assignmentsRoutes(assignmentService: AssignmentService) {
             post("", {
                 operationId = "createAssignment"
                 summary = "Add a group assignment to a user"
-                request { pathParameter<String>("userId"); body<CreateAssignmentRequest>() }
+                request {
+                    pathParameter<String>("userId")
+                    body<CreateAssignmentRequest>()
+                }
                 response {
                     code(HttpStatusCode.Created) { body<AssignmentResponse>() }
                     code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
@@ -61,7 +56,10 @@ fun Route.assignmentsRoutes(assignmentService: AssignmentService) {
             delete("/{assignmentId}", {
                 operationId = "deleteAssignment"
                 summary = "Remove a group assignment from a user"
-                request { pathParameter<String>("userId"); pathParameter<String>("assignmentId") }
+                request {
+                    pathParameter<String>("userId")
+                    pathParameter<String>("assignmentId")
+                }
                 response {
                     code(HttpStatusCode.NoContent) { }
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }

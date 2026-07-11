@@ -1,8 +1,6 @@
 package craftpanel.systemtest.alerts
 
-import craftpanel.systemtest.client.model.AlertEventResponse
-import craftpanel.systemtest.client.model.CreateAlertThresholdRequest
-import craftpanel.systemtest.client.model.ScopeType
+import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
@@ -11,11 +9,7 @@ import kotlinx.coroutines.delay
 
 class AlertEventsTest : BaseSystemTest() {
 
-    private suspend fun pollForEvents(
-        thresholdId: String,
-        timeoutMs: Long = 20_000,
-        pollMs: Long = 500,
-    ): List<AlertEventResponse> {
+    private suspend fun pollForEvents(thresholdId: String, timeoutMs: Long = 20_000, pollMs: Long = 500): List<AlertEventResponse> {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {
             val events = api.listAlertEvents()
@@ -53,8 +47,7 @@ class AlertEventsTest : BaseSystemTest() {
                     event.thresholdId shouldBe threshold.id
                     event.message.shouldNotBeEmpty()
                     event.firedAt.shouldNotBeEmpty()
-                }
-                finally {
+                } finally {
                     runCatching { api.deleteAlertThreshold(threshold.id) }
                 }
             }
@@ -75,8 +68,7 @@ class AlertEventsTest : BaseSystemTest() {
                     val resolvedCount = events.count { it.resolvedAt != null }
                     val unresolvedCount = events.count { it.resolvedAt == null }
                     unresolvedCount shouldBe events.size - resolvedCount
-                }
-                finally {
+                } finally {
                     runCatching { api.deleteAlertThreshold(threshold.id) }
                 }
             }
@@ -99,8 +91,7 @@ class AlertEventsTest : BaseSystemTest() {
 
                     val noMatch = events.filter { it.thresholdId == "00000000-0000-0000-0000-000000000000" }
                     noMatch.shouldBeEmpty()
-                }
-                finally {
+                } finally {
                     runCatching { api.deleteAlertThreshold(threshold.id) }
                 }
             }

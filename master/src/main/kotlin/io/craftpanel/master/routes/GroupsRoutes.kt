@@ -1,8 +1,6 @@
 package io.craftpanel.master.routes
 
-import io.craftpanel.master.auth.Permission
-import io.craftpanel.master.auth.JWT_AUTH
-import io.craftpanel.master.auth.requirePermission
+import io.craftpanel.master.auth.*
 import io.craftpanel.master.service.*
 import io.github.smiley4.ktoropenapi.*
 import io.ktor.http.*
@@ -15,7 +13,6 @@ import kotlin.uuid.Uuid
 fun Route.groupsRoutes(groupService: GroupService) {
     authenticate(JWT_AUTH) {
         route("/api/groups") {
-
             get("", {
                 operationId = "listGroups"
                 summary = "List groups"
@@ -65,7 +62,10 @@ fun Route.groupsRoutes(groupService: GroupService) {
             patch("/{id}", {
                 operationId = "updateGroup"
                 summary = "Update group name"
-                request { pathParameter<String>("id"); body<PatchGroupRequest>() }
+                request {
+                    pathParameter<String>("id")
+                    body<PatchGroupRequest>()
+                }
                 response {
                     code(HttpStatusCode.OK) { body<GroupResponse>() }
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
@@ -103,7 +103,10 @@ fun Route.groupsRoutes(groupService: GroupService) {
             put("/{id}/permissions", {
                 operationId = "setGroupPermissions"
                 summary = "Replace group permission set"
-                request { pathParameter<String>("id"); body<PutGroupPermissionsRequest>() }
+                request {
+                    pathParameter<String>("id")
+                    body<PutGroupPermissionsRequest>()
+                }
                 response {
                     code(HttpStatusCode.OK) { body<GroupResponse>() }
                     code(HttpStatusCode.BadRequest) { body<ErrorResponse>() }

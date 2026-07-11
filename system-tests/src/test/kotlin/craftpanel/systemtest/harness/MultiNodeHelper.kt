@@ -1,10 +1,7 @@
 package craftpanel.systemtest.harness
 
 import craftpanel.systemtest.client.api.DefaultApi
-import craftpanel.systemtest.client.model.NodeResponse
-import craftpanel.systemtest.client.model.PatchNodeRequest
-import craftpanel.systemtest.client.model.NodeStatus
-import craftpanel.systemtest.client.model.NodeHealth
+import craftpanel.systemtest.client.model.*
 
 class MultiNodeHelper(private val api: DefaultApi) {
 
@@ -41,7 +38,7 @@ class MultiNodeHelper(private val api: DefaultApi) {
                 .firstOrNull { it.status == NodeStatus.PENDING }
         } ?: error(
             "No PENDING node appeared within ${timeoutMs}ms. " +
-                    "Nodes: ${lastNodes?.map { "${it.id}=${it.status}" } ?: "none"}"
+                "Nodes: ${lastNodes?.map { "${it.id}=${it.status}" } ?: "none"}"
         )
     }
 }

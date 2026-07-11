@@ -1,8 +1,6 @@
 package craftpanel.systemtest.server
 
-import craftpanel.systemtest.client.model.EnvVarItem
-import craftpanel.systemtest.client.model.PutEnvVarsRequest
-import craftpanel.systemtest.client.model.ServerStatus
+import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
@@ -14,10 +12,11 @@ class PlayerCountTest : BaseSystemTest() {
 
             should("agent reports correct player count and names from fake server") {
 
-            val serverId = helper.createTestServer(nodeId)
+                val serverId = helper.createTestServer(nodeId)
                 try {
                     api.replaceEnvVars(
-                        serverId, PutEnvVarsRequest(
+                        serverId,
+                        PutEnvVarsRequest(
                             envVars = listOf(
                                 EnvVarItem(key = "ONLINE_PLAYERS", value = "Steve,Alex")
                             )
@@ -29,8 +28,7 @@ class PlayerCountTest : BaseSystemTest() {
                     val server = helper.awaitPlayerCount(serverId, expected = 2)
                     server.lastPlayerCount shouldBe 2
                     server.lastPlayerNames shouldContainExactlyInAnyOrder listOf("Steve", "Alex")
-                }
-                finally {
+                } finally {
                     runCatching { api.stopServer(serverId) }
                     helper.awaitStoppedOrGone(serverId)
                     runCatching { api.deleteServer(serverId) }
@@ -39,7 +37,7 @@ class PlayerCountTest : BaseSystemTest() {
 
             should("agent reports zero players when no players are online") {
 
-            val serverId = helper.createTestServer(nodeId)
+                val serverId = helper.createTestServer(nodeId)
                 try {
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, ServerStatus.HEALTHY)
@@ -48,8 +46,7 @@ class PlayerCountTest : BaseSystemTest() {
                     val server = helper.awaitPlayerCount(serverId, expected = 0)
                     server.lastPlayerCount shouldBe 0
                     server.lastPlayerNames shouldBe null
-                }
-                finally {
+                } finally {
                     runCatching { api.stopServer(serverId) }
                     helper.awaitStoppedOrGone(serverId)
                     runCatching { api.deleteServer(serverId) }

@@ -1,23 +1,15 @@
 package io.craftpanel.master.routes
 
-import io.craftpanel.master.auth.Permission
-import io.craftpanel.master.auth.JWT_AUTH
-import io.craftpanel.master.auth.requirePermission
-import io.craftpanel.master.service.AlertEventResponse
-import io.craftpanel.master.service.AlertService
-import io.craftpanel.master.service.AlertThresholdResponse
-import io.craftpanel.master.service.CreateAlertThresholdRequest
-import kotlin.uuid.Uuid
-import kotlinx.serialization.Serializable
-import io.github.smiley4.ktoropenapi.delete
-import io.github.smiley4.ktoropenapi.get
-import io.github.smiley4.ktoropenapi.post
+import io.craftpanel.master.auth.*
+import io.craftpanel.master.service.*
+import io.github.smiley4.ktoropenapi.*
 import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
-
+import kotlinx.serialization.Serializable
+import kotlin.uuid.Uuid
 
 @Serializable
 data class AlertThresholdsResponse(val thresholds: List<AlertThresholdResponse>)
@@ -28,7 +20,6 @@ data class AlertEventsListResponse(val events: List<AlertEventResponse>)
 fun Route.alertsRoutes(alertService: AlertService) {
     authenticate(JWT_AUTH) {
         route("/api/alerts") {
-
             get("/thresholds", {
                 operationId = "listAlertThresholds"
                 summary = "List alert thresholds"
@@ -43,7 +34,6 @@ fun Route.alertsRoutes(alertService: AlertService) {
                     ?.let {
                         runCatching {
                             Uuid.parse(it)
-
                         }.getOrNull()
                     }
                 call.respond(AlertThresholdsResponse(alertService.listThresholds(scopeType, scopeId)))
@@ -79,7 +69,6 @@ fun Route.alertsRoutes(alertService: AlertService) {
                     ?.let {
                         runCatching {
                             Uuid.parse(it)
-
                         }.getOrNull()
                     }
                     ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid threshold ID"))
@@ -101,7 +90,6 @@ fun Route.alertsRoutes(alertService: AlertService) {
                     ?.let {
                         runCatching {
                             Uuid.parse(it)
-
                         }.getOrNull()
                     }
                 val activeOnly = call.request.queryParameters["active_only"] == "true"

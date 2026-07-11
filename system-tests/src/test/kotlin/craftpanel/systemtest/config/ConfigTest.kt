@@ -1,8 +1,6 @@
 package craftpanel.systemtest.config
 
 import craftpanel.systemtest.client.model.*
-import craftpanel.systemtest.client.model.ServerStatus
-import craftpanel.systemtest.client.model.ConfigMode
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.collections.shouldContain

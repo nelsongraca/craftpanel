@@ -1,8 +1,6 @@
 package craftpanel.systemtest.backup
 
-import craftpanel.systemtest.client.model.BackupTrigger
-import craftpanel.systemtest.client.model.PutBackupScheduleRequest
-import craftpanel.systemtest.client.model.ServerStatus
+import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe

@@ -113,12 +113,17 @@ Schema generator uses `RefType.OPENAPI_SIMPLE` — do not change to `OPENAPI_FUL
 ### Aggregation tasks
 
 ```bash
-./gradlew test             # runs :master:test + :agent:test + :frontend:testFrontend (registered task, not built-in)
-./gradlew dockerBuildAll   # builds all three images
-./gradlew dockerPushAll    # pushes all three images
+./gradlew test                                         # runs :master:test + :agent:test + :frontend:testFrontend (registered task, not built-in)
+./gradlew test -PsystemTest                            # also includes :system-tests:test (requires Docker daemon)
+./gradlew koverFullReport -PwithCoverage               # unit + frontend tests, per-module Kover HTML/XML reports
+./gradlew koverFullReport -PwithCoverage -PsystemTest  # also runs system-tests + merged coverage report
+./gradlew dockerBuildAll                               # builds all three images
+./gradlew dockerPushAll                                # pushes all three images
 ```
 
 - Root project has no built-in `test` task — `tasks.named("test")` fails; a registered aggregate task exists instead
+- System-tests are excluded from root `test` and `koverFullReport` by default (slower, needs Docker) — include them with `-PsystemTest`, or invoke `:system-tests:test` directly
+- System-tests are excluded from root `test` by default (slower, needs Docker) — include them with `-PsystemTest`, or invoke `:system-tests:test` directly
 
 ### Image naming
 
@@ -318,9 +323,10 @@ Use `bg-accent`, `text-accent`, `border-accent` for amber. Use `bg-surface`, `bg
 Stack: **Vitest** + **React Testing Library** + **jsdom**. Config at `frontend/vitest.config.ts`, global setup at `frontend/vitest.setup.ts`.
 
 ```bash
-cd frontend && .node/bin/pnpm test       # run all tests (use .node/bin/pnpm, not system pnpm)
-./gradlew :frontend:testFrontend         # run via Gradle
-./gradlew :frontend:check                # lint + test
+cd frontend && .node/bin/pnpm test               # run all tests (use .node/bin/pnpm, not system pnpm)
+./gradlew :frontend:testFrontend                 # run via Gradle
+./gradlew :frontend:testFrontend -PwithCoverage  # runs `pnpm test:coverage` instead of `pnpm test`
+./gradlew :frontend:check                        # lint + test
 ```
 
 - `next/navigation` is mocked globally in `vitest.setup.ts` — no per-file mock needed
@@ -365,7 +371,9 @@ WS tests use `page.routeWebSocket()` directly — NOT MSW `ws()` handlers. See f
 
 ## Testing (master)
 
-Tests live in `master/src/test/kotlin/`. Run with `./gradlew :master:test`. Coverage via Kover: `./gradlew :master:koverHtmlReport`.
+Tests live in `master/src/test/kotlin/`. Run with `./gradlew :master:test`.
+
+Coverage: `./gradlew :master:test -PwithCoverage` (also works for `:agent:test`) instruments the run and auto-generates HTML+XML Kover reports (`finalizedBy koverHtmlReport, koverXmlReport`) — without the flag, instrumentation is disabled for the `test` task entirely (avoids bytecode-instrumentation overhead on normal runs).
 
 ### TestDatabase (`io.craftpanel.master.TestDatabase`)
 

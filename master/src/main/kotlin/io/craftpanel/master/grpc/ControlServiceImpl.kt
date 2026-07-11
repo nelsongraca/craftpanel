@@ -1,9 +1,7 @@
 package io.craftpanel.master.grpc
 
 import io.craftpanel.master.config.NodeConfig
-import io.craftpanel.master.domain.AgentEvent
-import io.craftpanel.master.domain.NodeHealth
-import io.craftpanel.master.domain.NodeStatus
+import io.craftpanel.master.domain.*
 import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.service.AgentGateway
 import io.craftpanel.master.service.NodeStateReconciler
@@ -12,22 +10,13 @@ import io.craftpanel.master.util.CryptoUtils
 import io.craftpanel.proto.*
 import io.grpc.Status
 import io.grpc.StatusException
-import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.ProducerScope
-import kotlinx.coroutines.channels.SendChannel
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.channelFlow
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.*
+import kotlinx.coroutines.flow.*
 import org.slf4j.LoggerFactory
 import java.security.MessageDigest
 import java.security.SecureRandom
-import java.util.HexFormat
+import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
@@ -179,7 +168,8 @@ class ControlServiceImpl(
             }
         } finally {
             watchdogJob.cancel()
-            connectedNodeId.get()?.let { teardown(it, outChannel, watchdogFired.get()) }
+            connectedNodeId.get()
+                ?.let { teardown(it, outChannel, watchdogFired.get()) }
         }
     }
 
@@ -188,11 +178,12 @@ class ControlServiceImpl(
             delay(60.seconds)
             val elapsed = Clock.System.now() - lastMetricsAt.get()
             if (elapsed.inWholeSeconds > 120 && watchdogFired.compareAndSet(false, true)) {
-                connectedNodeId.get()?.let { nodeId ->
-                    log.warn("Node $nodeId: no metrics for ${elapsed.inWholeSeconds}s — marking unreachable")
-                    nodeStateReconciler.markNodeUnreachable(nodeId)
-                    agentEventsFlow.emit(AgentEvent.NodeStatusEvent(nodeId, NodeHealth.UNREACHABLE))
-                }
+                connectedNodeId.get()
+                    ?.let { nodeId ->
+                        log.warn("Node $nodeId: no metrics for ${elapsed.inWholeSeconds}s — marking unreachable")
+                        nodeStateReconciler.markNodeUnreachable(nodeId)
+                        agentEventsFlow.emit(AgentEvent.NodeStatusEvent(nodeId, NodeHealth.UNREACHABLE))
+                    }
             }
         }
     }

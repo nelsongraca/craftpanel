@@ -1,14 +1,8 @@
 package io.craftpanel.master.routes
 
-import io.craftpanel.master.auth.Permission
-import io.craftpanel.master.auth.JWT_AUTH
-import io.craftpanel.master.auth.requirePermission
-import io.craftpanel.master.auth.requireServerPermission
+import io.craftpanel.master.auth.*
 import io.craftpanel.master.service.*
-import io.github.smiley4.ktoropenapi.delete
-import io.github.smiley4.ktoropenapi.get
-import io.github.smiley4.ktoropenapi.patch
-import io.github.smiley4.ktoropenapi.post
+import io.github.smiley4.ktoropenapi.*
 import io.ktor.http.*
 import io.ktor.server.auth.*
 import io.ktor.server.request.*
@@ -16,14 +10,9 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlin.time.Instant
 
-fun Route.serversRoutes(
-    serverService: ServerService,
-    lifecycleService: ServerLifecycleService,
-    exposureService: ServerExposureService,
-) {
+fun Route.serversRoutes(serverService: ServerService, lifecycleService: ServerLifecycleService, exposureService: ServerExposureService) {
     authenticate(JWT_AUTH) {
         route("/api/servers") {
-
             get("", {
                 operationId = "listServers"
                 summary = "List servers"
@@ -71,7 +60,10 @@ fun Route.serversRoutes(
             patch("/{id}", {
                 operationId = "updateServer"
                 summary = "Update server"
-                request { pathParameter<String>("id"); body<UpdateServerRequest>() }
+                request {
+                    pathParameter<String>("id")
+                    body<UpdateServerRequest>()
+                }
                 response {
                     code(HttpStatusCode.NoContent) { }
                     code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
@@ -106,7 +98,10 @@ fun Route.serversRoutes(
             patch("/{id}/resources", {
                 operationId = "updateServerResources"
                 summary = "Update server resources"
-                request { pathParameter<String>("id"); body<PatchResourcesRequest>() }
+                request {
+                    pathParameter<String>("id")
+                    body<PatchResourcesRequest>()
+                }
                 response {
                     code(HttpStatusCode.NoContent) { }
                     code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
@@ -204,7 +199,10 @@ fun Route.serversRoutes(
             patch("/{id}/exposure", {
                 operationId = "updateServerExposure"
                 summary = "Update server exposure"
-                request { pathParameter<String>("id"); body<PatchExposureRequest>() }
+                request {
+                    pathParameter<String>("id")
+                    body<PatchExposureRequest>()
+                }
                 response {
                     code(HttpStatusCode.NoContent) { }
                     code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }

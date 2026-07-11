@@ -1,16 +1,11 @@
 package io.craftpanel.master.service.repo
 
-import io.craftpanel.master.database.schema.GroupPermissions
-import io.craftpanel.master.database.schema.Groups
-import io.craftpanel.master.database.schema.UserGroupAssignments
+import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.util.toUtcString
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.uuid.Uuid
 
 class GroupRepositoryImpl : GroupRepository {
@@ -108,5 +103,5 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toGroupRow(permissions: List
     name = this[Groups.name],
     isSystem = this[Groups.isSystem],
     permissions = permissions,
-    createdAt = this[Groups.createdAt].toUtcString(),
+    createdAt = this[Groups.createdAt].toUtcString()
 )

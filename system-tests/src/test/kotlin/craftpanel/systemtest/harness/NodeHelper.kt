@@ -1,10 +1,7 @@
 package craftpanel.systemtest.harness
 
 import craftpanel.systemtest.client.api.DefaultApi
-import craftpanel.systemtest.client.model.NodeHealth
-import craftpanel.systemtest.client.model.NodeResponse
-import craftpanel.systemtest.client.model.NodeStatus
-import craftpanel.systemtest.client.model.PatchNodeRequest
+import craftpanel.systemtest.client.model.*
 
 class NodeHelper(private val api: DefaultApi) {
 
@@ -16,7 +13,7 @@ class NodeHelper(private val api: DefaultApi) {
                 .firstOrNull { it.status == NodeStatus.PENDING }
         } ?: error(
             "No PENDING node appeared within ${timeoutMs}ms. " +
-                    "Nodes: ${lastNodes?.map { "${it.id}=${it.status}" } ?: "none"}"
+                "Nodes: ${lastNodes?.map { "${it.id}=${it.status}" } ?: "none"}"
         )
 
         api.trustNode(node.id)
@@ -47,14 +44,11 @@ class NodeHelper(private val api: DefaultApi) {
                 .firstOrNull { it.status == NodeStatus.PENDING }
         } ?: error(
             "No PENDING node appeared within ${timeoutMs}ms. " +
-                    "Nodes: ${lastNodes?.map { "${it.id}=${it.status}" } ?: "none"}"
+                "Nodes: ${lastNodes?.map { "${it.id}=${it.status}" } ?: "none"}"
         )
     }
 
-    suspend fun pollUntilActive(
-        id: String,
-        timeoutMs: Long = 30_000,
-    ): NodeResponse {
+    suspend fun pollUntilActive(id: String, timeoutMs: Long = 30_000): NodeResponse {
         var lastStatus: NodeStatus? = null
         return pollUntilNotNull(timeoutMs) {
             api.getNode(id)
@@ -62,5 +56,4 @@ class NodeHelper(private val api: DefaultApi) {
                 .takeIf { it.status == NodeStatus.ACTIVE }
         } ?: error("Node $id did not transition to ACTIVE within ${timeoutMs}ms. Last status: ${lastStatus ?: "none"}")
     }
-
 }

@@ -2,8 +2,8 @@ package craftpanel.systemtest.server
 
 import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
-import io.kotest.core.annotation.Isolate
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.annotation.Isolate
 import io.kotest.matchers.shouldBe
 import org.openapitools.client.infrastructure.ClientException
 

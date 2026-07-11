@@ -1,8 +1,6 @@
 package craftpanel.systemtest.harness
 
-import io.kotest.core.listeners.AfterEachListener
-import io.kotest.core.listeners.AfterProjectListener
-import io.kotest.core.listeners.BeforeProjectListener
+import io.kotest.core.listeners.*
 import io.kotest.core.test.TestCase
 import io.kotest.core.test.parents
 import io.kotest.engine.test.TestResult
@@ -23,8 +21,10 @@ object TimingListener : AfterEachListener, BeforeProjectListener, AfterProjectLi
 
     override suspend fun afterEach(testCase: TestCase, result: TestResult) {
         val specName = testCase.spec::class.simpleName ?: "?"
-        val path = (testCase.parents()
-            .map { it.name.name } + testCase.name.name).joinToString(" > ")
+        val path = (
+            testCase.parents()
+                .map { it.name.name } + testCase.name.name
+            ).joinToString(" > ")
         val label = "$specName > $path"
         val ms = result.duration.inWholeMilliseconds
         System.err.println("[timing] %-100s  %6dms".format(label, ms))

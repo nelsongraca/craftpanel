@@ -2,15 +2,13 @@ package io.craftpanel.master.grpc.handlers
 
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.proto.AgentMessage
-import io.craftpanel.proto.PlayerUpdate
 import kotlinx.coroutines.flow.MutableSharedFlow
 import org.slf4j.LoggerFactory
 import kotlin.time.Clock
 import kotlin.time.Instant
 
-class PlayerUpdateHandler(
-    private val agentEvents: MutableSharedFlow<AgentEvent>,
-) {
+class PlayerUpdateHandler(private val agentEvents: MutableSharedFlow<AgentEvent>) {
+
     private val log = LoggerFactory.getLogger(PlayerUpdateHandler::class.java)
 
     suspend fun handle(msg: AgentMessage, nodeId: String) {
@@ -28,7 +26,7 @@ class PlayerUpdateHandler(
             serverId = playerUpdate.serverId,
             playerCount = playerUpdate.playerCount,
             playerNames = playerUpdate.playerNamesList,
-            recordedAt = recordedAt,
+            recordedAt = recordedAt
         )
         agentEvents.emit(playerUpdateEvent)
     }

@@ -1,10 +1,7 @@
 package io.craftpanel.master.service.migration.steps
 
 import io.craftpanel.master.service.PortExhaustedException
-import io.craftpanel.master.service.migration.MigrationCoordinator
-import io.craftpanel.master.service.migration.MigrationPlan
-import io.craftpanel.master.service.migration.MigrationStep
-import io.craftpanel.master.service.migration.StepResult
+import io.craftpanel.master.service.migration.*
 
 class AssignTargetPortStep : MigrationStep {
 

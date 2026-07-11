@@ -1,7 +1,7 @@
 package io.craftpanel.master.config
 
-import java.io.File
 import org.slf4j.LoggerFactory
+import java.io.File
 
 private val log = LoggerFactory.getLogger("io.craftpanel.master.config.SecretFiles")
 
@@ -14,14 +14,11 @@ private val log = LoggerFactory.getLogger("io.craftpanel.master.config.SecretFil
  * environment. A set-but-unreadable `_FILE` path is fatal — failing loudly beats
  * silently falling back to a weaker source for a credential.
  */
-fun secretFromFileOrValue(
-    envName: String,
-    value: String,
-    getenv: (String) -> String? = System::getenv,
-): String {
+fun secretFromFileOrValue(envName: String, value: String, getenv: (String) -> String? = System::getenv): String {
     val filePath = getenv("${envName}_FILE")?.takeIf { it.isNotBlank() } ?: return value
     val file = File(filePath)
     check(file.isFile && file.canRead()) { "${envName}_FILE points to '$filePath' which is not a readable file" }
     log.info("Loaded secret $envName from ${envName}_FILE ($filePath)")
-    return file.readText().trim()
+    return file.readText()
+        .trim()
 }

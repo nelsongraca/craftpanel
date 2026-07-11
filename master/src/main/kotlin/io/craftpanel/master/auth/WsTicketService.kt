@@ -1,11 +1,11 @@
 package io.craftpanel.master.auth
 
 import io.craftpanel.master.util.CryptoUtils
-import kotlin.uuid.Uuid
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
+import kotlin.uuid.Uuid
 
 class WsTicketService {
 

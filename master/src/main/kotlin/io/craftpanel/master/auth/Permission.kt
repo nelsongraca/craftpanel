@@ -27,5 +27,9 @@ enum class Permission(val node: String) {
 
 @Serializable
 enum class ScopeType {
-    GLOBAL, SERVER, NETWORK, NODE
+
+    GLOBAL,
+    SERVER,
+    NETWORK,
+    NODE
 }

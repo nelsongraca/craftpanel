@@ -3,19 +3,10 @@ package io.craftpanel.master.service.repo
 import io.craftpanel.master.database.schema.AlertEvents
 import io.craftpanel.master.database.schema.AlertThresholds
 import io.craftpanel.master.util.toUtcString
-import org.jetbrains.exposed.v1.core.SortOrder
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.isNull
-import org.jetbrains.exposed.v1.core.and
-import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.selectAll
+import kotlinx.datetime.*
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
-import kotlinx.datetime.Instant
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import kotlin.uuid.Uuid
 
 class AlertRepositoryImpl : AlertRepository {
@@ -31,13 +22,7 @@ class AlertRepositoryImpl : AlertRepository {
             .map { it.toThresholdRow() }
     }
 
-    override fun createThreshold(
-        scopeType: String,
-        scopeId: Uuid,
-        metric: String,
-        thresholdValue: Double?,
-        thresholdState: String?,
-    ): AlertThresholdRow = transaction {
+    override fun createThreshold(scopeType: String, scopeId: Uuid, metric: String, thresholdValue: Double?, thresholdState: String?): AlertThresholdRow = transaction {
         val id = AlertThresholds.insert {
             it[AlertThresholds.scopeType] = scopeType
             it[AlertThresholds.scopeId] = scopeId
@@ -80,7 +65,7 @@ class AlertRepositoryImpl : AlertRepository {
                     thresholdId = it[AlertEvents.thresholdId],
                     firedAt = it[AlertEvents.firedAt].toString(),
                     resolvedAt = it[AlertEvents.resolvedAt]?.toString(),
-                    message = it[AlertEvents.message],
+                    message = it[AlertEvents.message]
                 )
             }
     }
@@ -95,7 +80,7 @@ class AlertRepositoryImpl : AlertRepository {
                     thresholdId = it[AlertEvents.thresholdId],
                     firedAt = it[AlertEvents.firedAt].toString(),
                     resolvedAt = null,
-                    message = it[AlertEvents.message],
+                    message = it[AlertEvents.message]
                 )
             }
     }
@@ -114,7 +99,7 @@ class AlertRepositoryImpl : AlertRepository {
                     thresholdId = it[AlertEvents.thresholdId],
                     firedAt = it[AlertEvents.firedAt].toString(),
                     resolvedAt = null,
-                    message = it[AlertEvents.message],
+                    message = it[AlertEvents.message]
                 )
             }
     }
@@ -132,12 +117,12 @@ class AlertRepositoryImpl : AlertRepository {
     }
 }
 
-private fun org.jetbrains.exposed.v1.core.ResultRow.toThresholdRow() = AlertThresholdRow(
+private fun ResultRow.toThresholdRow() = AlertThresholdRow(
     id = this[AlertThresholds.id],
     scopeType = this[AlertThresholds.scopeType],
     scopeId = this[AlertThresholds.scopeId],
     metric = this[AlertThresholds.metric],
     thresholdValue = this[AlertThresholds.thresholdValue],
     thresholdState = this[AlertThresholds.thresholdState],
-    createdAt = this[AlertThresholds.createdAt].toUtcString(),
+    createdAt = this[AlertThresholds.createdAt].toUtcString()
 )

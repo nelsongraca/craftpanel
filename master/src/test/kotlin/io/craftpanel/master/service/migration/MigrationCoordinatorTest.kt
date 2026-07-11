@@ -1,22 +1,12 @@
 package io.craftpanel.master.service.migration
 
-import io.craftpanel.master.TestAgentGateway
-import io.craftpanel.master.TestDatabase
-import io.craftpanel.master.TestRepositories
+import io.craftpanel.master.*
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.MigrationStatus
 import io.craftpanel.master.domain.MigrationStepStatus
-import io.craftpanel.master.service.ContainerLifecycle
-import io.craftpanel.master.service.ModService
-import io.craftpanel.master.service.PortExhaustedException
-import io.craftpanel.master.service.ServerExposure
-import io.craftpanel.master.service.repo.NetworkRepositoryImpl
-import io.craftpanel.master.service.repo.NodeRepositoryImpl
-import io.craftpanel.master.service.repo.NodeRow
-import io.craftpanel.master.service.repo.ProxyBackendInput
-import io.craftpanel.master.service.repo.ServerRow
-import io.craftpanel.master.service.repo.SettingsRepositoryImpl
+import io.craftpanel.master.service.*
+import io.craftpanel.master.service.repo.*
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -83,7 +73,8 @@ class MigrationCoordinatorTest :
             }
             plan = MigrationPlan(
                 migrationId = Uuid.random(),
-                migrationIdStr = Uuid.random().toString(),
+                migrationIdStr = Uuid.random()
+                    .toString(),
                 serverId = serverId,
                 serverIdStr = serverId.toString(),
                 sourceNodeId = nodeId,
@@ -157,7 +148,8 @@ class MigrationCoordinatorTest :
                 val p = plan.copy(migrationId = migration.id, migrationIdStr = migration.id.toString())
                 val stepId = coord.startStep(p, 1, "Test step")
                 coord.completeStep(stepId, true)
-                val step = coord.migrationRepository.listMigrationSteps(p.migrationId).first()
+                val step = coord.migrationRepository.listMigrationSteps(p.migrationId)
+                    .first()
                 step.status shouldBe MigrationStepStatus.SUCCESS.name
             }
         }
@@ -168,7 +160,8 @@ class MigrationCoordinatorTest :
                 val p = plan.copy(migrationId = migration.id, migrationIdStr = migration.id.toString())
                 val stepId = coord.startStep(p, 1, "Test step")
                 coord.completeStep(stepId, false, "Something went wrong")
-                val step = coord.migrationRepository.listMigrationSteps(p.migrationId).first()
+                val step = coord.migrationRepository.listMigrationSteps(p.migrationId)
+                    .first()
                 step.status shouldBe MigrationStepStatus.FAILED.name
                 step.errorMessage shouldBe "Something went wrong"
             }

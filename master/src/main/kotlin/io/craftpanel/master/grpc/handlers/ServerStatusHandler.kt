@@ -6,9 +6,8 @@ import io.craftpanel.proto.AgentMessage
 import kotlinx.coroutines.flow.MutableSharedFlow
 import org.slf4j.LoggerFactory
 
-class ServerStatusHandler(
-    private val agentEvents: MutableSharedFlow<AgentEvent>,
-) {
+class ServerStatusHandler(private val agentEvents: MutableSharedFlow<AgentEvent>) {
+
     private val log = LoggerFactory.getLogger(ServerStatusHandler::class.java)
 
     suspend fun handle(msg: AgentMessage, nodeId: String) {
@@ -19,7 +18,7 @@ class ServerStatusHandler(
         val domainStatus = ServerStatus.fromProto(msg.serverStatus.status)
         val serverStatusEvent = AgentEvent.ServerStatusEvent(
             serverId = msg.serverStatus.serverId,
-            status = domainStatus,
+            status = domainStatus
         )
         agentEvents.emit(serverStatusEvent)
     }

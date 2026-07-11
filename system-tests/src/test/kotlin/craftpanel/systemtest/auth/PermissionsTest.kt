@@ -5,16 +5,13 @@ import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.AuthHelper
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
-import io.kotest.matchers.collections.shouldBeEmpty
-import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.collections.shouldNotContain
+import io.kotest.matchers.collections.*
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.openapitools.client.infrastructure.ApiClient
 import org.openapitools.client.infrastructure.ClientException
 
 class PermissionsTest : BaseSystemTest() {
-
 
     private lateinit var serverId: String
 
@@ -156,16 +153,26 @@ class PermissionsTest : BaseSystemTest() {
                 )
                 val s1 = api.createServer(
                     CreateServerRequest(
-                        name = "net-s1-${System.currentTimeMillis()}", nodeId = nodeId,
-                        serverType = "PAPER", mcVersion = "1.21.4", itzgImageTag = "latest",
-                        memoryMb = 256, cpuShares = 64, networkId = net.id
+                        name = "net-s1-${System.currentTimeMillis()}",
+                        nodeId = nodeId,
+                        serverType = "PAPER",
+                        mcVersion = "1.21.4",
+                        itzgImageTag = "latest",
+                        memoryMb = 256,
+                        cpuShares = 64,
+                        networkId = net.id
                     )
                 )
                 val s2 = api.createServer(
                     CreateServerRequest(
-                        name = "net-s2-${System.currentTimeMillis()}", nodeId = nodeId,
-                        serverType = "PAPER", mcVersion = "1.21.4", itzgImageTag = "latest",
-                        memoryMb = 256, cpuShares = 64, networkId = net.id
+                        name = "net-s2-${System.currentTimeMillis()}",
+                        nodeId = nodeId,
+                        serverType = "PAPER",
+                        mcVersion = "1.21.4",
+                        itzgImageTag = "latest",
+                        memoryMb = 256,
+                        cpuShares = 64,
+                        networkId = net.id
                     )
                 )
                 try {
@@ -174,16 +181,22 @@ class PermissionsTest : BaseSystemTest() {
                         CreateGroupRequest(name = "net-scope-group-${System.currentTimeMillis()}")
                     )
                     api.setGroupPermissions(
-                        group.id, PutGroupPermissionsRequest(permissions = listOf("server.view"))
+                        group.id,
+                        PutGroupPermissionsRequest(permissions = listOf("server.view"))
                     )
                     val user = api.createUser(
                         CreateUserRequest(
-                            username = "net-scope-${System.currentTimeMillis()}", email = email, password = "pw"
+                            username = "net-scope-${System.currentTimeMillis()}",
+                            email = email,
+                            password = "pw"
                         )
                     )
                     api.createAssignment(
-                        user.id, CreateAssignmentRequest(
-                            groupId = group.id, scopeType = "NETWORK", scopeId = net.id
+                        user.id,
+                        CreateAssignmentRequest(
+                            groupId = group.id,
+                            scopeType = "NETWORK",
+                            scopeId = net.id
                         )
                     )
                     withViewerApi(email, "pw") { vApi ->
@@ -193,8 +206,7 @@ class PermissionsTest : BaseSystemTest() {
                     }
                     api.deleteGroup(group.id)
                     cleanupUser(email)
-                }
-                finally {
+                } finally {
                     runCatching { api.deleteServer(s1.id) }
                     runCatching { api.deleteServer(s2.id) }
                     runCatching { api.deleteNetwork(net.id) }
@@ -207,16 +219,21 @@ class PermissionsTest : BaseSystemTest() {
                     CreateGroupRequest(name = "start-only-group-${System.currentTimeMillis()}")
                 )
                 api.setGroupPermissions(
-                    group.id, PutGroupPermissionsRequest(permissions = listOf("server.start", "server.view"))
+                    group.id,
+                    PutGroupPermissionsRequest(permissions = listOf("server.start", "server.view"))
                 )
                 val user = api.createUser(
                     CreateUserRequest(
-                        username = "start-only-${System.currentTimeMillis()}", email = email, password = "pw"
+                        username = "start-only-${System.currentTimeMillis()}",
+                        email = email,
+                        password = "pw"
                     )
                 )
                 api.createAssignment(
-                    user.id, CreateAssignmentRequest(
-                        groupId = group.id, scopeType = "GLOBAL"
+                    user.id,
+                    CreateAssignmentRequest(
+                        groupId = group.id,
+                        scopeType = "GLOBAL"
                     )
                 )
                 try {
@@ -225,8 +242,7 @@ class PermissionsTest : BaseSystemTest() {
                         val ex = shouldThrow<ClientException> { vApi.stopServer(serverId) }
                         ex.statusCode shouldBe 403
                     }
-                }
-                finally {
+                } finally {
                     api.deleteGroup(group.id)
                     cleanupUser(email)
                 }
@@ -251,23 +267,26 @@ class PermissionsTest : BaseSystemTest() {
                     CreateGroupRequest(name = "no-view-group-${System.currentTimeMillis()}")
                 )
                 api.setGroupPermissions(
-                    group.id, PutGroupPermissionsRequest(permissions = listOf("system.settings"))
+                    group.id,
+                    PutGroupPermissionsRequest(permissions = listOf("system.settings"))
                 )
                 val user = api.createUser(
                     CreateUserRequest(
-                        username = "no-view-${System.currentTimeMillis()}", email = email, password = "pw"
+                        username = "no-view-${System.currentTimeMillis()}",
+                        email = email,
+                        password = "pw"
                     )
                 )
                 api.createAssignment(
-                    user.id, CreateAssignmentRequest(groupId = group.id, scopeType = "GLOBAL")
+                    user.id,
+                    CreateAssignmentRequest(groupId = group.id, scopeType = "GLOBAL")
                 )
                 try {
                     withViewerApi(email, "pw") { vApi ->
                         val servers = vApi.listServers()
                         servers.shouldBeEmpty()
                     }
-                }
-                finally {
+                } finally {
                     api.deleteGroup(group.id)
                     cleanupUser(email)
                 }
@@ -279,23 +298,26 @@ class PermissionsTest : BaseSystemTest() {
                     CreateGroupRequest(name = "no-users-group-${System.currentTimeMillis()}")
                 )
                 api.setGroupPermissions(
-                    group.id, PutGroupPermissionsRequest(permissions = listOf("server.view"))
+                    group.id,
+                    PutGroupPermissionsRequest(permissions = listOf("server.view"))
                 )
                 val user = api.createUser(
                     CreateUserRequest(
-                        username = "no-users-${System.currentTimeMillis()}", email = email, password = "pw"
+                        username = "no-users-${System.currentTimeMillis()}",
+                        email = email,
+                        password = "pw"
                     )
                 )
                 api.createAssignment(
-                    user.id, CreateAssignmentRequest(groupId = group.id, scopeType = "GLOBAL")
+                    user.id,
+                    CreateAssignmentRequest(groupId = group.id, scopeType = "GLOBAL")
                 )
                 try {
                     withViewerApi(email, "pw") { vApi ->
                         val ex = shouldThrow<ClientException> { vApi.listUsers() }
                         ex.statusCode shouldBe 403
                     }
-                }
-                finally {
+                } finally {
                     api.deleteGroup(group.id)
                     cleanupUser(email)
                 }
@@ -307,23 +329,26 @@ class PermissionsTest : BaseSystemTest() {
                     CreateGroupRequest(name = "no-settings-group-${System.currentTimeMillis()}")
                 )
                 api.setGroupPermissions(
-                    group.id, PutGroupPermissionsRequest(permissions = listOf("server.view"))
+                    group.id,
+                    PutGroupPermissionsRequest(permissions = listOf("server.view"))
                 )
                 val user = api.createUser(
                     CreateUserRequest(
-                        username = "no-settings-${System.currentTimeMillis()}", email = email, password = "pw"
+                        username = "no-settings-${System.currentTimeMillis()}",
+                        email = email,
+                        password = "pw"
                     )
                 )
                 api.createAssignment(
-                    user.id, CreateAssignmentRequest(groupId = group.id, scopeType = "GLOBAL")
+                    user.id,
+                    CreateAssignmentRequest(groupId = group.id, scopeType = "GLOBAL")
                 )
                 try {
                     withViewerApi(email, "pw") { vApi ->
                         val ex = shouldThrow<ClientException> { vApi.getSystemSettings() }
                         ex.statusCode shouldBe 403
                     }
-                }
-                finally {
+                } finally {
                     api.deleteGroup(group.id)
                     cleanupUser(email)
                 }
@@ -403,8 +428,7 @@ class PermissionsTest : BaseSystemTest() {
         try {
             val user = api.listUsers().users.first { it.email == email }
             runCatching { api.deleteUser(user.id) }
-        }
-        catch (_: Exception) {
+        } catch (_: Exception) {
         }
     }
 
@@ -414,8 +438,7 @@ class PermissionsTest : BaseSystemTest() {
             val viewerApi = DefaultApi(basePath = masterApiUrl)
             AuthHelper(viewerApi).login(email = email, password = password)
             return block(viewerApi)
-        }
-        finally {
+        } finally {
             ApiClient.accessToken = savedToken
         }
     }

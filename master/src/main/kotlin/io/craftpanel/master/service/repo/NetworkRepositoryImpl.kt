@@ -4,13 +4,8 @@ import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.util.toUtcString
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.core.neq
-import org.jetbrains.exposed.v1.core.and
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.uuid.Uuid
 
 class NetworkRepositoryImpl : NetworkRepository {
@@ -40,14 +35,7 @@ class NetworkRepositoryImpl : NetworkRepository {
             .map { it.toNetworkRow() }
     }
 
-    override fun create(
-        name: String,
-        proxyPort: Int?,
-        description: String?,
-        cfDomainSuffix: String?,
-        cfZoneId: String?,
-        dnsProviderType: String?,
-    ): NetworkRow = transaction {
+    override fun create(name: String, proxyPort: Int?, description: String?, cfDomainSuffix: String?, cfZoneId: String?, dnsProviderType: String?): NetworkRow = transaction {
         val id = ServerNetworks.insert {
             it[ServerNetworks.name] = name
             it[ServerNetworks.proxyPort] = proxyPort
@@ -62,14 +50,7 @@ class NetworkRepositoryImpl : NetworkRepository {
             .toNetworkRow()
     }
 
-    override fun update(
-        id: Uuid,
-        name: String?,
-        description: String?,
-        cfDomainSuffix: String?,
-        cfZoneId: String?,
-        dnsProviderType: String?,
-    ) {
+    override fun update(id: Uuid, name: String?, description: String?, cfDomainSuffix: String?, cfZoneId: String?, dnsProviderType: String?) {
         transaction {
             ServerNetworks.update({ ServerNetworks.id eq id }) {
                 if (name != null) it[ServerNetworks.name] = name
@@ -96,5 +77,5 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toNetworkRow() = NetworkRow(
     cfZoneId = this[ServerNetworks.cfZoneId],
     cfDomainSuffix = this[ServerNetworks.cfDomainSuffix],
     dnsProviderType = this[ServerNetworks.dnsProviderType],
-    createdAt = this[ServerNetworks.createdAt].toUtcString(),
+    createdAt = this[ServerNetworks.createdAt].toUtcString()
 )

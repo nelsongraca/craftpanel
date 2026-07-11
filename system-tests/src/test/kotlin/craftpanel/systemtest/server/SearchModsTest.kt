@@ -1,18 +1,12 @@
 package craftpanel.systemtest.server
 
 import craftpanel.systemtest.client.api.DefaultApi
-import craftpanel.systemtest.client.model.CreateAssignmentRequest
-import craftpanel.systemtest.client.model.CreateGroupRequest
-import craftpanel.systemtest.client.model.CreateUserRequest
-import craftpanel.systemtest.client.model.PutGroupPermissionsRequest
-import craftpanel.systemtest.client.model.ServerStatus
+import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.AuthHelper
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.matchers.shouldBe
-import org.openapitools.client.infrastructure.ApiClient
-import org.openapitools.client.infrastructure.ClientException
-import org.openapitools.client.infrastructure.ServerException
+import org.openapitools.client.infrastructure.*
 
 class SearchModsTest : BaseSystemTest() {
 
@@ -57,12 +51,12 @@ class SearchModsTest : BaseSystemTest() {
                         CreateUserRequest(
                             username = "view-only-${System.currentTimeMillis()}",
                             email = email,
-                            password = password,
+                            password = password
                         )
                     )
                     api.createAssignment(
                         user.id,
-                        CreateAssignmentRequest(groupId = group.id, scopeType = "GLOBAL"),
+                        CreateAssignmentRequest(groupId = group.id, scopeType = "GLOBAL")
                     )
 
                     val restrictedApi = DefaultApi(basePath = masterApiUrl)
@@ -74,8 +68,7 @@ class SearchModsTest : BaseSystemTest() {
 
                     runCatching { api.deleteUser(user.id) }
                     runCatching { api.deleteGroup(group.id) }
-                }
-                finally {
+                } finally {
                     ApiClient.accessToken = savedToken
                 }
             }
