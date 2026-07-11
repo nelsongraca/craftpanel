@@ -1,6 +1,7 @@
 package io.craftpanel.master.di
 
 import io.craftpanel.master.auth.JwtManager
+import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.auth.RefreshTokenService
 import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.config.AppConfig
@@ -21,6 +22,7 @@ import io.craftpanel.master.service.AlertService
 import io.craftpanel.master.service.AssignmentService
 import io.craftpanel.master.service.BackupService
 import io.craftpanel.master.service.ContainerLifecycle
+import io.craftpanel.master.service.DashboardService
 import io.craftpanel.master.service.EnvVarsService
 import io.craftpanel.master.service.GroupService
 import io.craftpanel.master.service.MigrationService
@@ -138,6 +140,7 @@ val appModule = module {
     }
 
     // Auth
+    single { PermissionResolver }
     single { JwtManager(get<AppConfig>().jwt) }
     single { RefreshTokenService(userRepository = get()) }
     single { WsTicketService() }
@@ -217,6 +220,7 @@ val appModule = module {
     single { BackupService(get<AgentGateway>(), get(), get()) }
     single { ProxyBackendService(get()) }
     single { EnvVarsService(get()) }
+    single { DashboardService(get(), get(), get(), get()) }
 
     single {
         MigrationService(

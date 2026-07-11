@@ -1,6 +1,7 @@
 package io.craftpanel.master.routes
 
 import io.craftpanel.master.TestDatabase
+import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.database.schema.Nodes
@@ -23,7 +24,7 @@ class ConsoleRoutesTest : FunSpec({
     val reconciler = NodeStateReconciler(ServerRepositoryImpl(), NodeRepositoryImpl())
     val noopControlSvc = createTestControlServiceImpl(NodeConfig("test-token", 50052), reconciler)
     val noopProxy = DataServiceProxy(noopControlSvc, BulkDataServiceImpl(noopControlSvc), ServerRepositoryImpl())
-    val consoleRoutes = ConsoleRoutes(WsTicketService(), noopProxy)
+    val consoleRoutes = ConsoleRoutes(WsTicketService(), noopProxy, PermissionResolver)
 
     beforeTest {
         TestDatabase.initIfNeeded()

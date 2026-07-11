@@ -70,11 +70,13 @@ private class ConsoleSessionManager(private val proxy: DataServiceProxy, private
 
 internal data class ServerInfo(val serverId: Uuid, val networkId: Uuid?)
 
-fun Route.consoleRoutes(wsTicketService: WsTicketService, proxy: DataServiceProxy) = with(ConsoleRoutes(wsTicketService, proxy)) { register() }
+fun Route.consoleRoutes(wsTicketService: WsTicketService, proxy: DataServiceProxy, permissionResolver: PermissionResolver) =
+    with(ConsoleRoutes(wsTicketService, proxy, permissionResolver)) { register() }
 
 class ConsoleRoutes(
     private val wsTicketService: WsTicketService,
-    proxy: DataServiceProxy
+    proxy: DataServiceProxy,
+    private val permissionResolver: PermissionResolver
 ) {
 
     private val log = LoggerFactory.getLogger(ConsoleRoutes::class.java)
@@ -110,7 +112,7 @@ class ConsoleRoutes(
                 return@webSocket
             }
 
-            if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONSOLE, serverInfo.serverId, serverInfo.networkId)) {
+            if (!permissionResolver.hasPermission(userId, Permission.SERVER_CONSOLE, serverInfo.serverId, serverInfo.networkId)) {
                 close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Insufficient permissions"))
                 return@webSocket
             }
@@ -135,7 +137,7 @@ class ConsoleRoutes(
             val revalidationJob = launch {
                 while (true) {
                     delay(5.minutes)
-                    if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONSOLE, serverInfo.serverId, serverInfo.networkId)) {
+                    if (!permissionResolver.hasPermission(userId, Permission.SERVER_CONSOLE, serverInfo.serverId, serverInfo.networkId)) {
                         sendConsole(ConsoleEvent.Disconnected(serverId, "Session revoked"))
                         close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Session revoked"))
                         return@launch
@@ -161,7 +163,7 @@ class ConsoleRoutes(
                         runCatching {
                             val event = json.decodeFromString(ConsoleInEvent.serializer(), frame.readText())
                             if (event is ConsoleInEvent.Input) {
-                                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONSOLE, serverInfo.serverId, serverInfo.networkId)) {
+                                if (!permissionResolver.hasPermission(userId, Permission.SERVER_CONSOLE, serverInfo.serverId, serverInfo.networkId)) {
                                     close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Insufficient permissions"))
                                     return@webSocket
                                 }

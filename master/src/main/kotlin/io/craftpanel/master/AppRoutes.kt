@@ -5,7 +5,6 @@ import io.craftpanel.master.auth.RefreshTokenService
 import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.auth.routes.authRoutes
 import io.craftpanel.master.config.AppConfig
-import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.routes.alertsRoutes
 import io.craftpanel.master.routes.assignmentsRoutes
@@ -52,12 +51,12 @@ fun Route.registerAppRoutes() {
     groupsRoutes(get())
     assignmentsRoutes(get())
     systemRoutes(get())
-    consoleRoutes(get(), get())
+    consoleRoutes(get(), get(), get())
     filesRoutes(get())
     backupsRoutes(get())
     configRoutes(get(), get())
     modsRoutes(get())
-    dashboardWsRoutes(get(), get<ControlServiceImpl>().agentEvents, get(), get())
+    dashboardWsRoutes(get(), get())
     alertsRoutes(get())
     migrationsRoutes(get())
 }

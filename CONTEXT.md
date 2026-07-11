@@ -346,6 +346,31 @@ handler-dispatch candidates.
 
 See candidate 4, `improve-codebase-architecture` review 2026-07-11.
 
+### DashboardService (master)
+
+Deep service seam for the dashboard WebSocket (`/api/ws`). Absorbs snapshot
+construction, permission-gated event filtering, and agent event subscription
+so the route is pure transport.
+
+- `getSnapshot(userId)` — fetches all servers + metrics + nodes, applies
+  `DashboardEventFilter` permission gates, returns `WsEnvelope`.
+- `filteredEvents(userId)` — returns cold `Flow<WsEnvelope>` by collecting
+  `AgentGateway.agentEvents` through a per-user `DashboardEventFilter`.
+- Takes `AgentGateway`, `ServerRepository`, `NodeRepository`, `PermissionResolver`
+  via constructor injection (Koin).
+- `PermissionResolver` is registered in Koin as `single { PermissionResolver }`
+  (Kotlin object singleton — already a singleton, Koin manages it for injection).
+- Route slimmed from 4 params (`WsTicketService`, `SharedFlow<AgentEvent>`,
+  `ServerRepository`, `NodeRepository`) to 2 (`WsTicketService`, `DashboardService`).
+- Fixes `get<ControlServiceImpl>().agentEvents` coupling in `AppRoutes.kt` —
+  the route no longer reaches into the concrete gRPC impl.
+- `DashboardEventFilter` stays as the pure-logic layer (no DB/socket access),
+  constructed internally by `DashboardService` per userId.
+- 5-min permission revalidation stays in the route (WebSocket lifecycle concern).
+- `serverNetworkId` per-event `findById` left uncached — tracked in issue #25.
+- ADR: `docs/adr/0001-dashboard-service-seam.md`.
+- See candidate 2, `improve-codebase-architecture` review 2026-07-11.
+
 ## Open / planned
 
 ### Server lifecycle orchestrator (master) — superseded by ContainerLifecycle
