@@ -4,13 +4,8 @@ package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.auth.PermissionResolver
-import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.domain.AgentEvent
-import io.craftpanel.master.domain.BackupStatus
-import io.craftpanel.master.domain.NodeHealth
-import io.craftpanel.master.domain.NodeStatus
-import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import io.ktor.server.routing.*
@@ -20,38 +15,15 @@ import io.ktor.websocket.DefaultWebSocketSession
 import kotlinx.coroutines.channels.consumeEach
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
-import kotlinx.serialization.json.encodeToJsonElement
-import kotlin.reflect.KClass
-import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
 import kotlin.uuid.Uuid
-
-private enum class WsEventType(val event: String) {
-    SNAPSHOT("snapshot"),
-    NODE_METRICS("node.metrics"),
-    NODE_STATUS("node.status"),
-    SERVER_METRICS("server.metrics"),
-    SERVER_STATUS("server.status"),
-    SERVER_PLAYERS("server.players"),
-    SERVER_BACKUP_PROGRESS("server.backup.progress"),
-    SERVER_BACKUP_COMPLETE("server.backup.complete"),
-    ALERT_FIRED("alert.fired"),
-    ALERT_RESOLVED("alert.resolved");
-
-    override fun toString(): String = event
-}
 
 internal val wsJson = Json {
     ignoreUnknownKeys = true
     namingStrategy = JsonNamingStrategy.SnakeCase
-}
-
-private inline fun <reified T> DefaultWebSocketSession.sendWs(type: WsEventType, payload: T) {
-    outgoing.trySend(Frame.Text(wsJson.encodeToString(WsEnvelope(type.event, wsJson.encodeToJsonElement(payload)))))
 }
 
 private fun DefaultWebSocketSession.sendWsRaw(envelope: WsEnvelope) {
@@ -72,206 +44,38 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, agentEvents: Share
             return@webSocket
         }
 
-        fun hasNodes() = PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES)
-
-        fun canViewServer(serverId: Uuid, networkId: Uuid?): Boolean = PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW, serverId, networkId)
-
-        fun serverNetworkId(serverId: String): Uuid? {
-            val kId = runCatching { Uuid.parse(serverId) }.getOrNull() ?: return null
-            return serverRepository.findById(kId)?.networkId
-        }
-
-        // ── Initial snapshot ──────────────────────────────────────────────────
-        val snapshot = run {
-            val serverRows = serverRepository.listAll()
-            val latestMetrics = serverRepository.getLatestContainerMetricsForServers(serverRows.map { it.id })
-
-            val servers = serverRows.mapNotNull { row ->
-                if (!canViewServer(row.id, row.networkId)) return@mapNotNull null
-                val metricsRow = latestMetrics[row.id]
-                ServerSnapshot(
-                    row.id.toString(),
-                    row.displayName,
-                    ServerStatus.fromDb(row.status),
-                    row.nodeId.toString(),
-                    row.networkId?.toString(),
-                    metricsRow?.let {
-                        ServerMetricsSnapshot(
-                            it.cpuPercent,
-                            it.ramUsedMb,
-                            it.netInBytes,
-                            it.netOutBytes,
-                            it.blockInBytes,
-                            it.blockOutBytes,
-                            it.recordedAt
-                        )
-                    }
-                )
-            }
-            val nodes = if (hasNodes()) {
-                nodeRepository.listAll()
-                    .map { row ->
-                        NodeSnapshot(row.id.toString(), row.displayName, NodeStatus.fromDb(row.status), NodeHealth.valueOf(row.health))
-                    }
-            } else {
-                emptyList()
-            }
-
-            WsEnvelope(WsEventType.SNAPSHOT.event, wsJson.encodeToJsonElement(SnapshotPayload(servers, nodes)))
-        }
-        sendWsRaw(snapshot)
-
-        // ── Subscriptions ─────────────────────────────────────────────────────
-
-        val handlers: Map<KClass<out AgentEvent>, suspend (AgentEvent) -> Unit> = mapOf(
-            AgentEvent.NodeMetricsEvent::class to { event ->
-                val e = event as AgentEvent.NodeMetricsEvent
-                if (!hasNodes()) return@to
-                sendWs(
-                    WsEventType.NODE_METRICS,
-                    NodeMetricsPayload(
-                        e.nodeId, e.cpuPercent, e.ramUsedMb, e.ramTotalMb,
-                        e.netInBytes, e.netOutBytes, e.diskUsedBytes, e.diskTotalBytes,
-                        e.recordedAt.toString()
-                    )
-                )
-            },
-            AgentEvent.NodeStatusEvent::class to { event ->
-                val e = event as AgentEvent.NodeStatusEvent
-                if (!hasNodes()) return@to
-                sendWs(
-                    WsEventType.NODE_STATUS,
-                    NodeStatusPayload(
-                        e.nodeId,
-                        e.health,
-                        Clock.System.now()
-                            .toString()
-                    )
-                )
-            },
-            AgentEvent.ContainerMetricsEvent::class to { event ->
-                val e = event as AgentEvent.ContainerMetricsEvent
-                val sid = runCatching { Uuid.parse(e.serverId) }.getOrNull() ?: return@to
-                val netId = serverNetworkId(e.serverId)
-                if (!canViewServer(sid, netId)) return@to
-                sendWs(
-                    WsEventType.SERVER_METRICS,
-                    ServerMetricsPayload(
-                        e.serverId,
-                        e.cpuPercent,
-                        e.ramUsedMb,
-                        e.netInBytes,
-                        e.netOutBytes,
-                        e.blockInBytes,
-                        e.blockOutBytes,
-                        e.recordedAt.toString()
-                    )
-                )
-            },
-            AgentEvent.ServerStatusEvent::class to { event ->
-                val e = event as AgentEvent.ServerStatusEvent
-                val sid = runCatching { Uuid.parse(e.serverId) }.getOrNull() ?: return@to
-                val netId = serverNetworkId(e.serverId)
-                if (!canViewServer(sid, netId)) return@to
-                sendWs(
-                    WsEventType.SERVER_STATUS,
-                    ServerStatusPayload(
-                        e.serverId,
-                        e.status,
-                        Clock.System.now()
-                            .toString()
-                    )
-                )
-            },
-            AgentEvent.PlayerUpdateEvent::class to { event ->
-                val e = event as AgentEvent.PlayerUpdateEvent
-                val sid = runCatching { Uuid.parse(e.serverId) }.getOrNull() ?: return@to
-                val netId = serverNetworkId(e.serverId)
-                if (!canViewServer(sid, netId)) return@to
-                sendWs(
-                    WsEventType.SERVER_PLAYERS,
-                    ServerPlayersPayload(
-                        e.serverId,
-                        e.playerCount,
-                        e.playerNames,
-                        e.recordedAt.toString()
-                    )
-                )
-            },
-            AgentEvent.BackupProgressEvent::class to { event ->
-                val e = event as AgentEvent.BackupProgressEvent
-                val sid = runCatching { Uuid.parse(e.serverId) }.getOrNull() ?: return@to
-                val netId = serverNetworkId(e.serverId)
-                if (!canViewServer(sid, netId)) return@to
-                sendWs(
-                    WsEventType.SERVER_BACKUP_PROGRESS,
-                    BackupProgressPayload(
-                        e.serverId,
-                        e.backupId,
-                        e.percentComplete,
-                        Clock.System.now()
-                            .toString()
-                    )
-                )
-            },
-            AgentEvent.BackupCompleteEvent::class to { event ->
-                val e = event as AgentEvent.BackupCompleteEvent
-                val sid = runCatching { Uuid.parse(e.serverId) }.getOrNull() ?: return@to
-                val netId = serverNetworkId(e.serverId)
-                if (!canViewServer(sid, netId)) return@to
-                val status = if (e.success) BackupStatus.COMPLETED else BackupStatus.FAILED
-                sendWs(
-                    WsEventType.SERVER_BACKUP_COMPLETE,
-                    BackupCompletePayload(
-                        e.serverId,
-                        e.backupId,
-                        status,
-                        e.sizeBytes,
-                        if (!e.success) e.errorMessage else null,
-                        e.completedAt.toString()
-                    )
-                )
-            },
-            AgentEvent.AlertFiredEvent::class to { event ->
-                val alert = event as AgentEvent.AlertFiredEvent
-                val isResolved = alert.resolvedAt != null
-                if (alert.scopeType == ScopeType.NODE.name && !hasNodes()) return@to
-                if (alert.scopeType == ScopeType.SERVER.name) {
-                    val sid = runCatching { Uuid.parse(alert.scopeId) }.getOrNull() ?: return@to
-                    val netId = serverNetworkId(alert.scopeId)
-                    if (!canViewServer(sid, netId)) return@to
-                }
-                val type = if (isResolved) WsEventType.ALERT_RESOLVED else WsEventType.ALERT_FIRED
-                sendWs(
-                    type,
-                    AlertPayload(
-                        alert.eventId,
-                        alert.thresholdId,
-                        ScopeType.valueOf(alert.scopeType),
-                        alert.scopeId,
-                        alert.metric,
-                        alert.message,
-                        if (!isResolved) alert.firedAt else null,
-                        if (isResolved) alert.resolvedAt else null
-                    )
-                )
+        val filter = DashboardEventFilter(
+            hasNodes = { PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES) },
+            canViewServer = { serverId, networkId -> PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW, serverId, networkId) },
+            serverNetworkId = { serverId ->
+                val kId = runCatching { Uuid.parse(serverId) }.getOrNull()
+                kId?.let { serverRepository.findById(it)?.networkId }
             }
         )
 
+        // ── Initial snapshot ──────────────────────────────────────────────────
+        val serverRows = serverRepository.listAll()
+        val latestMetrics = serverRepository.getLatestContainerMetricsForServers(serverRows.map { it.id })
+        val nodeRows = nodeRepository.listAll()
+        sendWsRaw(filter.snapshot(serverRows, latestMetrics, nodeRows))
+
+        // ── Subscriptions ─────────────────────────────────────────────────────
         val subscriptionsJob = launch {
-            handlers.forEach { (cls, handler) ->
-                launch {
-                    agentEvents.filterIsInstance(cls)
-                        .collect { handler(it) }
-                }
-            }
+            agentEvents.collect { event -> filter.toEnvelope(event)?.let { sendWsRaw(it) } }
         }
 
         // ── 5-min permission revalidation ─────────────────────────────────────
         val revalidationJob = launch {
             while (true) {
                 delay(5.minutes)
-                runCatching { PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW) }
+                val stillVisible = runCatching {
+                    PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW) ||
+                        PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES)
+                }.getOrNull() ?: true // transient DB error: skip, retry next tick
+                if (!stillVisible) {
+                    close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Permission revoked"))
+                    break
+                }
             }
         }
 
