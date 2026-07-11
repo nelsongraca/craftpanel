@@ -50,5 +50,10 @@
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^3.2.3"
+  },
+  "pnpm": {
+    "overrides": {
+      "js-yaml": "^4.2.0"
+    }
   }
 }
