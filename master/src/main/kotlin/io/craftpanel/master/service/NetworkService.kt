@@ -1,9 +1,6 @@
 package io.craftpanel.master.service
 
 import com.github.dockerjava.api.DockerClient
-import io.craftpanel.master.auth.Permission
-import io.craftpanel.master.auth.PermissionResolver
-import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.GroupRepository
 import io.craftpanel.master.service.repo.NetworkRepository
@@ -26,16 +23,11 @@ data class NetworkResponse(
     @SerialName("dns_domain_suffix") val dnsDomainSuffix: String?,
     @SerialName("dns_provider_type") val dnsProviderType: String?,
     @SerialName("server_count") val serverCount: Int,
-    @SerialName("created_at") val createdAt: String,
+    @SerialName("created_at") val createdAt: String
 )
 
 @Serializable
-data class NetworkServerItem(
-    val id: String,
-    @SerialName("display_name") val displayName: String,
-    @SerialName("server_type") val serverType: String,
-    val status: ServerStatus,
-)
+data class NetworkServerItem(val id: String, @SerialName("display_name") val displayName: String, @SerialName("server_type") val serverType: String, val status: ServerStatus)
 
 @Serializable
 data class NetworkDetailResponse(
@@ -49,7 +41,7 @@ data class NetworkDetailResponse(
     @SerialName("dns_provider_type") val dnsProviderType: String?,
     @SerialName("server_count") val serverCount: Int,
     val servers: List<NetworkServerItem>,
-    @SerialName("created_at") val createdAt: String,
+    @SerialName("created_at") val createdAt: String
 )
 
 @Serializable
@@ -60,7 +52,7 @@ data class CreateNetworkRequest(
     @SerialName("domain_suffix") val domainSuffix: String? = null,
     @SerialName("dns_zone_id") val dnsZoneId: String? = null,
     @SerialName("dns_domain_suffix") val dnsDomainSuffix: String? = null,
-    @SerialName("dns_provider_type") val dnsProviderType: String? = null,
+    @SerialName("dns_provider_type") val dnsProviderType: String? = null
 )
 
 @Serializable
@@ -70,7 +62,7 @@ data class PatchNetworkRequest(
     @SerialName("domain_suffix") val domainSuffix: String? = null,
     @SerialName("dns_zone_id") val dnsZoneId: String? = null,
     @SerialName("dns_domain_suffix") val dnsDomainSuffix: String? = null,
-    @SerialName("dns_provider_type") val dnsProviderType: String? = null,
+    @SerialName("dns_provider_type") val dnsProviderType: String? = null
 )
 
 class NetworkService(
@@ -79,13 +71,15 @@ class NetworkService(
     private val networkRepository: NetworkRepository,
     private val serverRepository: ServerRepository,
     private val nodeRepository: NodeRepository,
-    private val userRepository: UserRepository,
-    private val groupRepository: GroupRepository,
+    userRepository: UserRepository,
+    groupRepository: GroupRepository
 ) {
 
     private val log = org.slf4j.LoggerFactory.getLogger(NetworkService::class.java)
 
     private val hasDockerEndpoint: Boolean = dockerClient != null
+
+    private val visibilityResolver = ServerVisibilityResolver(userRepository, groupRepository)
 
     fun validateCrossNodeAssignment(nodeIds: List<Uuid>) {
         if (!hasDockerEndpoint) {
@@ -133,37 +127,12 @@ class NetworkService(
         }.onFailure { log.warn("Failed to delete overlay network $name: ${it.message}") }
     }
 
-    private fun resolveServerVisibility(userId: Uuid): ServerVisibility {
-        if (!userRepository.isActive(userId)) return ServerVisibility(false, emptySet(), emptySet())
-        val assignments = userRepository.listAssignments(userId)
-        val groupIds = assignments.map { it.groupId }
-            .toSet()
-        if (groupIds.isEmpty()) return ServerVisibility(false, emptySet(), emptySet())
-        val viewGroups = groupIds.filter { gid ->
-            groupRepository.getPermissions(gid)
-                .any { p -> PermissionResolver.grants(p, Permission.SERVER_VIEW) }
-        }
-            .toSet()
-        if (viewGroups.isEmpty()) return ServerVisibility(false, emptySet(), emptySet())
-        var isGlobal = false
-        val networkIds = mutableSetOf<Uuid>()
-        val serverIds = mutableSetOf<Uuid>()
-        for (a in assignments.filter { it.groupId in viewGroups }) {
-            when (a.scopeType) {
-                ScopeType.GLOBAL.name  -> isGlobal = true
-                ScopeType.NETWORK.name -> a.scopeId?.let { networkIds += it }
-                ScopeType.SERVER.name  -> a.scopeId?.let { serverIds += it }
-            }
-        }
-        return ServerVisibility(isGlobal, networkIds, serverIds)
-    }
-
     fun listNetworks(userId: Uuid): List<NetworkResponse> {
-        val visibility = resolveServerVisibility(userId)
+        val visibility = visibilityResolver.resolve(userId)
         val networks = when {
-            visibility.isGlobal             -> networkRepository.listAll()
+            visibility.isGlobal -> networkRepository.listAll()
             visibility.networkIds.isEmpty() -> return emptyList()
-            else                            -> networkRepository.listByIds(visibility.networkIds.toList())
+            else -> networkRepository.listByIds(visibility.networkIds.toList())
         }
         val counts = networks.associate { it.id to serverRepository.countByNetworkId(it.id) }
         return networks.map { it.toResponse(counts[it.id] ?: 0) }
@@ -177,7 +146,7 @@ class NetworkService(
             description = req.description,
             cfDomainSuffix = req.domainSuffix ?: req.dnsDomainSuffix,
             cfZoneId = req.dnsZoneId,
-            dnsProviderType = req.dnsProviderType,
+            dnsProviderType = req.dnsProviderType
         )
         createOverlayNetwork(row.id.toString())
         return row.toResponse(0)
@@ -191,7 +160,7 @@ class NetworkService(
                     id = s.id.toString(),
                     displayName = s.displayName,
                     serverType = s.serverType,
-                    status = ServerStatus.fromDb(s.status),
+                    status = ServerStatus.fromDb(s.status)
                 )
             }
         return NetworkDetailResponse(
@@ -205,7 +174,7 @@ class NetworkService(
             dnsProviderType = row.dnsProviderType,
             serverCount = members.size,
             servers = members,
-            createdAt = row.createdAt,
+            createdAt = row.createdAt
         )
     }
 
@@ -236,5 +205,5 @@ private fun NetworkRow.toResponse(serverCount: Int) = NetworkResponse(
     dnsDomainSuffix = cfDomainSuffix,
     dnsProviderType = dnsProviderType,
     serverCount = serverCount,
-    createdAt = createdAt,
+    createdAt = createdAt
 )
