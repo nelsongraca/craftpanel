@@ -148,8 +148,7 @@ class MigrationService(
                 if (e is CancellationException) throw e
                 if (e is ExposedSQLException && e.message?.contains("fk_migration_step_log") == true) {
                     log.warn("Migration ${migration.id} aborted: server was deleted mid-flight")
-                }
-                else {
+                } else {
                     log.error("Migration ${migration.id} crashed unexpectedly", e)
                 }
             }

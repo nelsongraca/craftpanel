@@ -73,7 +73,7 @@ class ModService(private val serverRepository: ServerRepository, private val mod
         val pinnedVersionId = when {
             req.pinnedVersionId != null -> req.pinnedVersionId
             req.pinStrategy != null && req.pinStrategy != ModPinStrategy.PINNED -> null
-            else                        -> modRepository.findModById(modId)?.pinnedVersionId
+            else -> modRepository.findModById(modId)?.pinnedVersionId
         }
         modRepository.updateMod(modId, req.pinStrategy?.name, pinnedVersionId, null)
         serverRepository.updateNeedsRecreate(serverId, true)
@@ -115,8 +115,7 @@ class ModService(private val serverRepository: ServerRepository, private val mod
                 .build()
             val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
             ModrinthSearchResult(response.statusCode(), response.body())
-        }
-        catch (_: Exception) {
+        } catch (_: Exception) {
             ModrinthSearchResult(502, "")
         }
     }
@@ -126,9 +125,9 @@ class ModService(private val serverRepository: ServerRepository, private val mod
             val projectId = row.modrinthProjectId
             when (ModPinStrategy.fromDb(row.pinStrategy)) {
                 ModPinStrategy.PINNED -> "$projectId:${row.pinnedVersionId}"
-                ModPinStrategy.BETA   -> "$projectId:beta"
-                ModPinStrategy.ALPHA  -> "$projectId:alpha"
-                else                  -> projectId
+                ModPinStrategy.BETA -> "$projectId:beta"
+                ModPinStrategy.ALPHA -> "$projectId:alpha"
+                else -> projectId
             }
         }
 }

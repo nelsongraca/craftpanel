@@ -112,8 +112,7 @@ open class MigrationCoordinator(
             )
             if (sent) {
                 log.info("Triggered proxy restart for server $proxyServerId on node $nodeIdStr after migration of $serverId to $targetIp:$port")
-            }
-            else {
+            } else {
                 log.warn("Could not reach node $nodeIdStr to restart proxy $proxyServerId after migration of $serverId — manual restart may be required")
             }
         }

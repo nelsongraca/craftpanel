@@ -175,8 +175,7 @@ class ContainerLifecycle(
                 ?: throw ContainerLifecycleException(
                     "step timed out after $timeout waiting for $expected (server $serverId)"
                 )
-        }
-        finally {
+        } finally {
             job.cancel()
         }
     }

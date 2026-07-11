@@ -206,8 +206,7 @@ open class ContainerManager(
                 .withTimeout(if (stopCommand.isNotEmpty()) 5 else timeout)
                 .exec()
             log.info("Stopped container {}", containerName)
-        }
-        catch (_: NotFoundException) {
+        } catch (_: NotFoundException) {
             // Container already gone (e.g. server was never started) — stopping is
             // idempotent, the desired end state (not running) already holds.
             log.info("Container {} does not exist — treating stop as already-stopped", containerName)
@@ -239,8 +238,7 @@ open class ContainerManager(
                 .withForce(force)
                 .exec()
             log.info("Removed container $containerName")
-        }
-        catch (_: NotFoundException) {
+        } catch (_: NotFoundException) {
             // Container already gone — removal is idempotent.
             log.info("Container {} does not exist — treating remove as already-removed", containerName)
         }

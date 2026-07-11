@@ -31,8 +31,8 @@ class PortRepositoryImpl : PortRepository {
         transaction {
             PortRegistry.deleteWhere {
                 (PortRegistry.nodeId eq nodeId) and
-                        (PortRegistry.port eq port) and
-                        (PortRegistry.protocol eq protocol)
+                    (PortRegistry.port eq port) and
+                    (PortRegistry.protocol eq protocol)
             }
         }
     }

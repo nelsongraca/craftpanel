@@ -39,8 +39,7 @@ class NodeStateReconciler(
 
                 val newStatus: ServerStatus? = if (container == null) {
                     mapMissingContainer(dbStatus)
-                }
-                else {
+                } else {
                     mapContainerState(container.runState, dbStatus)
                 }
 
@@ -57,8 +56,7 @@ class NodeStateReconciler(
             nodeRepository.updateSwarmActive(kotlinNodeId, snapshot.swarmActive)
             resultHealth = newHealth
             log.debug("Node {}: reconciled health={} (routerRunning={})", nodeId, newHealth, snapshot.routerRunning)
-        }
-        else {
+        } else {
             log.debug("Node $nodeId: status=$currentStatus — only updating lastSeenAt")
             nodeRepository.updateLastSeen(kotlinNodeId, now, null, null)
         }
@@ -97,9 +95,9 @@ class NodeStateReconciler(
 
 fun mapContainerState(runState: ContainerState.RunState, dbStatus: ServerStatus): ServerStatus? = when {
     runState == ContainerState.RunState.RUNNING && dbStatus != ServerStatus.HEALTHY -> ServerStatus.HEALTHY
-    runState == ContainerState.RunState.STOPPED && dbStatus.isRunning               -> ServerStatus.STOPPED
+    runState == ContainerState.RunState.STOPPED && dbStatus.isRunning -> ServerStatus.STOPPED
     runState == ContainerState.RunState.EXITED && dbStatus != ServerStatus.UNHEALTHY -> ServerStatus.UNHEALTHY
-    else                                                                            -> null
+    else -> null
 }
 
 fun mapMissingContainer(dbStatus: ServerStatus): ServerStatus? = if (dbStatus != ServerStatus.STOPPED) ServerStatus.STOPPED else null

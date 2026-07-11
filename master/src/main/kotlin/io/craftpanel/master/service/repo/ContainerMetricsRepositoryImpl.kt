@@ -42,8 +42,8 @@ class ContainerMetricsRepositoryImpl : ContainerMetricsRepository {
         ContainerMetrics.selectAll()
             .where {
                 (ContainerMetrics.serverId eq serverId) and
-                        (ContainerMetrics.recordedAt greaterEq fromLdt) and
-                        (ContainerMetrics.recordedAt lessEq toLdt)
+                    (ContainerMetrics.recordedAt greaterEq fromLdt) and
+                    (ContainerMetrics.recordedAt lessEq toLdt)
             }
             .orderBy(ContainerMetrics.recordedAt to SortOrder.ASC)
             .map { it.toContainerMetricsRow() }

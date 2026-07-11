@@ -49,8 +49,7 @@ class FakeBackupRepository(private val state: FakeRepositories) : BackupReposito
             .sortedBy { it.createdAt }
         return if (completed.size <= keepCount) {
             emptyList()
-        }
-        else {
+        } else {
             completed.dropLast(keepCount)
                 .map { it.toRow() }
         }

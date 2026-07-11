@@ -14,8 +14,7 @@ class UpdateNodeAssignmentStep : MigrationStep {
         coord.migrationRepository.updateNodeId(plan.serverId, plan.targetNodeId)
         coord.portRepository.releasePort(plan.targetNodeId, plan.rsyncPort, "TCP")
         StepResult.Success
-    }
-    catch (e: Exception) {
+    } catch (e: Exception) {
         StepResult.Failure("DB update failed: ${e.message}")
     }
 }

@@ -120,7 +120,7 @@ class ServerService(
 
             visibility.networkIds.isEmpty() && visibility.serverIds.isEmpty() -> return emptyList()
 
-            else                -> serverRepository.listByVisibility(
+            else -> serverRepository.listByVisibility(
                 visibility.networkIds.toList(),
                 visibility.serverIds.toList()
             )
@@ -128,8 +128,7 @@ class ServerService(
         val ids = rows.map { it.id }
         val migratingIds = if (ids.isEmpty()) {
             emptySet()
-        }
-        else {
+        } else {
             rows.filter { migrationRepository.findActiveMigration(it.id) != null }
                 .map { it.id }
                 .toSet()
@@ -215,15 +214,13 @@ class ServerService(
             repeat(3) {
                 try {
                     return@run attemptCreate()
-                }
-                catch (ex: Exception) {
+                } catch (ex: Exception) {
                     val cause = generateSequence(ex as Throwable) { it.cause }
                         .filterIsInstance<java.sql.SQLException>()
                         .firstOrNull()
                     if (cause != null && cause.sqlState?.startsWith("23") == true) {
                         lastEx = cause
-                    }
-                    else {
+                    } else {
                         throw ex
                     }
                 }
@@ -232,14 +229,14 @@ class ServerService(
         }
 
         return when (result.status) {
-            "ok"               -> result.server!!
-            "node_not_found"   -> throw UnprocessableException("Node not found")
-            "node_not_active"  -> throw UnprocessableException("Node is not active")
+            "ok" -> result.server!!
+            "node_not_found" -> throw UnprocessableException("Node not found")
+            "node_not_active" -> throw UnprocessableException("Node is not active")
             "network_not_found" -> throw UnprocessableException("Network not found")
-            "name_taken"       -> throw ConflictException("Server name already taken")
+            "name_taken" -> throw ConflictException("Server name already taken")
             "insufficient_ram" -> throw ConflictException("Insufficient RAM capacity on node")
             "insufficient_cpu" -> throw ConflictException("Insufficient CPU capacity on node")
-            else               -> throw ConflictException("No free ports available on node")
+            else -> throw ConflictException("No free ports available on node")
         }
     }
 

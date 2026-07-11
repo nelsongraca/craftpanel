@@ -58,11 +58,9 @@ private class ConsoleSessionManager(private val proxy: DataServiceProxy, private
                     .collect { bytes ->
                         session.output.emit(bytes)
                     }
-            }
-            catch (e: Exception) {
+            } catch (e: Exception) {
                 log.warn("Console stream for {} ended: {}", serverId, e.message)
-            }
-            finally {
+            } finally {
                 sessions.remove(serverId)
                 session.closed.value = true
             }
@@ -128,8 +126,7 @@ class ConsoleRoutes(private val wsTicketService: WsTicketService, proxy: DataSer
                         val text = chunk.decodeToString()
                         sendConsole(ConsoleEvent.Output(text))
                     }
-                }
-                catch (_: Exception) {
+                } catch (_: Exception) {
                 }
             }
 
@@ -171,8 +168,7 @@ class ConsoleRoutes(private val wsTicketService: WsTicketService, proxy: DataSer
                         }.onFailure { log.warn("Malformed console input: {}", it.message) }
                     }
                 }
-            }
-            finally {
+            } finally {
                 outputJob.cancel()
                 revalidationJob.cancel()
                 closeWatcherJob.cancel()

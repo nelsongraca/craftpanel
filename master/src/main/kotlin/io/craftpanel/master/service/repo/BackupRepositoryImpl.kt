@@ -92,8 +92,7 @@ class BackupRepositoryImpl : BackupRepository {
             .toList()
         if (rows.size < keepCount) {
             emptyList()
-        }
-        else {
+        } else {
             rows.dropLast(keepCount - 1)
                 .map { it.toBackupRow() }
         }

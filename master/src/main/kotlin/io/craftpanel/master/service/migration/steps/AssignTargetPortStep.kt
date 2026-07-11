@@ -21,8 +21,7 @@ class AssignTargetPortStep : MigrationStep {
                 val range = plan.targetNodeRow.portRangeStart..plan.targetNodeRow.portRangeEnd
                 range.firstOrNull { it !in usedPorts }
                     ?: throw PortExhaustedException("No free ports on target node")
-            }
-            else {
+            } else {
                 existingPort
             }
 
@@ -39,8 +38,7 @@ class AssignTargetPortStep : MigrationStep {
                 return StepResult.Failure("Server row not found after port assignment")
             }
             StepResult.Success
-        }
-        catch (e: Exception) {
+        } catch (e: Exception) {
             coord.restartSource(plan)
             StepResult.Failure("Port assignment failed: ${e.message}")
         }

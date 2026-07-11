@@ -44,8 +44,7 @@ class ConnectionManager(
                 .trustManager(ByteArrayInputStream(certPem.toByteArray()))
                 .build()
             builder.sslContext(sslContext)
-        }
-        else {
+        } else {
             check(config.profile == "dev") {
                 "gRPC TLS is required outside dev profile — set GRPC_TLS_CERT or mount master's grpc-ca.crt at ${config.caCertFilePath}"
             }
@@ -99,8 +98,7 @@ class ConnectionManager(
                         file = scope.get { parametersOf(identity.nodeKey) },
                         console = scope.get()
                     ).run(channel)
-                }
-                finally {
+                } finally {
                     scope.close()
                     channel.shutdown()
                 }

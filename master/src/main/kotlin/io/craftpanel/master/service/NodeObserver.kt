@@ -44,7 +44,7 @@ class NodeObserver(
         agentEvents.collect { event ->
             try {
                 when (event) {
-                    is AgentEvent.NodeMetricsEvent    -> {
+                    is AgentEvent.NodeMetricsEvent -> {
                         persistNodeMetrics(event)
                         evaluateNodeAlerts(event)
                     }
@@ -54,18 +54,17 @@ class NodeObserver(
                         evaluateServerAlerts(event)
                     }
 
-                    is AgentEvent.ServerStatusEvent   -> persistServerStatus(event)
+                    is AgentEvent.ServerStatusEvent -> persistServerStatus(event)
 
-                    is AgentEvent.PlayerUpdateEvent   -> persistPlayerUpdate(event)
+                    is AgentEvent.PlayerUpdateEvent -> persistPlayerUpdate(event)
 
                     is AgentEvent.BackupCompleteEvent -> persistBackupComplete(event)
 
-                    else                              -> {
+                    else -> {
                         /* unrelated events */
                     }
                 }
-            }
-            catch (e: Exception) {
+            } catch (e: Exception) {
                 log.warn("NodeObserver: failed to process event {} — {}", event::class.simpleName, e.message)
             }
         }

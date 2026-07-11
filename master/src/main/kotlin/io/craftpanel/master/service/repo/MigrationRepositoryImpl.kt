@@ -25,7 +25,7 @@ class MigrationRepositoryImpl : MigrationRepository {
         ServerMigrations.selectAll()
             .where {
                 (ServerMigrations.serverId eq serverId) and
-                        (ServerMigrations.status inList listOf(MigrationStatus.PENDING.name, MigrationStatus.RUNNING.name, MigrationStatus.SYNCING.name, MigrationStatus.CUTTING_OVER.name))
+                    (ServerMigrations.status inList listOf(MigrationStatus.PENDING.name, MigrationStatus.RUNNING.name, MigrationStatus.SYNCING.name, MigrationStatus.CUTTING_OVER.name))
             }
             .firstOrNull()
             ?.toMigrationRow()
@@ -73,7 +73,7 @@ class MigrationRepositoryImpl : MigrationRepository {
         transaction {
             ServerMigrations.update({
                 ((ServerMigrations.sourceNodeId eq nodeId) or (ServerMigrations.targetNodeId eq nodeId)) and
-                        (ServerMigrations.status inList listOf(MigrationStatus.PENDING.name, MigrationStatus.SYNCING.name, MigrationStatus.CUTTING_OVER.name))
+                    (ServerMigrations.status inList listOf(MigrationStatus.PENDING.name, MigrationStatus.SYNCING.name, MigrationStatus.CUTTING_OVER.name))
             }) {
                 it[ServerMigrations.status] = MigrationStatus.FAILED.name
                 it[ServerMigrations.completedAt] = now

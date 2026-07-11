@@ -27,8 +27,7 @@ class MigrationRunner(private val steps: List<MigrationStep>, private val plan: 
             }
             coord.updateStatus(plan, MigrationStatus.COMPLETED)
             coord.emit(MigrationEvent.Completed)
-        }
-        finally {
+        } finally {
             runCatching {
                 coord.gateway.sendToNode(
                     plan.targetNodeIdStr,

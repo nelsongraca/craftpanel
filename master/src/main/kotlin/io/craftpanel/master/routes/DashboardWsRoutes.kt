@@ -66,8 +66,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, dashboardService: 
 
         try {
             incoming.consumeEach { }
-        }
-        finally {
+        } finally {
             subscriptionsJob.cancel()
             revalidationJob.cancel()
         }
