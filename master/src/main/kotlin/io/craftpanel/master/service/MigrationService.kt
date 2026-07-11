@@ -18,6 +18,7 @@ import io.craftpanel.master.service.migration.steps.StopSourceStep
 import io.craftpanel.master.service.migration.steps.UpdateDnsStep
 import io.craftpanel.master.service.migration.steps.UpdateNodeAssignmentStep
 import io.craftpanel.master.service.migration.steps.UpdateProxyBackendsStep
+import io.craftpanel.master.service.repo.MigrationRow
 import io.craftpanel.master.service.repo.MigrationStepRow
 import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.service.repo.ServerRepository
@@ -154,32 +155,11 @@ class MigrationService(
         val row = serverRepository.findMigrationById(migrationId)
             ?: throw NotFoundException("Migration not found")
         val steps = serverRepository.listMigrationSteps(migrationId)
-        return MigrationResponse(
-            id = migrationId.toString(),
-            serverId = row.serverId.toString(),
-            sourceNodeId = row.sourceNodeId.toString(),
-            targetNodeId = row.targetNodeId.toString(),
-            status = MigrationStatus.fromDb(row.status),
-            steps = steps.map { it.toStepData() },
-            createdAt = row.createdAt,
-            completedAt = row.completedAt
-        )
+        return row.toResponse(steps)
     }
 
     fun listMigrations(serverId: Uuid): List<MigrationResponse> = serverRepository.listMigrations(serverId)
-        .map { row ->
-            val steps = serverRepository.listMigrationSteps(row.id)
-            MigrationResponse(
-                id = row.id.toString(),
-                serverId = row.serverId.toString(),
-                sourceNodeId = row.sourceNodeId.toString(),
-                targetNodeId = row.targetNodeId.toString(),
-                status = MigrationStatus.fromDb(row.status),
-                steps = steps.map { it.toStepData() },
-                createdAt = row.createdAt,
-                completedAt = row.completedAt
-            )
-        }
+        .map { row -> row.toResponse(serverRepository.listMigrationSteps(row.id)) }
 
     fun getEventFlow(migrationId: String): SharedFlow<MigrationEvent>? = eventFlows[migrationId]?.asSharedFlow()
 
@@ -257,4 +237,15 @@ private fun MigrationStepRow.toStepData() = MigrationStepData(
     startedAt = this.startedAt,
     completedAt = this.completedAt,
     errorMessage = this.errorMessage
+)
+
+private fun MigrationRow.toResponse(steps: List<MigrationStepRow>) = MigrationResponse(
+    id = this.id.toString(),
+    serverId = this.serverId.toString(),
+    sourceNodeId = this.sourceNodeId.toString(),
+    targetNodeId = this.targetNodeId.toString(),
+    status = MigrationStatus.fromDb(this.status),
+    steps = steps.map { it.toStepData() },
+    createdAt = this.createdAt,
+    completedAt = this.completedAt
 )
