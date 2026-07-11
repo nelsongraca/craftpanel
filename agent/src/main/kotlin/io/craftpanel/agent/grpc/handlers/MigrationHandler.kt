@@ -2,16 +2,14 @@ package io.craftpanel.agent.grpc.handlers
 
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerManager
+import io.craftpanel.agent.docker.RsyncMigrator
 import io.craftpanel.agent.grpc.AgentOutbound
 import io.craftpanel.proto.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 
-class MigrationHandler(
-    private val config: AgentConfig,
-    private val containerManager: ContainerManager,
-) {
+class MigrationHandler(private val config: AgentConfig, private val containerManager: ContainerManager, private val rsyncMigrator: RsyncMigrator) {
 
     private val log = LoggerFactory.getLogger(MigrationHandler::class.java)
 
@@ -23,12 +21,12 @@ class MigrationHandler(
         runCatching {
             withContext(Dispatchers.IO) {
                 val password = generateRsyncPassword()
-                containerManager.startRsyncdContainer(
+                rsyncMigrator.startReceiver(
                     migrationId = cmd.migrationId,
                     port = cmd.port,
                     destPath = destPath,
                     password = password,
-                    rsyncImage = rsyncImage,
+                    rsyncImage = rsyncImage
                 )
                 password
             }
@@ -53,7 +51,7 @@ class MigrationHandler(
         withContext(Dispatchers.IO) { containerManager.pullImage(rsyncImage) }
         runCatching {
             withContext(Dispatchers.IO) {
-                containerManager.runRsyncTransfer(
+                rsyncMigrator.runTransfer(
                     migrationId = cmd.migrationId,
                     sourcePath = sourcePath,
                     destIp = cmd.destinationIp,
@@ -73,7 +71,7 @@ class MigrationHandler(
                                 recordedAt = nowTimestamp()
                             }
                         }
-                    },
+                    }
                 )
             }
         }.onSuccess { success ->

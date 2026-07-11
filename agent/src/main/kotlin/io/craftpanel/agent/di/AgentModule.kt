@@ -1,20 +1,21 @@
 package io.craftpanel.agent.di
 
 import com.github.dockerjava.api.DockerClient
-import io.craftpanel.agent.config.AgentConfig
-import io.craftpanel.agent.docker.ContainerManager
-import io.craftpanel.agent.docker.NetworkManager
 import com.github.dockerjava.core.DefaultDockerClientConfig
 import com.github.dockerjava.core.DockerClientImpl
 import com.github.dockerjava.httpclient5.ApacheDockerHttpClient
-import java.time.Duration
+import io.craftpanel.agent.config.AgentConfig
+import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.MetricsCollector
+import io.craftpanel.agent.docker.NetworkManager
+import io.craftpanel.agent.docker.RsyncMigrator
 import io.craftpanel.agent.grpc.handlers.BackupHandler
 import io.craftpanel.agent.grpc.handlers.ConsoleHandler
 import io.craftpanel.agent.grpc.handlers.ContainerHandler
 import io.craftpanel.agent.grpc.handlers.FileHandler
 import io.craftpanel.agent.grpc.handlers.MigrationHandler
 import org.koin.dsl.module
+import java.time.Duration
 
 class ConnectionScope
 
@@ -45,15 +46,22 @@ val agentModule = module {
             get<DockerClient>(),
             get<AgentConfig>().craftpanelNetwork,
             get<AgentConfig>().containerNamePrefix,
-            get<AgentConfig>().pullMaxImageAgeHours,
+            get<AgentConfig>().pullMaxImageAgeHours
         )
     }
     single { MetricsCollector(get<DockerClient>(), get<AgentConfig>().craftpanelNetwork) }
+    single {
+        RsyncMigrator(
+            get<DockerClient>(),
+            get<AgentConfig>().craftpanelNetwork,
+            get<AgentConfig>().containerNamePrefix
+        )
+    }
     scope<ConnectionScope> {
         scoped { ConsoleHandler(get(), get()) }
         scoped { (nodeKey: String) -> FileHandler(get(), nodeKey) }
         scoped { (networkManager: NetworkManager) -> ContainerHandler(get(), get(), networkManager) }
         scoped { BackupHandler(get()) }
-        scoped { MigrationHandler(get(), get()) }
+        scoped { MigrationHandler(get(), get(), get()) }
     }
 }

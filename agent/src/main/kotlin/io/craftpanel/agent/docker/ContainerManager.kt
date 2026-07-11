@@ -10,18 +10,16 @@ import io.craftpanel.proto.StartContainerCommand
 import io.craftpanel.proto.containerState
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
-import java.io.File
 import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 open class ContainerManager(
     private val docker: DockerClient,
     private val craftpanelNetwork: String = "",
     private val containerNamePrefix: String = "craftpanel",
-    private val pullMaxImageAgeHours: Long = 24,
+    private val pullMaxImageAgeHours: Long = 24
 ) {
 
     private val log = LoggerFactory.getLogger(ContainerManager::class.java)
@@ -31,8 +29,7 @@ open class ContainerManager(
     private val stoppingServerIds = ConcurrentHashMap.newKeySet<String>()
 
     /** Returns true iff the agent owns this server and the death was NOT intentional. */
-    fun shouldReportDie(serverId: String): Boolean =
-        managedServerIds.contains(serverId) && !stoppingServerIds.contains(serverId)
+    fun shouldReportDie(serverId: String): Boolean = managedServerIds.contains(serverId) && !stoppingServerIds.contains(serverId)
 
     /** Call before stop/remove. Death is expected; watcher will suppress. */
     fun markStopping(serverId: String) = stoppingServerIds.add(serverId)
@@ -64,25 +61,23 @@ open class ContainerManager(
             }
     }
 
-    fun listContainers(): List<ContainerState> {
-        return docker.listContainersCmd()
-            .withShowAll(true)
-            .exec()
-            .filter { it.names.any { n -> n.contains("$containerNamePrefix-") } }
-            .map { container ->
-                containerState {
-                    containerId = container.id
-                    containerName = container.names.firstOrNull()
-                        ?.trimStart('/') ?: container.id
-                    serverId = container.labels["craftpanel.server.id"] ?: ""
-                    runState = when (container.state) {
-                        "running" -> ContainerState.RunState.RUNNING
-                        "exited" if container.status.contains("(0)") -> ContainerState.RunState.STOPPED
-                        else -> ContainerState.RunState.EXITED
-                    }
+    fun listContainers(): List<ContainerState> = docker.listContainersCmd()
+        .withShowAll(true)
+        .exec()
+        .filter { it.names.any { n -> n.contains("$containerNamePrefix-") } }
+        .map { container ->
+            containerState {
+                containerId = container.id
+                containerName = container.names.firstOrNull()
+                    ?.trimStart('/') ?: container.id
+                serverId = container.labels["craftpanel.server.id"] ?: ""
+                runState = when (container.state) {
+                    "running" -> ContainerState.RunState.RUNNING
+                    "exited" if container.status.contains("(0)") -> ContainerState.RunState.STOPPED
+                    else -> ContainerState.RunState.EXITED
                 }
             }
-    }
+        }
 
     fun createContainer(cmd: StartContainerCommand): String {
         val minecraftPort = ExposedPort.tcp(25565)
@@ -117,25 +112,27 @@ open class ContainerManager(
             .withEnv(envList)
             .withExposedPorts(minecraftPort)
             .withHostConfig(hostConfig)
-            .withLabels(buildMap {
-                put("craftpanel.managed", "true")
-                put("craftpanel.server.id", cmd.serverId)
-                if (cmd.publicHostname.isNotEmpty()) {
-                    // mc-router auto-discovery labels (https://github.com/itzg/mc-router).
-                    // `mc-router.host` is the routing hostname; `mc-router.port` is the
-                    // container-internal Minecraft port; `mc-router.network` tells mc-router
-                    // which Docker network to dial the backend on (the shared craftpanel
-                    // network both mc-router and this container are attached to).
-                    put("mc-router.host", cmd.publicHostname)
-                    put("mc-router.port", "25565")
-                    if (craftpanelNetwork.isNotEmpty()) {
-                        put("mc-router.network", craftpanelNetwork)
+            .withLabels(
+                buildMap {
+                    put("craftpanel.managed", "true")
+                    put("craftpanel.server.id", cmd.serverId)
+                    if (cmd.publicHostname.isNotEmpty()) {
+                        // mc-router auto-discovery labels (https://github.com/itzg/mc-router).
+                        // `mc-router.host` is the routing hostname; `mc-router.port` is the
+                        // container-internal Minecraft port; `mc-router.network` tells mc-router
+                        // which Docker network to dial the backend on (the shared craftpanel
+                        // network both mc-router and this container are attached to).
+                        put("mc-router.host", cmd.publicHostname)
+                        put("mc-router.port", "25565")
+                        if (craftpanelNetwork.isNotEmpty()) {
+                            put("mc-router.network", craftpanelNetwork)
+                        }
+                    }
+                    if (cmd.stopCommand.isNotEmpty()) {
+                        put("craftpanel.stop.command", cmd.stopCommand)
                     }
                 }
-                if (cmd.stopCommand.isNotEmpty()) {
-                    put("craftpanel.stop.command", cmd.stopCommand)
-                }
-            })
+            )
             .withStdinOpen(true)
             .exec()
 
@@ -151,12 +148,11 @@ open class ContainerManager(
         return response.id
     }
 
-    fun containerExists(containerName: String): Boolean =
-        runCatching {
-            docker.inspectContainerCmd(containerName)
-                .exec()
-            true
-        }.getOrDefault(false)
+    fun containerExists(containerName: String): Boolean = runCatching {
+        docker.inspectContainerCmd(containerName)
+            .exec()
+        true
+    }.getOrDefault(false)
 
     fun pullImage(image: String, maxAgeHours: Long = pullMaxImageAgeHours) {
         val cachedAt = runCatching {
@@ -209,33 +205,31 @@ open class ContainerManager(
                 .withTimeout(if (stopCommand.isNotEmpty()) 5 else timeout)
                 .exec()
             log.info("Stopped container {}", containerName)
-        }
-        catch (_: NotFoundException) {
+        } catch (_: NotFoundException) {
             // Container already gone (e.g. server was never started) — stopping is
             // idempotent, the desired end state (not running) already holds.
             log.info("Container {} does not exist — treating stop as already-stopped", containerName)
         }
     }
 
-    private fun sendStopCommandToStdin(containerName: String, command: String, timeoutSeconds: Int): Boolean =
-        runCatching {
-            val inputStream = ByteArrayInputStream("$command\n".toByteArray())
+    private fun sendStopCommandToStdin(containerName: String, command: String, timeoutSeconds: Int): Boolean = runCatching {
+        val inputStream = ByteArrayInputStream("$command\n".toByteArray())
 
-            docker.attachContainerCmd(containerName)
-                .withStdIn(inputStream)
-                .withStdOut(true)
-                .withStdErr(true)
-                .withFollowStream(true)
-                .withLogs(true)
-                .exec(ResultCallback.Adapter())
-                .awaitCompletion(timeoutSeconds.toLong(), TimeUnit.SECONDS)
+        docker.attachContainerCmd(containerName)
+            .withStdIn(inputStream)
+            .withStdOut(true)
+            .withStdErr(true)
+            .withFollowStream(true)
+            .withLogs(true)
+            .exec(ResultCallback.Adapter())
+            .awaitCompletion(timeoutSeconds.toLong(), TimeUnit.SECONDS)
 
-            docker.inspectContainerCmd(containerName)
-                .exec().state?.running != true
-        }.getOrElse { e ->
-            log.warn("Failed to send stop command to container {}: {}", containerName, e.message)
-            false
-        }
+        docker.inspectContainerCmd(containerName)
+            .exec().state?.running != true
+    }.getOrElse { e ->
+        log.warn("Failed to send stop command to container {}: {}", containerName, e.message)
+        false
+    }
 
     fun removeContainer(containerName: String, force: Boolean) {
         try {
@@ -243,35 +237,30 @@ open class ContainerManager(
                 .withForce(force)
                 .exec()
             log.info("Removed container $containerName")
-        }
-        catch (_: NotFoundException) {
+        } catch (_: NotFoundException) {
             // Container already gone — removal is idempotent.
             log.info("Container {} does not exist — treating remove as already-removed", containerName)
         }
     }
 
-    fun getContainerNetworkNames(containerName: String): List<String> =
-        runCatching {
-            docker.inspectContainerCmd(containerName)
-                .exec()
-                .networkSettings?.networks?.keys?.toList() ?: emptyList()
-        }.getOrDefault(emptyList())
+    fun getContainerNetworkNames(containerName: String): List<String> = runCatching {
+        docker.inspectContainerCmd(containerName)
+            .exec()
+            .networkSettings?.networks?.keys?.toList() ?: emptyList()
+    }.getOrDefault(emptyList())
 
-    fun getContainerId(containerName: String): String? =
-        runCatching {
-            docker.inspectContainerCmd(containerName)
-                .exec().id
-        }.getOrNull()
+    fun getContainerId(containerName: String): String? = runCatching {
+        docker.inspectContainerCmd(containerName)
+            .exec().id
+    }.getOrNull()
 
-    fun getContainerDataPath(containerName: String): String? {
-        return runCatching {
-            docker.inspectContainerCmd(containerName)
-                .exec()
-                .hostConfig?.binds
-                ?.firstOrNull { it.volume.path == "/data" }
-                ?.path
-        }.getOrNull()
-    }
+    fun getContainerDataPath(containerName: String): String? = runCatching {
+        docker.inspectContainerCmd(containerName)
+            .exec()
+            .hostConfig?.binds
+            ?.firstOrNull { it.volume.path == "/data" }
+            ?.path
+    }.getOrNull()
 
     fun execRconCommand(serverId: String, command: String) {
         val containerName = "$containerNamePrefix-$serverId"
@@ -285,134 +274,6 @@ open class ContainerManager(
                 .withDetach(true)
                 .exec(ResultCallback.Adapter())
         }.onFailure { log.warn("RCON exec failed for server $serverId: command='$command'", it) }
-    }
-
-    fun startRsyncdContainer(migrationId: String, port: Int, destPath: String, password: String, rsyncImage: String): String {
-        File(destPath).mkdirs()
-        val containerName = "$containerNamePrefix-rsync-recv-$migrationId"
-        val portBinding = ExposedPort.tcp(port)
-        val portBindings = Ports()
-        portBindings.bind(portBinding, Ports.Binding.bindPort(port))
-
-        val script = """
-            set -e
-            apk add rsync --quiet --no-progress
-            mkdir -p /etc/rsyncd
-            cat > /etc/rsyncd.conf << 'CONF'
-[data]
-path = /data
-read only = no
-auth users = craftpanel
-secrets file = /etc/rsyncd/secrets
-CONF
-            echo "craftpanel:${password}" > /etc/rsyncd/secrets  # password is alphanumeric-only — safe for unquoted rsyncd secrets file
-            chmod 600 /etc/rsyncd/secrets
-            rsync --daemon --no-detach --port $port --config /etc/rsyncd.conf
-        """.trimIndent()
-
-        val hostConfig = HostConfig.newHostConfig()
-            .withPortBindings(portBindings)
-            .withBinds(Bind(destPath, Volume("/data"), AccessMode.rw))
-            .withRestartPolicy(RestartPolicy.noRestart())
-            .let { hc -> if (craftpanelNetwork.isNotBlank()) hc.withNetworkMode(craftpanelNetwork) else hc }
-
-        docker.createContainerCmd(rsyncImage)
-            .withName(containerName)
-            .withCmd("sh", "-c", script)
-            .withExposedPorts(portBinding)
-            .withHostConfig(hostConfig)
-            .exec()
-        docker.startContainerCmd(containerName)
-            .exec()
-        // Wait for rsyncd to be accepting connections before declaring ready.
-        // The container needs to run `apk add rsync` first, so startup can take several seconds.
-        val deadline = System.currentTimeMillis() + 30_000
-        while (System.currentTimeMillis() < deadline) {
-            if (runCatching {
-                    java.net.Socket("127.0.0.1", port)
-                        .close()
-                }.isSuccess) break
-            Thread.sleep(500)
-        }
-        log.info("Started rsyncd container $containerName on port $port")
-        return containerName
-    }
-
-    fun runRsyncTransfer(
-        migrationId: String,
-        sourcePath: String,
-        destIp: String,
-        destPort: Int,
-        password: String,
-        isFinalPass: Boolean,
-        rsyncImage: String,
-        onProgress: (bytesTransferred: Long, totalBytes: Long, percent: Int, phase: String) -> Unit,
-    ): Boolean {
-        val containerName = "$containerNamePrefix-rsync-send-${migrationId}${if (isFinalPass) "-final" else ""}"
-        val script = """
-            set -e
-            apk add rsync --quiet --no-progress
-            rsync -az --progress --stats /source/ rsync://craftpanel@${destIp}:${destPort}/data/
-        """.trimIndent()
-
-        File(sourcePath).mkdirs()
-        val hostConfig = HostConfig.newHostConfig()
-            .withBinds(Bind(sourcePath, Volume("/source"), AccessMode.ro))
-            .withRestartPolicy(RestartPolicy.noRestart())
-            .let { hc -> if (craftpanelNetwork.isNotBlank()) hc.withNetworkMode(craftpanelNetwork) else hc }
-
-        docker.createContainerCmd(rsyncImage)
-            .withName(containerName)
-            .withCmd("sh", "-c", script)
-            .withEnv("RSYNC_PASSWORD=$password")
-            .withHostConfig(hostConfig)
-            .exec()
-        docker.startContainerCmd(containerName)
-            .exec()
-
-        val latch = CountDownLatch(1)
-        val outputBuf = StringBuilder()
-        docker.logContainerCmd(containerName)
-            .withStdOut(true)
-            .withStdErr(true)
-            .withFollowStream(true)
-            .exec(object : ResultCallback.Adapter<Frame>() {
-                override fun onNext(frame: Frame) {
-                    val line = String(frame.payload).trim()
-                    outputBuf.appendLine(line)
-                    parseRsyncProgress(line)?.let { p ->
-                        onProgress(p.bytes, p.total, p.percent, p.phase)
-                    }
-                }
-
-                override fun onComplete() = latch.countDown()
-                override fun onError(t: Throwable) = latch.countDown()
-            })
-
-        latch.await(4, TimeUnit.HOURS)
-
-        val exitCode = runCatching {
-            docker.inspectContainerCmd(containerName)
-                .exec().state?.exitCodeLong ?: 1
-        }.getOrDefault(1L)
-
-        runCatching {
-            docker.removeContainerCmd(containerName)
-                .withForce(true)
-                .exec()
-        }
-        return exitCode == 0L
-    }
-
-    private data class RsyncProgress(val bytes: Long, val total: Long, val percent: Int, val phase: String)
-
-    private fun parseRsyncProgress(line: String): RsyncProgress? {
-        val progressRegex = Regex("""^\s*([\d,]+)\s+(\d+)%""")
-        val match = progressRegex.find(line) ?: return null
-        val bytes = match.groupValues[1].replace(",", "")
-            .toLongOrNull() ?: return null
-        val pct = match.groupValues[2].toIntOrNull() ?: return null
-        return RsyncProgress(bytes, 0L, pct, "transferring")
     }
 
     fun shutdownAll(timeoutSeconds: Int): Pair<Int, Int> {
