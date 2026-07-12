@@ -2,7 +2,6 @@ package io.craftpanel.master.service.repo
 
 import io.craftpanel.master.domain.BackupStatus
 import io.craftpanel.master.domain.BackupTrigger
-import kotlinx.datetime.Instant
 import kotlin.uuid.Uuid
 
 class FakeBackupRepository(private val state: FakeRepositories) : BackupRepository {
@@ -19,7 +18,7 @@ class FakeBackupRepository(private val state: FakeRepositories) : BackupReposito
         return b.toRow()
     }
 
-    override fun updateBackupStatus(id: Uuid, status: BackupStatus, filePath: String?, sizeBytes: Long?, errorMessage: String?, completedAt: Instant?) {
+    override fun updateBackupStatus(id: Uuid, status: BackupStatus, filePath: String?, sizeBytes: Long?, errorMessage: String?, completedAt: kotlin.time.Instant?) {
         state.backups[id]?.let {
             it.status = status.name
             if (filePath != null) it.filePath = filePath

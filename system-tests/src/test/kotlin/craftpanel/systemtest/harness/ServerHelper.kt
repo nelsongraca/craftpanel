@@ -32,7 +32,7 @@ class ServerHelper(private val api: DefaultApi) {
             val response = httpClient.newCall(request)
                 .execute()
             response.use {
-                if (!it.isSuccessful) error("Upload failed: ${it.code} ${it.body?.string()}")
+                if (!it.isSuccessful) error("Upload failed: ${it.code} ${it.body.string()}")
             }
         }
     }

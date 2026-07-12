@@ -1,7 +1,6 @@
 package io.craftpanel.master.service.repo
 
 import io.craftpanel.master.domain.NodeStatus
-import kotlinx.datetime.Instant
 import kotlin.uuid.Uuid
 
 data class NodeRow(
@@ -56,23 +55,33 @@ interface NodeRepository {
         totalRamMb: Int = 0,
         totalCpuShares: Int = 0,
         agentVersion: String? = null,
-        lastSeenAt: Instant? = null,
+        lastSeenAt: kotlin.time.Instant? = null,
     ): NodeRow
 
     fun update(id: Uuid, displayName: String?, portRangeStart: Int?, portRangeEnd: Int?, reservedRamMb: Int?)
     fun updateStatus(id: Uuid, status: NodeStatus)
     fun updateHealth(id: Uuid, health: String)
-    fun updateLastSeen(id: Uuid, lastSeenAt: Instant, publicIp: String?, agentVersion: String?, privateIp: String? = null)
+    fun updateLastSeen(id: Uuid, lastSeenAt: kotlin.time.Instant, publicIp: String?, agentVersion: String?, privateIp: String? = null)
     fun updateSystemRam(id: Uuid, ramUsedMb: Int)
     fun updateSwarmActive(id: Uuid, swarmActive: Boolean)
-    fun markUnreachable(id: Uuid, lastSeenAt: Instant?)
+    fun markUnreachable(id: Uuid, lastSeenAt: kotlin.time.Instant?)
     fun markDecommissioned(id: Uuid)
     fun updateTokenHash(id: Uuid, tokenHash: String)
 
     fun calculateAllocatedRam(id: Uuid): Int
     fun calculateAllocatedCpu(id: Uuid): Int
 
-    fun insertMetrics(nodeId: Uuid, cpuPercent: Double, ramUsedMb: Int, ramTotalMb: Int, netInBytes: Long, netOutBytes: Long, diskUsedBytes: Long, diskTotalBytes: Long, recordedAt: Instant)
+    fun insertMetrics(
+        nodeId: Uuid,
+        cpuPercent: Double,
+        ramUsedMb: Int,
+        ramTotalMb: Int,
+        netInBytes: Long,
+        netOutBytes: Long,
+        diskUsedBytes: Long,
+        diskTotalBytes: Long,
+        recordedAt: kotlin.time.Instant
+    )
 
     fun getMetrics(nodeId: Uuid, limit: Int): List<NodeMetricsRow>
 }

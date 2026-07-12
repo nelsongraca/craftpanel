@@ -2,7 +2,6 @@ package io.craftpanel.master.service.repo
 
 import io.craftpanel.master.domain.BackupStatus
 import io.craftpanel.master.domain.BackupTrigger
-import kotlinx.datetime.Instant
 import kotlin.uuid.Uuid
 
 data class BackupRow(
@@ -23,7 +22,7 @@ interface BackupRepository {
     fun listBackups(serverId: Uuid): List<BackupRow>
     fun findBackupById(id: Uuid): BackupRow?
     fun createBackup(serverId: Uuid, nodeId: Uuid, trigger: BackupTrigger): BackupRow
-    fun updateBackupStatus(id: Uuid, status: BackupStatus, filePath: String?, sizeBytes: Long?, errorMessage: String?, completedAt: Instant?)
+    fun updateBackupStatus(id: Uuid, status: BackupStatus, filePath: String?, sizeBytes: Long?, errorMessage: String?, completedAt: kotlin.time.Instant?)
     fun countCompletedBackups(serverId: Uuid): Int
     fun deleteBackup(id: Uuid)
     fun deleteBackupsForServer(serverId: Uuid)

@@ -1,10 +1,12 @@
 package io.craftpanel.master.service.repo
 
 import io.craftpanel.master.database.schema.SystemSettings
-import kotlinx.datetime.*
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.upsert
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 class SettingsRepositoryImpl : SettingsRepository {
@@ -21,7 +23,7 @@ class SettingsRepositoryImpl : SettingsRepository {
             }
     }
 
-    override fun upsert(key: String, value: String, updatedAt: Instant?, updatedBy: Uuid?) {
+    override fun upsert(key: String, value: String, updatedAt: kotlin.time.Instant?, updatedBy: Uuid?) {
         transaction {
             SystemSettings.upsert {
                 it[SystemSettings.key] = key

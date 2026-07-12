@@ -1,6 +1,5 @@
 package io.craftpanel.master.service.repo
 
-import kotlinx.datetime.Instant
 import kotlin.uuid.Uuid
 
 data class AlertThresholdRow(
@@ -31,6 +30,6 @@ interface AlertRepository {
     fun listEvents(thresholdIds: List<Uuid>?, activeOnly: Boolean): List<AlertEventRow>
     fun findOpenEvent(thresholdId: Uuid): AlertEventRow?
     fun createEvent(thresholdId: Uuid, message: String): AlertEventRow
-    fun resolveEventsForThreshold(thresholdId: Uuid, resolvedAt: Instant)
+    fun resolveEventsForThreshold(thresholdId: Uuid, resolvedAt: kotlin.time.Instant)
     fun deleteEventsForThreshold(thresholdId: Uuid)
 }

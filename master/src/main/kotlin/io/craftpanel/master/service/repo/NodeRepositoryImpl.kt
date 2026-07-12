@@ -3,10 +3,12 @@ package io.craftpanel.master.service.repo
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.domain.NodeStatus
 import io.craftpanel.master.util.toUtcString
-import kotlinx.datetime.*
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 class NodeRepositoryImpl : NodeRepository {
@@ -47,7 +49,7 @@ class NodeRepositoryImpl : NodeRepository {
         totalRamMb: Int,
         totalCpuShares: Int,
         agentVersion: String?,
-        lastSeenAt: Instant?
+        lastSeenAt: kotlin.time.Instant?
     ): NodeRow = transaction {
         val id = Nodes.insert {
             it[Nodes.displayName] = displayName
@@ -87,7 +89,7 @@ class NodeRepositoryImpl : NodeRepository {
         transaction { Nodes.update({ Nodes.id eq id }) { it[Nodes.health] = health } }
     }
 
-    override fun updateLastSeen(id: Uuid, lastSeenAt: Instant, publicIp: String?, agentVersion: String?, privateIp: String?) {
+    override fun updateLastSeen(id: Uuid, lastSeenAt: kotlin.time.Instant, publicIp: String?, agentVersion: String?, privateIp: String?) {
         transaction {
             Nodes.update({ Nodes.id eq id }) {
                 it[Nodes.lastSeenAt] = lastSeenAt.toLocalDateTime(TimeZone.UTC)
@@ -106,7 +108,7 @@ class NodeRepositoryImpl : NodeRepository {
         transaction { Nodes.update({ Nodes.id eq id }) { it[Nodes.swarmActive] = swarmActive } }
     }
 
-    override fun markUnreachable(id: Uuid, lastSeenAt: Instant?) {
+    override fun markUnreachable(id: Uuid, lastSeenAt: kotlin.time.Instant?) {
         transaction {
             Nodes.update({ Nodes.id eq id }) {
                 it[Nodes.health] = "UNREACHABLE"

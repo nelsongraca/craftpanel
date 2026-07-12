@@ -1,6 +1,5 @@
 package io.craftpanel.master.service.repo
 
-import kotlinx.datetime.Instant
 import kotlin.uuid.Uuid
 
 data class ServerRow(
@@ -72,12 +71,12 @@ interface ServerRepository {
     fun updateDetails(id: Uuid, displayName: String?, description: String?, networkId: Uuid?, mcVersion: String?, itzgImageTag: String?)
     fun clearNetworkId(id: Uuid)
     fun updateResources(id: Uuid, memoryMb: Int, cpuShares: Int, itzgImageTag: String?, needsRecreate: Boolean)
-    fun updateStatus(id: Uuid, status: String, lastSeenAt: Instant?)
+    fun updateStatus(id: Uuid, status: String, lastSeenAt: kotlin.time.Instant?)
     fun updateExposure(id: Uuid, exposedExternally: Boolean?, publicSubdomain: String?, customHostname: String?, dnsRecordId: String?, dnsRecordName: String?, needsRecreate: Boolean?)
     fun updateNeedsRecreate(id: Uuid, needsRecreate: Boolean)
-    fun updatePlayerInfo(id: Uuid, playerCount: Int?, playerNames: String?, lastUpdate: Instant?)
+    fun updatePlayerInfo(id: Uuid, playerCount: Int?, playerNames: String?, lastUpdate: kotlin.time.Instant?)
     fun updateBackupSchedule(id: Uuid, schedule: String?, maxCount: Int?)
-    fun updateBackupScheduleLastFired(id: Uuid, lastFired: Instant?)
+    fun updateBackupScheduleLastFired(id: Uuid, lastFired: kotlin.time.Instant?)
     fun updateConfigMode(id: Uuid, configMode: String)
     fun updateStopCommand(id: Uuid, stopCommand: String)
     fun delete(id: Uuid)

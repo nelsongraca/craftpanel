@@ -2,7 +2,6 @@ package io.craftpanel.master.service.repo
 
 import io.craftpanel.master.domain.MigrationStatus
 import io.craftpanel.master.domain.MigrationStepStatus
-import kotlinx.datetime.Instant
 import kotlin.uuid.Uuid
 
 class FakeMigrationRepository(private val state: FakeRepositories) : MigrationRepository {
@@ -23,7 +22,7 @@ class FakeMigrationRepository(private val state: FakeRepositories) : MigrationRe
         return m.toRow()
     }
 
-    override fun updateMigrationStatus(id: Uuid, status: MigrationStatus, completedAt: Instant?) {
+    override fun updateMigrationStatus(id: Uuid, status: MigrationStatus, completedAt: kotlin.time.Instant?) {
         state.migrations[id]?.let {
             it.status = status.name
             if (completedAt != null) it.completedAt = completedAt.toString()
@@ -64,7 +63,7 @@ class FakeMigrationRepository(private val state: FakeRepositories) : MigrationRe
         return s.toRow()
     }
 
-    override fun updateMigrationStepStatus(id: Uuid, status: MigrationStepStatus, startedAt: Instant?, completedAt: Instant?, errorMessage: String?) {
+    override fun updateMigrationStepStatus(id: Uuid, status: MigrationStepStatus, startedAt: kotlin.time.Instant?, completedAt: kotlin.time.Instant?, errorMessage: String?) {
         val s = state.steps.values.flatten()
             .firstOrNull { it.id == id } ?: return
         s.status = status.name

@@ -1,6 +1,5 @@
 package io.craftpanel.master.service.repo
 
-import kotlinx.datetime.Instant
 import kotlin.uuid.Uuid
 
 data class ContainerMetricsRow(
@@ -17,9 +16,9 @@ data class ContainerMetricsRow(
 
 interface ContainerMetricsRepository {
 
-    fun insertContainerMetrics(serverId: Uuid, cpuPercent: Double, ramUsedMb: Int, netInBytes: Long, netOutBytes: Long, blockInBytes: Long, blockOutBytes: Long, recordedAt: Instant)
+    fun insertContainerMetrics(serverId: Uuid, cpuPercent: Double, ramUsedMb: Int, netInBytes: Long, netOutBytes: Long, blockInBytes: Long, blockOutBytes: Long, recordedAt: kotlin.time.Instant)
     fun getContainerMetrics(serverId: Uuid, seconds: Int): List<ContainerMetricsRow>
-    fun getContainerMetricsByRange(serverId: Uuid, from: Instant, to: Instant): List<ContainerMetricsRow>
+    fun getContainerMetricsByRange(serverId: Uuid, from: kotlin.time.Instant, to: kotlin.time.Instant): List<ContainerMetricsRow>
     fun getLatestContainerMetrics(serverId: Uuid): ContainerMetricsRow?
     fun getLatestContainerMetricsForServers(serverIds: List<Uuid>): Map<Uuid, ContainerMetricsRow?>
     fun deleteContainerMetricsForServer(serverId: Uuid)

@@ -1,6 +1,5 @@
 package io.craftpanel.master.service.repo
 
-import kotlinx.datetime.Instant
 import kotlin.uuid.Uuid
 
 class FakeServerRepository(private val state: FakeRepositories) : ServerRepository {
@@ -190,7 +189,7 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         if (itzgImageTag != null) s.itzgImageTag = itzgImageTag
     }
 
-    override fun updateStatus(id: Uuid, status: String, lastSeenAt: Instant?) {
+    override fun updateStatus(id: Uuid, status: String, lastSeenAt: kotlin.time.Instant?) {
         state.servers[id]?.let {
             it.status = status
             if (lastSeenAt != null) it.lastSeenAt = lastSeenAt.toString()
@@ -212,7 +211,7 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         state.servers[id]?.needsRecreate = needsRecreate
     }
 
-    override fun updatePlayerInfo(id: Uuid, playerCount: Int?, playerNames: String?, lastUpdate: Instant?) {
+    override fun updatePlayerInfo(id: Uuid, playerCount: Int?, playerNames: String?, lastUpdate: kotlin.time.Instant?) {
         state.servers[id]?.let {
             if (playerCount != null) it.lastPlayerCount = playerCount
             if (playerNames != null) it.lastPlayerNames = playerNames
@@ -227,7 +226,7 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         }
     }
 
-    override fun updateBackupScheduleLastFired(id: Uuid, lastFired: Instant?) {
+    override fun updateBackupScheduleLastFired(id: Uuid, lastFired: kotlin.time.Instant?) {
         state.servers[id]?.backupScheduleLastFired = lastFired?.toString()
     }
 

@@ -4,11 +4,13 @@ import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.domain.MigrationStatus
 import io.craftpanel.master.domain.MigrationStepStatus
 import io.craftpanel.master.util.toUtcString
-import kotlinx.datetime.*
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 class MigrationRepositoryImpl : MigrationRepository {
@@ -50,7 +52,7 @@ class MigrationRepositoryImpl : MigrationRepository {
             .toMigrationRow()
     }
 
-    override fun updateMigrationStatus(id: Uuid, status: MigrationStatus, completedAt: Instant?) {
+    override fun updateMigrationStatus(id: Uuid, status: MigrationStatus, completedAt: kotlin.time.Instant?) {
         transaction {
             ServerMigrations.update({ ServerMigrations.id eq id }) {
                 it[ServerMigrations.status] = status.name
@@ -119,7 +121,7 @@ class MigrationRepositoryImpl : MigrationRepository {
             .toMigrationStepRow()
     }
 
-    override fun updateMigrationStepStatus(id: Uuid, status: MigrationStepStatus, startedAt: Instant?, completedAt: Instant?, errorMessage: String?) {
+    override fun updateMigrationStepStatus(id: Uuid, status: MigrationStepStatus, startedAt: kotlin.time.Instant?, completedAt: Instant?, errorMessage: String?) {
         transaction {
             MigrationStepLog.update({ MigrationStepLog.id eq id }) {
                 it[MigrationStepLog.status] = status.name

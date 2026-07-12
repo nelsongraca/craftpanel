@@ -1,6 +1,5 @@
 package io.craftpanel.master.service.repo
 
-import kotlinx.datetime.Instant
 import kotlin.uuid.Uuid
 
 data class UserRow(val id: Uuid, val username: String, val email: String, val isActive: Boolean, val createdAt: String)
@@ -30,9 +29,9 @@ interface UserRepository {
     fun deleteAssignmentsForUser(userId: Uuid)
     fun deleteAssignmentsForGroup(groupId: Uuid)
 
-    fun issueRefreshToken(userId: Uuid, tokenHash: String, expiresAt: Instant)
+    fun issueRefreshToken(userId: Uuid, tokenHash: String, expiresAt: kotlin.time.Instant)
     fun findRefreshTokenByHash(tokenHash: String): RefreshTokenRow?
-    fun rotateRefreshToken(oldHash: String, newHash: String, expiresAt: Instant, userId: Uuid)
+    fun rotateRefreshToken(oldHash: String, newHash: String, expiresAt: kotlin.time.Instant, userId: Uuid)
     fun revokeRefreshToken(tokenHash: String)
     fun revokeAllRefreshTokens(userId: Uuid)
     fun deleteRefreshTokensForUser(userId: Uuid)

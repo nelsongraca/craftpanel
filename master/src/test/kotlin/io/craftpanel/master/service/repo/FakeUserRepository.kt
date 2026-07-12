@@ -1,6 +1,5 @@
 package io.craftpanel.master.service.repo
 
-import kotlinx.datetime.Instant
 import kotlin.uuid.Uuid
 
 class FakeUserRepository : UserRepository {
@@ -74,13 +73,13 @@ class FakeUserRepository : UserRepository {
         assignments.values.removeAll { it.groupId == groupId }
     }
 
-    override fun issueRefreshToken(userId: Uuid, tokenHash: String, expiresAt: Instant) {
+    override fun issueRefreshToken(userId: Uuid, tokenHash: String, expiresAt: kotlin.time.Instant) {
         val id = Uuid.random()
         tokens[tokenHash] = MutableToken(id, userId, tokenHash, expiresAt.toString())
     }
 
     override fun findRefreshTokenByHash(tokenHash: String): RefreshTokenRow? = tokens[tokenHash]?.let { RefreshTokenRow(it.id, it.userId, it.tokenHash, it.expiresAt, it.revoked) }
-    override fun rotateRefreshToken(oldHash: String, newHash: String, expiresAt: Instant, userId: Uuid) {
+    override fun rotateRefreshToken(oldHash: String, newHash: String, expiresAt: kotlin.time.Instant, userId: Uuid) {
         tokens[oldHash]?.revoked = true
         val id = Uuid.random()
         tokens[newHash] = MutableToken(id, userId, newHash, expiresAt.toString())

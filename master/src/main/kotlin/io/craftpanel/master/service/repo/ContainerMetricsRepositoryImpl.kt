@@ -1,15 +1,26 @@
 package io.craftpanel.master.service.repo
 
 import io.craftpanel.master.database.schema.ContainerMetrics
-import kotlinx.datetime.*
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 class ContainerMetricsRepositoryImpl : ContainerMetricsRepository {
 
-    override fun insertContainerMetrics(serverId: Uuid, cpuPercent: Double, ramUsedMb: Int, netInBytes: Long, netOutBytes: Long, blockInBytes: Long, blockOutBytes: Long, recordedAt: Instant) {
+    override fun insertContainerMetrics(
+        serverId: Uuid,
+        cpuPercent: Double,
+        ramUsedMb: Int,
+        netInBytes: Long,
+        netOutBytes: Long,
+        blockInBytes: Long,
+        blockOutBytes: Long,
+        recordedAt: kotlin.time.Instant
+    ) {
         transaction {
             ContainerMetrics.insert {
                 it[ContainerMetrics.serverId] = serverId
@@ -31,7 +42,7 @@ class ContainerMetricsRepositoryImpl : ContainerMetricsRepository {
             .map { it.toContainerMetricsRow() }
     }
 
-    override fun getContainerMetricsByRange(serverId: Uuid, from: Instant, to: Instant): List<ContainerMetricsRow> = transaction {
+    override fun getContainerMetricsByRange(serverId: Uuid, from: kotlin.time.Instant, to: Instant): List<ContainerMetricsRow> = transaction {
         val fromLdt = from.toLocalDateTime(TimeZone.UTC)
         val toLdt = to.toLocalDateTime(TimeZone.UTC)
         ContainerMetrics.selectAll()

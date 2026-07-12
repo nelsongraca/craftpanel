@@ -1,6 +1,5 @@
 package io.craftpanel.master.service.repo
 
-import kotlinx.datetime.Instant
 import kotlin.uuid.Uuid
 
 class FakeAlertRepository : AlertRepository {
@@ -56,7 +55,7 @@ class FakeAlertRepository : AlertRepository {
         return e.toRow()
     }
 
-    override fun resolveEventsForThreshold(thresholdId: Uuid, resolvedAt: Instant) {
+    override fun resolveEventsForThreshold(thresholdId: Uuid, resolvedAt: kotlin.time.Instant) {
         events.filter { it.thresholdId == thresholdId && it.resolvedAt == null }
             .forEach { it.resolvedAt = resolvedAt.toString() }
     }

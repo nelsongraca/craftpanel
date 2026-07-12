@@ -2,10 +2,12 @@ package io.craftpanel.master.service.repo
 
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.util.toUtcString
-import kotlinx.datetime.*
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 class ServerRepositoryImpl(
@@ -181,7 +183,7 @@ class ServerRepositoryImpl(
         }
     }
 
-    override fun updateStatus(id: Uuid, status: String, lastSeenAt: Instant?) {
+    override fun updateStatus(id: Uuid, status: String, lastSeenAt: kotlin.time.Instant?) {
         transaction {
             Servers.update({ Servers.id eq id }) {
                 it[Servers.status] = status
@@ -209,7 +211,7 @@ class ServerRepositoryImpl(
         transaction { Servers.update({ Servers.id eq id }) { it[Servers.needsRecreate] = needsRecreate } }
     }
 
-    override fun updatePlayerInfo(id: Uuid, playerCount: Int?, playerNames: String?, lastUpdate: Instant?) {
+    override fun updatePlayerInfo(id: Uuid, playerCount: Int?, playerNames: String?, lastUpdate: kotlin.time.Instant?) {
         transaction {
             Servers.update({ Servers.id eq id }) {
                 if (playerCount != null) it[Servers.lastPlayerCount] = playerCount

@@ -1,7 +1,6 @@
 package io.craftpanel.master.service.repo
 
 import io.craftpanel.master.domain.NodeStatus
-import kotlinx.datetime.Instant
 import kotlin.uuid.Uuid
 
 class FakeNodeRepository : NodeRepository {
@@ -78,7 +77,7 @@ class FakeNodeRepository : NodeRepository {
         totalRamMb: Int,
         totalCpuShares: Int,
         agentVersion: String?,
-        lastSeenAt: Instant?
+        lastSeenAt: kotlin.time.Instant?
     ): NodeRow {
         val id = Uuid.random()
         val n = MutableNode(
@@ -115,7 +114,7 @@ class FakeNodeRepository : NodeRepository {
         nodes[id]?.health = health
     }
 
-    override fun updateLastSeen(id: Uuid, lastSeenAt: Instant, publicIp: String?, agentVersion: String?, privateIp: String?) {
+    override fun updateLastSeen(id: Uuid, lastSeenAt: kotlin.time.Instant, publicIp: String?, agentVersion: String?, privateIp: String?) {
         nodes[id]?.let {
             it.lastSeenAt = lastSeenAt.toString()
             if (publicIp != null) it.publicIp = publicIp
@@ -132,7 +131,7 @@ class FakeNodeRepository : NodeRepository {
         nodes[id]?.swarmActive = swarmActive
     }
 
-    override fun markUnreachable(id: Uuid, lastSeenAt: Instant?) {
+    override fun markUnreachable(id: Uuid, lastSeenAt: kotlin.time.Instant?) {
         nodes[id]?.let {
             it.health = "UNREACHABLE"
             if (lastSeenAt != null) it.lastSeenAt = lastSeenAt.toString()
@@ -150,7 +149,17 @@ class FakeNodeRepository : NodeRepository {
     override fun calculateAllocatedRam(id: Uuid): Int = allocatedRam(id)
     override fun calculateAllocatedCpu(id: Uuid): Int = allocatedCpu(id)
 
-    override fun insertMetrics(nodeId: Uuid, cpuPercent: Double, ramUsedMb: Int, ramTotalMb: Int, netInBytes: Long, netOutBytes: Long, diskUsedBytes: Long, diskTotalBytes: Long, recordedAt: Instant) {
+    override fun insertMetrics(
+        nodeId: Uuid,
+        cpuPercent: Double,
+        ramUsedMb: Int,
+        ramTotalMb: Int,
+        netInBytes: Long,
+        netOutBytes: Long,
+        diskUsedBytes: Long,
+        diskTotalBytes: Long,
+        recordedAt: kotlin.time.Instant
+    ) {
         metrics.add(MutableNodeMetrics(nodeId, recordedAt.toString(), cpuPercent, ramUsedMb, ramTotalMb, netInBytes, netOutBytes, diskUsedBytes, diskTotalBytes))
     }
 

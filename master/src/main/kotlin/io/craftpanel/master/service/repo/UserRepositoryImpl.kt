@@ -2,10 +2,12 @@ package io.craftpanel.master.service.repo
 
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.util.toUtcString
-import kotlinx.datetime.*
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 class UserRepositoryImpl : UserRepository {
@@ -134,7 +136,7 @@ class UserRepositoryImpl : UserRepository {
         transaction { UserGroupAssignments.deleteWhere { UserGroupAssignments.groupId eq groupId } }
     }
 
-    override fun issueRefreshToken(userId: Uuid, tokenHash: String, expiresAt: Instant) {
+    override fun issueRefreshToken(userId: Uuid, tokenHash: String, expiresAt: kotlin.time.Instant) {
         transaction {
             RefreshTokens.insert {
                 it[RefreshTokens.userId] = userId
