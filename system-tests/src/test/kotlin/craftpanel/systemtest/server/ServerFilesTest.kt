@@ -4,6 +4,7 @@ import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.annotation.Isolate
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
@@ -12,6 +13,7 @@ import org.openapitools.client.infrastructure.ClientException
 import java.nio.charset.StandardCharsets
 
 @Isolate
+@Tags("ServerCore")
 class ServerFilesTest : BaseSystemTest() {
 
     init {

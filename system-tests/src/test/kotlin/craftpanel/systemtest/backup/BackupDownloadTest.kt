@@ -6,11 +6,13 @@ import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.pollUntilNotNull
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.annotation.Isolate
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.openapitools.client.infrastructure.ClientException
 
 @Isolate
+@Tags("BackupAlerts")
 class BackupDownloadTest : BaseSystemTest() {
 
     init {

@@ -5,6 +5,7 @@ import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.SharedStack
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.annotation.Isolate
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.ints.shouldBeGreaterThan
 import io.kotest.matchers.ints.shouldBeGreaterThanOrEqual
 import io.kotest.matchers.shouldBe
@@ -12,6 +13,7 @@ import io.kotest.matchers.string.shouldNotBeEmpty
 import org.openapitools.client.infrastructure.ClientException
 
 @Isolate
+@Tags("Node")
 class NodeOperationsTest : BaseSystemTest() {
 
     init {

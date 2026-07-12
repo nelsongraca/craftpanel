@@ -5,6 +5,7 @@ import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.*
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.annotation.Isolate
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import okhttp3.*
@@ -13,6 +14,7 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 @Isolate
+@Tags("ServerOps")
 class ServerMigrationTest : BaseSystemTest() {
 
     private val serverIds = mutableListOf<String>()

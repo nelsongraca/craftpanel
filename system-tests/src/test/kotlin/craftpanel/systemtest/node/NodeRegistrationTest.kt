@@ -5,12 +5,14 @@ import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.SharedStack
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.annotation.Isolate
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.openapitools.client.infrastructure.ClientException
 import kotlin.time.Duration.Companion.milliseconds
 
 @Isolate
+@Tags("Node")
 class NodeRegistrationTest : BaseSystemTest() {
 
     private var agentNodeId = ""

@@ -1,9 +1,11 @@
 package craftpanel.systemtest.node
 
 import craftpanel.systemtest.harness.BaseSystemTest
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.string.shouldNotBeBlank
 
+@Tags("Node")
 class NodeIpTest : BaseSystemTest() {
 
     init {

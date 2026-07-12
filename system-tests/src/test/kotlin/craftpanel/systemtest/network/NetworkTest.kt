@@ -4,11 +4,13 @@ import craftpanel.systemtest.client.model.CreateNetworkRequest
 import craftpanel.systemtest.client.model.PatchNetworkRequest
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import org.openapitools.client.infrastructure.ClientException
 
+@Tags("Misc")
 class NetworkTest : BaseSystemTest() {
 
     init {

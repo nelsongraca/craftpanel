@@ -3,12 +3,14 @@ package craftpanel.systemtest.server
 import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.openapitools.client.infrastructure.ClientException
 import java.time.Duration
 import java.time.Instant
 
+@Tags("ServerCore")
 class ServerMetricsTest : BaseSystemTest() {
 
     private fun now() = Instant.now()

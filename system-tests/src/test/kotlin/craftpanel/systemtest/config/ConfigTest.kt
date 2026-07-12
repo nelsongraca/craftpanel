@@ -3,11 +3,13 @@ package craftpanel.systemtest.config
 import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
 import org.openapitools.client.infrastructure.ClientException
 
+@Tags("Misc")
 class ConfigTest : BaseSystemTest() {
 
     init {

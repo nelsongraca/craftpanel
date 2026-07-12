@@ -8,6 +8,7 @@ import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.annotation.Isolate
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
@@ -15,6 +16,7 @@ import org.openapitools.client.infrastructure.ClientException
 import io.kotest.matchers.string.shouldContain as stringContain
 
 @Isolate
+@Tags("ServerCore")
 class ServerLifecycleTest : BaseSystemTest() {
 
     init {

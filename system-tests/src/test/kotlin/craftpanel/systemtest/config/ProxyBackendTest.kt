@@ -4,11 +4,13 @@ import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import org.openapitools.client.infrastructure.ClientException
 
+@Tags("Misc")
 class ProxyBackendTest : BaseSystemTest() {
 
     private lateinit var proxyServerId: String

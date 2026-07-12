@@ -2,9 +2,11 @@ package craftpanel.systemtest.server
 
 import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldContainExactlyInAnyOrder
 import io.kotest.matchers.shouldBe
 
+@Tags("ServerCore")
 class PlayerCountTest : BaseSystemTest() {
 
     init {

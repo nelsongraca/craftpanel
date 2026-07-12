@@ -4,6 +4,7 @@ import craftpanel.systemtest.client.model.MigrateRequest
 import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import okhttp3.*
@@ -11,6 +12,7 @@ import org.openapitools.client.infrastructure.ClientException
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
+@Tags("ServerOps")
 class MigrationSecurityTest : BaseSystemTest() {
 
     private val wsClient = OkHttpClient.Builder()

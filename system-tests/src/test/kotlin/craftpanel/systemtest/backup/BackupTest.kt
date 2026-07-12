@@ -2,10 +2,12 @@ package craftpanel.systemtest.backup
 
 import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeEmpty
 
+@Tags("BackupAlerts")
 class BackupTest : BaseSystemTest() {
 
     init {

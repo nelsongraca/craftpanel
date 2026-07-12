@@ -3,11 +3,13 @@ package craftpanel.systemtest.server
 import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.core.annotation.Isolate
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 
 @Isolate
+@Tags("ServerCore")
 class FileUploadTest : BaseSystemTest() {
 
     init {

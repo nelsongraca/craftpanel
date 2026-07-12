@@ -93,11 +93,19 @@ tasks.named<Test>("test") {
     useJUnitPlatform()
     maxParallelForks = 1
     systemProperty("kotest.framework.config.fqn", "craftpanel.systemtest.harness.SystemTestConfig")
-    dependsOn(
-        ":master:dockerBuildImage",
-        ":agent:dockerBuildImage",
-        ":fake-server:dockerBuildImage"
-    )
+
+    val kotestTags = project.findProperty("kotestTags") as String?
+    if (kotestTags != null) {
+        systemProperty("kotest.tags", kotestTags)
+    }
+
+    if (!project.hasProperty("skipDockerBuild")) {
+        dependsOn(
+            ":master:dockerBuildImage",
+            ":agent:dockerBuildImage",
+            ":fake-server:dockerBuildImage"
+        )
+    }
 
     val withCoverage = project.hasProperty("withCoverage")
     if (withCoverage) {

@@ -4,12 +4,14 @@ import craftpanel.systemtest.client.model.NodeStatus
 import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.core.annotation.Isolate
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldContainAll
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeEmpty
 
 @Isolate
+@Tags("Node")
 class MultiNodeTest : BaseSystemTest() {
 
 

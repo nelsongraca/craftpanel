@@ -5,9 +5,11 @@ import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.AuthHelper
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.shouldBe
 import org.openapitools.client.infrastructure.*
 
+@Tags("ServerOps")
 class SearchModsTest : BaseSystemTest() {
 
     init {

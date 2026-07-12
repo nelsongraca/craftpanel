@@ -2,11 +2,13 @@ package craftpanel.systemtest.alerts
 
 import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldBeEmpty
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeEmpty
 import kotlinx.coroutines.delay
 
+@Tags("BackupAlerts")
 class AlertEventsTest : BaseSystemTest() {
 
     private suspend fun pollForEvents(thresholdId: String, timeoutMs: Long = 20_000, pollMs: Long = 500): List<AlertEventResponse> {

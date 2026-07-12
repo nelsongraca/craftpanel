@@ -3,6 +3,7 @@ package craftpanel.systemtest.routing
 import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.SharedStack
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import kotlinx.coroutines.*
@@ -24,6 +25,7 @@ import kotlin.time.Duration.Companion.milliseconds
  * Backends are disambiguated by a distinct MOTD per server (fake-server echoes `MOTD`
  * into the status JSON `description.text`).
  */
+@Tags("Misc")
 class McRouterRoutingTest : BaseSystemTest() {
 
     // A network with a domain suffix so master can resolve a public hostname for the

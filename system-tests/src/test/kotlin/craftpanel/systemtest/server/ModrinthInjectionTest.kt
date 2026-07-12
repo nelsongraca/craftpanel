@@ -3,12 +3,14 @@ package craftpanel.systemtest.server
 import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.ServerHelper
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.delay
 import kotlin.random.Random
 
+@Tags("ServerOps")
 class ModrinthInjectionTest : BaseSystemTest() {
 
     init {

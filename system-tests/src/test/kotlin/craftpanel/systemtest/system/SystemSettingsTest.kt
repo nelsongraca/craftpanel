@@ -3,9 +3,11 @@ package craftpanel.systemtest.system
 import craftpanel.systemtest.client.model.PatchSettingsRequest
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.core.annotation.Isolate
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.shouldBe
 
 @Isolate
+@Tags("Misc")
 class SystemSettingsTest : BaseSystemTest() {
 
     init {

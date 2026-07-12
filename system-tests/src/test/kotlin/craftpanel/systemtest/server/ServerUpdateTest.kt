@@ -4,9 +4,11 @@ import craftpanel.systemtest.client.model.CreateNetworkRequest
 import craftpanel.systemtest.client.model.UpdateServerRequest
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.shouldBe
 import org.openapitools.client.infrastructure.ClientException
 
+@Tags("ServerCore")
 class ServerUpdateTest : BaseSystemTest() {
 
     init {

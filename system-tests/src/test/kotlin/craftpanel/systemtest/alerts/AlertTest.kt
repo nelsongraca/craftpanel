@@ -4,11 +4,13 @@ import craftpanel.systemtest.client.model.CreateAlertThresholdRequest
 import craftpanel.systemtest.client.model.ScopeType
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import org.openapitools.client.infrastructure.ClientException
 
+@Tags("BackupAlerts")
 class AlertTest : BaseSystemTest() {
 
     init {

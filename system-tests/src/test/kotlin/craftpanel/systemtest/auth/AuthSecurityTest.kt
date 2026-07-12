@@ -4,10 +4,12 @@ import craftpanel.systemtest.client.api.DefaultApi
 import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.*
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldNotBeEmpty
 import org.openapitools.client.infrastructure.ClientException
 
+@Tags("Auth")
 class AuthSecurityTest : BaseSystemTest() {
 
     init {

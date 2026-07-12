@@ -3,6 +3,7 @@ package craftpanel.systemtest.dashboard
 import com.google.gson.JsonParser
 import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotBeEmpty
 import io.kotest.matchers.shouldBe
@@ -11,6 +12,7 @@ import okhttp3.*
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
+@Tags("Misc")
 class DashboardWsTest : BaseSystemTest() {
 
     private val wsClient = OkHttpClient.Builder()

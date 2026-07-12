@@ -2,10 +2,12 @@ package craftpanel.systemtest.node
 
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.openapitools.client.infrastructure.ClientException
 
+@Tags("Node")
 class NodeMetricsTest : BaseSystemTest() {
 
     init {

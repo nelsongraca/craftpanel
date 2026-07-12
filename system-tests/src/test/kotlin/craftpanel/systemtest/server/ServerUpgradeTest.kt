@@ -3,8 +3,10 @@ package craftpanel.systemtest.server
 import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.client.model.UpdateServerRequest
 import craftpanel.systemtest.harness.BaseSystemTest
+import io.kotest.core.annotation.Tags
 import io.kotest.matchers.shouldBe
 
+@Tags("ServerOps")
 class ServerUpgradeTest : BaseSystemTest() {
 
     init {
