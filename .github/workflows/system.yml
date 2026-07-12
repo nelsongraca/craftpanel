@@ -27,8 +27,24 @@ jobs:
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
 
+      - name: Restore Gradle build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.gradle/caches/build-cache-1
+          key: gradle-build-cache-${{ github.sha }}
+          restore-keys: gradle-build-cache-
+
       - name: Build Docker images
         run: ./gradlew :master:dockerBuildImage :agent:dockerBuildImage :fake-server:dockerBuildImage
+
+      - name: Warm up system-tests compile cache
+        run: ./gradlew :system-tests:compileTestKotlin
+
+      - name: Save Gradle build cache
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.gradle/caches/build-cache-1
+          key: gradle-build-cache-${{ github.sha }}
 
       - name: Save Docker images
         run: |
@@ -71,6 +87,13 @@ jobs:
           path: .gradle/
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
           restore-keys: ${{ runner.os }}-gradle-
+
+      - name: Restore Gradle build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.gradle/caches/build-cache-1
+          key: gradle-build-cache-${{ github.sha }}
+          restore-keys: gradle-build-cache-
 
       - name: Download image artifact
         uses: actions/download-artifact@v4
