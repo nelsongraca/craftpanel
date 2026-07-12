@@ -84,6 +84,8 @@ tasks.named<Test>("test") {
 
 Invoked as `-PkotestTags=ServerCore` (Gradle project property, config-cache safe — captured at configuration time, not read inside `onlyIf`/execution-time lambdas, matching the project's config-cache rules).
 
+`-PkotestTags` is optional and CI-only. Local runs (`./gradlew :system-tests:test -PsystemTest` or `./gradlew :system-tests:test`) omit it entirely — `kotestTags` is null, `systemProperty("kotest.tags", ...)` is never set, Kotest applies no tag filter, full suite runs exactly as today. The `-PsystemTest` gate in root `build.gradle.kts` is untouched.
+
 ### 5. Coverage merge: no merge job
 
 Each shard uploads its own `report.xml` fragment to Codecov with `flags: system`. Codecov merges multiple uploads under the same flag server-side — no Kover CLI merge job required. Matches existing single-job upload pattern, just repeated per-shard.
