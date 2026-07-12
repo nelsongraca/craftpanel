@@ -1,3 +1,4 @@
+import type {ReactNode} from "react";
 import {describe, it, expect, vi, beforeEach} from "vitest";
 import {render, screen, waitFor, within} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -17,7 +18,7 @@ vi.mock("@/lib/generated/sdk.gen", () => ({
 
 vi.mock("@/app/components/PageHeader", () => ({
     default: vi.fn(
-        ({title, subtitle, action}: Record<string, any>) => (
+        ({title, subtitle, action}: { title?: string; subtitle?: string; action?: ReactNode }) => (
             <div>
                 {title && <h1>{title}</h1>}
                 {subtitle && <p>{subtitle}</p>}
@@ -123,8 +124,8 @@ describe("UsersPage", () => {
 
     describe("Loading state", () => {
         it("shows Loading… while loading", async () => {
-            const def = deferred<any>();
-            vi.mocked(listUsers).mockReturnValue(def.promise);
+            const def = deferred<{ data: { users: Record<string, unknown>[] } }>();
+            vi.mocked(listUsers).mockReturnValue(def.promise as never);
             vi.mocked(listGroups).mockResolvedValue({data: []} as never);
 
             render(<UsersPage/>);

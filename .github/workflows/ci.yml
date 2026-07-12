@@ -76,6 +76,9 @@ jobs:
           key: ${{ runner.os }}-pnpm-${{ hashFiles('frontend/pnpm-lock.yaml') }}
           restore-keys: ${{ runner.os }}-pnpm-
 
+      - name: Run frontend lint and typecheck
+        run: ./gradlew :frontend:checkFrontend :frontend:typecheckFrontend
+
       - name: Run frontend tests
         run: ./gradlew :frontend:testFrontend -PwithCoverage
 

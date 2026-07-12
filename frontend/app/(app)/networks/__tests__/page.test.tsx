@@ -11,7 +11,7 @@ vi.mock("@/lib/generated/sdk.gen", () => ({
 
 vi.mock("@/app/components/PageHeader", () => ({
     default: vi.fn(
-        ({title, subtitle, action}: Record<string, any>) => (
+        ({title, subtitle, action}: {title?: string; subtitle?: string; action?: React.ReactNode}) => (
             <div>
                 {title && <h1>{title}</h1>}
                 {subtitle && <p>{subtitle}</p>}
@@ -22,6 +22,7 @@ vi.mock("@/app/components/PageHeader", () => ({
 }));
 
 import {listNetworks, createNetwork, updateNetwork, deleteNetwork} from "@/lib/generated/sdk.gen";
+import type {ErrorResponse, NetworkResponse} from "@/lib/generated/types.gen";
 import NetworksPage from "../page";
 
 function network(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -43,7 +44,7 @@ function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
 
 async function renderWith(mocks: { networks?: Record<string, unknown>[] } = {}) {
     const {networks: ns = [network()]} = mocks;
-    vi.mocked(listNetworks).mockResolvedValue({data: ns as any});
+    vi.mocked(listNetworks).mockResolvedValue({data: ns as unknown as NetworkResponse[]});
     const ui = render(<NetworksPage/>);
     await waitFor(() => expect(screen.queryByText("Loading…")).toBeNull());
     return ui;
@@ -55,11 +56,11 @@ describe("NetworksPage", () => {
     });
 
     it("renders loading state initially", () => {
-        const d = deferred();
-        vi.mocked(listNetworks).mockReturnValue(d.promise as any);
+        const d = deferred<Awaited<ReturnType<typeof listNetworks>>>();
+        vi.mocked(listNetworks).mockReturnValue(d.promise);
         render(<NetworksPage/>);
         expect(screen.getByText("Loading…")).toBeTruthy();
-        d.resolve({data: [network() as any]});
+        d.resolve({data: [network() as unknown as NetworkResponse]});
     });
 
     it("renders empty state when no networks", async () => {
@@ -115,8 +116,8 @@ describe("NetworksPage", () => {
     });
 
     it("create modal submits name and description", async () => {
-        vi.mocked(createNetwork).mockResolvedValue({data: {id: "new-n"} as any, error: undefined} as any);
-        vi.mocked(listNetworks).mockResolvedValue({data: []} as any);
+        vi.mocked(createNetwork).mockResolvedValue({data: {id: "new-n"} as unknown as NetworkResponse, error: undefined});
+        vi.mocked(listNetworks).mockResolvedValue({data: []});
         await renderWith({networks: []});
 
         await userEvent.setup().click(screen.getByText("New Network"));
@@ -137,7 +138,7 @@ describe("NetworksPage", () => {
     });
 
     it("edit modal calls updateNetwork on Save", async () => {
-        vi.mocked(updateNetwork).mockResolvedValue({error: undefined} as any);
+        vi.mocked(updateNetwork).mockResolvedValue({error: undefined});
         await renderWith();
         const editBtns = screen.getAllByTitle("Edit");
         await userEvent.setup().click(editBtns[0]);
@@ -167,8 +168,8 @@ describe("NetworksPage", () => {
     });
 
     it("delete calls deleteNetwork and reloads", async () => {
-        vi.mocked(deleteNetwork).mockResolvedValue({error: undefined} as any);
-        vi.mocked(listNetworks).mockResolvedValue({data: []} as any);
+        vi.mocked(deleteNetwork).mockResolvedValue({error: undefined});
+        vi.mocked(listNetworks).mockResolvedValue({data: []});
         await renderWith({networks: [network({server_count: 0})]});
         const deleteBtns = screen.getAllByTitle("Delete");
         fireEvent.click(deleteBtns[0]);
@@ -180,7 +181,7 @@ describe("NetworksPage", () => {
     });
 
     it("delete error shown when API fails", async () => {
-        vi.mocked(deleteNetwork).mockResolvedValue({error: {message: "Cannot delete"} as any} as any);
+        vi.mocked(deleteNetwork).mockResolvedValue({error: {message: "Cannot delete"} as ErrorResponse});
         await renderWith({networks: [network({server_count: 0})]});
         const deleteBtns = screen.getAllByTitle("Delete");
         fireEvent.click(deleteBtns[0]);

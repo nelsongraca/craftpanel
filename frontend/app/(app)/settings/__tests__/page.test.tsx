@@ -17,7 +17,7 @@ vi.mock("@/lib/auth-context", () => ({
 
 vi.mock("@/app/components/PageHeader", () => ({
     default: vi.fn(
-        ({title, subtitle}: Record<string, any>) => (
+        ({title, subtitle}: { title?: string; subtitle?: string }) => (
             <div>
                 {title && <h1>{title}</h1>}
                 {subtitle && <p>{subtitle}</p>}
@@ -53,7 +53,7 @@ function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
 async function renderWith(mocks: { settings?: typeof defaultSettings; permissions?: string[] } = {}) {
     const {settings: s = defaultSettings, permissions: p = ["system.settings"]} = mocks;
     mockAuth.useAuth.mockReturnValue({user: {permissions: p}});
-    vi.mocked(getSystemSettings).mockResolvedValue({data: s} as any);
+    vi.mocked(getSystemSettings).mockResolvedValue({data: s} as never);
     const ui = render(<SettingsPage/>);
     await waitFor(() => expect(screen.queryByText("Loading…")).toBeNull());
     return ui;
@@ -66,16 +66,16 @@ describe("SettingsPage", () => {
 
     it("renders loading state initially", () => {
         mockAuth.useAuth.mockReturnValue({user: {permissions: ["system.settings"]}});
-        const d = deferred();
-        vi.mocked(getSystemSettings).mockReturnValue(d.promise as any);
+        const d = deferred<{ data: typeof defaultSettings }>();
+        vi.mocked(getSystemSettings).mockReturnValue(d.promise as never);
         render(<SettingsPage/>);
         expect(screen.getByText("Loading…")).toBeTruthy();
-        d.resolve({data: defaultSettings as any});
+        d.resolve({data: defaultSettings});
     });
 
     it("shows permission denied when user lacks system.settings", async () => {
         mockAuth.useAuth.mockReturnValue({user: {permissions: []}});
-        vi.mocked(getSystemSettings).mockResolvedValue({data: defaultSettings} as any);
+        vi.mocked(getSystemSettings).mockResolvedValue({data: defaultSettings} as never);
         render(<SettingsPage/>);
         await waitFor(() => {
             expect(screen.getByText(/do not have permission/i)).toBeTruthy();
@@ -91,7 +91,7 @@ describe("SettingsPage", () => {
     });
 
     it("saves settings on submit", async () => {
-        vi.mocked(updateSystemSettings).mockResolvedValue({error: undefined} as any);
+        vi.mocked(updateSystemSettings).mockResolvedValue({error: undefined} as never);
         await renderWith();
 
         await userEvent.setup().clear(screen.getByDisplayValue("30"));
@@ -104,8 +104,8 @@ describe("SettingsPage", () => {
     });
 
     it("shows success message after save", async () => {
-        vi.mocked(updateSystemSettings).mockResolvedValue({error: undefined} as any);
-        vi.mocked(getSystemSettings).mockResolvedValue({data: defaultSettings} as any);
+        vi.mocked(updateSystemSettings).mockResolvedValue({error: undefined} as never);
+        vi.mocked(getSystemSettings).mockResolvedValue({data: defaultSettings} as never);
         await renderWith();
 
         await userEvent.setup().clear(screen.getByDisplayValue("30"));
@@ -118,7 +118,7 @@ describe("SettingsPage", () => {
     });
 
     it("shows error message on API failure", async () => {
-        vi.mocked(updateSystemSettings).mockResolvedValue({error: {message: "Validation failed"} as any} as any);
+        vi.mocked(updateSystemSettings).mockResolvedValue({error: {message: "Validation failed"}} as never);
         await renderWith();
 
         await userEvent.setup().click(screen.getByText("Save Settings"));
@@ -130,7 +130,7 @@ describe("SettingsPage", () => {
 
     it("shows Failed to load when getSystemSettings returns no data", async () => {
         mockAuth.useAuth.mockReturnValue({user: {permissions: ["system.settings"]}});
-        vi.mocked(getSystemSettings).mockResolvedValue({data: undefined as any} as any);
+        vi.mocked(getSystemSettings).mockResolvedValue({data: undefined} as never);
         render(<SettingsPage/>);
         await waitFor(() => {
             expect(screen.getByText("Failed to load settings.")).toBeTruthy();
@@ -138,8 +138,8 @@ describe("SettingsPage", () => {
     });
 
     it("'Save Settings' button shows disabled during save", async () => {
-        const d = deferred();
-        vi.mocked(updateSystemSettings).mockReturnValue(d.promise as any);
+        const d = deferred<{ error: undefined }>();
+        vi.mocked(updateSystemSettings).mockReturnValue(d.promise as never);
         await renderWith();
 
         const saveBtn = screen.getByText("Save Settings");
@@ -148,11 +148,11 @@ describe("SettingsPage", () => {
         await waitFor(() => {
             expect(screen.getByText("Saving…")).toBeTruthy();
         });
-        d.resolve({error: undefined} as any);
+        d.resolve({error: undefined});
     });
 
     it("modifying a field clears the success message", async () => {
-        vi.mocked(updateSystemSettings).mockResolvedValue({error: undefined} as any);
+        vi.mocked(updateSystemSettings).mockResolvedValue({error: undefined} as never);
         await renderWith();
 
         const metricInput = screen.getByDisplayValue("30");
@@ -168,7 +168,7 @@ describe("SettingsPage", () => {
     });
 
     it("sends int via API call", async () => {
-        vi.mocked(updateSystemSettings).mockResolvedValue({error: undefined} as any);
+        vi.mocked(updateSystemSettings).mockResolvedValue({error: undefined} as never);
         await renderWith();
 
         await userEvent.setup().clear(screen.getByDisplayValue("3"));

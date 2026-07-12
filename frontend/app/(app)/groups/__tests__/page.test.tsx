@@ -12,7 +12,7 @@ vi.mock("@/lib/generated/sdk.gen", () => ({
 
 vi.mock("@/app/components/PageHeader", () => ({
     default: vi.fn(
-        ({title, subtitle, action}: Record<string, any>) => (
+        ({title, subtitle, action}: {title?: string; subtitle?: string; action?: React.ReactNode}) => (
             <div>
                 {title && <h1>{title}</h1>}
                 {subtitle && <p>{subtitle}</p>}
@@ -25,6 +25,7 @@ vi.mock("@/app/components/PageHeader", () => ({
 import {
     listGroups, createGroup, updateGroup, deleteGroup, setGroupPermissions,
 } from "@/lib/generated/sdk.gen";
+import type {ErrorResponse, GroupResponse} from "@/lib/generated/types.gen";
 import GroupsPage from "../page";
 
 function group(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -50,7 +51,7 @@ async function renderWith(
     } = {},
 ) {
     const {groups: g = [group()]} = mocks;
-    vi.mocked(listGroups).mockResolvedValue({data: g as any});
+    vi.mocked(listGroups).mockResolvedValue({data: g as unknown as GroupResponse[]});
     const ui = render(<GroupsPage/>);
     await waitFor(() => expect(screen.queryByText("Loading…")).toBeNull());
     return ui;
@@ -62,11 +63,11 @@ describe("GroupsPage", () => {
     });
 
     it("renders loading state initially", () => {
-        const deferred_ = deferred();
-        vi.mocked(listGroups).mockReturnValue(deferred_.promise as any);
+        const deferred_ = deferred<Awaited<ReturnType<typeof listGroups>>>();
+        vi.mocked(listGroups).mockReturnValue(deferred_.promise);
         render(<GroupsPage/>);
         expect(screen.getByText("Loading…")).toBeTruthy();
-        deferred_.resolve({data: [group() as any]});
+        deferred_.resolve({data: [group() as unknown as GroupResponse]});
     });
 
     it("renders empty state when no groups", async () => {
@@ -135,9 +136,9 @@ describe("GroupsPage", () => {
     });
 
     it("create modal submits name and permissions", async () => {
-        vi.mocked(createGroup).mockResolvedValue({data: {id: "new-g"} as any, error: undefined} as any);
-        vi.mocked(setGroupPermissions).mockResolvedValue({error: undefined} as any);
-        vi.mocked(listGroups).mockResolvedValue({data: []} as any);
+        vi.mocked(createGroup).mockResolvedValue({data: {id: "new-g"} as unknown as GroupResponse, error: undefined});
+        vi.mocked(setGroupPermissions).mockResolvedValue({error: undefined});
+        vi.mocked(listGroups).mockResolvedValue({data: []});
         await renderWith({groups: []});
 
         const user = userEvent.setup();
@@ -156,7 +157,7 @@ describe("GroupsPage", () => {
     });
 
     it("create modal error shown on API failure", async () => {
-        vi.mocked(createGroup).mockResolvedValue({error: {message: "Name taken"} as any} as any);
+        vi.mocked(createGroup).mockResolvedValue({error: {message: "Name taken"} as ErrorResponse});
         await renderWith({groups: []});
 
         const user = userEvent.setup();
@@ -182,8 +183,8 @@ describe("GroupsPage", () => {
     });
 
     it("edit modal calls updateGroup and setGroupPermissions on Save", async () => {
-        vi.mocked(updateGroup).mockResolvedValue({error: undefined} as any);
-        vi.mocked(setGroupPermissions).mockResolvedValue({error: undefined} as any);
+        vi.mocked(updateGroup).mockResolvedValue({error: undefined});
+        vi.mocked(setGroupPermissions).mockResolvedValue({error: undefined});
         await renderWith({
             groups: [group({id: "g1", name: "Custom", is_system: false, permissions: ["server.view"]})],
         });
@@ -212,8 +213,8 @@ describe("GroupsPage", () => {
     });
 
     it("delete calls deleteGroup and reloads", async () => {
-        vi.mocked(deleteGroup).mockResolvedValue({error: undefined} as any);
-        vi.mocked(listGroups).mockResolvedValue({data: []} as any);
+        vi.mocked(deleteGroup).mockResolvedValue({error: undefined});
+        vi.mocked(listGroups).mockResolvedValue({data: []});
         await renderWith({
             groups: [group({id: "g1", name: "Custom", is_system: false, permissions: []})],
         });
@@ -227,7 +228,7 @@ describe("GroupsPage", () => {
     });
 
     it("delete error shown when API fails", async () => {
-        vi.mocked(deleteGroup).mockResolvedValue({error: {message: "Cannot delete"} as any} as any);
+        vi.mocked(deleteGroup).mockResolvedValue({error: {message: "Cannot delete"} as ErrorResponse});
         await renderWith({
             groups: [group({id: "g1", name: "Custom", is_system: false, permissions: []})],
         });

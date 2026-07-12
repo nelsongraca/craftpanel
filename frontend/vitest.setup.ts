@@ -5,7 +5,7 @@ if (typeof globalThis.PointerEvent === 'undefined') {
             super(type, params)
             this.pointerType = params?.pointerType ?? 'mouse'
         }
-    } as any
+    } as unknown as typeof PointerEvent
 }
 
 import '@testing-library/jest-dom'

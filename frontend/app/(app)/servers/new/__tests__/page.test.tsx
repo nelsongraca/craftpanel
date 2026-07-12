@@ -17,6 +17,7 @@ vi.mock("@/lib/auth-context", () => ({
 }));
 
 import {listNodes, listNetworks, createServer} from "@/lib/generated/sdk.gen";
+import type {NodeResponse, NetworkResponse, ServerResponse} from "@/lib/generated/types.gen";
 import NewServerPage from "../page";
 
 function node(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -59,8 +60,8 @@ async function renderWith(mocks: {
     } = mocks;
 
     mockAuth.useAuth.mockReturnValue({user: {permissions: p}});
-    vi.mocked(listNodes).mockResolvedValue({data: ns as any});
-    vi.mocked(listNetworks).mockResolvedValue({data: nets as any});
+    vi.mocked(listNodes).mockResolvedValue({data: ns as unknown as NodeResponse[]});
+    vi.mocked(listNetworks).mockResolvedValue({data: nets as unknown as NetworkResponse[]});
 
     const mockFetch = vi.fn().mockResolvedValue({
         json: () => Promise.resolve({
@@ -82,8 +83,8 @@ describe("NewServerPage", () => {
 
     it("shows permission denied when user lacks server.create", () => {
         mockAuth.useAuth.mockReturnValue({user: {permissions: []}});
-        vi.mocked(listNodes).mockResolvedValue({data: undefined as any} as any);
-        vi.mocked(listNetworks).mockResolvedValue({data: undefined as any} as any);
+        vi.mocked(listNodes).mockResolvedValue({data: undefined});
+        vi.mocked(listNetworks).mockResolvedValue({data: undefined});
         const fetchMock = vi.fn().mockResolvedValue({json: () => Promise.resolve({versions: []})});
         vi.stubGlobal("fetch", fetchMock);
         render(<NewServerPage/>);
@@ -108,9 +109,9 @@ describe("NewServerPage", () => {
 
     it("creates server with correct body", async () => {
         vi.mocked(createServer).mockResolvedValue({
-            data: {id: "new-srv"},
+            data: {id: "new-srv"} as ServerResponse,
             error: undefined,
-        } as any);
+        });
 
         await renderWith({nodes: [node({id: "n1"})], networks: [network({id: "net-1"})]});
 
@@ -134,8 +135,8 @@ describe("NewServerPage", () => {
     it("shows error from API", async () => {
         vi.mocked(createServer).mockResolvedValue({
             data: undefined,
-            error: {message: "Name taken"} as any,
-        } as any);
+            error: {message: "Name taken"},
+        });
 
         await renderWith();
         await userEvent.setup().type(screen.getByPlaceholderText("survival-1"), "test");
@@ -174,11 +175,11 @@ describe("NewServerPage", () => {
     });
 
     it("submit button disabled while loading data", async () => {
-        const nodeD = deferred();
-        const netD = deferred();
-        const fetchD = deferred();
-        vi.mocked(listNodes).mockReturnValue(nodeD.promise as any);
-        vi.mocked(listNetworks).mockReturnValue(netD.promise as any);
+        const nodeD = deferred<Awaited<ReturnType<typeof listNodes>>>();
+        const netD = deferred<Awaited<ReturnType<typeof listNetworks>>>();
+        const fetchD = deferred<{ json: () => Promise<{ versions: unknown[] }> }>();
+        vi.mocked(listNodes).mockReturnValue(nodeD.promise);
+        vi.mocked(listNetworks).mockReturnValue(netD.promise);
         const mockFetch = vi.fn().mockReturnValue(fetchD.promise);
         vi.stubGlobal("fetch", mockFetch);
 
@@ -187,8 +188,8 @@ describe("NewServerPage", () => {
 
         expect(screen.getByText("Create Server")).toBeDisabled();
 
-        nodeD.resolve({data: [node() as any]});
-        netD.resolve({data: [] as any});
+        nodeD.resolve({data: [node() as unknown as NodeResponse]});
+        netD.resolve({data: []});
         fetchD.resolve({json: () => Promise.resolve({versions: []})});
 
         await waitFor(() => {

@@ -34,9 +34,6 @@ export function serverStatusClass(status: string): string {
 
 // ── Node status ───────────────────────────────────────────────────────────────
 
-type NodeLifecycleStatus = 'ACTIVE' | 'PENDING' | 'REJECTED' | 'DECOMMISSIONED'
-type NodeHealth = 'HEALTHY' | 'DEGRADED' | 'UNREACHABLE'
-
 // Combined display status derived from lifecycle + health axes
 type NodeDisplayStatus = 'ACTIVE' | 'PENDING' | 'REJECTED' | 'DECOMMISSIONED' | 'DEGRADED' | 'UNREACHABLE'
 

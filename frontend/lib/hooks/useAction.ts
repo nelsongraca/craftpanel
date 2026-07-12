@@ -20,7 +20,6 @@ export function useAction<T extends (...args: never[]) => Promise<unknown>>(
                 setPending(false);
             }
         },
-        // eslint-disable-next-line react-hooks/exhaustive-deps
         [fn],
     );
 

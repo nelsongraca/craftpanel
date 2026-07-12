@@ -25,7 +25,6 @@ vi.mock("@/components/ui/confirm-dialog", () => ({
         onOpenChange,
         title,
         description,
-        destructive,
         onConfirm,
     }: {
         open: boolean;

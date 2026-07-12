@@ -117,7 +117,7 @@ describe("ServersPage", () => {
 
     describe("Loading state", () => {
         it("shows skeleton while loading", async () => {
-            const def = deferred<any>();
+            const def = deferred<Awaited<ReturnType<typeof listServers>>>();
             vi.mocked(listServers).mockReturnValue(def.promise);
             vi.mocked(listNodes).mockResolvedValue({data: []} as never);
             vi.mocked(listNetworks).mockResolvedValue({data: []} as never);
@@ -387,7 +387,7 @@ describe("ServersPage", () => {
     describe("Pending action spinner", () => {
         it("action in progress shows spinner instead of icon", async () => {
             const s = server({status: "STOPPED"});
-            const def = deferred<any>();
+            const def = deferred<Awaited<ReturnType<typeof startServer>>>();
             vi.mocked(startServer).mockReturnValue(def.promise);
             await renderWith({servers: [s], permissions: ["server.start"]});
 

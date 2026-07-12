@@ -256,7 +256,6 @@ function GameServerConfigSection({
                             section={section}
                             form={form}
                             setField={setField}
-                            isManual={isManual}
                             dimmed={dimmed}
                         />
                     );

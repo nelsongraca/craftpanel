@@ -10,13 +10,11 @@ export function FieldSection({
                                  section,
                                  form,
                                  setField,
-                                 isManual,
                                  dimmed,
                              }: {
     section: Section;
     form: Record<string, string>;
     setField: (key: string, value: string) => void;
-    isManual: boolean;
     dimmed: boolean;
 }) {
     const [open, setOpen] = useState(section.defaultOpen ?? true);

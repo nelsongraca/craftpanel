@@ -144,7 +144,7 @@ describe("NodesPage", () => {
 
     describe("Loading state", () => {
         it("shows skeleton while loading", async () => {
-            const def = deferred<any>();
+            const def = deferred<Awaited<ReturnType<typeof listNodes>>>();
             vi.mocked(listNodes).mockReturnValue(def.promise);
             vi.mocked(listServers).mockResolvedValue({data: []} as never);
 
@@ -340,7 +340,7 @@ describe("NodesPage", () => {
 
             expect(overflowButtons().length).toBeGreaterThan(0);
 
-            const user = await openOverflow();
+            await openOverflow();
 
             await waitFor(() => {
                 expect(screen.getAllByText("Edit").length).toBeGreaterThan(0);
@@ -585,7 +585,7 @@ describe("NodesPage", () => {
 
             expect(overflowButtons().length).toBeGreaterThan(0);
 
-            const user = await openOverflow();
+            await openOverflow();
 
             await waitFor(() => {
                 expect(screen.getAllByText("Edit").length).toBeGreaterThan(0);

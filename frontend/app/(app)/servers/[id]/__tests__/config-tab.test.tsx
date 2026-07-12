@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, within, waitFor, act } from '@testing-library/react'
+import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ConfigTab } from '../config-tab'
 import type { ServerResponse } from '@/lib/generated/types.gen'
@@ -967,10 +967,6 @@ describe('Proxy Server Config Tab', () => {
         await renderProxyServer(backends, servers as ServerResponse[])
 
         // Move beta (index 1) up using ChevronUp button
-        const upButtons = screen.getAllByRole('button').filter((btn) => {
-            const svg = btn.querySelector('svg')
-            return svg && btn.closest('td')
-        })
         // Up buttons: first row up is disabled (index 0), second row up is enabled (index 1)
         // There are pairs: [up, down, trash] per row
         // upButtons[3] would be the second row's up button

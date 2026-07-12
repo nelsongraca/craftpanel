@@ -103,8 +103,8 @@ describe("AlertsPage", () => {
 
     describe("Loading state", () => {
         it("shows Loading… in both tables while data is loading", async () => {
-            const def = deferred<any>();
-            vi.mocked(listAlertThresholds).mockReturnValue(def.promise);
+            const def = deferred<{ data: { thresholds: Record<string, unknown>[] } }>();
+            vi.mocked(listAlertThresholds).mockReturnValue(def.promise as never);
             vi.mocked(listAlertEvents).mockResolvedValue({data: {events: []}} as never);
 
             render(<AlertsPage/>);
