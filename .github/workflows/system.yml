@@ -28,7 +28,7 @@ jobs:
           restore-keys: ${{ runner.os }}-gradle-
 
       - name: Build Docker images
-        run: ./gradlew dockerBuildAll
+        run: ./gradlew :master:dockerBuildImage :agent:dockerBuildImage :fake-server:dockerBuildImage
 
       - name: Save Docker images
         run: |
@@ -36,6 +36,7 @@ jobs:
             ghcr.io/nelsongraca/craftpanel/master:latest \
             ghcr.io/nelsongraca/craftpanel/agent:latest \
             craftpanel-fake-server:latest \
+            craftpanel-fake-proxy:latest \
             -o /tmp/craftpanel-images.tar
 
       - name: Upload image artifact
