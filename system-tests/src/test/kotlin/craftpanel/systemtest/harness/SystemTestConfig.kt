@@ -8,7 +8,9 @@ import java.io.File
 
 object SystemTestConfig : AbstractProjectConfig() {
 
-    override val specExecutionMode = SpecExecutionMode.LimitedConcurrency(3)
+    override val specExecutionMode = SpecExecutionMode.LimitedConcurrency(
+        System.getProperty("kotest.tags")?.let { 1 } ?: 3
+    )
 
     override val extensions: List<Extension> = listOf(TimingListener)
 
