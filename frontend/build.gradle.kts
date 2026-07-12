@@ -29,7 +29,7 @@ val withCoverage = project.hasProperty("withCoverage")
 tasks.register<Exec>("typecheckFrontend") {
     group = "verification"
     description = "Runs TypeScript type checking"
-    dependsOn("installFrontend")
+    dependsOn("installFrontend", "generateApiTypes")
     workingDir = layout.projectDirectory.asFile
     commandLine(layout.projectDirectory.file(".node/bin/pnpm").asFile, "exec", "tsc", "--noEmit")
 }
