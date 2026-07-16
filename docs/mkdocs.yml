@@ -47,55 +47,61 @@ extra_javascript:
 
 nav:
   - Overview: index.md
-  - Requirements:
-      - Access Control: access-control/index.md
-      - Node Management: nodes/index.md
-      - Server Management:
-          - Overview: servers/index.md
-          - Configuration: servers/configuration.md
-          - Mods & Plugins: servers/mods.md
-          - File Explorer & Console: servers/files-console.md
-      - Server Networks: servers/networks.md
-      - Networking & Ingress: networking/index.md
-      - Backups: backups/index.md
-      - Migration: migration/index.md
-      - Monitoring: monitoring/index.md
-  - Data Model:
-      - Overview: data-model/index.md
-      - Users & Auth: data-model/users-auth.md
-      - Access Control: data-model/access-control.md
-      - Nodes: data-model/nodes.md
-      - Server Networks: data-model/server-networks.md
-      - Servers: data-model/servers.md
-      - Mods: data-model/mods.md
-      - Backups: data-model/backups.md
-      - Migrations: data-model/migrations.md
-      - Alerts: data-model/alerts.md
-      - System Settings: data-model/system-settings.md
-  - API Reference:
-      - Overview: api/index.md
-      - Auth: api/auth.md
-      - Users & Groups: api/users-groups.md
-      - Nodes: api/nodes.md
-      - Server Networks: api/server-networks.md
-      - Servers: api/servers.md
-      - Configuration: api/configuration.md
-      - Mods: api/mods.md
-      - Files: api/files.md
-      - Backups: api/backups.md
-      - Migrations: api/migrations.md
-      - Monitoring: api/monitoring.md
-      - System Settings: api/system-settings.md
-      - WebSocket Events: api/websocket.md
-  - gRPC:
-      - Schema: grpc/schema.md
-      - Proto Definition: grpc/craftpanel.proto
-  - Architecture:
-      - Tech Stack: tech-stack/index.md
-      - Configuration & Secrets: tech-stack/configuration.md
-      - Data Persistence: tech-stack/persistence.md
-      - Security: tech-stack/security.md
-      - Build & Packaging: tech-stack/build-and-packaging.md
+  - Usage:
+      - Deployment: usage/deployment.md
+      - First Login & Setup: usage/first-login.md
+      - Adding a Node: usage/adding-a-node.md
+      - Creating a Server: usage/creating-a-server.md
+  - Reference:
+      - Requirements:
+          - Access Control: access-control/index.md
+          - Node Management: nodes/index.md
+          - Server Management:
+              - Overview: servers/index.md
+              - Configuration: servers/configuration.md
+              - Mods & Plugins: servers/mods.md
+              - File Explorer & Console: servers/files-console.md
+          - Server Networks: servers/networks.md
+          - Networking & Ingress: networking/index.md
+          - Backups: backups/index.md
+          - Migration: migration/index.md
+          - Monitoring: monitoring/index.md
+      - Data Model:
+          - Overview: data-model/index.md
+          - Users & Auth: data-model/users-auth.md
+          - Access Control: data-model/access-control.md
+          - Nodes: data-model/nodes.md
+          - Server Networks: data-model/server-networks.md
+          - Servers: data-model/servers.md
+          - Mods: data-model/mods.md
+          - Backups: data-model/backups.md
+          - Migrations: data-model/migrations.md
+          - Alerts: data-model/alerts.md
+          - System Settings: data-model/system-settings.md
+      - API Reference:
+          - Overview: api/index.md
+          - Auth: api/auth.md
+          - Users & Groups: api/users-groups.md
+          - Nodes: api/nodes.md
+          - Server Networks: api/server-networks.md
+          - Servers: api/servers.md
+          - Configuration: api/configuration.md
+          - Mods: api/mods.md
+          - Files: api/files.md
+          - Backups: api/backups.md
+          - Migrations: api/migrations.md
+          - Monitoring: api/monitoring.md
+          - System Settings: api/system-settings.md
+          - WebSocket Events: api/websocket.md
+      - gRPC:
+          - Schema: grpc/schema.md
+          - Proto Definition: grpc/craftpanel.proto
+      - Architecture:
+          - Tech Stack: tech-stack/index.md
+          - Configuration & Secrets: tech-stack/configuration.md
+          - Data Persistence: tech-stack/persistence.md
+          - Security: tech-stack/security.md
+          - Build & Packaging: tech-stack/build-and-packaging.md
   - UI Mockups:
       - Overview: screens/index.md
       - Colour Scheme: screens/colour-scheme.md
