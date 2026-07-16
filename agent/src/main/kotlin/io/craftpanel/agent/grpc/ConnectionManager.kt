@@ -69,6 +69,7 @@ class ConnectionManager(
                 try {
                     val identity = NodeAuthenticator(config, metricsCollector).authenticate(channel)
                     backoffSeconds = 5L // reset on successful auth
+                    Heartbeat.beat()
 
                     if (routerSupervisor == null) {
                         val provisioner = McRouterProvisioner(

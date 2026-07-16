@@ -15,5 +15,11 @@ COPY docker-entrypoint.sh ./docker-entrypoint.sh
 
 RUN mkdir -p config && chmod +x docker-entrypoint.sh
 
+# Agent has no listening port (gRPC dials out to master); a heartbeat file is touched on
+# successful auth and on every metrics tick, so this catches a JVM stuck in the reconnect
+# loop (ConnectionManager) that a bare process-liveness check would miss.
+HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \
+    CMD find /tmp/agent-heartbeat -mmin -2 2>/dev/null | grep -q . || exit 1
+
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["bin/agent"]

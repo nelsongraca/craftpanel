@@ -69,7 +69,8 @@ services:
   frontend:
     image: ghcr.io/nelsongraca/craftpanel/frontend:${IMAGE_VERSION:-latest}
     depends_on:
-      - master
+      master:
+        condition: service_healthy
     restart: unless-stopped
     labels:
       - traefik.enable=true
@@ -104,7 +105,8 @@ services:
     group_add:
       - "999"
     depends_on:
-      - master
+      master:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:

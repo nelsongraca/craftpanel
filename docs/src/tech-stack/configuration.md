@@ -110,3 +110,43 @@ The seed runs **once only**: if any user already exists, these variables are ign
 
 !!! tip
 Remove `CRAFTPANEL_ADMIN_EMAIL` and `CRAFTPANEL_ADMIN_PASSWORD` from your compose file after the first successful login.
+
+## Profile
+
+| Key           | Env var             | Default | Description                                                                                                      |
+|----------------|-----------------------|---------|--------------------------------------------------------------------------------------------------------------------|
+| `app.profile` | `CRAFTPANEL_PROFILE` | `prod`  | `dev` relaxes CORS (`anyHost()` fallback), skips the HSTS header, and skips `AppConfig.validate()` secret-strength checks. |
+
+## Agent configuration
+
+The agent process (one per node) reads its own environment variables, separate from master's.
+
+| Key                          | Env var                             | Required      | Default                       | Description                                                                                                                                 |
+|-------------------------------|----------------------------------------|----------------|----------------------------------|------------------------------------------------------------------------------------------------------------------------------------------------|
+| `profile`                    | `APP_PROFILE`                       | No             | `prod`                        | `dev` relaxes validation: allows a default/short `NODE_BOOTSTRAP_TOKEN` and plaintext gRPC (no CA cert required); warns instead of failing. |
+| `masterAddress`               | `MASTER_HOST`                       | No             | `localhost`                   | Master hostname for the gRPC control channel                                                                                                 |
+| `masterPort`                  | `MASTER_GRPC_PORT`                  | No             | `50051`                       | Master gRPC port                                                                                                                              |
+| `masterHttpPort`               | `MASTER_HTTP_PORT`                  | No             | `8080`                        | Master HTTP port (used for bulk data transfer callbacks)                                                                                     |
+| `tlsCertPath`                  | `GRPC_TLS_CERT`                     | No             | —                              | Explicit path to master's CA cert PEM; takes priority over the auto-fetched cert                                                              |
+| `caCertFilePath`               | `GRPC_CA_CERT_FILE`                 | No             | `/app/config/grpc-ca.crt`     | Where the agent persists/reads the CA cert received from master during registration                                                          |
+| `bootstrapToken`               | `NODE_BOOTSTRAP_TOKEN` (or `_FILE`) | Yes (non-dev)  | `changeme`                    | Token used for first-time node registration; must match master's value; min 16 chars outside `dev`                                          |
+| `keyFilePath`                  | `NODE_KEY_FILE`                     | No             | `/app/config/node.key`        | Where the agent persists its node key after registration                                                                                     |
+| `dockerSocketPath`             | `DOCKER_SOCKET`                     | No             | `unix:///var/run/docker.sock` | Docker daemon socket used to manage containers on this node                                                                                  |
+| `dataBasePath`                 | `DATA_PATH`                         | No             | `/data`                       | Path inside the agent container where server data lives                                                                                       |
+| `hostDataBasePath`             | `HOST_DATA_PATH`                    | No             | value of `DATA_PATH`          | Host path Docker uses when bind-mounting data into Minecraft server containers — must be an absolute path that exists on the host            |
+| `mcRouterImage`                | `MCROUTER_IMAGE`                    | No             | `itzg/mc-router:latest`       | Image used for the shared mc-router container                                                                                                 |
+| `mcRouterUpdateOnStart`        | `MCROUTER_UPDATE_ON_START`          | No             | `true`                        | Whether to pull a fresh mc-router image on agent start                                                                                        |
+| `publicIpUrl`                  | `PUBLIC_IP_URL`                     | No             | —                              | External service used to detect this node's public IP                                                                                        |
+| `hostnameOverride`             | `NODE_HOSTNAME`                     | No             | —                              | Overrides the hostname the agent reports to master (useful when container hostname differs from actual node hostname)                        |
+| `systemReservedRamMb`          | `SYSTEM_RESERVED_RAM_MB`            | No             | `0`                            | RAM (MB) reserved for the host OS, excluded from server allocation capacity                                                                   |
+| `craftpanelNetwork`            | `CRAFTPANEL_NETWORK`                | No             | `craftpanel`                  | Docker network name used for server containers                                                                                                |
+| `containerNamePrefix`          | `CRAFTPANEL_CONTAINER_PREFIX`       | No             | `craftpanel`                  | Prefix applied to all container names this agent creates                                                                                      |
+| `privateIpOverride`            | `NODE_PRIVATE_IP`                   | No             | —                              | Overrides the private IP the agent reports to master                                                                                          |
+| `metricsPollIntervalSeconds`   | `METRICS_POLL_INTERVAL_SECONDS`     | No             | `5`                            | Polling interval for container metrics                                                                                                        |
+| `pullMaxImageAgeHours`         | `PULL_MAX_IMAGE_AGE_HOURS`          | No             | `24`                           | Max age of a locally-cached image before a fresh pull is attempted                                                                             |
+
+## Frontend configuration
+
+| Env var      | Default                 | Description                                                                                                                                                                                                                                                          |
+|---------------|---------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `MASTER_URL` | `http://localhost:8080` | Base URL the frontend's `/api/*` catch-all route (`app/api/[...path]/route.ts`) proxies to. Only exercised when the Next.js server itself handles `/api` requests — e.g. running `pnpm dev` without Traefik in front. In both compose deployments, Traefik routes `/api` directly to `master` before Next.js ever sees the request, so this variable does not need to be set there. |

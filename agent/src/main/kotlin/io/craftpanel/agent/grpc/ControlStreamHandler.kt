@@ -51,6 +51,7 @@ class ControlStreamHandler(
         launch {
             while (true) {
                 delay(metricsInterval)
+                Heartbeat.beat()
                 val routerRunning = routerSupervisor.isRunning
                 val metrics = metricsCollector.collect()
                 out.send {
