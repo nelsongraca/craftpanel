@@ -15,5 +15,8 @@ EXPOSE 8080 50051
 HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=5 \
     CMD wget -qO- http://localhost:8080/health || exit 1
 
+ARG APP_VERSION=unknown
+ENV APP_VERSION=$APP_VERSION
+
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["bin/master"]

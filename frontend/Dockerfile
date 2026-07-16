@@ -10,4 +10,7 @@ ENV HOSTNAME=0.0.0.0
 HEALTHCHECK --interval=10s --timeout=5s --start-period=15s --retries=5 \
     CMD wget -qO- http://127.0.0.1:3000/ || exit 1
 
+ARG APP_VERSION=unknown
+ENV APP_VERSION=$APP_VERSION
+
 ENTRYPOINT ["node", "server.js"]

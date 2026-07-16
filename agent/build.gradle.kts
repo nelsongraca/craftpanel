@@ -70,6 +70,9 @@ tasks.register<Copy>("stageDocker") {
     into(layout.buildDirectory.dir("docker"))
 }
 
+@Suppress("UNCHECKED_CAST")
+val gitVersion = rootProject.extra["gitVersion"] as Provider<String>
+
 tasks.register<DockerBuildImage>("dockerBuildImage") {
     group = "docker"
     description = "Builds the Docker image for agent"
@@ -79,6 +82,9 @@ tasks.register<DockerBuildImage>("dockerBuildImage") {
     dockerFile.set(layout.buildDirectory.file("docker/Dockerfile"))
     images.add(agentImageName)
     buildArgs.put("DOCKER_GID", dockerGidProvider.get())
+    buildArgs.put("APP_VERSION", gitVersion)
+    labels.put("org.opencontainers.image.version", gitVersion)
+    pull.set(true)
 }
 
 tasks.register<DockerPushImage>("dockerPushImage") {

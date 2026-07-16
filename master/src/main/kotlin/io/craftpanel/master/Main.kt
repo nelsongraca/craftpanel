@@ -256,7 +256,7 @@ fun Application.module() {
     }
 
     routing {
-        get("health") { call.respond(mapOf("status" to "ok")) }
+        get("health") { call.respond(mapOf("status" to "ok", "version" to (System.getenv("APP_VERSION") ?: "unknown"))) }
         route("openapi.json") { openApi() }
         route("swagger") { swaggerUI("/openapi.json") }
         registerAppRoutes()

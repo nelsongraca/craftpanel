@@ -3,9 +3,15 @@
 import {useEffect, useRef, useState} from "react";
 import Link from "next/link";
 import {usePathname} from "next/navigation";
-import {Bell, ChevronDown, KeyRound, LayoutDashboard, LogOut, type LucideIcon, Menu, Monitor, Network, Server, Settings, Users,} from "lucide-react";
+import {AlertTriangle, Bell, ChevronDown, KeyRound, LayoutDashboard, LogOut, type LucideIcon, Menu, Monitor, Network, Server, Settings, Users,} from "lucide-react";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
+
+interface HealthInfo {
+    frontendVersion: string;
+    masterVersion: string;
+    versionMismatch: boolean;
+}
 
 interface SidebarItem {
     label: string;
@@ -55,9 +61,17 @@ export default function Shell({children}: { children: React.ReactNode }) {
     const {user, logout, logoutAll} = useAuth();
     const [menuOpen, setMenuOpen] = useState(false);
     const [drawerOpen, setDrawerOpen] = useState(false);
+    const [health, setHealth] = useState<HealthInfo | null>(null);
     const menuRef = useRef<HTMLDivElement>(null);
 
     const permissions = user?.permissions ?? [];
+
+    useEffect(() => {
+        fetch("/healthz")
+            .then((res) => res.json())
+            .then(setHealth)
+            .catch(() => setHealth(null));
+    }, []);
 
     const closeMenu = (fn: () => void) => () => {
         setMenuOpen(false);
@@ -191,6 +205,18 @@ export default function Shell({children}: { children: React.ReactNode }) {
                     {children}
                 </main>
             </div>
+
+            <footer className="shrink-0 px-4 py-1.5 border-t border-border bg-surface flex items-center justify-center gap-3">
+                {health?.versionMismatch && (
+                    <span className="flex items-center gap-1 text-[11px] font-mono text-warning" title="Frontend and master are running different versions">
+                        <AlertTriangle size={12} strokeWidth={2}/>
+                        version mismatch
+                    </span>
+                )}
+                <span className="text-[11px] font-mono text-text-muted">
+                    frontend {health?.frontendVersion ?? "…"} · master {health?.masterVersion ?? "…"}
+                </span>
+            </footer>
         </div>
     );
 }

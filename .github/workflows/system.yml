@@ -13,6 +13,9 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          fetch-tags: true
 
       - uses: ./.github/actions/setup-gradle
 
@@ -23,8 +26,22 @@ jobs:
           key: gradle-build-cache-${{ github.sha }}
           restore-keys: gradle-build-cache-
 
+      - name: Restore Docker layer cache
+        uses: actions/cache/restore@v4
+        with:
+          path: /var/lib/docker
+          key: docker-layers-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile', 'fake-server/Dockerfile') }}-${{ github.sha }}
+          restore-keys: |
+            docker-layers-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile', 'fake-server/Dockerfile') }}-
+
       - name: Build Docker images
         run: ./gradlew :master:dockerBuildImage :agent:dockerBuildImage :fake-server:dockerBuildImage
+
+      - name: Save Docker layer cache
+        uses: actions/cache/save@v4
+        with:
+          path: /var/lib/docker
+          key: docker-layers-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile', 'fake-server/Dockerfile') }}-${{ github.sha }}
 
       - name: Warm up system-tests compile cache
         run: ./gradlew :system-tests:compileTestKotlin

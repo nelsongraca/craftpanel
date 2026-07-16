@@ -42,8 +42,7 @@ tasks.register<Exec>("testFrontend") {
     val pnpm = layout.projectDirectory.file(".node/bin/pnpm").asFile
     if (withCoverage) {
         commandLine(pnpm, "run", "test:coverage")
-    }
-    else {
+    } else {
         commandLine(pnpm, "run", "test")
     }
 }
@@ -69,7 +68,7 @@ tasks.register<Exec>("generateApiTypes") {
     commandLine(layout.projectDirectory.file(".node/bin/pnpm").asFile, "run", "generate-api")
     inputs.files(
         rootProject.layout.buildDirectory.file("openapi.json"),
-        layout.projectDirectory.file("openapi-ts.config.ts"),
+        layout.projectDirectory.file("openapi-ts.config.ts")
     )
     outputs.dir(layout.projectDirectory.dir("lib/generated"))
 }
@@ -84,6 +83,9 @@ tasks.named("assemble") {
 
 val frontendImageName = dockerImageName(project, "frontend")
 
+@Suppress("UNCHECKED_CAST")
+val gitVersion = rootProject.extra["gitVersion"] as Provider<String>
+
 tasks.register<DockerBuildImage>("dockerBuildImage") {
     group = "docker"
     description = "Builds the Docker image for frontend"
@@ -92,6 +94,9 @@ tasks.register<DockerBuildImage>("dockerBuildImage") {
     inputDir.set(projectDir)
     dockerFile.set(file("Dockerfile"))
     images.add(frontendImageName)
+    buildArgs.put("APP_VERSION", gitVersion)
+    labels.put("org.opencontainers.image.version", gitVersion)
+    pull.set(true)
 }
 
 tasks.register<DockerPushImage>("dockerPushImage") {

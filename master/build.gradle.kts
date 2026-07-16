@@ -81,6 +81,9 @@ tasks.register<Copy>("stageDocker") {
     into(layout.buildDirectory.dir("docker"))
 }
 
+@Suppress("UNCHECKED_CAST")
+val gitVersion = rootProject.extra["gitVersion"] as Provider<String>
+
 tasks.register<DockerBuildImage>("dockerBuildImage") {
     group = "docker"
     description = "Builds the Docker image for master"
@@ -89,6 +92,9 @@ tasks.register<DockerBuildImage>("dockerBuildImage") {
     inputDir.set(layout.buildDirectory.dir("docker"))
     dockerFile.set(layout.buildDirectory.file("docker/Dockerfile"))
     images.add(masterImageName)
+    buildArgs.put("APP_VERSION", gitVersion)
+    labels.put("org.opencontainers.image.version", gitVersion)
+    pull.set(true)
 }
 
 tasks.register<DockerPushImage>("dockerPushImage") {

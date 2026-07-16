@@ -18,6 +18,26 @@ val imageVersion: String =
         ?: findProperty("craftpanel_version")?.toString()
         ?: "latest"
 
+// Version string surfaced at runtime (Docker label + /health): the git tag if HEAD is
+// exactly on one, else the short sha, else "unknown" outside a git checkout.
+// NOTE: isIgnoreExitValue leaves stdout as "" (a present-but-empty value) on failure, not
+// an absent provider, so orElse() alone won't fall through — empty results must be mapped
+// to null explicitly to make the provider chain skip to the next fallback.
+val gitVersion: Provider<String> =
+    providers.exec {
+        commandLine("git", "describe", "--tags", "--exact-match", "HEAD")
+        isIgnoreExitValue = true
+    }.standardOutput.asText.map { it.trim() }.map { it.ifEmpty { null } }
+        .orElse(
+            providers.exec {
+                commandLine("git", "rev-parse", "--short", "HEAD")
+                isIgnoreExitValue = true
+            }.standardOutput.asText.map { it.trim() }.map { it.ifEmpty { null } }
+        )
+        .orElse("unknown")
+
+extra["gitVersion"] = gitVersion
+
 // ---------------------------------------------------------------------------
 // Kover merged reporting (aggregates master and agent subprojects)
 // ---------------------------------------------------------------------------

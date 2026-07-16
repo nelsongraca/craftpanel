@@ -21,5 +21,8 @@ RUN mkdir -p config && chmod +x docker-entrypoint.sh
 HEALTHCHECK --interval=15s --timeout=5s --start-period=20s --retries=5 \
     CMD find /tmp/agent-heartbeat -mmin -2 2>/dev/null | grep -q . || exit 1
 
+ARG APP_VERSION=unknown
+ENV APP_VERSION=$APP_VERSION
+
 ENTRYPOINT ["/app/docker-entrypoint.sh"]
 CMD ["bin/agent"]
