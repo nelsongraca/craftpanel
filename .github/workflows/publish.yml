@@ -2,7 +2,7 @@ name: Publish Images
 
 on:
   workflow_run:
-    workflows: ["CI", "System Tests"]
+    workflows: ["System Tests"]
     types: [completed]
     branches: [master]
   push:

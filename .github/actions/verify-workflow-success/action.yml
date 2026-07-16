@@ -15,6 +15,10 @@ inputs:
   github-token:
     description: Token with actions:read used to query run status
     required: true
+  timeout-seconds:
+    description: Max time to poll for the workflow run to complete
+    required: false
+    default: "1200"
 
 runs:
   using: composite
@@ -26,12 +30,32 @@ runs:
         WORKFLOW: ${{ inputs.workflow }}
         SHA: ${{ inputs.sha }}
         BRANCH: ${{ inputs.branch }}
+        TIMEOUT_SECONDS: ${{ inputs.timeout-seconds }}
       run: |
-        args=(--repo "$GITHUB_REPOSITORY" --workflow="$WORKFLOW" --commit="$SHA" --json conclusion --jq '.[0].conclusion')
+        args=(--repo "$GITHUB_REPOSITORY" --workflow="$WORKFLOW" --commit="$SHA" --json status,conclusion --jq '.[0]')
         if [ -n "$BRANCH" ]; then
           args+=(--branch="$BRANCH")
         fi
-        conclusion=$(gh run list "${args[@]}")
+
+        deadline=$(( $(date +%s) + TIMEOUT_SECONDS ))
+        while true; do
+          run_json=$(gh run list "${args[@]}")
+          status=$(jq -r '.status // "missing"' <<< "$run_json")
+          conclusion=$(jq -r '.conclusion // "null"' <<< "$run_json")
+
+          if [ "$status" == "completed" ]; then
+            break
+          fi
+
+          if [ "$(date +%s)" -ge "$deadline" ]; then
+            echo "Timed out waiting for $WORKFLOW to complete for $SHA (last status: $status)"
+            exit 1
+          fi
+
+          echo "$WORKFLOW for $SHA is still $status, waiting..."
+          sleep 15
+        done
+
         if [ "$conclusion" != "success" ]; then
           echo "$WORKFLOW has not succeeded for $SHA (conclusion: $conclusion)"
           exit 1

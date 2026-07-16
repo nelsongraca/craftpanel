@@ -46,7 +46,6 @@ craftpanel/
 ├── proto/         # Shared protobuf definitions (consumed by master and agent)
 ├── system-tests/  # End-to-end Kotest + Testcontainers tests
 ├── docs/          # MkDocs documentation
-├── plans/         # Development roadmap and per-phase implementation plans
 └── CLAUDE.md
 ```
 
@@ -133,9 +132,22 @@ Schema generator uses `RefType.OPENAPI_SIMPLE` — do not change to `OPENAPI_FUL
 
 ## CI
 
-GitHub Actions builds images and pushes to GHCR (`ghcr.io/nelsongraca`).
-Registry and version passed via `-PimageRegistry` and `-PimageVersion` Gradle properties.
-CI config not yet written.
+Workflows in `.github/workflows/`:
+
+- **ci.yml** — lint, typecheck, unit tests (master/agent/frontend), triggers on push/PR to `master`/`develop`
+- **system.yml** — sharded system-tests (Testcontainers), triggers on push/PR to `master`/`develop`
+- **publish.yml** — builds and pushes images to GHCR on semver tags (no `v` prefix) and `develop` (tagged `dev`); gated on ci.yml + system.yml passing
+- **docs.yml** — builds and deploys MkDocs site
+
+Registry and version passed via `-PimageRegistry` and `-PimageVersion` Gradle properties (`ghcr.io/nelsongraca`).
+
+### Local dev compose
+
+`docker-compose.yml` / `docker-compose.dev.yml` at repo root.
+
+- Agent reads `APP_PROFILE` (not `CRAFTPANEL_PROFILE`) — mismatched var name silently breaks node-key validation in dev
+- Master/frontend/agent healthchecks are baked into the Dockerfiles (not compose) — dev compose seed service uses `depends_on: condition: service_healthy`
+- Agent liveness is a heartbeat file touched on stream connect + each metrics tick, not `pgrep`
 
 ## gRPC
 
