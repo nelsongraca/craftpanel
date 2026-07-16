@@ -1,0 +1,37 @@
+name: Codecov Upload
+description: Upload test results and (optionally) coverage to Codecov
+
+inputs:
+  flags:
+    description: Codecov flag for this job (e.g. backend, frontend, system, e2e)
+    required: true
+  test-results:
+    description: Glob of JUnit/XML test result files
+    required: true
+  coverage-files:
+    description: Glob of coverage report files. Omit to skip the coverage upload.
+    required: false
+    default: ""
+  token:
+    description: Codecov upload token
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Upload test results to Codecov
+      if: ${{ !cancelled() }}
+      uses: codecov/test-results-action@v1
+      with:
+        token: ${{ inputs.token }}
+        files: ${{ inputs.test-results }}
+        flags: ${{ inputs.flags }}
+
+    - name: Upload coverage to Codecov
+      if: ${{ inputs.coverage-files != '' }}
+      uses: codecov/codecov-action@v5
+      with:
+        token: ${{ inputs.token }}
+        files: ${{ inputs.coverage-files }}
+        flags: ${{ inputs.flags }}
+        fail_ci_if_error: true

@@ -1,0 +1,38 @@
+name: Verify Workflow Success
+description: Fails the job unless the given workflow's latest run for a commit succeeded
+
+inputs:
+  workflow:
+    description: Workflow file name (e.g. ci.yml)
+    required: true
+  sha:
+    description: Commit SHA to check
+    required: true
+  branch:
+    description: Branch to filter the run by (optional)
+    required: false
+    default: ""
+  github-token:
+    description: Token with actions:read used to query run status
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Verify ${{ inputs.workflow }} succeeded for this commit
+      shell: bash
+      env:
+        GH_TOKEN: ${{ inputs.github-token }}
+        WORKFLOW: ${{ inputs.workflow }}
+        SHA: ${{ inputs.sha }}
+        BRANCH: ${{ inputs.branch }}
+      run: |
+        args=(--repo "$GITHUB_REPOSITORY" --workflow="$WORKFLOW" --commit="$SHA" --json conclusion --jq '.[0].conclusion')
+        if [ -n "$BRANCH" ]; then
+          args+=(--branch="$BRANCH")
+        fi
+        conclusion=$(gh run list "${args[@]}")
+        if [ "$conclusion" != "success" ]; then
+          echo "$WORKFLOW has not succeeded for $SHA (conclusion: $conclusion)"
+          exit 1
+        fi

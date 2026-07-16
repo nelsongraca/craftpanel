@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - master
+      - develop
 
 jobs:
   build-images:
@@ -13,19 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 25
-          cache: gradle
-
-      - name: Cache local .gradle
-        uses: actions/cache@v4
-        with:
-          path: .gradle/
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
-          restore-keys: ${{ runner.os }}-gradle-
+      - uses: ./.github/actions/setup-gradle
 
       - name: Restore Gradle build cache
         uses: actions/cache/restore@v4
@@ -74,19 +63,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 25
-          cache: gradle
-
-      - name: Cache local .gradle
-        uses: actions/cache@v4
-        with:
-          path: .gradle/
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
-          restore-keys: ${{ runner.os }}-gradle-
+      - uses: ./.github/actions/setup-gradle
 
       - name: Restore Gradle build cache
         uses: actions/cache/restore@v4
@@ -115,21 +92,12 @@ jobs:
           path: system-tests/build/reports/tests/test/
           retention-days: 3
 
-      - name: Upload test results to Codecov
-        if: ${{ !cancelled() }}
-        uses: codecov/test-results-action@v1
+      - uses: ./.github/actions/codecov-upload
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: system-tests/build/test-results/**/*.xml
           flags: system
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
+          test-results: system-tests/build/test-results/**/*.xml
+          coverage-files: system-tests/build/reports/kover/system-tests/report.xml
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: system-tests/build/reports/kover/system-tests/report.xml
-          flags: system
-          fail_ci_if_error: true
 
   e2e-tests:
     name: E2E Tests (MSW)
@@ -138,19 +106,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 25
-          cache: gradle
-
-      - name: Cache local .gradle
-        uses: actions/cache@v4
-        with:
-          path: .gradle/
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
-          restore-keys: ${{ runner.os }}-gradle-
+      - uses: ./.github/actions/setup-gradle
 
       - name: Cache pnpm store
         uses: actions/cache@v4
@@ -165,10 +121,8 @@ jobs:
       - name: Run E2E tests
         run: ./gradlew :frontend:testE2eMocked --configuration-cache-problems=warn
 
-      - name: Upload test results to Codecov
-        if: ${{ !cancelled() }}
-        uses: codecov/test-results-action@v1
+      - uses: ./.github/actions/codecov-upload
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: frontend/build/reports/junit/playwright.xml
           flags: e2e
+          test-results: frontend/build/reports/junit/playwright.xml
+          token: ${{ secrets.CODECOV_TOKEN }}

@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - master
+      - develop
 
 jobs:
   backend:
@@ -13,19 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 25
-          cache: gradle
-
-      - name: Cache local .gradle
-        uses: actions/cache@v4
-        with:
-          path: .gradle/
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
-          restore-keys: ${{ runner.os }}-gradle-
+      - uses: ./.github/actions/setup-gradle
 
       - name: Install pv
         run: sudo apt-get install -y pv
@@ -33,21 +22,12 @@ jobs:
       - name: Run backend unit tests
         run: ./gradlew :master:test :agent:test -PwithCoverage
 
-      - name: Upload test results to Codecov
-        if: ${{ !cancelled() }}
-        uses: codecov/test-results-action@v1
+      - uses: ./.github/actions/codecov-upload
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: master/build/test-results/**/*.xml,agent/build/test-results/**/*.xml
           flags: backend
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
+          test-results: master/build/test-results/**/*.xml,agent/build/test-results/**/*.xml
+          coverage-files: master/build/reports/kover/report.xml,agent/build/reports/kover/report.xml
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: master/build/reports/kover/report.xml,agent/build/reports/kover/report.xml
-          flags: backend
-          fail_ci_if_error: true
 
   frontend:
     name: Frontend Tests
@@ -55,19 +35,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 25
-          cache: gradle
-
-      - name: Cache local .gradle
-        uses: actions/cache@v4
-        with:
-          path: .gradle/
-          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties') }}
-          restore-keys: ${{ runner.os }}-gradle-
+      - uses: ./.github/actions/setup-gradle
 
       - name: Cache pnpm store
         uses: actions/cache@v4
@@ -82,18 +50,9 @@ jobs:
       - name: Run frontend tests
         run: ./gradlew :frontend:testFrontend -PwithCoverage
 
-      - name: Upload test results to Codecov
-        if: ${{ !cancelled() }}
-        uses: codecov/test-results-action@v1
+      - uses: ./.github/actions/codecov-upload
         with:
-          token: ${{ secrets.CODECOV_TOKEN }}
-          files: frontend/build/reports/junit/vitest.xml
           flags: frontend
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@v5
-        with:
+          test-results: frontend/build/reports/junit/vitest.xml
+          coverage-files: frontend/build/reports/coverage/lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
-          files: frontend/build/reports/coverage/lcov.info
-          flags: frontend
-          fail_ci_if_error: true
