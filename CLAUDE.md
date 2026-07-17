@@ -17,7 +17,12 @@ Before starting any task, assess complexity:
   state machine logic: pause and flag for advisor review before proceeding
 
 
-**ALL individual advisor calls require user confirmation.** Before calling `advisor()`, ALWAYS ask the user: "Call advisor for [reason]?" and wait for approval. Never call advisor silently.
+**ALL individual advisor calls require explicit user confirmation. This has been violated before — treat it as a hard gate, not a formality.**
+
+- Before calling `advisor()`, ask the user the literal question: "Call advisor for [reason]?" — nothing else. A generic "want me to proceed?" or "should I continue?" does NOT count, even if the next step would involve advisor — it is not a valid confirmation and must not be treated as one.
+- Wait for an explicit yes to that exact question before calling. A "y"/"yes" to any other question (e.g. "should I implement the plan?") must NOT be interpreted as advisor approval.
+- If an advisor call starts without this exact confirmation having just been given — whether triggered by your own tool call or by any other routing — stop, do not treat it as authorized, and surface it to the user immediately instead of proceeding.
+- If the user says "don't call advisor" / "work autonomously" / similar, that instruction overrides everything above for the rest of the session: no advisor calls, confirmed or not, until they lift it.
 
 ## Subagent Delegation (Free Tier)
 

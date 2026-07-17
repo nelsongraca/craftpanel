@@ -64,8 +64,10 @@ fun Route.authRoutes(
     wsTicketService: WsTicketService,
     userRepository: UserRepository,
     @Suppress("UNUSED_PARAMETER") rateLimitConfig: RateLimitConfig = RateLimitConfig(10, 30),
-    secureCookies: Boolean = true
+    secureCookies: Boolean = true,
+    cookieDomain: String = ""
 ) {
+    val cookieDomainOrNull = cookieDomain.ifBlank { null }
     route("/api/auth") {
         rateLimit(RateLimitName("auth-login")) {
             post("/login", {
@@ -99,7 +101,8 @@ fun Route.authRoutes(
                     httpOnly = true,
                     secure = secureCookies,
                     extensions = mapOf("SameSite" to "Strict"),
-                    path = "/api/auth"
+                    path = "/api/auth",
+                    domain = cookieDomainOrNull
                 )
                 call.respond(LoginResponse(accessToken, jwtManager.expirySeconds))
             }
@@ -143,7 +146,8 @@ fun Route.authRoutes(
                     httpOnly = true,
                     secure = secureCookies,
                     extensions = mapOf("SameSite" to "Strict"),
-                    path = "/api/auth"
+                    path = "/api/auth",
+                    domain = cookieDomainOrNull
                 )
                 call.respond(LoginResponse(accessToken, jwtManager.expirySeconds))
             }
@@ -167,6 +171,7 @@ fun Route.authRoutes(
                     secure = secureCookies,
                     extensions = mapOf("SameSite" to "Strict"),
                     path = "/api/auth",
+                    domain = cookieDomainOrNull,
                     maxAge = 0
                 )
                 call.respond(HttpStatusCode.NoContent)
@@ -190,6 +195,7 @@ fun Route.authRoutes(
                     secure = secureCookies,
                     extensions = mapOf("SameSite" to "Strict"),
                     path = "/api/auth",
+                    domain = cookieDomainOrNull,
                     maxAge = 0
                 )
                 call.respond(HttpStatusCode.NoContent)

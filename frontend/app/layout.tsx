@@ -36,6 +36,13 @@ export default function RootLayout({
             lang="en"
             className={`${barlow.variable} ${barlowCondensed.variable} ${jetbrainsMono.variable} dark h-full antialiased`}
         >
+        <head>
+            {/* Runtime (not build-time) API origin — lets a prebuilt image be deployed with
+                frontend and master on different subdomains via the PUBLIC_API_URL env var. */}
+            <script
+                dangerouslySetInnerHTML={{__html: `window.__API_URL__=${JSON.stringify(process.env.PUBLIC_API_URL ?? "")};`}}
+            />
+        </head>
         <body className="min-h-full flex flex-col bg-bg text-text-primary font-sans">
         <AuthProvider>{children}</AuthProvider>
         </body>

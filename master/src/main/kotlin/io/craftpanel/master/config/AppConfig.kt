@@ -31,7 +31,7 @@ data class CorsOrigin(val host: String, val scheme: String)
 
 data class CorsConfig(val origins: List<CorsOrigin>)
 
-data class AuthConfig(val secureCookies: Boolean)
+data class AuthConfig(val secureCookies: Boolean, val cookieDomain: String = "")
 
 data class RateLimitConfig(val loginPerMinute: Int, val refreshPerMinute: Int)
 
@@ -139,7 +139,9 @@ class AppConfig(config: ApplicationConfig) {
     val auth = AuthConfig(
         secureCookies = config.propertyOrNull("auth.secureCookies")
             ?.getString()
-            ?.toBooleanStrictOrNull() ?: true
+            ?.toBooleanStrictOrNull() ?: true,
+        cookieDomain = config.propertyOrNull("auth.cookieDomain")
+            ?.getString() ?: ""
     )
     val rateLimit = RateLimitConfig(
         loginPerMinute = config.propertyOrNull("rateLimit.loginPerMinute")

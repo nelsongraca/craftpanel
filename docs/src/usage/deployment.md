@@ -38,6 +38,26 @@ Traefik requests a TLS certificate for `DOMAIN` on first boot — this can take 
 
 The compose file also starts an `agent` service on the same host, so the stack is immediately capable of running Minecraft servers without registering a second node. See [Adding a Node](adding-a-node.md) to attach agents running on other hosts.
 
+## Split-subdomain deploy (optional)
+
+The default compose file serves `frontend` and `master` on the same domain, with Traefik
+routing `/api` to `master`. If you'd rather run them on separate subdomains of the same
+parent domain (e.g. `panel.example.com` for the frontend, `api.example.com` for the
+master), set these on top of the base config:
+
+```bash
+# master service
+AUTH_COOKIE_DOMAIN=.example.com   # shared parent domain — sends the refresh-token cookie cross-subdomain
+PUBLIC_URLS=https://panel.example.com,https://api.example.com
+
+# frontend service
+PUBLIC_API_URL=https://api.example.com
+```
+
+Only a shared parent domain is supported — the refresh-token cookie can't be shared
+across unrelated domains. Update the Traefik router rules for both services to match
+their respective subdomains instead of the shared `Host(${DOMAIN})` rule.
+
 ## Next steps
 
 - [First Login & Setup](first-login.md)

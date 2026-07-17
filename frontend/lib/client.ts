@@ -11,8 +11,13 @@ export function getAccessToken() {
     return _accessToken
 }
 
+function apiBase(): string {
+    if (typeof window === "undefined") return ""
+    return (window as unknown as { __API_URL__?: string }).__API_URL__ ?? ""
+}
+
 async function refreshToken(): Promise<string | null> {
-    const res = await fetch("/api/auth/refresh", {method: "POST", credentials: "include"})
+    const res = await fetch(`${apiBase()}/api/auth/refresh`, {method: "POST", credentials: "include"})
     if (!res.ok) {
         _accessToken = null;
         return null
@@ -22,7 +27,7 @@ async function refreshToken(): Promise<string | null> {
     return _accessToken
 }
 
-client.setConfig({baseUrl: "", credentials: "include"})
+client.setConfig({baseUrl: apiBase(), credentials: "include"})
 
 client.interceptors.request.use((request) => {
     if (_accessToken) request.headers.set("Authorization", `Bearer ${_accessToken}`)

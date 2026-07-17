@@ -45,6 +45,8 @@ services:
   frontend:
     # Build: ./gradlew :frontend:dockerBuildImage
     image: ghcr.io/nelsongraca/craftpanel/frontend:latest
+    environment:
+      MASTER_URL: http://master:8080
     depends_on:
       master:
         condition: service_healthy

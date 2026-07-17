@@ -50,6 +50,10 @@ services:
       PUBLIC_URLS: https://${DOMAIN:?required}
       CRAFTPANEL_ADMIN_EMAIL: ${ADMIN_EMAIL:?required}
       CRAFTPANEL_ADMIN_PASSWORD: ${ADMIN_PASSWORD:?required}
+      # Split-subdomain deploy only (e.g. frontend at craftpanel.example.com, master at
+      # api.craftpanel.example.com): set to the shared parent domain so the refresh-token
+      # cookie is sent cross-subdomain, and add the frontend origin to PUBLIC_URLS above.
+      # AUTH_COOKIE_DOMAIN: .example.com
     ports:
       # gRPC — needed for agents on external nodes. Remove if single-node only.
       - "50051:50051"
@@ -69,6 +73,12 @@ services:
 
   frontend:
     image: ghcr.io/nelsongraca/craftpanel/frontend:${IMAGE_VERSION:-latest}
+    environment:
+      # Server-to-server call for /healthz's master version check — internal Docker network, not the public /api path.
+      MASTER_URL: http://master:8080
+      # Split-subdomain deploy only: browser-facing master origin (e.g. https://api.example.com).
+      # Leave unset for the default single-domain deploy — the browser then calls /api on its own origin.
+      # PUBLIC_API_URL: https://api.example.com
     depends_on:
       master:
         condition: service_healthy
