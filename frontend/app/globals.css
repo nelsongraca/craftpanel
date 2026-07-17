@@ -151,4 +151,10 @@
         @apply font-sans;
         font-size: 16px;
     }
+
+    @media (min-width: 1920px) {
+        html {
+            font-size: 18px;
+        }
+    }
 }

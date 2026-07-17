@@ -202,7 +202,9 @@ export default function Shell({children}: { children: React.ReactNode }) {
 
                 {/* Content area */}
                 <main className="flex-1 overflow-auto bg-bg">
-                    {children}
+                    <div className="max-w-[1600px] mx-auto">
+                        {children}
+                    </div>
                 </main>
             </div>
 
