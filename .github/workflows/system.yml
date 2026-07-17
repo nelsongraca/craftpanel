@@ -33,6 +33,7 @@ jobs:
           key: docker-layers-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile', 'fake-server/Dockerfile') }}-${{ github.sha }}
           restore-keys: |
             docker-layers-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile', 'fake-server/Dockerfile') }}-
+            docker-layers-shared-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile') }}-
 
       - name: Build Docker images
         run: ./gradlew :master:dockerBuildImage :agent:dockerBuildImage :fake-server:dockerBuildImage
@@ -42,6 +43,12 @@ jobs:
         with:
           path: /var/lib/docker
           key: docker-layers-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile', 'fake-server/Dockerfile') }}-${{ github.sha }}
+
+      - name: Save shared (master+agent) Docker layer cache
+        uses: actions/cache/save@v4
+        with:
+          path: /var/lib/docker
+          key: docker-layers-shared-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile') }}-${{ github.sha }}
 
       - name: Warm up system-tests compile cache
         run: ./gradlew :system-tests:compileTestKotlin

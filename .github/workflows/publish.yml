@@ -53,6 +53,8 @@ jobs:
           key: docker-layers-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile', 'frontend/Dockerfile') }}-${{ github.event.workflow_run.head_sha }}
           restore-keys: |
             docker-layers-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile', 'frontend/Dockerfile') }}-
+            docker-layers-shared-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile') }}-${{ github.event.workflow_run.head_sha }}
+            docker-layers-shared-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile') }}-
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
@@ -106,6 +108,8 @@ jobs:
           key: docker-layers-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile', 'frontend/Dockerfile') }}-${{ github.sha }}
           restore-keys: |
             docker-layers-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile', 'frontend/Dockerfile') }}-
+            docker-layers-shared-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile') }}-${{ github.sha }}
+            docker-layers-shared-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile') }}-
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
