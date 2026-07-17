@@ -177,7 +177,7 @@ function GameServerConfigSection({
     }
 
     if (loading) {
-        return <div className="px-6 py-10 text-center text-text-muted text-[13px]">Loading\u2026</div>;
+        return <div className="px-6 py-10 text-center text-text-muted text-sm">Loading\u2026</div>;
     }
 
     const isManual = configMode === "MANUAL";
@@ -188,10 +188,10 @@ function GameServerConfigSection({
                 {/* Config Mode toggle */}
                 <div className="flex items-center justify-between">
                     <div>
-                        <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-1">
+                        <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted mb-1">
                             Config Mode
                         </p>
-                        <p className="text-[12px] text-text-dim">
+                        <p className="text-xs text-text-dim">
                             {isManual
                                 ? "Manual mode \u2014 edit server.properties directly in the Files tab."
                                 : "Env vars below are applied to the container on next start."}
@@ -200,14 +200,14 @@ function GameServerConfigSection({
                     <button
                         onClick={handleToggleMode}
                         disabled={togglingMode}
-                        className="px-3 py-1.5 rounded text-[12px] font-heading font-bold uppercase tracking-widest border border-border text-text-dim hover:border-text-muted transition-colors disabled:opacity-40"
+                        className="px-3 py-1.5 rounded text-xs font-heading font-bold uppercase tracking-widest border border-border text-text-dim hover:border-text-muted transition-colors disabled:opacity-40"
                     >
                         {togglingMode ? "Switching\u2026" : isManual ? "Switch to Managed" : "Switch to Manual"}
                     </button>
                 </div>
 
                 {error && (
-                    <div className="text-[12px] text-error bg-error/10 border border-error/30 rounded px-3 py-2">
+                    <div className="text-xs text-error bg-error/10 border border-error/30 rounded px-3 py-2">
                         {error}
                     </div>
                 )}
@@ -215,7 +215,7 @@ function GameServerConfigSection({
                 {/* Stop Command */}
                 <div className="border border-border rounded">
                     <div className="px-4 py-2.5 border-b border-border bg-surface-high">
-                        <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
+                        <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">
                             Stop Command
                         </p>
                     </div>
@@ -225,9 +225,9 @@ function GameServerConfigSection({
                                 value={stopCmd}
                                 onChange={(e) => setStopCmd(e.target.value)}
                                 placeholder="stop"
-                                className="bg-surface-higher border border-border rounded px-2 py-1.5 text-[12px] font-mono text-text-primary w-full focus:border-accent/50 focus:outline-none"
+                                className="bg-surface-higher border border-border rounded px-2 py-1.5 text-xs font-mono text-text-primary w-full focus:border-accent/50 focus:outline-none"
                             />
-                            <p className="text-[12px] text-text-muted mt-1">
+                            <p className="text-xs text-text-muted mt-1">
                                 Command sent to stdin on stop / restart. Leave empty to skip.
                             </p>
                         </div>
@@ -235,14 +235,14 @@ function GameServerConfigSection({
                             <button
                                 onClick={handleSaveStopCmd}
                                 disabled={savingStop}
-                                className="px-3 py-1.5 rounded text-[12px] font-heading font-bold uppercase tracking-widest bg-accent text-bg hover:bg-accent-bright transition-colors disabled:opacity-60"
+                                className="px-3 py-1.5 rounded text-xs font-heading font-bold uppercase tracking-widest bg-accent text-bg hover:bg-accent-bright transition-colors disabled:opacity-60"
                             >
                                 {savingStop ? "Saving\u2026" : "Save"}
                             </button>
                         )}
                     </div>
                     {stopError && (
-                        <div className="px-4 pb-3 text-[12px] text-error">{stopError}</div>
+                        <div className="px-4 pb-3 text-xs text-error">{stopError}</div>
                     )}
                 </div>
 
@@ -274,21 +274,21 @@ function GameServerConfigSection({
                 {/* Unsaved changes bar */}
                 {isFormDirty && (
                     <div className="flex items-center justify-between pt-2 border-t border-border">
-                        <span className="text-[12px] text-text-muted">Unsaved changes</span>
+                        <span className="text-xs text-text-muted">Unsaved changes</span>
                         <div className="flex gap-2">
                             <button
                                 onClick={() => {
                                     setForm(savedForm);
                                     setExtraVars(savedExtraVars);
                                 }}
-                                className="px-3 py-1.5 rounded text-[12px] font-heading font-bold uppercase tracking-widest text-text-dim border border-border hover:border-text-muted transition-colors"
+                                className="px-3 py-1.5 rounded text-xs font-heading font-bold uppercase tracking-widest text-text-dim border border-border hover:border-text-muted transition-colors"
                             >
                                 Discard
                             </button>
                             <button
                                 onClick={handleSave}
                                 disabled={saving}
-                                className="px-3 py-1.5 rounded text-[12px] font-heading font-bold uppercase tracking-widest bg-accent text-bg hover:bg-accent-bright transition-colors disabled:opacity-60"
+                                className="px-3 py-1.5 rounded text-xs font-heading font-bold uppercase tracking-widest bg-accent text-bg hover:bg-accent-bright transition-colors disabled:opacity-60"
                             >
                                 {saving ? "Saving\u2026" : "Save"}
                             </button>

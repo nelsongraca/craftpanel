@@ -7,7 +7,7 @@ export function PlayersPanel({livePlayers}: { livePlayers: LivePlayers | null })
 
     return (
         <div className="bg-surface border border-border rounded p-4">
-            <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-3">
+            <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted mb-3">
                 Online Players ({livePlayers.count})
             </p>
             <div className="flex flex-wrap gap-2">

@@ -204,7 +204,7 @@ export function FilesTab({serverId}: Props) {
             <div key={node.path}>
                 <div
                     className={[
-                        "flex items-center gap-1.5 px-2 py-0.5 cursor-pointer text-[12px] rounded select-none group",
+                        "flex items-center gap-1.5 px-2 py-0.5 cursor-pointer text-xs rounded select-none group",
                         selectedPath === node.path ? "bg-surface-higher text-text-primary" : "text-text-dim hover:text-text-primary hover:bg-surface-high",
                     ].join(" ")}
                     style={{paddingLeft: `${8 + depth * 14}px`}}
@@ -234,7 +234,7 @@ export function FilesTab({serverId}: Props) {
                                 if (e.key === "Escape") setRenameNode(null);
                             }}
                             onBlur={() => void commitRename()}
-                            className="flex-1 bg-bg border border-accent rounded px-1 text-[12px] font-mono outline-none"
+                            className="flex-1 bg-bg border border-accent rounded px-1 text-xs font-mono outline-none"
                             onClick={(e) => e.stopPropagation()}
                         />
                     ) : (
@@ -287,7 +287,7 @@ export function FilesTab({serverId}: Props) {
             {/* ── Tree ── */}
             <div className="w-64 shrink-0 border-r border-border flex flex-col overflow-hidden">
                 <div className="flex items-center gap-1 px-3 py-2 border-b border-border">
-                    <span className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted flex-1">Files</span>
+                    <span className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted flex-1">Files</span>
                     <button title="Upload file" className="p-1 text-text-muted hover:text-accent" onClick={() => uploadRef.current?.click()}>
                         <Upload size={13}/>
                     </button>
@@ -298,9 +298,9 @@ export function FilesTab({serverId}: Props) {
                 </div>
                 <div className="flex-1 overflow-y-auto py-1">
                     {rootLoading ? (
-                        <p className="text-text-muted text-[12px] px-3 py-2">Loading…</p>
+                        <p className="text-text-muted text-xs px-3 py-2">Loading…</p>
                     ) : roots.length === 0 && !error ? (
-                        <p className="text-text-muted text-[12px] px-3 py-2">Empty directory</p>
+                        <p className="text-text-muted text-xs px-3 py-2">Empty directory</p>
                     ) : (
                         renderTree(roots)
                     )}
@@ -310,7 +310,7 @@ export function FilesTab({serverId}: Props) {
             {/* ── Editor ── */}
             <div className="flex-1 flex flex-col overflow-hidden">
                 {error && (
-                    <div className="px-4 py-1.5 bg-error/10 border-b border-error/20 text-error text-[12px] font-mono flex items-center gap-2">
+                    <div className="px-4 py-1.5 bg-error/10 border-b border-error/20 text-error text-xs font-mono flex items-center gap-2">
                         <X size={12}/>
                         {error}
                     </div>
@@ -319,10 +319,10 @@ export function FilesTab({serverId}: Props) {
                 {selectedPath ? (
                     <>
                         <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
-                            <span className="font-mono text-[12px] text-text-dim flex-1 truncate">{selectedPath}</span>
+                            <span className="font-mono text-xs text-text-dim flex-1 truncate">{selectedPath}</span>
                             {fileEncoding !== "binary" && (
                                 <button
-                                    className="flex items-center gap-1 px-2.5 py-1 bg-accent text-bg text-[12px] font-bold rounded disabled:opacity-50"
+                                    className="flex items-center gap-1 px-2.5 py-1 bg-accent text-bg text-xs font-bold rounded disabled:opacity-50"
                                     onClick={() => void saveFile()}
                                     disabled={savingFile || !dirty}
                                 >
@@ -334,7 +334,7 @@ export function FilesTab({serverId}: Props) {
                                 <a
                                     href={`/api/servers/${serverId}/files/download?path=${encodeURIComponent(selectedPath)}`}
                                     download
-                                    className="flex items-center gap-1 px-2.5 py-1 bg-surface-higher text-text-primary text-[12px] font-bold rounded border border-border"
+                                    className="flex items-center gap-1 px-2.5 py-1 bg-surface-higher text-text-primary text-xs font-bold rounded border border-border"
                                 >
                                     <Download size={11}/>
                                     Download
@@ -343,12 +343,12 @@ export function FilesTab({serverId}: Props) {
                         </div>
                         <div className="flex-1 overflow-auto">
                             {loadingFile ? (
-                                <p className="text-text-muted text-[12px] p-4">Loading…</p>
+                                <p className="text-text-muted text-xs p-4">Loading…</p>
                             ) : fileEncoding === "binary" ? (
-                                <p className="text-text-muted text-[12px] p-4">Binary file — use the download button to retrieve it.</p>
+                                <p className="text-text-muted text-xs p-4">Binary file — use the download button to retrieve it.</p>
                             ) : (
                                 <textarea
-                                    className="w-full h-full bg-bg font-mono text-[12px] text-text-primary p-4 resize-none focus:outline-none leading-relaxed"
+                                    className="w-full h-full bg-bg font-mono text-xs text-text-primary p-4 resize-none focus:outline-none leading-relaxed"
                                     value={fileContent}
                                     onChange={(e) => {
                                         setFileContent(e.target.value);
@@ -361,7 +361,7 @@ export function FilesTab({serverId}: Props) {
                     </>
                 ) : (
                     <div className="flex-1 flex items-center justify-center">
-                        <p className="text-text-muted text-[12px]">Select a file to edit</p>
+                        <p className="text-text-muted text-xs">Select a file to edit</p>
                     </div>
                 )}
             </div>

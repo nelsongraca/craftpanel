@@ -116,7 +116,7 @@ export default function Shell({children}: { children: React.ReactNode }) {
                 <div ref={menuRef} className="relative flex justify-end">
                     <button
                         onClick={() => setMenuOpen((o) => !o)}
-                        className="flex items-center gap-1.5 text-[12px] font-heading font-bold uppercase tracking-widest text-text-dim hover:text-text-primary transition-colors"
+                        className="flex items-center gap-1.5 text-xs font-heading font-bold uppercase tracking-widest text-text-dim hover:text-text-primary transition-colors"
                     >
                         <span>{user?.username ?? "User"}</span>
                         <ChevronDown size={12} strokeWidth={2.5} className={menuOpen ? "rotate-180 transition-transform" : "transition-transform"}/>
@@ -125,20 +125,20 @@ export default function Shell({children}: { children: React.ReactNode }) {
                     {menuOpen && (
                         <div className="absolute right-0 top-full mt-2 bg-surface-higher border border-border rounded-md shadow-xl z-50 min-w-[180px] py-1 overflow-hidden">
                             <div className="px-3 py-2 border-b border-border">
-                                <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted truncate">
+                                <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted truncate">
                                     {user?.email}
                                 </p>
                             </div>
                             <button
                                 onClick={closeMenu(logout)}
-                                className="flex items-center gap-2.5 w-full text-left px-3 py-2 text-[12px] hover:bg-surface-high text-text-primary transition-colors"
+                                className="flex items-center gap-2.5 w-full text-left px-3 py-2 text-xs hover:bg-surface-high text-text-primary transition-colors"
                             >
                                 <LogOut size={13} strokeWidth={2}/>
                                 Sign out
                             </button>
                             <button
                                 onClick={closeMenu(logoutAll)}
-                                className="flex items-center gap-2.5 w-full text-left px-3 py-2 text-[12px] hover:bg-surface-high text-text-dim transition-colors"
+                                className="flex items-center gap-2.5 w-full text-left px-3 py-2 text-xs hover:bg-surface-high text-text-dim transition-colors"
                             >
                                 <LogOut size={13} strokeWidth={2}/>
                                 Sign out all sessions
@@ -172,7 +172,7 @@ export default function Shell({children}: { children: React.ReactNode }) {
                         if (visibleItems.length === 0) return null;
                         return (
                             <div key={section.title} className="mb-2">
-                                <p className="px-4 pt-4 pb-1.5 text-[12px] font-heading font-bold uppercase tracking-[0.12em] text-text-muted">
+                                <p className="px-4 pt-4 pb-1.5 text-xs font-heading font-bold uppercase tracking-[0.12em] text-text-muted">
                                     {section.title}
                                 </p>
                                 {visibleItems.map((item) => {
@@ -184,7 +184,7 @@ export default function Shell({children}: { children: React.ReactNode }) {
                                             href={item.href}
                                             onClick={() => setDrawerOpen(false)}
                                             className={[
-                                                "flex items-center gap-2.5 pl-[13px] pr-4 py-[6px] text-[12px] font-heading font-bold uppercase tracking-wider border-l-[3px] transition-colors",
+                                                "flex items-center gap-2.5 pl-[13px] pr-4 py-[6px] text-xs font-heading font-bold uppercase tracking-wider border-l-[3px] transition-colors",
                                                 isActive
                                                     ? "border-accent bg-[var(--accent-subtle)] text-accent"
                                                     : "border-transparent text-text-dim hover:bg-surface-high hover:text-text-primary",
@@ -208,12 +208,12 @@ export default function Shell({children}: { children: React.ReactNode }) {
 
             <footer className="shrink-0 px-4 py-1.5 border-t border-border bg-surface flex items-center justify-center gap-3">
                 {health?.versionMismatch && (
-                    <span className="flex items-center gap-1 text-[11px] font-mono text-warning" title="Frontend and master are running different versions">
+                    <span className="flex items-center gap-1 text-xs font-mono text-warning" title="Frontend and master are running different versions">
                         <AlertTriangle size={12} strokeWidth={2}/>
                         version mismatch
                     </span>
                 )}
-                <span className="text-[11px] font-mono text-text-muted">
+                <span className="text-xs font-mono text-text-muted">
                     frontend {health?.frontendVersion ?? "…"} · master {health?.masterVersion ?? "…"}
                 </span>
             </footer>

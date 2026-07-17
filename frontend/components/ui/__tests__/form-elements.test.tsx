@@ -44,7 +44,7 @@ describe('TextField', () => {
     it('defaults to md size and surface-high surface', () => {
         render(<TextField placeholder="name" onChange={vi.fn()} value="" />)
         const el = screen.getByPlaceholderText('name')
-        expect(el.className).toContain('text-[13px]')
+        expect(el.className).toContain('text-sm')
         expect(el.className).toContain('px-3')
         expect(el.className).toContain('py-2')
         expect(el.className).toContain('bg-surface-high')
@@ -53,7 +53,7 @@ describe('TextField', () => {
     it('applies sm size classes', () => {
         render(<TextField placeholder="name" onChange={vi.fn()} value="" fieldSize="sm" />)
         const el = screen.getByPlaceholderText('name')
-        expect(el.className).toContain('text-[12px]')
+        expect(el.className).toContain('text-xs')
         expect(el.className).toContain('px-2.5')
         expect(el.className).toContain('py-1.5')
     })
@@ -99,7 +99,7 @@ describe('SelectField', () => {
             </SelectField>
         )
         const el = screen.getByRole('combobox')
-        expect(el.className).toContain('text-[12px]')
+        expect(el.className).toContain('text-xs')
         expect(el.className).toContain('bg-surface-higher')
     })
 

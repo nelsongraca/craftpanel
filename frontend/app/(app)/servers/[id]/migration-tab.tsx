@@ -29,12 +29,12 @@ const STEP_STATUS_CLASSES: Record<string, string> = {
 function StepRow({step}: { step: MigrationStepData }) {
     return (
         <div className="flex items-start gap-3 py-1.5">
-            <span className="font-mono text-[12px] text-text-muted w-5 flex-shrink-0 pt-0.5">{step.step_number}</span>
+            <span className="font-mono text-xs text-text-muted w-5 flex-shrink-0 pt-0.5">{step.step_number}</span>
             <span
-                className={`font-mono text-[12px] uppercase w-16 flex-shrink-0 pt-0.5 ${STEP_STATUS_CLASSES[step.status] ?? "text-text-muted"}`}>{step.status}</span>
-            <span className="text-[12px] text-text-primary flex-1">{step.description}</span>
+                className={`font-mono text-xs uppercase w-16 flex-shrink-0 pt-0.5 ${STEP_STATUS_CLASSES[step.status] ?? "text-text-muted"}`}>{step.status}</span>
+            <span className="text-xs text-text-primary flex-1">{step.description}</span>
             {step.error_message && (
-                <span className="text-[12px] text-error ml-2">{step.error_message}</span>
+                <span className="text-xs text-error ml-2">{step.error_message}</span>
             )}
         </div>
     );
@@ -50,25 +50,25 @@ function MigrationCard({migration, defaultOpen}: { migration: MigrationResponse;
             >
                 {open ? <ChevronDown size={14} className="text-text-muted flex-shrink-0"/> :
                     <ChevronRight size={14} className="text-text-muted flex-shrink-0"/>}
-                <span className="font-mono text-[12px] text-text-muted flex-shrink-0">{migration.id.slice(0, 8)}</span>
-                <span className={`font-mono text-[12px] uppercase px-1.5 py-0.5 rounded flex-shrink-0 ${MIGRATION_STATUS_CLASSES[migration.status] ?? "text-text-muted border border-border"}`}>
+                <span className="font-mono text-xs text-text-muted flex-shrink-0">{migration.id.slice(0, 8)}</span>
+                <span className={`font-mono text-xs uppercase px-1.5 py-0.5 rounded flex-shrink-0 ${MIGRATION_STATUS_CLASSES[migration.status] ?? "text-text-muted border border-border"}`}>
                     {migration.status}
                 </span>
-                <span className="text-[12px] text-text-dim flex-1 truncate">
+                <span className="text-xs text-text-dim flex-1 truncate">
                     {migration.source_node_id.slice(0, 8)} <ArrowRight size={10}
                                                                        className="inline"/> {migration.target_node_id.slice(0, 8)}
                 </span>
-                <span className="text-[12px] text-text-muted flex-shrink-0">{fmtDate(migration.created_at)}</span>
+                <span className="text-xs text-text-muted flex-shrink-0">{fmtDate(migration.created_at)}</span>
             </button>
             {open && (
                 <div className="border-t border-border px-4 py-3">
                     {migration.steps.length === 0 ? (
-                        <p className="text-[12px] text-text-muted">No steps recorded.</p>
+                        <p className="text-xs text-text-muted">No steps recorded.</p>
                     ) : (
                         migration.steps.map(s => <StepRow key={s.step_number} step={s}/>)
                     )}
                     {migration.completed_at && (
-                        <p className="text-[12px] text-text-muted mt-2">Completed: {fmtDate(migration.completed_at)}</p>
+                        <p className="text-xs text-text-muted mt-2">Completed: {fmtDate(migration.completed_at)}</p>
                     )}
                 </div>
             )}
@@ -166,22 +166,22 @@ function ActiveMigration({migrationId, onDone}: { migrationId: string; onDone: (
                 {connected && migrationStatus !== "COMPLETED" && migrationStatus !== "FAILED" ? (
                     <Loader2 size={14} className="text-warning animate-spin flex-shrink-0"/>
                 ) : null}
-                <span className={`font-mono text-[12px] uppercase font-bold ${statusColor}`}>{migrationStatus}</span>
+                <span className={`font-mono text-xs uppercase font-bold ${statusColor}`}>{migrationStatus}</span>
                 {!connected && migrationStatus !== "COMPLETED" && migrationStatus !== "FAILED" && (
-                    <span className="text-[12px] text-text-muted">Connecting…</span>
+                    <span className="text-xs text-text-muted">Connecting…</span>
                 )}
             </div>
 
             {error && (
-                <p className="text-[12px] text-error">{error}</p>
+                <p className="text-xs text-error">{error}</p>
             )}
 
             <div className="space-y-1">
                 {steps.map(s => (
                     <div key={s.step} className="space-y-1">
                         <div className="flex items-start gap-3">
-                            <span className="font-mono text-[12px] text-text-muted w-5 flex-shrink-0 pt-0.5">{s.step}</span>
-                            <span className={`font-mono text-[12px] uppercase w-16 flex-shrink-0 pt-0.5 ${STEP_STATUS_CLASSES[s.status] ?? "text-text-muted"}`}>
+                            <span className="font-mono text-xs text-text-muted w-5 flex-shrink-0 pt-0.5">{s.step}</span>
+                            <span className={`font-mono text-xs uppercase w-16 flex-shrink-0 pt-0.5 ${STEP_STATUS_CLASSES[s.status] ?? "text-text-muted"}`}>
                                 {s.status === "RUNNING" ? (
                                     <span className="flex items-center gap-1">
                                         <span className="w-2 h-2 border border-current border-t-transparent rounded-full animate-spin"/>
@@ -189,8 +189,8 @@ function ActiveMigration({migrationId, onDone}: { migrationId: string; onDone: (
                                     </span>
                                 ) : s.status}
                             </span>
-                            <span className="text-[12px] text-text-primary flex-1">{s.description}</span>
-                            {s.error && <span className="text-[12px] text-error">{s.error}</span>}
+                            <span className="text-xs text-text-primary flex-1">{s.description}</span>
+                            {s.error && <span className="text-xs text-error">{s.error}</span>}
                         </div>
                         {s.rsyncPercent !== undefined && s.status === "RUNNING" && (
                             <div className="ml-24 h-1 bg-surface-high rounded-full overflow-hidden">
@@ -203,7 +203,7 @@ function ActiveMigration({migrationId, onDone}: { migrationId: string; onDone: (
                     </div>
                 ))}
                 {steps.length === 0 && (
-                    <p className="text-[12px] text-text-muted">Waiting for first step…</p>
+                    <p className="text-xs text-text-muted">Waiting for first step…</p>
                 )}
             </div>
         </div>
@@ -266,7 +266,7 @@ function MigrateModal({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
             <div className="bg-surface border border-border rounded-md w-full max-w-md shadow-2xl">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-                    <h2 className="text-[13px] font-heading font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
+                    <h2 className="text-sm font-heading font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
                         <Shuffle size={14} className="text-accent"/>
                         Migrate Server
                     </h2>
@@ -276,20 +276,20 @@ function MigrateModal({
                 </div>
                 <div className="p-5 space-y-4">
                     {loadingNodes ? (
-                        <p className="text-[12px] text-text-muted">Loading nodes…</p>
+                        <p className="text-xs text-text-muted">Loading nodes…</p>
                     ) : nodes.length === 0 ? (
-                        <p className="text-[12px] text-text-muted">No eligible target nodes available (requires ACTIVE node different from current).</p>
+                        <p className="text-xs text-text-muted">No eligible target nodes available (requires ACTIVE node different from current).</p>
                     ) : (
                         <>
                             <div>
                                 <label
-                                    className="block text-[12px] font-heading font-bold uppercase tracking-wider text-text-dim mb-1.5">
+                                    className="block text-xs font-heading font-bold uppercase tracking-wider text-text-dim mb-1.5">
                                     Target Node
                                 </label>
                                 <select
                                     value={targetNodeId}
                                     onChange={e => setTargetNodeId(e.target.value)}
-                                    className="w-full bg-surface-high border border-border rounded px-3 py-2 text-[12px] text-text-primary focus:outline-none focus:border-accent"
+                                    className="w-full bg-surface-high border border-border rounded px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-accent"
                                 >
                                     {nodes.map(n => (
                                         <option key={n.id} value={n.id}>{n.display_name} ({n.public_ip})</option>
@@ -299,47 +299,47 @@ function MigrateModal({
 
                             <div>
                                 <label
-                                    className="block text-[12px] font-heading font-bold uppercase tracking-wider text-text-dim mb-1.5">
+                                    className="block text-xs font-heading font-bold uppercase tracking-wider text-text-dim mb-1.5">
                                     Rsync Image
                                 </label>
                                 <input
                                     type="text"
                                     value={rsyncImage}
                                     onChange={e => setRsyncImage(e.target.value)}
-                                    className="w-full bg-surface-high border border-border rounded px-3 py-2 text-[12px] text-text-primary font-mono focus:outline-none focus:border-accent"
+                                    className="w-full bg-surface-high border border-border rounded px-3 py-2 text-xs text-text-primary font-mono focus:outline-none focus:border-accent"
                                     placeholder="alpine"
                                 />
                             </div>
 
                             <div>
                                 <label
-                                    className="block text-[12px] font-heading font-bold uppercase tracking-wider text-text-dim mb-1.5">
+                                    className="block text-xs font-heading font-bold uppercase tracking-wider text-text-dim mb-1.5">
                                     Player Warning Message
                                 </label>
                                 <input
                                     type="text"
                                     value={warningMessage}
                                     onChange={e => setWarningMessage(e.target.value)}
-                                    className="w-full bg-surface-high border border-border rounded px-3 py-2 text-[12px] text-text-primary focus:outline-none focus:border-accent"
+                                    className="w-full bg-surface-high border border-border rounded px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-accent"
                                     placeholder="Server is restarting…"
                                 />
                             </div>
 
                             {error && (
-                                <p className="text-[12px] text-error">{error}</p>
+                                <p className="text-xs text-error">{error}</p>
                             )}
 
                             <div className="flex gap-2 justify-end pt-2">
                                 <button
                                     onClick={onClose}
-                                    className="px-4 py-2 text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-text-primary border border-border rounded hover:bg-surface-high transition-colors"
+                                    className="px-4 py-2 text-xs font-heading font-bold uppercase tracking-wider text-text-muted hover:text-text-primary border border-border rounded hover:bg-surface-high transition-colors"
                                 >
                                     Cancel
                                 </button>
                                 <button
                                     onClick={submit}
                                     disabled={submitting || !targetNodeId}
-                                    className="px-4 py-2 text-[12px] font-heading font-bold uppercase tracking-wider bg-accent text-bg rounded hover:bg-accent-bright transition-colors disabled:opacity-50 flex items-center gap-2"
+                                    className="px-4 py-2 text-xs font-heading font-bold uppercase tracking-wider bg-accent text-bg rounded hover:bg-accent-bright transition-colors disabled:opacity-50 flex items-center gap-2"
                                 >
                                     {submitting && <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin"/>}
                                     {submitting ? "Starting…" : "Start Migration"}
@@ -396,13 +396,13 @@ export function MigrationTab({
     return (
         <div className="space-y-4">
             <div className="flex items-center justify-between">
-                <h3 className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-dim">
+                <h3 className="text-xs font-heading font-bold uppercase tracking-wider text-text-dim">
                     Migration History
                 </h3>
                 {canMigrate && !activeMigrationId && (
                     <button
                         onClick={() => setShowModal(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-wider bg-accent text-bg rounded hover:bg-accent-bright transition-colors"
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wider bg-accent text-bg rounded hover:bg-accent-bright transition-colors"
                     >
                         <Shuffle size={11}/>
                         Migrate
@@ -412,7 +412,7 @@ export function MigrationTab({
 
             {activeMigrationId && (
                 <div>
-                    <p className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-dim mb-2">
+                    <p className="text-xs font-heading font-bold uppercase tracking-wider text-text-dim mb-2">
                         Active Migration
                     </p>
                     <ActiveMigration migrationId={activeMigrationId} onDone={handleDone}/>
@@ -420,11 +420,11 @@ export function MigrationTab({
             )}
 
             {loading ? (
-                <p className="text-[12px] text-text-muted">Loading…</p>
+                <p className="text-xs text-text-muted">Loading…</p>
             ) : error ? (
-                <p className="text-[12px] text-error">{error}</p>
+                <p className="text-xs text-error">{error}</p>
             ) : migrations.length === 0 ? (
-                <p className="text-[12px] text-text-muted">No migrations yet.</p>
+                <p className="text-xs text-text-muted">No migrations yet.</p>
             ) : (
                 <div className="space-y-2">
                     {migrations.map((m, i) => (

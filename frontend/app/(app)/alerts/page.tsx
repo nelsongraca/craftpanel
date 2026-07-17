@@ -32,7 +32,7 @@ const METRICS = [
 function SectionHeader({title, action}: { title: string; action?: React.ReactNode }) {
     return (
         <div className="flex items-center justify-between mb-4">
-            <h2 className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
+            <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">
                 {title}
             </h2>
             {action}
@@ -43,7 +43,7 @@ function SectionHeader({title, action}: { title: string; action?: React.ReactNod
 function EmptyRow({message}: { message: string }) {
     return (
         <tr>
-            <td colSpan={99} className="py-8 text-center text-[12px] text-text-muted">
+            <td colSpan={99} className="py-8 text-center text-xs text-text-muted">
                 {message}
             </td>
         </tr>
@@ -52,7 +52,7 @@ function EmptyRow({message}: { message: string }) {
 
 function Th({children}: { children?: React.ReactNode }) {
     return (
-        <th className="text-left py-2 px-3 text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted border-b border-border">
+        <th className="text-left py-2 px-3 text-xs font-heading font-bold uppercase tracking-wider text-text-muted border-b border-border">
             {children}
         </th>
     );
@@ -60,7 +60,7 @@ function Th({children}: { children?: React.ReactNode }) {
 
 function Td({children, className = ""}: { children: React.ReactNode; className?: string }) {
     return (
-        <td className={`py-2.5 px-3 text-[12px] font-mono border-b border-border ${className}`}>
+        <td className={`py-2.5 px-3 text-xs font-mono border-b border-border ${className}`}>
             {children}
         </td>
     );
@@ -125,7 +125,7 @@ function CreateThresholdModal({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur-sm">
             <div className="bg-surface-higher border border-border rounded-lg shadow-2xl w-full max-w-md p-6">
                 <div className="flex items-center justify-between mb-5">
-                    <h2 className="text-[13px] font-heading font-bold uppercase tracking-widest text-text-primary">
+                    <h2 className="text-sm font-heading font-bold uppercase tracking-widest text-text-primary">
                         New Alert Threshold
                     </h2>
                     <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors">
@@ -133,17 +133,17 @@ function CreateThresholdModal({
                     </button>
                 </div>
 
-                {error && <p className="text-[12px] text-error mb-4">{error}</p>}
+                {error && <p className="text-xs text-error mb-4">{error}</p>}
 
                 <div className="space-y-4">
                     <div className="space-y-1">
-                        <label className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted">
+                        <label className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted">
                             Scope Type
                         </label>
                         <select
                             value={scopeType}
                             onChange={(e) => handleScopeTypeChange(e.target.value as "NODE" | "SERVER")}
-                            className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-[12px] font-mono text-text-primary focus:outline-none focus:border-accent"
+                            className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-xs font-mono text-text-primary focus:outline-none focus:border-accent"
                         >
                             <option value="NODE">Node</option>
                             <option value="SERVER">Server</option>
@@ -151,13 +151,13 @@ function CreateThresholdModal({
                     </div>
 
                     <div className="space-y-1">
-                        <label className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted">
+                        <label className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted">
                             {scopeType === "NODE" ? "Node" : "Server"}
                         </label>
                         <select
                             value={scopeId}
                             onChange={(e) => setScopeId(e.target.value)}
-                            className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-[12px] font-mono text-text-primary focus:outline-none focus:border-accent"
+                            className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-xs font-mono text-text-primary focus:outline-none focus:border-accent"
                         >
                             <option value="">— select —</option>
                             {(scopeType === "NODE" ? nodes : servers).map((item) => (
@@ -167,20 +167,20 @@ function CreateThresholdModal({
                     </div>
 
                     <div className="space-y-1">
-                        <label className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted">
+                        <label className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted">
                             Metric
                         </label>
                         <select
                             value={metric}
                             onChange={(e) => setMetric(e.target.value)}
-                            className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-[12px] font-mono text-text-primary focus:outline-none focus:border-accent"
+                            className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-xs font-mono text-text-primary focus:outline-none focus:border-accent"
                         >
                             {METRICS.map((m) => <option key={m} value={m}>{m}</option>)}
                         </select>
                     </div>
 
                     <div className="space-y-1">
-                        <label className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted">
+                        <label className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted">
                             Trigger Type
                         </label>
                         <div className="flex gap-2">
@@ -188,7 +188,7 @@ function CreateThresholdModal({
                                 <button
                                     key={t}
                                     onClick={() => setValueType(t)}
-                                    className={`flex-1 py-1.5 rounded border text-[12px] font-heading font-bold uppercase tracking-wider transition-colors ${
+                                    className={`flex-1 py-1.5 rounded border text-xs font-heading font-bold uppercase tracking-wider transition-colors ${
                                         valueType === t
                                             ? "border-accent text-accent bg-accent/10"
                                             : "border-border text-text-muted hover:text-text-primary"
@@ -202,27 +202,27 @@ function CreateThresholdModal({
 
                     {valueType === "numeric" ? (
                         <div className="space-y-1">
-                            <label className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted">
+                            <label className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted">
                                 Threshold Value
                             </label>
                             <input
                                 type="number"
                                 value={thresholdValue}
                                 onChange={(e) => setThresholdValue(e.target.value)}
-                                className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-[12px] font-mono text-text-primary focus:outline-none focus:border-accent"
+                                className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-xs font-mono text-text-primary focus:outline-none focus:border-accent"
                             />
-                            <p className="text-[12px] text-text-muted">Alert fires when metric exceeds this value.</p>
+                            <p className="text-xs text-text-muted">Alert fires when metric exceeds this value.</p>
                         </div>
                     ) : (
                         <div className="space-y-1">
-                            <label className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted">
+                            <label className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted">
                                 Threshold State
                             </label>
                             <input
                                 value={thresholdState}
                                 onChange={(e) => setThresholdState(e.target.value)}
                                 placeholder="UNHEALTHY"
-                                className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-[12px] font-mono text-text-primary focus:outline-none focus:border-accent"
+                                className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-xs font-mono text-text-primary focus:outline-none focus:border-accent"
                             />
                         </div>
                     )}
@@ -231,14 +231,14 @@ function CreateThresholdModal({
                 <div className="flex items-center justify-end gap-2 mt-6">
                     <button
                         onClick={onClose}
-                        className="px-3 py-1 text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-text-primary transition-colors"
+                        className="px-3 py-1 text-xs font-heading font-bold uppercase tracking-wider text-text-muted hover:text-text-primary transition-colors"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={() => void submit()}
                         disabled={saving || !scopeId.trim()}
-                        className="px-4 py-1.5 rounded bg-accent text-bg text-[12px] font-heading font-bold uppercase tracking-wider hover:bg-accent-bright transition-colors disabled:opacity-50"
+                        className="px-4 py-1.5 rounded bg-accent text-bg text-xs font-heading font-bold uppercase tracking-wider hover:bg-accent-bright transition-colors disabled:opacity-50"
                     >
                         {saving ? "Creating…" : "Create"}
                     </button>
@@ -317,13 +317,13 @@ export default function AlertsPage() {
                 <h1 className="text-[22px] font-heading font-bold uppercase tracking-wide text-text-primary leading-none mb-1">
                     Alerts
                 </h1>
-                <p className="text-[12px] text-text-muted">
+                <p className="text-xs text-text-muted">
                     Configure metric thresholds and view fired alert events.
                 </p>
             </div>
 
             {deleteError && (
-                <div className="flex items-center justify-between bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-[12px]">
+                <div className="flex items-center justify-between bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-xs">
                     <span>{deleteError}</span>
                     <button onClick={() => setDeleteError(null)} className="ml-4 hover:opacity-70" aria-label="Dismiss">
                         <X size={13}/>
@@ -340,7 +340,7 @@ export default function AlertsPage() {
                             canManage && (
                                 <button
                                     onClick={() => setShowCreate(true)}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-accent/50 text-accent text-[12px] font-heading font-bold uppercase tracking-wider hover:bg-accent/10 transition-colors"
+                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-accent/50 text-accent text-xs font-heading font-bold uppercase tracking-wider hover:bg-accent/10 transition-colors"
                                 >
                                     <Plus size={11} strokeWidth={2.5}/>
                                     New Threshold
@@ -370,7 +370,7 @@ export default function AlertsPage() {
                             thresholds.map((t) => (
                                 <tr key={t.id} className="hover:bg-surface-high transition-colors">
                                     <Td>
-                      <span className={`inline-block text-[12px] font-heading font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+                      <span className={`inline-block text-xs font-heading font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${
                           t.scope_type === "NODE"
                               ? "text-text-dim border-border bg-surface-high"
                               : "text-accent border-accent/30 bg-accent/5"
@@ -420,7 +420,7 @@ export default function AlertsPage() {
                         action={
                             <button
                                 onClick={() => setActiveOnly((v) => !v)}
-                                className={`px-3 py-1 rounded border text-[12px] font-heading font-bold uppercase tracking-wider transition-colors ${
+                                className={`px-3 py-1 rounded border text-xs font-heading font-bold uppercase tracking-wider transition-colors ${
                                     activeOnly
                                         ? "border-error/50 text-error bg-error/10"
                                         : "border-border text-text-muted hover:text-text-primary"
@@ -462,7 +462,7 @@ export default function AlertsPage() {
                                     <Td className="text-text-muted">{timeAgo(e.fired_at)}</Td>
                                     <Td className="text-text-muted">
                                         {e.resolved_at ? timeAgo(e.resolved_at) : (
-                                            <span className="text-error text-[12px] font-heading font-bold uppercase tracking-wider">Active</span>
+                                            <span className="text-error text-xs font-heading font-bold uppercase tracking-wider">Active</span>
                                         )}
                                     </Td>
                                 </tr>

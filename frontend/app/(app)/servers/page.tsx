@@ -35,7 +35,7 @@ function RamBar({total, used}: { total: number; used?: number }) {
     const pct = hasData && total > 0 ? Math.min(100, (used! / total) * 100) : 0;
     return (
         <div className="flex flex-col gap-1">
-      <span className="font-mono text-[12px] text-text-muted whitespace-nowrap">
+      <span className="font-mono text-xs text-text-muted whitespace-nowrap">
         {hasData ? `${used} / ${total} MB` : `— / ${total} MB`}
       </span>
             <div className="w-20 h-1 rounded-full" style={{background: "var(--border)"}}>
@@ -158,7 +158,7 @@ function ServerActions({
                         <Link
                             href={`/servers/${server.id}`}
                             onClick={() => setOpenMenuId(null)}
-                            className="flex items-center px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
+                            className="flex items-center px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
                         >
                             View
                         </Link>
@@ -168,7 +168,7 @@ function ServerActions({
                                     setOpenMenuId(null);
                                     doDelete(server);
                                 }}
-                                className="flex items-center w-full text-left px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-wider text-error hover:bg-surface-high transition-colors"
+                                className="flex items-center w-full text-left px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wider text-error hover:bg-surface-high transition-colors"
                             >
                                 Delete
                             </button>
@@ -288,7 +288,7 @@ export default function ServersPage() {
                         canCreate ? (
                             <Link
                                 href="/servers/new"
-                                className="flex items-center gap-1.5 bg-accent hover:bg-accent-bright text-bg font-heading font-bold text-[12px] uppercase tracking-widest px-3 py-1.5 rounded transition-colors hover:shadow-[0_0_16px_var(--accent-glow)]"
+                                className="flex items-center gap-1.5 bg-accent hover:bg-accent-bright text-bg font-heading font-bold text-xs uppercase tracking-widest px-3 py-1.5 rounded transition-colors hover:shadow-[0_0_16px_var(--accent-glow)]"
                             >
                                 <Plus size={12} strokeWidth={3}/>
                                 New Server
@@ -304,12 +304,12 @@ export default function ServersPage() {
                         placeholder="Search servers…"
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
-                        className="h-7 bg-surface-higher border border-border rounded px-2.5 text-[12px] font-mono text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent w-48"
+                        className="h-7 bg-surface-higher border border-border rounded px-2.5 text-xs font-mono text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent w-48"
                     />
                     <select
                         value={filterStatus}
                         onChange={(e) => setFilterStatus(e.target.value)}
-                        className="h-7 bg-surface-higher border border-border rounded px-2 text-[12px] font-heading text-text-primary focus:outline-none focus:border-accent"
+                        className="h-7 bg-surface-higher border border-border rounded px-2 text-xs font-heading text-text-primary focus:outline-none focus:border-accent"
                     >
                         {FILTER_OPTIONS.map((o) => (
                             <option key={o.value} value={o.value}>{o.label}</option>
@@ -319,7 +319,7 @@ export default function ServersPage() {
                         <select
                             value={filterNetwork}
                             onChange={(e) => setFilterNetwork(e.target.value)}
-                            className="h-7 bg-surface-higher border border-border rounded px-2 text-[12px] font-heading text-text-primary focus:outline-none focus:border-accent"
+                            className="h-7 bg-surface-higher border border-border rounded px-2 text-xs font-heading text-text-primary focus:outline-none focus:border-accent"
                         >
                             <option value="">All Networks</option>
                             {networks.map((n) => (
@@ -331,7 +331,7 @@ export default function ServersPage() {
                         <select
                             value={filterNode}
                             onChange={(e) => setFilterNode(e.target.value)}
-                            className="h-7 bg-surface-higher border border-border rounded px-2 text-[12px] font-heading text-text-primary focus:outline-none focus:border-accent"
+                            className="h-7 bg-surface-higher border border-border rounded px-2 text-xs font-heading text-text-primary focus:outline-none focus:border-accent"
                         >
                             <option value="">All Nodes</option>
                             {nodes.map((n) => (
@@ -343,7 +343,7 @@ export default function ServersPage() {
 
                 {/* Error banner */}
                 {actionError && (
-                    <div className="mx-6 mt-4 flex items-center justify-between bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-[12px]">
+                    <div className="mx-6 mt-4 flex items-center justify-between bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-xs">
                         <span>{actionError}</span>
                         <button onClick={() => setActionError(null)} className="ml-4 hover:opacity-70" aria-label="Dismiss">
                             <X size={13}/>
@@ -360,7 +360,7 @@ export default function ServersPage() {
                             ))}
                         </div>
                     ) : filteredServers.length === 0 ? (
-                        <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-[13px]">
+                        <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-sm">
                             {servers.length === 0
                                 ? "No servers yet — create one to get started"
                                 : "No servers match the current filters"}
@@ -398,16 +398,16 @@ export default function ServersPage() {
                                     >
                                         {/* SERVER */}
                                         <td className="py-3 pr-4">
-                                            <p className="text-[13px] font-heading font-bold text-text-primary group-hover:text-accent transition-colors leading-none">
+                                            <p className="text-sm font-heading font-bold text-text-primary group-hover:text-accent transition-colors leading-none">
                                                 {server.display_name}
                                             </p>
                                             {server.is_migrating && (
-                                                <p className="mt-1 text-[12px] font-mono text-warning leading-none">
+                                                <p className="mt-1 text-xs font-mono text-warning leading-none">
                                                     ⟳ Migrating
                                                 </p>
                                             )}
                                             {server.exposed_externally && server.public_subdomain && (
-                                                <p className="mt-0.5 text-[12px] font-mono text-text-muted leading-none">
+                                                <p className="mt-0.5 text-xs font-mono text-text-muted leading-none">
                                                     {server.public_subdomain}
                                                 </p>
                                             )}
@@ -416,7 +416,7 @@ export default function ServersPage() {
                                         {/* TYPE */}
                                         <td className="py-3 pr-4">
                       <span
-                          className="font-mono text-[12px] uppercase tracking-wider text-text-dim border border-border px-1.5 py-0.5 rounded"
+                          className="font-mono text-xs uppercase tracking-wider text-text-dim border border-border px-1.5 py-0.5 rounded"
                           style={{background: "var(--text-dim-bg)"}}
                       >
                         {server.server_type}
@@ -426,7 +426,7 @@ export default function ServersPage() {
                                         {/* STATUS */}
                                         <td className="py-3 pr-4">
                       <span
-                          className={`text-[12px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${serverStatusClass(status)}`}
+                          className={`text-xs font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${serverStatusClass(status)}`}
                       >
                         {serverStatusLabel(status)}
                       </span>
@@ -434,7 +434,7 @@ export default function ServersPage() {
 
                                         {/* PLAYERS */}
                                         <td className="py-3 pr-4">
-                                            <span className="font-mono text-[12px] text-text-muted">—/—</span>
+                                            <span className="font-mono text-xs text-text-muted">—/—</span>
                                         </td>
 
                                         {/* RAM */}
@@ -444,7 +444,7 @@ export default function ServersPage() {
 
                                         {/* NODE */}
                                         <td className="py-3 pr-4">
-                      <span className="font-mono text-[12px] text-text-dim">
+                      <span className="font-mono text-xs text-text-dim">
                         {node?.display_name ?? `${server.node_id.slice(0, 8)}…`}
                       </span>
                                         </td>
@@ -483,15 +483,15 @@ export default function ServersPage() {
                                     >
                                         <div className="flex items-start justify-between gap-2">
                                             <div className="min-w-0">
-                                                <p className="text-[14px] font-heading font-bold text-text-primary truncate">{server.display_name}</p>
-                                                <p className="mt-0.5 font-mono text-[12px] text-text-dim truncate">
+                                                <p className="text-sm font-heading font-bold text-text-primary truncate">{server.display_name}</p>
+                                                <p className="mt-0.5 font-mono text-xs text-text-dim truncate">
                                                     {server.server_type} · {node?.display_name ?? `${server.node_id.slice(0, 8)}…`}
                                                 </p>
                                                 {server.exposed_externally && server.public_subdomain && (
-                                                    <p className="mt-0.5 font-mono text-[12px] text-text-muted truncate">{server.public_subdomain}</p>
+                                                    <p className="mt-0.5 font-mono text-xs text-text-muted truncate">{server.public_subdomain}</p>
                                                 )}
                                             </div>
-                                            <span className={`shrink-0 text-[12px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${serverStatusClass(status)}`}>
+                                            <span className={`shrink-0 text-xs font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${serverStatusClass(status)}`}>
                                                 {serverStatusLabel(status)}
                                             </span>
                                         </div>

@@ -55,7 +55,7 @@ function NetworkForm({
             <Field label="Description">
                 <TextField value={form.description} placeholder="Optional" onChange={(e) => setForm((f) => ({...f, description: e.target.value}))}/>
             </Field>
-            {error && <p className="text-[12px] text-error">{error}</p>}
+            {error && <p className="text-xs text-error">{error}</p>}
             <div className="flex justify-end gap-2 pt-1">
                 <button type="button" className={BTN_GHOST} onClick={onCancel}>Cancel</button>
                 <button type="submit" className={BTN_PRIMARY} disabled={saving}>{saving ? "Saving…" : submitLabel}</button>
@@ -123,19 +123,19 @@ export default function NetworksPage() {
 
             <div className="p-6">
                 {loading ? (
-                    <div className="text-[12px] text-text-muted">Loading…</div>
+                    <div className="text-xs text-text-muted">Loading…</div>
                 ) : networks.length === 0 ? (
-                    <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-[13px]">
+                    <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-sm">
                         No networks yet. Create one to group servers.
                     </div>
                 ) : (
                     <div className="bg-surface border border-border rounded-md overflow-hidden">
-                        <table className="hidden md:table w-full text-[12px]">
+                        <table className="hidden md:table w-full text-xs">
                             <thead>
                             <tr className="border-b border-border">
-                                <th className="text-left px-5 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Name</th>
-                                <th className="text-left px-4 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Servers</th>
-                                <th className="text-left px-4 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Description</th>
+                                <th className="text-left px-5 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Name</th>
+                                <th className="text-left px-4 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Servers</th>
+                                <th className="text-left px-4 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Description</th>
                                 <th className="px-4 py-3"/>
                             </tr>
                             </thead>
@@ -144,7 +144,7 @@ export default function NetworksPage() {
                                 <tr key={n.id} className="border-b border-border/50 hover:bg-surface-high/40">
                                     <td className="px-5 py-3 font-medium text-text-primary">{n.name}</td>
                                     <td className="px-4 py-3">
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-[12px] font-heading font-bold bg-surface-higher border border-border text-text-dim">
+                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-heading font-bold bg-surface-higher border border-border text-text-dim">
                         {n.server_count}
                       </span>
                                     </td>
@@ -182,12 +182,12 @@ export default function NetworksPage() {
                                 <div key={n.id} className="p-3">
                                     <div className="flex items-start justify-between gap-2">
                                         <div className="min-w-0">
-                                            <p className="text-[14px] font-medium text-text-primary truncate">{n.name}</p>
-                                            <p className="mt-0.5 font-mono text-[12px] text-text-dim">
+                                            <p className="text-sm font-medium text-text-primary truncate">{n.name}</p>
+                                            <p className="mt-0.5 font-mono text-xs text-text-dim">
                                                 {n.server_count} server{n.server_count !== 1 ? "s" : ""}
                                             </p>
                                             {n.description && (
-                                                <p className="mt-0.5 text-[12px] text-text-muted truncate">{n.description}</p>
+                                                <p className="mt-0.5 text-xs text-text-muted truncate">{n.description}</p>
                                             )}
                                         </div>
                                         <div className="flex items-center gap-1 shrink-0">
@@ -237,14 +237,14 @@ export default function NetworksPage() {
 
             {deleting && (
                 <Modal title="Delete Network" onClose={() => setDeleting(null)}>
-                    <p className="text-[13px] text-text-dim mb-4">
+                    <p className="text-sm text-text-dim mb-4">
                         Delete <span className="text-text-primary font-medium">{deleting.name}</span>? This cannot be undone.
                     </p>
-                    {deleteError && <p className="text-[12px] text-error mb-3">{deleteError}</p>}
+                    {deleteError && <p className="text-xs text-error mb-3">{deleteError}</p>}
                     <div className="flex justify-end gap-2">
                         <button className={BTN_GHOST} onClick={() => setDeleting(null)}>Cancel</button>
                         <button
-                            className="px-4 py-2 rounded text-[12px] font-heading font-bold uppercase tracking-wider bg-error text-bg hover:opacity-90 transition-opacity"
+                            className="px-4 py-2 rounded text-xs font-heading font-bold uppercase tracking-wider bg-error text-bg hover:opacity-90 transition-opacity"
                             onClick={handleDelete}
                         >
                             Delete

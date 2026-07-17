@@ -55,13 +55,13 @@ export function EditExposure({server, onSaved}: EditExposureProps) {
     return (
         <div className="bg-surface border border-border rounded p-4">
             <div className="flex items-center justify-between mb-3">
-                <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
+                <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">
                     Public Access
                 </p>
                 {!editing && (
                     <button
                         onClick={open}
-                        className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
+                        className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
                     >
                         Edit
                     </button>
@@ -78,7 +78,7 @@ export function EditExposure({server, onSaved}: EditExposureProps) {
             ) : (
                 <div className="space-y-3">
                     {error && (
-                        <p className="text-[12px] text-error">{error}</p>
+                        <p className="text-xs text-error">{error}</p>
                     )}
                     <EditFieldRow label="Expose Externally">
                         <div className="flex items-center gap-2 pt-1">
@@ -89,7 +89,7 @@ export function EditExposure({server, onSaved}: EditExposureProps) {
                                 onChange={(e) => setExposedExternally(e.target.checked)}
                                 className="accent-[var(--accent)] w-4 h-4"
                             />
-                            <label htmlFor="expose-externally" className="text-[12px] font-mono text-text-primary">
+                            <label htmlFor="expose-externally" className="text-xs font-mono text-text-primary">
                                 Expose via mc-router
                             </label>
                         </div>
@@ -102,7 +102,7 @@ export function EditExposure({server, onSaved}: EditExposureProps) {
                                     onChange={(e) => setPublicSubdomain(e.target.value)}
                                     placeholder="myserver"
                                 />
-                                <p className="text-[12px] text-text-muted mt-1">Subdomain under the platform domain (e.g. myserver.mc.example.com)</p>
+                                <p className="text-xs text-text-muted mt-1">Subdomain under the platform domain (e.g. myserver.mc.example.com)</p>
                             </EditFieldRow>
                             <EditFieldRow label="Custom Hostname">
                                 <EditInput
@@ -110,7 +110,7 @@ export function EditExposure({server, onSaved}: EditExposureProps) {
                                     onChange={(e) => setCustomHostname(e.target.value)}
                                     placeholder="play.example.com"
                                 />
-                                <p className="text-[12px] text-text-muted mt-1">Your own domain (bring-your-own-DNS)</p>
+                                <p className="text-xs text-text-muted mt-1">Your own domain (bring-your-own-DNS)</p>
                             </EditFieldRow>
                         </>
                     )}

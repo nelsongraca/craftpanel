@@ -30,7 +30,7 @@ export function HeaderActionButton({
             onClick={onClick}
             disabled={loading || disabled}
             title={label}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded border text-[12px] font-heading font-bold uppercase tracking-widest transition-colors disabled:opacity-40 ${cls}`}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded border text-xs font-heading font-bold uppercase tracking-widest transition-colors disabled:opacity-40 ${cls}`}
         >
             {loading ? (
                 <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin"/>

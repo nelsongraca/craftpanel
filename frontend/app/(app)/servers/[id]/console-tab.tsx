@@ -115,7 +115,7 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
     if (serverStatus !== "HEALTHY") {
         return (
             <div className="px-6 py-10 flex items-center justify-center">
-                <p className="text-text-muted text-[13px]">Server is not running</p>
+                <p className="text-text-muted text-sm">Server is not running</p>
             </div>
         );
     }
@@ -123,10 +123,10 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
     return (
         <div className="px-6 py-4 flex flex-col gap-2">
             {error && (
-                <p className="text-error text-[12px] font-mono">{error}</p>
+                <p className="text-error text-xs font-mono">{error}</p>
             )}
             {statusMsg && !error && (
-                <p className="text-text-muted text-[12px] font-mono">{statusMsg}</p>
+                <p className="text-text-muted text-xs font-mono">{statusMsg}</p>
             )}
             <div
                 ref={containerRef}

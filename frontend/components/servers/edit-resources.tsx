@@ -51,13 +51,13 @@ export function EditResources({server, onSaved}: EditResourcesProps) {
     return (
         <div className="bg-surface border border-border rounded p-4">
             <div className="flex items-center justify-between mb-3">
-                <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
+                <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">
                     Resources
                 </p>
                 {!editing && (
                     <button
                         onClick={open}
-                        className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
+                        className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
                     >
                         Edit
                     </button>
@@ -73,7 +73,7 @@ export function EditResources({server, onSaved}: EditResourcesProps) {
             ) : (
                 <div className="space-y-3">
                     {error && (
-                        <p className="text-[12px] text-error">{error}</p>
+                        <p className="text-xs text-error">{error}</p>
                     )}
                     <EditFieldRow label="RAM (MB)">
                         <EditInput
@@ -91,7 +91,7 @@ export function EditResources({server, onSaved}: EditResourcesProps) {
                             onChange={(e) => setCpuShares(Number(e.target.value))}
                             min={0}
                         />
-                        <p className="text-[12px] text-text-muted mt-1">0 = unlimited</p>
+                        <p className="text-xs text-text-muted mt-1">0 = unlimited</p>
                     </EditFieldRow>
                     <EditFieldRow label="itzg Image Tag">
                         <EditInput
@@ -110,7 +110,7 @@ export function EditResources({server, onSaved}: EditResourcesProps) {
                             <option value="java8"/>
                         </datalist>
                     </EditFieldRow>
-                    <p className="text-[12px] text-text-muted">All changes require a restart to take effect.</p>
+                    <p className="text-xs text-text-muted">All changes require a restart to take effect.</p>
                     <SaveCancelRow onSave={() => void save()} onCancel={() => setEditing(false)} saving={saving}/>
                 </div>
             )}

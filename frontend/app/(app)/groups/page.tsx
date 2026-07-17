@@ -76,11 +76,11 @@ function GroupForm({
             </Field>
 
             <div>
-                <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-3">Permissions</p>
+                <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted mb-3">Permissions</p>
                 <div className="space-y-4">
                     {PERMISSION_GROUPS.map((group) => (
                         <div key={group.label}>
-                            <p className="text-[12px] font-heading text-text-muted mb-2 uppercase tracking-widest">{group.label}</p>
+                            <p className="text-xs font-heading text-text-muted mb-2 uppercase tracking-widest">{group.label}</p>
                             <div className="grid grid-cols-2 gap-1.5">
                                 {group.nodes.map((node) => (
                                     <label key={node} className="flex items-center gap-2 cursor-pointer group">
@@ -90,7 +90,7 @@ function GroupForm({
                                             onChange={() => togglePerm(node)}
                                             className="accent-amber-500 shrink-0"
                                         />
-                                        <span className="text-[12px] font-mono text-text-dim group-hover:text-text-primary transition-colors truncate">
+                                        <span className="text-xs font-mono text-text-dim group-hover:text-text-primary transition-colors truncate">
                       {node}
                     </span>
                                     </label>
@@ -101,7 +101,7 @@ function GroupForm({
                 </div>
             </div>
 
-            {error && <p className="text-[12px] text-error">{error}</p>}
+            {error && <p className="text-xs text-error">{error}</p>}
             <div className="flex justify-end gap-2 pt-1">
                 <button type="button" className={BTN_GHOST} onClick={onCancel}>Cancel</button>
                 <button type="submit" className={BTN_PRIMARY} disabled={saving}>{saving ? "Saving…" : submitLabel}</button>
@@ -168,16 +168,16 @@ export default function GroupsPage() {
 
             <div className="p-6">
                 {loading ? (
-                    <div className="text-[12px] text-text-muted">Loading…</div>
+                    <div className="text-xs text-text-muted">Loading…</div>
                 ) : groups.length === 0 ? (
-                    <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-[13px]">No groups.</div>
+                    <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-sm">No groups.</div>
                 ) : (
                     <div className="bg-surface border border-border rounded-md overflow-hidden">
-                        <table className="w-full text-[12px]">
+                        <table className="w-full text-xs">
                             <thead>
                             <tr className="border-b border-border">
-                                <th className="text-left px-5 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Name</th>
-                                <th className="text-left px-4 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Permissions</th>
+                                <th className="text-left px-5 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Name</th>
+                                <th className="text-left px-4 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Permissions</th>
                                 <th className="px-4 py-3"/>
                             </tr>
                             </thead>
@@ -200,7 +200,7 @@ export default function GroupsPage() {
                           </span>
                                             ))}
                                             {g.permissions.length > 5 && (
-                                                <span className="text-[12px] text-text-muted">+{g.permissions.length - 5} more</span>
+                                                <span className="text-xs text-text-muted">+{g.permissions.length - 5} more</span>
                                             )}
                                         </div>
                                     </td>
@@ -255,14 +255,14 @@ export default function GroupsPage() {
 
             {deleting && (
                 <Modal title="Delete Group" onClose={() => setDeleting(null)}>
-                    <p className="text-[13px] text-text-dim mb-4">
+                    <p className="text-sm text-text-dim mb-4">
                         Delete <span className="text-text-primary font-medium">{deleting.name}</span>? All assignments for this group will be removed.
                     </p>
-                    {deleteError && <p className="text-[12px] text-error mb-3">{deleteError}</p>}
+                    {deleteError && <p className="text-xs text-error mb-3">{deleteError}</p>}
                     <div className="flex justify-end gap-2">
                         <button className={BTN_GHOST} onClick={() => setDeleting(null)}>Cancel</button>
                         <button
-                            className="px-4 py-2 rounded text-[12px] font-heading font-bold uppercase tracking-wider bg-error text-bg hover:opacity-90 transition-opacity"
+                            className="px-4 py-2 rounded text-xs font-heading font-bold uppercase tracking-wider bg-error text-bg hover:opacity-90 transition-opacity"
                             onClick={handleDelete}
                         >
                             Delete

@@ -32,7 +32,7 @@ export function FieldSection({
     const content = (
         <div className="divide-y divide-border">
             {dimmed && (
-                <div className="px-4 py-2 bg-warning/5 border-b border-warning/20 text-[12px] text-warning">
+                <div className="px-4 py-2 bg-warning/5 border-b border-warning/20 text-xs text-warning">
                     Manual mode active \u2014 these fields will not be applied to server.properties until you switch back to Managed.
                 </div>
             )}
@@ -56,7 +56,7 @@ export function FieldSection({
                 <div className="border border-border rounded overflow-hidden">
                     <CollapsibleTrigger className="w-full">
                         <div className="px-4 py-2.5 bg-surface-high flex items-center justify-between cursor-pointer hover:bg-surface-higher transition-colors">
-                            <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
+                            <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">
                                 {section.title}
                             </p>
                             {open ? (
@@ -75,7 +75,7 @@ export function FieldSection({
     return (
         <div className="border border-border rounded overflow-hidden">
             <div className="px-4 py-2.5 bg-surface-high border-b border-border">
-                <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
+                <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">
                     {section.title}
                 </p>
             </div>

@@ -35,7 +35,7 @@ function MiniBar({used, total, fmt = fmtMb}: { used: number; total: number; fmt?
     const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0;
     return (
         <div className="flex flex-col gap-1">
-      <span className="font-mono text-[12px] text-text-muted whitespace-nowrap">
+      <span className="font-mono text-xs text-text-muted whitespace-nowrap">
         {fmt(used)} / {fmt(total)}
       </span>
             <div className="w-20 h-1 rounded-full" style={{background: "var(--border)"}}>
@@ -76,7 +76,7 @@ function NodeActions({
                         onClick={() => doTrust(node.id)}
                         disabled={!!pending}
                         title="Trust node"
-                        className="flex items-center gap-1 px-2 py-1 text-[12px] font-heading font-bold uppercase tracking-wider border rounded-[2px] text-healthy border-healthy/40 hover:bg-healthy/10 transition-colors disabled:opacity-40"
+                        className="flex items-center gap-1 px-2 py-1 text-xs font-heading font-bold uppercase tracking-wider border rounded-[2px] text-healthy border-healthy/40 hover:bg-healthy/10 transition-colors disabled:opacity-40"
                     >
                         {pending === "trust" ? (
                             <span className="w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin"/>
@@ -89,7 +89,7 @@ function NodeActions({
                         onClick={() => doReject(node.id)}
                         disabled={!!pending}
                         title="Reject node"
-                        className="flex items-center gap-1 px-2 py-1 text-[12px] font-heading font-bold uppercase tracking-wider border rounded-[2px] text-error border-error/40 hover:bg-error/10 transition-colors disabled:opacity-40"
+                        className="flex items-center gap-1 px-2 py-1 text-xs font-heading font-bold uppercase tracking-wider border rounded-[2px] text-error border-error/40 hover:bg-error/10 transition-colors disabled:opacity-40"
                     >
                         {pending === "reject" ? (
                             <span className="w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin"/>
@@ -129,7 +129,7 @@ function NodeActions({
                                         setOpenMenuId(null);
                                         setEditNode(node);
                                     }}
-                                    className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
+                                    className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
                                 >
                                     <Pencil size={11} strokeWidth={2}/>
                                     Edit
@@ -139,7 +139,7 @@ function NodeActions({
                                         setOpenMenuId(null);
                                         doRotateToken(node.id);
                                     }}
-                                    className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
+                                    className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
                                 >
                                     <KeyRound size={11} strokeWidth={2}/>
                                     Rotate Key
@@ -150,7 +150,7 @@ function NodeActions({
                                             setOpenMenuId(null);
                                             doShutdown(node.id, node.display_name);
                                         }}
-                                        className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-wider text-warning hover:bg-surface-high transition-colors"
+                                        className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wider text-warning hover:bg-surface-high transition-colors"
                                     >
                                         <Power size={11} strokeWidth={2}/>
                                         Shutdown
@@ -162,7 +162,7 @@ function NodeActions({
                                             setOpenMenuId(null);
                                             doDecommission(node);
                                         }}
-                                        className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-wider text-error hover:bg-surface-high transition-colors"
+                                        className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wider text-error hover:bg-surface-high transition-colors"
                                     >
                                         <Trash2 size={11} strokeWidth={2}/>
                                         Decommission
@@ -223,7 +223,7 @@ function EditModal({
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
             <div className="bg-surface-higher border border-border rounded shadow-2xl w-[400px] p-6">
                 <div className="flex items-center justify-between mb-5">
-                    <p className="text-[13px] font-heading font-bold uppercase tracking-widest text-text-primary">
+                    <p className="text-sm font-heading font-bold uppercase tracking-widest text-text-primary">
                         Edit Node
                     </p>
                     <button onClick={onClose} className="text-text-muted hover:text-text-primary">
@@ -232,43 +232,43 @@ function EditModal({
                 </div>
 
                 {error && (
-                    <div className="mb-4 text-[12px] text-error bg-error/10 border border-error/30 rounded px-3 py-2">
+                    <div className="mb-4 text-xs text-error bg-error/10 border border-error/30 rounded px-3 py-2">
                         {error}
                     </div>
                 )}
 
                 <div className="space-y-4">
                     <label className="block">
-            <span className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">
+            <span className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">
               Display Name
             </span>
                         <input
                             value={displayName}
                             onChange={(e) => setDisplayName(e.target.value)}
-                            className="w-full h-8 bg-surface border border-border rounded px-2.5 text-[12px] font-mono text-text-primary focus:outline-none focus:border-accent"
+                            className="w-full h-8 bg-surface border border-border rounded px-2.5 text-xs font-mono text-text-primary focus:outline-none focus:border-accent"
                         />
                     </label>
                     <div className="grid grid-cols-2 gap-3">
                         <label className="block">
-              <span className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">
+              <span className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">
                 Port Range Start
               </span>
                             <input
                                 type="number"
                                 value={portStart}
                                 onChange={(e) => setPortStart(e.target.value)}
-                                className="w-full h-8 bg-surface border border-border rounded px-2.5 text-[12px] font-mono text-text-primary focus:outline-none focus:border-accent"
+                                className="w-full h-8 bg-surface border border-border rounded px-2.5 text-xs font-mono text-text-primary focus:outline-none focus:border-accent"
                             />
                         </label>
                         <label className="block">
-              <span className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">
+              <span className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">
                 Port Range End
               </span>
                             <input
                                 type="number"
                                 value={portEnd}
                                 onChange={(e) => setPortEnd(e.target.value)}
-                                className="w-full h-8 bg-surface border border-border rounded px-2.5 text-[12px] font-mono text-text-primary focus:outline-none focus:border-accent"
+                                className="w-full h-8 bg-surface border border-border rounded px-2.5 text-xs font-mono text-text-primary focus:outline-none focus:border-accent"
                             />
                         </label>
                     </div>
@@ -277,14 +277,14 @@ function EditModal({
                 <div className="flex justify-end gap-2 mt-6">
                     <button
                         onClick={onClose}
-                        className="px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted border border-border rounded hover:bg-surface-high transition-colors"
+                        className="px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-widest text-text-muted border border-border rounded hover:bg-surface-high transition-colors"
                     >
                         Cancel
                     </button>
                     <button
                         onClick={save}
                         disabled={saving}
-                        className="px-3 py-1.5 text-[12px] font-heading font-bold uppercase tracking-widest bg-accent text-bg rounded hover:bg-accent-bright transition-colors disabled:opacity-40"
+                        className="px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-widest bg-accent text-bg rounded hover:bg-accent-bright transition-colors disabled:opacity-40"
                     >
                         {saving ? "Saving…" : "Save"}
                     </button>
@@ -478,7 +478,7 @@ export default function NodesPage() {
                 <select
                     value={filterStatus}
                     onChange={(e) => setFilterStatus(e.target.value)}
-                    className="h-7 bg-surface-higher border border-border rounded px-2 text-[12px] font-heading text-text-primary focus:outline-none focus:border-accent"
+                    className="h-7 bg-surface-higher border border-border rounded px-2 text-xs font-heading text-text-primary focus:outline-none focus:border-accent"
                 >
                     {STATUS_FILTER_OPTIONS.map((o) => (
                         <option key={o.value} value={o.value}>{o.label}</option>
@@ -488,7 +488,7 @@ export default function NodesPage() {
 
             {/* Pending callout */}
             {!initialLoad && pendingNodes.length > 0 && (
-                <div className="mx-6 mt-4 flex items-center gap-3 bg-warning/10 border border-warning/30 rounded px-4 py-2.5 text-warning text-[12px] font-heading font-bold uppercase tracking-wider">
+                <div className="mx-6 mt-4 flex items-center gap-3 bg-warning/10 border border-warning/30 rounded px-4 py-2.5 text-warning text-xs font-heading font-bold uppercase tracking-wider">
                     <span className="w-2 h-2 rounded-full bg-warning shrink-0"/>
                     {pendingNodes.length} node{pendingNodes.length !== 1 ? "s" : ""} awaiting approval — review below
                 </div>
@@ -496,7 +496,7 @@ export default function NodesPage() {
 
             {/* Error banner */}
             {actionError && (
-                <div className="mx-6 mt-4 flex items-center justify-between bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-[12px]">
+                <div className="mx-6 mt-4 flex items-center justify-between bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-xs">
                     <span>{actionError}</span>
                     <button onClick={() => setActionError(null)} className="ml-4 hover:opacity-70" aria-label="Dismiss">
                         <X size={13}/>
@@ -513,7 +513,7 @@ export default function NodesPage() {
                         ))}
                     </div>
                 ) : filtered.length === 0 ? (
-                    <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-[13px]">
+                    <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-sm">
                         {nodes.length === 0
                             ? "No nodes registered yet — start an agent with a bootstrap token"
                             : "No nodes match the current filter"}
@@ -552,10 +552,10 @@ export default function NodesPage() {
                                 >
                                     {/* NODE */}
                                     <td className="py-3 pr-4">
-                                        <p className="text-[13px] font-heading font-bold text-text-primary group-hover:text-accent transition-colors leading-none">
+                                        <p className="text-sm font-heading font-bold text-text-primary group-hover:text-accent transition-colors leading-none">
                                             {node.display_name}
                                         </p>
-                                        <p className="mt-0.5 font-mono text-[12px] text-text-muted leading-none">
+                                        <p className="mt-0.5 font-mono text-xs text-text-muted leading-none">
                                             {node.hostname}
                                         </p>
                                     </td>
@@ -563,7 +563,7 @@ export default function NodesPage() {
                                     {/* STATUS */}
                                     <td className="py-3 pr-4">
                       <span
-                          className={`text-[12px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status, node.health)}`}
+                          className={`text-xs font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status, node.health)}`}
                       >
                         {nodeStatusLabel(node.status, node.health)}
                       </span>
@@ -581,13 +581,13 @@ export default function NodesPage() {
 
                                     {/* SERVERS */}
                                     <td className="py-3 pr-4">
-                                        <span className="font-mono text-[12px] text-text-dim">{servers}</span>
+                                        <span className="font-mono text-xs text-text-dim">{servers}</span>
                                     </td>
 
                                     {/* LAST SEEN */}
                                     <td className="py-3 pr-4">
                       <span
-                          className={`font-mono text-[12px] ${stale ? "text-error" : "text-text-muted"}`}
+                          className={`font-mono text-xs ${stale ? "text-error" : "text-text-muted"}`}
                       >
                         {lastSeen ? timeAgo(lastSeen) : "never"}
                       </span>
@@ -630,29 +630,29 @@ export default function NodesPage() {
                                 >
                                     <div className="flex items-start justify-between gap-2">
                                         <div className="min-w-0">
-                                            <p className="text-[14px] font-heading font-bold text-text-primary truncate">{node.display_name}</p>
-                                            <p className="mt-0.5 font-mono text-[12px] text-text-muted truncate">{node.hostname}</p>
+                                            <p className="text-sm font-heading font-bold text-text-primary truncate">{node.display_name}</p>
+                                            <p className="mt-0.5 font-mono text-xs text-text-muted truncate">{node.hostname}</p>
                                         </div>
-                                        <span className={`shrink-0 text-[12px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status, node.health)}`}>
+                                        <span className={`shrink-0 text-xs font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status, node.health)}`}>
                                             {nodeStatusLabel(node.status, node.health)}
                                         </span>
                                     </div>
                                     <div className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-1.5">
                                         <div>
-                                            <p className="text-[12px] text-text-muted">RAM</p>
+                                            <p className="text-xs text-text-muted">RAM</p>
                                             <MiniBar used={Math.max(node.allocated_ram_mb, node.system_ram_used_mb ?? 0)} total={node.total_ram_mb}/>
                                         </div>
                                         <div>
-                                            <p className="text-[12px] text-text-muted">CPU</p>
+                                            <p className="text-xs text-text-muted">CPU</p>
                                             <MiniBar used={node.allocated_cpu_shares} total={node.total_cpu_shares} fmt={fmtShares}/>
                                         </div>
                                         <div>
-                                            <p className="text-[12px] text-text-muted">Servers</p>
-                                            <p className="font-mono text-[12px] text-text-dim">{servers}</p>
+                                            <p className="text-xs text-text-muted">Servers</p>
+                                            <p className="font-mono text-xs text-text-dim">{servers}</p>
                                         </div>
                                         <div>
-                                            <p className="text-[12px] text-text-muted">Last seen</p>
-                                            <p className={`font-mono text-[12px] ${stale ? "text-error" : "text-text-muted"}`}>{lastSeen ? timeAgo(lastSeen) : "never"}</p>
+                                            <p className="text-xs text-text-muted">Last seen</p>
+                                            <p className={`font-mono text-xs ${stale ? "text-error" : "text-text-muted"}`}>{lastSeen ? timeAgo(lastSeen) : "never"}</p>
                                         </div>
                                     </div>
                                     <div className="mt-2.5 flex justify-end" onClick={(e) => e.stopPropagation()}>

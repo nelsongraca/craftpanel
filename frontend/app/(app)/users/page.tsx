@@ -46,7 +46,7 @@ function CreateUserModal({onClose, onDone}: { onClose: () => void; onDone: () =>
                 <Field label="Password">
                     <TextField type="password" value={form.password} onChange={(e) => setForm((f) => ({...f, password: e.target.value}))} required/>
                 </Field>
-                {error && <p className="text-[12px] text-error">{error}</p>}
+                {error && <p className="text-xs text-error">{error}</p>}
                 <div className="flex justify-end gap-2 pt-1">
                     <button type="button" className={BTN_GHOST} onClick={onClose}>Cancel</button>
                     <button type="submit" className={BTN_PRIMARY} disabled={saving}>{saving ? "Creating…" : "Create"}</button>
@@ -100,10 +100,10 @@ function EditUserModal({user, onClose, onDone}: { user: User; onClose: () => voi
                             onChange={(e) => setForm((f) => ({...f, isActive: e.target.checked}))}
                             className="accent-amber-500"
                         />
-                        <span className="text-[13px] text-text-dim">User is active</span>
+                        <span className="text-sm text-text-dim">User is active</span>
                     </label>
                 </Field>
-                {error && <p className="text-[12px] text-error">{error}</p>}
+                {error && <p className="text-xs text-error">{error}</p>}
                 <div className="flex justify-end gap-2 pt-1">
                     <button type="button" className={BTN_GHOST} onClick={onClose}>Cancel</button>
                     <button type="submit" className={BTN_PRIMARY} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
@@ -193,18 +193,18 @@ function AssignmentsModal({
             <div className="space-y-5">
                 {/* Current assignments */}
                 <div>
-                    <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-2">Current Assignments</p>
+                    <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted mb-2">Current Assignments</p>
                     {loading ? (
-                        <p className="text-[12px] text-text-muted">Loading…</p>
+                        <p className="text-xs text-text-muted">Loading…</p>
                     ) : assignments.length === 0 ? (
-                        <p className="text-[12px] text-text-muted">No assignments.</p>
+                        <p className="text-xs text-text-muted">No assignments.</p>
                     ) : (
                         <ul className="space-y-1">
                             {assignments.map((a) => (
                                 <li key={a.id} className="flex items-center justify-between bg-surface-high rounded px-3 py-2">
                                     <div>
-                                        <span className="text-[12px] text-text-primary">{groupName(a.group_id)}</span>
-                                        <span className="ml-2 text-[12px] text-text-muted">{scopeLabel(a)}</span>
+                                        <span className="text-xs text-text-primary">{groupName(a.group_id)}</span>
+                                        <span className="ml-2 text-xs text-text-muted">{scopeLabel(a)}</span>
                                     </div>
                                     <button onClick={() => handleRemove(a.id)} className="text-text-muted hover:text-error transition-colors ml-2">
                                         <Trash2 size={13}/>
@@ -217,7 +217,7 @@ function AssignmentsModal({
 
                 {/* Add assignment */}
                 <div className="border-t border-border pt-4 space-y-3">
-                    <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Add Assignment</p>
+                    <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Add Assignment</p>
                     <Field label="Group">
                         <SelectField value={newGroup} onChange={(e) => setNewGroup(e.target.value)}>
                             <option value="">Select…</option>
@@ -252,7 +252,7 @@ function AssignmentsModal({
                             </SelectField>
                         </Field>
                     )}
-                    {addError && <p className="text-[12px] text-error">{addError}</p>}
+                    {addError && <p className="text-xs text-error">{addError}</p>}
                     <button className={BTN_PRIMARY} onClick={handleAdd}>Add</button>
                 </div>
             </div>
@@ -304,18 +304,18 @@ export default function UsersPage() {
 
             <div className="p-6">
                 {loading ? (
-                    <div className="text-[12px] text-text-muted">Loading…</div>
+                    <div className="text-xs text-text-muted">Loading…</div>
                 ) : users.length === 0 ? (
-                    <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-[13px]">No users yet.</div>
+                    <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-sm">No users yet.</div>
                 ) : (
                     <div className="bg-surface border border-border rounded-md overflow-hidden">
-                        <table className="hidden md:table w-full text-[12px]">
+                        <table className="hidden md:table w-full text-xs">
                             <thead>
                             <tr className="border-b border-border">
-                                <th className="text-left px-5 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Username</th>
-                                <th className="text-left px-4 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Email</th>
-                                <th className="text-left px-4 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Status</th>
-                                <th className="text-left px-4 py-3 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">Created</th>
+                                <th className="text-left px-5 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Username</th>
+                                <th className="text-left px-4 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Email</th>
+                                <th className="text-left px-4 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Status</th>
+                                <th className="text-left px-4 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Created</th>
                                 <th className="px-4 py-3"/>
                             </tr>
                             </thead>
@@ -326,11 +326,11 @@ export default function UsersPage() {
                                     <td className="px-4 py-3 text-text-dim">{u.email}</td>
                                     <td className="px-4 py-3">
                       <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-[12px] font-heading font-bold uppercase tracking-wider border ${u.is_active ? "text-healthy border-healthy/30 bg-healthy/10" : "text-text-muted border-border bg-surface-high"}`}>
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-heading font-bold uppercase tracking-wider border ${u.is_active ? "text-healthy border-healthy/30 bg-healthy/10" : "text-text-muted border-border bg-surface-high"}`}>
                         {u.is_active ? "Active" : "Inactive"}
                       </span>
                                     </td>
-                                    <td className="px-4 py-3 text-text-muted font-mono text-[12px]">
+                                    <td className="px-4 py-3 text-text-muted font-mono text-xs">
                                         {new Date(u.created_at).toLocaleDateString()}
                                     </td>
                                     <td className="px-4 py-3">
@@ -366,13 +366,13 @@ export default function UsersPage() {
                                 <div key={u.id} className="p-3">
                                     <div className="flex items-start justify-between gap-2">
                                         <div className="min-w-0">
-                                            <p className="text-[14px] font-medium text-text-primary truncate">{u.username}</p>
-                                            <p className="mt-0.5 text-[12px] text-text-dim truncate">{u.email}</p>
-                                            <p className="mt-0.5 font-mono text-[12px] text-text-muted">
+                                            <p className="text-sm font-medium text-text-primary truncate">{u.username}</p>
+                                            <p className="mt-0.5 text-xs text-text-dim truncate">{u.email}</p>
+                                            <p className="mt-0.5 font-mono text-xs text-text-muted">
                                                 Created {new Date(u.created_at).toLocaleDateString()}
                                             </p>
                                         </div>
-                                        <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded text-[12px] font-heading font-bold uppercase tracking-wider border ${u.is_active ? "text-healthy border-healthy/30 bg-healthy/10" : "text-text-muted border-border bg-surface-high"}`}>
+                                        <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded text-xs font-heading font-bold uppercase tracking-wider border ${u.is_active ? "text-healthy border-healthy/30 bg-healthy/10" : "text-text-muted border-border bg-surface-high"}`}>
                                             {u.is_active ? "Active" : "Inactive"}
                                         </span>
                                     </div>
@@ -421,14 +421,14 @@ export default function UsersPage() {
 
             {deleting && (
                 <Modal title="Delete User" onClose={() => setDeleting(null)}>
-                    <p className="text-[13px] text-text-dim mb-4">
+                    <p className="text-sm text-text-dim mb-4">
                         Delete <span className="text-text-primary font-medium">{deleting.username}</span>? This action cannot be undone.
                     </p>
-                    {deleteError && <p className="text-[12px] text-error mb-3">{deleteError}</p>}
+                    {deleteError && <p className="text-xs text-error mb-3">{deleteError}</p>}
                     <div className="flex justify-end gap-2">
                         <button className={BTN_GHOST} onClick={() => setDeleting(null)}>Cancel</button>
                         <button
-                            className="px-4 py-2 rounded text-[12px] font-heading font-bold uppercase tracking-wider bg-error text-bg hover:opacity-90 transition-opacity"
+                            className="px-4 py-2 rounded text-xs font-heading font-bold uppercase tracking-wider bg-error text-bg hover:opacity-90 transition-opacity"
                             onClick={handleDelete}
                         >
                             Delete

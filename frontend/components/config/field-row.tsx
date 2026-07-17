@@ -72,7 +72,7 @@ function TagInput({
                 {tags.map((tag) => (
                     <span
                         key={tag}
-                        className="inline-flex items-center gap-1 bg-surface-higher border border-border rounded px-2 py-0.5 text-[12px] font-mono text-text-primary"
+                        className="inline-flex items-center gap-1 bg-surface-higher border border-border rounded px-2 py-0.5 text-xs font-mono text-text-primary"
                     >
                         {tag}
                         {!disabled && (
@@ -93,7 +93,7 @@ function TagInput({
                         onChange={(e) => setInputVal(e.target.value)}
                         onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addTag())}
                         placeholder="Add entry…"
-                        className="bg-surface-higher border border-border rounded px-2 py-1 text-[12px] font-mono text-text-primary w-48 focus:border-accent/50 focus:outline-none"
+                        className="bg-surface-higher border border-border rounded px-2 py-1 text-xs font-mono text-text-primary w-48 focus:border-accent/50 focus:outline-none"
                     />
                     <button
                         onClick={addTag}
@@ -127,9 +127,9 @@ export function FieldRow({
     return (
         <div className={`px-4 py-3 flex items-start gap-4 ${dimmed ? "opacity-80" : ""}`}>
             <div className="w-56 shrink-0 pt-0.5">
-                <p className="text-[12px] text-text-primary font-medium">{field.label}</p>
+                <p className="text-xs text-text-primary font-medium">{field.label}</p>
                 {field.hint && (
-                    <p className="text-[12px] text-text-muted mt-0.5">{field.hint}</p>
+                    <p className="text-xs text-text-muted mt-0.5">{field.hint}</p>
                 )}
             </div>
             <div className="flex-1">

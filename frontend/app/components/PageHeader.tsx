@@ -12,7 +12,7 @@ export default function PageHeader({title, subtitle, action}: PageHeaderProps) {
                     {title}
                 </h1>
                 {subtitle && (
-                    <p className="text-[12px] text-text-muted mt-0.5">{subtitle}</p>
+                    <p className="text-xs text-text-muted mt-0.5">{subtitle}</p>
                 )}
             </div>
             {action && <div className="shrink-0 ml-4">{action}</div>}

@@ -9,6 +9,12 @@
     --font-mono: var(--font-mono);
     --font-heading: var(--font-condensed);
 
+    /* Type scale — overrides Tailwind defaults, drives every text-xs/sm/base/lg usage */
+    --text-xs: 0.8125rem;
+    --text-sm: 0.875rem;
+    --text-base: 1rem;
+    --text-lg: 1.125rem;
+
     /* shadcn semantic tokens */
     --color-card: var(--card);
     --color-card-foreground: var(--card-foreground);
@@ -143,5 +149,6 @@
 
     html {
         @apply font-sans;
+        font-size: 16px;
     }
 }

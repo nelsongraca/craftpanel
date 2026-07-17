@@ -29,7 +29,7 @@ type Tab = (typeof TABS)[number];
 function ComingSoon({tab}: { tab: string }) {
     return (
         <div className="px-6 py-10">
-            <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-[13px]">
+            <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-sm">
                 {tab} \u2014 coming soon
             </div>
         </div>
@@ -193,7 +193,7 @@ export default function ServerDetailPage() {
 
     if (notFound || !server) {
         return (
-            <div className="px-6 py-10 text-center text-text-muted text-[13px]">
+            <div className="px-6 py-10 text-center text-text-muted text-sm">
                 Server not found.{" "}
                 <Link href="/servers" className="text-accent hover:underline">
                     Back to servers
@@ -214,7 +214,7 @@ export default function ServerDetailPage() {
             <div className="px-6 pt-6 pb-5 border-b border-border">
 
                 {/* Breadcrumb */}
-                <div className="flex items-center gap-1.5 text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted mb-4">
+                <div className="flex items-center gap-1.5 text-xs font-heading font-bold uppercase tracking-wider text-text-muted mb-4">
                     <Link href="/servers" className="hover:text-text-primary transition-colors">
                         Servers
                     </Link>
@@ -240,7 +240,7 @@ export default function ServerDetailPage() {
                             {server.display_name}
                         </h1>
                         <span
-                            className={`text-[12px] font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${serverStatusClass(sStatus)}`}
+                            className={`text-xs font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${serverStatusClass(sStatus)}`}
                         >
               {serverStatusLabel(sStatus)}
             </span>
@@ -307,7 +307,7 @@ export default function ServerDetailPage() {
                                                 setMenuOpen(false);
                                                 setActiveTab("Migration");
                                             }}
-                                            className="flex items-center gap-2 w-full text-left px-3 py-2 text-[12px] font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
+                                            className="flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
                                         >
                                             <Shuffle size={12} strokeWidth={2}/>
                                             Migrate
@@ -321,14 +321,14 @@ export default function ServerDetailPage() {
 
                 {/* Type / config badges */}
                 <div className="flex items-center gap-2 mt-3 flex-wrap">
-                    <span className="font-mono text-[12px] uppercase tracking-wider text-text-dim border border-border bg-surface-high px-1.5 py-0.5 rounded">
+                    <span className="font-mono text-xs uppercase tracking-wider text-text-dim border border-border bg-surface-high px-1.5 py-0.5 rounded">
                         {server.server_type}
                     </span>
-                    <span className="font-mono text-[12px] uppercase tracking-wider text-text-dim border border-border bg-surface-high px-1.5 py-0.5 rounded">
+                    <span className="font-mono text-xs uppercase tracking-wider text-text-dim border border-border bg-surface-high px-1.5 py-0.5 rounded">
                         {server.config_mode}
                     </span>
                     {server.is_migrating && (
-                        <span className="font-mono text-[12px] uppercase tracking-wider text-warning border border-warning/30 bg-warning/10 px-1.5 py-0.5 rounded">
+                        <span className="font-mono text-xs uppercase tracking-wider text-warning border border-warning/30 bg-warning/10 px-1.5 py-0.5 rounded">
                             \u27f3 Migrating
                         </span>
                     )}
@@ -336,14 +336,14 @@ export default function ServerDetailPage() {
 
                 {/* Hostname */}
                 {server.exposed_externally && server.public_subdomain && (
-                    <p className="mt-2 font-mono text-[12px] text-text-muted">
+                    <p className="mt-2 font-mono text-xs text-text-muted">
                         {server.public_subdomain}
                     </p>
                 )}
 
                 {/* Node */}
                 {node && (
-                    <p className="mt-1 text-[12px] font-heading text-text-muted">
+                    <p className="mt-1 text-xs font-heading text-text-muted">
                         Node:{" "}
                         <Link
                             href={`/nodes/${node.id}`}
@@ -357,7 +357,7 @@ export default function ServerDetailPage() {
 
             {/* Error banner */}
             {actionError && (
-                <div className="mx-6 mt-4 flex items-center justify-between bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-[12px]">
+                <div className="mx-6 mt-4 flex items-center justify-between bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-xs">
                     <span>{actionError}</span>
                     <button onClick={() => setActionError(null)} className="ml-4 hover:opacity-70">
                         <X size={13}/>
@@ -367,12 +367,12 @@ export default function ServerDetailPage() {
 
             {/* Restart required banner */}
             {server.needs_recreate && (
-                <div className="mx-6 mt-4 flex items-center justify-between bg-warning/10 border border-warning/30 text-warning rounded px-3 py-2 text-[12px]">
+                <div className="mx-6 mt-4 flex items-center justify-between bg-warning/10 border border-warning/30 text-warning rounded px-3 py-2 text-xs">
                     <span>Settings saved. Restart the server for changes to take effect.</span>
                     {(server.status === "HEALTHY") && hasPermission(permissions, "server.restart") && (
                         <button
                             onClick={() => void doAction("restart")}
-                            className="ml-4 shrink-0 text-[12px] font-heading font-bold uppercase tracking-wider underline hover:no-underline"
+                            className="ml-4 shrink-0 text-xs font-heading font-bold uppercase tracking-wider underline hover:no-underline"
                         >
                             Restart Now
                         </button>
@@ -387,7 +387,7 @@ export default function ServerDetailPage() {
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         className={[
-                            "relative px-4 py-3 text-[12px] font-heading font-bold uppercase tracking-widest transition-colors",
+                            "relative px-4 py-3 text-xs font-heading font-bold uppercase tracking-widest transition-colors",
                             activeTab === tab
                                 ? "text-accent after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-accent"
                                 : "text-text-dim hover:text-text-primary",

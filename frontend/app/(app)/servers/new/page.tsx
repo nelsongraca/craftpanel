@@ -37,7 +37,7 @@ const PROXY_TYPES = ["VELOCITY", "BUNGEECORD", "WATERFALL"] as const;
 
 function Label({children, required}: { children: React.ReactNode; required?: boolean }) {
     return (
-        <label className="block text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted mb-1.5">
+        <label className="block text-xs font-heading font-bold uppercase tracking-wider text-text-muted mb-1.5">
             {children}
             {required && <span className="text-error ml-1">*</span>}
         </label>
@@ -58,7 +58,7 @@ function FieldTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>)
 
 function SectionHeading({children}: { children: React.ReactNode }) {
     return (
-        <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted mb-3 mt-6 first:mt-0">
+        <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted mb-3 mt-6 first:mt-0">
             {children}
         </p>
     );
@@ -113,7 +113,7 @@ export default function NewServerPage() {
 
     if (!hasPermission(permissions, "server.create")) {
         return (
-            <div className="px-6 py-10 text-center text-text-muted text-[13px]">
+            <div className="px-6 py-10 text-center text-text-muted text-sm">
                 You do not have permission to create servers.{" "}
                 <Link href="/servers" className="text-accent hover:underline">Back to servers</Link>
             </div>
@@ -161,7 +161,7 @@ export default function NewServerPage() {
             <div className="mb-8">
                 <Link
                     href="/servers"
-                    className="inline-flex items-center gap-1.5 text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-text-primary transition-colors mb-4"
+                    className="inline-flex items-center gap-1.5 text-xs font-heading font-bold uppercase tracking-wider text-text-muted hover:text-text-primary transition-colors mb-4"
                 >
                     <ChevronLeft size={11} strokeWidth={2.5}/>
                     Servers
@@ -172,7 +172,7 @@ export default function NewServerPage() {
             </div>
 
             {error && (
-                <div className="mb-6 bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-[12px]">
+                <div className="mb-6 bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-xs">
                     {error}
                 </div>
             )}
@@ -193,7 +193,7 @@ export default function NewServerPage() {
                             pattern="[a-z0-9][a-z0-9\-]*"
                             title="Lowercase letters, numbers and hyphens"
                         />
-                        <p className="mt-1 text-[12px] text-text-muted">Unique slug used internally and for container naming.</p>
+                        <p className="mt-1 text-xs text-text-muted">Unique slug used internally and for container naming.</p>
                     </div>
                     <div>
                         <Label>Display Name</Label>
@@ -246,7 +246,7 @@ export default function NewServerPage() {
                                     required
                                 />
                             )}
-                            <p className="mt-1 text-[12px] text-text-muted">Release versions from Mojang. Passed to itzg as VERSION env var.</p>
+                            <p className="mt-1 text-xs text-text-muted">Release versions from Mojang. Passed to itzg as VERSION env var.</p>
                         </div>
                     )}
 
@@ -268,7 +268,7 @@ export default function NewServerPage() {
                             <option value="java11"/>
                             <option value="java8"/>
                         </datalist>
-                        <p className="mt-1 text-[12px] text-text-muted">Docker image tag for itzg/minecraft-server or itzg/mc-proxy.</p>
+                        <p className="mt-1 text-xs text-text-muted">Docker image tag for itzg/minecraft-server or itzg/mc-proxy.</p>
                     </div>
                 </div>
 
@@ -326,7 +326,7 @@ export default function NewServerPage() {
                             onChange={(e) => setCpuShares(Number(e.target.value))}
                             min={0}
                         />
-                        <p className="mt-1 text-[12px] text-text-muted">Docker CPU share value. 0 = unlimited.</p>
+                        <p className="mt-1 text-xs text-text-muted">Docker CPU share value. 0 = unlimited.</p>
                     </div>
                 </div>
 
@@ -334,14 +334,14 @@ export default function NewServerPage() {
                 <div className="flex items-center justify-end gap-3 pt-2">
                     <Link
                         href="/servers"
-                        className="px-4 py-2 text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted hover:text-text-primary transition-colors"
+                        className="px-4 py-2 text-xs font-heading font-bold uppercase tracking-widest text-text-muted hover:text-text-primary transition-colors"
                     >
                         Cancel
                     </Link>
                     <button
                         type="submit"
                         disabled={submitting || loadingData}
-                        className="px-5 py-2 rounded bg-accent text-bg text-[12px] font-heading font-bold uppercase tracking-widest hover:bg-accent-bright transition-colors disabled:opacity-50"
+                        className="px-5 py-2 rounded bg-accent text-bg text-xs font-heading font-bold uppercase tracking-widest hover:bg-accent-bright transition-colors disabled:opacity-50"
                     >
                         {submitting ? "Creating…" : "Create Server"}
                     </button>

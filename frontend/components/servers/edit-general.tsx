@@ -76,13 +76,13 @@ export function EditGeneral({server, forceOpenSignal, onSaved}: EditGeneralProps
     return (
         <div className="bg-surface border border-border rounded p-4">
             <div className="flex items-center justify-between mb-3">
-                <p className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted">
+                <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">
                     General Settings
                 </p>
                 {!editing && (
                     <button
                         onClick={open}
-                        className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
+                        className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
                     >
                         Edit
                     </button>
@@ -99,7 +99,7 @@ export function EditGeneral({server, forceOpenSignal, onSaved}: EditGeneralProps
             ) : (
                 <div className="space-y-3">
                     {error && (
-                        <p className="text-[12px] text-error">{error}</p>
+                        <p className="text-xs text-error">{error}</p>
                     )}
                     <EditFieldRow label="Display Name">
                         <EditInput
@@ -136,7 +136,7 @@ export function EditGeneral({server, forceOpenSignal, onSaved}: EditGeneralProps
                                     placeholder="1.21.4"
                                 />
                             )}
-                            <p className="text-[12px] text-text-muted mt-1">Requires restart to take effect.</p>
+                            <p className="text-xs text-text-muted mt-1">Requires restart to take effect.</p>
                         </EditFieldRow>
                     )}
                     <SaveCancelRow onSave={() => void save()} onCancel={() => setEditing(false)} saving={saving}/>

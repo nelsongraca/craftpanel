@@ -98,7 +98,7 @@ export default function SettingsPage() {
         return (
             <div>
                 <PageHeader title="Settings" subtitle="Runtime configuration"/>
-                <div className="p-6 text-[13px] text-text-muted">You do not have permission to view or edit system settings.</div>
+                <div className="p-6 text-sm text-text-muted">You do not have permission to view or edit system settings.</div>
             </div>
         );
     }
@@ -109,13 +109,13 @@ export default function SettingsPage() {
 
             <div className="p-6">
                 {loading ? (
-                    <div className="text-[12px] text-text-muted">Loading…</div>
+                    <div className="text-xs text-text-muted">Loading…</div>
                 ) : form ? (
-                    <form onSubmit={handleSubmit} className="max-w-2xl space-y-8">
+                    <form onSubmit={handleSubmit} className="max-w-4xl space-y-8">
 
                         {/* ── Metrics & Backups ────────────────────────────────── */}
                         <section className="bg-surface border border-border rounded-md p-5 space-y-5">
-                            <h2 className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                            <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
                                 Metrics &amp; Backups
                             </h2>
                             <Field label="Metric Retention (days)">
@@ -140,7 +140,7 @@ export default function SettingsPage() {
 
                         {/* ── Port Range ──────────────────────────────────────── */}
                         <section className="bg-surface border border-border rounded-md p-5 space-y-5">
-                            <h2 className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                            <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
                                 Default Port Range
                             </h2>
                             <div className="grid grid-cols-2 gap-4">
@@ -169,7 +169,7 @@ export default function SettingsPage() {
 
                         {/* ── Crash Restart ───────────────────────────────────── */}
                         <section className="bg-surface border border-border rounded-md p-5 space-y-5">
-                            <h2 className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                            <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
                                 Crash Restart
                             </h2>
                             <Field label="Max Restart Attempts">
@@ -180,7 +180,7 @@ export default function SettingsPage() {
                                     onChange={(e) => set("restart_max_attempts", e.target.value)}
                                     required
                                 />
-                                <p className="text-[11px] text-text-muted mt-1">Set to 0 to disable automatic crash restarts. Takes effect on master restart.</p>
+                                <p className="text-xs text-text-muted mt-1">Set to 0 to disable automatic crash restarts. Takes effect on master restart.</p>
                             </Field>
                             <Field label="Restart Window (seconds)">
                                 <TextField
@@ -190,16 +190,16 @@ export default function SettingsPage() {
                                     onChange={(e) => set("restart_window_seconds", e.target.value)}
                                     required
                                 />
-                                <p className="text-[11px] text-text-muted mt-1">Rolling window for counting consecutive crashes. Takes effect on master restart.</p>
+                                <p className="text-xs text-text-muted mt-1">Rolling window for counting consecutive crashes. Takes effect on master restart.</p>
                             </Field>
                         </section>
 
                         {/* ── Rate Limits ─────────────────────────────────────── */}
                         <section className="bg-surface border border-border rounded-md p-5 space-y-5">
-                            <h2 className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                            <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
                                 Auth Rate Limits
                             </h2>
-                            <p className="text-[11px] text-text-muted -mt-2">Rate limit changes take effect on master restart.</p>
+                            <p className="text-xs text-text-muted -mt-2">Rate limit changes take effect on master restart.</p>
                             <div className="grid grid-cols-2 gap-4">
                                 <Field label="Login requests / minute">
                                     <TextField
@@ -224,10 +224,10 @@ export default function SettingsPage() {
 
                         {/* ── Container Images ────────────────────────────────── */}
                         <section className="bg-surface border border-border rounded-md p-5 space-y-5">
-                            <h2 className="text-[12px] font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                            <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
                                 Container Images
                             </h2>
-                            <p className="text-[11px] text-text-muted -mt-2">Image overrides take effect on master restart.</p>
+                            <p className="text-xs text-text-muted -mt-2">Image overrides take effect on master restart.</p>
                             <Field label="Minecraft image">
                                 <TextField
                                     type="text"
@@ -248,8 +248,8 @@ export default function SettingsPage() {
                             </Field>
                         </section>
 
-                        {error && <p className="text-[12px] text-error">{error}</p>}
-                        {success && <p className="text-[12px] text-healthy">Settings saved.</p>}
+                        {error && <p className="text-xs text-error">{error}</p>}
+                        {success && <p className="text-xs text-healthy">Settings saved.</p>}
 
                         <div className="flex justify-end">
                             <button type="submit" className={BTN_PRIMARY} disabled={saving}>
@@ -258,7 +258,7 @@ export default function SettingsPage() {
                         </div>
                     </form>
                 ) : (
-                    <div className="text-[12px] text-error">Failed to load settings.</div>
+                    <div className="text-xs text-error">Failed to load settings.</div>
                 )}
             </div>
         </div>

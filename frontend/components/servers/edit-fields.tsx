@@ -18,7 +18,7 @@ export function EditTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaEle
 export function EditFieldRow({label, children}: { label: string; children: React.ReactNode }) {
     return (
         <div className="space-y-1">
-            <p className="text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted">{label}</p>
+            <p className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted">{label}</p>
             {children}
         </div>
     );
@@ -37,14 +37,14 @@ export function SaveCancelRow({
         <div className="flex items-center justify-end gap-2 pt-1">
             <button
                 onClick={onCancel}
-                className="px-3 py-1 text-[12px] font-heading font-bold uppercase tracking-wider text-text-muted hover:text-text-primary transition-colors"
+                className="px-3 py-1 text-xs font-heading font-bold uppercase tracking-wider text-text-muted hover:text-text-primary transition-colors"
             >
                 Cancel
             </button>
             <button
                 onClick={onSave}
                 disabled={saving}
-                className="px-3 py-1 rounded bg-accent text-bg text-[12px] font-heading font-bold uppercase tracking-wider hover:bg-accent-bright transition-colors disabled:opacity-50"
+                className="px-3 py-1 rounded bg-accent text-bg text-xs font-heading font-bold uppercase tracking-wider hover:bg-accent-bright transition-colors disabled:opacity-50"
             >
                 {saving ? "Saving\u2026" : "Save"}
             </button>
