@@ -88,15 +88,8 @@ ENTRYPOINT ["bin/agent"]
 
 ### Docker GID
 
-The agent process needs access to the Docker socket on the host node (`/var/run/docker.sock`). The GID of the `docker` group varies between host distributions. At container startup the agent image
-detects the GID dynamically:
-
-```bash
-DOCKER_GID=$(getent group docker | cut -d: -f3)
-```
-
-This value is passed as a runtime environment variable when running the agent container so the process can be added to the correct group. It can be overridden explicitly if the host uses a
-non-standard GID.
+The agent process needs access to the Docker socket on the host node (`/var/run/docker.sock`). The GID of the `docker` group varies between host distributions, so `docker-entrypoint.sh` detects it
+at container startup — `stat -c %g` on the mounted socket — and adds the `craftpanel` user to that GID before `su-exec` drops privileges. No `group_add:` or build-time GID needed in compose files.
 
 ---
 

@@ -112,9 +112,6 @@ services:
       # Server data must be a bind-mount (not a named volume) so that Docker can pass
       # HOST_DATA_PATH to Minecraft server containers as a bind-mount source.
       - ${HOST_DATA_PATH:-/opt/craftpanel/data}:/data
-    # Adjust the GID to match your host's docker group: stat -c %g /var/run/docker.sock
-    group_add:
-      - "999"
     depends_on:
       master:
         condition: service_healthy

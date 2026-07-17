@@ -20,8 +20,6 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
       - agent-config:/app/config
       - /opt/craftpanel/data:/data
-    group_add:
-      - "999"  # match the host's docker group GID: stat -c %g /var/run/docker.sock
     restart: unless-stopped
 
 volumes:

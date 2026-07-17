@@ -185,8 +185,6 @@ services:
       # Server data directory — must be a host bind-mount, NOT a named volume.
       # Docker containers launched by the agent use HOST_DATA_PATH on the host directly.
       - /srv/craftpanel:/srv/craftpanel
-    group_add:
-      - "999"   # docker group GID — adjust to match host
 
 volumes:
   node_data:
