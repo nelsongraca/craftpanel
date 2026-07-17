@@ -149,7 +149,7 @@ export default function Shell({children}: { children: React.ReactNode }) {
             </header>
 
             {/* Body: sidebar + content */}
-            <div className="flex flex-1 min-h-0 relative">
+            <div className="flex flex-1 min-h-0 relative max-w-[1800px] w-full mx-auto">
                 {/* Backdrop — only < md, only when drawer open */}
                 {drawerOpen && (
                     <div
@@ -202,9 +202,7 @@ export default function Shell({children}: { children: React.ReactNode }) {
 
                 {/* Content area */}
                 <main className="flex-1 overflow-auto bg-bg">
-                    <div className="max-w-[1600px] mx-auto">
-                        {children}
-                    </div>
+                    {children}
                 </main>
             </div>
 

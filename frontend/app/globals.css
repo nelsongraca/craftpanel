@@ -154,7 +154,13 @@
 
     @media (min-width: 1920px) {
         html {
-            font-size: 18px;
+            font-size: 19px;
+        }
+    }
+
+    @media (min-width: 2560px) {
+        html {
+            font-size: 21px;
         }
     }
 }
