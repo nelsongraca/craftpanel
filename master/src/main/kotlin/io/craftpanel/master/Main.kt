@@ -155,14 +155,14 @@ fun Application.module() {
         allowMethod(HttpMethod.Put)
         allowMethod(HttpMethod.Patch)
         allowMethod(HttpMethod.Delete)
-        if (appConfig.cors.allowedHosts.isEmpty()) {
+        if (appConfig.cors.origins.isEmpty()) {
             if (appConfig.profile == "dev") {
-                this@module.log.warn("CORS: no allowedHosts configured — allowing all origins (dev mode)")
+                this@module.log.warn("CORS: no PUBLIC_URLS configured — allowing all origins (dev mode)")
                 anyHost()
             }
         } else {
-            for (host in appConfig.cors.allowedHosts) {
-                allowHost(host, schemes = appConfig.cors.allowedSchemes)
+            for (origin in appConfig.cors.origins) {
+                allowHost(origin.host, schemes = listOf(origin.scheme))
             }
         }
     }

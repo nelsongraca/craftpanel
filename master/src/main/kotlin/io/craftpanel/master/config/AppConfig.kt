@@ -2,19 +2,9 @@ package io.craftpanel.master.config
 
 import io.ktor.server.config.*
 
-data class DatabaseConfig(
-    val url: String,
-    val username: String,
-    val password: String,
-    val maximumPoolSize: Int,
-)
+data class DatabaseConfig(val url: String, val username: String, val password: String, val maximumPoolSize: Int)
 
-data class JwtConfig(
-    val secret: String,
-    val issuer: String,
-    val audience: String,
-    val expirySeconds: Long,
-)
+data class JwtConfig(val secret: String, val issuer: String, val audience: String, val expirySeconds: Long)
 
 data class GrpcConfig(
     val port: Int,
@@ -23,67 +13,45 @@ data class GrpcConfig(
     // Directory where auto-generated CA and server certs are persisted.
     // Ignored when tlsCertPath/tlsKeyPath are set explicitly.
     val certStorePath: String,
-    val tlsSans: List<String>,
+    val tlsSans: List<String>
 ) {
 
     // Explicit cert paths take priority over auto-gen
     val tlsEnabled: Boolean get() = tlsCertPath.isNotBlank() && tlsKeyPath.isNotBlank()
 }
 
-data class NodeConfig(
-    val bootstrapToken: String,
-    val agentDataPort: Int,
-    val agentTlsTrustCertPath: String = "",
-) {
+data class NodeConfig(val bootstrapToken: String, val agentDataPort: Int, val agentTlsTrustCertPath: String = "") {
 
     val agentTlsEnabled: Boolean get() = agentTlsTrustCertPath.isNotBlank()
 }
 
-data class DnsConfig(
-    val provider: String,
-    val cloudflareApiToken: String,
-)
+data class DnsConfig(val provider: String, val cloudflareApiToken: String)
 
-data class CorsConfig(
-    val allowedHosts: List<String>,
-    val allowedSchemes: List<String>,
-)
+data class CorsOrigin(val host: String, val scheme: String)
 
-data class AuthConfig(
-    val secureCookies: Boolean,
-)
+data class CorsConfig(val origins: List<CorsOrigin>)
 
-data class RateLimitConfig(
-    val loginPerMinute: Int,
-    val refreshPerMinute: Int,
-)
+data class AuthConfig(val secureCookies: Boolean)
 
-data class ImagesConfig(
-    val minecraftImage: String,
-    val proxyImage: String,
-) {
+data class RateLimitConfig(val loginPerMinute: Int, val refreshPerMinute: Int)
+
+data class ImagesConfig(val minecraftImage: String, val proxyImage: String) {
 
     fun deriveImage(serverType: String, tag: String): String {
         val base = when (serverType) {
             "BUNGEECORD", "VELOCITY", "WATERFALL" -> proxyImage
-            else                                  -> minecraftImage
+            else -> minecraftImage
         }
         return if (':' in base) base else "$base:$tag"
     }
 }
 
-data class AdminSeedConfig(
-    val email: String,
-    val password: String,
-    val username: String,
-) {
+data class AdminSeedConfig(val email: String, val password: String, val username: String) {
 
     val enabled: Boolean get() = email.isNotBlank() && password.isNotBlank()
 }
 
-data class DockerConfig(
-    val endpoint: String = "",
-)
+data class DockerConfig(val endpoint: String = "")
 
 class AppConfig(config: ApplicationConfig) {
 
@@ -98,17 +66,17 @@ class AppConfig(config: ApplicationConfig) {
         password = secretFromFileOrValue(
             "DATABASE_PASSWORD",
             config.property("database.password")
-                .getString(),
+                .getString()
         ),
         maximumPoolSize = config.property("database.maximumPoolSize")
             .getString()
-            .toInt(),
+            .toInt()
     )
     val jwt = JwtConfig(
         secret = secretFromFileOrValue(
             "JWT_SECRET",
             config.property("jwt.secret")
-                .getString(),
+                .getString()
         ),
         issuer = config.property("jwt.issuer")
             .getString(),
@@ -116,7 +84,7 @@ class AppConfig(config: ApplicationConfig) {
             .getString(),
         expirySeconds = config.property("jwt.expirySeconds")
             .getString()
-            .toLong(),
+            .toLong()
     )
     val grpc = GrpcConfig(
         port = config.property("grpc.port")
@@ -132,19 +100,19 @@ class AppConfig(config: ApplicationConfig) {
             ?.getString()
             ?.split(",")
             ?.map { it.trim() }
-            ?.filter { it.isNotEmpty() } ?: emptyList(),
+            ?.filter { it.isNotEmpty() } ?: emptyList()
     )
     val node = NodeConfig(
         bootstrapToken = secretFromFileOrValue(
             "NODE_BOOTSTRAP_TOKEN",
             config.property("node.bootstrapToken")
-                .getString(),
+                .getString()
         ),
         agentDataPort = config.property("node.agentDataPort")
             .getString()
             .toIntOrNull() ?: 50052,
         agentTlsTrustCertPath = config.propertyOrNull("node.agentTlsTrustCertPath")
-            ?.getString() ?: "",
+            ?.getString() ?: ""
     )
     val dns = DnsConfig(
         provider = config.propertyOrNull("dns.provider")
@@ -152,25 +120,26 @@ class AppConfig(config: ApplicationConfig) {
         cloudflareApiToken = secretFromFileOrValue(
             "CF_API_TOKEN",
             config.propertyOrNull("dns.cloudflare.apiToken")
-                ?.getString() ?: "",
-        ),
+                ?.getString() ?: ""
+        )
     )
     val cors = CorsConfig(
-        allowedHosts = config.propertyOrNull("cors.allowedHosts")
+        origins = config.propertyOrNull("cors.publicUrls")
             ?.getString()
             ?.split(",")
             ?.map { it.trim() }
-            ?.filter { it.isNotEmpty() } ?: emptyList(),
-        allowedSchemes = config.propertyOrNull("cors.allowedSchemes")
-            ?.getString()
-            ?.split(",")
-            ?.map { it.trim() }
-            ?.filter { it.isNotEmpty() } ?: listOf("https"),
+            ?.filter { it.isNotEmpty() }
+            ?.map { url ->
+                val uri = java.net.URI(url)
+                val host = requireNotNull(uri.host) { "PUBLIC_URLS entry '$url' must be a full URL, e.g. https://example.com" }
+                val scheme = requireNotNull(uri.scheme) { "PUBLIC_URLS entry '$url' must include a scheme, e.g. https://example.com" }
+                CorsOrigin(host = host, scheme = scheme)
+            } ?: emptyList()
     )
     val auth = AuthConfig(
         secureCookies = config.propertyOrNull("auth.secureCookies")
             ?.getString()
-            ?.toBooleanStrictOrNull() ?: true,
+            ?.toBooleanStrictOrNull() ?: true
     )
     val rateLimit = RateLimitConfig(
         loginPerMinute = config.propertyOrNull("rateLimit.loginPerMinute")
@@ -178,7 +147,7 @@ class AppConfig(config: ApplicationConfig) {
             ?.toIntOrNull() ?: 10,
         refreshPerMinute = config.propertyOrNull("rateLimit.refreshPerMinute")
             ?.getString()
-            ?.toIntOrNull() ?: 30,
+            ?.toIntOrNull() ?: 30
     )
     val adminSeed = AdminSeedConfig(
         email = config.propertyOrNull("adminSeed.email")
@@ -186,17 +155,17 @@ class AppConfig(config: ApplicationConfig) {
         password = config.propertyOrNull("adminSeed.password")
             ?.getString() ?: "",
         username = config.propertyOrNull("adminSeed.username")
-            ?.getString() ?: "admin",
+            ?.getString() ?: "admin"
     )
     val images = ImagesConfig(
         minecraftImage = config.propertyOrNull("images.minecraftImage")
             ?.getString() ?: "itzg/minecraft-server",
         proxyImage = config.propertyOrNull("images.proxyImage")
-            ?.getString() ?: "itzg/mc-proxy",
+            ?.getString() ?: "itzg/mc-proxy"
     )
     val docker = DockerConfig(
         endpoint = config.propertyOrNull("docker.endpoint")
-            ?.getString() ?: "",
+            ?.getString() ?: ""
     )
 
     fun validate() {
@@ -207,6 +176,9 @@ class AppConfig(config: ApplicationConfig) {
         }
         check(node.bootstrapToken != "changeme" && node.bootstrapToken.length >= 16) {
             "NODE_BOOTSTRAP_TOKEN must be set to a non-default value of at least 16 characters"
+        }
+        check(cors.origins.isNotEmpty()) {
+            "PUBLIC_URLS must be set outside app.profile=dev, or the API will reject every browser request with CORS 403"
         }
         // TLS is always enforced: either via explicit cert paths or auto-generated certs.
         // The actual TLS enforcement happens in GrpcServer.start().
