@@ -114,12 +114,13 @@ class FakeNodeRepository : NodeRepository {
         nodes[id]?.health = health
     }
 
-    override fun updateLastSeen(id: Uuid, lastSeenAt: kotlin.time.Instant, publicIp: String?, agentVersion: String?, privateIp: String?) {
+    override fun updateLastSeen(id: Uuid, lastSeenAt: kotlin.time.Instant, publicIp: String?, agentVersion: String?, privateIp: String?, hostname: String?) {
         nodes[id]?.let {
             it.lastSeenAt = lastSeenAt.toString()
             if (publicIp != null) it.publicIp = publicIp
             if (agentVersion != null) it.agentVersion = agentVersion
             if (privateIp != null) it.privateIp = privateIp
+            if (hostname != null) it.hostname = hostname
         }
     }
 

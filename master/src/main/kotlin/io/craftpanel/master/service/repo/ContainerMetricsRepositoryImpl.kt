@@ -1,6 +1,7 @@
 package io.craftpanel.master.service.repo
 
 import io.craftpanel.master.database.schema.ContainerMetrics
+import io.craftpanel.master.util.toUtcString
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.*
@@ -83,7 +84,7 @@ class ContainerMetricsRepositoryImpl : ContainerMetricsRepository {
 private fun ResultRow.toContainerMetricsRow() = ContainerMetricsRow(
     id = this[ContainerMetrics.id],
     serverId = this[ContainerMetrics.serverId],
-    recordedAt = this[ContainerMetrics.recordedAt].toString(),
+    recordedAt = this[ContainerMetrics.recordedAt].toUtcString(),
     cpuPercent = this[ContainerMetrics.cpuPercent],
     ramUsedMb = this[ContainerMetrics.ramUsedMb],
     netInBytes = this[ContainerMetrics.netInBytes],

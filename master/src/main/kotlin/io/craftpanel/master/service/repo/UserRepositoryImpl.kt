@@ -155,7 +155,7 @@ class UserRepositoryImpl : UserRepository {
                     id = it[RefreshTokens.id],
                     userId = it[RefreshTokens.userId],
                     tokenHash = it[RefreshTokens.tokenHash],
-                    expiresAt = it[RefreshTokens.expiresAt].toString(),
+                    expiresAt = it[RefreshTokens.expiresAt].toUtcString(),
                     revoked = it[RefreshTokens.revoked]
                 )
             }

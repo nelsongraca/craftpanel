@@ -105,5 +105,5 @@ private fun ResultRow.toBackupRow() = BackupRow(
     sizeBytes = this[Backups.sizeBytes],
     errorMessage = this[Backups.errorMessage],
     createdAt = this[Backups.createdAt].toUtcString(),
-    completedAt = this[Backups.completedAt]?.toString()
+    completedAt = this[Backups.completedAt]?.toUtcString()
 )

@@ -1,6 +1,7 @@
 package io.craftpanel.master.service.repo
 
 import io.craftpanel.master.database.schema.SystemSettings
+import io.craftpanel.master.util.toUtcString
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -17,7 +18,7 @@ class SettingsRepositoryImpl : SettingsRepository {
                 SettingsEntry(
                     key = it[SystemSettings.key],
                     value = it[SystemSettings.value],
-                    updatedAt = it[SystemSettings.updatedAt].toString(),
+                    updatedAt = it[SystemSettings.updatedAt].toUtcString(),
                     updatedBy = it[SystemSettings.updatedBy]
                 )
             }

@@ -127,7 +127,8 @@ class ControlServiceImpl(
                 lastSeenAt = now,
                 publicIp = request.metadata.publicIp,
                 agentVersion = request.metadata.agentVersion.takeIf { v -> v.isNotEmpty() },
-                privateIp = request.metadata.privateIp
+                privateIp = request.metadata.privateIp,
+                hostname = request.metadata.hostname.takeIf { v -> v.isNotEmpty() }
             )
         }
 

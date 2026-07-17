@@ -290,11 +290,11 @@ private fun ResultRow.toServerRow() = ServerRow(
     needsRecreate = this[Servers.needsRecreate],
     backupSchedule = this[Servers.backupSchedule],
     backupMaxCount = this[Servers.backupMaxCount],
-    backupScheduleLastFired = this[Servers.backupScheduleLastFired]?.toString(),
+    backupScheduleLastFired = this[Servers.backupScheduleLastFired]?.toUtcString(),
     lastPlayerCount = this[Servers.lastPlayerCount],
     lastPlayerNames = this[Servers.lastPlayerNames],
-    lastPlayerUpdate = this[Servers.lastPlayerUpdate]?.toString(),
-    lastSeenAt = this[Servers.lastSeenAt]?.toString(),
+    lastPlayerUpdate = this[Servers.lastPlayerUpdate]?.toUtcString(),
+    lastSeenAt = this[Servers.lastSeenAt]?.toUtcString(),
     createdAt = this[Servers.createdAt].toUtcString(),
-    updatedAt = this[Servers.updatedAt].toString()
+    updatedAt = this[Servers.updatedAt].toUtcString()
 )

@@ -72,5 +72,5 @@ private fun ResultRow.toModRow() = ModRow(
     pinnedVersionId = this[ServerMods.pinnedVersionId],
     installedVersionId = this[ServerMods.installedVersionId],
     createdAt = this[ServerMods.createdAt].toUtcString(),
-    updatedAt = this[ServerMods.updatedAt].toString()
+    updatedAt = this[ServerMods.updatedAt].toUtcString()
 )

@@ -8,6 +8,7 @@ import java.security.MessageDigest
 import java.util.*
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 data class RefreshTokenResult(val rawToken: String, val expiresAt: LocalDateTime)
@@ -33,7 +34,7 @@ class RefreshTokenService(private val userRepository: UserRepository) {
 
         val row = userRepository.findRefreshTokenByHash(hash) ?: return null
 
-        if (row.revoked || LocalDateTime.parse(row.expiresAt) <= now.toLocalDateTime(TimeZone.UTC)) return null
+        if (row.revoked || Instant.parse(row.expiresAt) <= now) return null
 
         val userId = row.userId
 

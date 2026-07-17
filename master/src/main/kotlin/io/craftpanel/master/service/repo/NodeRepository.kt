@@ -55,13 +55,13 @@ interface NodeRepository {
         totalRamMb: Int = 0,
         totalCpuShares: Int = 0,
         agentVersion: String? = null,
-        lastSeenAt: kotlin.time.Instant? = null,
+        lastSeenAt: kotlin.time.Instant? = null
     ): NodeRow
 
     fun update(id: Uuid, displayName: String?, portRangeStart: Int?, portRangeEnd: Int?, reservedRamMb: Int?)
     fun updateStatus(id: Uuid, status: NodeStatus)
     fun updateHealth(id: Uuid, health: String)
-    fun updateLastSeen(id: Uuid, lastSeenAt: kotlin.time.Instant, publicIp: String?, agentVersion: String?, privateIp: String? = null)
+    fun updateLastSeen(id: Uuid, lastSeenAt: kotlin.time.Instant, publicIp: String?, agentVersion: String?, privateIp: String? = null, hostname: String? = null)
     fun updateSystemRam(id: Uuid, ramUsedMb: Int)
     fun updateSwarmActive(id: Uuid, swarmActive: Boolean)
     fun markUnreachable(id: Uuid, lastSeenAt: kotlin.time.Instant?)

@@ -7,8 +7,6 @@ import com.cronutils.parser.CronParser
 import io.craftpanel.master.service.repo.ServerJobRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.coroutines.*
-import kotlinx.datetime.LocalDateTime
-import kotlinx.datetime.toJavaLocalDateTime
 import org.slf4j.LoggerFactory
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
@@ -16,6 +14,7 @@ import java.time.temporal.ChronoUnit
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.Instant
 
 class ServerScheduler(
     private val handlers: Map<String, ScheduledJobHandler>,
@@ -68,8 +67,7 @@ class ServerScheduler(
             if (!fires(expr, nowZdt)) continue
             val lastFired = row.backupScheduleLastFired
             if (lastFired != null) {
-                val lastFiredMinute = LocalDateTime.parse(lastFired)
-                    .toJavaLocalDateTime()
+                val lastFiredMinute = java.time.Instant.ofEpochMilli(Instant.parse(lastFired).toEpochMilliseconds())
                     .atZone(ZoneOffset.UTC)
                     .truncatedTo(ChronoUnit.MINUTES)
                 if (lastFiredMinute == nowMinute) continue
@@ -89,8 +87,7 @@ class ServerScheduler(
             if (!fires(expr, nowZdt)) continue
             val lastFired = row.lastFiredAt
             if (lastFired != null) {
-                val lastFiredMinute = LocalDateTime.parse(lastFired)
-                    .toJavaLocalDateTime()
+                val lastFiredMinute = java.time.Instant.ofEpochMilli(Instant.parse(lastFired).toEpochMilliseconds())
                     .atZone(ZoneOffset.UTC)
                     .truncatedTo(ChronoUnit.MINUTES)
                 if (lastFiredMinute == nowMinute) continue

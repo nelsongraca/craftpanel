@@ -89,13 +89,14 @@ class NodeRepositoryImpl : NodeRepository {
         transaction { Nodes.update({ Nodes.id eq id }) { it[Nodes.health] = health } }
     }
 
-    override fun updateLastSeen(id: Uuid, lastSeenAt: kotlin.time.Instant, publicIp: String?, agentVersion: String?, privateIp: String?) {
+    override fun updateLastSeen(id: Uuid, lastSeenAt: kotlin.time.Instant, publicIp: String?, agentVersion: String?, privateIp: String?, hostname: String?) {
         transaction {
             Nodes.update({ Nodes.id eq id }) {
                 it[Nodes.lastSeenAt] = lastSeenAt.toLocalDateTime(TimeZone.UTC)
                 if (publicIp != null) it[Nodes.publicIp] = publicIp
                 if (agentVersion != null) it[Nodes.agentVersion] = agentVersion
                 if (privateIp != null) it[Nodes.privateIp] = privateIp
+                if (hostname != null) it[Nodes.hostname] = hostname
             }
         }
     }
@@ -162,7 +163,7 @@ class NodeRepositoryImpl : NodeRepository {
                 NodeMetricsRow(
                     id = it[NodeMetrics.id],
                     nodeId = it[NodeMetrics.nodeId],
-                    recordedAt = it[NodeMetrics.recordedAt].toString(),
+                    recordedAt = it[NodeMetrics.recordedAt].toUtcString(),
                     cpuPercent = it[NodeMetrics.cpuPercent],
                     ramUsedMb = it[NodeMetrics.ramUsedMb],
                     ramTotalMb = it[NodeMetrics.ramTotalMb],
@@ -192,7 +193,7 @@ private fun ResultRow.toNodeRow() = NodeRow(
     portRangeEnd = this[Nodes.portRangeEnd],
     swarmActive = this[Nodes.swarmActive],
     agentVersion = this[Nodes.agentVersion],
-    lastSeenAt = this[Nodes.lastSeenAt]?.toString(),
+    lastSeenAt = this[Nodes.lastSeenAt]?.toUtcString(),
     createdAt = this[Nodes.createdAt].toUtcString(),
-    updatedAt = this[Nodes.updatedAt].toString()
+    updatedAt = this[Nodes.updatedAt].toUtcString()
 )

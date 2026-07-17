@@ -164,7 +164,7 @@ private fun ResultRow.toMigrationStepRow() = MigrationStepRow(
     stepNumber = this[MigrationStepLog.stepNumber],
     description = this[MigrationStepLog.description],
     status = this[MigrationStepLog.status],
-    startedAt = this[MigrationStepLog.startedAt]?.toString(),
-    completedAt = this[MigrationStepLog.completedAt]?.toString(),
+    startedAt = this[MigrationStepLog.startedAt]?.toUtcString(),
+    completedAt = this[MigrationStepLog.completedAt]?.toUtcString(),
     errorMessage = this[MigrationStepLog.errorMessage]
 )

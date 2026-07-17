@@ -65,8 +65,8 @@ class AlertRepositoryImpl : AlertRepository {
                 AlertEventRow(
                     id = it[AlertEvents.id],
                     thresholdId = it[AlertEvents.thresholdId],
-                    firedAt = it[AlertEvents.firedAt].toString(),
-                    resolvedAt = it[AlertEvents.resolvedAt]?.toString(),
+                    firedAt = it[AlertEvents.firedAt].toUtcString(),
+                    resolvedAt = it[AlertEvents.resolvedAt]?.toUtcString(),
                     message = it[AlertEvents.message]
                 )
             }
@@ -80,7 +80,7 @@ class AlertRepositoryImpl : AlertRepository {
                 AlertEventRow(
                     id = it[AlertEvents.id],
                     thresholdId = it[AlertEvents.thresholdId],
-                    firedAt = it[AlertEvents.firedAt].toString(),
+                    firedAt = it[AlertEvents.firedAt].toUtcString(),
                     resolvedAt = null,
                     message = it[AlertEvents.message]
                 )
@@ -99,7 +99,7 @@ class AlertRepositoryImpl : AlertRepository {
                 AlertEventRow(
                     id = it[AlertEvents.id],
                     thresholdId = it[AlertEvents.thresholdId],
-                    firedAt = it[AlertEvents.firedAt].toString(),
+                    firedAt = it[AlertEvents.firedAt].toUtcString(),
                     resolvedAt = null,
                     message = it[AlertEvents.message]
                 )

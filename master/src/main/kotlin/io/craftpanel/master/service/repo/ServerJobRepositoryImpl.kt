@@ -1,6 +1,7 @@
 package io.craftpanel.master.service.repo
 
 import io.craftpanel.master.database.schema.ServerJobs
+import io.craftpanel.master.util.toUtcString
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.ResultRow
@@ -33,5 +34,5 @@ private fun ResultRow.toServerJobRow() = ServerJobRow(
     serverId = this[ServerJobs.serverId],
     type = this[ServerJobs.type],
     cronExpression = this[ServerJobs.cronExpression],
-    lastFiredAt = this[ServerJobs.lastFiredAt]?.toString()
+    lastFiredAt = this[ServerJobs.lastFiredAt]?.toUtcString()
 )
