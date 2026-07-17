@@ -46,16 +46,6 @@ jobs:
 
       - uses: ./.github/actions/setup-gradle
 
-      - name: Restore Docker layer cache
-        uses: actions/cache/restore@v4
-        with:
-          path: /var/lib/docker
-          key: docker-layers-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile', 'frontend/Dockerfile') }}-${{ github.event.workflow_run.head_sha }}
-          restore-keys: |
-            docker-layers-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile', 'frontend/Dockerfile') }}-
-            docker-layers-shared-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile') }}-${{ github.event.workflow_run.head_sha }}
-            docker-layers-shared-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile') }}-
-
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -65,18 +55,6 @@ jobs:
 
       - name: Build & push images (dev)
         run: ./gradlew dockerBuildAll dockerPushAll -PimageVersion=dev
-
-      - name: Make Docker data root readable for cache save
-        # /var/lib/docker is root-owned; actions/cache runs as the unprivileged
-        # runner user and can't scandir it, so every save fails silently with
-        # EACCES ("Cache save failed" warning, cache key never populated).
-        run: sudo chmod -R a+rX /var/lib/docker
-
-      - name: Save Docker layer cache
-        uses: actions/cache/save@v4
-        with:
-          path: /var/lib/docker
-          key: docker-layers-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile', 'frontend/Dockerfile') }}-${{ github.event.workflow_run.head_sha }}
 
   publish-release:
     name: Build & Push (tag → version + latest)
@@ -107,16 +85,6 @@ jobs:
 
       - uses: ./.github/actions/setup-gradle
 
-      - name: Restore Docker layer cache
-        uses: actions/cache/restore@v4
-        with:
-          path: /var/lib/docker
-          key: docker-layers-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile', 'frontend/Dockerfile') }}-${{ github.sha }}
-          restore-keys: |
-            docker-layers-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile', 'frontend/Dockerfile') }}-
-            docker-layers-shared-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile') }}-${{ github.sha }}
-            docker-layers-shared-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile') }}-
-
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -129,18 +97,6 @@ jobs:
 
       - name: Build & push images (latest)
         run: ./gradlew dockerBuildAll dockerPushAll -PimageVersion=latest
-
-      - name: Make Docker data root readable for cache save
-        # /var/lib/docker is root-owned; actions/cache runs as the unprivileged
-        # runner user and can't scandir it, so every save fails silently with
-        # EACCES ("Cache save failed" warning, cache key never populated).
-        run: sudo chmod -R a+rX /var/lib/docker
-
-      - name: Save Docker layer cache
-        uses: actions/cache/save@v4
-        with:
-          path: /var/lib/docker
-          key: docker-layers-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile', 'frontend/Dockerfile') }}-${{ github.sha }}
 
   cleanup:
     name: Delete untagged image versions

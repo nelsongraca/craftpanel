@@ -26,35 +26,8 @@ jobs:
           key: gradle-build-cache-${{ github.sha }}
           restore-keys: gradle-build-cache-
 
-      - name: Restore Docker layer cache
-        uses: actions/cache/restore@v4
-        with:
-          path: /var/lib/docker
-          key: docker-layers-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile', 'fake-server/Dockerfile') }}-${{ github.sha }}
-          restore-keys: |
-            docker-layers-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile', 'fake-server/Dockerfile') }}-
-            docker-layers-shared-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile') }}-
-
       - name: Build Docker images
         run: ./gradlew :master:dockerBuildImage :agent:dockerBuildImage :fake-server:dockerBuildImage
-
-      - name: Make Docker data root readable for cache save
-        # /var/lib/docker is root-owned; actions/cache runs as the unprivileged
-        # runner user and can't scandir it, so every save fails silently with
-        # EACCES ("Cache save failed" warning, cache key never populated).
-        run: sudo chmod -R a+rX /var/lib/docker
-
-      - name: Save Docker layer cache
-        uses: actions/cache/save@v4
-        with:
-          path: /var/lib/docker
-          key: docker-layers-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile', 'fake-server/Dockerfile') }}-${{ github.sha }}
-
-      - name: Save shared (master+agent) Docker layer cache
-        uses: actions/cache/save@v4
-        with:
-          path: /var/lib/docker
-          key: docker-layers-shared-${{ runner.os }}-${{ hashFiles('master/Dockerfile', 'agent/Dockerfile') }}-${{ github.sha }}
 
       - name: Warm up system-tests compile cache
         run: ./gradlew :system-tests:compileTestKotlin
