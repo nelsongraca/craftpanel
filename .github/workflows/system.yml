@@ -38,6 +38,12 @@ jobs:
       - name: Build Docker images
         run: ./gradlew :master:dockerBuildImage :agent:dockerBuildImage :fake-server:dockerBuildImage
 
+      - name: Make Docker data root readable for cache save
+        # /var/lib/docker is root-owned; actions/cache runs as the unprivileged
+        # runner user and can't scandir it, so every save fails silently with
+        # EACCES ("Cache save failed" warning, cache key never populated).
+        run: sudo chmod -R a+rX /var/lib/docker
+
       - name: Save Docker layer cache
         uses: actions/cache/save@v4
         with:

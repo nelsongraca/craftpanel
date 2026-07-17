@@ -66,6 +66,12 @@ jobs:
       - name: Build & push images (dev)
         run: ./gradlew dockerBuildAll dockerPushAll -PimageVersion=dev
 
+      - name: Make Docker data root readable for cache save
+        # /var/lib/docker is root-owned; actions/cache runs as the unprivileged
+        # runner user and can't scandir it, so every save fails silently with
+        # EACCES ("Cache save failed" warning, cache key never populated).
+        run: sudo chmod -R a+rX /var/lib/docker
+
       - name: Save Docker layer cache
         uses: actions/cache/save@v4
         with:
@@ -123,6 +129,12 @@ jobs:
 
       - name: Build & push images (latest)
         run: ./gradlew dockerBuildAll dockerPushAll -PimageVersion=latest
+
+      - name: Make Docker data root readable for cache save
+        # /var/lib/docker is root-owned; actions/cache runs as the unprivileged
+        # runner user and can't scandir it, so every save fails silently with
+        # EACCES ("Cache save failed" warning, cache key never populated).
+        run: sudo chmod -R a+rX /var/lib/docker
 
       - name: Save Docker layer cache
         uses: actions/cache/save@v4
