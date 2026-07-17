@@ -107,7 +107,7 @@ export default function Shell({children}: { children: React.ReactNode }) {
                     >
                         <Menu size={20} strokeWidth={2}/>
                     </button>
-                    <span className="text-[15px] font-bold font-heading tracking-widest uppercase text-accent">
+                    <span className="text-base font-bold font-heading tracking-widest uppercase text-accent">
                         ⛏ CraftPanel
                     </span>
                 </div>
@@ -184,7 +184,7 @@ export default function Shell({children}: { children: React.ReactNode }) {
                                             href={item.href}
                                             onClick={() => setDrawerOpen(false)}
                                             className={[
-                                                "flex items-center gap-2.5 pl-[13px] pr-4 py-[6px] text-xs font-heading font-bold uppercase tracking-wider border-l-[3px] transition-colors",
+                                                "flex items-center gap-2.5 pl-[13px] pr-4 py-[6px] text-sm font-heading font-bold uppercase tracking-wider border-l-[3px] transition-colors",
                                                 isActive
                                                     ? "border-accent bg-[var(--accent-subtle)] text-accent"
                                                     : "border-transparent text-text-dim hover:bg-surface-high hover:text-text-primary",
