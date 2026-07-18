@@ -14,19 +14,13 @@ import java.nio.file.*
 import java.nio.file.attribute.BasicFileAttributes
 import java.nio.file.attribute.PosixFilePermission
 
-class FileHandler(
-    private val config: AgentConfig,
-    private val nodeKey: String,
-) {
+class FileHandler(private val config: AgentConfig, private val nodeKey: String) {
 
     private val log = LoggerFactory.getLogger(FileHandler::class.java)
 
     /** Fills the standard failure fields from a Result onto a proto response builder. */
     // ponytail: private to FileHandler until a 2nd caller appears
-    private inline fun <T> Result<T>.fillFailure(
-        setMessage: (String) -> Unit,
-        setCode: (ErrorCode) -> Unit,
-    ) = onFailure {
+    private inline fun <T> Result<T>.fillFailure(setMessage: (String) -> Unit, setCode: (ErrorCode) -> Unit) = onFailure {
         setMessage(it.message ?: "Unknown error")
         setCode(classifyFileError(it))
     }
@@ -129,12 +123,10 @@ class FileHandler(
                             .use { it.findFirst().isEmpty }
                         if (!isEmpty) throw DirectoryNotEmptyException(target.toString())
                         Files.delete(target)
-                    }
-                    else {
+                    } else {
                         deleteRecursively(target)
                     }
-                }
-                else {
+                } else {
                     Files.delete(target)
                 }
             }
@@ -195,8 +187,11 @@ class FileHandler(
                 if (!Files.exists(src)) throw NoSuchFileException(src.toString(), null, "Source not found")
                 if (Files.exists(dst)) throw FileAlreadyExistsException(dst.toString(), null, "Destination already exists")
                 Files.createDirectories(dst.parent)
-                if (Files.isDirectory(src)) copyRecursively(src, dst)
-                else Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING)
+                if (Files.isDirectory(src)) {
+                    copyRecursively(src, dst)
+                } else {
+                    Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING)
+                }
             }
         }
         out.send {
@@ -273,9 +268,7 @@ class FileHandler(
 
     // ─── Path helpers ─────────────────────────────────────────────────────────
 
-    private fun serverDataRoot(serverId: String): Path =
-        Paths.get(config.dataBasePath, "servers", serverId)
-            .normalize()
+    private fun serverDataRoot(serverId: String): Path = serverDataRoot(config.dataBasePath, serverId)
 
     private fun safeResolve(root: Path, relativePath: String): Path {
         log.debug("safeResolve root={} relativePath={}", root, relativePath)
@@ -287,21 +280,6 @@ class FileHandler(
         return resolved
     }
 
-    private fun deleteRecursively(path: Path) {
-        Files.walkFileTree(path, object : SimpleFileVisitor<Path>() {
-            override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
-                Files.delete(file)
-                return FileVisitResult.CONTINUE
-            }
-
-            override fun postVisitDirectory(dir: Path, exc: IOException?): FileVisitResult {
-                if (exc != null) throw exc
-                Files.delete(dir)
-                return FileVisitResult.CONTINUE
-            }
-        })
-    }
-
     private fun copyRecursively(src: Path, dst: Path) {
         if (Files.isDirectory(src)) {
             Files.createDirectories(dst)
@@ -309,8 +287,7 @@ class FileHandler(
                 .use { stream ->
                     stream.forEach { child -> copyRecursively(child, dst.resolve(child.fileName)) }
                 }
-        }
-        else {
+        } else {
             Files.copy(src, dst, StandardCopyOption.REPLACE_EXISTING)
         }
     }
@@ -339,10 +316,10 @@ class FileHandler(
 }
 
 internal fun classifyFileError(ex: Throwable): ErrorCode = when (ex) {
-    is NoSuchFileException        -> ErrorCode.NOT_FOUND
+    is NoSuchFileException -> ErrorCode.NOT_FOUND
     is FileAlreadyExistsException -> ErrorCode.ALREADY_EXISTS
     is DirectoryNotEmptyException -> ErrorCode.CONFLICT
-    is AccessDeniedException      -> ErrorCode.PERMISSION_DENIED
-    is IOException                -> ErrorCode.INTERNAL
-    else                          -> ErrorCode.INTERNAL
+    is AccessDeniedException -> ErrorCode.PERMISSION_DENIED
+    is IOException -> ErrorCode.INTERNAL
+    else -> ErrorCode.INTERNAL
 }

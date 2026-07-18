@@ -307,6 +307,57 @@ class ControlStreamHandlerTest :
             }
         }
 
+        test("handleRemove with deleteData=true deletes the server's data directory") {
+            runBlocking {
+                every { containerManager.removeContainer(any(), any()) } just Runs
+                val dataConfig = config.copy(dataBasePath = tempDir.absolutePath)
+                val handlerWithData = ContainerHandler(containerManager, dataConfig, mockk<NetworkManager>(relaxed = true))
+                val serverId = "srv-delete-data"
+                val serverDir = File(tempDir, "servers/$serverId").apply { mkdirs() }
+                File(serverDir, "server.properties").writeText("motd=hi")
+                val outbound = newOutbound()
+
+                handlerWithData.handleRemove(
+                    removeContainerCommand {
+                        this.serverId = serverId
+                        containerName = "craftpanel-$serverId"
+                        force = true
+                        deleteData = true
+                    },
+                    outbound
+                )
+
+                serverDir.exists() shouldBe false
+                outboundChannel.messages()
+                    .single().serverStatus.status shouldBe
+                    ServerStatusUpdate.ServerStatus.STOPPED
+            }
+        }
+
+        test("handleRemove with deleteData=false leaves the server's data directory intact") {
+            runBlocking {
+                every { containerManager.removeContainer(any(), any()) } just Runs
+                val dataConfig = config.copy(dataBasePath = tempDir.absolutePath)
+                val handlerWithData = ContainerHandler(containerManager, dataConfig, mockk<NetworkManager>(relaxed = true))
+                val serverId = "srv-keep-data"
+                val serverDir = File(tempDir, "servers/$serverId").apply { mkdirs() }
+                File(serverDir, "server.properties").writeText("motd=hi")
+                val outbound = newOutbound()
+
+                handlerWithData.handleRemove(
+                    removeContainerCommand {
+                        this.serverId = serverId
+                        containerName = "craftpanel-$serverId"
+                        force = true
+                        deleteData = false
+                    },
+                    outbound
+                )
+
+                serverDir.exists() shouldBe true
+            }
+        }
+
         // handleShutdown
         test("handleShutdown emits shutdownAcknowledge with container counts") {
             runBlocking {

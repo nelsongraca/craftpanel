@@ -333,6 +333,10 @@ message RemoveContainerCommand {
   string container_name = 2;
   // Force-remove even if the container is still running.
   bool   force = 3;
+  // If true, also delete the server's data directory from disk after the
+  // container is removed. Only set on permanent server deletion — never on
+  // migration or recreate flows, where the directory must survive the remove.
+  bool   delete_data = 4;
 }
 
 message TriggerBackupCommand {
