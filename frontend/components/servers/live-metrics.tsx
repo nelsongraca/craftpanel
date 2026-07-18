@@ -29,7 +29,7 @@ export function LiveMetricsPanel({
     return (
         <>
             {/* Stat cards */}
-            <div className="grid grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <StatCard label="Players Online">
                     {livePlayers ? (
                         <>
@@ -38,7 +38,7 @@ export function LiveMetricsPanel({
                         </>
                     ) : (
                         <>
-                            <p className="font-mono text-[20px] text-text-muted leading-none">\u2014</p>
+                            <p className="font-mono text-[20px] text-text-muted leading-none">{"\u2014"}</p>
                             <p className="text-xs text-text-muted">awaiting data</p>
                         </>
                     )}
@@ -58,7 +58,7 @@ export function LiveMetricsPanel({
                         </>
                     ) : (
                         <>
-                            <p className="font-mono text-[20px] text-text-muted leading-none">\u2014%</p>
+                            <p className="font-mono text-[20px] text-text-muted leading-none">{"\u2014"}%</p>
                             <p className="font-mono text-xs text-text-muted">{server.cpu_shares} shares alloc</p>
                         </>
                     )}
@@ -79,14 +79,14 @@ export function LiveMetricsPanel({
             </div>
 
             {/* Live Metrics + Server Info row */}
-            <div className="grid grid-cols-[1fr_1fr] gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr] gap-4">
                 <div className="bg-surface border border-border rounded p-4">
                     <div className="flex items-center justify-between mb-4">
                         <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">
                             Live Metrics
                         </p>
                         {!liveMetrics && (
-                            <span className="text-xs font-heading text-text-muted italic">awaiting data\u2026</span>
+                            <span className="text-xs font-heading text-text-muted italic">awaiting data{"\u2026"}</span>
                         )}
                     </div>
                     <div className="space-y-3">

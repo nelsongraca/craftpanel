@@ -177,7 +177,7 @@ function GameServerConfigSection({
     }
 
     if (loading) {
-        return <div className="px-6 py-10 text-center text-text-muted text-sm">Loading\u2026</div>;
+        return <div className="px-6 py-10 text-center text-text-muted text-sm">Loading{"\u2026"}</div>;
     }
 
     const isManual = configMode === "MANUAL";

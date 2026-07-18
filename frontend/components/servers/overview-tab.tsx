@@ -48,7 +48,7 @@ export function OverviewTab({
             />
 
             {/* Panels row */}
-            <div className="grid grid-cols-[1fr_1fr] gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr] gap-4">
                 {/* Server info */}
                 <div className="bg-surface border border-border rounded p-4">
                     <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted mb-2">

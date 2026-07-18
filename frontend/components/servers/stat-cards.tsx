@@ -23,8 +23,8 @@ export function RamBarInline({usedMb, totalMb}: { usedMb: number | null; totalMb
     if (usedMb === null) {
         return (
             <div className="flex flex-col gap-1.5">
-                <p className="font-mono text-[20px] text-text-muted leading-none">\u2014</p>
-                <p className="font-mono text-xs text-text-muted">\u2014 / {fmtMb(totalMb)} alloc</p>
+                <p className="font-mono text-[20px] text-text-muted leading-none">{"\u2014"}</p>
+                <p className="font-mono text-xs text-text-muted">{"\u2014"} / {fmtMb(totalMb)} alloc</p>
                 <div className="h-1.5 rounded-full bg-surface-higher w-full"/>
             </div>
         );
