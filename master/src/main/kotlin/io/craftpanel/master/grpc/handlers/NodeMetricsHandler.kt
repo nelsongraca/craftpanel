@@ -21,6 +21,8 @@ class NodeMetricsHandler(private val agentEvents: MutableSharedFlow<AgentEvent>,
         }
         val nodeMetrics = msg.nodeMetrics
         lastMetricsAt.set(Clock.System.now())
+        runCatching { nodeStateReconciler.updateNodeLastSeen(nodeId) }
+            .onFailure { e -> log.warn("Node $nodeId: updateNodeLastSeen failed — ${e.message}") }
         val recordedAt = if (nodeMetrics.hasRecordedAt()) {
             Instant.fromEpochSeconds(nodeMetrics.recordedAt.seconds, nodeMetrics.recordedAt.nanos.toLong())
         } else {

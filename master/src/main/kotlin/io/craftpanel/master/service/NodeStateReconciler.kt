@@ -88,6 +88,14 @@ class NodeStateReconciler(
         }
         nodeRepository.updateHealth(kotlinNodeId, health.name)
     }
+
+    fun updateNodeLastSeen(nodeId: String) {
+        val kotlinNodeId = runCatching { Uuid.parse(nodeId) }.getOrElse {
+            log.warn("updateNodeLastSeen: invalid nodeId format: $nodeId")
+            return
+        }
+        nodeRepository.updateLastSeen(kotlinNodeId, Clock.System.now(), null, null)
+    }
 }
 
 fun mapContainerState(runState: ContainerState.RunState, dbStatus: ServerStatus): ServerStatus? = when {
