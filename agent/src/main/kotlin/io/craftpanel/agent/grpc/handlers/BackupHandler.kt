@@ -92,6 +92,16 @@ class BackupHandler(private val config: AgentConfig) {
                     completedAt = nowTimestamp()
                 }
             }
+            if (cmd.serverName.isNotEmpty() && cmd.createdAtFormatted.isNotEmpty()) {
+                runCatching {
+                    SymlinkMaintainer.createBackupSymlink(
+                        backupsByServerRoot = config.backupsByServerRoot,
+                        name = cmd.serverName,
+                        timestamp = cmd.createdAtFormatted,
+                        canonicalBackupFile = java.nio.file.Paths.get(destPath)
+                    )
+                }.onFailure { log.warn("Failed to create backups-by-server symlink for ${cmd.backupId}", it) }
+            }
         }
             .onFailure { ex ->
                 log.error("Backup ${cmd.backupId}: failed", ex)
@@ -113,5 +123,11 @@ class BackupHandler(private val config: AgentConfig) {
         runCatching {
             withContext(Dispatchers.IO) { File(cmd.filePath).delete() }
         }.onFailure { log.error("Failed to delete backup file ${cmd.filePath}", it) }
+
+        if (cmd.serverName.isNotEmpty() && cmd.createdAtFormatted.isNotEmpty()) {
+            runCatching {
+                SymlinkMaintainer.removeBackupSymlink(config.backupsByServerRoot, cmd.serverName, cmd.createdAtFormatted)
+            }.onFailure { log.warn("Failed to remove backups-by-server symlink for ${cmd.backupId}", it) }
+        }
     }
 }

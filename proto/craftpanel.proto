@@ -359,11 +359,23 @@ message TriggerBackupCommand {
   string backup_id = 1;
   string server_id = 2;
   string container_name = 3;
+  // Server's name at the time of backup creation, used to build the
+  // backups-by-server/<name>/ symlink directory. Immutable server field —
+  // safe to snapshot here.
+  string server_name = 4;
+  // Pre-formatted symlink timestamp (yyyy-MM-dd_HH-mm-ss), derived from the
+  // backup row's created_at so the create and delete paths agree exactly.
+  string created_at_formatted = 5;
 }
 
 message DeleteBackupCommand {
   string backup_id = 1;
   string file_path = 2;
+  // Needed to locate and remove the backups-by-server/<name>/<timestamp>.tar.gz
+  // symlink without scanning the whole tree.
+  string server_id = 3;
+  string server_name = 4;
+  string created_at_formatted = 5;
 }
 
 message PrepareRsyncReceiveCommand {

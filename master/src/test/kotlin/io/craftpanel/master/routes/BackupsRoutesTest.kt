@@ -262,6 +262,9 @@ class BackupsRoutesTest :
                     .single { it.deleteBackup.backupId == backupId.toString() }
                     .deleteBackup
                 sentDelete.filePath shouldBe "/data/backups/test.tar.gz"
+                sentDelete.serverId shouldBe serverId.toString()
+                sentDelete.serverName shouldBe "test-server"
+                sentDelete.createdAtFormatted.isNotEmpty() shouldBe true
             }
         }
 

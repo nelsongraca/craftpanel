@@ -4,6 +4,7 @@ import io.craftpanel.master.domain.BackupStatus
 import io.craftpanel.master.domain.BackupTrigger
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.service.repo.*
+import io.craftpanel.master.util.formatSymlinkTimestamp
 import io.craftpanel.proto.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -50,12 +51,16 @@ class BackupService(private val gateway: AgentGateway, private val dataServicePr
         val toRotate = backupRepository.findOldestCompletedBackups(serverId, maxCount)
         for (old in toRotate) {
             if (!old.filePath.isNullOrEmpty()) {
+                val server = serverRepository.findById(old.serverId)
                 val sent = gateway.sendToNode(
                     old.nodeId.toString(),
                     masterMessage {
                         deleteBackup = deleteBackupCommand {
                             backupId = old.id.toString()
                             this.filePath = old.filePath
+                            this.serverId = old.serverId.toString()
+                            this.serverName = server?.name ?: ""
+                            this.createdAtFormatted = formatSymlinkTimestamp(old.createdAt)
                         }
                     }
                 )
@@ -76,6 +81,8 @@ class BackupService(private val gateway: AgentGateway, private val dataServicePr
                     this.backupId = backup.id.toString()
                     this.serverId = serverId.toString()
                     containerName = "craftpanel-$serverId"
+                    serverName = serverRow.name
+                    createdAtFormatted = formatSymlinkTimestamp(backup.createdAt)
                 }
             }
         )
@@ -95,12 +102,16 @@ class BackupService(private val gateway: AgentGateway, private val dataServicePr
             ?: throw NotFoundException("Backup not found")
         if (backup.status == "IN_PROGRESS") throw ConflictException("Cannot delete a backup that is in progress")
         if (!backup.filePath.isNullOrEmpty()) {
+            val server = serverRepository.findById(backup.serverId)
             gateway.sendToNode(
                 backup.nodeId.toString(),
                 masterMessage {
                     deleteBackup = deleteBackupCommand {
                         this.backupId = backupId.toString()
                         this.filePath = backup.filePath
+                        this.serverId = backup.serverId.toString()
+                        this.serverName = server?.name ?: ""
+                        this.createdAtFormatted = formatSymlinkTimestamp(backup.createdAt)
                     }
                 }
             )

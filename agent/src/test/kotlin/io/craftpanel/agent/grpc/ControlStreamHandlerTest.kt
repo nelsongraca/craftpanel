@@ -552,4 +552,58 @@ class ControlStreamHandlerTest :
                 File(tempDir, "backups/bk-2.tar.gz").exists() shouldBe true
             }
         }
+
+        test("handleTriggerBackup creates a date-based backups-by-server symlink") {
+            runBlocking {
+                val serverId = "srv-bk-3"
+                val backupName = "survival-world"
+                val timestamp = "2026-07-18_14-30-00"
+                File(tempDir, "servers/$serverId").also { it.mkdirs() }
+                    .let { File(it, "world").writeText("level data") }
+                val byServerRoot = Files.createTempDirectory("by-server").toFile()
+                val outbound = newOutbound()
+
+                BackupHandler(config.copy(dataBasePath = tempDir.absolutePath, backupsByServerRoot = byServerRoot.absolutePath)).handleTriggerBackup(
+                    triggerBackupCommand {
+                        backupId = "bk-3"
+                        this.serverId = serverId
+                        containerName = "craftpanel-mc"
+                        serverName = backupName
+                        createdAtFormatted = timestamp
+                    },
+                    outbound
+                )
+
+                val link = java.nio.file.Path.of(byServerRoot.absolutePath, backupName, "$timestamp.tar.gz")
+                java.nio.file.Files.exists(link) shouldBe true
+                java.nio.file.Files.isSymbolicLink(link) shouldBe true
+                byServerRoot.deleteRecursively()
+            }
+        }
+
+        test("handleDeleteBackup removes the backups-by-server symlink") {
+            runBlocking {
+                val backupName = "removable-server"
+                val timestamp = "2026-07-18_15-00-00"
+                val byServerRoot = Files.createTempDirectory("by-server-rm").toFile()
+                val realBackup = File(tempDir, "backups/bk-rm.tar.gz").apply {
+                    parentFile.mkdirs()
+                    writeText("backup data")
+                }
+                SymlinkMaintainer.createBackupSymlink(byServerRoot.absolutePath, backupName, timestamp, java.nio.file.Path.of(realBackup.absolutePath))
+                java.nio.file.Files.exists(java.nio.file.Path.of(byServerRoot.absolutePath, backupName, "$timestamp.tar.gz")) shouldBe true
+
+                BackupHandler(config.copy(backupsByServerRoot = byServerRoot.absolutePath)).handleDeleteBackup(
+                    deleteBackupCommand {
+                        backupId = "bk-rm"
+                        filePath = realBackup.absolutePath
+                        serverName = backupName
+                        createdAtFormatted = timestamp
+                    }
+                )
+
+                java.nio.file.Files.exists(java.nio.file.Path.of(byServerRoot.absolutePath, backupName, "$timestamp.tar.gz")) shouldBe false
+                byServerRoot.deleteRecursively()
+            }
+        }
     })
