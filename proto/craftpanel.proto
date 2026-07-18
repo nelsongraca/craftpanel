@@ -179,6 +179,10 @@ message MasterMessage {
 
     // Console — fetch static container logs (tail, no follow) for crash diagnosis
     FetchContainerLogsRequest fetch_container_logs = 27;
+
+    // Reconnect self-heal — master pushes the full symlink overlay mapping so the
+    // agent can rebuild servers-by-name / backups-by-server trees from scratch.
+    RebuildSymlinksCommand rebuild_symlinks = 28;
   }
 }
 
@@ -376,6 +380,22 @@ message DeleteBackupCommand {
   string server_id = 3;
   string server_name = 4;
   string created_at_formatted = 5;
+}
+
+message RebuildSymlinksCommand {
+  message ServerEntry {
+    string server_id = 1;
+    string server_name = 2;
+  }
+  message BackupEntry {
+    string backup_id = 1;
+    string server_id = 2;
+    string server_name = 3;
+    string created_at_formatted = 4;
+    string file_path = 5;
+  }
+  repeated ServerEntry servers = 1;
+  repeated BackupEntry backups = 2;
 }
 
 message PrepareRsyncReceiveCommand {

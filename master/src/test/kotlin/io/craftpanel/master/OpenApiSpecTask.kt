@@ -128,8 +128,7 @@ class OpenApiSpecTask :
                     }
                 }
 
-                val spec = client.get("/openapi.json")
-                    .bodyAsText()
+                val spec = client.get("/openapi.json").bodyAsText()
                 val output = System.getProperty("openapi.output")
                     ?: error("System property 'openapi.output' not set — run via :master:generateOpenApiSpec")
                 val outputFile = File(output)

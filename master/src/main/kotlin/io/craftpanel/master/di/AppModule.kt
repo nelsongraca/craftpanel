@@ -89,7 +89,9 @@ val appModule = module {
             playerUpdateHandler = get(),
             backupHandler = get(),
             migrationHandler = get(),
-            dataOpResponseHandler = get()
+            dataOpResponseHandler = get(),
+            serverRepository = get(),
+            backupRepository = get()
         )
     }
     single { BulkDataServiceImpl(get()) }

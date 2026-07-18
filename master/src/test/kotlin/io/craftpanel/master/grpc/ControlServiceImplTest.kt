@@ -1,5 +1,6 @@
 package io.craftpanel.master.grpc
 
+import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.config.NodeConfig
@@ -54,7 +55,9 @@ class ControlServiceImplTest :
             playerUpdateHandler = playerUpdateHandler,
             backupHandler = backupHandler,
             migrationHandler = migrationHandler,
-            dataOpResponseHandler = dataOpResponseHandler
+            dataOpResponseHandler = dataOpResponseHandler,
+            serverRepository = repos.serverRepository,
+            backupRepository = repos.backupRepository
         )
 
         beforeTest {
@@ -234,7 +237,9 @@ class ControlServiceImplTest :
                 playerUpdateHandler = PlayerUpdateHandler(fakeAgentEvents),
                 backupHandler = BackupHandler(fakeAgentEvents),
                 migrationHandler = MigrationHandler(fakeAgentEvents),
-                dataOpResponseHandler = DataOpResponseHandler(fakeDataOpContext)
+                dataOpResponseHandler = DataOpResponseHandler(fakeDataOpContext),
+                serverRepository = fakeRepos.serverRepository,
+                backupRepository = fakeRepos.backupRepository
             )
         }
 

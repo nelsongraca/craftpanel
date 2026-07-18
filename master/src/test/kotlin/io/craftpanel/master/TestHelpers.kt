@@ -1,10 +1,13 @@
 package io.craftpanel.master
 
+import io.craftpanel.master.TestAgentGateway
+import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataOpContext
 import io.craftpanel.master.grpc.handlers.*
+import io.craftpanel.master.service.AgentGateway
 import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
@@ -14,11 +17,16 @@ import java.util.concurrent.ConcurrentHashMap
 fun createTestControlServiceImpl(
     nodeConfig: NodeConfig = NodeConfig("test-token", 50052),
     nodeStateReconciler: NodeStateReconciler,
-    nodeRepository: NodeRepository = NodeRepositoryImpl()
+    nodeRepository: NodeRepository = NodeRepositoryImpl(),
+    agentGateway: AgentGateway = TestAgentGateway(),
+    repos: TestRepositories = TestRepositories()
 ): ControlServiceImpl {
     val agentEvents = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 1024)
     val dataOpContext = DataOpContext(ConcurrentHashMap(), ConcurrentHashMap())
-    val nodeStateHandler = NodeStateHandler(agentEvents, nodeStateReconciler)
+    val nodeStateHandler = NodeStateHandler(
+        agentEvents,
+        nodeStateReconciler
+    )
     val nodeMetricsHandler = NodeMetricsHandler(agentEvents, nodeStateReconciler)
     val containerMetricsHandler = ContainerMetricsHandler(agentEvents)
     val serverStatusHandler = ServerStatusHandler(agentEvents)
@@ -39,6 +47,8 @@ fun createTestControlServiceImpl(
         playerUpdateHandler = playerUpdateHandler,
         backupHandler = backupHandler,
         migrationHandler = migrationHandler,
-        dataOpResponseHandler = dataOpResponseHandler
+        dataOpResponseHandler = dataOpResponseHandler,
+        serverRepository = repos.serverRepository,
+        backupRepository = repos.backupRepository
     )
 }

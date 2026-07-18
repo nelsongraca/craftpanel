@@ -18,6 +18,7 @@ class ControlStreamHandlerTest :
         val containerManager: ContainerManager = mockk(relaxed = true)
         val metricsCollector: MetricsCollector = mockk(relaxed = true)
         val identity = NodeIdentity(nodeId = "node-1", nodeKey = "test-key")
+        val symlinkTempRoot = Files.createTempDirectory("agent-symlinks").toFile()
         val config = AgentConfig(
             profile = "dev",
             masterAddress = "localhost",
@@ -30,8 +31,8 @@ class ControlStreamHandlerTest :
             agentVersion = "test",
             dataBasePath = "",
             hostDataBasePath = "",
-            serversByNameRoot = "",
-            backupsByServerRoot = "",
+            serversByNameRoot = symlinkTempRoot.absolutePath,
+            backupsByServerRoot = symlinkTempRoot.absolutePath,
             mcRouterImage = "itzg/mc-router:latest",
             mcRouterUpdateOnStart = false,
             publicIpUrl = "",
@@ -603,6 +604,58 @@ class ControlStreamHandlerTest :
                 )
 
                 java.nio.file.Files.exists(java.nio.file.Path.of(byServerRoot.absolutePath, backupName, "$timestamp.tar.gz")) shouldBe false
+                byServerRoot.deleteRecursively()
+            }
+        }
+
+        test("rebuildSymlinksFromSnapshot creates servers-by-name + backups-by-server symlinks") {
+            runBlocking {
+                val serverId = "srv-rebuild"
+                val serverName = "rebuilt-world"
+                val byNameRoot = Files.createTempDirectory("by-name-rebuild").toFile()
+                val byServerRoot = Files.createTempDirectory("by-server-rebuild").toFile()
+                val serverDir = File(tempDir, "servers/$serverId").apply { mkdirs() }
+                val backupFile = File(tempDir, "backups/bk-rebuild.tar.gz").apply {
+                    parentFile.mkdirs()
+                    writeText("backup")
+                }
+                val timestamp = "2026-07-18_16-00-00"
+
+                val b = io.craftpanel.proto.RebuildSymlinksCommand.newBuilder()
+                b.addServersBuilder()
+                    .setServerId(serverId)
+                    .setServerName(serverName)
+                b.addBackupsBuilder()
+                    .setBackupId("bk-rebuild")
+                    .setServerId(serverId)
+                    .setServerName(serverName)
+                    .setCreatedAtFormatted(timestamp)
+                    .setFilePath(backupFile.absolutePath)
+                val cmd = b.build()
+
+                val rebuildConfig = config.copy(
+                    dataBasePath = tempDir.absolutePath,
+                    serversByNameRoot = byNameRoot.absolutePath,
+                    backupsByServerRoot = byServerRoot.absolutePath
+                )
+                val rebuildHandler = ControlStreamHandler(
+                    identity,
+                    rebuildConfig,
+                    containerManager,
+                    metricsCollector,
+                    routerSupervisor,
+                    containerHandler,
+                    eventWatcher,
+                    backupHandler,
+                    rsyncMigrator,
+                    console = consoleHandler
+                )
+
+                rebuildHandler.rebuildSymlinksFromSnapshot(cmd)
+
+                java.nio.file.Files.exists(java.nio.file.Path.of(byNameRoot.absolutePath, serverName)) shouldBe true
+                java.nio.file.Files.exists(java.nio.file.Path.of(byServerRoot.absolutePath, serverName, "$timestamp.tar.gz")) shouldBe true
+                byNameRoot.deleteRecursively()
                 byServerRoot.deleteRecursively()
             }
         }

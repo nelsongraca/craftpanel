@@ -135,6 +135,8 @@ class ControlStreamHandler(
 
                 msg.hasDownloadBackup() -> launch { dispatch { file.handleDownloadBackup(msg.downloadBackup, bulkClient, out) } }
 
+                msg.hasRebuildSymlinks() -> launch { dispatch { rebuildSymlinksFromSnapshot(msg.rebuildSymlinks) } }
+
                 else -> log.warn("Unhandled master message: ${msg.payloadCase}")
             }
         }
@@ -146,6 +148,30 @@ class ControlStreamHandler(
     }
 
     private fun isSwarmActive(): Boolean = containerManager.isSwarmActive()
+
+    internal suspend fun rebuildSymlinksFromSnapshot(cmd: RebuildSymlinksCommand) = withContext(Dispatchers.IO) {
+        cmd.serversList.forEach { entry ->
+            runCatching {
+                val canonicalPath = serverDataRoot(config.dataBasePath, entry.serverId)
+                if (java.nio.file.Files.exists(canonicalPath)) {
+                    SymlinkMaintainer.createServerNameSymlink(config.serversByNameRoot, entry.serverName, canonicalPath)
+                }
+            }.onFailure { log.warn("Rebuild: failed servers-by-name symlink for ${entry.serverId}", it) }
+        }
+        cmd.backupsList.forEach { entry ->
+            runCatching {
+                val canonicalFile = java.nio.file.Paths.get(entry.filePath)
+                if (java.nio.file.Files.exists(canonicalFile)) {
+                    SymlinkMaintainer.createBackupSymlink(
+                        config.backupsByServerRoot,
+                        entry.serverName,
+                        entry.createdAtFormatted,
+                        canonicalFile
+                    )
+                }
+            }.onFailure { log.warn("Rebuild: failed backups-by-server symlink for ${entry.backupId}", it) }
+        }
+    }
 
     internal fun buildStateSnapshot(): NodeStateSnapshot {
         val containers = containerManager.listContainers()

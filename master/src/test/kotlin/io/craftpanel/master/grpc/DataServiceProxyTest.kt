@@ -1,5 +1,6 @@
 package io.craftpanel.master.grpc
 
+import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.config.NodeConfig
@@ -56,7 +57,9 @@ class DataServiceProxyTest :
                 playerUpdateHandler = playerUpdateHandler,
                 backupHandler = backupHandler,
                 migrationHandler = migrationHandler,
-                dataOpResponseHandler = dataOpResponseHandler
+                dataOpResponseHandler = dataOpResponseHandler,
+                serverRepository = repos.serverRepository,
+                backupRepository = repos.backupRepository
             )
             proxy = DataServiceProxy(controlSvc, BulkDataServiceImpl(controlSvc), repos.serverRepository)
         }

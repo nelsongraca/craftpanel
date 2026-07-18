@@ -5,8 +5,11 @@ import io.craftpanel.master.domain.*
 import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.service.AgentGateway
 import io.craftpanel.master.service.NodeStateReconciler
+import io.craftpanel.master.service.repo.BackupRepository
 import io.craftpanel.master.service.repo.NodeRepository
+import io.craftpanel.master.service.repo.ServerRepository
 import io.craftpanel.master.util.CryptoUtils
+import io.craftpanel.master.util.formatSymlinkTimestamp
 import io.craftpanel.proto.*
 import io.grpc.Status
 import io.grpc.StatusException
@@ -43,7 +46,9 @@ class ControlServiceImpl(
     private val playerUpdateHandler: PlayerUpdateHandler,
     private val backupHandler: BackupHandler,
     private val migrationHandler: MigrationHandler,
-    private val dataOpResponseHandler: DataOpResponseHandler
+    private val dataOpResponseHandler: DataOpResponseHandler,
+    private val serverRepository: ServerRepository,
+    private val backupRepository: BackupRepository
 ) : ControlServiceGrpcKt.ControlServiceCoroutineImplBase(),
     AgentGateway {
 
@@ -78,6 +83,44 @@ class ControlServiceImpl(
             return false
         }
         return channel.trySend(msg).isSuccess
+    }
+
+    /**
+     * Reconnect self-heal: after a node reconciles its state snapshot, push the full
+     * symlink-overlay mapping (servers-by-name + backups-by-server) so the agent can
+     * rebuild both trees from canonical storage. Deliberately conservative — only ever
+     * adds symlinks; never prunes. See server-path-navigation plan, Task 4.
+     */
+    private fun sendRebuildSymlinks(nodeId: String) {
+        val kotlinNodeId = runCatching { Uuid.parse(nodeId) }.getOrNull() ?: return
+        runCatching { buildRebuildSymlinksCommand(kotlinNodeId) }
+            .onSuccess { command -> sendToNode(nodeId, command) }
+            .onFailure { e -> log.error("Node $nodeId: failed to send RebuildSymlinksCommand — ${e.message}", e) }
+    }
+
+    @OptIn(com.google.protobuf.kotlin.OnlyForUseByGeneratedProtoCode::class)
+    internal fun buildRebuildSymlinksCommand(nodeId: Uuid): MasterMessage {
+        val servers = serverRepository.listByNodeId(nodeId)
+        val backups = servers.flatMap { server ->
+            backupRepository.listBackups(server.id)
+                .filter { it.status == "COMPLETED" && !it.filePath.isNullOrEmpty() }
+                .map { server to it }
+        }
+        val builder = RebuildSymlinksCommand.newBuilder()
+        servers.forEach { server ->
+            builder.addServersBuilder()
+                .setServerId(server.id.toString())
+                .setServerName(server.name)
+        }
+        backups.forEach { (server, backup) ->
+            builder.addBackupsBuilder()
+                .setBackupId(backup.id.toString())
+                .setServerId(server.id.toString())
+                .setServerName(server.name)
+                .setCreatedAtFormatted(formatSymlinkTimestamp(backup.createdAt))
+                .setFilePath(backup.filePath ?: "")
+        }
+        return masterMessage { rebuildSymlinks = builder.build() }
     }
 
     // ── gRPC: registration / identification ──────────────────────────────────
@@ -207,27 +250,51 @@ class ControlServiceImpl(
 
     private suspend fun dispatch(msg: AgentMessage, lastMetricsAt: AtomicReference<Instant>, lastEmittedHealth: AtomicReference<NodeHealth?>) {
         when {
-            msg.hasNodeState() -> nodeStateHandler.handle(msg, msg.nodeId)
+            msg.hasNodeState() -> {
+                nodeStateHandler.handle(msg, msg.nodeId)
+                sendRebuildSymlinks(msg.nodeId)
+            }
+
             msg.hasNodeMetrics() -> nodeMetricsHandler.handle(msg, msg.nodeId, lastMetricsAt, lastEmittedHealth)
+
             msg.hasContainerMetrics() -> containerMetricsHandler.handle(msg, msg.nodeId)
+
             msg.hasServerStatus() -> serverStatusHandler.handle(msg, msg.nodeId)
+
             msg.hasPlayerUpdate() -> playerUpdateHandler.handle(msg, msg.nodeId)
+
             msg.hasBackupProgress() -> backupHandler.handleBackupProgress(msg, msg.nodeId)
+
             msg.hasBackupComplete() -> backupHandler.handleBackupComplete(msg, msg.nodeId)
+
             msg.hasRsyncReady() -> migrationHandler.handleRsyncReady(msg, msg.nodeId)
+
             msg.hasRsyncProgress() -> migrationHandler.handleRsyncProgress(msg, msg.nodeId)
+
             msg.hasRsyncComplete() -> migrationHandler.handleRsyncComplete(msg, msg.nodeId)
+
             msg.hasConsoleOutput() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+
             msg.hasListFilesResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+
             msg.hasReadFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+
             msg.hasWriteFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+
             msg.hasDeleteFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+
             msg.hasMakeDirectoryResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+
             msg.hasMoveFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+
             msg.hasCopyFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+
             msg.hasDownloadFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+
             msg.hasUploadFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+
             msg.hasFetchContainerLogsResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+
             else -> log.debug("Node ${msg.nodeId} sent unhandled message type")
         }
     }
