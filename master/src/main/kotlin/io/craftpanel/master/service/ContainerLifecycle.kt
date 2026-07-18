@@ -122,6 +122,11 @@ class ContainerLifecycle(
             put("EULA", "TRUE")
             put("TYPE", server.serverType)
             put("VERSION", server.mcVersion)
+            // Some itzg TYPEs (e.g. LIMBO) default their internal listen port away from
+            // 25565. Container port, mc-router label, and mc-health all assume 25565 —
+            // force it so every type's healthcheck and routing agree. Overridable via
+            // per-server env var (dbEnvVars wins on collision below).
+            put("SERVER_PORT", "25565")
             // ponytail: heap at 75% of the container's cgroup limit — Aikar's flags set
             // -Xms=-Xmx=MEMORY with AlwaysPreTouch, which commits the full heap on startup;
             // without headroom that equals the container's memory limit and OOMKills before
