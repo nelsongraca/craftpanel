@@ -256,6 +256,12 @@ class BackupsRoutesTest :
                         .where { Backups.id eq backupId }
                         .count() shouldBe 0
                 }
+
+                val sentDelete = noopGateway.sent.map { it.second }
+                    .filter { it.hasDeleteBackup() }
+                    .single { it.deleteBackup.backupId == backupId.toString() }
+                    .deleteBackup
+                sentDelete.filePath shouldBe "/data/backups/test.tar.gz"
             }
         }
 

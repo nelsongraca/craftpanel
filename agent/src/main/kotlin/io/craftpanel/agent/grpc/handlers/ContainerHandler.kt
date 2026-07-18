@@ -8,12 +8,9 @@ import io.craftpanel.proto.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
+import java.nio.file.Files
 
-class ContainerHandler(
-    private val containerManager: ContainerManager,
-    private val config: AgentConfig,
-    private val networkManager: NetworkManager,
-) {
+class ContainerHandler(private val containerManager: ContainerManager, private val config: AgentConfig, private val networkManager: NetworkManager) {
 
     private val log = LoggerFactory.getLogger(ContainerHandler::class.java)
 
@@ -29,11 +26,13 @@ class ContainerHandler(
                 }
                 withContext(Dispatchers.IO) { containerManager.pullImage(cmd.image) }
                 val cmdWithMount = cmd.toBuilder()
-                    .addMounts(volumeMount {
-                        hostPath = "${config.hostDataBasePath}/servers/${cmd.serverId}"
-                        containerPath = "/data"
-                        readOnly = false
-                    })
+                    .addMounts(
+                        volumeMount {
+                            hostPath = "${config.hostDataBasePath}/servers/${cmd.serverId}"
+                            containerPath = "/data"
+                            readOnly = false
+                        }
+                    )
                     .build()
                 val dockerNetwork = cmd.dockerNetwork
                 if (dockerNetwork.isNotEmpty()) {
@@ -89,10 +88,22 @@ class ContainerHandler(
                 // Always try deterministic cleanup of standalone server bridge by server ID
                 // (handles the case where the container was already gone before this command)
                 networkManager.maybeDetachAndDelete(
-                    "${config.containerNamePrefix}-server-${cmd.serverId}", ""
+                    "${config.containerNamePrefix}-server-${cmd.serverId}",
+                    ""
                 )
             }
+            if (cmd.deleteData) {
+                withContext(Dispatchers.IO) { deleteServerData(cmd.serverId) }
+            }
         }
+    }
+
+    /** Permanently removes the server's data directory. Only called when [RemoveContainerCommand.deleteData] is set. */
+    private fun deleteServerData(serverId: String) {
+        val root = serverDataRoot(config.dataBasePath, serverId)
+        if (!Files.exists(root)) return
+        log.info("Deleting server data directory $root")
+        deleteRecursively(root)
     }
 
     suspend fun handleShutdown(cmd: ShutdownCommand, out: AgentOutbound) {

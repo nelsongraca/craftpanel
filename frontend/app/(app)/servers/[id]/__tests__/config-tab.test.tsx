@@ -267,28 +267,24 @@ describe('Config Mode Toggle', () => {
         )
     })
 
-    it('SP-mapped sections show "not applied" notice in MANUAL mode, JVM Options does not', async () => {
+    it('no "manual mode active" warning notice is shown anywhere once switched to MANUAL mode', async () => {
         const user = userEvent.setup()
         await renderGameServer({ configMode: 'MANAGED' })
+
+        // MANAGED mode: no warning notice present (nothing to warn about yet)
+        expect(screen.queryByText(/manual mode active/i)).not.toBeInTheDocument()
 
         await user.click(screen.getByRole('button', { name: /switch to manual/i }))
         await waitFor(() => expect(screen.getByText('Disable Managed Env Vars?')).toBeInTheDocument())
         await user.click(screen.getByRole('button', { name: /confirm/i }))
 
-        await waitFor(() => {
-            const notices = screen.getAllByText(/manual mode active/i)
-            // Multiple notices for SP-mapped sections
-            expect(notices.length).toBeGreaterThan(0)
-        })
+        await waitFor(() =>
+            expect(screen.getByText(/edit server\.properties directly/i)).toBeInTheDocument()
+        )
 
-        // JVM Options section: USE_AIKAR_FLAGS has serverPropertiesMapped: false
-        // so JVM Options should NOT have the notice
-        const jvmHeader = screen.getByText('JVM Options')
-        const jvmSection = jvmHeader.closest('.border') as HTMLElement
-        if (jvmSection) {
-            const noticeInJvm = within(jvmSection).queryByText(/manual mode active/i)
-            expect(noticeInJvm).not.toBeInTheDocument()
-        }
+        // MANUAL mode: warning-badge noise is suppressed (issue #26) even though
+        // SP-mapped fields are still visually dimmed/disabled.
+        expect(screen.queryByText(/manual mode active/i)).not.toBeInTheDocument()
     })
 
     it('MANUAL → Managed switches without confirm dialog', async () => {
@@ -731,7 +727,7 @@ describe('JVM Options Section', () => {
         await user.click(screen.getByRole('button', { name: /confirm/i }))
         await waitFor(() => expect(updateConfigMode).toHaveBeenCalled())
 
-        // JVM Options section has serverPropertiesMapped:false → no notice
+        // Warning badges are suppressed entirely in MANUAL mode (issue #26)
         const jvmHeader = screen.getByText('JVM Options')
         const jvmSection = jvmHeader.closest('div.border') as HTMLElement
         if (jvmSection) {

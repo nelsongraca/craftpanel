@@ -308,6 +308,7 @@ class ServerService(
                     serverId = id.toString()
                     containerName = "$containerNamePrefix-$id"
                     force = true
+                    deleteData = true
                 }
             }
         )

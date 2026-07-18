@@ -615,6 +615,25 @@ class ServersRoutesTest :
             }
         }
 
+        test("DELETE server sends removeContainer with deleteData=true so the agent cleans up files") {
+            testApplication {
+                val gateway = TestAgentGateway()
+                testApp { jwtManager -> configureServersTest(gateway) }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, "to-delete-with-files", status = "STOPPED")
+
+                val resp = client.delete("/api/servers/$serverId") { bearerAuth(tokenFor(userId)) }
+                resp.status shouldBe HttpStatusCode.NoContent
+
+                val sentRemove = gateway.sent.map { it.second }.single { it.hasRemoveContainer() }.removeContainer
+                sentRemove.serverId shouldBe serverId.toString()
+                sentRemove.deleteData shouldBe true
+            }
+        }
+
         test("DELETE server returns 404 for unknown") {
             testApplication {
                 testApp { jwtManager -> configureServersTest() }
