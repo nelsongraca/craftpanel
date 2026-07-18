@@ -92,7 +92,7 @@ describe("NetworksPage", () => {
             ],
         });
         expect(screen.getAllByText("Has desc").length).toBeGreaterThan(0);
-        expect(screen.getAllByText("—").length).toBeGreaterThan(0);
+        expect(screen.getAllByText("-").length).toBeGreaterThan(0);
     });
 
     it("delete button disabled when server_count > 0", async () => {

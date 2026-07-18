@@ -335,7 +335,7 @@ describe("UsersPage", () => {
             await userEv.click(screen.getAllByTitle("Manage groups")[0]);
 
             await waitFor(() => {
-                expect(screen.getByText(/Groups — alice/)).toBeInTheDocument();
+                expect(screen.getByText(/Groups - alice/)).toBeInTheDocument();
             });
 
             expect(screen.getAllByText("Server Admin").length).toBeGreaterThan(0);
@@ -352,7 +352,7 @@ describe("UsersPage", () => {
             await userEv.click(screen.getAllByTitle("Manage groups")[0]);
 
             await waitFor(() => {
-                expect(screen.getByText(/Groups —/)).toBeInTheDocument();
+                expect(screen.getByText(/Groups -/)).toBeInTheDocument();
             });
 
             await userEv.selectOptions(screen.getAllByRole("combobox")[0], "g1");
@@ -375,7 +375,7 @@ describe("UsersPage", () => {
             await userEv.click(screen.getAllByTitle("Manage groups")[0]);
 
             await waitFor(() => {
-                expect(screen.getByText(/Groups —/)).toBeInTheDocument();
+                expect(screen.getByText(/Groups -/)).toBeInTheDocument();
             });
 
             await userEv.click(screen.getByRole("button", {name: "Add"}));
@@ -392,7 +392,7 @@ describe("UsersPage", () => {
             await userEv.click(screen.getAllByTitle("Manage groups")[0]);
 
             await waitFor(() => {
-                expect(screen.getByText(/Groups —/)).toBeInTheDocument();
+                expect(screen.getByText(/Groups -/)).toBeInTheDocument();
             });
 
             await userEv.selectOptions(screen.getAllByRole("combobox")[0], "g1");

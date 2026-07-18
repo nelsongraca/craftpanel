@@ -616,7 +616,7 @@ describe("FilesTab", () => {
             await waitFor(() => {
                 expect(
                     screen.getByText(
-                        "Binary file \u2014 use the download button to retrieve it.",
+                        "Binary file - use the download button to retrieve it.",
                     ),
                 ).toBeInTheDocument();
             });

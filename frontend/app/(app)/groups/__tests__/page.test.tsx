@@ -103,7 +103,7 @@ describe("GroupsPage", () => {
         await renderWith({
             groups: [group({id: "g1", name: "Empty", is_system: false, permissions: []})],
         });
-        expect(screen.getByText("—")).toBeTruthy();
+        expect(screen.getByText("-")).toBeTruthy();
     });
 
     it("shows +N more when >5 permissions", async () => {
