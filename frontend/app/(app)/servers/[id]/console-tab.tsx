@@ -29,7 +29,7 @@ function CrashLogView({serverId}: { serverId: string }) {
 
     return (
         <div className="px-6 py-4 flex flex-col gap-2">
-            <p className="text-warning text-xs font-mono">Server crashed — showing last output before exit</p>
+            <p className="text-warning text-xs font-mono">Server crashed - showing last output before exit</p>
             {error && <p className="text-error text-xs font-mono">{error}</p>}
             {!error && lines === null && <p className="text-text-muted text-xs font-mono">Loading…</p>}
             {!error && lines !== null && lines.length === 0 && (

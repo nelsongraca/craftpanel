@@ -136,7 +136,7 @@ export default function Dashboard() {
                                             <RamBar used={node.allocated_ram_mb} total={node.total_ram_mb}/>
                                         </td>
                                         <td className="px-3 py-2.5 text-text-muted font-mono text-xs">
-                                            {node.last_seen_at ? timeAgo(node.last_seen_at) : "—"}
+                                            {node.last_seen_at ? timeAgo(node.last_seen_at) : "-"}
                                         </td>
                                     </tr>
                                 ))}

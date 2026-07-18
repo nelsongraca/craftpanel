@@ -33,7 +33,7 @@ export function FieldSection({
         <div className="divide-y divide-border">
             {dimmed && (
                 <div className="px-4 py-2 bg-warning/5 border-b border-warning/20 text-xs text-warning">
-                    Manual mode active \u2014 these fields will not be applied to server.properties until you switch back to Managed.
+                    Manual mode active - these fields will not be applied to server.properties until you switch back to Managed.
                 </div>
             )}
             {visibleFields.map((field) => (

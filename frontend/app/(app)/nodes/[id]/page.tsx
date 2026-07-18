@@ -199,11 +199,11 @@ function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
                 <InfoRow label="Public IP" value={node.public_ip}/>
                 <InfoRow label="Private IP" value={node.private_ip}/>
                 <InfoRow label="Port Range" value={`${node.port_range_start}–${node.port_range_end}`}/>
-                <InfoRow label="Agent" value={node.agent_version ?? "—"}/>
+                <InfoRow label="Agent" value={node.agent_version ?? "-"}/>
                 <InfoRow label="RAM Total" value={fmtMb(node.total_ram_mb)}/>
                 <InfoRow label="RAM Reserved" value={fmtMb(node.reserved_ram_mb)}/>
                 <InfoRow label="CPU Shares" value={String(node.total_cpu_shares)}/>
-                <InfoRow label="Last Seen" value={node.last_seen_at ? timeAgo(node.last_seen_at) : "—"}/>
+                <InfoRow label="Last Seen" value={node.last_seen_at ? timeAgo(node.last_seen_at) : "-"}/>
                 <InfoRow label="Created" value={new Date(node.created_at).toLocaleDateString()}/>
             </div>
 
@@ -282,7 +282,7 @@ function ServersTab({servers}: { servers: Server[] }) {
                                 <span className="font-mono text-xs text-text-muted">{fmtMb(s.memory_mb)}</span>
                             </td>
                             <td className="py-3 pr-4">
-                                <span className="font-mono text-xs text-text-muted">{s.host_port ?? "—"}</span>
+                                <span className="font-mono text-xs text-text-muted">{s.host_port ?? "-"}</span>
                             </td>
                             <td className="py-3 text-right">
                                 <Link

@@ -193,7 +193,7 @@ export default function GroupsPage() {
                                     <td className="px-4 py-3">
                                         <div className="flex flex-wrap gap-1">
                                             {g.permissions.length === 0 ? (
-                                                <span className="text-text-muted">—</span>
+                                                <span className="text-text-muted">-</span>
                                             ) : g.permissions.slice(0, 5).map((p) => (
                                                 <span key={p} className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono bg-surface-higher border border-border text-text-dim">
                             {p === "*" ? "all" : p}

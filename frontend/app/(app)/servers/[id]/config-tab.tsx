@@ -193,7 +193,7 @@ function GameServerConfigSection({
                         </p>
                         <p className="text-xs text-text-dim">
                             {isManual
-                                ? "Manual mode \u2014 edit server.properties directly in the Files tab."
+                                ? "Manual mode - edit server.properties directly in the Files tab."
                                 : "Env vars below are applied to the container on next start."}
                         </p>
                     </div>

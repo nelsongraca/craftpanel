@@ -490,7 +490,7 @@ export default function NodesPage() {
             {!initialLoad && pendingNodes.length > 0 && (
                 <div className="mx-6 mt-4 flex items-center gap-3 bg-warning/10 border border-warning/30 rounded px-4 py-2.5 text-warning text-xs font-heading font-bold uppercase tracking-wider">
                     <span className="w-2 h-2 rounded-full bg-warning shrink-0"/>
-                    {pendingNodes.length} node{pendingNodes.length !== 1 ? "s" : ""} awaiting approval — review below
+                    {pendingNodes.length} node{pendingNodes.length !== 1 ? "s" : ""} awaiting approval - review below
                 </div>
             )}
 
@@ -515,7 +515,7 @@ export default function NodesPage() {
                 ) : filtered.length === 0 ? (
                     <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-sm">
                         {nodes.length === 0
-                            ? "No nodes registered yet — start an agent with a bootstrap token"
+                            ? "No nodes registered yet - start an agent with a bootstrap token"
                             : "No nodes match the current filter"}
                     </div>
                 ) : (

@@ -36,7 +36,7 @@ function RamBar({total, used}: { total: number; used?: number }) {
     return (
         <div className="flex flex-col gap-1">
       <span className="font-mono text-xs text-text-muted whitespace-nowrap">
-        {hasData ? `${used} / ${total} MB` : `— / ${total} MB`}
+        {hasData ? `${used} / ${total} MB` : `- / ${total} MB`}
       </span>
             <div className="w-20 h-1 rounded-full" style={{background: "var(--border)"}}>
                 {hasData && pct > 0 && (
@@ -362,7 +362,7 @@ export default function ServersPage() {
                     ) : filteredServers.length === 0 ? (
                         <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-sm">
                             {servers.length === 0
-                                ? "No servers yet — create one to get started"
+                                ? "No servers yet - create one to get started"
                                 : "No servers match the current filters"}
                         </div>
                     ) : (
@@ -434,7 +434,7 @@ export default function ServersPage() {
 
                                         {/* PLAYERS */}
                                         <td className="py-3 pr-4">
-                                            <span className="font-mono text-xs text-text-muted">—/—</span>
+                                            <span className="font-mono text-xs text-text-muted">-/-</span>
                                         </td>
 
                                         {/* RAM */}

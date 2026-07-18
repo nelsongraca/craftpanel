@@ -30,7 +30,7 @@ function ComingSoon({tab}: { tab: string }) {
     return (
         <div className="px-6 py-10">
             <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-sm">
-                {tab} \u2014 coming soon
+                {tab} - coming soon
             </div>
         </div>
     );

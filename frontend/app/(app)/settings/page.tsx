@@ -105,7 +105,7 @@ export default function SettingsPage() {
 
     return (
         <div>
-            <PageHeader title="Settings" subtitle="Runtime configuration — changes take effect immediately unless noted"/>
+            <PageHeader title="Settings" subtitle="Runtime configuration - changes take effect immediately unless noted"/>
 
             <div className="p-6">
                 {loading ? (

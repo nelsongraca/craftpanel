@@ -38,7 +38,7 @@ export function LiveMetricsPanel({
                         </>
                     ) : (
                         <>
-                            <p className="font-mono text-[20px] text-text-muted leading-none">{"\u2014"}</p>
+                            <p className="font-mono text-[20px] text-text-muted leading-none">{"-"}</p>
                             <p className="text-xs text-text-muted">awaiting data</p>
                         </>
                     )}
@@ -58,7 +58,7 @@ export function LiveMetricsPanel({
                         </>
                     ) : (
                         <>
-                            <p className="font-mono text-[20px] text-text-muted leading-none">{"\u2014"}%</p>
+                            <p className="font-mono text-[20px] text-text-muted leading-none">{"-"}%</p>
                             <p className="font-mono text-xs text-text-muted">{server.cpu_shares} shares alloc</p>
                         </>
                     )}
@@ -93,24 +93,24 @@ export function LiveMetricsPanel({
                         {[
                             {
                                 label: "CPU",
-                                value: liveMetrics ? `${liveMetrics.cpuPercent.toFixed(1)}%` : "\u2014%",
+                                value: liveMetrics ? `${liveMetrics.cpuPercent.toFixed(1)}%` : "-%",
                                 color: liveMetrics ? cpuColor : "text-text-muted",
                             },
                             {
                                 label: "RAM",
                                 value: liveMetrics
                                     ? `${fmtMb(liveMetrics.ramUsedMb)} / ${fmtMb(server.memory_mb)}`
-                                    : "\u2014",
+                                    : "-",
                                 color: "text-text-primary",
                             },
                             {
                                 label: "Net \u2193",
-                                value: liveMetrics ? fmtBytes(liveMetrics.netInBytes) : "\u2014",
+                                value: liveMetrics ? fmtBytes(liveMetrics.netInBytes) : "-",
                                 color: "text-text-primary",
                             },
                             {
                                 label: "Net \u2191",
-                                value: liveMetrics ? fmtBytes(liveMetrics.netOutBytes) : "\u2014",
+                                value: liveMetrics ? fmtBytes(liveMetrics.netOutBytes) : "-",
                                 color: "text-text-primary",
                             },
                         ].map(({label, value, color}) => (

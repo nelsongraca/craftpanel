@@ -92,8 +92,8 @@ export function EditGeneral({server, forceOpenSignal, onSaved}: EditGeneralProps
             {!editing ? (
                 <div>
                     <InfoRow label="Display Name" value={server.display_name}/>
-                    <InfoRow label="Description" value={server.description ?? "\u2014"}/>
-                    <InfoRow label="Network" value={networks.find((n) => n.id === server.network_id)?.name ?? "\u2014"}/>
+                    <InfoRow label="Description" value={server.description ?? "-"}/>
+                    <InfoRow label="Network" value={networks.find((n) => n.id === server.network_id)?.name ?? "-"}/>
                     {!isProxy && <InfoRow label="MC Version" value={server.mc_version}/>}
                 </div>
             ) : (

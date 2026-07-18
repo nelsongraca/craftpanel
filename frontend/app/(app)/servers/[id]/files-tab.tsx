@@ -47,7 +47,7 @@ export function FilesTab({serverId}: Props) {
     const loadDir = useCallback(async (path: string): Promise<TreeNode[]> => {
         const {data, error: err} = await listServerFiles({path: {id: serverId}, query: {path}});
         if (err || !data) {
-            setError((err as { message?: string })?.message ?? "Failed to list files — agent may be disconnected");
+            setError((err as { message?: string })?.message ?? "Failed to list files - agent may be disconnected");
             return [];
         }
         return (data.entries ?? []).map((e) => ({
@@ -345,7 +345,7 @@ export function FilesTab({serverId}: Props) {
                             {loadingFile ? (
                                 <p className="text-text-muted text-xs p-4">Loading…</p>
                             ) : fileEncoding === "binary" ? (
-                                <p className="text-text-muted text-xs p-4">Binary file — use the download button to retrieve it.</p>
+                                <p className="text-text-muted text-xs p-4">Binary file - use the download button to retrieve it.</p>
                             ) : (
                                 <textarea
                                     className="w-full h-full bg-bg font-mono text-xs text-text-primary p-4 resize-none focus:outline-none leading-relaxed"

@@ -148,7 +148,7 @@ export default function NetworksPage() {
                         {n.server_count}
                       </span>
                                     </td>
-                                    <td className="px-4 py-3 text-text-muted truncate max-w-[200px]">{n.description ?? "—"}</td>
+                                    <td className="px-4 py-3 text-text-muted truncate max-w-[200px]">{n.description ?? "-"}</td>
                                     <td className="px-4 py-3">
                                         <div className="flex items-center gap-1 justify-end">
                                             <button

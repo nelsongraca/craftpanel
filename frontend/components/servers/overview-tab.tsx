@@ -55,22 +55,22 @@ export function OverviewTab({
                         Server Info
                     </p>
                     <InfoRow label="Type" value={server.server_type}/>
-                    <InfoRow label="Version" value={["VELOCITY", "BUNGEECORD", "WATERFALL"].includes(server.server_type) ? "\u2014" : server.mc_version}/>
+                    <InfoRow label="Version" value={["VELOCITY", "BUNGEECORD", "WATERFALL"].includes(server.server_type) ? "-" : server.mc_version}/>
                     <InfoRow label="Config" value={server.config_mode}/>
                     <InfoRow label="Node" value={node?.display_name ?? server.node_id.slice(0, 8) + "\u2026"}/>
-                    <InfoRow label="Network" value={network?.name ?? "\u2014"}/>
+                    <InfoRow label="Network" value={network?.name ?? "-"}/>
                     <InfoRow label="Port" value={server.host_port}/>
                     <InfoRow
                         label="Hostname"
                         value={
                             server.exposed_externally && server.public_subdomain
                                 ? server.public_subdomain
-                                : "\u2014"
+                                : "-"
                         }
                     />
                     <InfoRow
                         label="Last seen"
-                        value={node?.last_seen_at ? timeAgo(node.last_seen_at) : "\u2014"}
+                        value={node?.last_seen_at ? timeAgo(node.last_seen_at) : "-"}
                     />
                     <InfoRow label="Created" value={new Date(server.created_at).toLocaleDateString()}/>
                 </div>

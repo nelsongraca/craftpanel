@@ -71,8 +71,8 @@ export function EditExposure({server, onSaved}: EditExposureProps) {
             {!editing ? (
                 <div>
                     <InfoRow label="Exposed" value={server.exposed_externally ? "Yes" : "No"}/>
-                    <InfoRow label="Public Subdomain" value={server.public_subdomain ?? "\u2014"}/>
-                    <InfoRow label="Custom Hostname" value={server.custom_hostname ?? "\u2014"}/>
+                    <InfoRow label="Public Subdomain" value={server.public_subdomain ?? "-"}/>
+                    <InfoRow label="Custom Hostname" value={server.custom_hostname ?? "-"}/>
                     {server.canonical_hostname && <InfoRow label="Canonical" value={server.canonical_hostname}/>}
                 </div>
             ) : (

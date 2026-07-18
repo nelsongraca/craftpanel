@@ -185,11 +185,11 @@ function AssignmentsModal({
         const target = a.scope_type === "SERVER"
             ? servers.find((s) => s.id === a.scope_id)?.display_name
             : networks.find((n) => n.id === a.scope_id)?.name;
-        return `${a.scope_type}: ${target ?? a.scope_id?.slice(0, 8) ?? "—"}`;
+        return `${a.scope_type}: ${target ?? a.scope_id?.slice(0, 8) ?? "-"}`;
     }
 
     return (
-        <Modal title={`Groups — ${user.username}`} onClose={onClose}>
+        <Modal title={`Groups - ${user.username}`} onClose={onClose}>
             <div className="space-y-5">
                 {/* Current assignments */}
                 <div>

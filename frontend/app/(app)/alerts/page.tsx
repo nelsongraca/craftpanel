@@ -159,7 +159,7 @@ function CreateThresholdModal({
                             onChange={(e) => setScopeId(e.target.value)}
                             className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-xs font-mono text-text-primary focus:outline-none focus:border-accent"
                         >
-                            <option value="">— select —</option>
+                            <option value="">- select -</option>
                             {(scopeType === "NODE" ? nodes : servers).map((item) => (
                                 <option key={item.id} value={item.id}>{item.display_name}</option>
                             ))}

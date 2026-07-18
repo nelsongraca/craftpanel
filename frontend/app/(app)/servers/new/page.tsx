@@ -285,7 +285,7 @@ export default function NewServerPage() {
                                 <option value="">Select a node…</option>
                                 {nodes.filter((n) => n.status === "ACTIVE").map((n) => (
                                     <option key={n.id} value={n.id}>
-                                        {n.display_name} — {n.total_ram_mb ? `${Math.round(n.total_ram_mb / 1024)} GB` : "unknown"} RAM
+                                        {n.display_name} - {n.total_ram_mb ? `${Math.round(n.total_ram_mb / 1024)} GB` : "unknown"} RAM
                                     </option>
                                 ))}
                             </FieldSelect>
