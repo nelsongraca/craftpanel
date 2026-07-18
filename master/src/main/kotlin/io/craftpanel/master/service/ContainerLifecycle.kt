@@ -122,11 +122,12 @@ class ContainerLifecycle(
             put("EULA", "TRUE")
             put("TYPE", server.serverType)
             put("VERSION", server.mcVersion)
-            // ponytail: 20% headroom (512M floor) below the container's cgroup limit — Aikar's
-            // flags set -Xms=-Xmx=MEMORY with AlwaysPreTouch, which commits the full heap on
-            // startup; without headroom that equals the container's memory limit and OOMKills
-            // before the JVM logs anything. Revisit the 20%/512M heuristic if it proves wrong.
-            val heapMb = server.memoryMb - maxOf(server.memoryMb * 20 / 100, 512)
+            // ponytail: heap at 75% of the container's cgroup limit — Aikar's flags set
+            // -Xms=-Xmx=MEMORY with AlwaysPreTouch, which commits the full heap on startup;
+            // without headroom that equals the container's memory limit and OOMKills before
+            // the JVM logs anything. Flat percentage (no floor) keeps heap > 0 and < memoryMb
+            // for every input. Revisit the 75% heuristic if it proves wrong.
+            val heapMb = server.memoryMb * 75 / 100
             put("MEMORY", "${heapMb}M")
             if (modrinthProjects.isNotEmpty()) put("MODRINTH_PROJECTS", modrinthProjects)
         }

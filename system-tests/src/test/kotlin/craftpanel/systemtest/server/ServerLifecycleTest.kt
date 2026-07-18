@@ -78,7 +78,7 @@ class ServerLifecycleTest : BaseSystemTest() {
                         .orEmpty()
                     env shouldContain "TYPE=PAPER"
                     env shouldContain "VERSION=1.21.4"
-                    env shouldContain "MEMORY=512M"
+                    env shouldContain "MEMORY=384M"
                 }
 
                 should("starting an already HEALTHY server returns 409") {
