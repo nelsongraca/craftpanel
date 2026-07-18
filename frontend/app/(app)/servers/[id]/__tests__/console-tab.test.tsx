@@ -14,6 +14,7 @@ const { mockTerminal } = vi.hoisted(() => ({
 
 vi.mock('@/lib/generated/sdk.gen', () => ({
     authWsTicket: vi.fn(),
+    fetchServerConsoleLogs: vi.fn(),
 }))
 
 vi.mock('@xterm/xterm', () => ({
@@ -26,7 +27,7 @@ vi.mock('@xterm/addon-fit', () => ({
 
 vi.mock('@xterm/xterm/css/xterm.css', () => ({}))
 
-import { authWsTicket } from '@/lib/generated/sdk.gen'
+import { authWsTicket, fetchServerConsoleLogs } from '@/lib/generated/sdk.gen'
 
 class MockWebSocket {
     static instances: MockWebSocket[] = []
@@ -96,6 +97,35 @@ describe('ConsoleTab', () => {
         it('does not connect WebSocket when server is not HEALTHY', () => {
             render(<ConsoleTab serverId="s1" serverStatus="STOPPED" />)
             expect(MockWebSocket.instances).toHaveLength(0)
+        })
+    })
+
+    describe('UNHEALTHY crash log fallback', () => {
+        it('fetches and shows crash log lines instead of attaching console', async () => {
+            vi.mocked(fetchServerConsoleLogs).mockResolvedValue({ data: { lines: ['line1\n', 'line2\n'] } } as never)
+            render(<ConsoleTab serverId="s1" serverStatus="UNHEALTHY" />)
+            await flushMicrotasks()
+
+            expect(fetchServerConsoleLogs).toHaveBeenCalledWith({ path: { id: 's1' }, query: { tail: 200 } })
+            expect(MockWebSocket.instances).toHaveLength(0)
+            expect(screen.getByText(/Server crashed/)).toBeInTheDocument()
+            expect(screen.getByText((_, el) => el?.textContent === 'line1\nline2\n')).toBeInTheDocument()
+        })
+
+        it('shows empty state when no log lines are returned', async () => {
+            vi.mocked(fetchServerConsoleLogs).mockResolvedValue({ data: { lines: [] } } as never)
+            render(<ConsoleTab serverId="s1" serverStatus="UNHEALTHY" />)
+            await flushMicrotasks()
+
+            expect(screen.getByText('No log output available')).toBeInTheDocument()
+        })
+
+        it('shows error when log fetch fails', async () => {
+            vi.mocked(fetchServerConsoleLogs).mockResolvedValue({ error: { message: 'forbidden' } } as never)
+            render(<ConsoleTab serverId="s1" serverStatus="UNHEALTHY" />)
+            await flushMicrotasks()
+
+            expect(screen.getByText('forbidden')).toBeInTheDocument()
         })
     })
 

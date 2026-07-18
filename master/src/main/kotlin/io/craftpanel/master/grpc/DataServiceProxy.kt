@@ -43,6 +43,16 @@ class DataServiceProxy(private val controlService: ControlServiceImpl, private v
             .map { output -> output.data.toByteArray() }
     }
 
+    /**
+     * Fetch static container logs for crash diagnosis.
+     * Returns the last [tailLines] lines of container output.
+     * Works for any container that exists (RUNNING, EXITED, etc.).
+     */
+    suspend fun fetchContainerLogs(serverId: Uuid, tailLines: Int): List<String> {
+        val (nodeId, _) = lookupServer(serverId)
+        return controlService.fetchContainerLogs(nodeId, serverId.toString(), tailLines)
+    }
+
     // ── File operations ───────────────────────────────────────────────────────
 
     internal fun agentErrorToException(code: ErrorCode, msg: String): ServiceException = when (code) {

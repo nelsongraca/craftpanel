@@ -1,11 +1,47 @@
 "use client";
 
 import {useEffect, useRef, useState} from "react";
-import {authWsTicket} from "@/lib/generated/sdk.gen";
+import {authWsTicket, fetchServerConsoleLogs} from "@/lib/generated/sdk.gen";
 
 interface Props {
     serverId: string;
     serverStatus: string;
+}
+
+function CrashLogView({serverId}: { serverId: string }) {
+    const [lines, setLines] = useState<string[] | null>(null);
+    const [error, setError] = useState<string | null>(null);
+
+    useEffect(() => {
+        let cancelled = false;
+        fetchServerConsoleLogs({path: {id: serverId}, query: {tail: 200}}).then(({data, error: err}) => {
+            if (cancelled) return;
+            if (err || !data) {
+                setError(err?.message ?? "Failed to fetch logs");
+                return;
+            }
+            setLines(data.lines);
+        });
+        return () => {
+            cancelled = true;
+        };
+    }, [serverId]);
+
+    return (
+        <div className="px-6 py-4 flex flex-col gap-2">
+            <p className="text-warning text-xs font-mono">Server crashed — showing last output before exit</p>
+            {error && <p className="text-error text-xs font-mono">{error}</p>}
+            {!error && lines === null && <p className="text-text-muted text-xs font-mono">Loading…</p>}
+            {!error && lines !== null && lines.length === 0 && (
+                <p className="text-text-muted text-xs font-mono">No log output available</p>
+            )}
+            {!error && lines !== null && lines.length > 0 && (
+                <pre className="rounded border border-border bg-surface p-3 text-xs font-mono text-text-dim overflow-auto whitespace-pre-wrap" style={{height: "520px"}}>
+                    {lines.join("")}
+                </pre>
+            )}
+        </div>
+    );
 }
 
 export function ConsoleTab({serverId, serverStatus}: Props) {
@@ -111,6 +147,10 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
             term?.dispose();
         };
     }, [serverId, serverStatus, reconnectKey]);
+
+    if (serverStatus === "UNHEALTHY") {
+        return <CrashLogView serverId={serverId}/>;
+    }
 
     if (serverStatus !== "HEALTHY") {
         return (

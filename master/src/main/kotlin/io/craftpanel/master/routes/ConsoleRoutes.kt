@@ -4,6 +4,11 @@ package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.*
 import io.craftpanel.master.grpc.DataServiceProxy
+import io.craftpanel.master.routes.dto.ConsoleLogsResponse
+import io.github.smiley4.ktoropenapi.get
+import io.ktor.http.*
+import io.ktor.server.auth.*
+import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
@@ -69,7 +74,7 @@ internal data class ServerInfo(val serverId: Uuid, val networkId: Uuid?)
 fun Route.consoleRoutes(wsTicketService: WsTicketService, proxy: DataServiceProxy, permissionResolver: PermissionResolver) =
     with(ConsoleRoutes(wsTicketService, proxy, permissionResolver)) { register() }
 
-class ConsoleRoutes(private val wsTicketService: WsTicketService, proxy: DataServiceProxy, private val permissionResolver: PermissionResolver) {
+class ConsoleRoutes(private val wsTicketService: WsTicketService, private val proxy: DataServiceProxy, private val permissionResolver: PermissionResolver) {
 
     private val log = LoggerFactory.getLogger(ConsoleRoutes::class.java)
     private val sessionManager = ConsoleSessionManager(proxy, CoroutineScope(SupervisorJob().plus(Dispatchers.IO)))
@@ -167,6 +172,42 @@ class ConsoleRoutes(private val wsTicketService: WsTicketService, proxy: DataSer
                 outputJob.cancel()
                 revalidationJob.cancel()
                 closeWatcherJob.cancel()
+            }
+        }
+
+        // Static container logs — fallback for crash diagnosis when live attach isn't possible (server UNHEALTHY)
+        authenticate(JWT_AUTH) {
+            get("/api/servers/{id}/console/logs", {
+                operationId = "fetchServerConsoleLogs"
+                summary = "Fetch static container logs (tail, no follow) for crash diagnosis"
+                request {
+                    pathParameter<String>("id")
+                    queryParameter<Int>("tail") { required = false }
+                }
+                response {
+                    code(HttpStatusCode.OK) { body<ConsoleLogsResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                val rawId = call.parameters["id"] ?: run {
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Missing server ID"))
+                    return@get
+                }
+                val serverInfo = lookupServer(rawId) ?: run {
+                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
+                    return@get
+                }
+                val userId = call.userId()
+                if (!permissionResolver.hasPermission(userId, Permission.SERVER_CONSOLE, serverInfo.serverId, serverInfo.networkId)) {
+                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                    return@get
+                }
+
+                val tailLines = (call.request.queryParameters["tail"]?.toIntOrNull() ?: 200).coerceIn(1, 1000)
+                val lines = proxy.fetchContainerLogs(serverInfo.serverId, tailLines)
+                call.respond(ConsoleLogsResponse(lines))
             }
         }
     }

@@ -176,6 +176,9 @@ message MasterMessage {
     DownloadFileCommand   download_file = 24;
     UploadFileCommand     upload_file = 25;
     DownloadBackupCommand download_backup = 26;
+
+    // Console — fetch static container logs (tail, no follow) for crash diagnosis
+    FetchContainerLogsRequest fetch_container_logs = 27;
   }
 }
 
@@ -221,6 +224,9 @@ message AgentMessage {
     // Bulk transfer responses (sent after agent completes BulkDataService transfer)
     DownloadFileResponse download_file_response = 21;
     UploadFileResponse   upload_file_response = 22;
+
+    // Console — static container logs response (tail, no follow)
+    FetchContainerLogsResponse fetch_container_logs_response = 23;
   }
 }
 
@@ -407,6 +413,22 @@ message ConsoleOutput {
   // True when the container has exited or the session was closed by the agent.
   // Master closes the WebSocket on receipt.
   bool   closed = 3;
+}
+
+// Master → Agent: fetch static container logs (tail, no follow) for crash diagnosis.
+// Works for any container that exists (RUNNING, EXITED, etc.), not just RUNNING.
+message FetchContainerLogsRequest {
+  string request_id = 1;
+  string server_id = 2;
+  int32  tail_lines = 3;
+}
+
+// Agent → Master: response containing tailed container logs.
+message FetchContainerLogsResponse {
+  string request_id = 1;
+  repeated string lines = 2;
+  // True when the container doesn't exist or can't be read.
+  bool closed = 3;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

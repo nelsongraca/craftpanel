@@ -111,6 +111,8 @@ class ControlStreamHandler(
 
                 msg.hasConsoleDetach() -> dispatch { console.handleConsoleDetach(msg.consoleDetach) }
 
+                msg.hasFetchContainerLogs() -> launch { dispatch { console.handleFetchContainerLogs(msg.fetchContainerLogs, out) } }
+
                 // File ops (unary) — each in its own coroutine so it does not block the stream
                 msg.hasListFiles() -> launch { dispatch { file.handleListFiles(msg.listFiles, out) } }
 

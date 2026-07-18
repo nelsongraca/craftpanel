@@ -115,4 +115,60 @@ class ConsoleHandler(private val containerManager: ContainerManager) {
         runCatching { session.second.close() }
         log.info("Console session ${cmd.requestId} detached")
     }
+
+    suspend fun handleFetchContainerLogs(cmd: FetchContainerLogsRequest, out: AgentOutbound) {
+        runCatching {
+            val containers = containerManager.listContainers()
+            val container = containers.find { it.serverId == cmd.serverId }
+            if (container == null) {
+                out.send {
+                    fetchContainerLogsResponse = fetchContainerLogsResponse {
+                        requestId = cmd.requestId
+                        closed = true
+                    }
+                }
+                log.warn("FetchContainerLogs: server ${cmd.serverId} not found")
+                return
+            }
+
+            val lines = mutableListOf<String>()
+            val latch = CompletableDeferred<Unit>()
+
+            containerManager.fetchLogs(
+                container.containerName,
+                cmd.tailLines,
+                object : ResultCallback.Adapter<Frame>() {
+                    override fun onNext(frame: Frame) {
+                        frame.payload?.let { lines.add(String(it)) }
+                    }
+
+                    override fun onComplete() {
+                        latch.complete(Unit)
+                    }
+
+                    override fun onError(t: Throwable) {
+                        latch.completeExceptionally(t)
+                    }
+                }
+            )
+
+            runCatching { latch.await() }
+
+            out.send {
+                fetchContainerLogsResponse = fetchContainerLogsResponse {
+                    requestId = cmd.requestId
+                    this.lines.addAll(lines)
+                    closed = false
+                }
+            }
+        }.onFailure { e ->
+            log.warn("FetchContainerLogs failed for server ${cmd.serverId}: ${e.message}")
+            out.trySend {
+                fetchContainerLogsResponse = fetchContainerLogsResponse {
+                    requestId = cmd.requestId
+                    closed = true
+                }
+            }
+        }
+    }
 }

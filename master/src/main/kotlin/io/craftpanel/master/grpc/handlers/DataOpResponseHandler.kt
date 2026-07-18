@@ -35,6 +35,7 @@ class DataOpResponseHandler(private val context: DataOpContext) {
             msg.hasCopyFileResponse() -> routeUnaryResponse(nodeId, msg.copyFileResponse.requestId, msg)
             msg.hasDownloadFileResponse() -> routeUnaryResponse(nodeId, msg.downloadFileResponse.requestId, msg)
             msg.hasUploadFileResponse() -> routeUnaryResponse(nodeId, msg.uploadFileResponse.requestId, msg)
+            msg.hasFetchContainerLogsResponse() -> routeUnaryResponse(nodeId, msg.fetchContainerLogsResponse.requestId, msg)
             else -> log.debug("DataOpResponseHandler: unhandled message type for node $nodeId")
         }
     }

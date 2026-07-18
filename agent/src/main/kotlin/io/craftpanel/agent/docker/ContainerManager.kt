@@ -288,6 +288,13 @@ open class ContainerManager(
         .withLogs(false)
         .exec(callback)
 
+    fun fetchLogs(containerName: String, tailLines: Int, callback: ResultCallback<Frame>): ResultCallback<Frame> = docker.logContainerCmd(containerName)
+        .withTail(tailLines)
+        .withStdOut(true)
+        .withStdErr(true)
+        .withFollowStream(false)
+        .exec(callback)
+
     fun shutdownAll(timeoutSeconds: Int): Pair<Int, Int> {
         val containers = docker.listContainersCmd()
             .withShowAll(false)

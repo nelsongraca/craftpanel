@@ -227,6 +227,7 @@ class ControlServiceImpl(
             msg.hasCopyFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
             msg.hasDownloadFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
             msg.hasUploadFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
+            msg.hasFetchContainerLogsResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
             else -> log.debug("Node ${msg.nodeId} sent unhandled message type")
         }
     }
@@ -346,6 +347,25 @@ class ControlServiceImpl(
                 ?.close()
             inputJob.cancel()
         }
+    }
+
+    /** Fetch static container logs for crash diagnosis. Works for any container state. */
+    internal suspend fun fetchContainerLogs(nodeId: String, serverId: String, tailLines: Int): List<String> {
+        val reqId = Uuid.random().toString()
+        val response = sendAndAwait(
+            nodeId,
+            reqId,
+            masterMessage {
+                fetchContainerLogs = fetchContainerLogsRequest {
+                    requestId = reqId
+                    this.serverId = serverId
+                    this.tailLines = tailLines
+                }
+            }
+        )
+        val fetchResponse = response.fetchContainerLogsResponse
+        if (fetchResponse.closed) return emptyList()
+        return fetchResponse.linesList
     }
 
     /** Verify a node key from a bulk transfer auth header against the DB. */
