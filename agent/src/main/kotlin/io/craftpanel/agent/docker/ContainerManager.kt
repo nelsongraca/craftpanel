@@ -79,7 +79,7 @@ open class ContainerManager(
         }
 
     fun createContainer(cmd: StartContainerCommand): String {
-        val minecraftPort = ExposedPort.tcp(25565)
+        val minecraftPort = ExposedPort.tcp(cmd.internalListenPort)
         val portBindings = Ports()
         if (cmd.hostPort > 0) {
             portBindings.bind(minecraftPort, Ports.Binding.bindPort(cmd.hostPort))
@@ -122,7 +122,7 @@ open class ContainerManager(
                         // which Docker network to dial the backend on (the shared craftpanel
                         // network both mc-router and this container are attached to).
                         put("mc-router.host", cmd.publicHostname)
-                        put("mc-router.port", "25565")
+                        put("mc-router.port", cmd.internalListenPort.toString())
                         if (craftpanelNetwork.isNotEmpty()) {
                             put("mc-router.network", craftpanelNetwork)
                         }

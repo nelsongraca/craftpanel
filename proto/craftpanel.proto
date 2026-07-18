@@ -313,6 +313,11 @@ message StartContainerCommand {
   // "/server". Master resolves this from server_type and passes it through so the
   // proxy's real config/state dir is actually persistent (not an anonymous volume).
   string data_container_path = 13;
+  // Container-internal port the server process actually listens on. Varies by server
+  // type: itzg/minecraft-server listens on 25565, itzg/mc-proxy (Velocity/BungeeCord/
+  // Waterfall) listens on 25577. Master resolves this from server_type and passes it
+  // through so the exposed port and mc-router label match the proxy's real listen port.
+  int32 internal_listen_port = 14;
 }
 
 message StopContainerCommand {

@@ -149,6 +149,60 @@ class ContainerManagerTest :
             id shouldBe "new-container-id"
         }
 
+        test("createContainer exposes and routes to internalListenPort for game servers") {
+            val createCmd = stubCreate("c1")
+
+            manager.createContainer(
+                startContainerCommand {
+                    containerName = "craftpanel-srv"
+                    serverId = "srv-1"
+                    image = "itzg/minecraft-server:latest"
+                    hostPort = 25565
+                    publicHostname = "mc.example.com"
+                    internalListenPort = 25565
+                }
+            )
+
+            verify { createCmd.withExposedPorts(ExposedPort.tcp(25565)) }
+            verify {
+                createCmd.withLabels(
+                    mapOf(
+                        "craftpanel.managed" to "true",
+                        "craftpanel.server.id" to "srv-1",
+                        "mc-router.host" to "mc.example.com",
+                        "mc-router.port" to "25565"
+                    )
+                )
+            }
+        }
+
+        test("createContainer exposes and routes to 25577 for proxy servers") {
+            val createCmd = stubCreate("c1")
+
+            manager.createContainer(
+                startContainerCommand {
+                    containerName = "craftpanel-proxy"
+                    serverId = "srv-proxy"
+                    image = "itzg/mc-proxy:latest"
+                    hostPort = 25566
+                    publicHostname = "proxy.example.com"
+                    internalListenPort = 25577
+                }
+            )
+
+            verify { createCmd.withExposedPorts(ExposedPort.tcp(25577)) }
+            verify {
+                createCmd.withLabels(
+                    mapOf(
+                        "craftpanel.managed" to "true",
+                        "craftpanel.server.id" to "srv-proxy",
+                        "mc-router.host" to "proxy.example.com",
+                        "mc-router.port" to "25577"
+                    )
+                )
+            }
+        }
+
         test("createContainer sets server id label") {
             val createCmd = stubCreate("c1")
 

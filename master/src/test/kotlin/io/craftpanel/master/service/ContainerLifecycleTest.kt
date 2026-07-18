@@ -131,6 +131,8 @@ class ContainerLifecycleTest :
             cmd.image shouldBe "itzg/minecraft-server:latest"
             cmd.envVarsMap["EULA"] shouldBe "TRUE"
             cmd.dataContainerPath shouldBe "/data"
+            cmd.internalListenPort shouldBe 25565
+            cmd.envVarsMap["SERVER_PORT"] shouldBe "25565"
         }
 
         test("start - proxy server type - data container path is /server") {
@@ -152,6 +154,8 @@ class ContainerLifecycleTest :
             val cmd = lifecycle().buildStartMessage(server, needsRecreate = false).startContainer
             cmd.image shouldBe "itzg/mc-proxy:latest"
             cmd.dataContainerPath shouldBe "/server"
+            cmd.internalListenPort shouldBe 25577
+            cmd.envVarsMap["SERVER_PORT"] shouldBe "25577"
         }
 
         test("start - needsRecreate true - sends StartContainerCommand with needsRecreate=true") {

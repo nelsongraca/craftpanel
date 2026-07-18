@@ -56,4 +56,16 @@ class ImagesConfigTest : FunSpec({
         defaultImages.dataContainerPath("PAPER") shouldBe "/data"
         defaultImages.dataContainerPath("FORGE") shouldBe "/data"
     }
+
+    test("proxy server types resolve internal listen port to 25577") {
+        defaultImages.internalListenPort("VELOCITY") shouldBe 25577
+        defaultImages.internalListenPort("BUNGEECORD") shouldBe 25577
+        defaultImages.internalListenPort("WATERFALL") shouldBe 25577
+    }
+
+    test("non-proxy server types resolve internal listen port to 25565") {
+        defaultImages.internalListenPort("VANILLA") shouldBe 25565
+        defaultImages.internalListenPort("PAPER") shouldBe 25565
+        defaultImages.internalListenPort("FORGE") shouldBe 25565
+    }
 })
