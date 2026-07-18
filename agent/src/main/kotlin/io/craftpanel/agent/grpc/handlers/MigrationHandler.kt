@@ -14,7 +14,7 @@ class MigrationHandler(private val config: AgentConfig, private val containerMan
     private val log = LoggerFactory.getLogger(MigrationHandler::class.java)
 
     suspend fun handlePrepareRsyncReceive(cmd: PrepareRsyncReceiveCommand, out: AgentOutbound) {
-        val destPath = "${config.dataBasePath}/servers/${cmd.serverId}"
+        val destPath = serverDataRoot(config.dataBasePath, cmd.serverId).toString()
         log.info("Migration ${cmd.migrationId}: preparing rsync receiver on port ${cmd.port} → $destPath")
         val rsyncImage = cmd.rsyncImage.ifEmpty { "alpine:latest" }
         withContext(Dispatchers.IO) { containerManager.pullImage(rsyncImage) }
@@ -45,7 +45,7 @@ class MigrationHandler(private val config: AgentConfig, private val containerMan
     }
 
     suspend fun handleStartRsync(cmd: StartRsyncCommand, out: AgentOutbound) {
-        val sourcePath = "${config.dataBasePath}/servers/${cmd.serverId}"
+        val sourcePath = serverDataRoot(config.dataBasePath, cmd.serverId).toString()
         log.info("Migration ${cmd.migrationId}: starting rsync transfer (final=${cmd.isFinalPass})")
         val rsyncImage = cmd.rsyncImage.ifEmpty { "alpine:latest" }
         withContext(Dispatchers.IO) { containerManager.pullImage(rsyncImage) }

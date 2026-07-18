@@ -12,7 +12,7 @@ class BackupHandler(private val config: AgentConfig) {
     private val log = LoggerFactory.getLogger(BackupHandler::class.java)
 
     suspend fun handleTriggerBackup(cmd: TriggerBackupCommand, out: AgentOutbound) {
-        val sourceDir = "${config.dataBasePath}/servers/${cmd.serverId}"
+        val sourceDir = serverDataRoot(config.dataBasePath, cmd.serverId).toString()
         val destPath = "${config.dataBasePath}/backups/${cmd.backupId}.tar.gz"
         log.info("Backup ${cmd.backupId}: starting for server ${cmd.serverId} → $destPath")
 
