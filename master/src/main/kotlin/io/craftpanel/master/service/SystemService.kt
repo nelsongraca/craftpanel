@@ -17,7 +17,8 @@ data class SettingsMap(
     @SerialName("rate_limit_login_per_minute") val rateLimitLoginPerMinute: Int,
     @SerialName("rate_limit_refresh_per_minute") val rateLimitRefreshPerMinute: Int,
     @SerialName("image_minecraft") val imageMinecraft: String,
-    @SerialName("image_proxy") val imageProxy: String
+    @SerialName("image_proxy") val imageProxy: String,
+    @SerialName("console_tail_lines") val consoleTailLines: Int
 )
 
 @Serializable
@@ -34,7 +35,8 @@ data class PatchSettingsRequest(
     @SerialName("rate_limit_login_per_minute") val rateLimitLoginPerMinute: Int? = null,
     @SerialName("rate_limit_refresh_per_minute") val rateLimitRefreshPerMinute: Int? = null,
     @SerialName("image_minecraft") val imageMinecraft: String? = null,
-    @SerialName("image_proxy") val imageProxy: String? = null
+    @SerialName("image_proxy") val imageProxy: String? = null,
+    @SerialName("console_tail_lines") val consoleTailLines: Int? = null
 )
 
 class SystemService(private val settingsRepository: SettingsRepository) {
@@ -71,6 +73,9 @@ class SystemService(private val settingsRepository: SettingsRepository) {
         if (req.imageProxy != null && req.imageProxy.isBlank()) {
             throw UnprocessableException("image_proxy must not be blank")
         }
+        if (req.consoleTailLines != null && req.consoleTailLines !in 1..5000) {
+            throw UnprocessableException("console_tail_lines must be between 1 and 5000")
+        }
 
         val now = Clock.System.now()
         val updates = buildMap {
@@ -84,6 +89,7 @@ class SystemService(private val settingsRepository: SettingsRepository) {
             if (req.rateLimitRefreshPerMinute != null) put("rate_limit_refresh_per_minute", req.rateLimitRefreshPerMinute.toString())
             if (req.imageMinecraft != null) put("image_minecraft", req.imageMinecraft)
             if (req.imageProxy != null) put("image_proxy", req.imageProxy)
+            if (req.consoleTailLines != null) put("console_tail_lines", req.consoleTailLines.toString())
         }
         updates.forEach { (k, v) -> settingsRepository.upsert(k, v, now, updatedBy) }
 
@@ -111,7 +117,8 @@ class SystemService(private val settingsRepository: SettingsRepository) {
                 rateLimitLoginPerMinute = map["rate_limit_login_per_minute"]?.toIntOrNull() ?: 10,
                 rateLimitRefreshPerMinute = map["rate_limit_refresh_per_minute"]?.toIntOrNull() ?: 30,
                 imageMinecraft = map["image_minecraft"] ?: "itzg/minecraft-server",
-                imageProxy = map["image_proxy"] ?: "itzg/mc-proxy"
+                imageProxy = map["image_proxy"] ?: "itzg/mc-proxy",
+                consoleTailLines = map["console_tail_lines"]?.toIntOrNull() ?: 200
             ),
             updatedAt = latest?.updatedAt,
             updatedBy = latest?.updatedBy?.toString()

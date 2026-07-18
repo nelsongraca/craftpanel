@@ -19,6 +19,7 @@ type FormState = {
     rate_limit_refresh_per_minute: string;
     image_minecraft: string;
     image_proxy: string;
+    console_tail_lines: string;
 };
 
 function toForm(s: SettingsMap): FormState {
@@ -33,6 +34,7 @@ function toForm(s: SettingsMap): FormState {
         rate_limit_refresh_per_minute: String(s.rate_limit_refresh_per_minute),
         image_minecraft: s.image_minecraft,
         image_proxy: s.image_proxy,
+        console_tail_lines: String(s.console_tail_lines),
     };
 }
 
@@ -82,6 +84,7 @@ export default function SettingsPage() {
                 rate_limit_refresh_per_minute: parseInt(form.rate_limit_refresh_per_minute, 10) || undefined,
                 image_minecraft: form.image_minecraft || undefined,
                 image_proxy: form.image_proxy || undefined,
+                console_tail_lines: parseInt(form.console_tail_lines, 10) || undefined,
             },
         });
 
@@ -243,6 +246,23 @@ export default function SettingsPage() {
                                     placeholder="itzg/mc-proxy"
                                     value={form.image_proxy}
                                     onChange={(e) => set("image_proxy", e.target.value)}
+                                    required
+                                />
+                            </Field>
+                        </section>
+
+                        {/* ── Console ──────────────────────────────────────────── */}
+                        <section className="bg-surface border border-border rounded-md p-5 space-y-5">
+                            <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                                Console
+                            </h2>
+                            <Field label="History lines shown on console open">
+                                <TextField
+                                    type="number"
+                                    min={1}
+                                    max={5000}
+                                    value={form.console_tail_lines}
+                                    onChange={(e) => set("console_tail_lines", e.target.value)}
                                     required
                                 />
                             </Field>

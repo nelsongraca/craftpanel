@@ -14,7 +14,7 @@ function CrashLogView({serverId}: { serverId: string }) {
 
     useEffect(() => {
         let cancelled = false;
-        fetchServerConsoleLogs({path: {id: serverId}, query: {tail: 200}}).then(({data, error: err}) => {
+        fetchServerConsoleLogs({path: {id: serverId}}).then(({data, error: err}) => {
             if (cancelled) return;
             if (err || !data) {
                 setError(err?.message ?? "Failed to fetch logs");
@@ -89,6 +89,13 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
 
             const ro = new ResizeObserver(() => fitAddon.fit());
             if (containerRef.current) ro.observe(containerRef.current);
+
+            const {data: logData} = await fetchServerConsoleLogs({path: {id: serverId}});
+            if (disposed) return;
+            if (logData?.lines.length) {
+                term.write(logData.lines.join("").replace(/\r?\n/g, "\r\n"));
+                term.write("\x1b[90m--- live output below ---\x1b[0m\r\n");
+            }
 
             const {data, error: ticketErr} = await authWsTicket();
             if (ticketErr || !data?.ticket) {

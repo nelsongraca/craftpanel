@@ -41,6 +41,7 @@ const defaultSettings = {
         rate_limit_refresh_per_minute: 10,
         image_minecraft: "itzg/minecraft-server",
         image_proxy: "itzg/mc-proxy",
+        console_tail_lines: 200,
     },
 };
 

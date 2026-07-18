@@ -85,6 +85,7 @@ class SystemRoutesTest :
                 val settings = body["settings"]!!.jsonObject
                 settings["metric_retention_days"]!!.jsonPrimitive.content shouldBe "30"
                 settings["default_backup_max_count"]!!.jsonPrimitive.content shouldBe "10"
+                settings["console_tail_lines"]!!.jsonPrimitive.content shouldBe "200"
                 (body["updated_at"] == null || body["updated_at"].toString() == "null") shouldBe true
             }
         }
@@ -153,6 +154,39 @@ class SystemRoutesTest :
                     bearerAuth(tokenFor(userId))
                     contentType(ContentType.Application.Json)
                     setBody("""{"metric_retention_days":0}""")
+                }
+                response.status shouldBe HttpStatusCode.UnprocessableEntity
+            }
+        }
+
+        test("updateSystemSettings persists console_tail_lines") {
+            testApplication {
+                testApp { _ -> configureSystemTest() }
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val client = jsonClient()
+
+                val body = client.patch("/api/system/settings") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"console_tail_lines":500}""")
+                }
+                    .body<JsonObject>()
+
+                body["settings"]!!.jsonObject["console_tail_lines"]!!.jsonPrimitive.content shouldBe "500"
+            }
+        }
+
+        test("updateSystemSettings returns 422 for console_tail_lines out of range") {
+            testApplication {
+                testApp { _ -> configureSystemTest() }
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+
+                val response = client.patch("/api/system/settings") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"console_tail_lines":0}""")
                 }
                 response.status shouldBe HttpStatusCode.UnprocessableEntity
             }

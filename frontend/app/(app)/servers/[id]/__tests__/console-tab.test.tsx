@@ -106,7 +106,7 @@ describe('ConsoleTab', () => {
             render(<ConsoleTab serverId="s1" serverStatus="UNHEALTHY" />)
             await flushMicrotasks()
 
-            expect(fetchServerConsoleLogs).toHaveBeenCalledWith({ path: { id: 's1' }, query: { tail: 200 } })
+            expect(fetchServerConsoleLogs).toHaveBeenCalledWith({ path: { id: 's1' } })
             expect(MockWebSocket.instances).toHaveLength(0)
             expect(screen.getByText(/Server crashed/)).toBeInTheDocument()
             expect(screen.getByText((_, el) => el?.textContent === 'line1\nline2\n')).toBeInTheDocument()

@@ -5,6 +5,7 @@ package io.craftpanel.master.routes
 import io.craftpanel.master.auth.*
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.routes.dto.ConsoleLogsResponse
+import io.craftpanel.master.service.SystemService
 import io.github.smiley4.ktoropenapi.get
 import io.ktor.http.*
 import io.ktor.server.auth.*
@@ -71,10 +72,10 @@ private class ConsoleSessionManager(private val proxy: DataServiceProxy, private
 
 internal data class ServerInfo(val serverId: Uuid, val networkId: Uuid?)
 
-fun Route.consoleRoutes(wsTicketService: WsTicketService, proxy: DataServiceProxy, permissionResolver: PermissionResolver) =
-    with(ConsoleRoutes(wsTicketService, proxy, permissionResolver)) { register() }
+fun Route.consoleRoutes(wsTicketService: WsTicketService, proxy: DataServiceProxy, permissionResolver: PermissionResolver, systemService: SystemService) =
+    with(ConsoleRoutes(wsTicketService, proxy, permissionResolver, systemService)) { register() }
 
-class ConsoleRoutes(private val wsTicketService: WsTicketService, private val proxy: DataServiceProxy, private val permissionResolver: PermissionResolver) {
+class ConsoleRoutes(private val wsTicketService: WsTicketService, private val proxy: DataServiceProxy, private val permissionResolver: PermissionResolver, private val systemService: SystemService) {
 
     private val log = LoggerFactory.getLogger(ConsoleRoutes::class.java)
     private val sessionManager = ConsoleSessionManager(proxy, CoroutineScope(SupervisorJob().plus(Dispatchers.IO)))
@@ -205,7 +206,8 @@ class ConsoleRoutes(private val wsTicketService: WsTicketService, private val pr
                     return@get
                 }
 
-                val tailLines = (call.request.queryParameters["tail"]?.toIntOrNull() ?: 200).coerceIn(1, 1000)
+                val defaultTail = systemService.getSettings().settings.consoleTailLines
+                val tailLines = (call.request.queryParameters["tail"]?.toIntOrNull() ?: defaultTail).coerceIn(1, 5000)
                 val lines = proxy.fetchContainerLogs(serverInfo.serverId, tailLines)
                 call.respond(ConsoleLogsResponse(lines))
             }

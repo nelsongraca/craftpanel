@@ -9,7 +9,9 @@ import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.service.NodeStateReconciler
+import io.craftpanel.master.service.SystemService
 import io.craftpanel.master.service.repo.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.SettingsRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
@@ -28,7 +30,7 @@ class ConsoleRoutesTest :
         )
         val noopControlSvc = createTestControlServiceImpl(NodeConfig("test-token", 50052), reconciler)
         val noopProxy = DataServiceProxy(noopControlSvc, BulkDataServiceImpl(noopControlSvc), repos.serverRepository)
-        val consoleRoutes = ConsoleRoutes(WsTicketService(), noopProxy, PermissionResolver)
+        val consoleRoutes = ConsoleRoutes(WsTicketService(), noopProxy, PermissionResolver, SystemService(settingsRepository = SettingsRepositoryImpl()))
 
         beforeTest {
             TestDatabase.initIfNeeded()

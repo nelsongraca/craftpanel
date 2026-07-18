@@ -98,6 +98,8 @@ export function FilesTab({serverId}: Props) {
         setLoadingFile(true);
         setDirty(false);
         setError(null);
+        setFileContent("");
+        setFileEncoding("utf-8");
         const {data, error: err} = await readServerFile({path: {id: serverId}, query: {path: node.path}});
         setLoadingFile(false);
         if (err || !data) {

@@ -629,6 +629,37 @@ describe("FilesTab", () => {
         });
     });
 
+    describe("failed file open", () => {
+        it("clears previous file content when opening a file that fails to load", async () => {
+            const user = userEvent.setup();
+            vi.mocked(listServerFiles).mockResolvedValue({
+                data: { entries: [fileEntry("good.txt"), fileEntry("bad.txt")] },
+            } as never);
+            vi.mocked(readServerFile).mockResolvedValueOnce({
+                data: { content: "previous file content", encoding: "utf-8" },
+            } as never);
+            render(<FilesTab serverId="s1" />);
+            await waitFor(() => expect(screen.getByText("good.txt")).toBeInTheDocument());
+
+            await user.click(screen.getByText("good.txt"));
+            await waitFor(() =>
+                expect(screen.getByDisplayValue("previous file content")).toBeInTheDocument(),
+            );
+
+            vi.mocked(readServerFile).mockResolvedValueOnce({
+                error: { message: "Failed to load file" },
+            } as never);
+            await user.click(screen.getByText("bad.txt"));
+
+            await waitFor(() => {
+                expect(screen.getByText("Failed to load file")).toBeInTheDocument();
+            });
+            expect(
+                screen.queryByDisplayValue("previous file content"),
+            ).not.toBeInTheDocument();
+        });
+    });
+
     describe("upload", () => {
         it("shows error banner when upload fails", async () => {
             vi.mocked(listServerFiles).mockResolvedValue({
