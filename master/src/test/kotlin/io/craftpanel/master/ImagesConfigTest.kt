@@ -44,4 +44,16 @@ class ImagesConfigTest : FunSpec({
         val images = ImagesConfig("craftpanel-fake-server", "itzg/mc-proxy")
         images.deriveImage("PAPER", "latest") shouldBe "craftpanel-fake-server:latest"
     }
+
+    test("proxy server types resolve data container path to /server") {
+        defaultImages.dataContainerPath("VELOCITY") shouldBe "/server"
+        defaultImages.dataContainerPath("BUNGEECORD") shouldBe "/server"
+        defaultImages.dataContainerPath("WATERFALL") shouldBe "/server"
+    }
+
+    test("non-proxy server types resolve data container path to /data") {
+        defaultImages.dataContainerPath("VANILLA") shouldBe "/data"
+        defaultImages.dataContainerPath("PAPER") shouldBe "/data"
+        defaultImages.dataContainerPath("FORGE") shouldBe "/data"
+    }
 })

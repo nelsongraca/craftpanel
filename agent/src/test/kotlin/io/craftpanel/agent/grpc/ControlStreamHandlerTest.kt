@@ -181,6 +181,55 @@ class ControlStreamHandlerTest :
             }
         }
 
+        test("handleStart mount uses /server for proxy data_container_path") {
+            runBlocking {
+                every { containerManager.containerExists(any()) } returns true
+                every { containerManager.removeContainer(any(), any()) } just Runs
+                every { containerManager.pullImage(any()) } just Runs
+                val captured = slot<StartContainerCommand>()
+                every { containerManager.createContainer(capture(captured)) } returns "new-id"
+                every { containerManager.startContainer(any()) } just Runs
+                val outbound = newOutbound()
+
+                containerHandler.handleStart(
+                    startContainerCommand {
+                        serverId = "srv-proxy"
+                        containerName = "craftpanel-proxy"
+                        image = "itzg/mc-proxy:latest"
+                        needsRecreate = true
+                        dataContainerPath = "/server"
+                    },
+                    outbound
+                )
+
+                captured.captured.mountsList.single().containerPath shouldBe "/server"
+            }
+        }
+
+        test("handleStart mount defaults to /data when data_container_path is empty") {
+            runBlocking {
+                every { containerManager.containerExists(any()) } returns true
+                every { containerManager.removeContainer(any(), any()) } just Runs
+                every { containerManager.pullImage(any()) } just Runs
+                val captured = slot<StartContainerCommand>()
+                every { containerManager.createContainer(capture(captured)) } returns "new-id"
+                every { containerManager.startContainer(any()) } just Runs
+                val outbound = newOutbound()
+
+                containerHandler.handleStart(
+                    startContainerCommand {
+                        serverId = "srv-default"
+                        containerName = "craftpanel-default"
+                        image = "itzg/minecraft-server:latest"
+                        needsRecreate = true
+                    },
+                    outbound
+                )
+
+                captured.captured.mountsList.single().containerPath shouldBe "/data"
+            }
+        }
+
         // handleStop
         test("handleStop emits STOPPED on success") {
             runBlocking {

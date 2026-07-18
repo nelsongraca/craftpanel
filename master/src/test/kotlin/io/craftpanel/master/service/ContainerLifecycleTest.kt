@@ -65,9 +65,9 @@ class ContainerLifecycleTest :
             }
         }
 
-        fun serverRow(): ServerRow = transaction {
+        fun serverRow(id: Uuid = serverId): ServerRow = transaction {
             Servers.selectAll()
-                .where { Servers.id eq serverId }
+                .where { Servers.id eq id }
                 .first()
                 .let { r ->
                     ServerRow(
@@ -130,6 +130,28 @@ class ContainerLifecycleTest :
             cmd.containerName shouldBe "craftpanel-$serverId"
             cmd.image shouldBe "itzg/minecraft-server:latest"
             cmd.envVarsMap["EULA"] shouldBe "TRUE"
+            cmd.dataContainerPath shouldBe "/data"
+        }
+
+        test("start - proxy server type - data container path is /server") {
+            val proxyId = transaction {
+                Servers.insert {
+                    it[Servers.nodeId] = nodeId
+                    it[Servers.name] = "test-proxy"
+                    it[Servers.displayName] = "test-proxy"
+                    it[Servers.serverType] = "VELOCITY"
+                    it[Servers.mcVersion] = "latest"
+                    it[Servers.itzgImageTag] = "latest"
+                    it[Servers.hostPort] = 25566
+                    it[Servers.memoryMb] = 1024
+                    it[Servers.cpuShares] = 0
+                    it[Servers.status] = "STOPPED"
+                }[Servers.id].let { Uuid.parse(it.toString()) }
+            }
+            val server = serverRow(proxyId)
+            val cmd = lifecycle().buildStartMessage(server, needsRecreate = false).startContainer
+            cmd.image shouldBe "itzg/mc-proxy:latest"
+            cmd.dataContainerPath shouldBe "/server"
         }
 
         test("start - needsRecreate true - sends StartContainerCommand with needsRecreate=true") {

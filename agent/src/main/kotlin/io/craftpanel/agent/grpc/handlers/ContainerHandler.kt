@@ -29,7 +29,7 @@ class ContainerHandler(private val containerManager: ContainerManager, private v
                     .addMounts(
                         volumeMount {
                             hostPath = "${config.hostDataBasePath}/servers/${cmd.serverId}"
-                            containerPath = "/data"
+                            containerPath = cmd.dataContainerPath.ifEmpty { "/data" }
                             readOnly = false
                         }
                     )

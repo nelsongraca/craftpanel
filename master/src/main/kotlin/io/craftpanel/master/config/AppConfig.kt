@@ -40,10 +40,15 @@ data class ImagesConfig(val minecraftImage: String, val proxyImage: String) {
     fun deriveImage(serverType: String, tag: String): String {
         val base = when (serverType) {
             "BUNGEECORD", "VELOCITY", "WATERFALL" -> proxyImage
-            else -> minecraftImage
+            else                                  -> minecraftImage
         }
         return if (':' in base) base else "$base:$tag"
     }
+
+    // Container working directory the persistent data volume binds to. itzg/minecraft-server
+    // uses "/data"; the itzg/mc-proxy family (Velocity/BungeeCord/Waterfall) uses "/server".
+    fun dataContainerPath(serverType: String): String =
+        if (serverType in setOf("BUNGEECORD", "VELOCITY", "WATERFALL")) "/server" else "/data"
 }
 
 data class AdminSeedConfig(val email: String, val password: String, val username: String) {

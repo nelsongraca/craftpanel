@@ -109,6 +109,7 @@ class ContainerLifecycle(
                 dockerNetwork = server.networkId
                     ?.let { "$containerNamePrefix-net-$it" }
                     ?: "$containerNamePrefix-server-$id"
+                dataContainerPath = images.dataContainerPath(server.serverType)
             }
         }
     }
@@ -184,7 +185,8 @@ class ContainerLifecycle(
                 ?: throw ContainerLifecycleException(
                     "step timed out after $timeout waiting for $expected (server $serverId)"
                 )
-        } finally {
+        }
+        finally {
             job.cancel()
         }
     }
