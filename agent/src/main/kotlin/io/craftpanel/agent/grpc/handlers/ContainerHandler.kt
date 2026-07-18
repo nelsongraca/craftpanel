@@ -43,6 +43,15 @@ class ContainerHandler(private val containerManager: ContainerManager, private v
                     withContext(Dispatchers.IO) { networkManager.attachToNetwork(dockerNetwork) }
                 }
             }
+            runCatching {
+                val canonicalRoot = serverDataRoot(config.dataBasePath, cmd.serverId)
+                Files.createDirectories(canonicalRoot)
+                SymlinkMaintainer.createServerNameSymlink(
+                    serversByNameRoot = config.serversByNameRoot,
+                    name = cmd.serverName,
+                    canonicalPath = canonicalRoot
+                )
+            }.onFailure { log.warn("Failed to create servers-by-name symlink for ${cmd.serverId}", it) }
             containerManager.startContainer(cmd.containerName)
             // Mark started after startContainer succeeds: clears any stopping flag and registers
             // this agent as owner so future unexpected deaths are reported.
@@ -94,6 +103,9 @@ class ContainerHandler(private val containerManager: ContainerManager, private v
             }
             if (cmd.deleteData) {
                 withContext(Dispatchers.IO) { deleteServerData(cmd.serverId) }
+                runCatching {
+                    SymlinkMaintainer.removeServerNameSymlink(config.serversByNameRoot, cmd.serverName)
+                }.onFailure { log.warn("Failed to remove servers-by-name symlink for ${cmd.serverId}", it) }
             }
         }
     }

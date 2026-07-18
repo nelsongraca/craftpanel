@@ -318,6 +318,9 @@ message StartContainerCommand {
   // Waterfall) listens on 25577. Master resolves this from server_type and passes it
   // through so the exposed port and mc-router label match the proxy's real listen port.
   int32 internal_listen_port = 14;
+  // Human-readable server name, used by the agent to maintain the
+  // `servers-by-name/<name>` symlink overlay. Immutable server field — safe to snapshot here.
+  string server_name = 15;
 }
 
 message StopContainerCommand {
@@ -347,6 +350,9 @@ message RemoveContainerCommand {
   // container is removed. Only set on permanent server deletion — never on
   // migration or recreate flows, where the directory must survive the remove.
   bool   delete_data = 4;
+  // Human-readable server name, used by the agent to remove the
+  // `servers-by-name/<name>` symlink overlay. Matches the name snapshot taken at start.
+  string server_name = 5;
 }
 
 message TriggerBackupCommand {

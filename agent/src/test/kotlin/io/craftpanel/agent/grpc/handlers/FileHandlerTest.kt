@@ -71,6 +71,8 @@ class FileHandlerTest :
             agentVersion = "test",
             dataBasePath = dataDir.absolutePath,
             hostDataBasePath = dataDir.absolutePath,
+            serversByNameRoot = "${dataDir.absolutePath}/servers-by-name",
+            backupsByServerRoot = "${dataDir.absolutePath}/backups-by-server",
             mcRouterImage = "itzg/mc-router:latest",
             mcRouterUpdateOnStart = false,
             mcRouterContainerName = "",

@@ -309,6 +309,7 @@ class ServerService(
                     containerName = "$containerNamePrefix-$id"
                     force = true
                     deleteData = true
+                    serverName = existing.name
                 }
             }
         )

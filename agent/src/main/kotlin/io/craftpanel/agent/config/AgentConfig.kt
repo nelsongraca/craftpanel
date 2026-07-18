@@ -15,6 +15,10 @@ data class AgentConfig(
     val agentVersion: String,
     val dataBasePath: String,
     val hostDataBasePath: String,
+    // Root for the human-readable `servers-by-name/<name>` symlink overlay.
+    val serversByNameRoot: String,
+    // Root for the human-readable `backups-by-server/<name>/<timestamp>.tar.gz` symlink overlay.
+    val backupsByServerRoot: String,
     val mcRouterImage: String,
     val mcRouterUpdateOnStart: Boolean,
     val mcRouterContainerName: String,
@@ -27,7 +31,7 @@ data class AgentConfig(
     val metricsPollIntervalSeconds: Int,
     // Max age (hours) a locally-cached image may be before a fresh pull is attempted.
     // Prod default 24h; tests set a very large value so local-only images are never re-pulled.
-    val pullMaxImageAgeHours: Long = 24,
+    val pullMaxImageAgeHours: Long = 24
 ) {
 
     val tlsEnabled: Boolean get() = tlsCertPath.isNotBlank()
@@ -69,6 +73,10 @@ data class AgentConfig(
             dataBasePath = System.getenv("DATA_PATH") ?: "/data",
             hostDataBasePath = System.getenv("HOST_DATA_PATH")
                 ?: System.getenv("DATA_PATH") ?: "/data",
+            serversByNameRoot = System.getenv("SERVERS_BY_NAME_PATH")
+                ?: "${System.getenv("DATA_PATH") ?: "/data"}/servers-by-name",
+            backupsByServerRoot = System.getenv("BACKUPS_BY_SERVER_PATH")
+                ?: "${System.getenv("DATA_PATH") ?: "/data"}/backups-by-server",
             mcRouterImage = System.getenv("MCROUTER_IMAGE") ?: "itzg/mc-router:latest",
             mcRouterUpdateOnStart = System.getenv("MCROUTER_UPDATE_ON_START")
                 ?.lowercase() != "false",
@@ -86,7 +94,7 @@ data class AgentConfig(
                 ?.coerceAtLeast(1) ?: 5,
             pullMaxImageAgeHours = System.getenv("PULL_MAX_IMAGE_AGE_HOURS")
                 ?.toLongOrNull()
-                ?.coerceAtLeast(0) ?: 24,
+                ?.coerceAtLeast(0) ?: 24
         )
     }
 }

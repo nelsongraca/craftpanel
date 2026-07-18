@@ -30,6 +30,8 @@ class ControlStreamHandlerTest :
             agentVersion = "test",
             dataBasePath = "",
             hostDataBasePath = "",
+            serversByNameRoot = "",
+            backupsByServerRoot = "",
             mcRouterImage = "itzg/mc-router:latest",
             mcRouterUpdateOnStart = false,
             publicIpUrl = "",
@@ -130,6 +132,37 @@ class ControlStreamHandlerTest :
                     .single()
                 msg.serverStatus.status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
                 msg.serverStatus.serverId shouldBe "srv-start"
+            }
+        }
+
+        test("handleStart creates a servers-by-name symlink pointing at the server's canonical data dir") {
+            runBlocking {
+                every { containerManager.containerExists(any()) } returns true
+                every { containerManager.startContainer(any()) } just Runs
+                val byNameRoot = Files.createTempDirectory("by-name").toFile()
+                val dataConfig = config.copy(
+                    dataBasePath = tempDir.absolutePath,
+                    serversByNameRoot = byNameRoot.absolutePath
+                )
+                val handlerWithData = ContainerHandler(containerManager, dataConfig, mockk<NetworkManager>(relaxed = true))
+                val outbound = newOutbound()
+                val serverId = "srv-symlink"
+                val srvName = "survival-world"
+
+                handlerWithData.handleStart(
+                    startContainerCommand {
+                        this.serverId = serverId
+                        containerName = "craftpanel-$serverId"
+                        needsRecreate = false
+                        serverName = srvName
+                    },
+                    outbound
+                )
+
+                val link = java.nio.file.Path.of(byNameRoot.absolutePath, srvName)
+                java.nio.file.Files.exists(link) shouldBe true
+                java.nio.file.Files.isSymbolicLink(link) shouldBe true
+                byNameRoot.deleteRecursively()
             }
         }
 
@@ -333,6 +366,39 @@ class ControlStreamHandlerTest :
                 outboundChannel.messages()
                     .single().serverStatus.status shouldBe
                     ServerStatusUpdate.ServerStatus.STOPPED
+            }
+        }
+
+        test("handleRemove with deleteData=true removes the servers-by-name symlink") {
+            runBlocking {
+                every { containerManager.removeContainer(any(), any()) } just Runs
+                val byNameRoot = Files.createTempDirectory("by-name-rm").toFile()
+                val dataConfig = config.copy(
+                    dataBasePath = tempDir.absolutePath,
+                    serversByNameRoot = byNameRoot.absolutePath
+                )
+                val handlerWithData = ContainerHandler(containerManager, dataConfig, mockk<NetworkManager>(relaxed = true))
+                val serverId = "srv-remove-symlink"
+                val srvName = "removable-world"
+                val serverDir = File(tempDir, "servers/$serverId").apply { mkdirs() }
+                File(serverDir, "server.properties").writeText("motd=hi")
+                SymlinkMaintainer.createServerNameSymlink(byNameRoot.absolutePath, srvName, java.nio.file.Path.of(serverDir.absolutePath))
+                java.nio.file.Files.exists(java.nio.file.Path.of(byNameRoot.absolutePath, srvName)) shouldBe true
+                val outbound = newOutbound()
+
+                handlerWithData.handleRemove(
+                    removeContainerCommand {
+                        this.serverId = serverId
+                        containerName = "craftpanel-$serverId"
+                        force = true
+                        deleteData = true
+                        serverName = srvName
+                    },
+                    outbound
+                )
+
+                java.nio.file.Files.exists(java.nio.file.Path.of(byNameRoot.absolutePath, srvName)) shouldBe false
+                byNameRoot.deleteRecursively()
             }
         }
 
