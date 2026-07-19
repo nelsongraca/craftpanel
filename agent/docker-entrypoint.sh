@@ -1,7 +1,7 @@
 #!/bin/sh
 set -e
-mkdir -p /app/config /data/servers /data/backups
-chown craftpanel:craftpanel /app/config /data/servers /data/backups
+mkdir -p /app/config /data
+chown craftpanel:craftpanel /app/config /data
 
 if [ -S /var/run/docker.sock ]; then
     sock_gid=$(stat -c %g /var/run/docker.sock)
