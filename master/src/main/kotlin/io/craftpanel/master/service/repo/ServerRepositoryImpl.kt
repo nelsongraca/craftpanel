@@ -19,13 +19,16 @@ class ServerRepositoryImpl(
     private val proxyBackendRepository: ProxyBackendRepository,
     private val containerMetricsRepository: ContainerMetricsRepository,
     private val serverJobRepository: ServerJobRepository
-) : ServerRepository {
+) : AbstractCachedRepository<ServerRow>(),
+    ServerRepository {
 
-    override fun findById(id: Uuid): ServerRow? = transaction {
-        Servers.selectAll()
-            .where { Servers.id eq id }
-            .firstOrNull()
-            ?.toServerRow()
+    override fun findById(id: Uuid): ServerRow? = cachedFindById(id) {
+        transaction {
+            Servers.selectAll()
+                .where { Servers.id eq id }
+                .firstOrNull()
+                ?.toServerRow()
+        }
     }
 
     override fun findByName(name: String): ServerRow? = transaction {
@@ -164,12 +167,14 @@ class ServerRepositoryImpl(
                 if (itzgImageTag != null) it[Servers.itzgImageTag] = itzgImageTag
             }
         }
+        invalidate(id)
     }
 
     override fun clearNetworkId(id: Uuid) {
         transaction {
             Servers.update({ Servers.id eq id }) { it[Servers.networkId] = null }
         }
+        invalidate(id)
     }
 
     override fun updateResources(id: Uuid, memoryMb: Int, cpuShares: Int, itzgImageTag: String?, needsRecreate: Boolean) {
@@ -181,6 +186,7 @@ class ServerRepositoryImpl(
                 it[Servers.needsRecreate] = needsRecreate
             }
         }
+        invalidate(id)
     }
 
     override fun updateStatus(id: Uuid, status: String, lastSeenAt: kotlin.time.Instant?) {
@@ -192,6 +198,7 @@ class ServerRepositoryImpl(
                 }
             }
         }
+        invalidate(id)
     }
 
     override fun updateExposure(id: Uuid, exposedExternally: Boolean?, publicSubdomain: String?, customHostname: String?, dnsRecordId: String?, dnsRecordName: String?, needsRecreate: Boolean?) {
@@ -205,10 +212,12 @@ class ServerRepositoryImpl(
                 if (needsRecreate != null) it[Servers.needsRecreate] = needsRecreate
             }
         }
+        invalidate(id)
     }
 
     override fun updateNeedsRecreate(id: Uuid, needsRecreate: Boolean) {
         transaction { Servers.update({ Servers.id eq id }) { it[Servers.needsRecreate] = needsRecreate } }
+        invalidate(id)
     }
 
     override fun updatePlayerInfo(id: Uuid, playerCount: Int?, playerNames: String?, lastUpdate: kotlin.time.Instant?) {
@@ -219,6 +228,7 @@ class ServerRepositoryImpl(
                 if (lastUpdate != null) it[Servers.lastPlayerUpdate] = lastUpdate.toLocalDateTime(TimeZone.UTC)
             }
         }
+        invalidate(id)
     }
 
     override fun updateBackupSchedule(id: Uuid, schedule: String?, maxCount: Int?) {
@@ -229,6 +239,7 @@ class ServerRepositoryImpl(
                 if (maxCount != null) it[Servers.backupMaxCount] = maxCount
             }
         }
+        invalidate(id)
     }
 
     override fun updateBackupScheduleLastFired(id: Uuid, lastFired: Instant?) {
@@ -237,14 +248,17 @@ class ServerRepositoryImpl(
                 if (lastFired != null) it[Servers.backupScheduleLastFired] = lastFired.toLocalDateTime(TimeZone.UTC)
             }
         }
+        invalidate(id)
     }
 
     override fun updateConfigMode(id: Uuid, configMode: String) {
         transaction { Servers.update({ Servers.id eq id }) { it[Servers.configMode] = configMode } }
+        invalidate(id)
     }
 
     override fun updateStopCommand(id: Uuid, stopCommand: String) {
         transaction { Servers.update({ Servers.id eq id }) { it[Servers.stopCommand] = stopCommand } }
+        invalidate(id)
     }
 
     override fun delete(id: Uuid) {
@@ -259,10 +273,12 @@ class ServerRepositoryImpl(
             portRepository.releasePortsForServer(id)
             Servers.deleteWhere { Servers.id eq id }
         }
+        invalidate(id)
     }
 
     override fun nullifyNetworkId(networkId: Uuid) {
         transaction { Servers.update({ Servers.networkId eq networkId }) { it[Servers.networkId] = null } }
+        cache.values.filter { it.networkId == networkId }.forEach { row -> cache.remove(row.id) }
     }
 }
 
