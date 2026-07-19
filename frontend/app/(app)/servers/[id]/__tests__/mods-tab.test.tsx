@@ -551,7 +551,7 @@ describe('Edit Mod', () => {
         await user.click(pinButtons[1])
 
         await waitFor(() => {
-            expect(fetchMock).toHaveBeenCalledWith('https://api.modrinth.com/v2/project/def456/version')
+            expect(fetchMock).toHaveBeenCalledWith('https://api.modrinth.com/v2/project/def456/version?loaders=%5B%22FABRIC%22%5D&game_versions=%5B%221.21%22%5D')
         })
     })
 

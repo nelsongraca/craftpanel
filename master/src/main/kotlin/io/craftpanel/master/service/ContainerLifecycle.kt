@@ -122,15 +122,23 @@ class ContainerLifecycle(
         val modrinthProjects = modService.buildModrinthEnvVar(id)
         val dbEnvVars = envVarsRepository.getEnvVars(id)
             .associate { it.key to it.value }
+        val isProxy = server.serverType in setOf("BUNGEECORD", "VELOCITY", "WATERFALL")
         val systemVars = buildMap {
             put("EULA", "TRUE")
             put("TYPE", server.serverType)
             put("VERSION", server.mcVersion)
+            // itzg/mc-proxy requires MINECRAFT_VERSION (not just VERSION) when MODRINTH_PROJECTS
+            // is set, or its plugin-injection init aborts. Mirror VERSION for proxy types only.
+            if (isProxy) put("MINECRAFT_VERSION", server.mcVersion)
             // Force the internal listen port so container port, mc-router label, and
             // healthcheck all agree across server types. Proxies (Velocity/BungeeCord/
             // Waterfall) listen on 25577; game servers on 25565. Overridable via per-server
             // env var (dbEnvVars wins on collision below).
-            put("SERVER_PORT", images.internalListenPort(server.serverType).toString())
+            put(
+                "SERVER_PORT",
+                images.internalListenPort(server.serverType)
+                    .toString()
+            )
             // ponytail: heap at 75% of the container's cgroup limit — Aikar's flags set
             // -Xms=-Xmx=MEMORY with AlwaysPreTouch, which commits the full heap on startup;
             // without headroom that equals the container's memory limit and OOMKills before
@@ -188,7 +196,8 @@ class ContainerLifecycle(
                 ?: throw ContainerLifecycleException(
                     "step timed out after $timeout waiting for $expected (server $serverId)"
                 )
-        } finally {
+        }
+        finally {
             job.cancel()
         }
     }

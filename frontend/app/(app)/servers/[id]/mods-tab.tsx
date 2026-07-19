@@ -22,9 +22,15 @@ interface ModrinthVersion {
     date_published: string;
 }
 
-async function fetchModrinthVersions(projectId: string): Promise<ModrinthVersion[]> {
+async function fetchModrinthVersions(projectId: string, serverType: string, mcVersion: string): Promise<ModrinthVersion[]> {
     try {
-        const res = await fetch(`https://api.modrinth.com/v2/project/${projectId}/version`);
+        const params = new URLSearchParams();
+        // Mod loaders (Fabric/Forge/NeoForge/Quilt) map directly to a loader filter;
+        // proxies expose plugins filtered by game version only.
+        if (MOD_SERVER_TYPES.has(serverType.toUpperCase())) params.set("loaders", `["${serverType.toUpperCase()}"]`);
+        if (mcVersion) params.set("game_versions", `["${mcVersion}"]`);
+        const query = params.toString();
+        const res = await fetch(`https://api.modrinth.com/v2/project/${projectId}/version${query ? `?${query}` : ""}`);
         if (!res.ok) return [];
         return await res.json() as ModrinthVersion[];
     } catch {
@@ -117,7 +123,7 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
         setAddVersionId("");
         if (strategy === "PINNED" && addVersions.length === 0) {
             setLoadingAddVersions(true);
-            const vs = await fetchModrinthVersions(projectId);
+            const vs = await fetchModrinthVersions(projectId, serverType, mcVersion);
             setAddVersions(vs);
             if (vs.length > 0) setAddVersionId(vs[0].id);
             setLoadingAddVersions(false);
@@ -166,7 +172,7 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
         setEditVersions([]);
         if (strategy === "PINNED" && mod.modrinth_project_id) {
             setLoadingEditVersions(true);
-            const vs = await fetchModrinthVersions(mod.modrinth_project_id);
+            const vs = await fetchModrinthVersions(mod.modrinth_project_id, serverType, mcVersion);
             setEditVersions(vs);
             setLoadingEditVersions(false);
         }
@@ -177,7 +183,7 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
         setEditVersionId("");
         if (strategy === "PINNED" && mod.modrinth_project_id && editVersions.length === 0) {
             setLoadingEditVersions(true);
-            const vs = await fetchModrinthVersions(mod.modrinth_project_id);
+            const vs = await fetchModrinthVersions(mod.modrinth_project_id, serverType, mcVersion);
             setEditVersions(vs);
             if (vs.length > 0) setEditVersionId(vs[0].id);
             setLoadingEditVersions(false);

@@ -109,11 +109,11 @@ describe("AlertsPage", () => {
 
             render(<AlertsPage/>);
 
-            expect(screen.getAllByText("Loading…").length).toBe(2);
+            expect(screen.getAllByText("Loading…").length).toBe(4);
 
             def.resolve({data: {thresholds: []}});
             await waitFor(() => {
-                expect(screen.getByText("No thresholds configured.")).toBeInTheDocument();
+                expect(screen.getAllByText("No thresholds configured.").length).toBe(2);
             });
         });
     });
@@ -121,12 +121,12 @@ describe("AlertsPage", () => {
     describe("Empty states", () => {
         it('shows "No thresholds configured." when thresholds list is empty', async () => {
             await renderWith({thresholds: [], events: [], permissions: ["system.settings"]});
-            expect(screen.getByText("No thresholds configured.")).toBeInTheDocument();
+            expect(screen.getAllByText("No thresholds configured.").length).toBe(2);
         });
 
         it('shows "No alert events." when events list is empty', async () => {
             await renderWith({thresholds: [], events: []});
-            expect(screen.getByText("No alert events.")).toBeInTheDocument();
+            expect(screen.getAllByText("No alert events.").length).toBe(2);
         });
     });
 
@@ -135,10 +135,10 @@ describe("AlertsPage", () => {
             const th = threshold();
             await renderWith({thresholds: [th]});
 
-            expect(screen.getByText("NODE")).toBeInTheDocument();
-            expect(screen.getByText("node-1…")).toBeInTheDocument();
-            expect(screen.getByText("cpu_percent")).toBeInTheDocument();
-            expect(screen.getByText("> 80")).toBeInTheDocument();
+            expect(screen.getAllByText("NODE").length).toBeGreaterThan(0);
+            expect(screen.getAllByText("node-1…").length).toBeGreaterThan(0);
+            expect(screen.getAllByText("cpu_percent").length).toBeGreaterThan(0);
+            expect(screen.getAllByText("> 80").length).toBeGreaterThan(0);
             expect(screen.getAllByText(/ago/).length).toBeGreaterThan(0);
         });
 
@@ -146,7 +146,7 @@ describe("AlertsPage", () => {
             const th = threshold({threshold_value: 80, threshold_state: null});
             await renderWith({thresholds: [th]});
 
-            const trigger = screen.getByText("> 80");
+            const trigger = screen.getAllByText("> 80")[0];
             expect(trigger.className).toContain("text-warning");
         });
 
@@ -157,7 +157,7 @@ describe("AlertsPage", () => {
             });
             await renderWith({thresholds: [th]});
 
-            const trigger = screen.getByText("= UNHEALTHY");
+            const trigger = screen.getAllByText("= UNHEALTHY")[0];
             expect(trigger.className).toContain("text-text-dim");
         });
     });
@@ -175,7 +175,7 @@ describe("AlertsPage", () => {
                 permissions: ["system.settings"],
             });
 
-            await userEvent.setup().click(screen.getByTitle("Delete threshold"));
+            await userEvent.setup().click(screen.getAllByTitle("Delete threshold")[0]);
 
             await waitFor(() => {
                 expect(deleteAlertThreshold).toHaveBeenCalledWith({path: {id: "th-1"}});
@@ -183,7 +183,7 @@ describe("AlertsPage", () => {
 
             expect(screen.queryByText("SERVER")).not.toBeInTheDocument();
             expect(screen.queryByText("Alert 1")).not.toBeInTheDocument();
-            expect(screen.getByText("Alert 2")).toBeInTheDocument();
+            expect(screen.getAllByText("Alert 2").length).toBeGreaterThan(0);
         });
 
         it("shows error banner on delete failure and can be dismissed", async () => {
@@ -199,7 +199,7 @@ describe("AlertsPage", () => {
             });
 
             const user = userEvent.setup();
-            await user.click(screen.getByTitle("Delete threshold"));
+            await user.click(screen.getAllByTitle("Delete threshold")[0]);
 
             await waitFor(() => {
                 expect(
@@ -226,10 +226,10 @@ describe("AlertsPage", () => {
                 events: [ev],
             });
 
-            expect(screen.getByText("CPU usage exceeded threshold")).toBeInTheDocument();
-            expect(screen.getByText("th-1…")).toBeInTheDocument();
+            expect(screen.getAllByText("CPU usage exceeded threshold").length).toBeGreaterThan(0);
+            expect(screen.getAllByText("th-1…").length).toBeGreaterThan(0);
             expect(screen.getAllByText(/ago/).length).toBeGreaterThan(0);
-            expect(screen.getByText("Active")).toBeInTheDocument();
+            expect(screen.getAllByText("Active").length).toBeGreaterThan(0);
         });
 
         it("resolved event shows resolved time instead of Active label", async () => {
@@ -241,7 +241,7 @@ describe("AlertsPage", () => {
                 events: [ev],
             });
 
-            expect(screen.queryByText("Active")).not.toBeInTheDocument();
+            expect(screen.queryAllByText("Active").length).toBe(0);
         });
 
         it("active event shows AlertTriangle icon and Active label", async () => {
@@ -251,7 +251,7 @@ describe("AlertsPage", () => {
                 events: [ev],
             });
 
-            expect(screen.getByText("Active")).toBeInTheDocument();
+            expect(screen.getAllByText("Active").length).toBeGreaterThan(0);
         });
     });
 
@@ -273,16 +273,16 @@ describe("AlertsPage", () => {
                 events: [activeEv, resolvedEv],
             });
 
-            expect(screen.getByText("Active alert")).toBeInTheDocument();
-            expect(screen.getByText("Resolved alert")).toBeInTheDocument();
+            expect(screen.getAllByText("Active alert").length).toBeGreaterThan(0);
+            expect(screen.getAllByText("Resolved alert").length).toBeGreaterThan(0);
 
             const user = userEvent.setup();
             await user.click(screen.getByRole("button", {name: "All Events"}));
 
             await waitFor(() => {
-                expect(screen.queryByText("Resolved alert")).not.toBeInTheDocument();
+                expect(screen.queryAllByText("Resolved alert").length).toBe(0);
             });
-            expect(screen.getByText("Active alert")).toBeInTheDocument();
+            expect(screen.getAllByText("Active alert").length).toBeGreaterThan(0);
             expect(screen.getByText("Active Only")).toBeInTheDocument();
         });
     });
@@ -309,7 +309,7 @@ describe("AlertsPage", () => {
             });
 
             await waitFor(() => {
-                expect(screen.getByText("New live event")).toBeInTheDocument();
+                expect(screen.getAllByText("New live event").length).toBeGreaterThan(0);
             });
         });
 
@@ -334,7 +334,7 @@ describe("AlertsPage", () => {
             });
 
             await waitFor(() => {
-                expect(screen.queryByText("Active")).not.toBeInTheDocument();
+                expect(screen.queryAllByText("Active").length).toBe(0);
             });
         });
     });

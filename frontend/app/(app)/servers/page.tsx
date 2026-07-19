@@ -11,6 +11,7 @@ import {hasPermission} from "@/lib/permissions";
 import type {Network, Node, Server} from "@/lib/types";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {useResourceList} from "@/lib/hooks/useResourceList";
+import {ListTh, ListTd, ListActions, IconActionButton} from "@/components/ui/list-table";
 import {fillColor} from "@/lib/utils/format";
 import {serverStatusClass, serverStatusLabel} from "@/lib/status";
 
@@ -64,16 +65,16 @@ function ActionButton({
     onClick: () => void;
     isStop?: boolean;
 }) {
-    const cls = isStop
-        ? "bg-error/10 border-error/20 text-error"
-        : "bg-surface-high border-border text-text-muted hover:border-border-high hover:text-text-primary";
+    const tone = isStop
+        ? "text-text-muted hover:text-error"
+        : "text-text-muted hover:text-text-primary";
 
     return (
         <button
             onClick={onClick}
             disabled={loading}
             title={label}
-            className={`flex items-center justify-center px-2 py-1 border rounded-[2px] transition-colors disabled:opacity-40 ${cls}`}
+            className={`p-1.5 rounded hover:bg-surface-higher ${tone} transition-colors disabled:opacity-40`}
         >
             {loading ? (
                 <span className="w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin"/>
@@ -145,7 +146,7 @@ function ServerActions({
                         e.nativeEvent.stopImmediatePropagation();
                         setOpenMenuId((id) => (id === server.id ? null : server.id));
                     }}
-                    className="flex items-center justify-center px-2 py-1 border rounded-[2px] border-border bg-surface-high text-text-muted hover:border-border-high hover:text-text-primary transition-colors"
+                    className="flex items-center justify-center p-1.5 rounded hover:bg-surface-higher text-text-muted hover:text-text-primary transition-colors"
                 >
                     <MoreHorizontal size={12} strokeWidth={2}/>
                 </button>
@@ -366,111 +367,104 @@ export default function ServersPage() {
                                 : "No servers match the current filters"}
                         </div>
                     ) : (
-                        <table className="hidden md:table w-full border-collapse">
-                            <thead>
-                            <tr className="border-b border-border">
-                                {["Server", "Type", "Status", "Players", "RAM", "Node", "Actions"].map(
-                                    (col) => (
-                                        <th
-                                            key={col}
-                                            className={[
-                                                "pb-2 text-[9px] font-mono font-semibold uppercase tracking-[0.1em] text-text-muted",
-                                                col === "Actions" ? "text-right" : "text-left pr-4",
-                                            ].join(" ")}
+                        <div className="bg-surface border border-border rounded-md overflow-hidden">
+                            <table className="hidden md:table w-full text-xs">
+                                <thead>
+                                <tr className="border-b border-border">
+                                    {["Server", "Type", "Status", "Players", "RAM", "Node", "Actions"].map(
+                                        (col) => (
+                                            <ListTh key={col} align={col === "Actions" ? "right" : "left"}>{col}</ListTh>
+                                        )
+                                    )}
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {filteredServers.map((server) => {
+                                    const node = nodeMap[server.node_id];
+                                    const pending = pendingAction[server.id];
+                                    const status = server.status;
+
+                                    return (
+                                        <tr
+                                            key={server.id}
+                                            onClick={() => router.push(`/servers/${server.id}`)}
+                                            className="border-b border-border/50 hover:bg-surface-high/40 cursor-pointer group transition-colors"
                                         >
-                                            {col}
-                                        </th>
-                                    )
-                                )}
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {filteredServers.map((server) => {
-                                const node = nodeMap[server.node_id];
-                                const pending = pendingAction[server.id];
-                                const status = server.status;
-
-                                return (
-                                    <tr
-                                        key={server.id}
-                                        onClick={() => router.push(`/servers/${server.id}`)}
-                                        className="border-b border-border hover:bg-surface cursor-pointer group transition-colors"
-                                    >
-                                        {/* SERVER */}
-                                        <td className="py-3 pr-4">
-                                            <p className="text-sm font-heading font-bold text-text-primary group-hover:text-accent transition-colors leading-none">
-                                                {server.display_name}
-                                            </p>
-                                            {server.is_migrating && (
-                                                <p className="mt-1 text-xs font-mono text-warning leading-none">
-                                                    ⟳ Migrating
+                                            {/* SERVER */}
+                                            <ListTd firstCol>
+                                                <p className="text-sm font-heading font-bold text-text-primary group-hover:text-accent transition-colors leading-none">
+                                                    {server.display_name}
                                                 </p>
-                                            )}
-                                            {server.exposed_externally && server.public_subdomain && (
-                                                <p className="mt-0.5 text-xs font-mono text-text-muted leading-none">
-                                                    {server.public_subdomain}
-                                                </p>
-                                            )}
-                                        </td>
+                                                {server.is_migrating && (
+                                                    <p className="mt-1 text-xs font-mono text-warning leading-none">
+                                                        ⟳ Migrating
+                                                    </p>
+                                                )}
+                                                {server.exposed_externally && server.public_subdomain && (
+                                                    <p className="mt-0.5 text-xs font-mono text-text-muted leading-none">
+                                                        {server.public_subdomain}
+                                                    </p>
+                                                )}
+                                            </ListTd>
 
-                                        {/* TYPE */}
-                                        <td className="py-3 pr-4">
+                                            {/* TYPE */}
+                                            <ListTd>
                       <span
                           className="font-mono text-xs uppercase tracking-wider text-text-dim border border-border px-1.5 py-0.5 rounded"
                           style={{background: "var(--text-dim-bg)"}}
                       >
                         {server.server_type}
                       </span>
-                                        </td>
+                                            </ListTd>
 
-                                        {/* STATUS */}
-                                        <td className="py-3 pr-4">
+                                            {/* STATUS */}
+                                            <ListTd>
                       <span
                           className={`text-xs font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${serverStatusClass(status)}`}
                       >
                         {serverStatusLabel(status)}
                       </span>
-                                        </td>
+                                            </ListTd>
 
-                                        {/* PLAYERS */}
-                                        <td className="py-3 pr-4">
-                                            <span className="font-mono text-xs text-text-muted">-/-</span>
-                                        </td>
+                                            {/* PLAYERS */}
+                                            <ListTd>
+                                                <span className="font-mono text-xs text-text-muted">-/-</span>
+                                            </ListTd>
 
-                                        {/* RAM */}
-                                        <td className="py-3 pr-4">
-                                            <RamBar total={server.memory_mb}/>
-                                        </td>
+                                            {/* RAM */}
+                                            <ListTd>
+                                                <RamBar total={server.memory_mb}/>
+                                            </ListTd>
 
-                                        {/* NODE */}
-                                        <td className="py-3 pr-4">
+                                            {/* NODE */}
+                                            <ListTd>
                       <span className="font-mono text-xs text-text-dim">
                         {node?.display_name ?? `${server.node_id.slice(0, 8)}…`}
                       </span>
-                                        </td>
+                                            </ListTd>
 
-                                        {/* ACTIONS */}
-                                        <td
-                                            className="py-3 text-right"
-                                            onClick={(e) => e.stopPropagation()}
-                                        >
-                                            <ServerActions
-                                                server={server} status={status} pending={pending}
-                                                permissions={permissions}
-                                                openMenuId={openMenuId} setOpenMenuId={setOpenMenuId}
-                                                doAction={doAction} doDelete={doDelete}
-                                            />
-                                        </td>
-                                    </tr>
-                                );
-                            })}
-                            </tbody>
-                        </table>
+                                            {/* ACTIONS */}
+                                            <ListTd className="text-right">
+                                                <div onClick={(e) => e.stopPropagation()}>
+                                                    <ServerActions
+                                                        server={server} status={status} pending={pending}
+                                                        permissions={permissions}
+                                                        openMenuId={openMenuId} setOpenMenuId={setOpenMenuId}
+                                                        doAction={doAction} doDelete={doDelete}
+                                                    />
+                                                </div>
+                                            </ListTd>
+                                        </tr>
+                                    );
+                                })}
+                                </tbody>
+                            </table>
+                        </div>
                     )}
 
-                    {/* Mobile card list (< md) */}
+                    {/* Mobile card list (mobile) */}
                     {!initialLoad && filteredServers.length > 0 && (
-                        <div className="md:hidden space-y-2">
+                        <div className="md:hidden divide-y divide-border">
                             {filteredServers.map((server) => {
                                 const node = nodeMap[server.node_id];
                                 const pending = pendingAction[server.id];
@@ -479,7 +473,7 @@ export default function ServersPage() {
                                     <div
                                         key={server.id}
                                         onClick={() => router.push(`/servers/${server.id}`)}
-                                        className="bg-surface border border-border rounded-md p-3 cursor-pointer active:bg-surface-high transition-colors"
+                                        className="p-3 cursor-pointer active:bg-surface-high transition-colors"
                                     >
                                         <div className="flex items-start justify-between gap-2">
                                             <div className="min-w-0">

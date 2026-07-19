@@ -7,6 +7,7 @@ import {createAssignment, createUser, deleteAssignment, deleteUser, listGroups, 
 import type {Assignment, Group, User} from "@/lib/types";
 import {useResourceList} from "@/lib/hooks/useResourceList";
 import {BTN_PRIMARY, BTN_GHOST, Modal, Field, TextField, SelectField} from "@/components/ui/form-elements";
+import {ListTh, ListTd, ListActions, IconActionButton} from "@/components/ui/list-table";
 
 async function loadUsers() {
     const {data} = await listUsers();
@@ -308,59 +309,52 @@ export default function UsersPage() {
                 ) : users.length === 0 ? (
                     <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-sm">No users yet.</div>
                 ) : (
-                    <div className="bg-surface border border-border rounded-md overflow-hidden">
-                        <table className="hidden md:table w-full text-xs">
-                            <thead>
-                            <tr className="border-b border-border">
-                                <th className="text-left px-5 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Username</th>
-                                <th className="text-left px-4 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Email</th>
-                                <th className="text-left px-4 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Status</th>
-                                <th className="text-left px-4 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Created</th>
-                                <th className="px-4 py-3"/>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {users.map((u) => (
-                                <tr key={u.id} className="border-b border-border/50 hover:bg-surface-high/40">
-                                    <td className="px-5 py-3 font-medium text-text-primary">{u.username}</td>
-                                    <td className="px-4 py-3 text-text-dim">{u.email}</td>
-                                    <td className="px-4 py-3">
+                    <>
+                        <div className="bg-surface border border-border rounded-md overflow-hidden">
+                            <table className="hidden md:table w-full text-xs">
+                                <thead>
+                                <tr className="border-b border-border">
+                                    <ListTh>Username</ListTh>
+                                    <ListTh>Email</ListTh>
+                                    <ListTh>Status</ListTh>
+                                    <ListTh>Created</ListTh>
+                                    <ListTh/>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {users.map((u) => (
+                                    <tr key={u.id} className="border-b border-border/50 hover:bg-surface-high/40">
+                                        <ListTd firstCol><span className="font-medium text-text-primary">{u.username}</span></ListTd>
+                                        <ListTd className="text-text-dim">{u.email}</ListTd>
+                                        <ListTd>
                       <span
                           className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-heading font-bold uppercase tracking-wider border ${u.is_active ? "text-healthy border-healthy/30 bg-healthy/10" : "text-text-muted border-border bg-surface-high"}`}>
                         {u.is_active ? "Active" : "Inactive"}
                       </span>
-                                    </td>
-                                    <td className="px-4 py-3 text-text-muted font-mono text-xs">
-                                        {new Date(u.created_at).toLocaleDateString()}
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex items-center gap-1 justify-end">
-                                            <button onClick={() => setEditing(u)} className="p-1.5 rounded hover:bg-surface-higher text-text-muted hover:text-text-primary transition-colors"
-                                                    title="Edit">
-                                                <Pencil size={13}/>
-                                            </button>
-                                            <button onClick={() => setManagingGroups(u)} className="p-1.5 rounded hover:bg-surface-higher text-text-muted hover:text-text-primary transition-colors"
-                                                    title="Manage groups">
-                                                <Users2 size={13}/>
-                                            </button>
-                                            <button
+                                        </ListTd>
+                                        <ListTd className="text-text-muted font-mono text-xs">
+                                            {new Date(u.created_at).toLocaleDateString()}
+                                        </ListTd>
+                                        <ListActions>
+                                            <IconActionButton icon={<Pencil size={13}/>} label="Edit" onClick={() => setEditing(u)}/>
+                                            <IconActionButton icon={<Users2 size={13}/>} label="Manage groups" onClick={() => setManagingGroups(u)}/>
+                                            <IconActionButton
+                                                icon={<Trash2 size={13}/>}
+                                                label="Delete"
+                                                danger
                                                 onClick={() => {
                                                     setDeleting(u);
                                                     setDeleteError("");
                                                 }}
-                                                className="p-1.5 rounded hover:bg-surface-higher text-text-muted hover:text-error transition-colors"
-                                                title="Delete"
-                                            >
-                                                <Trash2 size={13}/>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                            </tbody>
-                        </table>
+                                            />
+                                        </ListActions>
+                                    </tr>
+                                ))}
+                                </tbody>
+                            </table>
+                        </div>
 
-                        {/* Mobile card list (< md) */}
+                        {/* Mobile card list (mobile) */}
                         <div className="md:hidden divide-y divide-border">
                             {users.map((u) => (
                                 <div key={u.id} className="p-3">
@@ -372,32 +366,28 @@ export default function UsersPage() {
                                                 Created {new Date(u.created_at).toLocaleDateString()}
                                             </p>
                                         </div>
-                                        <span className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded text-xs font-heading font-bold uppercase tracking-wider border ${u.is_active ? "text-healthy border-healthy/30 bg-healthy/10" : "text-text-muted border-border bg-surface-high"}`}>
-                                            {u.is_active ? "Active" : "Inactive"}
-                                        </span>
+                                        <span
+                                            className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded text-xs font-heading font-bold uppercase tracking-wider border ${u.is_active ? "text-healthy border-healthy/30 bg-healthy/10" : "text-text-muted border-border bg-surface-high"}`}>
+                                        {u.is_active ? "Active" : "Inactive"}
+                                    </span>
                                     </div>
                                     <div className="mt-2.5 flex items-center justify-end gap-1">
-                                        <button onClick={() => setEditing(u)} className="p-1.5 rounded hover:bg-surface-higher text-text-muted hover:text-text-primary transition-colors" title="Edit">
-                                            <Pencil size={15}/>
-                                        </button>
-                                        <button onClick={() => setManagingGroups(u)} className="p-1.5 rounded hover:bg-surface-higher text-text-muted hover:text-text-primary transition-colors" title="Manage groups">
-                                            <Users2 size={15}/>
-                                        </button>
-                                        <button
+                                        <IconActionButton icon={<Pencil size={15}/>} label="Edit" onClick={() => setEditing(u)}/>
+                                        <IconActionButton icon={<Users2 size={15}/>} label="Manage groups" onClick={() => setManagingGroups(u)}/>
+                                        <IconActionButton
+                                            icon={<Trash2 size={15}/>}
+                                            label="Delete"
+                                            danger
                                             onClick={() => {
                                                 setDeleting(u);
                                                 setDeleteError("");
                                             }}
-                                            className="p-1.5 rounded hover:bg-surface-higher text-text-muted hover:text-error transition-colors"
-                                            title="Delete"
-                                        >
-                                            <Trash2 size={15}/>
-                                        </button>
+                                        />
                                     </div>
                                 </div>
                             ))}
                         </div>
-                    </div>
+                    </>
                 )}
             </div>
 

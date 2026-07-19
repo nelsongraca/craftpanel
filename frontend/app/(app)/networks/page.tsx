@@ -8,6 +8,7 @@ import type {Network} from "@/lib/types";
 import {useResourceList} from "@/lib/hooks/useResourceList";
 
 import {BTN_PRIMARY, BTN_GHOST, Modal, Field, TextField} from "@/components/ui/form-elements";
+import {ListTh, ListTd, ListActions, IconActionButton} from "@/components/ui/list-table";
 
 // ── Network form ──────────────────────────────────────────────────────────────
 
@@ -129,54 +130,47 @@ export default function NetworksPage() {
                         No networks yet. Create one to group servers.
                     </div>
                 ) : (
-                    <div className="bg-surface border border-border rounded-md overflow-hidden">
-                        <table className="hidden md:table w-full text-xs">
-                            <thead>
-                            <tr className="border-b border-border">
-                                <th className="text-left px-5 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Name</th>
-                                <th className="text-left px-4 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Servers</th>
-                                <th className="text-left px-4 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Description</th>
-                                <th className="px-4 py-3"/>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {networks.map((n) => (
-                                <tr key={n.id} className="border-b border-border/50 hover:bg-surface-high/40">
-                                    <td className="px-5 py-3 font-medium text-text-primary">{n.name}</td>
-                                    <td className="px-4 py-3">
+                    <>
+                        <div className="bg-surface border border-border rounded-md overflow-hidden">
+                            <table className="hidden md:table w-full text-xs">
+                                <thead>
+                                <tr className="border-b border-border">
+                                    <ListTh>Name</ListTh>
+                                    <ListTh>Servers</ListTh>
+                                    <ListTh>Description</ListTh>
+                                    <ListTh></ListTh>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {networks.map((n) => (
+                                    <tr key={n.id} className="border-b border-border/50 hover:bg-surface-high/40">
+                                        <ListTd firstCol><span className="font-medium text-text-primary">{n.name}</span></ListTd>
+                                        <ListTd>
                       <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-heading font-bold bg-surface-higher border border-border text-text-dim">
                         {n.server_count}
                       </span>
-                                    </td>
-                                    <td className="px-4 py-3 text-text-muted truncate max-w-[200px]">{n.description ?? "-"}</td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex items-center gap-1 justify-end">
-                                            <button
-                                                onClick={() => setEditing(n)}
-                                                className="p-1.5 rounded hover:bg-surface-higher text-text-muted hover:text-text-primary transition-colors"
-                                                title="Edit"
-                                            >
-                                                <Pencil size={13}/>
-                                            </button>
-                                            <button
+                                        </ListTd>
+                                        <ListTd className="text-text-muted truncate max-w-[200px]">{n.description ?? "-"}</ListTd>
+                                        <ListActions>
+                                            <IconActionButton icon={<Pencil size={13}/>} label="Edit" onClick={() => setEditing(n)}/>
+                                            <IconActionButton
+                                                icon={<Trash2 size={13}/>}
+                                                label={n.server_count > 0 ? "Cannot delete: has member servers" : "Delete"}
+                                                danger
+                                                disabled={n.server_count > 0}
                                                 onClick={() => {
                                                     setDeleting(n);
                                                     setDeleteError("");
                                                 }}
-                                                disabled={n.server_count > 0}
-                                                className="p-1.5 rounded hover:bg-surface-higher text-text-muted hover:text-error transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                                title={n.server_count > 0 ? "Cannot delete: has member servers" : "Delete"}
-                                            >
-                                                <Trash2 size={13}/>
-                                            </button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            ))}
-                            </tbody>
-                        </table>
+                                            />
+                                        </ListActions>
+                                    </tr>
+                                ))}
+                                </tbody>
+                            </table>
+                        </div>
 
-                        {/* Mobile card list (< md) */}
+                        {/* Mobile card list (mobile) */}
                         <div className="md:hidden divide-y divide-border">
                             {networks.map((n) => (
                                 <div key={n.id} className="p-3">
@@ -191,30 +185,23 @@ export default function NetworksPage() {
                                             )}
                                         </div>
                                         <div className="flex items-center gap-1 shrink-0">
-                                            <button
-                                                onClick={() => setEditing(n)}
-                                                className="p-1.5 rounded hover:bg-surface-higher text-text-muted hover:text-text-primary transition-colors"
-                                                title="Edit"
-                                            >
-                                                <Pencil size={15}/>
-                                            </button>
-                                            <button
+                                            <IconActionButton icon={<Pencil size={15}/>} label="Edit" onClick={() => setEditing(n)}/>
+                                            <IconActionButton
+                                                icon={<Trash2 size={15}/>}
+                                                label={n.server_count > 0 ? "Cannot delete: has member servers" : "Delete"}
+                                                danger
+                                                disabled={n.server_count > 0}
                                                 onClick={() => {
                                                     setDeleting(n);
                                                     setDeleteError("");
                                                 }}
-                                                disabled={n.server_count > 0}
-                                                className="p-1.5 rounded hover:bg-surface-higher text-text-muted hover:text-error transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
-                                                title={n.server_count > 0 ? "Cannot delete: has member servers" : "Delete"}
-                                            >
-                                                <Trash2 size={15}/>
-                                            </button>
+                                            />
                                         </div>
                                     </div>
                                 </div>
                             ))}
                         </div>
-                    </div>
+                    </>
                 )}
             </div>
 

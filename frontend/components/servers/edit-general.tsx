@@ -45,6 +45,11 @@ export function EditGeneral({server, forceOpenSignal, onSaved}: EditGeneralProps
     }
 
     useEffect(() => {
+        if (networks.length === 0) {
+            listNetworks().then(({data}) => {
+                if (data) setNetworks(data);
+            });
+        }
         if (forceOpenSignal !== undefined) open();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [forceOpenSignal]);

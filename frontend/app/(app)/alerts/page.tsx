@@ -52,7 +52,7 @@ function EmptyRow({message}: { message: string }) {
 
 function Th({children}: { children?: React.ReactNode }) {
     return (
-        <th className="text-left py-2 px-3 text-xs font-heading font-bold uppercase tracking-wider text-text-muted border-b border-border">
+        <th className="text-left px-4 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border">
             {children}
         </th>
     );
@@ -60,7 +60,7 @@ function Th({children}: { children?: React.ReactNode }) {
 
 function Td({children, className = ""}: { children: React.ReactNode; className?: string }) {
     return (
-        <td className={`py-2.5 px-3 text-xs font-mono border-b border-border ${className}`}>
+        <td className={`px-4 py-3 text-xs border-b border-border/50 ${className}`}>
             {children}
         </td>
     );
@@ -332,7 +332,7 @@ export default function AlertsPage() {
             )}
 
             {/* ── Thresholds ── */}
-            <div className="bg-surface border border-border rounded">
+            <div className="bg-surface border border-border rounded-md overflow-hidden">
                 <div className="px-4 pt-4 pb-3 border-b border-border">
                     <SectionHeader
                         title="Thresholds"
@@ -349,7 +349,7 @@ export default function AlertsPage() {
                         }
                     />
                 </div>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto hidden md:block">
                     <table className="w-full">
                         <thead>
                         <tr>
@@ -368,7 +368,7 @@ export default function AlertsPage() {
                             <EmptyRow message="No thresholds configured."/>
                         ) : (
                             thresholds.map((t) => (
-                                <tr key={t.id} className="hover:bg-surface-high transition-colors">
+                                <tr key={t.id} className="border-b border-border/50 hover:bg-surface-high/40 transition-colors">
                                     <Td>
                       <span className={`inline-block text-xs font-heading font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${
                           t.scope_type === "NODE"
@@ -410,10 +410,53 @@ export default function AlertsPage() {
                         </tbody>
                     </table>
                 </div>
+
+                {/* Mobile card list (mobile) */}
+                <div className="md:hidden divide-y divide-border">
+                    {loading ? (
+                        <p className="p-3 text-xs text-text-muted">Loading…</p>
+                    ) : thresholds.length === 0 ? (
+                        <p className="p-3 text-xs text-text-muted">No thresholds configured.</p>
+                    ) : (
+                        thresholds.map((t) => (
+                            <div key={t.id} className="p-3 flex items-center justify-between gap-2">
+                                <div className="min-w-0">
+                                    <div className="flex items-center gap-2">
+                                        <span className={`inline-block text-xs font-heading font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+                                            t.scope_type === "NODE"
+                                                ? "text-text-dim border-border bg-surface-high"
+                                                : "text-accent border-accent/30 bg-accent/5"
+                                        }`}>
+                                            {t.scope_type}
+                                        </span>
+                                        <span className="text-sm font-medium text-text-primary truncate">{t.metric}</span>
+                                    </div>
+                                    <p className="mt-1 font-mono text-xs text-text-muted truncate">
+                                        {t.scope_id.slice(0, 8)}… · {t.threshold_value != null ? `> ${t.threshold_value}` : `= ${t.threshold_state}`}
+                                    </p>
+                                </div>
+                                {canManage && (
+                                    <button
+                                        onClick={() => void confirmDelete(t.id)}
+                                        disabled={deleteId === t.id}
+                                        className="p-1.5 rounded hover:bg-surface-higher text-text-muted hover:text-error transition-colors disabled:opacity-40 shrink-0"
+                                        title="Delete threshold"
+                                    >
+                                        {deleteId === t.id ? (
+                                            <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin inline-block"/>
+                                        ) : (
+                                            <Trash2 size={13} strokeWidth={2}/>
+                                        )}
+                                    </button>
+                                )}
+                            </div>
+                        ))
+                    )}
+                </div>
             </div>
 
             {/* ── Events ── */}
-            <div className="bg-surface border border-border rounded">
+            <div className="bg-surface border border-border rounded-md overflow-hidden">
                 <div className="px-4 pt-4 pb-3 border-b border-border">
                     <SectionHeader
                         title="Alert Events"
@@ -431,7 +474,7 @@ export default function AlertsPage() {
                         }
                     />
                 </div>
-                <div className="overflow-x-auto">
+                <div className="overflow-x-auto hidden md:block">
                     <table className="w-full">
                         <thead>
                         <tr>
@@ -449,7 +492,7 @@ export default function AlertsPage() {
                             <EmptyRow message={activeOnly ? "No active alerts." : "No alert events."}/>
                         ) : (
                             displayedEvents.map((e) => (
-                                <tr key={e.id} className="hover:bg-surface-high transition-colors">
+                                <tr key={e.id} className="border-b border-border/50 hover:bg-surface-high/40 transition-colors">
                                     <Td>
                                         {e.resolved_at ? (
                                             <CheckCircle size={14} strokeWidth={2} className="text-healthy"/>
@@ -470,6 +513,34 @@ export default function AlertsPage() {
                         )}
                         </tbody>
                     </table>
+                </div>
+
+                {/* Mobile card list (mobile) */}
+                <div className="md:hidden divide-y divide-border">
+                    {loading ? (
+                        <p className="p-3 text-xs text-text-muted">Loading…</p>
+                    ) : displayedEvents.length === 0 ? (
+                        <p className="p-3 text-xs text-text-muted">{activeOnly ? "No active alerts." : "No alert events."}</p>
+                    ) : (
+                        displayedEvents.map((e) => (
+                            <div key={e.id} className="p-3">
+                                <div className="flex items-start gap-2">
+                                    {e.resolved_at ? (
+                                        <CheckCircle size={14} strokeWidth={2} className="text-healthy mt-0.5 shrink-0"/>
+                                    ) : (
+                                        <AlertTriangle size={14} strokeWidth={2} className="text-error mt-0.5 shrink-0"/>
+                                    )}
+                                    <div className="min-w-0">
+                                        <p className="text-sm text-text-primary">{e.message}</p>
+                                        <p className="mt-1 font-mono text-xs text-text-muted">
+                                            {e.threshold_id.slice(0, 8)}… · fired {timeAgo(e.fired_at)}
+                                            {e.resolved_at ? ` · resolved ${timeAgo(e.resolved_at)}` : " · active"}
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        ))
+                    )}
                 </div>
             </div>
 
