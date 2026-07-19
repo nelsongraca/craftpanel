@@ -10,7 +10,7 @@ import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.service.AgentGateway
 import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.master.service.repo.NodeRepository
-import io.craftpanel.master.service.repo.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
 import kotlinx.coroutines.flow.MutableSharedFlow
 import java.util.concurrent.ConcurrentHashMap
 

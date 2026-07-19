@@ -3,7 +3,7 @@ package io.craftpanel.master.service
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.database.schema.*
-import io.craftpanel.master.service.repo.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
 import io.craftpanel.proto.*
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe

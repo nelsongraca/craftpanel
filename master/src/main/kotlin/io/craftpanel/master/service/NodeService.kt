@@ -3,6 +3,7 @@ package io.craftpanel.master.service
 import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.NodeStatus
 import io.craftpanel.master.service.repo.*
+import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.master.util.CryptoUtils
 import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.shutdownCommand

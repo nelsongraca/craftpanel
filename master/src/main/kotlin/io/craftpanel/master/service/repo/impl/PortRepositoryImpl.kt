@@ -1,6 +1,8 @@
-package io.craftpanel.master.service.repo
+package io.craftpanel.master.service.repo.impl
 
 import io.craftpanel.master.database.schema.PortRegistry
+import io.craftpanel.master.service.repo.*
+import io.craftpanel.master.service.repo.impl.*
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.*

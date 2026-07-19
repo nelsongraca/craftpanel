@@ -6,8 +6,8 @@ import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.ServerStatus
-import io.craftpanel.master.service.repo.AlertRepositoryImpl
-import io.craftpanel.master.service.repo.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.impl.AlertRepositoryImpl
+import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.channels.Channel

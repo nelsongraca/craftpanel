@@ -6,6 +6,7 @@ import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.NetworkService
 import io.craftpanel.master.service.repo.*
+import io.craftpanel.master.service.repo.impl.*
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe

@@ -1,6 +1,7 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.service.repo.*
+import io.craftpanel.master.service.repo.impl.*
 import kotlin.uuid.Uuid
 
 /**

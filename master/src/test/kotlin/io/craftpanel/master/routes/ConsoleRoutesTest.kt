@@ -10,8 +10,8 @@ import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.master.service.SystemService
-import io.craftpanel.master.service.repo.NodeRepositoryImpl
-import io.craftpanel.master.service.repo.SettingsRepositoryImpl
+import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.impl.SettingsRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe

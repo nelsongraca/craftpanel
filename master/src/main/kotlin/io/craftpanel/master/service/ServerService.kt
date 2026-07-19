@@ -4,6 +4,7 @@ import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.ConfigMode
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.*
+import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.removeContainerCommand
 import kotlinx.serialization.SerialName

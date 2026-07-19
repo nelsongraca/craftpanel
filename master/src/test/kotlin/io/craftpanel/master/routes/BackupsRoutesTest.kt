@@ -9,7 +9,7 @@ import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.service.BackupService
 import io.craftpanel.master.service.NodeStateReconciler
-import io.craftpanel.master.service.repo.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.ktor.client.call.*

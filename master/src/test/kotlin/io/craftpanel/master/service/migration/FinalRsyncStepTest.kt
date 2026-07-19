@@ -5,6 +5,7 @@ import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.migration.steps.FinalRsyncStep
 import io.craftpanel.master.service.repo.*
+import io.craftpanel.master.service.repo.impl.*
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.delay

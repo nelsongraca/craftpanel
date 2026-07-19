@@ -4,6 +4,7 @@ import io.craftpanel.master.config.ImagesConfig
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.*
+import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.proto.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ReceiveChannel

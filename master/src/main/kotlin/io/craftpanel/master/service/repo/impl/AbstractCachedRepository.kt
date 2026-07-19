@@ -1,4 +1,4 @@
-package io.craftpanel.master.service.repo
+package io.craftpanel.master.service.repo.impl
 
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.uuid.Uuid

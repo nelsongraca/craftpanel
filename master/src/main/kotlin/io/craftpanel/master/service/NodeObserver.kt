@@ -3,6 +3,7 @@ package io.craftpanel.master.service
 import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.domain.*
 import io.craftpanel.master.service.repo.*
+import io.craftpanel.master.service.repo.impl.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.flow.SharedFlow

@@ -5,8 +5,8 @@ import io.craftpanel.master.auth.*
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.AlertService
-import io.craftpanel.master.service.repo.AlertRepositoryImpl
-import io.craftpanel.master.service.repo.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.impl.AlertRepositoryImpl
+import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.ktor.client.call.*

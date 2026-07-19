@@ -3,6 +3,7 @@ package io.craftpanel.master.routes
 import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.domain.*
 import io.craftpanel.master.service.repo.*
+import io.craftpanel.master.service.repo.impl.*
 import kotlinx.serialization.json.encodeToJsonElement
 import kotlin.time.Clock
 import kotlin.uuid.Uuid

@@ -7,6 +7,7 @@ import io.craftpanel.master.domain.MigrationStatus
 import io.craftpanel.master.domain.MigrationStepStatus
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.*
+import io.craftpanel.master.service.repo.impl.*
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldNotBeNull

@@ -5,6 +5,7 @@ import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.routes.DashboardEventFilter
 import io.craftpanel.master.routes.WsEnvelope
 import io.craftpanel.master.service.repo.*
+import io.craftpanel.master.service.repo.impl.*
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.mapNotNull
 import kotlin.uuid.Uuid

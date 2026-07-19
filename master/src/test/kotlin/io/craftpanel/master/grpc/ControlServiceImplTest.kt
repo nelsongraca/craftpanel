@@ -11,7 +11,7 @@ import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.master.service.repo.FakeNodeRepository
-import io.craftpanel.master.service.repo.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
 import io.craftpanel.proto.*
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec

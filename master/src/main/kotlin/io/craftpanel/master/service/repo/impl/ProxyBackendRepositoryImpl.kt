@@ -1,6 +1,8 @@
-package io.craftpanel.master.service.repo
+package io.craftpanel.master.service.repo.impl
 
 import io.craftpanel.master.database.schema.ProxyBackends
+import io.craftpanel.master.service.repo.*
+import io.craftpanel.master.service.repo.impl.*
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction

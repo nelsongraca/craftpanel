@@ -1,4 +1,4 @@
-package io.craftpanel.master.service.repo
+package io.craftpanel.master.service.repo.impl
 
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories

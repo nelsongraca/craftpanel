@@ -17,7 +17,7 @@ import io.craftpanel.master.grpc.GrpcServer
 import io.craftpanel.master.routes.*
 import io.craftpanel.master.scheduler.ServerScheduler
 import io.craftpanel.master.service.*
-import io.craftpanel.master.service.repo.SettingsRepositoryImpl
+import io.craftpanel.master.service.repo.impl.SettingsRepositoryImpl
 import io.github.smiley4.ktoropenapi.OpenApi
 import io.github.smiley4.ktoropenapi.config.*
 import io.github.smiley4.ktoropenapi.openApi

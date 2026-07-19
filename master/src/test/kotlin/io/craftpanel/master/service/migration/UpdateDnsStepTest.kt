@@ -7,6 +7,7 @@ import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.migration.steps.UpdateDnsStep
 import io.craftpanel.master.service.repo.*
+import io.craftpanel.master.service.repo.impl.*
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf

@@ -2,6 +2,7 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.domain.ConfigMode
 import io.craftpanel.master.service.repo.*
+import io.craftpanel.master.service.repo.impl.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlin.uuid.Uuid

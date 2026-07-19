@@ -9,7 +9,7 @@ import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.service.NodeStateReconciler
-import io.craftpanel.master.service.repo.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
 import io.craftpanel.proto.agentMessage
 import io.craftpanel.proto.nodeStateSnapshot
 import io.kotest.core.spec.style.FunSpec

@@ -1,6 +1,7 @@
 package io.craftpanel.master
 
 import io.craftpanel.master.service.repo.*
+import io.craftpanel.master.service.repo.impl.*
 
 /**
  * Wires up all real (H2-backed) repository implementations for tests.

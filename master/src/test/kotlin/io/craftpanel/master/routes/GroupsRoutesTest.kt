@@ -5,7 +5,7 @@ import io.craftpanel.master.auth.*
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.GroupService
-import io.craftpanel.master.service.repo.GroupRepositoryImpl
+import io.craftpanel.master.service.repo.impl.GroupRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe

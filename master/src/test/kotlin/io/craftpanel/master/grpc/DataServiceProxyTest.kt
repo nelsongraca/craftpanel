@@ -9,7 +9,7 @@ import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.routes.dto.*
 import io.craftpanel.master.service.*
-import io.craftpanel.master.service.repo.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
 import io.craftpanel.proto.ErrorCode
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
