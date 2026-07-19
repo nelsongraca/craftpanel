@@ -16,13 +16,6 @@ class McRouterProvisioner(private val docker: DockerClient, private val image: S
     val containerName: String = containerNameOverride.ifBlank { "craftpanel-mc-router" }
 
     fun ensureRunning() {
-        if (updateOnStart) {
-            log.info("Pulling mc-router image $image")
-            docker.pullImageCmd(image)
-                .exec(PullImageResultCallback())
-                .awaitCompletion()
-        }
-
         val existing = runCatching {
             docker.inspectContainerCmd(containerName)
                 .exec()
@@ -61,7 +54,14 @@ class McRouterProvisioner(private val docker: DockerClient, private val image: S
         }
 
         log.info("Provisioning mc-router container ($image)")
-        if (!updateOnStart) pullIfAbsent()
+        if (updateOnStart) {
+            log.info("Pulling mc-router image $image")
+            docker.pullImageCmd(image)
+                .exec(PullImageResultCallback())
+                .awaitCompletion()
+        } else {
+            pullIfAbsent()
+        }
         val port = ExposedPort.tcp(25565)
         val bindings = Ports().apply { bind(port, Ports.Binding.bindPort(25565)) }
         val hostConfig = HostConfig.newHostConfig()
