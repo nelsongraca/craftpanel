@@ -5,10 +5,13 @@ import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import org.slf4j.LoggerFactory
 import java.net.URI
 import java.net.URLEncoder
 import java.net.http.*
 import kotlin.uuid.Uuid
+
+private val log = LoggerFactory.getLogger(ModService::class.java)
 
 @Serializable
 data class ModResponse(
@@ -95,12 +98,12 @@ class ModService(private val serverRepository: ServerRepository, private val mod
             append(URLEncoder.encode(query, "UTF-8"))
             val facets = buildList {
                 add("[\"project_type:$projectType\"]")
-                if (loader != null) add("[\"loaders:$loader\"]")
+                if (loader != null) add("[\"categories:$loader\"]")
                 if (mcVersion.isNotBlank() && mcVersion.uppercase() != "LATEST") add("[\"game_versions:$mcVersion\"]")
             }
-            append("&facets=[")
-            append(facets.joinToString(","))
-            append("]&limit=")
+            append("&facets=")
+            append(URLEncoder.encode("[${facets.joinToString(",")}]", "UTF-8"))
+            append("&limit=")
             append(limit)
         }
         return try {
@@ -112,7 +115,8 @@ class ModService(private val serverRepository: ServerRepository, private val mod
                 .build()
             val response = httpClient.send(request, HttpResponse.BodyHandlers.ofString())
             ModrinthSearchResult(response.statusCode(), response.body())
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            log.error("Modrinth search failed for query='$query'", e)
             ModrinthSearchResult(502, "")
         }
     }
