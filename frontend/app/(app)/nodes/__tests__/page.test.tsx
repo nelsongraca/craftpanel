@@ -107,34 +107,20 @@ async function renderWith(
     return result;
 }
 
-function overflowButtons(): HTMLElement[] {
-    return screen.getAllByRole("button").filter((btn) => !btn.getAttribute("title"));
-}
+const MANAGE = ["system.nodes"];
 
-async function openOverflow() {
-    const btns = overflowButtons();
+async function clickAction(title: string): Promise<ReturnType<typeof userEvent.setup>> {
     const user = userEvent.setup();
-    await user.click(btns[0]);
+    await user.click(screen.getAllByTitle(title)[0]);
     return user;
 }
 
-async function openEdit() {
-    const user = await openOverflow();
-    await waitFor(() => {
-        expect(screen.getAllByText("Edit").length).toBeGreaterThan(0);
-    });
-    await user.click(screen.getAllByText("Edit")[0]);
+async function openEdit(): Promise<ReturnType<typeof userEvent.setup>> {
+    const user = await clickAction("Edit");
     await waitFor(() => {
         expect(screen.getByText("Edit Node")).toBeInTheDocument();
     });
     return user;
-}
-
-async function openMenuAndClick(label: string, user: ReturnType<typeof userEvent.setup>) {
-    await waitFor(() => {
-        expect(screen.getAllByText(label).length).toBeGreaterThan(0);
-    });
-    await user.click(screen.getAllByText(label)[0]);
 }
 
 describe("NodesPage", () => {
@@ -333,32 +319,22 @@ describe("NodesPage", () => {
         });
     });
 
-    describe("Overflow menu", () => {
-        it('clicking ··· opens menu with Edit, Rotate Key, Shutdown, and Decommission when servers=0', async () => {
+    describe("Row actions", () => {
+        it('shows Edit, Rotate Key, Shutdown, and Decommission inline icons when servers=0 and canManage', async () => {
             const nd = node({id: "n1", status: "ACTIVE"});
-            await renderWith({nodes: [nd]});
+            await renderWith({nodes: [nd], permissions: MANAGE});
 
-            expect(overflowButtons().length).toBeGreaterThan(0);
-
-            await openOverflow();
-
-            await waitFor(() => {
-                expect(screen.getAllByText("Edit").length).toBeGreaterThan(0);
-                expect(screen.getAllByText("Rotate Key").length).toBeGreaterThan(0);
-                expect(screen.getAllByText("Shutdown").length).toBeGreaterThan(0);
-                expect(screen.getAllByText("Decommission").length).toBeGreaterThan(0);
-            });
+            expect(screen.getAllByTitle("Edit").length).toBeGreaterThan(0);
+            expect(screen.getAllByTitle("Rotate Key").length).toBeGreaterThan(0);
+            expect(screen.getAllByTitle("Shutdown").length).toBeGreaterThan(0);
+            expect(screen.getAllByTitle("Decommission").length).toBeGreaterThan(0);
         });
 
         it('Shutdown NOT shown for non-ACTIVE status', async () => {
             const nd = node({id: "n1", status: "DEGRADED", health: "DEGRADED"});
-            await renderWith({nodes: [nd]});
+            await renderWith({nodes: [nd], permissions: MANAGE});
 
-            await openOverflow();
-
-            await waitFor(() => {
-                expect(screen.queryByText("Shutdown")).not.toBeInTheDocument();
-            });
+            expect(screen.queryByTitle("Shutdown")).not.toBeInTheDocument();
         });
 
         it('Decommission NOT shown when servers > 0', async () => {
@@ -366,11 +342,10 @@ describe("NodesPage", () => {
             await renderWith({
                 nodes: [nd],
                 servers: [{id: "s1", node_id: "n1"} as Record<string, unknown>],
+                permissions: MANAGE,
             });
 
-            await openOverflow();
-
-            expect(screen.queryByText("Decommission")).not.toBeInTheDocument();
+            expect(screen.queryByTitle("Decommission")).not.toBeInTheDocument();
         });
     });
 
@@ -378,7 +353,7 @@ describe("NodesPage", () => {
         it("clicking Edit opens modal, Save calls updateNode, Cancel closes without saving", async () => {
             const nd = node({id: "n1", display_name: "Node 1"});
             vi.mocked(updateNode).mockResolvedValue({data: {}} as never);
-            await renderWith({nodes: [nd]});
+            await renderWith({nodes: [nd], permissions: MANAGE});
 
             const user = await openEdit();
 
@@ -402,7 +377,7 @@ describe("NodesPage", () => {
 
         it("Cancel closes modal without calling updateNode", async () => {
             const nd = node({id: "n1", display_name: "Node 1"});
-            await renderWith({nodes: [nd]});
+            await renderWith({nodes: [nd], permissions: MANAGE});
 
             const user = await openEdit();
 
@@ -421,7 +396,7 @@ describe("NodesPage", () => {
             vi.mocked(updateNode).mockResolvedValue({
                 error: {message: "Invalid port range"},
             } as never);
-            await renderWith({nodes: [nd]});
+            await renderWith({nodes: [nd], permissions: MANAGE});
 
             const user = await openEdit();
 
@@ -439,10 +414,9 @@ describe("NodesPage", () => {
             vi.mocked(rotateNodeToken).mockResolvedValue({
                 data: {node_key: "new-token-abc"},
             } as never);
-            await renderWith({nodes: [nd]});
+            await renderWith({nodes: [nd], permissions: MANAGE});
 
-            const user = await openOverflow();
-            await openMenuAndClick("Rotate Key", user);
+            const user = await clickAction("Rotate Key");
 
             await waitFor(() => {
                 expect(screen.getByText("Rotate Node Key?")).toBeInTheDocument();
@@ -468,10 +442,9 @@ describe("NodesPage", () => {
             vi.mocked(rotateNodeToken).mockResolvedValue({
                 error: {message: "Rotation failed"},
             } as never);
-            await renderWith({nodes: [nd]});
+            await renderWith({nodes: [nd], permissions: MANAGE});
 
-            const user = await openOverflow();
-            await openMenuAndClick("Rotate Key", user);
+            const user = await clickAction("Rotate Key");
 
             await waitFor(() => {
                 expect(screen.getByText("Rotate Node Key?")).toBeInTheDocument();
@@ -488,10 +461,9 @@ describe("NodesPage", () => {
         it("calls shutdownNode via confirm dialog", async () => {
             const nd = node({id: "n1", display_name: "Node Alpha", status: "ACTIVE"});
             vi.mocked(shutdownNode).mockResolvedValue({data: {}} as never);
-            await renderWith({nodes: [nd]});
+            await renderWith({nodes: [nd], permissions: MANAGE});
 
-            const user = await openOverflow();
-            await openMenuAndClick("Shutdown", user);
+            const user = await clickAction("Shutdown");
 
             await waitFor(() => {
                 expect(screen.getByText("Shutdown Node?")).toBeInTheDocument();
@@ -510,10 +482,9 @@ describe("NodesPage", () => {
         it("calls decommissionNode via confirm dialog when servers=0", async () => {
             const nd = node({id: "n1", display_name: "Node X", status: "ACTIVE"});
             vi.mocked(decommissionNode).mockResolvedValue({data: {}} as never);
-            await renderWith({nodes: [nd]});
+            await renderWith({nodes: [nd], permissions: MANAGE});
 
-            const user = await openOverflow();
-            await openMenuAndClick("Decommission", user);
+            const user = await clickAction("Decommission");
 
             await waitFor(() => {
                 expect(screen.getByText("Decommission Node?")).toBeInTheDocument();
@@ -579,18 +550,20 @@ describe("NodesPage", () => {
             expect(screen.getAllByTitle("Reject node").length).toBeGreaterThan(0);
         });
 
-        it("overflow menu still shown regardless of permissions", async () => {
+        it("row action icons hidden without system.nodes permission", async () => {
             const nd = node({id: "n1", status: "ACTIVE"});
             await renderWith({nodes: [nd], permissions: []});
 
-            expect(overflowButtons().length).toBeGreaterThan(0);
+            expect(screen.queryByTitle("Edit")).not.toBeInTheDocument();
+            expect(screen.queryByTitle("Rotate Key")).not.toBeInTheDocument();
+        });
 
-            await openOverflow();
+        it("row action icons shown with system.nodes permission", async () => {
+            const nd = node({id: "n1", status: "ACTIVE"});
+            await renderWith({nodes: [nd], permissions: MANAGE});
 
-            await waitFor(() => {
-                expect(screen.getAllByText("Edit").length).toBeGreaterThan(0);
-            });
-            expect(screen.getAllByText("Rotate Key").length).toBeGreaterThan(0);
+            expect(screen.getAllByTitle("Edit").length).toBeGreaterThan(0);
+            expect(screen.getAllByTitle("Rotate Key").length).toBeGreaterThan(0);
         });
     });
 

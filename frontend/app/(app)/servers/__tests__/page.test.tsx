@@ -9,6 +9,7 @@ vi.mock("@/lib/generated/sdk.gen", () => ({
     startServer: vi.fn(),
     stopServer: vi.fn(),
     restartServer: vi.fn(),
+    forceStopServer: vi.fn(),
     deleteServer: vi.fn(),
 }));
 
@@ -517,42 +518,29 @@ describe("ServersPage", () => {
         });
     });
 
-    describe("Overflow menu", () => {
-        function getOverflowButtons(): HTMLElement[] {
-            return screen.getAllByRole("button").filter((btn) => !btn.getAttribute("title"));
-        }
-
-        it('clicking "···" opens menu with View link and Delete button', async () => {
+    describe("Row actions", () => {
+        it("shows Start and Delete inline icons for a stopped server", async () => {
             const s = server({status: "STOPPED"});
-            await renderWith({servers: [s], permissions: ["server.delete"]});
+            await renderWith({servers: [s], permissions: ["server.start", "server.delete"]});
 
-            const overflowBtns = getOverflowButtons();
-            expect(overflowBtns.length).toBeGreaterThan(0);
-
-            const user = userEvent.setup();
-            await user.click(overflowBtns[0]);
-
-            await waitFor(() => {
-                expect(screen.getAllByText("View").length).toBeGreaterThan(0);
-                expect(screen.getAllByText("Delete").length).toBeGreaterThan(0);
-            });
-
-            expect(screen.getAllByText("View")[0].closest("a")).toHaveAttribute("href", "/servers/s1");
+            expect(screen.getAllByTitle("Start").length).toBeGreaterThan(0);
+            expect(screen.getAllByTitle("Delete").length).toBeGreaterThan(0);
         });
 
-        it('Delete in overflow menu opens confirm dialog', async () => {
+        it("shows Stop inline icon for a running server", async () => {
+            const s = server({status: "HEALTHY"});
+            await renderWith({servers: [s], permissions: ["server.stop"]});
+
+            expect(screen.getAllByTitle("Stop").length).toBeGreaterThan(0);
+            expect(screen.queryByTitle("Start")).not.toBeInTheDocument();
+        });
+
+        it("Delete inline icon opens confirm dialog", async () => {
             const s = server({status: "STOPPED"});
             await renderWith({servers: [s], permissions: ["server.delete"]});
 
-            const overflowBtns = getOverflowButtons();
             const user = userEvent.setup();
-            await user.click(overflowBtns[0]);
-
-            await waitFor(() => {
-                expect(screen.getAllByText("Delete").length).toBeGreaterThan(0);
-            });
-
-            await user.click(screen.getAllByText("Delete")[0]);
+            await user.click(screen.getAllByTitle("Delete")[0]);
 
             await waitFor(() => {
                 expect(screen.getByText("Delete Server?")).toBeInTheDocument();

@@ -11,11 +11,11 @@ import type {ReactNode} from "react";
 // Every list page uses these so the "list of things" look stays coherent.
 
 export function ListTh({
-                            children,
-                            align = "left",
-                            className = "",
-                            onClick,
-                        }: {
+                           children,
+                           align = "left",
+                           className = "",
+                           onClick,
+                       }: {
     children?: ReactNode;
     align?: "left" | "right";
     className?: string;
@@ -59,12 +59,14 @@ export function IconActionButton({
                                      onClick,
                                      danger = false,
                                      disabled = false,
+                                     loading = false,
                                  }: {
     icon: ReactNode;
     label: string;
     onClick: () => void;
     danger?: boolean;
     disabled?: boolean;
+    loading?: boolean;
 }) {
     const tone = danger
         ? "hover:text-error text-text-muted"
@@ -72,11 +74,16 @@ export function IconActionButton({
     return (
         <button
             onClick={onClick}
-            disabled={disabled}
+            disabled={disabled || loading}
             title={label}
+            aria-label={label}
             className={`p-1.5 rounded hover:bg-surface-higher ${tone} transition-colors disabled:opacity-30 disabled:cursor-not-allowed`}
         >
-            {icon}
+            {loading ? (
+                <span className="w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin"/>
+            ) : (
+                icon
+            )}
         </button>
     );
 }

@@ -2,7 +2,7 @@
 
 import {useEffect, useState} from "react";
 import {useRouter} from "next/navigation";
-import {Ban, Check, KeyRound, MoreHorizontal, Pencil, Power, Trash2, X} from "lucide-react";
+import {Ban, Check, KeyRound, Pencil, Power, Trash2, X} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
 import {decommissionNode, listNodes, listServers, rejectNode, rotateNodeToken, shutdownNode, trustNode, updateNode,} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
@@ -14,7 +14,7 @@ import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {useResourceList} from "@/lib/hooks/useResourceList";
 import {useWs} from "@/lib/ws-context";
 import {nodeDisplayStatus, nodeStatusClass, nodeStatusLabel} from "@/lib/status";
-import {ListTh, ListTd} from "@/components/ui/list-table";
+import {ListTh, ListTd, IconActionButton} from "@/components/ui/list-table";
 
 const STATUS_FILTER_OPTIONS = [
     {label: "All Statuses", value: ""},
@@ -52,15 +52,13 @@ function MiniBar({used, total, fmt = fmtMb}: { used: number; total: number; fmt?
 // ── Row actions (shared by desktop table + mobile card) ─────────────────────────
 
 function NodeActions({
-                         node, pending, servers, canManage, openMenuId, setOpenMenuId,
+                         node, pending, servers, canManage,
                          doTrust, doReject, doRotateToken, doShutdown, doDecommission, setEditNode,
                      }: {
     node: Node;
     pending: string | undefined;
     servers: number;
     canManage: boolean;
-    openMenuId: string | null;
-    setOpenMenuId: React.Dispatch<React.SetStateAction<string | null>>;
     doTrust: (id: string) => void;
     doReject: (id: string) => void;
     doRotateToken: (id: string) => void;
@@ -102,76 +100,37 @@ function NodeActions({
                 </>
             )}
 
-            {/* Non-PENDING: View + ··· menu */}
-            {node.status !== "PENDING" && (
+            {/* Non-PENDING: inline icon actions */}
+            {node.status !== "PENDING" && canManage && (
                 <>
-                    {/* No explicit View action — the whole row/card is clickable to open the node. */}
-                    <div className="relative">
-                        <button
-                            onClick={(e) => {
-                                // stopImmediatePropagation on the native event: the document-level
-                                // close listener is native, so React's stopPropagation alone lets it
-                                // fire and immediately re-close the menu.
-                                e.nativeEvent.stopImmediatePropagation();
-                                setOpenMenuId((id) => (id === node.id ? null : node.id));
-                            }}
-                            className="flex items-center justify-center px-2 py-1 border rounded-[2px] border-border bg-surface-high text-text-muted hover:border-border-high hover:text-text-primary transition-colors"
-                        >
-                            <MoreHorizontal size={12} strokeWidth={2}/>
-                        </button>
-
-                        {openMenuId === node.id && (
-                            <div
-                                className="absolute right-0 top-full mt-1 z-50 bg-surface-higher border border-border rounded shadow-xl min-w-[150px] py-1"
-                                onClick={(e) => e.stopPropagation()}
-                            >
-                                <button
-                                    onClick={() => {
-                                        setOpenMenuId(null);
-                                        setEditNode(node);
-                                    }}
-                                    className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
-                                >
-                                    <Pencil size={11} strokeWidth={2}/>
-                                    Edit
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setOpenMenuId(null);
-                                        doRotateToken(node.id);
-                                    }}
-                                    className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
-                                >
-                                    <KeyRound size={11} strokeWidth={2}/>
-                                    Rotate Key
-                                </button>
-                                {node.status === "ACTIVE" && (
-                                    <button
-                                        onClick={() => {
-                                            setOpenMenuId(null);
-                                            doShutdown(node.id, node.display_name);
-                                        }}
-                                        className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wider text-warning hover:bg-surface-high transition-colors"
-                                    >
-                                        <Power size={11} strokeWidth={2}/>
-                                        Shutdown
-                                    </button>
-                                )}
-                                {servers === 0 && (
-                                    <button
-                                        onClick={() => {
-                                            setOpenMenuId(null);
-                                            doDecommission(node);
-                                        }}
-                                        className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wider text-error hover:bg-surface-high transition-colors"
-                                    >
-                                        <Trash2 size={11} strokeWidth={2}/>
-                                        Decommission
-                                    </button>
-                                )}
-                            </div>
-                        )}
-                    </div>
+                    <IconActionButton
+                        icon={<Pencil size={11} strokeWidth={2}/>}
+                        label="Edit"
+                        onClick={() => setEditNode(node)}
+                    />
+                    <IconActionButton
+                        icon={<KeyRound size={11} strokeWidth={2}/>}
+                        label="Rotate Key"
+                        loading={pending === "rotate"}
+                        onClick={() => doRotateToken(node.id)}
+                    />
+                    {node.status === "ACTIVE" && (
+                        <IconActionButton
+                            icon={<Power size={11} strokeWidth={2}/>}
+                            label="Shutdown"
+                            loading={pending === "shutdown"}
+                            onClick={() => doShutdown(node.id, node.display_name)}
+                        />
+                    )}
+                    {servers === 0 && (
+                        <IconActionButton
+                            icon={<Trash2 size={11} strokeWidth={2}/>}
+                            label="Decommission"
+                            loading={pending === "decommission"}
+                            onClick={() => doDecommission(node)}
+                            danger
+                        />
+                    )}
                 </>
             )}
         </div>
@@ -307,7 +266,6 @@ export default function NodesPage() {
     const [serverCounts, setServerCounts] = useState<Record<string, number>>({});
     const [actionError, setActionError] = useState<string | null>(null);
     const [pendingAction, setPendingAction] = useState<Record<string, string>>({});
-    const [openMenuId, setOpenMenuId] = useState<string | null>(null);
     const {confirm, dialog} = useConfirmDialog();
 
     const [filterStatus, setFilterStatus] = useState("");
@@ -326,12 +284,6 @@ export default function NodesPage() {
                 setServerCounts(counts);
             }
         });
-    }, []);
-
-    useEffect(() => {
-        const handler = () => setOpenMenuId(null);
-        document.addEventListener("click", handler);
-        return () => document.removeEventListener("click", handler);
     }, []);
 
     useEffect(() => {
@@ -596,7 +548,6 @@ export default function NodesPage() {
                                             <div onClick={(e) => e.stopPropagation()}>
                                                 <NodeActions
                                                     node={node} pending={pending} servers={servers} canManage={canManage}
-                                                    openMenuId={openMenuId} setOpenMenuId={setOpenMenuId}
                                                     doTrust={doTrust} doReject={doReject} doRotateToken={doRotateToken}
                                                     doShutdown={doShutdown} doDecommission={doDecommission} setEditNode={setEditNode}
                                                 />
@@ -656,7 +607,6 @@ export default function NodesPage() {
                                     <div className="mt-2.5 flex justify-end" onClick={(e) => e.stopPropagation()}>
                                         <NodeActions
                                             node={node} pending={pending} servers={servers} canManage={canManage}
-                                            openMenuId={openMenuId} setOpenMenuId={setOpenMenuId}
                                             doTrust={doTrust} doReject={doReject} doRotateToken={doRotateToken}
                                             doShutdown={doShutdown} doDecommission={doDecommission} setEditNode={setEditNode}
                                         />

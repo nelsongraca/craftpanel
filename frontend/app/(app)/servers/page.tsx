@@ -3,15 +3,15 @@
 import {useEffect, useMemo, useState} from "react";
 import {useRouter} from "next/navigation";
 import Link from "next/link";
-import {MoreHorizontal, Play, Plus, RotateCcw, Square, Trash2, X} from "lucide-react";
+import {CopyPlus, Play, Plus, RotateCcw, Square, Trash2, X} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
-import {deleteServer, listNetworks, listNodes, listServers, restartServer, startServer, stopServer} from "@/lib/generated/sdk.gen";
+import {deleteServer, listNetworks, listNodes, listServers, restartServer, startServer, stopServer, forceStopServer} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import type {Network, Node, Server} from "@/lib/types";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {useResourceList} from "@/lib/hooks/useResourceList";
-import {ListTh, ListTd, ListActions, IconActionButton} from "@/components/ui/list-table";
+import {ListTh, ListTd, IconActionButton} from "@/components/ui/list-table";
 import {fillColor} from "@/lib/utils/format";
 import {serverStatusClass, serverStatusLabel} from "@/lib/status";
 
@@ -52,55 +52,21 @@ function RamBar({total, used}: { total: number; used?: number }) {
 }
 
 
-function ActionButton({
-                          icon,
-                          label,
-                          loading,
-                          onClick,
-                          isStop,
-                      }: {
-    icon: React.ReactNode;
-    label: string;
-    loading: boolean;
-    onClick: () => void;
-    isStop?: boolean;
-}) {
-    const tone = isStop
-        ? "text-text-muted hover:text-error"
-        : "text-text-muted hover:text-text-primary";
-
-    return (
-        <button
-            onClick={onClick}
-            disabled={loading}
-            title={label}
-            className={`p-1.5 rounded hover:bg-surface-higher ${tone} transition-colors disabled:opacity-40`}
-        >
-            {loading ? (
-                <span className="w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin"/>
-            ) : (
-                icon
-            )}
-        </button>
-    );
-}
-
 function ServerActions({
-                           server, status, pending, permissions, openMenuId, setOpenMenuId, doAction, doDelete,
+                           server, status, pending, permissions, doAction, doDelete, doDuplicate,
                        }: {
     server: Server;
     status: string;
     pending: string | undefined;
     permissions: string[];
-    openMenuId: string | null;
-    setOpenMenuId: React.Dispatch<React.SetStateAction<string | null>>;
-    doAction: (id: string, action: "start" | "stop" | "restart") => void;
+    doAction: (id: string, action: "start" | "stop" | "restart" | "forceStop") => void;
     doDelete: (s: Server) => void;
+    doDuplicate: (s: Server) => void;
 }) {
     return (
         <div className="flex items-center justify-end gap-1">
             {status === "STOPPED" && hasPermission(permissions, "server.start") && (
-                <ActionButton
+                <IconActionButton
                     icon={<Play size={11} strokeWidth={2.5}/>}
                     label="Start"
                     loading={pending === "start"}
@@ -108,84 +74,46 @@ function ServerActions({
                 />
             )}
             {(status === "HEALTHY" || status === "STARTING") && hasPermission(permissions, "server.stop") && (
-                <ActionButton
+                <IconActionButton
                     icon={<Square size={11} strokeWidth={2.5}/>}
                     label="Stop"
                     loading={pending === "stop"}
                     onClick={() => doAction(server.id, "stop")}
-                    isStop
+                    danger
+                />
+            )}
+            {status === "STOPPING" && hasPermission(permissions, "server.force_stop") && (
+                <IconActionButton
+                    icon={<Square size={11} strokeWidth={2.5}/>}
+                    label="Force Stop"
+                    loading={pending === "forceStop"}
+                    onClick={() => doAction(server.id, "forceStop")}
+                    danger
                 />
             )}
             {status === "HEALTHY" && hasPermission(permissions, "server.restart") && (
-                <ActionButton
+                <IconActionButton
                     icon={<RotateCcw size={11} strokeWidth={2.5}/>}
                     label="Restart"
                     loading={pending === "restart"}
                     onClick={() => doAction(server.id, "restart")}
                 />
             )}
-            {status === "STOPPED" && hasPermission(permissions, "server.delete") && (
-                <div onClick={(e) => e.stopPropagation()}>
-                    <ActionButton
-                        icon={<Trash2 size={11} strokeWidth={2.5}/>}
-                        label="Delete"
-                        loading={false}
-                        onClick={() => doDelete(server)}
-                        isStop
-                    />
-                </div>
+            {hasPermission(permissions, "server.create") && (
+                <IconActionButton
+                    icon={<CopyPlus size={11} strokeWidth={2.5}/>}
+                    label="Duplicate"
+                    onClick={() => doDuplicate(server)}
+                />
             )}
-
-            {/* ··· overflow menu */}
-            <div className="relative">
-                <button
-                    onClick={(e) => {
-                        // stopImmediatePropagation on the native event: the document-level
-                        // close listener is native, so React's stopPropagation alone lets it
-                        // fire and immediately re-close the menu.
-                        e.nativeEvent.stopImmediatePropagation();
-                        setOpenMenuId((id) => (id === server.id ? null : server.id));
-                    }}
-                    className="flex items-center justify-center p-1.5 rounded hover:bg-surface-higher text-text-muted hover:text-text-primary transition-colors"
-                >
-                    <MoreHorizontal size={12} strokeWidth={2}/>
-                </button>
-
-                {openMenuId === server.id && (
-                    <div
-                        className="absolute right-0 top-full mt-1 z-50 bg-surface-higher border border-border rounded shadow-xl min-w-[130px] py-1"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <Link
-                            href={`/servers/${server.id}`}
-                            onClick={() => setOpenMenuId(null)}
-                            className="flex items-center px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
-                        >
-                            View
-                        </Link>
-                        {hasPermission(permissions, "server.create") && (
-                            <Link
-                                href={`/servers/new?clone=${server.id}`}
-                                onClick={() => setOpenMenuId(null)}
-                                className="flex items-center px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
-                            >
-                                Clone
-                            </Link>
-                        )}
-                        {status === "STOPPED" && hasPermission(permissions, "server.delete") && (
-                            <button
-                                onClick={() => {
-                                    setOpenMenuId(null);
-                                    doDelete(server);
-                                }}
-                                className="flex items-center w-full text-left px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wider text-error hover:bg-surface-high transition-colors"
-                            >
-                                Delete
-                            </button>
-                        )}
-                    </div>
-                )}
-            </div>
+            {status === "STOPPED" && hasPermission(permissions, "server.delete") && (
+                <IconActionButton
+                    icon={<Trash2 size={11} strokeWidth={2.5}/>}
+                    label="Delete"
+                    onClick={() => doDelete(server)}
+                    danger
+                />
+            )}
         </div>
     );
 }
@@ -234,7 +162,6 @@ export default function ServersPage() {
     const [networks, setNetworks] = useState<Network[]>([]);
     const [actionError, setActionError] = useState<string | null>(null);
     const [pendingAction, setPendingAction] = useState<Record<string, string>>({});
-    const [openMenuId, setOpenMenuId] = useState<string | null>(null);
     const {confirm, dialog} = useConfirmDialog();
 
     const [search, setSearch] = useState("");
@@ -265,13 +192,6 @@ export default function ServersPage() {
             if (nRes.data) setNodes(nRes.data);
             if (netRes.data) setNetworks(netRes.data);
         });
-    }, []);
-
-    // Close ··· menu on any document click
-    useEffect(() => {
-        const handler = () => setOpenMenuId(null);
-        document.addEventListener("click", handler);
-        return () => document.removeEventListener("click", handler);
     }, []);
 
     const nodeMap = Object.fromEntries(nodes.map((n) => [n.id, n]));
@@ -309,9 +229,10 @@ export default function ServersPage() {
         start: startServer,
         stop: stopServer,
         restart: restartServer,
+        forceStop: forceStopServer,
     } as const;
 
-    async function doAction(serverId: string, action: "start" | "stop" | "restart") {
+    async function doAction(serverId: string, action: "start" | "stop" | "restart" | "forceStop") {
         setPendingAction((p) => ({...p, [serverId]: action}));
         setActionError(null);
         const {error} = await ACTION_FNS[action]({path: {id: serverId}});
@@ -342,6 +263,10 @@ export default function ServersPage() {
                 }
             },
         });
+    }
+
+    function doDuplicate(server: Server) {
+        router.push(`/servers/new?clone=${server.id}`);
     }
 
     const canCreate = hasPermission(permissions, "server.create");
@@ -560,8 +485,7 @@ export default function ServersPage() {
                                                     <ServerActions
                                                         server={server} status={status} pending={pending}
                                                         permissions={permissions}
-                                                        openMenuId={openMenuId} setOpenMenuId={setOpenMenuId}
-                                                        doAction={doAction} doDelete={doDelete}
+                                                        doAction={doAction} doDelete={doDelete} doDuplicate={doDuplicate}
                                                     />
                                                 </div>
                                             </ListTd>
@@ -606,8 +530,7 @@ export default function ServersPage() {
                                                 <ServerActions
                                                     server={server} status={status} pending={pending}
                                                     permissions={permissions}
-                                                    openMenuId={openMenuId} setOpenMenuId={setOpenMenuId}
-                                                    doAction={doAction} doDelete={doDelete}
+                                                    doAction={doAction} doDelete={doDelete} doDuplicate={doDuplicate}
                                                 />
                                             </div>
                                         </div>
