@@ -1,6 +1,7 @@
 "use client";
 
 import {useCallback, useEffect, useState} from "react";
+import {useRouter} from "next/navigation";
 import Link from "next/link";
 import {AlertTriangle, Clock} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
@@ -57,6 +58,7 @@ function StatCard({
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function Dashboard() {
+    const router = useRouter();
     const [servers, setServers] = useState<Server[]>([]);
     const [nodes, setNodes] = useState<Node[]>([]);
     const [loading, setLoading] = useState(true);
@@ -123,11 +125,15 @@ export default function Dashboard() {
                                 </thead>
                                 <tbody>
                                 {nodes.map((node) => (
-                                    <tr key={node.id} className="border-b border-border/50 hover:bg-surface-high/40">
+                                    <tr
+                                        key={node.id}
+                                        onClick={() => router.push(`/nodes/${node.id}`)}
+                                        className="border-b border-border/50 hover:bg-surface-high/40 cursor-pointer group transition-colors"
+                                    >
                                         <td className="px-5 py-2.5 text-text-primary font-medium truncate max-w-[120px]">
-                                            <Link href={`/nodes/${node.id}`} className="hover:text-accent transition-colors">
+                                            <span className="group-hover:text-accent transition-colors">
                                                 {node.display_name}
-                                            </Link>
+                                            </span>
                                         </td>
                                         <td className="px-3 py-2.5">
                                             <NodeStatusBadge status={node.status} health={node.health}/>
@@ -158,14 +164,18 @@ export default function Dashboard() {
                         ) : (
                             <ul className="divide-y divide-border/50">
                                 {recentServers.map((s) => (
-                                    <li key={s.id} className="flex items-center justify-between px-5 py-2.5 hover:bg-surface-high/40">
+                                    <li
+                                        key={s.id}
+                                        onClick={() => router.push(`/servers/${s.id}`)}
+                                        className="flex items-center justify-between px-5 py-2.5 hover:bg-surface-high/40 cursor-pointer group transition-colors"
+                                    >
                                         <div className="flex items-center gap-2 min-w-0">
                                             {s.status === "UNHEALTHY" && (
                                                 <AlertTriangle size={12} className="text-error shrink-0"/>
                                             )}
-                                            <Link href={`/servers/${s.id}`} className="text-xs text-text-primary hover:text-accent truncate transition-colors">
+                                            <span className="text-xs text-text-primary truncate group-hover:text-accent transition-colors">
                                                 {s.display_name}
-                                            </Link>
+                                            </span>
                                         </div>
                                         <div className="flex items-center gap-3 shrink-0 ml-3">
                                             <ServerStatusBadge status={s.status}/>

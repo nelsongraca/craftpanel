@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect, useState} from "react";
+import {useEffect, useMemo, useState} from "react";
 import {useRouter} from "next/navigation";
 import Link from "next/link";
 import {MoreHorizontal, Play, Plus, RotateCcw, Square, Trash2, X} from "lucide-react";
@@ -181,6 +181,40 @@ function ServerActions({
     );
 }
 
+type SortKey = "name" | "type" | "status" | "ram" | "node";
+type SortDir = "asc" | "desc";
+
+function SortIndicator({active, dir}: { active: boolean; dir: SortDir }) {
+    if (!active) return <span className="text-text-muted/50 ml-1">↕</span>;
+    return <span className="text-accent ml-1">{dir === "asc" ? "↑" : "↓"}</span>;
+}
+
+function sortServers(servers: Server[], key: SortKey | null, dir: SortDir, nodeMap: Record<string, Node>): Server[] {
+    if (!key) return servers;
+    const factor = dir === "asc" ? 1 : -1;
+    const valueOf = (s: Server): string | number => {
+        switch (key) {
+            case "name":
+                return s.display_name.toLowerCase();
+            case "type":
+                return s.server_type.toLowerCase();
+            case "status":
+                return s.status.toLowerCase();
+            case "ram":
+                return s.memory_mb;
+            case "node":
+                return (nodeMap[s.node_id]?.display_name ?? s.node_id).toLowerCase();
+        }
+    };
+    return [...servers].sort((a, b) => {
+        const va = valueOf(a);
+        const vb = valueOf(b);
+        if (va < vb) return -1 * factor;
+        if (va > vb) return 1 * factor;
+        return 0;
+    });
+}
+
 export default function ServersPage() {
     const router = useRouter();
     const {user} = useAuth();
@@ -198,6 +232,24 @@ export default function ServersPage() {
     const [filterStatus, setFilterStatus] = useState("");
     const [filterNetwork, setFilterNetwork] = useState("");
     const [filterNode, setFilterNode] = useState("");
+    const [filterType, setFilterType] = useState("");
+
+    const [sortKey, setSortKey] = useState<SortKey | null>(null);
+    const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+    const typeOptions = useMemo(() => {
+        const types = Array.from(new Set(servers.map((s) => s.server_type))).sort();
+        return types;
+    }, [servers]);
+
+    function toggleSort(key: SortKey) {
+        if (sortKey === key) {
+            setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+        } else {
+            setSortKey(key);
+            setSortDir("asc");
+        }
+    }
 
     useEffect(() => {
         void Promise.all([listNodes(), listNetworks()]).then(([nRes, netRes]) => {
@@ -235,8 +287,14 @@ export default function ServersPage() {
         }
         if (filterNetwork && s.network_id !== filterNetwork) return false;
         if (filterNode && s.node_id !== filterNode) return false;
+        if (filterType && s.server_type !== filterType) return false;
         return true;
     });
+
+    const sortedServers = useMemo(
+        () => sortServers(filteredServers, sortKey, sortDir, nodeMap),
+        [filteredServers, sortKey, sortDir, nodeMap]
+    );
 
     const ACTION_FNS = {
         start: startServer,
@@ -340,6 +398,18 @@ export default function ServersPage() {
                             ))}
                         </select>
                     )}
+                    {typeOptions.length > 0 && (
+                        <select
+                            value={filterType}
+                            onChange={(e) => setFilterType(e.target.value)}
+                            className="h-7 bg-surface-higher border border-border rounded px-2 text-xs font-heading text-text-primary focus:outline-none focus:border-accent"
+                        >
+                            <option value="">All Types</option>
+                            {typeOptions.map((t) => (
+                                <option key={t} value={t}>{t}</option>
+                            ))}
+                        </select>
+                    )}
                 </div>
 
                 {/* Error banner */}
@@ -360,7 +430,7 @@ export default function ServersPage() {
                                 <div key={i} className="h-12 bg-surface rounded animate-pulse"/>
                             ))}
                         </div>
-                    ) : filteredServers.length === 0 ? (
+                    ) : sortedServers.length === 0 ? (
                         <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-sm">
                             {servers.length === 0
                                 ? "No servers yet - create one to get started"
@@ -371,15 +441,47 @@ export default function ServersPage() {
                             <table className="hidden md:table w-full text-xs">
                                 <thead>
                                 <tr className="border-b border-border">
-                                    {["Server", "Type", "Status", "Players", "RAM", "Node", "Actions"].map(
-                                        (col) => (
-                                            <ListTh key={col} align={col === "Actions" ? "right" : "left"}>{col}</ListTh>
-                                        )
-                                    )}
+                                    <ListTh
+                                        align="left"
+                                        className="cursor-pointer select-none hover:text-accent"
+                                        onClick={() => toggleSort("name")}
+                                    >
+                                        Server<SortIndicator active={sortKey === "name"} dir={sortDir}/>
+                                    </ListTh>
+                                    <ListTh
+                                        align="left"
+                                        className="cursor-pointer select-none hover:text-accent"
+                                        onClick={() => toggleSort("type")}
+                                    >
+                                        Type<SortIndicator active={sortKey === "type"} dir={sortDir}/>
+                                    </ListTh>
+                                    <ListTh
+                                        align="left"
+                                        className="cursor-pointer select-none hover:text-accent"
+                                        onClick={() => toggleSort("status")}
+                                    >
+                                        Status<SortIndicator active={sortKey === "status"} dir={sortDir}/>
+                                    </ListTh>
+                                    <ListTh align="left">Players</ListTh>
+                                    <ListTh
+                                        align="left"
+                                        className="cursor-pointer select-none hover:text-accent"
+                                        onClick={() => toggleSort("ram")}
+                                    >
+                                        RAM<SortIndicator active={sortKey === "ram"} dir={sortDir}/>
+                                    </ListTh>
+                                    <ListTh
+                                        align="left"
+                                        className="cursor-pointer select-none hover:text-accent"
+                                        onClick={() => toggleSort("node")}
+                                    >
+                                        Node<SortIndicator active={sortKey === "node"} dir={sortDir}/>
+                                    </ListTh>
+                                    <ListTh align="right">Actions</ListTh>
                                 </tr>
                                 </thead>
                                 <tbody>
-                                {filteredServers.map((server) => {
+                                {sortedServers.map((server) => {
                                     const node = nodeMap[server.node_id];
                                     const pending = pendingAction[server.id];
                                     const status = server.status;
@@ -463,9 +565,9 @@ export default function ServersPage() {
                     )}
 
                     {/* Mobile card list (mobile) */}
-                    {!initialLoad && filteredServers.length > 0 && (
+                    {!initialLoad && sortedServers.length > 0 && (
                         <div className="md:hidden divide-y divide-border">
-                            {filteredServers.map((server) => {
+                            {sortedServers.map((server) => {
                                 const node = nodeMap[server.node_id];
                                 const pending = pendingAction[server.id];
                                 const status = server.status;

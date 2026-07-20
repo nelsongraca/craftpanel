@@ -11,17 +11,22 @@ import type {ReactNode} from "react";
 // Every list page uses these so the "list of things" look stays coherent.
 
 export function ListTh({
-                           children,
-                           align = "left",
-                           className = "",
-                       }: {
+                            children,
+                            align = "left",
+                            className = "",
+                            onClick,
+                        }: {
     children?: ReactNode;
     align?: "left" | "right";
     className?: string;
+    onClick?: () => void;
 }) {
     const justify = align === "right" ? "text-right" : "text-left";
     return (
-        <th className={`px-4 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-muted ${justify} ${className}`}>
+        <th
+            onClick={onClick}
+            className={`px-4 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-muted ${justify} ${className}`}
+        >
             {children}
         </th>
     );

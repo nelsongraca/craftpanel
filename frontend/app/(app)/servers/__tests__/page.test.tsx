@@ -145,7 +145,7 @@ describe("ServersPage", () => {
             await renderWith({servers: [server()], nodes: [node()]});
 
             expect(screen.getAllByText("Survival").length).toBeGreaterThan(0);
-            expect(screen.getByText("PAPER")).toBeInTheDocument();
+            expect(screen.getAllByText("PAPER").length).toBeGreaterThan(0);
             expect(screen.getAllByText("Healthy").length).toBeGreaterThan(0);
             expect(screen.getAllByText(/2048 MB/).length).toBeGreaterThan(0);
             expect(screen.getAllByText("Node 1").length).toBeGreaterThan(0);
@@ -356,10 +356,11 @@ describe("ServersPage", () => {
             });
 
             const selects = screen.getAllByRole("combobox");
-            expect(selects.length).toBe(3);
+            expect(selects.length).toBe(4);
 
             expect(screen.getByText("All Networks")).toBeInTheDocument();
             expect(screen.getByText("All Nodes")).toBeInTheDocument();
+            expect(screen.getByText("All Types")).toBeInTheDocument();
             expect(screen.getByText("Main Network")).toBeInTheDocument();
             expect(screen.getByText("Node 1", {selector: "option"})).toBeInTheDocument();
         });
@@ -380,6 +381,106 @@ describe("ServersPage", () => {
             await waitFor(() => {
                 expect(screen.getAllByText("A").length).toBeGreaterThan(0);
                 expect(screen.queryByText("B")).not.toBeInTheDocument();
+            });
+        });
+    });
+
+    describe("Type filter", () => {
+        it("renders an All Types select with distinct server_type options", async () => {
+            await renderWith({
+                servers: [
+                    server({id: "s1", display_name: "A", server_type: "PAPER"}),
+                    server({id: "s2", display_name: "B", server_type: "FABRIC"}),
+                ],
+            });
+
+            expect(screen.getByText("All Types")).toBeInTheDocument();
+            expect(screen.getByText("PAPER", {selector: "option"})).toBeInTheDocument();
+            expect(screen.getByText("FABRIC", {selector: "option"})).toBeInTheDocument();
+        });
+
+        it("filtering by type shows only matching servers", async () => {
+            await renderWith({
+                servers: [
+                    server({id: "s1", display_name: "A", server_type: "PAPER"}),
+                    server({id: "s2", display_name: "B", server_type: "FABRIC"}),
+                ],
+                nodes: [node()],
+                networks: [network()],
+            });
+
+            const selects = screen.getAllByRole("combobox");
+            const user = userEvent.setup();
+            await user.selectOptions(selects[3], "FABRIC");
+
+            await waitFor(() => {
+                expect(screen.queryByText("A")).not.toBeInTheDocument();
+                expect(screen.getAllByText("B").length).toBeGreaterThan(0);
+            });
+        });
+    });
+
+    describe("Column sorting", () => {
+        function firstRowText(): string {
+            return document.querySelector("tbody")!.firstElementChild!.textContent!;
+        }
+
+        it("clicking the Server header sorts by display_name ascending then descending", async () => {
+            await renderWith({
+                servers: [
+                    server({id: "s1", display_name: "Charlie"}),
+                    server({id: "s2", display_name: "Alpha"}),
+                    server({id: "s3", display_name: "Bravo"}),
+                ],
+            });
+
+            const headers = screen.getAllByRole("columnheader");
+            const user = userEvent.setup();
+
+            // ascending
+            await user.click(headers[0]);
+            await waitFor(() => expect(firstRowText()).toContain("Alpha"));
+
+            // descending
+            await user.click(headers[0]);
+            await waitFor(() => expect(firstRowText()).toContain("Charlie"));
+        });
+
+        it("clicking the Type header sorts by server_type", async () => {
+            await renderWith({
+                servers: [
+                    server({id: "s1", display_name: "A", server_type: "PAPER"}),
+                    server({id: "s2", display_name: "B", server_type: "FABRIC"}),
+                ],
+            });
+
+            const headers = screen.getAllByRole("columnheader");
+            const user = userEvent.setup();
+            await user.click(headers[1]);
+
+            await waitFor(() => {
+                const rows = Array.from(document.querySelectorAll("tbody tr")).map((r) => r.textContent ?? "");
+                expect(rows[0]).toContain("FABRIC");
+                expect(rows[1]).toContain("PAPER");
+            });
+        });
+
+        it("clicking the RAM header sorts by memory_mb", async () => {
+            await renderWith({
+                servers: [
+                    server({id: "s1", display_name: "A", memory_mb: 4096}),
+                    server({id: "s2", display_name: "B", memory_mb: 1024}),
+                ],
+            });
+
+            const headers = screen.getAllByRole("columnheader");
+            const user = userEvent.setup();
+            await user.click(headers[4]);
+
+            await waitFor(() => {
+                const rows = Array.from(document.querySelectorAll("tbody tr")).map((r) => r.textContent ?? "");
+                expect(rows[0]).toContain("B");
+                expect(rows[1]).toContain("A");
             });
         });
     });

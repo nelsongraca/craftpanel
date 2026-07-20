@@ -14,6 +14,7 @@ import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {useResourceList} from "@/lib/hooks/useResourceList";
 import {useWs} from "@/lib/ws-context";
 import {nodeDisplayStatus, nodeStatusClass, nodeStatusLabel} from "@/lib/status";
+import {ListTh, ListTd} from "@/components/ui/list-table";
 
 const STATUS_FILTER_OPTIONS = [
     {label: "All Statuses", value: ""},
@@ -519,102 +520,99 @@ export default function NodesPage() {
                             : "No nodes match the current filter"}
                     </div>
                 ) : (
-                    <table className="hidden md:table w-full border-collapse">
-                        <thead>
-                        <tr className="border-b border-border">
-                            {["Node", "Status", "RAM", "CPU", "Servers", "Last Seen", "Actions"].map((col) => (
-                                <th
-                                    key={col}
-                                    className={[
-                                        "pb-2 text-[9px] font-mono font-semibold uppercase tracking-[0.1em] text-text-muted",
-                                        col === "Actions" ? "text-right" : "text-left pr-4",
-                                    ].join(" ")}
-                                >
-                                    {col}
-                                </th>
-                            ))}
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {filtered.map((node) => {
-                            const pending = pendingAction[node.id];
-                            const servers = serverCounts[node.id] ?? 0;
-                            const lastSeen = node.last_seen_at;
-                            const stale = lastSeen
-                                ? (renderNow - new Date(lastSeen).getTime()) / 1000 > 300
-                                : true;
+                    <div className="bg-surface border border-border rounded-md overflow-hidden hidden md:block">
+                        <table className="w-full text-xs">
+                            <thead>
+                            <tr className="border-b border-border">
+                                <ListTh>Node</ListTh>
+                                <ListTh>Status</ListTh>
+                                <ListTh>RAM</ListTh>
+                                <ListTh>CPU</ListTh>
+                                <ListTh>Servers</ListTh>
+                                <ListTh>Last Seen</ListTh>
+                                <ListTh/>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {filtered.map((node) => {
+                                const pending = pendingAction[node.id];
+                                const servers = serverCounts[node.id] ?? 0;
+                                const lastSeen = node.last_seen_at;
+                                const stale = lastSeen
+                                    ? (renderNow - new Date(lastSeen).getTime()) / 1000 > 300
+                                    : true;
 
-                            return (
-                                <tr
-                                    key={node.id}
-                                    onClick={() => router.push(`/nodes/${node.id}`)}
-                                    className="border-b border-border hover:bg-surface cursor-pointer group transition-colors"
-                                >
-                                    {/* NODE */}
-                                    <td className="py-3 pr-4">
-                                        <p className="text-sm font-heading font-bold text-text-primary group-hover:text-accent transition-colors leading-none">
-                                            {node.display_name}
-                                        </p>
-                                        <p className="mt-0.5 font-mono text-xs text-text-muted leading-none">
-                                            {node.hostname}
-                                        </p>
-                                    </td>
-
-                                    {/* STATUS */}
-                                    <td className="py-3 pr-4">
-                      <span
-                          className={`text-xs font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status, node.health)}`}
-                      >
-                        {nodeStatusLabel(node.status, node.health)}
-                      </span>
-                                    </td>
-
-                                    {/* RAM */}
-                                    <td className="py-3 pr-4">
-                                        <MiniBar used={Math.max(node.allocated_ram_mb, node.system_ram_used_mb ?? 0)} total={node.total_ram_mb}/>
-                                    </td>
-
-                                    {/* CPU */}
-                                    <td className="py-3 pr-4">
-                                        <MiniBar used={node.allocated_cpu_shares} total={node.total_cpu_shares} fmt={fmtShares}/>
-                                    </td>
-
-                                    {/* SERVERS */}
-                                    <td className="py-3 pr-4">
-                                        <span className="font-mono text-xs text-text-dim">{servers}</span>
-                                    </td>
-
-                                    {/* LAST SEEN */}
-                                    <td className="py-3 pr-4">
-                      <span
-                          className={`font-mono text-xs ${stale ? "text-error" : "text-text-muted"}`}
-                      >
-                        {lastSeen ? timeAgo(lastSeen) : "never"}
-                      </span>
-                                    </td>
-
-                                    {/* ACTIONS */}
-                                    <td
-                                        className="py-3 text-right"
-                                        onClick={(e) => e.stopPropagation()}
+                                return (
+                                    <tr
+                                        key={node.id}
+                                        onClick={() => router.push(`/nodes/${node.id}`)}
+                                        className="border-b border-border/50 hover:bg-surface-high/40 cursor-pointer group transition-colors"
                                     >
-                                        <NodeActions
-                                            node={node} pending={pending} servers={servers} canManage={canManage}
-                                            openMenuId={openMenuId} setOpenMenuId={setOpenMenuId}
-                                            doTrust={doTrust} doReject={doReject} doRotateToken={doRotateToken}
-                                            doShutdown={doShutdown} doDecommission={doDecommission} setEditNode={setEditNode}
-                                        />
-                                    </td>
-                                </tr>
-                            );
-                        })}
-                        </tbody>
-                    </table>
+                                        {/* NODE */}
+                                        <ListTd firstCol>
+                                            <p className="text-sm font-heading font-bold text-text-primary group-hover:text-accent transition-colors leading-none">
+                                                {node.display_name}
+                                            </p>
+                                            <p className="mt-0.5 font-mono text-xs text-text-muted leading-none">
+                                                {node.hostname}
+                                            </p>
+                                        </ListTd>
+
+                                        {/* STATUS */}
+                                        <ListTd>
+                        <span
+                            className={`text-xs font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status, node.health)}`}
+                        >
+                          {nodeStatusLabel(node.status, node.health)}
+                        </span>
+                                        </ListTd>
+
+                                        {/* RAM */}
+                                        <ListTd>
+                                            <MiniBar used={Math.max(node.allocated_ram_mb, node.system_ram_used_mb ?? 0)} total={node.total_ram_mb}/>
+                                        </ListTd>
+
+                                        {/* CPU */}
+                                        <ListTd>
+                                            <MiniBar used={node.allocated_cpu_shares} total={node.total_cpu_shares} fmt={fmtShares}/>
+                                        </ListTd>
+
+                                        {/* SERVERS */}
+                                        <ListTd>
+                                            <span className="font-mono text-xs text-text-dim">{servers}</span>
+                                        </ListTd>
+
+                                        {/* LAST SEEN */}
+                                        <ListTd>
+                        <span
+                            className={`font-mono text-xs ${stale ? "text-error" : "text-text-muted"}`}
+                        >
+                          {lastSeen ? timeAgo(lastSeen) : "never"}
+                        </span>
+                                        </ListTd>
+
+                                        {/* ACTIONS */}
+                                        <ListTd className="text-right">
+                                            <div onClick={(e) => e.stopPropagation()}>
+                                                <NodeActions
+                                                    node={node} pending={pending} servers={servers} canManage={canManage}
+                                                    openMenuId={openMenuId} setOpenMenuId={setOpenMenuId}
+                                                    doTrust={doTrust} doReject={doReject} doRotateToken={doRotateToken}
+                                                    doShutdown={doShutdown} doDecommission={doDecommission} setEditNode={setEditNode}
+                                                />
+                                            </div>
+                                        </ListTd>
+                                    </tr>
+                                );
+                            })}
+                            </tbody>
+                        </table>
+                    </div>
                 )}
 
                 {/* Mobile card list (< md) */}
                 {!initialLoad && filtered.length > 0 && (
-                    <div className="md:hidden space-y-2">
+                    <div className="md:hidden divide-y divide-border">
                         {filtered.map((node) => {
                             const pending = pendingAction[node.id];
                             const servers = serverCounts[node.id] ?? 0;
@@ -626,7 +624,7 @@ export default function NodesPage() {
                                 <div
                                     key={node.id}
                                     onClick={() => router.push(`/nodes/${node.id}`)}
-                                    className="bg-surface border border-border rounded-md p-3 cursor-pointer active:bg-surface-high transition-colors"
+                                    className="p-3 cursor-pointer active:bg-surface-high transition-colors"
                                 >
                                     <div className="flex items-start justify-between gap-2">
                                         <div className="min-w-0">
