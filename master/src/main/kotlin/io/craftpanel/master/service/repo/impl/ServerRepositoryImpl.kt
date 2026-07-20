@@ -263,6 +263,17 @@ class ServerRepositoryImpl(
         invalidate(id)
     }
 
+    override fun updateProxySettings(id: Uuid, motd: String?, maxPlayers: Int?, forwardingMode: String?) {
+        transaction {
+            Servers.update({ Servers.id eq id }) {
+                it[Servers.proxyMotd] = motd
+                it[Servers.proxyMaxPlayers] = maxPlayers
+                it[Servers.proxyForwardingMode] = forwardingMode
+            }
+        }
+        invalidate(id)
+    }
+
     override fun delete(id: Uuid) {
         transaction {
             migrationRepository.deleteMigrationStepsForServer(id)
@@ -306,6 +317,9 @@ private fun ResultRow.toServerRow() = ServerRow(
     stopCommand = this[Servers.stopCommand],
     itzgImageTag = this[Servers.itzgImageTag],
     needsRecreate = this[Servers.needsRecreate],
+    proxyMotd = this[Servers.proxyMotd],
+    proxyMaxPlayers = this[Servers.proxyMaxPlayers],
+    proxyForwardingMode = this[Servers.proxyForwardingMode],
     backupSchedule = this[Servers.backupSchedule],
     backupMaxCount = this[Servers.backupMaxCount],
     backupScheduleLastFired = this[Servers.backupScheduleLastFired]?.toUtcString(),

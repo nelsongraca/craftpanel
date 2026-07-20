@@ -24,6 +24,9 @@ data class ServerRow(
     val stopCommand: String,
     val itzgImageTag: String,
     val needsRecreate: Boolean,
+    val proxyMotd: String? = null,
+    val proxyMaxPlayers: Int? = null,
+    val proxyForwardingMode: String? = null,
     val backupSchedule: String?,
     val backupMaxCount: Int,
     val backupScheduleLastFired: String?,
@@ -79,6 +82,7 @@ interface ServerRepository {
     fun updateBackupScheduleLastFired(id: Uuid, lastFired: kotlin.time.Instant?)
     fun updateConfigMode(id: Uuid, configMode: String)
     fun updateStopCommand(id: Uuid, stopCommand: String)
+    fun updateProxySettings(id: Uuid, motd: String?, maxPlayers: Int?, forwardingMode: String?)
     fun delete(id: Uuid)
     fun nullifyNetworkId(networkId: Uuid)
 }

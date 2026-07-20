@@ -198,6 +198,29 @@ class ServerRepositoryImplTest :
             serverRepository.findById(id) shouldBe null
         }
 
+        test("proxy settings default to null and round-trip through the repo") {
+            val nodeId = createNode()
+            val id = createServer(nodeId, name = "proxy-1")
+
+            val created = serverRepository.findById(id)!!
+            created.proxyMotd shouldBe null
+            created.proxyMaxPlayers shouldBe null
+            created.proxyForwardingMode shouldBe null
+
+            serverRepository.updateProxySettings(id, motd = "Welcome", maxPlayers = 50, forwardingMode = "legacy")
+            val updated = serverRepository.findById(id)!!
+            updated.proxyMotd shouldBe "Welcome"
+            updated.proxyMaxPlayers shouldBe 50
+            updated.proxyForwardingMode shouldBe "legacy"
+
+            // clearing back to null round-trips too
+            serverRepository.updateProxySettings(id, motd = null, maxPlayers = null, forwardingMode = null)
+            val cleared = serverRepository.findById(id)!!
+            cleared.proxyMotd shouldBe null
+            cleared.proxyMaxPlayers shouldBe null
+            cleared.proxyForwardingMode shouldBe null
+        }
+
         test("nullifyNetworkId invalidates only servers that were in that network") {
             val nodeId = createNode()
             val networkA = createNetwork("net-a")

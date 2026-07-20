@@ -26,6 +26,9 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         var stopCommand: String = "stop",
         var itzgImageTag: String = "latest",
         var needsRecreate: Boolean = false,
+        var proxyMotd: String? = null,
+        var proxyMaxPlayers: Int? = null,
+        var proxyForwardingMode: String? = null,
         var backupSchedule: String? = null,
         var backupMaxCount: Int = 10,
         var backupScheduleLastFired: String? = null,
@@ -238,6 +241,14 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         state.servers[id]?.stopCommand = stopCommand
     }
 
+    override fun updateProxySettings(id: Uuid, motd: String?, maxPlayers: Int?, forwardingMode: String?) {
+        state.servers[id]?.let { s ->
+            s.proxyMotd = motd
+            s.proxyMaxPlayers = maxPlayers
+            s.proxyForwardingMode = forwardingMode
+        }
+    }
+
     override fun delete(id: Uuid) {
         state.servers.remove(id)
         state.mods.remove(id)
@@ -274,6 +285,9 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         stopCommand,
         itzgImageTag,
         needsRecreate,
+        proxyMotd,
+        proxyMaxPlayers,
+        proxyForwardingMode,
         backupSchedule,
         backupMaxCount,
         backupScheduleLastFired,
