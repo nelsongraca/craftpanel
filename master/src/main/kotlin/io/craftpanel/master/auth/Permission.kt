@@ -11,6 +11,7 @@ enum class Permission(val node: String) {
     SERVER_DELETE("server.delete"),
     SERVER_START("server.start"),
     SERVER_STOP("server.stop"),
+    SERVER_FORCE_STOP("server.force_stop"),
     SERVER_RESTART("server.restart"),
     SERVER_CONFIGURE("server.configure"),
     SERVER_RESOURCES("server.resources"),

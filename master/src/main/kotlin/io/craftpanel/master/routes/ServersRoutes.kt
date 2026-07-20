@@ -153,6 +153,24 @@ fun Route.serversRoutes(serverService: ServerService, lifecycleService: ServerLi
                 call.respond(HttpStatusCode.Accepted, MessageResponse("Server stop initiated"))
             }
 
+            post("/{id}/force-stop", {
+                operationId = "forceStopServer"
+                summary = "Force stop server (immediate container kill)"
+                request { pathParameter<String>("id") }
+                response {
+                    code(HttpStatusCode.Accepted) { body<MessageResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.BadGateway) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                val auth = call.requireServerPermission(Permission.SERVER_FORCE_STOP)
+                lifecycleService.forceStopServer(auth.serverId)
+                call.respond(HttpStatusCode.Accepted, MessageResponse("Force stop initiated"))
+            }
+
             post("/{id}/restart", {
                 operationId = "restartServer"
                 summary = "Restart server"

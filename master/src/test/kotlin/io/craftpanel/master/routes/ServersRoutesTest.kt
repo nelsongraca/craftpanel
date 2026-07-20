@@ -629,7 +629,8 @@ class ServersRoutesTest :
                 val resp = client.delete("/api/servers/$serverId") { bearerAuth(tokenFor(userId)) }
                 resp.status shouldBe HttpStatusCode.NoContent
 
-                val sentRemove = gateway.sent.map { it.second }.single { it.hasRemoveContainer() }.removeContainer
+                val sentRemove = gateway.sent.map { it.second }
+                    .single { it.hasRemoveContainer() }.removeContainer
                 sentRemove.serverId shouldBe serverId.toString()
                 sentRemove.deleteData shouldBe true
             }
@@ -978,6 +979,51 @@ class ServersRoutesTest :
                 gw.sent.size shouldBe 1
                 gw.sent[0].second.hasStopContainer() shouldBe true
                 gw.sent[0].second.stopContainer.containerName shouldBe "craftpanel-$serverId"
+            }
+        }
+
+        // ── POST /servers/{id}/force-stop ──────────────────────────────────────
+
+        test("POST force-stop returns 403 without server-force_stop permission") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Viewer")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, status = "HEALTHY")
+                val resp = client.post("/api/servers/$serverId/force-stop") { bearerAuth(tokenFor(userId)) }
+                resp.status shouldBe HttpStatusCode.Forbidden
+            }
+        }
+
+        test("POST force-stop returns 409 if server is already STOPPED") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, status = "STOPPED")
+                val resp = client.post("/api/servers/$serverId/force-stop") { bearerAuth(tokenFor(userId)) }
+                resp.status shouldBe HttpStatusCode.Conflict
+            }
+        }
+
+        test("POST force-stop returns 202 and sends StopContainerCommand with force=true") {
+            val gw = TestAgentGateway()
+            testApplication {
+                testApp { jwtManager -> configureServersTest(gw) }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, status = "STOPPING")
+                val resp = client.post("/api/servers/$serverId/force-stop") { bearerAuth(tokenFor(userId)) }
+                resp.status shouldBe HttpStatusCode.Accepted
+                gw.sent.size shouldBe 1
+                gw.sent[0].second.hasStopContainer() shouldBe true
+                gw.sent[0].second.stopContainer.force shouldBe true
             }
         }
 

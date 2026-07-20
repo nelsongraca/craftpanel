@@ -335,6 +335,8 @@ message StopContainerCommand {
   // Command written to container stdin to initiate graceful shutdown.
   // Empty = skip stdin command and proceed directly to Docker stop.
   string stop_command = 4;
+  // If true, immediately SIGKILL the container instead of graceful stop.
+  bool   force = 5;
 }
 
 message RestartContainerCommand {

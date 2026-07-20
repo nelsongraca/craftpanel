@@ -4,7 +4,7 @@ import {useCallback, useEffect, useState} from "react";
 import {useParams, useRouter} from "next/navigation";
 import Link from "next/link";
 import {ChevronRight, MoreHorizontal, Play, RotateCcw, Shuffle, Square, Trash2, X,} from "lucide-react";
-import {deleteServer, getNetwork, getNode, getServer, restartServer, startServer, stopServer} from "@/lib/generated/sdk.gen";
+import {deleteServer, forceStopServer, getNetwork, getNode, getServer, restartServer, startServer, stopServer} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import type {Network, Node, Server} from "@/lib/types";
@@ -147,9 +147,10 @@ export default function ServerDetailPage() {
         start: startServer,
         stop: stopServer,
         restart: restartServer,
+        forceStop: forceStopServer,
     } as const;
 
-    async function doAction(action: "start" | "stop" | "restart") {
+    async function doAction(action: "start" | "stop" | "restart" | "forceStop") {
         setPending(action);
         setActionError(null);
         const {error} = await ACTION_FNS[action]({path: {id}});
@@ -263,6 +264,15 @@ export default function ServerDetailPage() {
                                 label="Stop"
                                 loading={pending === "stop"}
                                 onClick={() => doAction("stop")}
+                                variant="red"
+                            />
+                        )}
+                        {(sStatus === "STOPPING" || sStatus === "HEALTHY" || sStatus === "UNHEALTHY") && hasPermission(permissions, "server.force_stop") && (
+                            <HeaderActionButton
+                                icon={<Square size={12} strokeWidth={2.5}/>}
+                                label="Force Stop"
+                                loading={pending === "forceStop"}
+                                onClick={() => doAction("forceStop")}
                                 variant="red"
                             />
                         )}

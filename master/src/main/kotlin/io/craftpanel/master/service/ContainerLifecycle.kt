@@ -33,7 +33,7 @@ class ContainerLifecycle(
         sendOrThrow(nodeId, buildStartMessage(server, needsRecreate, publicHostname, nodeId))
     }
 
-    fun sendStop(server: ServerRow, nodeId: String) {
+    fun sendStop(server: ServerRow, nodeId: String, force: Boolean = false) {
         val id = server.id
         sendOrThrow(
             nodeId,
@@ -43,6 +43,7 @@ class ContainerLifecycle(
                     containerName = "$containerNamePrefix-$id"
                     timeoutSeconds = 30
                     stopCommand = server.stopCommand
+                    this.force = force
                 }
             }
         )

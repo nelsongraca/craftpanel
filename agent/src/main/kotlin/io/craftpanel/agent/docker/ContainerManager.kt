@@ -204,7 +204,8 @@ open class ContainerManager(
                 .withTimeout(if (stopCommand.isNotEmpty()) 5 else timeout)
                 .exec()
             log.info("Stopped container {}", containerName)
-        } catch (_: NotFoundException) {
+        }
+        catch (_: NotFoundException) {
             // Container already gone (e.g. server was never started) — stopping is
             // idempotent, the desired end state (not running) already holds.
             log.info("Container {} does not exist — treating stop as already-stopped", containerName)
@@ -230,13 +231,26 @@ open class ContainerManager(
         false
     }
 
+    fun killContainer(containerName: String) {
+        try {
+            docker.killContainerCmd(containerName)
+                .exec()
+            log.info("Force-killed container {}", containerName)
+        }
+        catch (_: NotFoundException) {
+            // Container already gone — force-kill is idempotent.
+            log.info("Container {} does not exist — treating force-kill as already-stopped", containerName)
+        }
+    }
+
     fun removeContainer(containerName: String, force: Boolean) {
         try {
             docker.removeContainerCmd(containerName)
                 .withForce(force)
                 .exec()
             log.info("Removed container $containerName")
-        } catch (_: NotFoundException) {
+        }
+        catch (_: NotFoundException) {
             // Container already gone — removal is idempotent.
             log.info("Container {} does not exist — treating remove as already-removed", containerName)
         }

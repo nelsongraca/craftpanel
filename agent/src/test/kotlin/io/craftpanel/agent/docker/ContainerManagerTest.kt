@@ -4,11 +4,13 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.command.*
+import com.github.dockerjava.api.exception.NotFoundException
 import com.github.dockerjava.api.model.*
 import io.craftpanel.proto.ContainerState
 import io.craftpanel.proto.startContainerCommand
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.assertions.throwables.shouldNotThrow
 import io.mockk.*
 
 class ContainerManagerTest :
@@ -299,6 +301,21 @@ class ContainerManagerTest :
             manager.stopContainer("craftpanel-mc", timeoutSeconds = 0, stopCommand = "")
 
             verify { stopCmd.withTimeout(30) }
+        }
+
+        // killContainer
+        test("killContainer calls docker kill and is idempotent on missing container") {
+            val killCmd = mockk<KillContainerCmd>(relaxed = true)
+            every { docker.killContainerCmd("craftpanel-mc") } returns killCmd
+
+            manager.killContainer("craftpanel-mc")
+
+            verify { killCmd.exec() }
+        }
+
+        test("killContainer swallows NotFoundException") {
+            every { docker.killContainerCmd("craftpanel-mc") } throws NotFoundException("no such container")
+            shouldNotThrow<NotFoundException> { manager.killContainer("craftpanel-mc") }
         }
 
         // removeContainer

@@ -11,7 +11,7 @@ private val systemGroups = mapOf(
     "Super Admin" to listOf("*"),
     "Server Admin" to listOf(
         Permission.SERVER_CREATE, Permission.SERVER_DELETE, Permission.SERVER_START, Permission.SERVER_STOP,
-        Permission.SERVER_RESTART, Permission.SERVER_CONFIGURE, Permission.SERVER_FILES, Permission.SERVER_MODS,
+        Permission.SERVER_RESTART, Permission.SERVER_FORCE_STOP, Permission.SERVER_CONFIGURE, Permission.SERVER_FILES, Permission.SERVER_MODS,
         Permission.SERVER_CONSOLE, Permission.SERVER_EXPORT, Permission.SERVER_BACKUP,
         Permission.SERVER_VIEW,
     ).map { it.node },
