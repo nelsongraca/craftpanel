@@ -37,8 +37,10 @@ class ServersRoutesTest :
             TestDatabase.reset()
         }
 
+        lateinit var repos: TestRepositories
+
         fun Route.configureServersTest(gateway: TestAgentGateway = TestAgentGateway()) {
-            val repos = TestRepositories()
+            repos = TestRepositories()
             val serverRepository = repos.serverRepository
             val networkRepository = NetworkRepositoryImpl()
             val settingsRepository = SettingsRepositoryImpl()
@@ -79,6 +81,7 @@ class ServersRoutesTest :
                     serverExposure = serverExposure,
                     portRepository = repos.portRepository,
                     envVarsRepository = repos.envVarsRepository,
+                    modRepository = repos.modRepository,
                     containerMetricsRepository = repos.containerMetricsRepository,
                     migrationRepository = repos.migrationRepository
                 ),
@@ -1071,6 +1074,112 @@ class ServersRoutesTest :
                 gw.sent[0].second.stopContainer.containerName shouldBe "craftpanel-$serverId"
                 gw.sent[1].second.hasStartContainer() shouldBe true
                 gw.sent[1].second.startContainer.containerName shouldBe "craftpanel-$serverId"
+            }
+        }
+
+        // ── POST /servers/{id}/clone ──────────────────────────────────────────────
+
+        test("POST clone requires server.create permission") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Viewer")
+                val nodeId = createNode()
+                val sourceId = createServer(nodeId, "source")
+                val resp = client.post("/api/servers/$sourceId/clone") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"clone-1"}""")
+                }
+                resp.status shouldBe HttpStatusCode.Forbidden
+            }
+        }
+
+        test("POST clone copies config, env vars and mods to a new unique server") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val sourceId = createServer(nodeId, "source", memoryMb = 2048, mcVersion = "1.21.4")
+                transaction {
+                    repos.envVarsRepository.replaceEnvVars(
+                        sourceId,
+                        listOf(EnvVarRow("EULA", "TRUE"), EnvVarRow("LEVEL", "world"))
+                    )
+                    repos.modRepository.createMod(
+                        serverId = sourceId,
+                        modrinthProjectId = "fabric-api",
+                        displayName = "Fabric API",
+                        pinStrategy = "LATEST",
+                        pinnedVersionId = null,
+                        installedVersionId = null
+                    )
+                }
+
+                val resp = client.post("/api/servers/$sourceId/clone") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"clone-1","display_name":"Cloned","description":"a copy"}""")
+                }
+                resp.status shouldBe HttpStatusCode.Created
+                val body = resp.body<JsonObject>()
+                body["name"]!!.jsonPrimitive.content shouldBe "clone-1"
+                body["display_name"]!!.jsonPrimitive.content shouldBe "Cloned"
+                body["description"]!!.jsonPrimitive.content shouldBe "a copy"
+                body["server_type"]!!.jsonPrimitive.content shouldBe "VANILLA"
+                body["mc_version"]!!.jsonPrimitive.content shouldBe "1.21.4"
+                body["memory_mb"]!!.jsonPrimitive.content.toInt() shouldBe 2048
+
+                val newId = Uuid.parse(body["id"]!!.jsonPrimitive.content)
+                newId shouldNotBe sourceId
+                transaction {
+                    Servers.selectAll()
+                        .where { Servers.name eq "clone-1" }
+                        .count() shouldBe 1L
+                    val envVars = repos.envVarsRepository.getEnvVars(newId)
+                        .associate { it.key to it.value }
+                    envVars["EULA"] shouldBe "TRUE"
+                    envVars["LEVEL"] shouldBe "world"
+                    repos.modRepository.listMods(newId).size shouldBe 1
+                }
+            }
+        }
+
+        test("POST clone returns 409 when name is taken") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val sourceId = createServer(nodeId, "source")
+                createServer(nodeId, "taken")
+                val resp = client.post("/api/servers/$sourceId/clone") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"taken"}""")
+                }
+                resp.status shouldBe HttpStatusCode.Conflict
+            }
+        }
+
+        test("POST clone returns 404 when source missing") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                createNode()
+                val missing = Uuid.random()
+                val resp = client.post("/api/servers/$missing/clone") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"clone-x"}""")
+                }
+                resp.status shouldBe HttpStatusCode.NotFound
             }
         }
     })

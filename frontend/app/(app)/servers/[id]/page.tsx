@@ -3,7 +3,7 @@
 import {useCallback, useEffect, useState} from "react";
 import {useParams, useRouter} from "next/navigation";
 import Link from "next/link";
-import {ChevronRight, MoreHorizontal, Play, RotateCcw, Shuffle, Square, Trash2, X,} from "lucide-react";
+import {ChevronRight, Copy, MoreHorizontal, Play, RotateCcw, Shuffle, Square, Trash2, X,} from "lucide-react";
 import {deleteServer, forceStopServer, getNetwork, getNode, getServer, restartServer, startServer, stopServer} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
@@ -322,6 +322,16 @@ export default function ServerDetailPage() {
                                             <Shuffle size={12} strokeWidth={2}/>
                                             Migrate
                                         </button>
+                                        {hasPermission(permissions, "server.create") && (
+                                            <Link
+                                                href={`/servers/new?clone=${server.id}`}
+                                                onClick={() => setMenuOpen(false)}
+                                                className="flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
+                                            >
+                                                <Copy size={12} strokeWidth={2}/>
+                                                Clone Server
+                                            </Link>
+                                        )}
                                     </div>
                                 )}
                             </div>

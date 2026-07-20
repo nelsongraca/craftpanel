@@ -196,6 +196,7 @@ val appModule = module {
             serverExposure = get(),
             portRepository = get(),
             envVarsRepository = get(),
+            modRepository = get(),
             containerMetricsRepository = get(),
             migrationRepository = get()
         )

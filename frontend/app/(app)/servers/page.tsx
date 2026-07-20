@@ -163,6 +163,15 @@ function ServerActions({
                         >
                             View
                         </Link>
+                        {hasPermission(permissions, "server.create") && (
+                            <Link
+                                href={`/servers/new?clone=${server.id}`}
+                                onClick={() => setOpenMenuId(null)}
+                                className="flex items-center px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
+                            >
+                                Clone
+                            </Link>
+                        )}
                         {status === "STOPPED" && hasPermission(permissions, "server.delete") && (
                             <button
                                 onClick={() => {

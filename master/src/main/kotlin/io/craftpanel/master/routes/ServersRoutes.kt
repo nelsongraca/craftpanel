@@ -9,6 +9,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlin.time.Instant
+import kotlin.uuid.Uuid
 
 fun Route.serversRoutes(serverService: ServerService, lifecycleService: ServerLifecycleService, exposureService: ServerExposureService) {
     authenticate(JWT_AUTH) {
@@ -40,6 +41,31 @@ fun Route.serversRoutes(serverService: ServerService, lifecycleService: ServerLi
                 call.requirePermission(Permission.SERVER_CREATE)
                 val req = call.receive<CreateServerRequest>()
                 call.respond(HttpStatusCode.Created, serverService.createServer(req))
+            }
+
+            post("/{id}/clone", {
+                operationId = "cloneServer"
+                summary = "Clone a server's configuration under a new name"
+                description =
+                    "Copies display name, description, server type/loader, Minecraft version, node, network, resources, environment variables, and mods/plugins. World/disk data is not copied."
+                request {
+                    pathParameter<String>("id")
+                    body<CloneServerRequest>()
+                }
+                response {
+                    code(HttpStatusCode.Created) { body<ServerResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                call.requirePermission(Permission.SERVER_CREATE)
+                val sourceId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
+                    ?: throw UnprocessableException("Invalid server id")
+                val req = call.receive<CloneServerRequest>()
+                call.respond(HttpStatusCode.Created, serverService.cloneServer(sourceId, req))
             }
 
             get("/{id}", {

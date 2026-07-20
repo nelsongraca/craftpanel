@@ -1,10 +1,10 @@
 "use client";
 
 import {useEffect, useState} from "react";
-import {useRouter} from "next/navigation";
+import {useRouter, useSearchParams} from "next/navigation";
 import Link from "next/link";
 import {ChevronLeft} from "lucide-react";
-import {createServer, listNetworks, listNodes} from "@/lib/generated/sdk.gen";
+import {cloneServer, createServer, getServer, listNetworks, listNodes} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import {SelectField, TextAreaField, TextField} from "@/components/ui/form-elements";
@@ -68,6 +68,8 @@ function SectionHeading({children}: { children: React.ReactNode }) {
 
 export default function NewServerPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const cloneId = searchParams.get("clone");
     const {user} = useAuth();
     const permissions = user?.permissions ?? [];
 
@@ -93,11 +95,11 @@ export default function NewServerPage() {
     const isProxy = (PROXY_TYPES as readonly string[]).includes(serverType);
 
     useEffect(() => {
-        Promise.all([
+        const loadBase = [
             listNodes().then(({data}) => {
                 if (data) {
                     setNodes(data);
-                    if (data.length > 0) setNodeId(data[0].id);
+                    if (data.length > 0 && !cloneId) setNodeId(data[0].id);
                 }
             }),
             listNetworks().then(({data}) => {
@@ -108,8 +110,28 @@ export default function NewServerPage() {
                 if (vs.length > 0) setMcVersion(vs[0]);
             }).catch(() => {
             }),
-        ]).finally(() => setLoadingData(false));
-    }, []);
+        ];
+
+        const loadClone = cloneId
+            ? getServer({path: {id: cloneId}}).then(({data}) => {
+                if (!data) return;
+                setDisplayName(data.display_name);
+                setDescription(data.description ?? "");
+                setServerType(data.server_type);
+                if (!data.server_type.startsWith("VELOCITY") && !data.server_type.startsWith("BUNGEE") && !data.server_type.startsWith("WATERFALL")) {
+                    setMcVersion(data.mc_version === "LATEST" ? versions[0] ?? "" : data.mc_version);
+                }
+                setItzgImageTag(data.itzg_image_tag || "latest");
+                setNodeId(data.node_id);
+                setNetworkId(data.network_id ?? "");
+                setRamMb(data.memory_mb);
+                setCpuShares(data.cpu_shares);
+            }).catch(() => {
+            })
+            : Promise.resolve();
+
+        Promise.all([...loadBase, loadClone]).finally(() => setLoadingData(false));
+    }, [cloneId]);
 
     if (!hasPermission(permissions, "server.create")) {
         return (
@@ -129,20 +151,22 @@ export default function NewServerPage() {
         setSubmitting(true);
         setError(null);
         try {
-            const {data, error: apiError} = await createServer({
-                body: {
-                    name,
-                    display_name: displayName || undefined,
-                    description: description || undefined,
-                    server_type: serverType,
-                    mc_version: isProxy ? "LATEST" : mcVersion,
-                    itzg_image_tag: itzgImageTag || "latest",
-                    node_id: nodeId,
-                    network_id: networkId || undefined,
-                    memory_mb: ramMb,
-                    cpu_shares: cpuShares,
-                },
+            const buildBody = () => ({
+                name,
+                display_name: displayName || undefined,
+                description: description || undefined,
+                server_type: serverType,
+                mc_version: isProxy ? "LATEST" : mcVersion,
+                itzg_image_tag: itzgImageTag || "latest",
+                node_id: nodeId,
+                network_id: networkId || undefined,
+                memory_mb: ramMb,
+                cpu_shares: cpuShares,
             });
+
+            const {data, error: apiError} = cloneId
+                ? await cloneServer({path: {id: cloneId}, body: {name, display_name: displayName || undefined, description: description || undefined}})
+                : await createServer({body: buildBody()});
             if (apiError) {
                 setError(apiError.message ?? "Failed to create server");
             } else if (data) {
@@ -167,8 +191,13 @@ export default function NewServerPage() {
                     Servers
                 </Link>
                 <h1 className="text-[22px] font-heading font-bold uppercase tracking-wide text-text-primary leading-none">
-                    New Server
+                    {cloneId ? "Clone Server" : "New Server"}
                 </h1>
+                {cloneId && (
+                    <p className="mt-1.5 text-xs text-text-muted">
+                        Cloning configuration from an existing server. Enter a new unique name; the source&apos;s software, resources, environment variables and mods will be copied.
+                    </p>
+                )}
             </div>
 
             {error && (
@@ -343,7 +372,7 @@ export default function NewServerPage() {
                         disabled={submitting || loadingData}
                         className="px-5 py-2 rounded bg-accent text-bg text-xs font-heading font-bold uppercase tracking-widest hover:bg-accent-bright transition-colors disabled:opacity-50"
                     >
-                        {submitting ? "Creating…" : "Create Server"}
+                        {submitting ? "Creating…" : cloneId ? "Clone Server" : "Create Server"}
                     </button>
                 </div>
             </form>

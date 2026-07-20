@@ -57,6 +57,13 @@ data class CreateServerRequest(
 )
 
 @Serializable
+data class CloneServerRequest(
+    val name: String,
+    @SerialName("display_name") val displayName: String? = null,
+    val description: String? = null
+)
+
+@Serializable
 data class UpdateServerRequest(
     @SerialName("display_name") val displayName: String? = null,
     val description: String? = null,
@@ -106,6 +113,7 @@ class ServerService(
     private val serverExposure: ServerExposure,
     private val portRepository: PortRepository,
     private val envVarsRepository: EnvVarsRepository,
+    private val modRepository: ModRepository,
     private val containerMetricsRepository: ContainerMetricsRepository,
     private val migrationRepository: MigrationRepository
 ) {
@@ -117,11 +125,11 @@ class ServerService(
     fun listServers(userId: Uuid): List<ServerResponse> {
         val visibility = visibilityResolver.resolve(userId)
         val rows = when {
-            visibility.isGlobal -> serverRepository.listAll()
+            visibility.isGlobal                                               -> serverRepository.listAll()
 
             visibility.networkIds.isEmpty() && visibility.serverIds.isEmpty() -> return emptyList()
 
-            else -> serverRepository.listByVisibility(
+            else                                                              -> serverRepository.listByVisibility(
                 visibility.networkIds.toList(),
                 visibility.serverIds.toList()
             )
@@ -129,7 +137,8 @@ class ServerService(
         val ids = rows.map { it.id }
         val migratingIds = if (ids.isEmpty()) {
             emptySet()
-        } else {
+        }
+        else {
             rows.filter { migrationRepository.findActiveMigration(it.id) != null }
                 .map { it.id }
                 .toSet()
@@ -165,7 +174,7 @@ class ServerService(
             when (capacityChecker.check(node, excludeServerId = null, memoryMb = req.memoryMb, cpuShares = req.cpuShares)) {
                 CapacityResult.InsufficientRam -> return CreateResult("insufficient_ram")
                 CapacityResult.InsufficientCpu -> return CreateResult("insufficient_cpu")
-                CapacityResult.Ok -> {}
+                CapacityResult.Ok              -> {}
             }
 
             val usedPorts = portRepository.findUsedPortsOnNode(nodeKotlinId)
@@ -215,13 +224,15 @@ class ServerService(
             repeat(3) {
                 try {
                     return@run attemptCreate()
-                } catch (ex: Exception) {
+                }
+                catch (ex: Exception) {
                     val cause = generateSequence(ex as Throwable) { it.cause }
                         .filterIsInstance<java.sql.SQLException>()
                         .firstOrNull()
                     if (cause != null && cause.sqlState?.startsWith("23") == true) {
                         lastEx = cause
-                    } else {
+                    }
+                    else {
                         throw ex
                     }
                 }
@@ -230,14 +241,14 @@ class ServerService(
         }
 
         return when (result.status) {
-            "ok" -> result.server!!
-            "node_not_found" -> throw UnprocessableException("Node not found")
-            "node_not_active" -> throw UnprocessableException("Node is not active")
+            "ok"                -> result.server!!
+            "node_not_found"    -> throw UnprocessableException("Node not found")
+            "node_not_active"   -> throw UnprocessableException("Node is not active")
             "network_not_found" -> throw UnprocessableException("Network not found")
-            "name_taken" -> throw ConflictException("Server name already taken")
-            "insufficient_ram" -> throw ConflictException("Insufficient RAM capacity on node")
-            "insufficient_cpu" -> throw ConflictException("Insufficient CPU capacity on node")
-            else -> throw ConflictException("No free ports available on node")
+            "name_taken"        -> throw ConflictException("Server name already taken")
+            "insufficient_ram"  -> throw ConflictException("Insufficient RAM capacity on node")
+            "insufficient_cpu"  -> throw ConflictException("Insufficient CPU capacity on node")
+            else                -> throw ConflictException("No free ports available on node")
         }
     }
 
@@ -245,6 +256,44 @@ class ServerService(
         val row = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
         val isMigrating = migrationRepository.findActiveMigration(id) != null
         return row.toResponse(serverExposure, isMigrating)
+    }
+
+    fun cloneServer(sourceId: Uuid, req: CloneServerRequest): ServerResponse {
+        val source = serverRepository.findById(sourceId)
+            ?: throw NotFoundException("Source server not found")
+
+        val createReq = CreateServerRequest(
+            name = req.name,
+            displayName = req.displayName ?: source.displayName,
+            description = req.description ?: source.description,
+            nodeId = source.nodeId.toString(),
+            networkId = source.networkId?.toString(),
+            serverType = source.serverType,
+            mcVersion = source.mcVersion,
+            itzgImageTag = source.itzgImageTag,
+            memoryMb = source.memoryMb,
+            cpuShares = source.cpuShares
+        )
+
+        val created = createServer(createReq)
+        val newId = parseUuid(created.id)
+            ?: throw IllegalStateException("Created server id was not a valid UUID")
+
+        envVarsRepository.replaceEnvVars(newId, envVarsRepository.getEnvVars(sourceId))
+
+        modRepository.listMods(sourceId)
+            .forEach { mod ->
+                modRepository.createMod(
+                    serverId = newId,
+                    modrinthProjectId = mod.modrinthProjectId,
+                    displayName = mod.displayName,
+                    pinStrategy = mod.pinStrategy,
+                    pinnedVersionId = mod.pinnedVersionId,
+                    installedVersionId = mod.installedVersionId
+                )
+            }
+
+        return getServer(newId)
     }
 
     fun updateServer(id: Uuid, req: UpdateServerRequest) {
@@ -327,7 +376,7 @@ class ServerService(
         when (capacityChecker.check(node, excludeServerId = id, memoryMb = req.memoryMb, cpuShares = req.cpuShares)) {
             CapacityResult.InsufficientRam -> throw ConflictException("Insufficient RAM capacity on node")
             CapacityResult.InsufficientCpu -> throw ConflictException("Insufficient CPU capacity on node")
-            CapacityResult.Ok -> {}
+            CapacityResult.Ok              -> {}
         }
         serverRepository.updateResources(id, req.memoryMb, req.cpuShares, req.itzgImageTag, true)
     }
