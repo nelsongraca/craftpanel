@@ -51,7 +51,7 @@ class ProxyBackendTest : BaseSystemTest() {
                         backends = listOf(
                             BackendInput(
                                 backendServerId = gameServerId,
-                                backendName = "Game Server 1",
+                                backendName = "GameServer1",
                                 order = 1
                             )
                         )
@@ -59,7 +59,7 @@ class ProxyBackendTest : BaseSystemTest() {
                 )
                 result.backends.shouldHaveSize(1)
                 result.backends.first().backendServerId shouldBe gameServerId
-                result.backends.first().backendName shouldBe "Game Server 1"
+                result.backends.first().backendName shouldBe "GameServer1"
                 result.backends.first().order shouldBe 1
             }
 
@@ -76,15 +76,16 @@ class ProxyBackendTest : BaseSystemTest() {
                         proxyServerId,
                         PutProxyBackendsRequest(
                             backends = listOf(
-                                BackendInput(gameServerId, "Game 1", 1),
-                                BackendInput(secondGame, "Game 2", 2)
+                                BackendInput(gameServerId, "Game1", 1),
+                                BackendInput(secondGame, "Game2", 2)
                             )
                         )
                     )
                     result.backends.shouldHaveSize(2)
                     result.backends[0].order shouldBe 1
                     result.backends[1].order shouldBe 2
-                } finally {
+                }
+                finally {
                     runCatching { api.deleteServer(secondGame) }
                 }
             }
@@ -116,7 +117,8 @@ class ProxyBackendTest : BaseSystemTest() {
                         )
                     }
                     ex.statusCode shouldBe 409
-                } finally {
+                }
+                finally {
                     runCatching { api.deleteServer(sId) }
                 }
             }
@@ -156,7 +158,8 @@ class ProxyBackendTest : BaseSystemTest() {
                         )
                     }
                     ex.statusCode shouldBe 422
-                } finally {
+                }
+                finally {
                     runCatching { api.deleteServer(proxy.id) }
                 }
             }
@@ -169,7 +172,7 @@ class ProxyBackendTest : BaseSystemTest() {
                         backends = listOf(
                             BackendInput(
                                 backendServerId = gameServerId,
-                                backendName = "Game Server 1",
+                                backendName = "GameServer1",
                                 order = 1
                             )
                         )
