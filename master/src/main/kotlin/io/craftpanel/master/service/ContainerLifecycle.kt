@@ -148,6 +148,7 @@ class ContainerLifecycle(
             val heapMb = server.memoryMb * 75 / 100
             put("MEMORY", "${heapMb}M")
             if (modrinthProjects.isNotEmpty()) put("MODRINTH_PROJECTS", modrinthProjects)
+            if (isProxy) put("PATCH_DEFINITIONS", "/server/craftpanel-patch.json")
         }
         return systemVars + dbEnvVars
     }
@@ -197,8 +198,7 @@ class ContainerLifecycle(
                 ?: throw ContainerLifecycleException(
                     "step timed out after $timeout waiting for $expected (server $serverId)"
                 )
-        }
-        finally {
+        } finally {
             job.cancel()
         }
     }

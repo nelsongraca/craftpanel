@@ -54,9 +54,24 @@
 | **Backup** | A point-in-time archive of a server's data directory, stored on the node | Snapshot, archive |
 | **Migration Step** | One discrete phase of a migration (e.g. initial sync, cutover, cleanup), tracked individually | Stage, phase |
 
+## Proxy & routing
+
+| Term | Definition | Aliases to avoid |
+|------|-----------|------------------|
+| **Proxy** | A Server whose Server Type is `VELOCITY`, `BUNGEECORD`, or `WATERFALL` — it fronts other servers and routes players to them rather than running a world itself | Gateway, router (ambiguous with mc-router) |
+| **Backend Server** | A (non-proxy) Server that a Proxy routes players to, identified within one Proxy by a **Backend Name** and an order | Backend (ambiguous — reserved as Master alias), downstream, child server |
+| **Backend Name** | The proxy-local identifier for a Backend Server (e.g. `lobby`, `factions`) — the name that appears in the proxy's `[servers]`/`servers:` block and in the player's `/server <name>` command | Server alias, route name |
+| **Proxy Config** | The generated config file written into a Proxy's data dir listing its Backend Servers — `velocity.toml` for Velocity, `config.yml` for BungeeCord/Waterfall. Rendered by master, written by the agent (ADR-0002) | Proxy settings, route table |
+| **Forwarding Mode** | How a Proxy passes player identity to its Backend Servers: `none`, `legacy` (BungeeCord ip_forward), `modern` (Velocity), or `bungeeguard`. Admin-chosen per Proxy; `modern` requires backend support (Paper-lineage only) | Auth mode, forwarding type |
+| **Forwarding Secret** | The shared 32-char string authenticating `modern` forwarding between a Proxy and its Backend Servers. **Master-minted and master-owned** (ADR-0003), stored encrypted-at-rest with a key held outside the DB, written to both the Proxy (`forwarding.secret`) and each eligible backend (`paper-global.yml`) | Velocity secret, forwarding.secret |
+| **Backend Forwarding Config** | The forwarding config master writes into a Backend Server so it accepts forwarded players — `paper-global.yml proxies.velocity.*` (modern) or `settings.yml bungeecord: true` (legacy), always with `online-mode=false` (ADR-0003, #44) | Backend proxy config |
+
 ## Relationships
 
 - A **Node** hosts zero or more **Servers**; each **Server** belongs to exactly one **Node**
+- A **Proxy** routes to zero or more **Backend Servers**; the lowest-order backend is the default landing server (Velocity `try` / Bungee `priorities`), the rest reached via `/server <Backend Name>`
+- Editing a **Proxy**'s **Backend Servers** re-renders the **Proxy Config** and sets **Needs Recreate** on the **Proxy** — it is not force-restarted
+- Setting a **Forwarding Mode** on a **Proxy** (or adding a **Backend Server** to an already-forwarding **Proxy**) writes **Backend Forwarding Config** + the **Forwarding Secret** into each eligible **Backend Server** and sets **Needs Recreate** on those backends — a 1→N write across Backend Server rows (ADR-0003, #44). Backends that cannot support the mode (Vanilla, modded, Spigot under `modern`) are warn-skipped, not blocked
 - A **Server** has exactly one **Status** at any time, and at most one active **Container**
 - A **User** has zero or more **Assignments**; each **Assignment** binds the user to one **Group** at one **Scope**
 - A **Network** contains zero or more **Servers** and is used as a **Scope** for **Assignments**

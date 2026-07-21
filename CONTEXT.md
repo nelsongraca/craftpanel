@@ -149,6 +149,50 @@ validation. Replaces `buildMcRouterLabel` (pkg fn), the private resolvers in
   removed to improve locality.
 - See plan `plans/c1-server-exposure-module.md`.
 
+### ProxyConfigRenderer (master) — planned (issue #36)
+
+The one module that turns a **Proxy**'s stored **Backend Servers** into a
+**Proxy Config** file. Master renders the full config text; the agent writes it
+verbatim via `WriteFileRequest` (ADR-0002). The agent gains no proxy templating.
+
+- Two render targets switched on `server_type`: `velocity.toml` (VELOCITY) vs
+  `config.yml` (BUNGEECORD, WATERFALL).
+- Backend address resolves to internal docker DNS `craftpanel-<backendId>:25565`
+  (same-node only — cross-node addressing deferred to #43).
+- Lowest-order backend seeds `try` (Velocity) / `priorities` (Bungee); all
+  backends populate `[servers]` / `servers:`.
+- Forwarding mode + secret written proxy-side only; backend-side push deferred
+  to #44.
+- `ProxyBackendService.replaceBackends` is the write trigger: persist backends →
+  render + write config → `updateNeedsRecreate(true)`. No forced restart —
+  mirrors env-var/mod edits.
+- Migration's stale-proxy-config update (`MigrationCoordinator.updateProxyBackends
+  AfterMigration`, currently a bare restart) is a cross-node concern → folded
+  into #43, not #36.
+
+> NOTE: the paragraph above predates the PATCH_DEFINITIONS decision — #36's final
+> design patches the existing config (not full-file render/verbatim write) and
+> uses port 25577 for proxies. See `.scratch/proxy-backend-config/DESIGN.md` +
+> ADR-0002 for the current mechanism. Update this block when #36 lands.
+
+### BackendForwardingRenderer (master) — planned (issue #44)
+
+The module that writes **Backend Forwarding Config** into each **Backend Server**
+so it accepts forwarded players. Follows #36; reuses its patch/`writeFile` path.
+
+- Master mints and owns the **Forwarding Secret** (ADR-0003), encrypted-at-rest,
+  key outside the DB — supersedes ADR-0002's image-owned-secret clause.
+- Per-backend patch: `paper-global.yml proxies.velocity.*` (modern, Paper-lineage
+  only) or `settings.yml bungeecord: true` (legacy, any Bukkit). Always paired
+  with `ONLINE_MODE=false` env (the actual "invalid player data" fix) and a new
+  `PATCH_DEFINITIONS` env on the backend (backends lacked it before #44).
+- Two triggers: proxy-settings mode/secret change, and a new **Backend Server**
+  assigned to an already-forwarding **Proxy** (`replaceBackends`) — a 1→N write
+  across backend rows. Each affected backend gets **Needs Recreate**.
+- Ineligible backends (Vanilla, modded, Spigot under `modern`) are warn-skipped,
+  not blocked. Fabric/Forge forwarding deferred (mod-dependent).
+- `online-mode=false` backends must stay internal-only — never exposed directly.
+
 ### Route test scaffolding (master) — planned
 
 `testApp(routing: Routing.(jwtManager: JwtManager) -> Unit)` — a
