@@ -100,6 +100,8 @@ dependencies {
     testImplementation(libs.okhttp.logging)
     testImplementation(libs.gson)
     testImplementation(libs.kotlinx.coroutines.core)
+    testImplementation(libs.tomlj)
+    testImplementation(libs.docker.java.core)
 }
 
 tasks.named<Test>("test") {

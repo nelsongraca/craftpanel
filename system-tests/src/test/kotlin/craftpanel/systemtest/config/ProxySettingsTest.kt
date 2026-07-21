@@ -6,9 +6,11 @@ import craftpanel.systemtest.harness.ServerHelper
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldContain
+import io.kotest.matchers.collections.shouldContainExactly
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import org.openapitools.client.infrastructure.ClientException
+import org.tomlj.Toml
 
 @Tags("Misc")
 class ProxySettingsTest : BaseSystemTest() {
@@ -144,7 +146,7 @@ class ProxySettingsTest : BaseSystemTest() {
                         backends = listOf(
                             BackendInput(
                                 backendServerId = gameServerId,
-                                backendName = "Game Server 1",
+                                backendName = "game-server-1",
                                 order = 1
                             )
                         )
@@ -156,6 +158,34 @@ class ProxySettingsTest : BaseSystemTest() {
                 val info = docker.inspectContainerCmd(containerName(proxyServerId)).exec()
                 val env = info.config?.env?.toList().orEmpty()
                 env shouldContain "PATCH_DEFINITIONS=/server/craftpanel-patch.json"
+
+                // fake-proxy is a stub — it never runs the real itzg/mc-proxy entrypoint (no
+                // default velocity.toml download, no mc-image-helper invocation). Seed a default
+                // config with the same top-level keys the real image ships (verified against a
+                // real itzg/mc-proxy container) and run the real mc-image-helper binary (baked
+                // into the fake-proxy image, see fake-server/Dockerfile) against the patch master
+                // already wrote — proving the PatchSet JSON is genuinely parseable, not just
+                // shaped the way our own renderer/test expect.
+                val proxyContainer = containerName(proxyServerId)
+                val seedVelocityToml = """
+                    motd = "A Velocity Server"
+                    show-max-players = 500
+                    player-info-forwarding-mode = "NONE"
+
+                    [servers]
+                    try = []
+                """.trimIndent()
+                execInContainer(proxyContainer, "sh", "-c", "cat > /server/velocity.toml <<'EOF'\n$seedVelocityToml\nEOF")
+                execInContainer(proxyContainer, "mc-image-helper", "patch", "/server/craftpanel-patch.json")
+
+                val tomlText = execInContainer(proxyContainer, "cat", "/server/velocity.toml")
+                val toml = Toml.parse(tomlText)
+                toml.hasErrors() shouldBe false
+
+                val servers = toml.getTable("servers")!!
+                servers.keySet() shouldContainExactly setOf("game-server-1", "try")
+                servers.getString("game-server-1") shouldBe "${containerName(gameServerId)}:25565"
+                servers.getArray("try")!!.toList() shouldContainExactly listOf("game-server-1")
             }
         }
     }
