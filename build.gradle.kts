@@ -3,7 +3,7 @@ plugins {
     alias(libs.plugins.kotlin.jvm) apply false
     alias(libs.plugins.kotlin.serialization) apply false
     alias(libs.plugins.ktor) apply false
-    alias(libs.plugins.bmuschko.docker) apply false
+    alias(libs.plugins.flowkode.buildx) apply false
     alias(libs.plugins.kover)
     alias(libs.plugins.spotless)
 }
@@ -82,22 +82,26 @@ if (project.hasProperty("withCoverage")) {
 // ---------------------------------------------------------------------------
 val dockerBuildAll by tasks.registering {
     group = "docker"
-    description = "Builds all Docker images"
+    description = "Builds all Docker images (loads into local daemon unless -Ppush=true)"
     dependsOn(
-        ":master:dockerBuildImage",
-        ":agent:dockerBuildImage",
-        ":frontend:dockerBuildImage"
+        ":master:buildxBuild",
+        ":agent:buildxBuild",
+        ":frontend:buildxBuild"
     )
 }
 
 val dockerPushAll by tasks.registering {
     group = "docker"
-    description = "Pushes all Docker images"
-    dependsOn(
-        ":master:dockerPushImage",
-        ":agent:dockerPushImage",
-        ":frontend:dockerPushImage"
-    )
+    description = "Builds and pushes all Docker images. Requires -Ppush=true."
+    dependsOn(dockerBuildAll)
+}
+
+gradle.taskGraph.whenReady {
+    if (hasTask(dockerPushAll.get())) {
+        require(findProperty("push")?.toString().toBoolean() == true) {
+            "dockerPushAll requires -Ppush=true (drives the buildx `push` flag on each module)"
+        }
+    }
 }
 
 tasks.named("check") {

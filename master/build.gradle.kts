@@ -1,13 +1,13 @@
-import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
-import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
-import craftpanel.dockerImageName
+import craftpanel.dockerImageBase
+import craftpanel.dockerImageTag
+import craftpanel.dockerPushEnabled
 
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ktor)
     alias(libs.plugins.kover)
-    alias(libs.plugins.bmuschko.docker)
+    alias(libs.plugins.flowkode.buildx)
     id("craftpanel.protobuf-convention")
     application
 }
@@ -71,8 +71,6 @@ sourceSets.main {
     proto.srcDir("${rootProject.projectDir}/proto")
 }
 
-val masterImageName = dockerImageName(project, "master")
-
 tasks.register<Copy>("stageDocker") {
     dependsOn(tasks.installDist)
     from(layout.buildDirectory.dir("install/master")) { into("build/install/master") }
@@ -84,24 +82,22 @@ tasks.register<Copy>("stageDocker") {
 @Suppress("UNCHECKED_CAST")
 val gitVersion = rootProject.extra["gitVersion"] as Provider<String>
 
-tasks.register<DockerBuildImage>("dockerBuildImage") {
-    group = "docker"
-    description = "Builds the Docker image for master"
-    dependsOn("stageDocker")
-    mustRunAfter(tasks.named("assemble"), tasks.named("check"))
-    inputDir.set(layout.buildDirectory.dir("docker"))
-    dockerFile.set(layout.buildDirectory.file("docker/Dockerfile"))
-    images.add(masterImageName)
-    buildArgs.put("APP_VERSION", gitVersion)
-    labels.put("org.opencontainers.image.version", gitVersion)
-    pull.set(true)
+val pushEnabled = dockerPushEnabled(project)
+
+buildx {
+    imageName = dockerImageBase(project, "master")
+    tags = listOf(dockerImageTag(project))
+    context = layout.buildDirectory.dir("docker").get()
+    dockerfile = layout.buildDirectory.file("docker/Dockerfile").get().asFile
+    buildArgs { put("APP_VERSION", gitVersion.get()) }
+    labels { put("org.opencontainers.image.version", gitVersion.get()) }
+    push = pushEnabled
+    load = !pushEnabled
 }
 
-tasks.register<DockerPushImage>("dockerPushImage") {
-    group = "docker"
-    description = "Pushes the Docker image for master"
-    dependsOn("dockerBuildImage")
-    images.add(masterImageName)
+tasks.named("buildxBuild") {
+    dependsOn("stageDocker")
+    mustRunAfter(tasks.named("assemble"), tasks.named("check"))
 }
 
 val openApiOutputFile = rootProject.layout.buildDirectory.file("openapi.json")

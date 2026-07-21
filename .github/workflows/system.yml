@@ -27,7 +27,7 @@ jobs:
           restore-keys: gradle-build-cache-
 
       - name: Build Docker images
-        run: ./gradlew :master:dockerBuildImage :agent:dockerBuildImage :fake-server:dockerBuildImage
+        run: ./gradlew :master:buildxBuild :agent:buildxBuild :fake-server:dockerBuildImage
 
       - name: Warm up system-tests compile cache
         run: ./gradlew :system-tests:compileTestKotlin

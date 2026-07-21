@@ -1,9 +1,7 @@
-import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
-
 plugins {
     alias(libs.plugins.kotlin.jvm)
     application
-    alias(libs.plugins.bmuschko.docker)
+    alias(libs.plugins.flowkode.buildx)
 }
 
 group = "craftpanel"
@@ -21,12 +19,14 @@ dependencies {
 }
 
 // ---------------------------------------------------------------------------
-// Docker tasks — tagged :test, never pushed to production registry
+// Docker tasks — tagged :test, never pushed to production registry.
+// Two images share one Dockerfile, so they're built via BuildxBuildTask
+// directly rather than the single-image `buildx {}` extension block.
 // ---------------------------------------------------------------------------
 val imageRegistry: String? = findProperty("imageRegistry") as String?
 
-fun imageTag(suffix: String) =
-    if (imageRegistry != null) "$imageRegistry/$suffix:test" else "$suffix:latest"
+fun imageName(suffix: String) = if (imageRegistry != null) "$imageRegistry/$suffix" else suffix
+val imageTag = if (imageRegistry != null) "test" else "latest"
 
 val stageDocker by tasks.registering(Copy::class) {
     group = "docker"
@@ -38,27 +38,38 @@ val stageDocker by tasks.registering(Copy::class) {
     into(layout.buildDirectory.dir("docker"))
 }
 
-val dockerBuildFakeServer by tasks.registering(DockerBuildImage::class) {
+fun com.flowkode.buildx.BuildxBuildTask.configureFakeImage(suffix: String) {
     dependsOn(stageDocker)
     mustRunAfter(tasks.named("check"))
-    inputDir.set(layout.buildDirectory.dir("docker"))
-    dockerFile.set(layout.buildDirectory.file("docker/Dockerfile"))
-    images.add(imageTag("craftpanel-fake-server"))
+    context.set(layout.buildDirectory.dir("docker"))
+    dockerfile.set(layout.buildDirectory.file("docker/Dockerfile"))
+    imageName.set(imageName(suffix))
+    tags.set(listOf(imageTag))
+    platforms.set(emptyList())
+    labels.set(emptyMap())
+    secrets.set(emptyMap())
+    sbom.set(false)
+    extraArgs.set(emptyList())
+    push.set(false)
+    load.set(true)
 }
 
-val dockerBuildFakeProxy by tasks.registering(DockerBuildImage::class) {
-    dependsOn(stageDocker)
-    mustRunAfter(tasks.named("check"))
+val dockerBuildFakeServer by tasks.registering(com.flowkode.buildx.BuildxBuildTask::class) {
+    configureFakeImage("craftpanel-fake-server")
+    buildArgs.set(emptyMap())
+}
+
+val dockerBuildFakeProxy by tasks.registering(com.flowkode.buildx.BuildxBuildTask::class) {
+    configureFakeImage("craftpanel-fake-proxy")
     mustRunAfter(dockerBuildFakeServer)
-    inputDir.set(layout.buildDirectory.dir("docker"))
-    dockerFile.set(layout.buildDirectory.file("docker/Dockerfile"))
-    images.add(imageTag("craftpanel-fake-proxy"))
-    buildArgs.set(mapOf(
-        "SERVER_NAME" to "CraftPanel Fake Proxy",
-        "MOTD" to "A fake Minecraft proxy",
-        "MAX_PLAYERS" to "100",
-        "STOP_COMMAND" to "end"
-    ))
+    buildArgs.set(
+        mapOf(
+            "SERVER_NAME" to "CraftPanel Fake Proxy",
+            "MOTD" to "A fake Minecraft proxy",
+            "MAX_PLAYERS" to "100",
+            "STOP_COMMAND" to "end"
+        )
+    )
 }
 
 // Single entry point picked up by root dockerBuildAll aggregation

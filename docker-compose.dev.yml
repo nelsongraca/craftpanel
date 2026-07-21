@@ -22,7 +22,7 @@ services:
       - db-data:/var/lib/postgresql/data
 
   master:
-    # Build: ./gradlew :master:dockerBuildImage
+    # Build: ./gradlew :master:buildxBuild
     image: ghcr.io/nelsongraca/craftpanel/master:latest
     ports:
       - "50051:50051"
@@ -43,7 +43,7 @@ services:
       - "traefik.http.services.master.loadbalancer.server.port=8080"
 
   frontend:
-    # Build: ./gradlew :frontend:dockerBuildImage
+    # Build: ./gradlew :frontend:buildxBuild
     image: ghcr.io/nelsongraca/craftpanel/frontend:latest
     environment:
       MASTER_URL: http://master:8080

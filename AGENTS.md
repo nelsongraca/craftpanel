@@ -83,7 +83,7 @@ All versions are pinned in `gradle/libs.versions.toml`. Never hardcode dependenc
 
 ```bash
 ./gradlew :master:installDist      # builds distribution
-./gradlew :master:dockerBuildImage # packages into Docker image
+./gradlew :master:buildxBuild      # packages into Docker image (via com.flowkode.buildx)
 ```
 
 Dockerfile COPYs `installDist` output into `eclipse-temurin:25-jdk-alpine`.
@@ -92,7 +92,7 @@ Dockerfile COPYs `installDist` output into `eclipse-temurin:25-jdk-alpine`.
 
 ```bash
 ./gradlew :frontend:assembleFrontend  # runs pnpm build via frontend-gradle-plugin
-./gradlew :frontend:dockerBuildImage  # packages into Docker image
+./gradlew :frontend:buildxBuild       # packages into Docker image (via com.flowkode.buildx)
 ```
 
 Dockerfile COPYs `.next/standalone`, `.next/static`, and `public/` into `node:22-alpine`.
@@ -114,8 +114,8 @@ Schema generator uses `RefType.OPENAPI_SIMPLE` — do not change to `OPENAPI_FUL
 
 ```bash
 ./gradlew test             # runs :master:test + :agent:test + :frontend:testFrontend (registered task, not built-in)
-./gradlew dockerBuildAll   # builds all three images
-./gradlew dockerPushAll    # pushes all three images
+./gradlew dockerBuildAll               # builds all three images, loads into local daemon
+./gradlew dockerPushAll -Ppush=true    # builds and pushes all three images (push=true required)
 ```
 
 - Root project has no built-in `test` task — `tasks.named("test")` fails; a registered aggregate task exists instead
@@ -129,7 +129,7 @@ Schema generator uses `RefType.OPENAPI_SIMPLE` — do not change to `OPENAPI_FUL
 ## CI
 
 GitHub Actions builds images and pushes to GHCR (`ghcr.io/nelsongraca`).
-Registry and version passed via `-PimageRegistry` and `-PimageVersion` Gradle properties.
+Registry and version passed via `-PimageRegistry` and `-PimageVersion` Gradle properties. Push is opt-in via `-Ppush=true` (default off — `dockerBuildAll` only loads into the local Docker daemon via `com.flowkode.buildx`'s `buildxBuild` task; `dockerPushAll` requires `-Ppush=true`).
 CI config not yet written.
 
 ## gRPC

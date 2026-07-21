@@ -101,8 +101,8 @@ tasks.named<Test>("test") {
 
     if (!project.hasProperty("skipDockerBuild")) {
         dependsOn(
-            ":master:dockerBuildImage",
-            ":agent:dockerBuildImage",
+            ":master:buildxBuild",
+            ":agent:buildxBuild",
             ":fake-server:dockerBuildImage"
         )
     }

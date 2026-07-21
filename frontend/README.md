@@ -25,7 +25,7 @@ Built via Gradle from the repo root — do not run `pnpm build` directly in CI:
 ```bash
 # from repo root
 ./gradlew :frontend:assembleFrontend   # pnpm build
-./gradlew :frontend:dockerBuildImage   # packages into Docker image
+./gradlew :frontend:buildxBuild        # packages into Docker image
 ```
 
 ## Environment Variables

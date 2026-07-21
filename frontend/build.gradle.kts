@@ -1,10 +1,10 @@
-import com.bmuschko.gradle.docker.tasks.image.DockerBuildImage
-import com.bmuschko.gradle.docker.tasks.image.DockerPushImage
-import craftpanel.dockerImageName
+import craftpanel.dockerImageBase
+import craftpanel.dockerImageTag
+import craftpanel.dockerPushEnabled
 
 plugins {
     alias(libs.plugins.frontend)
-    alias(libs.plugins.bmuschko.docker)
+    alias(libs.plugins.flowkode.buildx)
 }
 
 frontend {
@@ -81,27 +81,22 @@ tasks.named("assemble") {
     dependsOn("assembleFrontend")
 }
 
-val frontendImageName = dockerImageName(project, "frontend")
-
 @Suppress("UNCHECKED_CAST")
 val gitVersion = rootProject.extra["gitVersion"] as Provider<String>
+val pushEnabled = dockerPushEnabled(project)
 
-tasks.register<DockerBuildImage>("dockerBuildImage") {
-    group = "docker"
-    description = "Builds the Docker image for frontend"
-    dependsOn("assembleFrontend")
-    mustRunAfter(tasks.named("check"))
-    inputDir.set(projectDir)
-    dockerFile.set(file("Dockerfile"))
-    images.add(frontendImageName)
-    buildArgs.put("APP_VERSION", gitVersion)
-    labels.put("org.opencontainers.image.version", gitVersion)
-    pull.set(true)
+buildx {
+    imageName = dockerImageBase(project, "frontend")
+    tags = listOf(dockerImageTag(project))
+    context = layout.projectDirectory
+    dockerfile = file("Dockerfile")
+    buildArgs { put("APP_VERSION", gitVersion.get()) }
+    labels { put("org.opencontainers.image.version", gitVersion.get()) }
+    push = pushEnabled
+    load = !pushEnabled
 }
 
-tasks.register<DockerPushImage>("dockerPushImage") {
-    group = "docker"
-    description = "Pushes the Docker image for frontend"
-    dependsOn("dockerBuildImage")
-    images.add(frontendImageName)
+tasks.named("buildxBuild") {
+    dependsOn("assembleFrontend")
+    mustRunAfter(tasks.named("check"))
 }

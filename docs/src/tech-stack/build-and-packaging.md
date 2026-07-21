@@ -135,13 +135,15 @@ Static assets are copied separately because `standalone/` does not include them 
 
 ## Image build & push
 
-Docker image build and push are handled within Gradle using the `com.bmuschko.docker-remote-api` plugin (v10.0.0). Each module defines its own `dockerBuild` and `dockerPush` tasks. The root build
-defines aggregation tasks:
+Docker image build and push are handled within Gradle using the `com.flowkode.buildx` plugin (v0.1.0), which wraps `docker buildx build`. Each module configures a `buildx { }` extension block and gets
+a `buildxBuild` task. The root build defines aggregation tasks:
 
 ```bash
-./gradlew dockerBuildAll    # builds master, agent, and frontend images
-./gradlew dockerPushAll     # pushes all three images to the registry
+./gradlew dockerBuildAll               # builds master, agent, and frontend images, loads into local daemon
+./gradlew dockerPushAll -Ppush=true    # builds and pushes all three images to the registry
 ```
+
+Push is opt-in: the `push` flag on each module's `buildx { }` block is driven by the `-Ppush=true` Gradle property (default `false`, so `dockerBuildAll` only loads images locally).
 
 ### Image naming
 
@@ -155,9 +157,10 @@ Image names are driven by project properties — no hardcoded values:
 Pass them at invocation time:
 
 ```bash
-./gradlew dockerBuildAll dockerPushAll \
+./gradlew dockerPushAll \
   -PimageRegistry=ghcr.io/your-org \
-  -PimageVersion=1.0.0
+  -PimageVersion=1.0.0 \
+  -Ppush=true
 ```
 
 Resulting image names:
