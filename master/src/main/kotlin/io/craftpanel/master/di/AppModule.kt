@@ -203,6 +203,7 @@ val appModule = module {
     }
     single { BackupService(get<AgentGateway>(), get(), get(), get()) }
     single { ProxyBackendService(get(), get()) }
+    single { ProxySettingsService(get()) }
     single { EnvVarsService(get(), get()) }
     single { DashboardService(get(), get(), get(), get(), get()) }
 

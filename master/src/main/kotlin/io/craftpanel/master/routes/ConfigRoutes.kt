@@ -9,7 +9,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 
-fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService: EnvVarsService) {
+fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService: EnvVarsService, proxySettingsService: ProxySettingsService) {
     authenticate(JWT_AUTH) {
         route("/api/servers/{id}/config") {
             get("/proxy", {
@@ -123,6 +123,43 @@ fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService:
                 val auth = call.requireServerPermission(Permission.SERVER_CONFIGURE)
                 val req = call.receive<PatchConfigModeRequest>()
                 call.respond(envVarsService.updateConfigMode(auth.serverId, req))
+            }
+
+            get("/proxy-settings", {
+                operationId = "getProxySettings"
+                summary = "Get proxy settings (MOTD, max players, forwarding mode)"
+                request { pathParameter<String>("id") }
+                response {
+                    code(HttpStatusCode.OK) { body<ProxySettingsResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                val auth = call.requireServerPermission(Permission.SERVER_CONFIGURE)
+                call.respond(proxySettingsService.getSettings(auth.serverId))
+            }
+
+            put("/proxy-settings", {
+                operationId = "updateProxySettings"
+                summary = "Update proxy settings (MOTD, max players, forwarding mode)"
+                request {
+                    pathParameter<String>("id")
+                    body<UpdateProxySettingsRequest>()
+                }
+                response {
+                    code(HttpStatusCode.OK) { body<ProxySettingsResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                val auth = call.requireServerPermission(Permission.SERVER_CONFIGURE)
+                val req = call.receive<UpdateProxySettingsRequest>()
+                call.respond(proxySettingsService.updateSettings(auth.serverId, req))
             }
         }
     }

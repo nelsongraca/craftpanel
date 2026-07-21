@@ -21,7 +21,7 @@ fun Route.registerAppRoutes() {
     consoleRoutes(get(), get(), get(), get())
     filesRoutes(get())
     backupsRoutes(get())
-    configRoutes(get(), get())
+    configRoutes(get(), get(), get())
     modsRoutes(get())
     dashboardWsRoutes(get(), get())
     alertsRoutes(get())
