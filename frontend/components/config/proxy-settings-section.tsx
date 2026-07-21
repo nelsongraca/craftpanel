@@ -4,7 +4,6 @@ import {useCallback, useEffect, useState} from "react";
 import {getProxySettings, updateProxySettings} from "@/lib/generated/sdk.gen";
 
 const VELOCITY_FORWARDING_MODES = ["NONE", "LEGACY", "MODERN", "BUNGEEGUARD"];
-const BUNGEE_FORWARDING_MODES = ["LEGACY", "OFF"];
 
 export function ProxySettingsSection({
     serverId,
@@ -24,7 +23,6 @@ export function ProxySettingsSection({
     const [error, setError] = useState<string | null>(null);
 
     const isVelocity = serverType === "VELOCITY";
-    const forwardingModes = isVelocity ? VELOCITY_FORWARDING_MODES : BUNGEE_FORWARDING_MODES;
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -112,22 +110,34 @@ export function ProxySettingsSection({
                     <label className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted mb-1 block">
                         Forwarding Mode
                     </label>
-                    <select
-                        value={forwardingMode}
-                        onChange={(e) => setForwardingMode(e.target.value)}
-                        className="bg-surface-higher border border-border rounded px-2 py-1.5 text-xs font-mono text-text-primary w-48 focus:border-accent/50 focus:outline-none"
-                    >
-                        <option value="">Default</option>
-                        {forwardingModes.map((m) => (
-                            <option key={m} value={m}>
-                                {m}
-                            </option>
-                        ))}
-                    </select>
+                    {isVelocity ? (
+                        <select
+                            value={forwardingMode}
+                            onChange={(e) => setForwardingMode(e.target.value)}
+                            className="bg-surface-higher border border-border rounded px-2 py-1.5 text-xs font-mono text-text-primary w-48 focus:border-accent/50 focus:outline-none"
+                        >
+                            <option value="">Default</option>
+                            {VELOCITY_FORWARDING_MODES.map((m) => (
+                                <option key={m} value={m}>
+                                    {m}
+                                </option>
+                            ))}
+                        </select>
+                    ) : (
+                        <label className="flex items-center gap-2 text-xs font-mono text-text-primary">
+                            <input
+                                type="checkbox"
+                                checked={forwardingMode === "LEGACY"}
+                                onChange={(e) => setForwardingMode(e.target.checked ? "LEGACY" : "OFF")}
+                                className="accent-accent"
+                            />
+                            IP Forwarding
+                        </label>
+                    )}
                     <p className="text-xs text-text-muted mt-1">
                         {isVelocity
                             ? "Player info forwarding mode (NONE, LEGACY, MODERN, BUNGEEGUARD)."
-                            : "IP forwarding mode (LEGACY, OFF)."}
+                            : "IP forwarding (BungeeGuard-style). On = LEGACY, off = OFF."}
                     </p>
                 </div>
 
