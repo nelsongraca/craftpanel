@@ -125,6 +125,10 @@ export default function ServerDetailPage() {
         const unsubStatus = subscribe("server.status", (payload) => {
             if (payload.server_id !== id) return;
             setServer((prev) => prev ? {...prev, status: payload.status} : prev);
+            if (payload.status === "STOPPED") {
+                setLiveMetrics(null);
+                setLivePlayers(null);
+            }
         });
         const unsubPlayers = subscribe("server.players", (payload) => {
             if (payload.server_id !== id) return;

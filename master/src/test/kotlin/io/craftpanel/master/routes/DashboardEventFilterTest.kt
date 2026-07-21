@@ -395,6 +395,27 @@ class DashboardEventFilterTest :
             serversArr[0].jsonObject["id"]!!.jsonPrimitive.content shouldBe visible.toString()
         }
 
+        test("snapshot omits stale metrics for a STOPPED server") {
+            val id = Uuid.random()
+            val f = DashboardEventFilter(
+                hasNodes = { true },
+                canViewServer = { _, _ -> true },
+                serverNetworkId = { null }
+            )
+            val staleMetrics = io.craftpanel.master.service.repo.ContainerMetricsRow(
+                id = Uuid.random(), serverId = id, recordedAt = FIXED_INSTANT.toString(),
+                cpuPercent = 42.0, ramUsedMb = 512, netInBytes = 100, netOutBytes = 200,
+                blockInBytes = 0, blockOutBytes = 0
+            )
+            val env = f.snapshot(
+                serverRows = listOf(serverRow(id).copy(status = "STOPPED")),
+                latestMetrics = mapOf(id to staleMetrics),
+                nodeRows = emptyList()
+            )
+            val serversArr = env.payload.jsonObject["servers"] as kotlinx.serialization.json.JsonArray
+            serversArr[0].jsonObject["metrics"].shouldBeNull()
+        }
+
         test("snapshot: nodes empty when hasNodes=false") {
             val visible = Uuid.random()
             val f = DashboardEventFilter(

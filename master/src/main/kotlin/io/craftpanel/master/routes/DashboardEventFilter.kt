@@ -173,11 +173,12 @@ class DashboardEventFilter(
     fun snapshot(serverRows: List<ServerRow>, latestMetrics: Map<Uuid, ContainerMetricsRow?>, nodeRows: List<NodeRow>): WsEnvelope {
         val servers = serverRows.mapNotNull { row ->
             if (!canViewServer(row.id, row.networkId)) return@mapNotNull null
-            val metricsRow = latestMetrics[row.id]
+            val status = ServerStatus.fromDb(row.status)
+            val metricsRow = if (status.isStopped) null else latestMetrics[row.id]
             ServerSnapshot(
                 row.id.toString(),
                 row.displayName,
-                ServerStatus.fromDb(row.status),
+                status,
                 row.nodeId.toString(),
                 row.networkId?.toString(),
                 metricsRow?.let {
