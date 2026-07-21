@@ -1,14 +1,23 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.service.repo.ServerRepository
+import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlin.uuid.Uuid
 
 @Serializable
-data class ProxySettingsResponse(val motd: String?, val maxPlayers: Int?, val forwardingMode: String?)
+data class ProxySettingsResponse(
+    val motd: String?,
+    @SerialName("max_players") val maxPlayers: Int?,
+    @SerialName("forwarding_mode") val forwardingMode: String?
+)
 
 @Serializable
-data class UpdateProxySettingsRequest(val motd: String?, val maxPlayers: Int?, val forwardingMode: String?)
+data class UpdateProxySettingsRequest(
+    val motd: String?,
+    @SerialName("max_players") val maxPlayers: Int?,
+    @SerialName("forwarding_mode") val forwardingMode: String?
+)
 
 /**
  * Proxy-side settings (MOTD, max players, forwarding mode) stored on the proxy

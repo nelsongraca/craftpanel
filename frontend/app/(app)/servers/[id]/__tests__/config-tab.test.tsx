@@ -30,11 +30,14 @@ vi.mock('@/lib/generated/sdk.gen', () => ({
     getProxyBackends: vi.fn(),
     listServers: vi.fn(),
     replaceProxyBackends: vi.fn(),
+    getProxySettings: vi.fn(),
+    updateProxySettings: vi.fn(),
 }))
 
 import {
     getEnvVars, replaceEnvVars, updateConfigMode, updateStopCommand,
     getProxyBackends, listServers, replaceProxyBackends,
+    getProxySettings, updateProxySettings,
 } from '@/lib/generated/sdk.gen'
 
 // ---------------------------------------------------------------------------
@@ -113,6 +116,8 @@ async function renderProxyServer(
     vi.mocked(listServers).mockResolvedValue({ data: servers } as never)
     vi.mocked(replaceProxyBackends).mockResolvedValue({ data: {} } as never)
     vi.mocked(updateStopCommand).mockResolvedValue({ data: {} } as never)
+    vi.mocked(getProxySettings).mockResolvedValue({ data: { motd: null, max_players: null, forwarding_mode: null } } as never)
+    vi.mocked(updateProxySettings).mockResolvedValue({ data: { motd: null, max_players: null, forwarding_mode: null } } as never)
     render(
         <ConfigTab
             serverId="p1"

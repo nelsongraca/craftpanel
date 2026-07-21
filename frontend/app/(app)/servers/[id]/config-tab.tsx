@@ -8,6 +8,7 @@ import {SECTIONS, SCHEMA_KEYS} from "@/components/config/server-config-schema";
 import {FieldSection} from "@/components/config/field-section";
 import {ExtraVarsSection} from "@/components/config/extra-vars-section";
 import {ProxyBackendsSection} from "@/components/config/proxy-backends-section";
+import {ProxySettingsSection} from "@/components/config/proxy-settings-section";
 
 const PROXY_TYPES = new Set(["VELOCITY", "BUNGEECORD", "WATERFALL"]);
 
@@ -27,7 +28,12 @@ export function ConfigTab({
     onOpenGeneralSettings?: () => void;
 }) {
     if (PROXY_TYPES.has(serverType)) {
-        return <ProxyBackendsSection serverId={serverId} networkId={networkId} stopCommand={stopCommand} onOpenGeneralSettings={onOpenGeneralSettings}/>;
+        return (
+            <div className="px-6 py-6 space-y-6">
+                <ProxySettingsSection serverId={serverId} serverType={serverType}/>
+                <ProxyBackendsSection serverId={serverId} networkId={networkId} stopCommand={stopCommand} onOpenGeneralSettings={onOpenGeneralSettings}/>
+            </div>
+        );
     }
     return <GameServerConfigSection serverId={serverId} configMode={configMode} stopCommand={stopCommand}/>;
 }
