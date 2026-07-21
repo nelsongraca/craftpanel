@@ -97,7 +97,7 @@ val appModule = module {
     }
     single { BulkDataServiceImpl(get()) }
     single { DataServiceProxy(get(), get(), get<ServerRepository>()) }
-    single { ProxyConfigPatchService(get(), get()) }
+    single { ProxyConfigPatchService(get(), get(), get(), get(named("containerPrefix"))) }
 
     // Observability — subscribes to agentEvents emitted by ControlServiceImpl
     single { AlertEvaluator(alertRepository = get()) }
@@ -156,23 +156,26 @@ val appModule = module {
 
     single {
         val s = get<SystemService>().getSettings().settings
-        val images = ImagesConfig(s.imageMinecraft, s.imageProxy)
+        ImagesConfig(s.imageMinecraft, s.imageProxy)
+    }
+    single {
         ContainerLifecycle(
             gateway = get<AgentGateway>(),
             modService = get(),
             serverRepository = get(),
             envVarsRepository = get(),
-            images = images,
+            images = get(),
             containerNamePrefix = get(named("containerPrefix"))
         )
     }
     single {
+        val dataServiceProxy = get<DataServiceProxy>()
         ServerLifecycleService(
             lifecycle = get(),
             serverRepository = get(),
             serverExposure = get(),
             proxyConfigPatchService = get(),
-            dataServiceProxy = get()
+            writeFile = dataServiceProxy::writeFile
         )
     }
     single {
@@ -205,8 +208,14 @@ val appModule = module {
         )
     }
     single { BackupService(get<AgentGateway>(), get(), get(), get()) }
-    single { ProxyBackendService(get(), get()) }
-    single { ProxySettingsService(get()) }
+    single {
+        val dataServiceProxy = get<DataServiceProxy>()
+        ProxyBackendService(get(), get(), get(), writeFile = dataServiceProxy::writeFile)
+    }
+    single {
+        val dataServiceProxy = get<DataServiceProxy>()
+        ProxySettingsService(get(), get(), writeFile = dataServiceProxy::writeFile)
+    }
     single { EnvVarsService(get(), get()) }
     single { DashboardService(get(), get(), get(), get(), get()) }
 

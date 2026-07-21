@@ -13,6 +13,7 @@ import io.craftpanel.master.service.EnvVarsService
 import io.craftpanel.master.service.ForbiddenException
 import io.craftpanel.master.service.NotFoundException
 import io.craftpanel.master.service.ProxyBackendService
+import io.craftpanel.master.service.ProxyConfigPatchService
 import io.craftpanel.master.service.ProxySettingsResponse
 import io.craftpanel.master.service.ProxySettingsService
 import io.craftpanel.master.service.UnprocessableException
@@ -41,9 +42,10 @@ import kotlin.uuid.Uuid
 class ConfigRoutesTest :
     FunSpec({
         val repos = TestRepositories()
-        val proxyBackendService = ProxyBackendService(repos.serverRepository, repos.proxyBackendRepository)
+        val proxyConfigPatchService = ProxyConfigPatchService(repos.proxyBackendRepository, repos.serverRepository)
+        val proxyBackendService = ProxyBackendService(repos.serverRepository, repos.proxyBackendRepository, proxyConfigPatchService) { _, _, _ -> }
         val envVarsService = EnvVarsService(repos.serverRepository, repos.envVarsRepository)
-        val proxySettingsService = ProxySettingsService(repos.serverRepository)
+        val proxySettingsService = ProxySettingsService(repos.serverRepository, proxyConfigPatchService) { _, _, _ -> }
 
         val jwtConfig = JwtConfig(
             secret = "test-secret-that-is-at-least-32-characters!!",

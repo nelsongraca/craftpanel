@@ -60,7 +60,9 @@ class ServersRoutesTest :
             val lifecycleService = ServerLifecycleService(
                 lifecycle = lifecycle,
                 serverRepository = serverRepository,
-                serverExposure = serverExposure
+                serverExposure = serverExposure,
+                proxyConfigPatchService = ProxyConfigPatchService(repos.proxyBackendRepository, serverRepository),
+                writeFile = { _, _, _ -> }
             )
             val exposureService = ServerExposureService(
                 dnsProvider = null,

@@ -155,7 +155,7 @@ class NetworkService(
                 NetworkServerItem(
                     id = s.id.toString(),
                     displayName = s.displayName,
-                    serverType = s.serverType,
+                    serverType = s.serverType.toDb(),
                     status = ServerStatus.fromDb(s.status)
                 )
             }

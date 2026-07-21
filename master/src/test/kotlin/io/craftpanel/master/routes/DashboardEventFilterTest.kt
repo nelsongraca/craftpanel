@@ -1,7 +1,7 @@
 package io.craftpanel.master.routes
-
 import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.domain.*
+import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.NodeRow
 import io.craftpanel.master.service.repo.ServerRow
 import io.kotest.core.spec.style.FunSpec
@@ -24,7 +24,7 @@ private val FIXED_INSTANT = Instant.parse("2026-01-01T00:00:00Z")
 private fun serverRow(id: Uuid, networkId: Uuid? = null, nodeId: Uuid = Uuid.random()) = ServerRow(
     id = id, name = "test-server", displayName = "test-server",
     description = null, nodeId = nodeId, networkId = networkId,
-    serverType = "VANILLA", mcVersion = "1.21.4", status = "HEALTHY",
+    serverType = ServerType.VANILLA, mcVersion = "1.21.4", status = "HEALTHY",
     hostPort = 25565, memoryMb = 1024, cpuShares = 0,
     exposedExternally = false, publicSubdomain = null,
     dnsRecordId = null, dnsRecordName = null, customHostname = null,

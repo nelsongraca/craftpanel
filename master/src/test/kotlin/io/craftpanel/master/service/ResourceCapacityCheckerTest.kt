@@ -1,5 +1,5 @@
 package io.craftpanel.master.service
-
+import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import io.kotest.core.spec.style.FunSpec
@@ -74,7 +74,7 @@ class ResourceCapacityCheckerTest :
             val freshNode = nodes.findById(node.id)!!
             servers.create(
                 name = "existing", displayName = "existing", description = null,
-                nodeId = node.id, networkId = null, serverType = "VANILLA",
+                nodeId = node.id, networkId = null, serverType = ServerType.VANILLA,
                 mcVersion = "1.21.4", itzgImageTag = "latest", hostPort = 25565,
                 memoryMb = 1500, cpuShares = 0, configMode = "MANAGED", stopCommand = "stop"
             )
@@ -94,7 +94,7 @@ class ResourceCapacityCheckerTest :
             val freshNode = nodes.findById(node.id)!!
             val existing = servers.create(
                 name = "existing", displayName = "existing", description = null,
-                nodeId = node.id, networkId = null, serverType = "VANILLA",
+                nodeId = node.id, networkId = null, serverType = ServerType.VANILLA,
                 mcVersion = "1.21.4", itzgImageTag = "latest", hostPort = 25565,
                 memoryMb = 1500, cpuShares = 0, configMode = "MANAGED", stopCommand = "stop"
             )

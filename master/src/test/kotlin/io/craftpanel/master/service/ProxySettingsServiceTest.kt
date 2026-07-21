@@ -5,6 +5,7 @@ import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.ServerRepository
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -17,7 +18,8 @@ class ProxySettingsServiceTest :
     FunSpec({
         val repos = TestRepositories()
         val serverRepository: ServerRepository = repos.serverRepository
-        val service = ProxySettingsService(serverRepository)
+        val proxyConfigPatchService = ProxyConfigPatchService(repos.proxyBackendRepository, serverRepository)
+        val service = ProxySettingsService(serverRepository, proxyConfigPatchService) { _, _, _ -> }
 
         beforeTest {
             TestDatabase.initIfNeeded()
@@ -39,7 +41,7 @@ class ProxySettingsServiceTest :
             }[Nodes.id].let { Uuid.parse(it.toString()) }
         }
 
-        fun createServer(nodeId: Uuid, type: String): Uuid = serverRepository.create(
+        fun createServer(nodeId: Uuid, type: ServerType): Uuid = serverRepository.create(
             name = "srv-${Uuid.random()}",
             displayName = "srv",
             description = null,
@@ -57,7 +59,7 @@ class ProxySettingsServiceTest :
 
         test("rejects a non-proxy server with ConflictException") {
             val nodeId = createNode()
-            val vanillaId = createServer(nodeId, "VANILLA")
+            val vanillaId = createServer(nodeId, ServerType.VANILLA)
             shouldThrow<ConflictException> {
                 service.updateSettings(vanillaId, UpdateProxySettingsRequest(motd = "x", maxPlayers = 10, forwardingMode = "legacy"))
             }
@@ -65,7 +67,7 @@ class ProxySettingsServiceTest :
 
         test("persists settings and sets needs_recreate") {
             val nodeId = createNode()
-            val proxyId = createServer(nodeId, "VELOCITY")
+            val proxyId = createServer(nodeId, ServerType.VELOCITY)
 
             service.updateSettings(proxyId, UpdateProxySettingsRequest(motd = "Welcome", maxPlayers = 40, forwardingMode = "legacy"))
 
@@ -80,8 +82,8 @@ class ProxySettingsServiceTest :
 
         test("validates forwarding mode against proxy family") {
             val nodeId = createNode()
-            val velocityId = createServer(nodeId, "VELOCITY")
-            val bungeeId = createServer(nodeId, "BUNGEECORD")
+            val velocityId = createServer(nodeId, ServerType.VELOCITY)
+            val bungeeId = createServer(nodeId, ServerType.BUNGEECORD)
 
             shouldThrow<UnprocessableException> {
                 service.updateSettings(velocityId, UpdateProxySettingsRequest(null, null, "OFF"))

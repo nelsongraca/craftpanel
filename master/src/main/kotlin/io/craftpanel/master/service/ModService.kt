@@ -1,6 +1,7 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.domain.ModPinStrategy
+import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import kotlinx.serialization.SerialName
@@ -90,9 +91,9 @@ class ModService(private val serverRepository: ServerRepository, private val mod
     }
 
     fun searchModrinth(query: String, limit: Int, serverType: String = "", mcVersion: String = ""): ModrinthSearchResult {
-        val typeUpper = serverType.uppercase()
-        val projectType = if (typeUpper in PLUGIN_SERVER_TYPES) "plugin" else "mod"
-        val loader = LOADER_BY_SERVER_TYPE[typeUpper]
+        val type = runCatching { ServerType.valueOf(serverType.uppercase()) }.getOrNull()
+        val projectType = if (type?.supportsPlugins == true) "plugin" else "mod"
+        val loader = type?.let { ServerType.LOADER_BY_TYPE[it] }
         val url = buildString {
             append("https://api.modrinth.com/v2/search?query=")
             append(URLEncoder.encode(query, "UTF-8"))
@@ -132,22 +133,6 @@ class ModService(private val serverRepository: ServerRepository, private val mod
             }
         }
 }
-
-private val PLUGIN_SERVER_TYPES = setOf(
-    "PAPER",
-    "PURPUR",
-    "SPIGOT",
-    "BUKKIT",
-    "VELOCITY",
-    "BUNGEECORD",
-    "WATERFALL"
-)
-
-private val LOADER_BY_SERVER_TYPE = mapOf(
-    "FABRIC" to "fabric", "FORGE" to "forge", "NEOFORGE" to "neoforge", "QUILT" to "quilt",
-    "PAPER" to "paper", "PURPUR" to "purpur", "SPIGOT" to "spigot", "BUKKIT" to "bukkit",
-    "VELOCITY" to "velocity", "BUNGEECORD" to "bungeecord", "WATERFALL" to "waterfall"
-)
 
 private fun ModRow.toResponse() = ModResponse(
     id = id.toString(),

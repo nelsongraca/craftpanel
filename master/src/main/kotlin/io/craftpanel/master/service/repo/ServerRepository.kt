@@ -1,5 +1,6 @@
 package io.craftpanel.master.service.repo
 
+import io.craftpanel.master.domain.ServerType
 import kotlin.uuid.Uuid
 
 data class ServerRow(
@@ -9,7 +10,7 @@ data class ServerRow(
     val description: String?,
     val nodeId: Uuid,
     val networkId: Uuid?,
-    val serverType: String,
+    val serverType: ServerType,
     val mcVersion: String,
     val status: String,
     val hostPort: Int,
@@ -61,7 +62,7 @@ interface ServerRepository {
         description: String?,
         nodeId: Uuid,
         networkId: Uuid?,
-        serverType: String,
+        serverType: ServerType,
         mcVersion: String,
         itzgImageTag: String,
         hostPort: Int,

@@ -1,6 +1,7 @@
 package io.craftpanel.master.service.repo.impl
 
 import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.master.util.toUtcString
@@ -128,7 +129,7 @@ class ServerRepositoryImpl(
         description: String?,
         nodeId: Uuid,
         networkId: Uuid?,
-        serverType: String,
+        serverType: ServerType,
         mcVersion: String,
         itzgImageTag: String,
         hostPort: Int,
@@ -143,7 +144,7 @@ class ServerRepositoryImpl(
             it[Servers.description] = description
             it[Servers.nodeId] = nodeId
             it[Servers.networkId] = networkId
-            it[Servers.serverType] = serverType
+            it[Servers.serverType] = serverType.toDb()
             it[Servers.mcVersion] = mcVersion
             it[Servers.itzgImageTag] = itzgImageTag
             it[Servers.hostPort] = hostPort
@@ -302,7 +303,7 @@ private fun ResultRow.toServerRow() = ServerRow(
     description = this[Servers.description],
     nodeId = this[Servers.nodeId],
     networkId = this[Servers.networkId],
-    serverType = this[Servers.serverType],
+    serverType = ServerType.fromDb(this[Servers.serverType]),
     mcVersion = this[Servers.mcVersion],
     status = this[Servers.status],
     hostPort = this[Servers.hostPort],

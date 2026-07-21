@@ -1,5 +1,5 @@
 package io.craftpanel.master.service
-
+import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import io.kotest.assertions.throwables.shouldThrow
@@ -22,7 +22,7 @@ private fun testServerRow(
     description = null,
     nodeId = Uuid.random(),
     networkId = networkId,
-    serverType = "VANILLA",
+    serverType = ServerType.VANILLA,
     mcVersion = "1.21.4",
     status = "STOPPED",
     hostPort = 25565,
@@ -204,7 +204,7 @@ class ServerExposureTest :
             test("rejects collision with another server's custom hostname") {
                 val other = serverRepository.create(
                     name = "other", displayName = "other", description = null,
-                    nodeId = Uuid.random(), networkId = null, serverType = "VANILLA",
+                    nodeId = Uuid.random(), networkId = null, serverType = ServerType.VANILLA,
                     mcVersion = "1.21.4", itzgImageTag = "latest", hostPort = 25566,
                     memoryMb = 1024, cpuShares = 0, configMode = "MANAGED", stopCommand = "stop"
                 )
@@ -225,7 +225,7 @@ class ServerExposureTest :
             test("allows a server to keep its own custom hostname (excludeServerId)") {
                 val server = serverRepository.create(
                     name = "self", displayName = "self", description = null,
-                    nodeId = Uuid.random(), networkId = null, serverType = "VANILLA",
+                    nodeId = Uuid.random(), networkId = null, serverType = ServerType.VANILLA,
                     mcVersion = "1.21.4", itzgImageTag = "latest", hostPort = 25567,
                     memoryMb = 1024, cpuShares = 0, configMode = "MANAGED", stopCommand = "stop"
                 )
@@ -244,7 +244,7 @@ class ServerExposureTest :
             test("rejects collision with a managed DNS record name") {
                 val other = serverRepository.create(
                     name = "other2", displayName = "other2", description = null,
-                    nodeId = Uuid.random(), networkId = null, serverType = "VANILLA",
+                    nodeId = Uuid.random(), networkId = null, serverType = ServerType.VANILLA,
                     mcVersion = "1.21.4", itzgImageTag = "latest", hostPort = 25568,
                     memoryMb = 1024, cpuShares = 0, configMode = "MANAGED", stopCommand = "stop"
                 )

@@ -3,6 +3,7 @@ package io.craftpanel.master.service
 import io.craftpanel.master.config.ImagesConfig
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.ServerStatus
+import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.proto.*
@@ -123,10 +124,10 @@ class ContainerLifecycle(
         val modrinthProjects = modService.buildModrinthEnvVar(id)
         val dbEnvVars = envVarsRepository.getEnvVars(id)
             .associate { it.key to it.value }
-        val isProxy = server.serverType in setOf("BUNGEECORD", "VELOCITY", "WATERFALL")
+        val isProxy = server.serverType.isProxy
         val systemVars = buildMap {
             put("EULA", "TRUE")
-            put("TYPE", server.serverType)
+            put("TYPE", server.serverType.toDb())
             put("VERSION", server.mcVersion)
             // itzg/mc-proxy requires MINECRAFT_VERSION (not just VERSION) when MODRINTH_PROJECTS
             // is set, or its plugin-injection init aborts. Mirror VERSION for proxy types only.
@@ -205,7 +206,7 @@ class ContainerLifecycle(
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private fun deriveImage(serverType: String, tag: String) = images.deriveImage(serverType, tag)
+    private fun deriveImage(serverType: ServerType, tag: String) = images.deriveImage(serverType, tag)
 
     private fun sendOrThrow(nodeId: String, msg: MasterMessage) {
         if (!gateway.sendToNode(nodeId, msg)) throw BadGatewayException("Agent not connected")

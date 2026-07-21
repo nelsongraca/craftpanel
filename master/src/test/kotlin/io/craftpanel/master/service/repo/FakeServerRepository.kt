@@ -1,5 +1,6 @@
 package io.craftpanel.master.service.repo
 
+import io.craftpanel.master.domain.ServerType
 import kotlin.uuid.Uuid
 
 class FakeServerRepository(private val state: FakeRepositories) : ServerRepository {
@@ -11,7 +12,7 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         var description: String?,
         var nodeId: Uuid,
         var networkId: Uuid?,
-        var serverType: String,
+        var serverType: ServerType,
         var mcVersion: String,
         var status: String = "STOPPED",
         var hostPort: Int,
@@ -141,7 +142,7 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         description: String?,
         nodeId: Uuid,
         networkId: Uuid?,
-        serverType: String,
+        serverType: ServerType,
         mcVersion: String,
         itzgImageTag: String,
         hostPort: Int,

@@ -5,6 +5,7 @@ import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.ServerStatus
+import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.ServerRow
 import io.craftpanel.master.util.toUtcString
 import io.kotest.assertions.throwables.shouldThrow
@@ -77,7 +78,7 @@ class ContainerLifecycleTest :
                         description = r[Servers.description],
                         nodeId = r[Servers.nodeId],
                         networkId = r[Servers.networkId],
-                        serverType = r[Servers.serverType],
+                        serverType = ServerType.fromDb(r[Servers.serverType]),
                         mcVersion = r[Servers.mcVersion],
                         status = r[Servers.status],
                         hostPort = r[Servers.hostPort],

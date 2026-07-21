@@ -1,7 +1,6 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.domain.ServerStatus
-import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.service.repo.ServerRepository
 import io.craftpanel.master.service.repo.ServerRow
 import kotlin.uuid.Uuid
@@ -10,8 +9,8 @@ class ServerLifecycleService(
     private val lifecycle: ContainerLifecycle,
     private val serverRepository: ServerRepository,
     private val serverExposure: ServerExposure,
-    private val proxyConfigPatchService: ProxyConfigPatchService? = null,
-    private val dataServiceProxy: DataServiceProxy? = null
+    private val proxyConfigPatchService: ProxyConfigPatchService,
+    private val writeFile: suspend (Uuid, String, ByteArray) -> Unit
 ) {
 
     suspend fun startServer(id: Uuid) {
@@ -21,8 +20,11 @@ class ServerLifecycleService(
             throw ConflictException("Server is already running")
         }
         val publicHostname = serverExposure.mcRouterLabel(serverRow)
-        serverRepository.updateStatus(id, "STARTING", null)
+        // Write the proxy patch before flipping status to STARTING: a failure here must
+        // surface loudly and leave the server's prior status untouched, not strand it at
+        // STARTING with no process actually starting.
         writeProxyPatch(serverRow)
+        serverRepository.updateStatus(id, "STARTING", null)
         lifecycle.sendStart(serverRow, needsRecreate = serverRow.needsRecreate, publicHostname = publicHostname)
     }
 
@@ -46,8 +48,8 @@ class ServerLifecycleService(
         val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
         if (ServerStatus.fromDb(serverRow.status).isStopped) throw ConflictException("Server is not running")
         val nodeId = serverRow.nodeId.toString()
-        serverRepository.updateStatus(id, "STARTING", null)
         writeProxyPatch(serverRow)
+        serverRepository.updateStatus(id, "STARTING", null)
         if (serverRow.needsRecreate) {
             lifecycle.sendStart(
                 serverRow,
@@ -65,9 +67,10 @@ class ServerLifecycleService(
     }
 
     private suspend fun writeProxyPatch(server: ServerRow) {
-        if (proxyConfigPatchService == null || dataServiceProxy == null) return
-        if (server.serverType !in PROXY_SERVER_TYPES) return
+        if (!server.serverType.isProxy) return
         val patch = proxyConfigPatchService.generatePatch(server.id)
-        dataServiceProxy.writeFile(server.id, "craftpanel-patch.json", patch.toByteArray())
+        // writeFile's path is resolved relative to the server's data root (bind-mounted to
+        // container /server), which IS PATCH_DEFINITIONS' /server — so no dataContainerPath prefix here.
+        writeFile(server.id, "craftpanel-patch.json", patch.toByteArray())
     }
 }

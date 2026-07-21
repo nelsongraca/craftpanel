@@ -1,7 +1,7 @@
 package io.craftpanel.master.service.migration
-
 import io.craftpanel.master.*
 import io.craftpanel.master.domain.AgentEvent
+import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.migration.steps.PrepareRsyncReceiveStep
 import io.craftpanel.master.service.repo.*
@@ -44,7 +44,7 @@ class PrepareRsyncReceiveStepTest :
             serverRow = ServerRow(
                 id = Uuid.random(), name = "test", displayName = "test",
                 description = null, nodeId = Uuid.random(), networkId = null,
-                serverType = "VANILLA", mcVersion = "1.21.4", status = "RUNNING",
+                serverType = ServerType.VANILLA, mcVersion = "1.21.4", status = "RUNNING",
                 hostPort = 25565, memoryMb = 1024, cpuShares = 0,
                 exposedExternally = false, publicSubdomain = null,
                 dnsRecordId = null, dnsRecordName = null, customHostname = null,

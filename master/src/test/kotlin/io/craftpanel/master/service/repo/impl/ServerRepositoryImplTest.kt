@@ -1,10 +1,10 @@
 package io.craftpanel.master.service.repo.impl
-
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.domain.ServerType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -50,7 +50,7 @@ class ServerRepositoryImplTest :
             description = null,
             nodeId = nodeId,
             networkId = networkId,
-            serverType = "VANILLA",
+            serverType = ServerType.VANILLA,
             mcVersion = "LATEST",
             itzgImageTag = "latest",
             hostPort = 25565,

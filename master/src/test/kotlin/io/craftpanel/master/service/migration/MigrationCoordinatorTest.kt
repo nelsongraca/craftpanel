@@ -1,10 +1,10 @@
 package io.craftpanel.master.service.migration
-
 import io.craftpanel.master.*
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.MigrationStatus
 import io.craftpanel.master.domain.MigrationStepStatus
+import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
@@ -88,7 +88,7 @@ class MigrationCoordinatorTest :
                 serverRow = ServerRow(
                     id = serverId, name = "test-server", displayName = "test-server",
                     description = null, nodeId = nodeId, networkId = null,
-                    serverType = "VANILLA", mcVersion = "1.21.4", status = "STOPPED",
+                    serverType = ServerType.VANILLA, mcVersion = "1.21.4", status = "STOPPED",
                     hostPort = 25565, memoryMb = 1024, cpuShares = 0,
                     exposedExternally = false, publicSubdomain = null,
                     dnsRecordId = null, dnsRecordName = null, customHostname = null,

@@ -3,6 +3,7 @@ package io.craftpanel.master.service
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.database.schema.Nodes
+import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.ProxyBackendInput
 import io.craftpanel.master.service.repo.ServerRepository
 import io.kotest.assertions.throwables.shouldThrow
@@ -44,7 +45,7 @@ class ProxyConfigPatchServiceTest :
             }[Nodes.id].let { Uuid.parse(it.toString()) }
         }
 
-        fun createServer(nodeId: Uuid, name: String, type: String): Uuid = serverRepository.create(
+        fun createServer(nodeId: Uuid, name: String, type: ServerType): Uuid = serverRepository.create(
             name = name,
             displayName = name,
             description = null,
@@ -60,13 +61,20 @@ class ProxyConfigPatchServiceTest :
             stopCommand = "stop"
         ).id
 
+        fun opsOf(patch: String): List<JsonObject> {
+            val root = Json.parseToJsonElement(patch).jsonObject
+            val patches = root["patches"]!!.jsonArray
+            patches.size shouldBe 1
+            return patches[0].jsonObject["ops"]!!.jsonArray.map { it.jsonObject }
+        }
+
         test("generates Velocity patch with all settings and backends") {
             val nodeId = createNode()
-            val proxyId = createServer(nodeId, "proxy-${Uuid.random()}", "VELOCITY")
+            val proxyId = createServer(nodeId, "proxy-${Uuid.random()}", ServerType.VELOCITY)
             serverRepository.updateProxySettings(proxyId, "Welcome", 20, "LEGACY")
 
-            val alphaId = createServer(nodeId, "alpha-${Uuid.random()}", "VANILLA")
-            val betaId = createServer(nodeId, "beta-${Uuid.random()}", "PAPER")
+            val alphaId = createServer(nodeId, "alpha-${Uuid.random()}", ServerType.VANILLA)
+            val betaId = createServer(nodeId, "beta-${Uuid.random()}", ServerType.PAPER)
             repos.proxyBackendRepository.replaceProxyBackends(
                 proxyId,
                 listOf(
@@ -76,42 +84,40 @@ class ProxyConfigPatchServiceTest :
             )
 
             val patch = service.generatePatch(proxyId)
-            val json = Json.parseToJsonElement(patch).jsonArray
+            val root = Json.parseToJsonElement(patch).jsonObject
+            root["patches"]!!.jsonArray[0].jsonObject["file"] shouldBe JsonPrimitive("/server/velocity.toml")
+            val ops = opsOf(patch)
 
-            json.size shouldBe 4
+            ops.size shouldBe 4
 
-            val serversOp = json[0].jsonObject
-            serversOp["op"] shouldBe JsonPrimitive("\$set")
+            val serversOp = ops[0]["\$set"]!!.jsonObject
             serversOp["path"] shouldBe JsonPrimitive("$.servers")
             val servers = serversOp["value"]!!.jsonObject
             servers["alpha"] shouldBe JsonPrimitive("craftpanel-$alphaId:25565")
             servers["beta"] shouldBe JsonPrimitive("craftpanel-$betaId:25565")
             servers["try"] shouldBe JsonArray(listOf(JsonPrimitive("alpha"), JsonPrimitive("beta")))
 
-            val motdOp = json[1].jsonObject
-            motdOp["op"] shouldBe JsonPrimitive("\$set")
+            val motdOp = ops[1]["\$set"]!!.jsonObject
             motdOp["path"] shouldBe JsonPrimitive("$.motd")
             motdOp["value"] shouldBe JsonPrimitive("Welcome")
 
-            val maxPlayersOp = json[2].jsonObject
-            maxPlayersOp["op"] shouldBe JsonPrimitive("\$set")
+            val maxPlayersOp = ops[2]["\$set"]!!.jsonObject
             maxPlayersOp["path"] shouldBe JsonPrimitive("\$['show-max-players']")
             maxPlayersOp["value"] shouldBe JsonPrimitive(20)
             maxPlayersOp["value-type"] shouldBe JsonPrimitive("int")
 
-            val forwardingOp = json[3].jsonObject
-            forwardingOp["op"] shouldBe JsonPrimitive("\$set")
+            val forwardingOp = ops[3]["\$set"]!!.jsonObject
             forwardingOp["path"] shouldBe JsonPrimitive("\$['player-info-forwarding-mode']")
             forwardingOp["value"] shouldBe JsonPrimitive("legacy")
         }
 
         test("generates BungeeCord patch with all settings and backends") {
             val nodeId = createNode()
-            val proxyId = createServer(nodeId, "proxy-${Uuid.random()}", "BUNGEECORD")
+            val proxyId = createServer(nodeId, "proxy-${Uuid.random()}", ServerType.BUNGEECORD)
             serverRepository.updateProxySettings(proxyId, "Welcome", 20, "LEGACY")
 
-            val alphaId = createServer(nodeId, "alpha-${Uuid.random()}", "VANILLA")
-            val betaId = createServer(nodeId, "beta-${Uuid.random()}", "PAPER")
+            val alphaId = createServer(nodeId, "alpha-${Uuid.random()}", ServerType.VANILLA)
+            val betaId = createServer(nodeId, "beta-${Uuid.random()}", ServerType.PAPER)
             repos.proxyBackendRepository.replaceProxyBackends(
                 proxyId,
                 listOf(
@@ -121,12 +127,13 @@ class ProxyConfigPatchServiceTest :
             )
 
             val patch = service.generatePatch(proxyId)
-            val json = Json.parseToJsonElement(patch).jsonArray
+            val root = Json.parseToJsonElement(patch).jsonObject
+            root["patches"]!!.jsonArray[0].jsonObject["file"] shouldBe JsonPrimitive("/server/config.yml")
+            val ops = opsOf(patch)
 
-            json.size shouldBe 5
+            ops.size shouldBe 5
 
-            val serversOp = json[0].jsonObject
-            serversOp["op"] shouldBe JsonPrimitive("\$set")
+            val serversOp = ops[0]["\$set"]!!.jsonObject
             serversOp["path"] shouldBe JsonPrimitive("$.servers")
             val servers = serversOp["value"]!!.jsonObject
             servers["alpha"] shouldBe JsonObject(
@@ -142,24 +149,20 @@ class ProxyConfigPatchServiceTest :
                 )
             )
 
-            val prioritiesOp = json[1].jsonObject
-            prioritiesOp["op"] shouldBe JsonPrimitive("\$set")
+            val prioritiesOp = ops[1]["\$set"]!!.jsonObject
             prioritiesOp["path"] shouldBe JsonPrimitive("$.listeners[0].priorities")
             prioritiesOp["value"] shouldBe JsonArray(listOf(JsonPrimitive("alpha"), JsonPrimitive("beta")))
 
-            val motdOp = json[2].jsonObject
-            motdOp["op"] shouldBe JsonPrimitive("\$set")
+            val motdOp = ops[2]["\$set"]!!.jsonObject
             motdOp["path"] shouldBe JsonPrimitive("$.listeners[0].motd")
             motdOp["value"] shouldBe JsonPrimitive("Welcome")
 
-            val maxPlayersOp = json[3].jsonObject
-            maxPlayersOp["op"] shouldBe JsonPrimitive("\$set")
+            val maxPlayersOp = ops[3]["\$set"]!!.jsonObject
             maxPlayersOp["path"] shouldBe JsonPrimitive("$.player_limit")
             maxPlayersOp["value"] shouldBe JsonPrimitive(20)
             maxPlayersOp["value-type"] shouldBe JsonPrimitive("int")
 
-            val forwardingOp = json[4].jsonObject
-            forwardingOp["op"] shouldBe JsonPrimitive("\$set")
+            val forwardingOp = ops[4]["\$set"]!!.jsonObject
             forwardingOp["path"] shouldBe JsonPrimitive("$.ip_forward")
             forwardingOp["value"] shouldBe JsonPrimitive(true)
             forwardingOp["value-type"] shouldBe JsonPrimitive("bool")
@@ -167,7 +170,7 @@ class ProxyConfigPatchServiceTest :
 
         test("throws ConflictException for non-proxy server") {
             val nodeId = createNode()
-            val vanillaId = createServer(nodeId, "vanilla-${Uuid.random()}", "VANILLA")
+            val vanillaId = createServer(nodeId, "vanilla-${Uuid.random()}", ServerType.VANILLA)
             shouldThrow<ConflictException> { service.generatePatch(vanillaId) }
         }
 
@@ -177,8 +180,8 @@ class ProxyConfigPatchServiceTest :
 
         test("generates Velocity patch with only backends (no proxy settings)") {
             val nodeId = createNode()
-            val proxyId = createServer(nodeId, "proxy-${Uuid.random()}", "VELOCITY")
-            val alphaId = createServer(nodeId, "alpha-${Uuid.random()}", "VANILLA")
+            val proxyId = createServer(nodeId, "proxy-${Uuid.random()}", ServerType.VELOCITY)
+            val alphaId = createServer(nodeId, "alpha-${Uuid.random()}", ServerType.VANILLA)
             repos.proxyBackendRepository.replaceProxyBackends(
                 proxyId,
                 listOf(
@@ -187,12 +190,12 @@ class ProxyConfigPatchServiceTest :
             )
 
             val patch = service.generatePatch(proxyId)
-            val json = Json.parseToJsonElement(patch).jsonArray
+            val ops = opsOf(patch)
 
-            json.size shouldBe 1
-            json[0].jsonObject["op"] shouldBe JsonPrimitive("\$set")
-            json[0].jsonObject["path"] shouldBe JsonPrimitive("$.servers")
-            val servers = json[0].jsonObject["value"]!!.jsonObject
+            ops.size shouldBe 1
+            val serversOp = ops[0]["\$set"]!!.jsonObject
+            serversOp["path"] shouldBe JsonPrimitive("$.servers")
+            val servers = serversOp["value"]!!.jsonObject
             servers["alpha"] shouldBe JsonPrimitive("craftpanel-$alphaId:25565")
             servers["try"] shouldBe JsonArray(listOf(JsonPrimitive("alpha")))
         }
