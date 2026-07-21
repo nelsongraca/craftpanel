@@ -1,3 +1,4 @@
+import craftpanel.dockerCacheEnabled
 import craftpanel.dockerImageBase
 import craftpanel.dockerImageTag
 import craftpanel.dockerPushEnabled
@@ -87,12 +88,18 @@ val pushEnabled = dockerPushEnabled(project)
 buildx {
     imageName = dockerImageBase(project, "master")
     tags = listOf(dockerImageTag(project))
-    context = layout.buildDirectory.dir("docker").get()
-    dockerfile = layout.buildDirectory.file("docker/Dockerfile").get().asFile
+    context = layout.buildDirectory.dir("docker")
+        .get()
+    dockerfile = layout.buildDirectory.file("docker/Dockerfile")
+        .get().asFile
     buildArgs { put("APP_VERSION", gitVersion.get()) }
     labels { put("org.opencontainers.image.version", gitVersion.get()) }
     push = pushEnabled
     load = !pushEnabled
+    if (dockerCacheEnabled(project)) {
+        cacheFrom.set("type=gha,scope=master")
+        cacheTo.set("type=gha,scope=master,mode=max")
+    }
 }
 
 tasks.named("buildxBuild") {

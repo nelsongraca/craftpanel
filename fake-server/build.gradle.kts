@@ -1,3 +1,5 @@
+import craftpanel.dockerCacheEnabled
+
 plugins {
     alias(libs.plugins.kotlin.jvm)
     application
@@ -52,6 +54,10 @@ fun com.flowkode.buildx.BuildxBuildTask.configureFakeImage(suffix: String) {
     extraArgs.set(emptyList())
     push.set(false)
     load.set(true)
+    if (dockerCacheEnabled(project)) {
+        cacheFrom.set("type=gha,scope=fake-server")
+        cacheTo.set("type=gha,scope=fake-server,mode=max")
+    }
 }
 
 val dockerBuildFakeServer by tasks.registering(com.flowkode.buildx.BuildxBuildTask::class) {

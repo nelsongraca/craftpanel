@@ -54,7 +54,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build & push images (dev)
-        run: ./gradlew dockerPushAll -PimageVersion=dev -Ppush=true
+        run: ./gradlew dockerPushAll -PimageVersion=dev -Ppush=true -PdockerCache=true
 
   publish-release:
     name: Build & Push (tag → version + latest)
@@ -93,10 +93,10 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build & push images (version)
-        run: ./gradlew dockerPushAll -PimageVersion=${{ github.ref_name }} -Ppush=true
+        run: ./gradlew dockerPushAll -PimageVersion=${{ github.ref_name }} -Ppush=true -PdockerCache=true
 
       - name: Build & push images (latest)
-        run: ./gradlew dockerPushAll -PimageVersion=latest -Ppush=true
+        run: ./gradlew dockerPushAll -PimageVersion=latest -Ppush=true -PdockerCache=true
 
   cleanup:
     name: Delete untagged image versions

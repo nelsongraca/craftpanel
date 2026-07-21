@@ -1,3 +1,4 @@
+import craftpanel.dockerCacheEnabled
 import craftpanel.dockerImageBase
 import craftpanel.dockerImageTag
 import craftpanel.dockerPushEnabled
@@ -42,7 +43,8 @@ tasks.register<Exec>("testFrontend") {
     val pnpm = layout.projectDirectory.file(".node/bin/pnpm").asFile
     if (withCoverage) {
         commandLine(pnpm, "run", "test:coverage")
-    } else {
+    }
+    else {
         commandLine(pnpm, "run", "test")
     }
 }
@@ -94,6 +96,10 @@ buildx {
     labels { put("org.opencontainers.image.version", gitVersion.get()) }
     push = pushEnabled
     load = !pushEnabled
+    if (dockerCacheEnabled(project)) {
+        cacheFrom.set("type=gha,scope=frontend")
+        cacheTo.set("type=gha,scope=frontend,mode=max")
+    }
 }
 
 tasks.named("buildxBuild") {
