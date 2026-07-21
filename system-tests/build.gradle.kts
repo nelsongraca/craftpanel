@@ -34,9 +34,9 @@ val generateApiClient by tasks.registering(GenerateTask::class) {
     globalProperties.put("modelTests", "false")
     globalProperties.put("apiTests", "false")
 
-    // OAG jvm-okhttp4 does not null-guard response.body (ResponseBody?) — patch
-    // so the generated ApiClient.kt compiles under Kotlin strict null safety.
+    // Patches applied after codegen because openapi-generator does not support them natively.
     doLast {
+        // 1. Null-guard response.body so generated code compiles under Kotlin strict null safety.
         val apiClientFile = file("$generatedDir/src/main/kotlin/craftpanel/systemtest/client/api/ApiClient.kt")
         if (apiClientFile.exists()) {
             apiClientFile.writeText(
@@ -44,6 +44,19 @@ val generateApiClient by tasks.registering(GenerateTask::class) {
                     .replace(
                         "val body = response.body",
                         "val body = response.body ?: return null"
+                    )
+            )
+        }
+
+        // 2. Enable serializeNulls() so nullable fields (e.g. UpdateProxySettingsRequest)
+        //    are included in JSON even when null — the server expects them.
+        val serializerFile = file("$generatedDir/src/main/kotlin/org/openapitools/client/infrastructure/Serializer.kt")
+        if (serializerFile.exists()) {
+            serializerFile.writeText(
+                serializerFile.readText()
+                    .replace(
+                        "val gsonBuilder: GsonBuilder = GsonBuilder()",
+                        "val gsonBuilder: GsonBuilder = GsonBuilder().serializeNulls()"
                     )
             )
         }
