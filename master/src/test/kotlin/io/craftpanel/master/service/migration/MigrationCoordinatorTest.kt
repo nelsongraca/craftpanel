@@ -219,7 +219,7 @@ class MigrationCoordinatorTest :
                         it[Servers.nodeId] = nodeId
                         it[Servers.name] = "proxy-server"
                         it[Servers.displayName] = "proxy-server"
-                        it[Servers.serverType] = "PROXY"
+                        it[Servers.serverType] = "VELOCITY"
                         it[Servers.mcVersion] = "1.21.4"
                         it[Servers.itzgImageTag] = "latest"
                         it[Servers.hostPort] = 25577
