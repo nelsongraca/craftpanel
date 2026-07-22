@@ -80,7 +80,7 @@ fun Route.backupsRoutes(backupService: BackupService) {
                     pathParameter<String>("backupId")
                 }
                 response {
-                    code(HttpStatusCode.OK) { body<ByteArray>() }
+                    code(HttpStatusCode.OK) { binaryFileBody() }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
                     code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
@@ -93,12 +93,7 @@ fun Route.backupsRoutes(backupService: BackupService) {
                 }
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid backup ID"))
                 val info = backupService.resolveDownload(auth.serverId, backupId)
-                val byteList = mutableListOf<Int>()
-                backupService.downloadStream(info)
-                    .collect { chunk ->
-                        chunk.forEach { byte -> byteList.add(byte.toInt() and 0xFF) }
-                    }
-                call.respond(byteList)
+                call.respondBinaryFlow(backupService.downloadStream(info))
             }
         }
 

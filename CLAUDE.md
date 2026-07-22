@@ -40,6 +40,7 @@ opencode run "<task>" --dangerously-skip-permissions
 
 Always delegate the exploration phase before making changes. Review output before applying.
 Max 3 concurrent opencode subagent delegations at any time.
+Instruct opencode delegations to write their final report to a file (e.g. `.scratch/<feature>/RESULT.md`, kept short) rather than streaming the full report to stdout — reading the whole verbose run back into context burns tokens. Read the report file, not the streamed log. Once validated, commit and push.
 
 ## Module Structure
 
@@ -492,7 +493,7 @@ Schema migrations via `exposed-migration-jdbc`.
 - Don't use `dependsOn(test)` in a report task triggered via `finalizedBy` — use `mustRunAfter(test)` to avoid double-execution; use a string `finalizedBy("taskName")` not a task-provider reference to avoid forward-reference compile errors
 - Don't use `afterEvaluate {}` closures that capture script-level objects — fail config cache serialization; use plain `tasks.named(...).configure {}` blocks instead
 - Don't use `respondBytesWriter` before verifying file existence — it commits HTTP 200 immediately; call `proxy.downloadFile` (throws on 404) before opening the writer
-- Don't return `application/octet-stream` binary bodies from endpoints consumed by the system-test generated client (jvm-okhttp4+Gson maps binary response as `body.bytes() as? T` → null → NPE) — return JSON `List<Int>` for byte arrays instead, or a typed DTO
+- The generated system-test client's `body.bytes() as? T` NPEs only when `T` is a typed DTO with no matching schema branch — that happens if `application/octet-stream` is mixed into a response that *also* declares typed JSON bodies on other status codes without a single-content-type-per-status schema. Declaring the response as `body(Schema<Any>().apply { type = "string"; format = "binary" }) { mediaTypes = listOf(ContentType.Application.OctetStream) }` (see `ResponseConfig.binaryFileBody()` in `routes/Common.kt`) generates a clean binary schema; the openapi-generator kotlin/jvm-okhttp4 client falls back to `kotlin.Any` for it (not `java.io.File`, since the operation still has JSON error-response bodies on other codes) and the cast to `Any` never fails — callers must `as ByteArray` the result. Use `call.respondBinaryFlow(flow)` (same file) to stream the response instead of buffering — avoids materializing large files into memory and avoids ever emitting binary data as a JSON `List<Int>`.
 - Don't conflate `itzgImageTag` (Docker image tag e.g. `"1.21.5"`) with `mcVersion` (the `VERSION` env var passed to `itzg/minecraft-server`) — they are separate fields with separate meanings
 - Don't use `java.util.UUID` — use `kotlin.uuid.Uuid` (`Uuid.random()`, `Uuid.parse()`, no `.toJavaUuid()`/`.toKotlinUuid()` conversions; Exposed 1.3.0 `uuid()` columns return `Uuid` natively)
 - Don't use `kotlin.io.encoding.Base64.encode()` for WS ticket tokens — produces standard base64 with `+`/`/`/`=` that are URL-unsafe in `?ticket=` query params; use `java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)`

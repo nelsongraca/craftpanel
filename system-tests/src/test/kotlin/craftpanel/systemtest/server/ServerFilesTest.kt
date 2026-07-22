@@ -210,12 +210,8 @@ class ServerFilesTest : BaseSystemTest() {
 
                 should("downloads an existing file") {
                     api.writeServerFile(serverId, path = "/download-me.txt", body = "download content")
-                    val bytes = api.downloadServerFile(serverId, path = "/download-me.txt")
-                    String(
-                        bytes.map { it.toByte() }
-                            .toByteArray(),
-                        StandardCharsets.UTF_8
-                    ) shouldBe "download content"
+                    val bytes = api.downloadServerFile(serverId, path = "/download-me.txt") as ByteArray
+                    String(bytes, StandardCharsets.UTF_8) shouldBe "download content"
                 }
 
                 should("download non-existent file returns 404") {

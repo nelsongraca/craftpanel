@@ -145,7 +145,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     queryParameter<String>("path") { required = true }
                 }
                 response {
-                    code(HttpStatusCode.OK) { body<ByteArray>() }
+                    code(HttpStatusCode.OK) { binaryFileBody() }
                     code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
@@ -165,11 +165,7 @@ fun Route.filesRoutes(proxy: DataServiceProxy) {
                     ContentDisposition.Attachment.withParameter(ContentDisposition.Parameters.FileName, filename)
                         .toString()
                 )
-                val downloadFlow = proxy.downloadFile(auth.serverId, path)
-                val chunks = mutableListOf<ByteArray>()
-                downloadFlow.collect { chunks.add(it) }
-                val byteList = chunks.flatMap { chunk -> chunk.map { it.toInt() and 0xFF } }
-                call.respond(byteList)
+                call.respondBinaryFlow(proxy.downloadFile(auth.serverId, path))
             }
 
             delete("", {

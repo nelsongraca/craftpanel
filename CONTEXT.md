@@ -390,6 +390,35 @@ handler-dispatch candidates.
 
 See candidate 4, `improve-codebase-architecture` review 2026-07-11.
 
+### Binary file response seam (master)
+
+`ApplicationCall.respondBinaryFlow(flow)` + `ResponseConfig.binaryFileBody()`, both in
+`routes/Common.kt`. The one place that answers "how does a route return a downloadable
+file?" — replaces the independently-written `Flow<ByteArray>` → `List<Int>` → JSON
+`call.respond(byteList)` pattern duplicated in `FilesRoutes`/`downloadServerFile` and
+`BackupsRoutes`/`downloadBackup`, which fully buffered the file in memory and shipped it
+as a 3-4x inflated JSON integer array under `application/json`.
+
+- `respondBinaryFlow(flow: Flow<ByteArray>)` streams chunks straight to the response
+  channel via `respondBytesWriter`, `Content-Type: application/octet-stream`. Never
+  materializes the whole file. Callers must verify the file/resource exists **before**
+  calling it — `respondBytesWriter` commits HTTP 200 immediately.
+- `binaryFileBody()` is the matching OpenAPI doc-block declaration: a `Schema<Any>`
+  with `type = "string"; format = "binary"`, `mediaTypes = [OctetStream]`. Declaring
+  it this way (vs `body<ByteArray>()`, which schema-generates as a JSON array of
+  integers) is what makes the *contract* binary, not just the runtime response.
+- The system-tests OpenAPI generator (kotlin/jvm-okhttp4) cannot infer `java.io.File`
+  for these two operations specifically, because both also declare typed JSON error
+  bodies (`ErrorResponse`) on other status codes — mixed content types across an
+  operation's responses defeat the generator's single-type inference. It falls back to
+  `kotlin.Any`; callers cast `as ByteArray`. This is a real, verified generator
+  limitation (confirmed by regenerating and reading the emitted client), not a
+  workaround — a future single-content-type binary operation would get `File` for
+  free from the same `binaryFileBody()` doc block.
+- See `CLAUDE.md`'s corrected note on the system-test client's binary-body NPE — the
+  NPE case is specifically an unscoped `application/octet-stream` alongside typed DTOs
+  with no schema discriminator; a clean `format: binary` schema does not hit it.
+
 ### DashboardService (master)
 
 Deep service seam for the dashboard WebSocket (`/api/ws`). Absorbs snapshot

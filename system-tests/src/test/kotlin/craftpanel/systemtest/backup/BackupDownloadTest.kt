@@ -44,7 +44,7 @@ class BackupDownloadTest : BaseSystemTest() {
                 completed shouldNotBe null
                 completed!!.sizeBytes shouldNotBe null
 
-                val bytes = api.downloadBackup(serverId, backup.id)
+                val bytes = api.downloadBackup(serverId, backup.id) as ByteArray
                 bytes shouldNotBe null
                 bytes.size.toLong() shouldBe completed.sizeBytes
             }
