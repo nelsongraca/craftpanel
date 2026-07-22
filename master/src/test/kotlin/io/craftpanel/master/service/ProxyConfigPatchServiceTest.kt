@@ -9,6 +9,7 @@ import io.craftpanel.master.service.repo.ServerRepository
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -83,7 +84,7 @@ class ProxyConfigPatchServiceTest :
                 )
             )
 
-            val patch = service.generatePatch(proxyId)
+            val patch = service.generatePatch(proxyId)!!
             val root = Json.parseToJsonElement(patch).jsonObject
             root["patches"]!!.jsonArray[0].jsonObject["file"] shouldBe JsonPrimitive("/server/velocity.toml")
             val ops = opsOf(patch)
@@ -126,7 +127,7 @@ class ProxyConfigPatchServiceTest :
                 )
             )
 
-            val patch = service.generatePatch(proxyId)
+            val patch = service.generatePatch(proxyId)!!
             val root = Json.parseToJsonElement(patch).jsonObject
             root["patches"]!!.jsonArray[0].jsonObject["file"] shouldBe JsonPrimitive("/server/config.yml")
             val ops = opsOf(patch)
@@ -168,6 +169,21 @@ class ProxyConfigPatchServiceTest :
             forwardingOp["value-type"] shouldBe JsonPrimitive("bool")
         }
 
+        test("MANUAL config mode - returns null") {
+            val nodeId = createNode()
+            val proxyId = createServer(nodeId, "proxy-${Uuid.random()}", ServerType.VELOCITY)
+            serverRepository.updateConfigMode(proxyId, "MANUAL")
+
+            service.generatePatch(proxyId) shouldBe null
+        }
+
+        test("MANAGED config mode - returns the patch") {
+            val nodeId = createNode()
+            val proxyId = createServer(nodeId, "proxy-${Uuid.random()}", ServerType.VELOCITY)
+
+            service.generatePatch(proxyId) shouldNotBe null
+        }
+
         test("throws ConflictException for non-proxy server") {
             val nodeId = createNode()
             val vanillaId = createServer(nodeId, "vanilla-${Uuid.random()}", ServerType.VANILLA)
@@ -189,7 +205,7 @@ class ProxyConfigPatchServiceTest :
                 )
             )
 
-            val patch = service.generatePatch(proxyId)
+            val patch = service.generatePatch(proxyId)!!
             val ops = opsOf(patch)
 
             ops.size shouldBe 1

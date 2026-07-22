@@ -221,12 +221,10 @@ describe('Stop Command Panel', () => {
         )
     })
 
-    // NOTE: uitest.md scenario 5 says proxy does NOT show stop command panel.
-    // The actual code (ProxyBackendsSection, lines 973-1005) DOES include it.
-    // Test asserts actual code behavior.
-    it('proxy server: Stop Command panel IS rendered', async () => {
+    it('proxy server: Stop Command panel IS rendered (as its own top-level section)', async () => {
         await renderProxyServer()
         expect(screen.getByText('Stop Command')).toBeInTheDocument()
+        expect(screen.getByDisplayValue('end')).toBeInTheDocument()
     })
 })
 
@@ -309,26 +307,15 @@ describe('Config Mode Toggle', () => {
         )
     })
 
-    it('in MANUAL mode, JVM Options fields are editable and save calls replaceEnvVars', async () => {
-        const user = userEvent.setup()
+    it('in MANUAL mode, mapped sections and JVM Options are hidden; Extra Vars still editable', async () => {
         await renderGameServer({ configMode: 'MANUAL' })
 
-        // Difficulty is disabled in MANUAL (serverPropertiesMapped=true); JVM_OPTS is not
-        await user.type(getFieldInput('Extra JVM Arguments'), '-Xss512k')
-
-        await waitFor(() => expect(screen.getByText('Unsaved changes')).toBeInTheDocument())
-        await user.click(screen.getByRole('button', { name: /^save$/i }))
-
-        await waitFor(() =>
-            expect(replaceEnvVars).toHaveBeenCalledWith(
-                expect.objectContaining({
-                    path: { id: 's1' },
-                    body: expect.objectContaining({
-                        env_vars: expect.arrayContaining([{ key: 'JVM_OPTS', value: '-Xss512k' }]),
-                    }),
-                })
-            )
-        )
+        expect(screen.queryByText('Gameplay')).not.toBeInTheDocument()
+        expect(screen.queryByText('World')).not.toBeInTheDocument()
+        expect(screen.queryByText('JVM Options')).not.toBeInTheDocument()
+        // Stop Command and Config Mode toggle remain visible
+        expect(screen.getByText('Stop Command')).toBeInTheDocument()
+        expect(screen.getByText('Config Mode')).toBeInTheDocument()
     })
 })
 
@@ -722,7 +709,7 @@ describe('Advanced Section', () => {
 describe('JVM Options Section', () => {
     beforeEach(() => vi.clearAllMocks())
 
-    it('JVM Options section has no "manual mode" notice in MANUAL mode', async () => {
+    it('JVM Options section is hidden entirely in MANUAL mode', async () => {
         const user = userEvent.setup()
         await renderGameServer({ configMode: 'MANAGED' })
 
@@ -732,12 +719,7 @@ describe('JVM Options Section', () => {
         await user.click(screen.getByRole('button', { name: /confirm/i }))
         await waitFor(() => expect(updateConfigMode).toHaveBeenCalled())
 
-        // Warning badges are suppressed entirely in MANUAL mode (issue #26)
-        const jvmHeader = screen.getByText('JVM Options')
-        const jvmSection = jvmHeader.closest('div.border') as HTMLElement
-        if (jvmSection) {
-            expect(within(jvmSection).queryByText(/manual mode active/i)).not.toBeInTheDocument()
-        }
+        await waitFor(() => expect(screen.queryByText('JVM Options')).not.toBeInTheDocument())
     })
 
     it('enabling Aikar Flags while MeowIce is ON → MeowIce turns OFF', async () => {
@@ -909,6 +891,38 @@ describe('Extra Variables', () => {
 
 describe('Proxy Server Config Tab', () => {
     beforeEach(() => vi.clearAllMocks())
+
+    it('proxy Config Mode toggle is present, defaults to MANAGED', async () => {
+        await renderProxyServer([], [], { configMode: 'MANAGED' })
+        expect(screen.getByText('Config Mode')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: /switch to manual/i })).toBeInTheDocument()
+    })
+
+    it('proxy MANUAL mode hides Proxy Settings and Proxy Backends, keeps Stop Command', async () => {
+        await renderProxyServer([], [], { configMode: 'MANUAL' })
+
+        expect(screen.queryByText('Proxy Settings')).not.toBeInTheDocument()
+        expect(screen.queryByText('Proxy Backends')).not.toBeInTheDocument()
+        expect(screen.getByText('Stop Command')).toBeInTheDocument()
+        expect(screen.getByText(/edit velocity\.toml \/ config\.yml directly/i)).toBeInTheDocument()
+    })
+
+    it('switching proxy to MANUAL calls updateConfigMode and hides managed sections', async () => {
+        const user = userEvent.setup()
+        await renderProxyServer([], [], { configMode: 'MANAGED' })
+
+        await user.click(screen.getByRole('button', { name: /switch to manual/i }))
+        await waitFor(() => expect(screen.getByText('Disable Managed Env Vars?')).toBeInTheDocument())
+        await user.click(screen.getByRole('button', { name: /confirm/i }))
+
+        await waitFor(() =>
+            expect(updateConfigMode).toHaveBeenCalledWith({
+                path: { id: 'p1' },
+                body: { config_mode: 'MANUAL' },
+            })
+        )
+        await waitFor(() => expect(screen.queryByText('Proxy Backends')).not.toBeInTheDocument())
+    })
 
     it('proxy server shows Proxy Backends section, not field form', async () => {
         await renderProxyServer()

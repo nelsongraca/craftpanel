@@ -21,12 +21,13 @@ class ProxyConfigPatchService(
     private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
     private val containerNamePrefix: String = "craftpanel"
 ) {
-    fun generatePatch(proxyServerId: Uuid): String {
+    fun generatePatch(proxyServerId: Uuid): String? {
         val serverRow = serverRepository.findById(proxyServerId)
             ?: throw NotFoundException("Server not found")
         if (!serverRow.serverType.isProxy) {
             throw ConflictException("Server is not a proxy type")
         }
+        if (serverRow.configMode == "MANUAL") return null
 
         val backends = proxyBackendRepository.listProxyBackends(proxyServerId)
             .sortedBy { it.order }

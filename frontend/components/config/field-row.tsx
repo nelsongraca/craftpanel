@@ -10,14 +10,12 @@ function ToggleField({
                          fieldKey,
                          value,
                          onChange,
-                         dimmed,
                          form,
                          setField,
                      }: {
     fieldKey: string;
     value: string;
     onChange: (val: string) => void;
-    dimmed: boolean;
     form: Record<string, string>;
     setField: (key: string, value: string) => void;
 }) {
@@ -37,7 +35,6 @@ function ToggleField({
         <Switch
             checked={checked}
             onCheckedChange={handleChange}
-            disabled={dimmed}
         />
     );
 }
@@ -45,11 +42,9 @@ function ToggleField({
 function TagInput({
                       value,
                       onChange,
-                      disabled,
                   }: {
     value: string;
     onChange: (val: string) => void;
-    disabled: boolean;
 }) {
     const tags = value ? value.split(",").map((t) => t.trim()).filter(Boolean) : [];
     const [inputVal, setInputVal] = useState("");
@@ -75,34 +70,30 @@ function TagInput({
                         className="inline-flex items-center gap-1 bg-surface-higher border border-border rounded px-2 py-0.5 text-xs font-mono text-text-primary"
                     >
                         {tag}
-                        {!disabled && (
-                            <button
-                                onClick={() => removeTag(tag)}
-                                className="text-text-muted hover:text-error transition-colors"
-                            >
-                                <X className="w-2.5 h-2.5"/>
-                            </button>
-                        )}
+                        <button
+                            onClick={() => removeTag(tag)}
+                            className="text-text-muted hover:text-error transition-colors"
+                        >
+                            <X className="w-2.5 h-2.5"/>
+                        </button>
                     </span>
                 ))}
             </div>
-            {!disabled && (
-                <div className="flex gap-2">
-                    <input
-                        value={inputVal}
-                        onChange={(e) => setInputVal(e.target.value)}
-                        onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addTag())}
-                        placeholder="Add entry…"
-                        className="bg-surface-higher border border-border rounded px-2 py-1 text-xs font-mono text-text-primary w-48 focus:border-accent/50 focus:outline-none"
-                    />
-                    <button
-                        onClick={addTag}
-                        className="p-1 text-text-muted hover:text-text-primary transition-colors"
-                    >
-                        <Plus className="w-3.5 h-3.5"/>
-                    </button>
-                </div>
-            )}
+            <div className="flex gap-2">
+                <input
+                    value={inputVal}
+                    onChange={(e) => setInputVal(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addTag())}
+                    placeholder="Add entry…"
+                    className="bg-surface-higher border border-border rounded px-2 py-1 text-xs font-mono text-text-primary w-48 focus:border-accent/50 focus:outline-none"
+                />
+                <button
+                    onClick={addTag}
+                    className="p-1 text-text-muted hover:text-text-primary transition-colors"
+                >
+                    <Plus className="w-3.5 h-3.5"/>
+                </button>
+            </div>
         </div>
     );
 }
@@ -111,21 +102,17 @@ export function FieldRow({
                              field,
                              value,
                              onChange,
-                             dimmed,
                              form,
                              setField,
                          }: {
     field: FieldDef;
     value: string;
     onChange: (val: string) => void;
-    dimmed: boolean;
     form: Record<string, string>;
     setField: (key: string, value: string) => void;
 }) {
-    const dimmedCls = dimmed ? "opacity-60" : "";
-
     return (
-        <div className={`px-4 py-3 flex items-start gap-4 ${dimmed ? "opacity-80" : ""}`}>
+        <div className="px-4 py-3 flex items-start gap-4">
             <div className="w-56 shrink-0 pt-0.5">
                 <p className="text-xs text-text-primary font-medium">{field.label}</p>
                 {field.hint && (
@@ -138,7 +125,6 @@ export function FieldRow({
                         fieldKey={field.key}
                         value={value}
                         onChange={onChange}
-                        dimmed={dimmed}
                         form={form}
                         setField={setField}
                     />
@@ -147,10 +133,9 @@ export function FieldRow({
                     <SelectField
                         value={value}
                         onChange={(e) => onChange(e.target.value)}
-                        disabled={dimmed}
                         surface="surface-higher"
                         fieldSize="sm"
-                        className={`w-48 ${dimmedCls}`}
+                        className="w-48"
                     >
                         {field.options?.map((opt) => (
                             <option key={opt} value={opt}>
@@ -164,10 +149,9 @@ export function FieldRow({
                         type="text"
                         value={value}
                         onChange={(e) => onChange(e.target.value)}
-                        disabled={dimmed}
                         surface="surface-higher"
                         fieldSize="sm"
-                        className={`w-full max-w-sm ${dimmedCls}`}
+                        className="w-full max-w-sm"
                     />
                 )}
                 {field.type === "number" && (
@@ -175,25 +159,23 @@ export function FieldRow({
                         type="number"
                         value={value}
                         onChange={(e) => onChange(e.target.value)}
-                        disabled={dimmed}
                         surface="surface-higher"
                         fieldSize="sm"
-                        className={`w-32 ${dimmedCls}`}
+                        className="w-32"
                     />
                 )}
                 {field.type === "textarea" && (
                     <TextAreaField
                         value={value}
                         onChange={(e) => onChange(e.target.value)}
-                        disabled={dimmed}
                         rows={4}
                         surface="surface-higher"
                         fieldSize="sm"
-                        className={`w-full max-w-lg resize-y ${dimmedCls}`}
+                        className="w-full max-w-lg resize-y"
                     />
                 )}
                 {field.type === "tag-input" && (
-                    <TagInput value={value} onChange={onChange} disabled={dimmed}/>
+                    <TagInput value={value} onChange={onChange}/>
                 )}
             </div>
         </div>

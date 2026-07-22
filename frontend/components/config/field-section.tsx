@@ -10,12 +10,10 @@ export function FieldSection({
                                  section,
                                  form,
                                  setField,
-                                 dimmed,
                              }: {
     section: Section;
     form: Record<string, string>;
     setField: (key: string, value: string) => void;
-    dimmed: boolean;
 }) {
     const [open, setOpen] = useState(section.defaultOpen ?? true);
 
@@ -37,7 +35,6 @@ export function FieldSection({
                     field={field}
                     value={form[field.key] ?? ""}
                     onChange={(val) => setField(field.key, val)}
-                    dimmed={dimmed && field.serverPropertiesMapped}
                     form={form}
                     setField={setField}
                 />

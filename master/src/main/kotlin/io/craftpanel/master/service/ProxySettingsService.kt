@@ -52,7 +52,7 @@ class ProxySettingsService(
 
     private suspend fun writePatchIfRunning(proxyServerId: Uuid, status: String) {
         if (ServerStatus.fromDb(status) != ServerStatus.HEALTHY) return
-        val patch = proxyConfigPatchService.generatePatch(proxyServerId)
+        val patch = proxyConfigPatchService.generatePatch(proxyServerId) ?: return
         writeFile(proxyServerId, "craftpanel-patch.json", patch.toByteArray())
     }
 

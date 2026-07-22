@@ -199,18 +199,26 @@ class ServerService(
 
             portRepository.registerPort(nodeKotlinId, port, "TCP", newServer.id)
 
+            val platformName = settingsRepository.getAll()
+                .firstOrNull { it.key == "CRAFTPANEL_PLATFORM_NAME" }
+                ?.value ?: "CraftPanel"
+            val serverTypeDisplay = req.serverType.lowercase()
+                .replaceFirstChar { it.uppercase() }
+
             if (!serverType.isProxy) {
-                val platformName = settingsRepository.getAll()
-                    .firstOrNull { it.key == "CRAFTPANEL_PLATFORM_NAME" }
-                    ?.value ?: "CraftPanel"
-                val serverTypeDisplay = req.serverType.lowercase()
-                    .replaceFirstChar { it.uppercase() }
                 val defaults = buildDefaultEnvVars(req.mcVersion, serverTypeDisplay, platformName)
                 envVarsRepository.replaceEnvVars(
                     newServer.id,
                     defaults.map { (k, v) ->
                         EnvVarRow(k, v)
                     }
+                )
+            } else {
+                serverRepository.updateProxySettings(
+                    newServer.id,
+                    motd = "$serverTypeDisplay powered by $platformName",
+                    maxPlayers = null,
+                    forwardingMode = null
                 )
             }
 

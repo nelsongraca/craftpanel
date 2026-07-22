@@ -122,8 +122,14 @@ class ContainerLifecycle(
     private fun buildAllVars(server: ServerRow): Map<String, String> {
         val id = server.id
         val modrinthProjects = modService.buildModrinthEnvVar(id)
-        val dbEnvVars = envVarsRepository.getEnvVars(id)
+        val isManual = server.configMode == "MANUAL"
+        var dbEnvVars = envVarsRepository.getEnvVars(id)
             .associate { it.key to it.value }
+        if (isManual) {
+            // Master owns server.properties in manual mode; itzg's JVM-flag env vars would
+            // still apply on top of a hand-edited startup script, so strip them too.
+            dbEnvVars = dbEnvVars - setOf("USE_AIKAR_FLAGS", "USE_MEOWICE_FLAGS", "JVM_OPTS", "JVM_XX_OPTS")
+        }
         val isProxy = server.serverType.isProxy
         val systemVars = buildMap {
             put("EULA", "TRUE")
@@ -150,6 +156,9 @@ class ContainerLifecycle(
             put("MEMORY", "${heapMb}M")
             if (modrinthProjects.isNotEmpty()) put("MODRINTH_PROJECTS", modrinthProjects)
             if (isProxy) put("PATCH_DEFINITIONS", "/server/craftpanel-patch.json")
+            // Manual mode is master-owned: never persisted to server_env_vars, always injected
+            // fresh so itzg leaves server.properties alone.
+            if (isManual) put("OVERRIDE_SERVER_PROPERTIES", "false")
         }
         return systemVars + dbEnvVars
     }

@@ -7,6 +7,7 @@ Self-hosted multi-user multi-node Minecraft server management platform.
 ALWAYS context7 when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
 When finishing a task always run get_file_problems from intellij/idea to find possible issues and fix them before submitting the code. If there are any warnings or errors that cannot be fixed, list them explicitly in the final answer.
 Before committing any code always run `./gradlew spotlessApply` to reformat the files.
+When a commit fixes a GitHub issue, include an auto-close keyword referencing it in the commit message (e.g. `Fixes #45`, `Closes #45`, `Resolves #45`). GitHub only auto-closes the issue once that commit lands on the default branch (`master`) — i.e. on push — so the keyword must be in the commit, not just mentioned elsewhere.
 If a method or class is deprecated avoid using it.
 
 Before starting any task, assess complexity:

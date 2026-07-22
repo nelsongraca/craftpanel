@@ -2,6 +2,7 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.*
 import io.craftpanel.master.database.schema.Nodes
+import io.craftpanel.master.database.schema.ServerEnvVars
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.ServerStatus
@@ -11,6 +12,7 @@ import io.craftpanel.master.util.toUtcString
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
@@ -18,6 +20,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
@@ -191,6 +194,62 @@ class ContainerLifecycleTest :
             shouldThrow<ContainerLifecycleException> {
                 lc.start(server, needsRecreate = false)
             }
+        }
+
+        test("start - MANUAL config mode - injects OVERRIDE_SERVER_PROPERTIES=false and strips JVM flag vars") {
+            transaction {
+                Servers.update({ Servers.id eq serverId }) {
+                    it[Servers.configMode] = "MANUAL"
+                }
+                ServerEnvVars.insert {
+                    it[ServerEnvVars.serverId] = serverId
+                    it[ServerEnvVars.key] = "USE_AIKAR_FLAGS"
+                    it[ServerEnvVars.value] = "true"
+                }
+                ServerEnvVars.insert {
+                    it[ServerEnvVars.serverId] = serverId
+                    it[ServerEnvVars.key] = "USE_MEOWICE_FLAGS"
+                    it[ServerEnvVars.value] = "true"
+                }
+                ServerEnvVars.insert {
+                    it[ServerEnvVars.serverId] = serverId
+                    it[ServerEnvVars.key] = "JVM_OPTS"
+                    it[ServerEnvVars.value] = "-Xmx4G"
+                }
+                ServerEnvVars.insert {
+                    it[ServerEnvVars.serverId] = serverId
+                    it[ServerEnvVars.key] = "JVM_XX_OPTS"
+                    it[ServerEnvVars.value] = "-XX:+UseG1GC"
+                }
+                ServerEnvVars.insert {
+                    it[ServerEnvVars.serverId] = serverId
+                    it[ServerEnvVars.key] = "DIFFICULTY"
+                    it[ServerEnvVars.value] = "hard"
+                }
+            }
+            val server = serverRow()
+            val cmd = lifecycle().buildStartMessage(server, needsRecreate = false).startContainer
+            cmd.envVarsMap["OVERRIDE_SERVER_PROPERTIES"] shouldBe "false"
+            cmd.envVarsMap.containsKey("USE_AIKAR_FLAGS") shouldBe false
+            cmd.envVarsMap.containsKey("USE_MEOWICE_FLAGS") shouldBe false
+            cmd.envVarsMap.containsKey("JVM_OPTS") shouldBe false
+            cmd.envVarsMap.containsKey("JVM_XX_OPTS") shouldBe false
+            cmd.envVarsMap["DIFFICULTY"] shouldBe "hard"
+            cmd.envVarsMap["MEMORY"] shouldNotBe null
+        }
+
+        test("start - MANAGED config mode - no OVERRIDE_SERVER_PROPERTIES, JVM flag vars preserved") {
+            transaction {
+                ServerEnvVars.insert {
+                    it[ServerEnvVars.serverId] = serverId
+                    it[ServerEnvVars.key] = "USE_AIKAR_FLAGS"
+                    it[ServerEnvVars.value] = "true"
+                }
+            }
+            val server = serverRow()
+            val cmd = lifecycle().buildStartMessage(server, needsRecreate = false).startContainer
+            cmd.envVarsMap.containsKey("OVERRIDE_SERVER_PROPERTIES") shouldBe false
+            cmd.envVarsMap["USE_AIKAR_FLAGS"] shouldBe "true"
         }
 
         test("stop - agent not connected - throws BadGatewayException") {

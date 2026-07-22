@@ -271,7 +271,7 @@ export default function ServerDetailPage() {
                                 variant="red"
                             />
                         )}
-                        {(sStatus === "STOPPING" || sStatus === "HEALTHY" || sStatus === "UNHEALTHY") && hasPermission(permissions, "server.force_stop") && (
+                        {sStatus === "STOPPING" && hasPermission(permissions, "server.force_stop") && (
                             <HeaderActionButton
                                 icon={<Square size={12} strokeWidth={2.5}/>}
                                 label="Force Stop"

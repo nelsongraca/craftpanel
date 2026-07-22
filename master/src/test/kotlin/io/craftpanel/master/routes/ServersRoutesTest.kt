@@ -420,6 +420,29 @@ class ServersRoutesTest :
             }
         }
 
+        test("POST servers sets a default proxy_motd for proxy types") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val resp = client.post("/api/servers") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"proxy-motd-srv","node_id":"$nodeId","server_type":"VELOCITY","memory_mb":512}""")
+                }
+                resp.status shouldBe HttpStatusCode.Created
+                val id = Uuid.parse(resp.body<JsonObject>()["id"]!!.jsonPrimitive.content)
+                val row = transaction {
+                    Servers.selectAll()
+                        .where { Servers.id eq id }
+                        .first()
+                }
+                row[Servers.proxyMotd] shouldBe "Velocity powered by CraftPanel"
+            }
+        }
+
         // ── GET /servers/{id} ────────────────────────────────────────────────────
 
         test("GET server by id returns 404 for unknown") {

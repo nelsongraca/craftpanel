@@ -68,7 +68,7 @@ class ServerLifecycleService(
 
     private suspend fun writeProxyPatch(server: ServerRow) {
         if (!server.serverType.isProxy) return
-        val patch = proxyConfigPatchService.generatePatch(server.id)
+        val patch = proxyConfigPatchService.generatePatch(server.id) ?: return
         // writeFile's path is resolved relative to the server's data root (bind-mounted to
         // container /server), which IS PATCH_DEFINITIONS' /server — so no dataContainerPath prefix here.
         writeFile(server.id, "craftpanel-patch.json", patch.toByteArray())
