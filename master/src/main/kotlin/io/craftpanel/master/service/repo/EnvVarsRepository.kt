@@ -8,5 +8,6 @@ interface EnvVarsRepository {
 
     fun getEnvVars(serverId: Uuid): List<EnvVarRow>
     fun replaceEnvVars(serverId: Uuid, envVars: List<EnvVarRow>)
+    fun upsertEnvVar(serverId: Uuid, key: String, value: String)
     fun deleteEnvVarsForServer(serverId: Uuid)
 }

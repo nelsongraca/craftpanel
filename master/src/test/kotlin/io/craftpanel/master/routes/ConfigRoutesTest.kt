@@ -6,7 +6,9 @@ import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.TokenClaims
 import io.craftpanel.master.config.JwtConfig
+import io.craftpanel.master.crypto.ForwardingSecretCipher
 import io.craftpanel.master.database.schema.*
+import io.craftpanel.master.service.BackendForwardingService
 import io.craftpanel.master.service.BadRequestException
 import io.craftpanel.master.service.ConflictException
 import io.craftpanel.master.service.EnvVarsService
@@ -43,9 +45,15 @@ class ConfigRoutesTest :
     FunSpec({
         val repos = TestRepositories()
         val proxyConfigPatchService = ProxyConfigPatchService(repos.proxyBackendRepository, repos.serverRepository)
-        val proxyBackendService = ProxyBackendService(repos.serverRepository, repos.proxyBackendRepository, proxyConfigPatchService) { _, _, _ -> }
+        val backendForwardingService = BackendForwardingService(
+            serverRepository = repos.serverRepository,
+            proxyBackendRepository = repos.proxyBackendRepository,
+            envVarsRepository = repos.envVarsRepository,
+            cipher = ForwardingSecretCipher(ByteArray(32) { 0x42 })
+        ) { _, _, _ -> }
+        val proxyBackendService = ProxyBackendService(repos.serverRepository, repos.proxyBackendRepository, proxyConfigPatchService, backendForwardingService) { _, _, _ -> }
         val envVarsService = EnvVarsService(repos.serverRepository, repos.envVarsRepository)
-        val proxySettingsService = ProxySettingsService(repos.serverRepository, proxyConfigPatchService) { _, _, _ -> }
+        val proxySettingsService = ProxySettingsService(repos.serverRepository, proxyConfigPatchService, backendForwardingService) { _, _, _ -> }
 
         val jwtConfig = JwtConfig(
             secret = "test-secret-that-is-at-least-32-characters!!",

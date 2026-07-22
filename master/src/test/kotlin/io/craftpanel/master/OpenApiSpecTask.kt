@@ -58,7 +58,8 @@ class OpenApiSpecTask :
                     "jwt.expirySeconds" to jwtConfig.expirySeconds.toString(),
                     "grpc.port" to "50051",
                     "node.bootstrapToken" to "test",
-                    "node.agentDataPort" to "50052"
+                    "node.agentDataPort" to "50052",
+                    "forwarding.key" to java.util.Base64.getEncoder().encodeToString(ByteArray(32) { 0x42 })
                 )
             )
 

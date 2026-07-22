@@ -33,6 +33,7 @@ object Servers : Table("servers") {
     val proxyMotd = varchar("proxy_motd", 500).nullable()
     val proxyMaxPlayers = integer("proxy_max_players").nullable()
     val proxyForwardingMode = varchar("proxy_forwarding_mode", 20).nullable()
+    val forwardingSecretEnc = text("forwarding_secret_enc").nullable()
     val backupSchedule = varchar("backup_schedule", 64).nullable()
     val backupMaxCount = integer("backup_max_count").default(10)
     val backupScheduleLastFired = datetime("backup_schedule_last_fired").nullable()

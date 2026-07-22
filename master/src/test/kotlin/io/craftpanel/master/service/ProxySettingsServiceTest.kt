@@ -2,6 +2,7 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
+import io.craftpanel.master.crypto.ForwardingSecretCipher
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.Servers
@@ -19,7 +20,13 @@ class ProxySettingsServiceTest :
         val repos = TestRepositories()
         val serverRepository: ServerRepository = repos.serverRepository
         val proxyConfigPatchService = ProxyConfigPatchService(repos.proxyBackendRepository, serverRepository)
-        val service = ProxySettingsService(serverRepository, proxyConfigPatchService) { _, _, _ -> }
+        val backendForwardingService = BackendForwardingService(
+            serverRepository = serverRepository,
+            proxyBackendRepository = repos.proxyBackendRepository,
+            envVarsRepository = repos.envVarsRepository,
+            cipher = ForwardingSecretCipher(ByteArray(32) { 0x42 })
+        ) { _, _, _ -> }
+        val service = ProxySettingsService(serverRepository, proxyConfigPatchService, backendForwardingService) { _, _, _ -> }
 
         beforeTest {
             TestDatabase.initIfNeeded()

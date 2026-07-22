@@ -61,6 +61,8 @@ data class AdminSeedConfig(val email: String, val password: String, val username
 
 data class DockerConfig(val endpoint: String = "")
 
+data class ForwardingConfig(val key: String)
+
 class AppConfig(config: ApplicationConfig) {
 
     val profile: String = config.propertyOrNull("app.profile")
@@ -177,6 +179,13 @@ class AppConfig(config: ApplicationConfig) {
         endpoint = config.propertyOrNull("docker.endpoint")
             ?.getString() ?: ""
     )
+    val forwarding = ForwardingConfig(
+        key = secretFromFileOrValue(
+            "FORWARDING_KEY",
+            config.propertyOrNull("forwarding.key")
+                ?.getString() ?: ""
+        )
+    )
 
     fun validate() {
         if (profile == "dev") return
@@ -189,6 +198,13 @@ class AppConfig(config: ApplicationConfig) {
         }
         check(cors.origins.isNotEmpty()) {
             "PUBLIC_URLS must be set outside app.profile=dev, or the API will reject every browser request with CORS 403"
+        }
+        val defaultForwardingKey = "Y2hhbmdlbWUtMzItYnl0ZXMtZGV2LWtleS1vbmx5ISE="
+        check(forwarding.key != defaultForwardingKey) {
+            "FORWARDING_KEY must be set to a non-default value"
+        }
+        check(runCatching { java.util.Base64.getDecoder().decode(forwarding.key) }.getOrNull()?.size == 32) {
+            "FORWARDING_KEY must be set to Base64 of 32 raw bytes (AES-256 key)"
         }
         // TLS is always enforced: either via explicit cert paths or auto-generated certs.
         // The actual TLS enforcement happens in GrpcServer.start().

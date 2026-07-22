@@ -8,7 +8,12 @@ import kotlinx.serialization.Serializable
 import kotlin.uuid.Uuid
 
 @Serializable
-data class ProxySettingsResponse(val motd: String?, @SerialName("max_players") val maxPlayers: Int?, @SerialName("forwarding_mode") val forwardingMode: String?)
+data class ProxySettingsResponse(
+    val motd: String?,
+    @SerialName("max_players") val maxPlayers: Int?,
+    @SerialName("forwarding_mode") val forwardingMode: String?,
+    @SerialName("forwarding_warnings") val forwardingWarnings: List<String> = emptyList()
+)
 
 @Serializable
 data class UpdateProxySettingsRequest(val motd: String?, @SerialName("max_players") val maxPlayers: Int?, @SerialName("forwarding_mode") val forwardingMode: String?)
@@ -17,10 +22,14 @@ data class UpdateProxySettingsRequest(val motd: String?, @SerialName("max_player
  * Proxy-side settings (MOTD, max players, forwarding mode) stored on the proxy
  * server row. Persisting them marks the proxy for recreate and, if the proxy is
  * currently running, writes the refreshed patch immediately via [ProxyConfigPatchService].
+ * A forwarding-mode change also fans out matching config to every eligible backend
+ * via [BackendForwardingService] (#44) — backends that can't support the mode are
+ * warn-skipped and surfaced back to the caller.
  */
 class ProxySettingsService(
     private val serverRepository: ServerRepository,
     private val proxyConfigPatchService: ProxyConfigPatchService,
+    private val backendForwardingService: BackendForwardingService,
     private val writeFile: suspend (Uuid, String, ByteArray) -> Unit
 ) {
 
@@ -47,7 +56,13 @@ class ProxySettingsService(
         serverRepository.updateProxySettings(proxyServerId, req.motd, req.maxPlayers, mode)
         serverRepository.updateNeedsRecreate(proxyServerId, true)
         writePatchIfRunning(proxyServerId, row.status)
-        return getSettings(proxyServerId)
+
+        val warnings = if (mode != null) {
+            backendForwardingService.applyToAllBackends(proxyServerId, mode).map { it.reason }
+        } else {
+            emptyList()
+        }
+        return getSettings(proxyServerId).copy(forwardingWarnings = warnings)
     }
 
     private suspend fun writePatchIfRunning(proxyServerId: Uuid, status: String) {

@@ -275,6 +275,15 @@ class ServerRepositoryImpl(
         invalidate(id)
     }
 
+    override fun updateForwardingSecret(id: Uuid, forwardingSecretEnc: String?) {
+        transaction {
+            Servers.update({ Servers.id eq id }) {
+                it[Servers.forwardingSecretEnc] = forwardingSecretEnc
+            }
+        }
+        invalidate(id)
+    }
+
     override fun delete(id: Uuid) {
         transaction {
             migrationRepository.deleteMigrationStepsForServer(id)
@@ -321,6 +330,7 @@ private fun ResultRow.toServerRow() = ServerRow(
     proxyMotd = this[Servers.proxyMotd],
     proxyMaxPlayers = this[Servers.proxyMaxPlayers],
     proxyForwardingMode = this[Servers.proxyForwardingMode],
+    forwardingSecretEnc = this[Servers.forwardingSecretEnc],
     backupSchedule = this[Servers.backupSchedule],
     backupMaxCount = this[Servers.backupMaxCount],
     backupScheduleLastFired = this[Servers.backupScheduleLastFired]?.toUtcString(),

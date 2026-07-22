@@ -32,6 +32,7 @@ services:
       DATABASE_PASSWORD: craftpanel
       JWT_SECRET: dev-secret-change-me-in-production
       NODE_BOOTSTRAP_TOKEN: devtoken
+      FORWARDING_KEY: WJ4iv5Ce5Y91yjG8lNnIJlaW9qiO2nThTfDDNeTXNsE=
       CRAFTPANEL_PROFILE: dev
     depends_on:
       - db

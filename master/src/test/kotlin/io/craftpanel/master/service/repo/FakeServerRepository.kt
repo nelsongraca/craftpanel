@@ -30,6 +30,7 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         var proxyMotd: String? = null,
         var proxyMaxPlayers: Int? = null,
         var proxyForwardingMode: String? = null,
+        var forwardingSecretEnc: String? = null,
         var backupSchedule: String? = null,
         var backupMaxCount: Int = 10,
         var backupScheduleLastFired: String? = null,
@@ -250,6 +251,10 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         }
     }
 
+    override fun updateForwardingSecret(id: Uuid, forwardingSecretEnc: String?) {
+        state.servers[id]?.forwardingSecretEnc = forwardingSecretEnc
+    }
+
     override fun delete(id: Uuid) {
         state.servers.remove(id)
         state.mods.remove(id)
@@ -289,6 +294,7 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         proxyMotd,
         proxyMaxPlayers,
         proxyForwardingMode,
+        forwardingSecretEnc,
         backupSchedule,
         backupMaxCount,
         backupScheduleLastFired,

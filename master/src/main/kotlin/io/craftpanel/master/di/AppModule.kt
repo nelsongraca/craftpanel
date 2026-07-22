@@ -3,6 +3,7 @@ package io.craftpanel.master.di
 import io.craftpanel.master.auth.*
 import io.craftpanel.master.config.AppConfig
 import io.craftpanel.master.config.ImagesConfig
+import io.craftpanel.master.crypto.ForwardingSecretCipher
 import io.craftpanel.master.docker.MasterDockerClient
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.grpc.*
@@ -209,12 +210,25 @@ val appModule = module {
     }
     single { BackupService(get<AgentGateway>(), get(), get(), get()) }
     single {
-        val dataServiceProxy = get<DataServiceProxy>()
-        ProxyBackendService(get(), get(), get(), writeFile = dataServiceProxy::writeFile)
+        ForwardingSecretCipher(java.util.Base64.getDecoder().decode(get<AppConfig>().forwarding.key))
     }
     single {
         val dataServiceProxy = get<DataServiceProxy>()
-        ProxySettingsService(get(), get(), writeFile = dataServiceProxy::writeFile)
+        BackendForwardingService(
+            serverRepository = get(),
+            proxyBackendRepository = get(),
+            envVarsRepository = get(),
+            cipher = get(),
+            writeFile = dataServiceProxy::writeFile
+        )
+    }
+    single {
+        val dataServiceProxy = get<DataServiceProxy>()
+        ProxyBackendService(get(), get(), get(), get(), writeFile = dataServiceProxy::writeFile)
+    }
+    single {
+        val dataServiceProxy = get<DataServiceProxy>()
+        ProxySettingsService(get(), get(), get(), writeFile = dataServiceProxy::writeFile)
     }
     single { EnvVarsService(get(), get()) }
     single { DashboardService(get(), get(), get(), get(), get()) }

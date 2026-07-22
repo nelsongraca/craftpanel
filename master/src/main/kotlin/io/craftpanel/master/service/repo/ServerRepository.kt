@@ -28,6 +28,7 @@ data class ServerRow(
     val proxyMotd: String? = null,
     val proxyMaxPlayers: Int? = null,
     val proxyForwardingMode: String? = null,
+    val forwardingSecretEnc: String? = null,
     val backupSchedule: String?,
     val backupMaxCount: Int,
     val backupScheduleLastFired: String?,
@@ -84,6 +85,7 @@ interface ServerRepository {
     fun updateConfigMode(id: Uuid, configMode: String)
     fun updateStopCommand(id: Uuid, stopCommand: String)
     fun updateProxySettings(id: Uuid, motd: String?, maxPlayers: Int?, forwardingMode: String?)
+    fun updateForwardingSecret(id: Uuid, forwardingSecretEnc: String?)
     fun delete(id: Uuid)
     fun nullifyNetworkId(networkId: Uuid)
 }

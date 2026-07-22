@@ -1071,6 +1071,62 @@ describe('Proxy Server Config Tab', () => {
 })
 
 // ---------------------------------------------------------------------------
+// Backend forwarding warnings (#44)
+// ---------------------------------------------------------------------------
+
+describe('Backend forwarding warnings', () => {
+    beforeEach(() => vi.clearAllMocks())
+
+    it('replaceProxyBackends warn-skip surfaces in Proxy Backends section', async () => {
+        const user = userEvent.setup()
+        const backends = [
+            { id: 'b1', backend_server_id: 's1', backend_name: 'alpha', order: 1 },
+        ]
+        const servers: Partial<ServerResponse>[] = [
+            { id: 's1', display_name: 'Alpha', server_type: 'VANILLA', status: 'HEALTHY', network_id: 'n1' },
+        ]
+        await renderProxyServer(backends, servers as ServerResponse[])
+        vi.mocked(replaceProxyBackends).mockResolvedValue({
+            data: {
+                backends,
+                forwarding_warnings: ['alpha (VANILLA) does not support forwarding'],
+            },
+        } as never)
+
+        const nameInput = screen.getByDisplayValue('alpha')
+        await user.clear(nameInput)
+        await user.type(nameInput, 'alpha2')
+        await user.click(screen.getByRole('button', { name: /^save$/i }))
+
+        await waitFor(() =>
+            expect(screen.getByText('alpha (VANILLA) does not support forwarding')).toBeInTheDocument()
+        )
+    })
+
+    it('updateProxySettings warn-skip surfaces in Proxy Settings section', async () => {
+        const user = userEvent.setup()
+        await renderProxyServer()
+        vi.mocked(updateProxySettings).mockResolvedValue({
+            data: {
+                motd: null,
+                max_players: null,
+                forwarding_mode: 'MODERN',
+                forwarding_warnings: ['backend-1 is in MANUAL config mode — forwarding config not applied; configure it by hand'],
+            },
+        } as never)
+
+        await user.selectOptions(screen.getByRole('combobox'), 'MODERN')
+        await user.click(screen.getByRole('button', { name: /^save$/i }))
+
+        await waitFor(() =>
+            expect(
+                screen.getByText('backend-1 is in MANUAL config mode — forwarding config not applied; configure it by hand')
+            ).toBeInTheDocument()
+        )
+    })
+})
+
+// ---------------------------------------------------------------------------
 // New Server Defaults
 // ---------------------------------------------------------------------------
 

@@ -44,6 +44,7 @@ services:
       DATABASE_PASSWORD: ${DB_PASSWORD:?required}
       JWT_SECRET: ${JWT_SECRET:?required}
       NODE_BOOTSTRAP_TOKEN: ${NODE_BOOTSTRAP_TOKEN:?required}
+      FORWARDING_KEY: ${FORWARDING_KEY:?required}
       # "master" covers the local agent (docker service name).
       # Append your public hostname or IP if you connect agents from external nodes.
       GRPC_TLS_SANS: master

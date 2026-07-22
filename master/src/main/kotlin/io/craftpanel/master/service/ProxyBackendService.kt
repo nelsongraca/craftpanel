@@ -13,7 +13,7 @@ private val BACKEND_NAME_PATTERN = Regex("^[A-Za-z0-9_-]+$")
 data class ProxyBackendItem(val id: String, @SerialName("backend_server_id") val backendServerId: String, @SerialName("backend_name") val backendName: String, val order: Int)
 
 @Serializable
-data class ProxyBackendListResponse(val backends: List<ProxyBackendItem>)
+data class ProxyBackendListResponse(val backends: List<ProxyBackendItem>, @SerialName("forwarding_warnings") val forwardingWarnings: List<String> = emptyList())
 
 @Serializable
 data class BackendInput(@SerialName("backend_server_id") val backendServerId: String, @SerialName("backend_name") val backendName: String, val order: Int)
@@ -25,6 +25,7 @@ class ProxyBackendService(
     private val serverRepository: ServerRepository,
     private val proxyBackendRepository: ProxyBackendRepository,
     private val proxyConfigPatchService: ProxyConfigPatchService,
+    private val backendForwardingService: BackendForwardingService,
     private val writeFile: suspend (Uuid, String, ByteArray) -> Unit
 ) {
 
@@ -62,7 +63,12 @@ class ProxyBackendService(
         proxyBackendRepository.replaceProxyBackends(proxyServerId, inputs)
         serverRepository.updateNeedsRecreate(proxyServerId, true)
         writePatchIfRunning(serverRow.id, serverRow.status)
-        return listBackends(proxyServerId)
+
+        // New/changed backend set on an already-forwarding proxy needs matching config pushed (#44).
+        val warnings = serverRow.proxyForwardingMode?.let { mode ->
+            backendForwardingService.applyToAllBackends(proxyServerId, mode).map { it.reason }
+        } ?: emptyList()
+        return listBackends(proxyServerId).copy(forwardingWarnings = warnings)
     }
 
     private suspend fun writePatchIfRunning(proxyServerId: Uuid, status: String) {

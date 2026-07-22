@@ -9,6 +9,16 @@ class FakeEnvVarsRepository(private val state: FakeRepositories) : EnvVarsReposi
         state.envVars[serverId] = envVars.toMutableList()
     }
 
+    override fun upsertEnvVar(serverId: Uuid, key: String, value: String) {
+        val vars = state.envVars.getOrPut(serverId) { mutableListOf() }
+        val idx = vars.indexOfFirst { it.key == key }
+        if (idx >= 0) {
+            vars[idx] = EnvVarRow(key, value)
+        } else {
+            vars.add(EnvVarRow(key, value))
+        }
+    }
+
     override fun deleteEnvVarsForServer(serverId: Uuid) {
         state.envVars.remove(serverId)
     }

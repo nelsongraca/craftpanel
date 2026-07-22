@@ -196,6 +196,7 @@ class CraftPanelStack {
             .withEnv("DATABASE_PASSWORD", DB_PASSWORD)
             .withEnv("NODE_BOOTSTRAP_TOKEN", "test-bootstrap-token")
             .withEnv("JWT_SECRET", "test-jwt-secret-at-least-32-characters-long!")
+            .withEnv("FORWARDING_KEY", "WJ4iv5Ce5Y91yjG8lNnIJlaW9qiO2nThTfDDNeTXNsE=")
             .withEnv("CRAFTPANEL_CONTAINER_PREFIX", containerPrefix)
             .withEnv("CRAFTPANEL_ADMIN_EMAIL", ADMIN_EMAIL)
             .withEnv("CRAFTPANEL_ADMIN_PASSWORD", ADMIN_PASSWORD)

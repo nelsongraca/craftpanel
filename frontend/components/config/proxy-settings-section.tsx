@@ -21,6 +21,7 @@ export function ProxySettingsSection({
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [forwardingWarnings, setForwardingWarnings] = useState<string[]>([]);
 
     const isVelocity = serverType === "VELOCITY";
 
@@ -61,6 +62,7 @@ export function ProxySettingsSection({
         if (res.error) {
             setError((res.error as { message?: string }).message ?? "Save failed");
         } else {
+            setForwardingWarnings(res.data?.forwarding_warnings ?? []);
             await load();
         }
         setSaving(false);
@@ -144,6 +146,14 @@ export function ProxySettingsSection({
                 {error && (
                     <div className="text-xs text-error bg-error/10 border border-error/30 rounded px-3 py-2">
                         {error}
+                    </div>
+                )}
+
+                {forwardingWarnings.length > 0 && (
+                    <div className="text-xs text-warning bg-warning/10 border border-warning/30 rounded px-3 py-2 space-y-1">
+                        {forwardingWarnings.map((w, i) => (
+                            <p key={i}>{w}</p>
+                        ))}
                     </div>
                 )}
 
