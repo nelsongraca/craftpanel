@@ -41,9 +41,9 @@ class ProxySettingsTest : BaseSystemTest() {
 
         context("Proxy settings management") {
 
-            should("returns null settings for a new proxy server") {
+            should("returns default motd and null settings for a new proxy server") {
                 val settings = api.getProxySettings(proxyServerId)
-                settings.motd shouldBe null
+                settings.motd shouldBe "Velocity powered by CraftPanel"
                 settings.maxPlayers shouldBe null
                 settings.forwardingMode shouldBe null
             }
