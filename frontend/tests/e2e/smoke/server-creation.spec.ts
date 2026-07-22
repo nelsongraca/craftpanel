@@ -7,14 +7,23 @@ import {login} from "./helpers";
 // (each depends on the network/servers earlier tests created).
 test.describe.configure({mode: "serial"});
 
+// Unique per run and namespaced so these can never collide with a real server or
+// network on a live environment that already has its own servers/networks.
 const RUN_ID = Date.now();
-const NETWORK_NAME = `smoke-net-${RUN_ID}`;
-const FABRIC_NAME = `smoke-fabric-${RUN_ID}`;
-const PAPER_NAME = `smoke-paper-${RUN_ID}`;
-const VELOCITY_NAME = `smoke-velocity-${RUN_ID}`;
+const NETWORK_NAME = `smoke-test-network-${RUN_ID}`;
+const FABRIC_NAME = `smoke-test-fabric-${RUN_ID}`;
+const PAPER_NAME = `smoke-test-paper-${RUN_ID}`;
+const VELOCITY_NAME = `smoke-test-velocity-${RUN_ID}`;
 
 let context: BrowserContext;
 let page: Page;
+
+// Row lookup helper: getByRole name matching is substring-based by default, so a
+// bare `{name}` risks matching an unrelated real server/network whose name happens
+// to contain this one. Always locate via the exact cell, then scope to its row.
+function rowByExactName(p: Page, name: string) {
+    return p.getByRole("row").filter({has: p.getByRole("cell", {name, exact: true})});
+}
 
 async function createServer(
     p: Page,
@@ -35,20 +44,29 @@ async function createServer(
 
 async function deleteServerByName(p: Page, name: string) {
     await p.goto("/servers");
-    const row = p.getByRole("row", {name});
-    await expect(row).toBeVisible();
-    await row.getByRole("button", {name: "Delete"}).click();
+    const cell = p.getByRole("cell", {name, exact: true});
+    // Locator.count()/isVisible() don't auto-wait or retry — they're one-shot
+    // snapshots that can read 0/false before the client-rendered table finishes
+    // loading, silently skipping a delete that should have happened. expect(...)
+    // polls until the timeout, so use that to distinguish "not rendered yet" from
+    // "genuinely absent."
+    const found = await expect(cell).toBeVisible({timeout: 5000}).then(() => true).catch(() => false);
+    if (!found) return;
+    await expect(cell).toHaveCount(1);
+    await rowByExactName(p, name).getByRole("button", {name: "Delete"}).click();
     await p.getByRole("alertdialog", {name: "Delete Server?"}).getByRole("button", {name: "Confirm"}).click();
-    await expect(p.getByRole("row", {name})).not.toBeVisible();
+    await expect(cell).not.toBeVisible();
 }
 
 async function deleteNetworkByName(p: Page, name: string) {
     await p.goto("/networks");
-    const row = p.getByRole("row", {name});
-    await expect(row).toBeVisible();
-    await row.getByRole("button", {name: "Delete"}).click();
+    const cell = p.getByRole("cell", {name, exact: true});
+    const found = await expect(cell).toBeVisible({timeout: 5000}).then(() => true).catch(() => false);
+    if (!found) return;
+    await expect(cell).toHaveCount(1);
+    await rowByExactName(p, name).getByRole("button", {name: "Delete"}).click();
     await p.getByRole("dialog", {name: "Delete Network"}).getByRole("button", {name: "Delete"}).click();
-    await expect(p.getByRole("row", {name})).not.toBeVisible();
+    await expect(cell).not.toBeVisible();
 }
 
 test.beforeAll(async ({browser}: {browser: Browser}) => {
@@ -79,7 +97,7 @@ test("fabric server can be created on a network", async () => {
 
     // List page: row shows the right type, and the network filter still finds it.
     await page.goto("/servers");
-    const row = page.getByRole("row", {name: FABRIC_NAME});
+    const row = rowByExactName(page, FABRIC_NAME);
     await expect(row.getByRole("cell", {name: "FABRIC", exact: true})).toBeVisible();
     await page.getByRole("combobox").filter({hasText: "All Networks"}).selectOption(NETWORK_NAME);
     await expect(row).toBeVisible();
@@ -89,12 +107,12 @@ test("paper server can be created", async () => {
     await createServer(page, {name: PAPER_NAME, type: "PAPER"});
 
     await page.goto("/servers");
-    await expect(page.getByRole("row", {name: PAPER_NAME}).getByRole("cell", {name: "PAPER", exact: true})).toBeVisible();
+    await expect(rowByExactName(page, PAPER_NAME).getByRole("cell", {name: "PAPER", exact: true})).toBeVisible();
 });
 
 test("velocity proxy can be created", async () => {
     await createServer(page, {name: VELOCITY_NAME, type: "VELOCITY"});
 
     await page.goto("/servers");
-    await expect(page.getByRole("row", {name: VELOCITY_NAME}).getByRole("cell", {name: "VELOCITY", exact: true})).toBeVisible();
+    await expect(rowByExactName(page, VELOCITY_NAME).getByRole("cell", {name: "VELOCITY", exact: true})).toBeVisible();
 });
