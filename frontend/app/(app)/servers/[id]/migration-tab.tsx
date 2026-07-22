@@ -5,6 +5,7 @@ import {ArrowRight, ChevronDown, ChevronRight, Loader2, Shuffle, X} from "lucide
 import {listMigrations, listNodes, startMigration} from "@/lib/generated/sdk.gen";
 import type {MigrationResponse, MigrationStepData} from "@/lib/types";
 import type {Node} from "@/lib/types";
+import {useReconnectingSocket} from "@/lib/hooks/useReconnectingSocket";
 
 function fmtDate(iso: string): string {
     return new Date(iso).toLocaleString();
@@ -90,67 +91,58 @@ function ActiveMigration({migrationId, onDone}: { migrationId: string; onDone: (
     const [steps, setSteps] = useState<LiveStep[]>([]);
     const [migrationStatus, setMigrationStatus] = useState<string>("PENDING");
     const [error, setError] = useState<string | null>(null);
-    const [connected, setConnected] = useState(false);
-    const wsRef = useRef<WebSocket | null>(null);
     const doneRef = useRef(false);
 
-    useEffect(() => {
+    const urlFactory = async () => {
         const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-        const url = `${proto}//${window.location.host}/api/migrations/${migrationId}/events`;
-        const ws = new WebSocket(url);
-        wsRef.current = ws;
+        return `${proto}//${window.location.host}/api/migrations/${migrationId}/events`;
+    };
 
-        ws.onopen = () => setConnected(true);
+    const onMessage = (e: MessageEvent) => {
+        let msg: Record<string, unknown>;
+        try {
+            msg = JSON.parse(e.data as string);
+        } catch {
+            return;
+        }
+        const type = msg["type"] as string;
 
-        ws.onmessage = (e) => {
-            let msg: Record<string, unknown>;
-            try {
-                msg = JSON.parse(e.data as string);
-            } catch {
-                return;
+        if (type === "status") {
+            setMigrationStatus(msg["status"] as string);
+        } else if (type === "step.started") {
+            const stepNum = msg["step"] as number;
+            const desc = msg["description"] as string;
+            setSteps(prev => {
+                const existing = prev.find(s => s.step === stepNum);
+                if (existing) return prev.map(s => s.step === stepNum ? {...s, status: "RUNNING"} : s);
+                return [...prev, {step: stepNum, description: desc, status: "RUNNING"}];
+            });
+        } else if (type === "rsync.progress") {
+            const stepNum = msg["step"] as number | undefined;
+            const pct = msg["percent"] as number;
+            if (stepNum !== undefined) {
+                setSteps(prev => prev.map(s => s.step === stepNum ? {...s, rsyncPercent: pct} : s));
             }
-            const type = msg["type"] as string;
-
-            if (type === "status") {
-                setMigrationStatus(msg["status"] as string);
-            } else if (type === "step.started") {
-                const stepNum = msg["step"] as number;
-                const desc = msg["description"] as string;
-                setSteps(prev => {
-                    const existing = prev.find(s => s.step === stepNum);
-                    if (existing) return prev.map(s => s.step === stepNum ? {...s, status: "RUNNING"} : s);
-                    return [...prev, {step: stepNum, description: desc, status: "RUNNING"}];
-                });
-            } else if (type === "rsync.progress") {
-                const stepNum = msg["step"] as number | undefined;
-                const pct = msg["percent"] as number;
-                if (stepNum !== undefined) {
-                    setSteps(prev => prev.map(s => s.step === stepNum ? {...s, rsyncPercent: pct} : s));
-                }
-            } else if (type === "failed") {
-                setError(msg["error"] as string ?? "Migration failed");
-                setMigrationStatus("FAILED");
-                if (!doneRef.current) {
-                    doneRef.current = true;
-                    setTimeout(onDone, 3000);
-                }
-            } else if (type === "completed") {
-                setMigrationStatus("COMPLETED");
-                if (!doneRef.current) {
-                    doneRef.current = true;
-                    ws.close();
-                    setTimeout(onDone, 2000);
-                }
+        } else if (type === "failed") {
+            setError(msg["error"] as string ?? "Migration failed");
+            setMigrationStatus("FAILED");
+            if (!doneRef.current) {
+                doneRef.current = true;
+                setTimeout(onDone, 3000);
             }
-        };
+        } else if (type === "completed") {
+            setMigrationStatus("COMPLETED");
+            if (!doneRef.current) {
+                doneRef.current = true;
+                setTimeout(onDone, 2000);
+            }
+        }
+    };
 
-        ws.onclose = () => setConnected(false);
-        ws.onerror = () => setError("WebSocket connection error");
-
-        return () => {
-            ws.close();
-        };
-    }, [migrationId, onDone]);
+    const {connected} = useReconnectingSocket({
+        urlFactory,
+        onMessage,
+    });
 
     const statusColor = {
         PENDING: "text-text-dim",

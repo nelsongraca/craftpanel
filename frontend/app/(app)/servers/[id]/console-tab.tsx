@@ -2,6 +2,7 @@
 
 import {useEffect, useRef, useState} from "react";
 import {authWsTicket, fetchServerConsoleLogs} from "@/lib/generated/sdk.gen";
+import {useReconnectingSocket} from "@/lib/hooks/useReconnectingSocket";
 
 interface Props {
     serverId: string;
@@ -48,28 +49,75 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [error, setError] = useState<string | null>(null);
     const [statusMsg, setStatusMsg] = useState<string>("Connecting…");
-    const [reconnectKey, setReconnectKey] = useState(0);
+    const termRef = useRef<import("@xterm/xterm").Terminal | null>(null);
+    const roRef = useRef<ResizeObserver | null>(null);
+    const disposedRef = useRef(false);
+
+    const urlFactory = async () => {
+        if (serverStatus !== "HEALTHY") return null;
+        const res = await authWsTicket();
+        if (!res) return null;
+        const ticketErr = res.error;
+        const data = res.data;
+        if (ticketErr || !data?.ticket) {
+            setError("Failed to get WebSocket ticket");
+            return null;
+        }
+        const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
+        return `${proto}//${window.location.host}/api/ws/console/${serverId}?ticket=${data.ticket}`;
+    };
+
+    const onMessage = (evt: MessageEvent) => {
+        try {
+            const msg = JSON.parse(evt.data as string) as { type: string; data?: string; reason?: string };
+            if (msg.type === "console.ready") {
+                setStatusMsg("");
+            } else if (msg.type === "console.output") {
+                termRef.current?.write((msg.data ?? "").replace(/\r?\n/g, "\r\n"));
+            } else if (msg.type === "console.disconnected") {
+                const reason = msg.reason ?? "Disconnected";
+                termRef.current?.write(`\r\n\x1b[33m[${reason}]\x1b[0m\r\n`);
+                setStatusMsg(reason);
+            }
+        } catch {
+        }
+    };
+
+    const onOpen = () => {
+        setStatusMsg("");
+    };
+
+    const onClose = () => {
+        setStatusMsg((s) => s || "Disconnected");
+    };
+
+    const {connected, socketRef} = useReconnectingSocket({
+        urlFactory,
+        onMessage,
+        onOpen,
+        onClose,
+        onError: () => setError("WebSocket connection failed"),
+        enabled: serverStatus === "HEALTHY",
+    });
 
     useEffect(() => {
         if (serverStatus !== "HEALTHY") return;
 
         setStatusMsg("Connecting…");
         setError(null);
-        let disposed = false;
-        let term: import("@xterm/xterm").Terminal | null = null;
-        let ws: WebSocket | null = null;
+        disposedRef.current = false;
 
         async function init() {
             const {Terminal} = await import("@xterm/xterm");
             const {FitAddon} = await import("@xterm/addon-fit");
             await import("@xterm/xterm/css/xterm.css");
 
-            if (disposed || !containerRef.current) return;
+            if (disposedRef.current || !containerRef.current) return;
 
             const css = getComputedStyle(document.documentElement);
             const v = (name: string) => css.getPropertyValue(name).trim();
 
-            term = new Terminal({
+            const term = new Terminal({
                 theme: {
                     background: v("--bg"),
                     foreground: v("--text-primary"),
@@ -82,78 +130,42 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
                 scrollback: 5000,
             });
 
+            termRef.current = term;
+
             const fitAddon = new FitAddon();
             term.loadAddon(fitAddon);
-            term.open(containerRef.current);
+            term.open(containerRef.current!);
             fitAddon.fit();
 
             const ro = new ResizeObserver(() => fitAddon.fit());
+            roRef.current = ro;
             if (containerRef.current) ro.observe(containerRef.current);
 
             const {data: logData} = await fetchServerConsoleLogs({path: {id: serverId}});
-            if (disposed) return;
+            if (disposedRef.current) return;
             if (logData?.lines.length) {
                 term.write(logData.lines.join("").replace(/\r?\n/g, "\r\n"));
                 term.write("\x1b[90m--- live output below ---\x1b[0m\r\n");
             }
 
-            const {data, error: ticketErr} = await authWsTicket();
-            if (ticketErr || !data?.ticket) {
-                setError("Failed to get WebSocket ticket");
-                return;
-            }
-            if (disposed) return;
-
-            const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-            ws = new WebSocket(`${proto}//${window.location.host}/api/ws/console/${serverId}?ticket=${data.ticket}`);
-
-            ws.onmessage = (evt) => {
-                try {
-                    const msg = JSON.parse(evt.data as string) as { type: string; data?: string; reason?: string };
-                    if (msg.type === "console.ready") {
-                        setStatusMsg("");
-                    } else if (msg.type === "console.output") {
-                        term?.write((msg.data ?? "").replace(/\r?\n/g, "\r\n"));
-                    } else if (msg.type === "console.disconnected") {
-                        const reason = msg.reason ?? "Disconnected";
-                        term?.write(`\r\n\x1b[33m[${reason}]\x1b[0m\r\n`);
-                        setStatusMsg(reason);
-                    }
-                } catch {
-                    // ignore malformed frames
-                }
-            };
-
-            ws.onerror = () => setError("WebSocket connection failed");
-            ws.onclose = () => {
-                setStatusMsg((s) => s || "Disconnected");
-                if (!disposed) {
-                    setTimeout(() => {
-                        if (!disposed) setReconnectKey((k) => k + 1);
-                    }, 3000);
-                }
-            };
-
             term.onData((data) => {
-                if (ws?.readyState === WebSocket.OPEN) {
-                    ws.send(JSON.stringify({type: "console.input", data}));
+                if (socketRef.current?.readyState === WebSocket.OPEN) {
+                    socketRef.current.send(JSON.stringify({type: "console.input", data}));
                 }
-                term?.write(data);
+                term.write(data);
             });
-
-            return () => {
-                ro.disconnect();
-            };
         }
 
         void init();
 
         return () => {
-            disposed = true;
-            ws?.close();
-            term?.dispose();
+            disposedRef.current = true;
+            roRef.current?.disconnect();
+            roRef.current = null;
+            termRef.current?.dispose();
+            termRef.current = null;
         };
-    }, [serverId, serverStatus, reconnectKey]);
+    }, [serverId, serverStatus]);
 
     if (serverStatus === "UNHEALTHY") {
         return <CrashLogView serverId={serverId}/>;
