@@ -4,7 +4,7 @@ CraftPanel master is configured through a layered system: a bundled HOCON config
 
 ## Precedence
 
-For secrets (`JWT_SECRET`, `DATABASE_PASSWORD`, `CF_API_TOKEN`, `NODE_BOOTSTRAP_TOKEN`):
+For secrets (`JWT_SECRET`, `DATABASE_PASSWORD`, `CF_API_TOKEN`, `NODE_BOOTSTRAP_TOKEN`, `FORWARDING_KEY`):
 
 ```
 Secret file (_FILE env var)  ← highest priority
@@ -34,7 +34,7 @@ Each `application.conf` value can be overridden by its environment variable. Exa
 
 ## Secrets (`_FILE` pattern)
 
-For the four secret values, a `_FILE` variant of the environment variable is supported. When `<NAME>_FILE` is set, master reads the secret from that file path (contents trimmed) instead of the plain environment variable — compatible with Docker secrets and Kubernetes secret mounts. A `_FILE` path that is set but unreadable is fatal (fail loud rather than silently fall back).
+For these secret values, a `_FILE` variant of the environment variable is supported. When `<NAME>_FILE` is set, master reads the secret from that file path (contents trimmed) instead of the plain environment variable — compatible with Docker secrets and Kubernetes secret mounts. A `_FILE` path that is set but unreadable is fatal (fail loud rather than silently fall back).
 
 ```bash
 # Instead of:
@@ -52,6 +52,7 @@ Supported `_FILE` variables:
 | `JWT_SECRET_FILE`             | JWT signing key                                |
 | `CF_API_TOKEN_FILE`           | DNS provider (Cloudflare) API key              |
 | `NODE_BOOTSTRAP_TOKEN_FILE`   | Node registration bootstrap token (master and agent both read it) |
+| `FORWARDING_KEY_FILE`         | AES-256 key encrypting the stored Velocity/BungeeCord forwarding secret — see [Forwarding key](#forwarding-key) |
 
 ## All configuration keys
 
@@ -76,6 +77,28 @@ Supported `_FILE` variables:
 | `node.bootstrapToken`  | `NODE_BOOTSTRAP_TOKEN`            | Yes      | —                       | Token agents use to register for the first time (min 16 chars)                          |
 | `node.agentDataPort`   | `AGENT_DATA_PORT`                 | No       | `50052`                 | Port for agent bulk-data transfers                                                      |
 | `docker.endpoint`      | `DOCKER_ENDPOINT`                 | No       | —                       | Docker host for Swarm overlay network management (e.g. `unix:///var/run/docker.sock`). When set, master creates/deletes overlay networks for Server Networks and allows cross-node membership. |
+| `forwarding.key`       | `FORWARDING_KEY` (or `_FILE`)     | Yes      | —                       | Base64-encoded 32-byte AES-256 key, encrypts the forwarding secret at rest — see [Forwarding key](#forwarding-key) |
+
+## Forwarding key
+
+`FORWARDING_KEY` is the AES-256 key used to encrypt the Velocity/BungeeCord modern-forwarding secret before it is stored in the database (see [ADR-0003](../../adr/0003-backend-forwarding-secret-master-owned.md)). Master mints and owns the forwarding secret itself and pushes it to the proxy and to each eligible backend server; `FORWARDING_KEY` only protects that secret at rest — it is not the forwarding secret itself, and it is never written into any Minecraft server config.
+
+It must be Base64-encoded 32 raw bytes. Generate one on Linux (or macOS):
+
+```bash
+openssl rand -base64 32
+```
+
+If `openssl` isn't available:
+
+```bash
+head -c 32 /dev/urandom | base64
+```
+
+Set the result as `FORWARDING_KEY` (or point `FORWARDING_KEY_FILE` at a file containing it). Master refuses to start outside `app.profile=dev` if this is left at the built-in default or isn't valid Base64 of exactly 32 bytes.
+
+!!! warning
+    Generate this once and keep it. If it's lost or changed after backends have been configured for forwarding, master can no longer decrypt the stored secret, and every proxy/backend pair using it must be reconfigured.
 
 ## Runtime settings (DB-backed, editable in the UI)
 

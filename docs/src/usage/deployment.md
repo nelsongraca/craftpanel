@@ -19,10 +19,19 @@ ACME_EMAIL=you@example.com
 DB_PASSWORD=<random secret>
 JWT_SECRET=<random secret, 32+ bytes>
 NODE_BOOTSTRAP_TOKEN=<random secret, 16+ chars>
+FORWARDING_KEY=<base64 AES-256 key — generate with the command below>
 ADMIN_EMAIL=you@example.com
 ADMIN_PASSWORD=<initial admin password>
 HOST_DATA_PATH=/opt/craftpanel/data
 ```
+
+`FORWARDING_KEY` must be a Base64-encoded 32-byte (256-bit) key. Generate one on Linux/macOS with:
+
+```bash
+openssl rand -base64 32
+```
+
+Master uses this key to encrypt the Velocity/BungeeCord player-forwarding secret it stores in the database (see [Configuration & Secrets](../tech-stack/configuration.md#forwarding-key)). Losing this key after servers are configured for forwarding breaks proxy↔backend authentication until reconfigured — back it up along with your other secrets.
 
 See [Configuration & Secrets](../tech-stack/configuration.md) for the full environment variable reference, including the `_FILE` secret pattern for production deployments that prefer mounted secrets over plain env vars.
 
