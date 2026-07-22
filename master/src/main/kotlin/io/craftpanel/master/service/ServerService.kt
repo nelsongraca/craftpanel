@@ -10,6 +10,7 @@ import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.removeContainerCommand
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
@@ -159,70 +160,72 @@ class ServerService(
             if (allNodeIds.size > 1) networkService?.validateCrossNodeAssignment(allNodeIds)
         }
 
-        data class CreateResult(val status: String, val server: ServerResponse? = null)
-
-        fun attemptCreate(): CreateResult {
-            val node = nodeRepository.findById(nodeKotlinId) ?: return CreateResult("node_not_found")
-            if (node.status != "ACTIVE") return CreateResult("node_not_active")
+        fun attemptCreate(): ServerResponse {
+            val node = nodeRepository.findById(nodeKotlinId) ?: throw UnprocessableException("Node not found")
+            if (node.status != "ACTIVE") throw UnprocessableException("Node is not active")
             if (networkKotlinId != null && networkRepository.findById(networkKotlinId) == null) {
-                return CreateResult("network_not_found")
+                throw UnprocessableException("Network not found")
             }
-            if (serverRepository.findByName(req.name) != null) return CreateResult("name_taken")
+            if (serverRepository.findByName(req.name) != null) throw ConflictException("Server name already taken")
 
             when (capacityChecker.check(node, excludeServerId = null, memoryMb = req.memoryMb, cpuShares = req.cpuShares)) {
-                CapacityResult.InsufficientRam -> return CreateResult("insufficient_ram")
-                CapacityResult.InsufficientCpu -> return CreateResult("insufficient_cpu")
+                CapacityResult.InsufficientRam -> throw ConflictException("Insufficient RAM capacity on node")
+                CapacityResult.InsufficientCpu -> throw ConflictException("Insufficient CPU capacity on node")
                 CapacityResult.Ok -> {}
             }
 
             val usedPorts = portRepository.findUsedPortsOnNode(nodeKotlinId)
                 .toSet()
             val port = PortAllocator.pickFreePort(node.portRangeStart, node.portRangeEnd, usedPorts)
-                ?: return CreateResult("no_ports")
+                ?: throw ConflictException("No free ports available on node")
 
             val stopCommand = if (serverType.isProxy) "end" else "stop"
-            val newServer = serverRepository.create(
-                name = req.name,
-                displayName = req.displayName ?: req.name,
-                description = req.description,
-                nodeId = nodeKotlinId,
-                networkId = networkKotlinId,
-                serverType = serverType,
-                mcVersion = req.mcVersion,
-                itzgImageTag = req.itzgImageTag,
-                hostPort = port,
-                memoryMb = req.memoryMb,
-                cpuShares = req.cpuShares,
-                configMode = "MANAGED",
-                stopCommand = stopCommand
-            )
-
-            portRepository.registerPort(nodeKotlinId, port, "TCP", newServer.id)
-
-            val platformName = settingsRepository.getAll()
-                .firstOrNull { it.key == "CRAFTPANEL_PLATFORM_NAME" }
-                ?.value ?: "CraftPanel"
-            val serverTypeDisplay = req.serverType.lowercase()
-                .replaceFirstChar { it.uppercase() }
-
-            if (!serverType.isProxy) {
-                val defaults = buildDefaultEnvVars(req.mcVersion, serverTypeDisplay, platformName)
-                envVarsRepository.replaceEnvVars(
-                    newServer.id,
-                    defaults.map { (k, v) ->
-                        EnvVarRow(k, v)
-                    }
+            val newServer = transaction {
+                val s = serverRepository.create(
+                    name = req.name,
+                    displayName = req.displayName ?: req.name,
+                    description = req.description,
+                    nodeId = nodeKotlinId,
+                    networkId = networkKotlinId,
+                    serverType = serverType,
+                    mcVersion = req.mcVersion,
+                    itzgImageTag = req.itzgImageTag,
+                    hostPort = port,
+                    memoryMb = req.memoryMb,
+                    cpuShares = req.cpuShares,
+                    configMode = "MANAGED",
+                    stopCommand = stopCommand
                 )
-            } else {
-                serverRepository.updateProxySettings(
-                    newServer.id,
-                    motd = "$serverTypeDisplay powered by $platformName",
-                    maxPlayers = null,
-                    forwardingMode = null
-                )
+
+                portRepository.registerPort(nodeKotlinId, port, "TCP", s.id)
+
+                val platformName = settingsRepository.getAll()
+                    .firstOrNull { it.key == "CRAFTPANEL_PLATFORM_NAME" }
+                    ?.value ?: "CraftPanel"
+                val serverTypeDisplay = req.serverType.lowercase()
+                    .replaceFirstChar { it.uppercase() }
+
+                if (!serverType.isProxy) {
+                    val defaults = buildDefaultEnvVars(req.mcVersion, serverTypeDisplay, platformName)
+                    envVarsRepository.replaceEnvVars(
+                        s.id,
+                        defaults.map { (k, v) ->
+                            EnvVarRow(k, v)
+                        }
+                    )
+                } else {
+                    serverRepository.updateProxySettings(
+                        s.id,
+                        motd = "$serverTypeDisplay powered by $platformName",
+                        maxPlayers = null,
+                        forwardingMode = null
+                    )
+                }
+
+                s
             }
 
-            return CreateResult("ok", newServer.toResponse(serverExposure, false))
+            return newServer.toResponse(serverExposure, false)
         }
 
         val result = run {
@@ -244,16 +247,7 @@ class ServerService(
             throw lastEx ?: RuntimeException("port allocation failed after retries")
         }
 
-        return when (result.status) {
-            "ok" -> result.server!!
-            "node_not_found" -> throw UnprocessableException("Node not found")
-            "node_not_active" -> throw UnprocessableException("Node is not active")
-            "network_not_found" -> throw UnprocessableException("Network not found")
-            "name_taken" -> throw ConflictException("Server name already taken")
-            "insufficient_ram" -> throw ConflictException("Insufficient RAM capacity on node")
-            "insufficient_cpu" -> throw ConflictException("Insufficient CPU capacity on node")
-            else -> throw ConflictException("No free ports available on node")
-        }
+        return result
     }
 
     fun getServer(id: Uuid): ServerResponse {
