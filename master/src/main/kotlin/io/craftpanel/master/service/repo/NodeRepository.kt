@@ -1,5 +1,6 @@
 package io.craftpanel.master.service.repo
 
+import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.NodeStatus
 import kotlin.uuid.Uuid
 
@@ -60,7 +61,7 @@ interface NodeRepository {
 
     fun update(id: Uuid, displayName: String?, portRangeStart: Int?, portRangeEnd: Int?, reservedRamMb: Int?)
     fun updateStatus(id: Uuid, status: NodeStatus)
-    fun updateHealth(id: Uuid, health: String)
+    fun updateHealth(id: Uuid, health: NodeHealth)
     fun updateLastSeen(id: Uuid, lastSeenAt: kotlin.time.Instant, publicIp: String?, agentVersion: String?, privateIp: String? = null, hostname: String? = null)
     fun updateSystemRam(id: Uuid, ramUsedMb: Int)
     fun updateSwarmActive(id: Uuid, swarmActive: Boolean)

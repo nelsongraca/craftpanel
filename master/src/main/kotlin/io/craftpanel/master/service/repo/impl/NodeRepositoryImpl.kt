@@ -1,6 +1,7 @@
 package io.craftpanel.master.service.repo.impl
 
 import io.craftpanel.master.database.schema.*
+import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.NodeStatus
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
@@ -87,8 +88,8 @@ class NodeRepositoryImpl : NodeRepository {
         transaction { Nodes.update({ Nodes.id eq id }) { it[Nodes.status] = status.toDb() } }
     }
 
-    override fun updateHealth(id: Uuid, health: String) {
-        transaction { Nodes.update({ Nodes.id eq id }) { it[Nodes.health] = health } }
+    override fun updateHealth(id: Uuid, health: NodeHealth) {
+        transaction { Nodes.update({ Nodes.id eq id }) { it[Nodes.health] = health.name } }
     }
 
     override fun updateLastSeen(id: Uuid, lastSeenAt: kotlin.time.Instant, publicIp: String?, agentVersion: String?, privateIp: String?, hostname: String?) {

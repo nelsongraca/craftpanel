@@ -1,5 +1,6 @@
 package io.craftpanel.master.service.repo
 
+import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.NodeStatus
 import kotlin.uuid.Uuid
 
@@ -110,8 +111,8 @@ class FakeNodeRepository : NodeRepository {
         nodes[id]?.status = status.toDb()
     }
 
-    override fun updateHealth(id: Uuid, health: String) {
-        nodes[id]?.health = health
+    override fun updateHealth(id: Uuid, health: NodeHealth) {
+        nodes[id]?.health = health.name
     }
 
     override fun updateLastSeen(id: Uuid, lastSeenAt: kotlin.time.Instant, publicIp: String?, agentVersion: String?, privateIp: String?, hostname: String?) {

@@ -49,7 +49,7 @@ class NodeStateReconciler(
 
         if (currentStatus == "ACTIVE") {
             val newHealth = if (snapshot.routerRunning) NodeHealth.HEALTHY else NodeHealth.DEGRADED
-            nodeRepository.updateHealth(kotlinNodeId, newHealth.name)
+            nodeRepository.updateHealth(kotlinNodeId, newHealth)
             nodeRepository.updateLastSeen(kotlinNodeId, now, null, null)
             nodeRepository.updateSwarmActive(kotlinNodeId, snapshot.swarmActive)
             resultHealth = newHealth
@@ -87,7 +87,7 @@ class NodeStateReconciler(
             log.warn("updateNodeHealth: invalid nodeId format: $nodeId")
             return
         }
-        nodeRepository.updateHealth(kotlinNodeId, health.name)
+        nodeRepository.updateHealth(kotlinNodeId, health)
     }
 
     fun updateNodeLastSeen(nodeId: String) {

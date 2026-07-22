@@ -75,7 +75,7 @@ class NodeService(private val gateway: AgentGateway, private val nodeRepository:
         val node = nodeRepository.findById(id) ?: throw NotFoundException("Node not found")
         if (node.status == "ACTIVE") throw ConflictException("Node is already active")
         nodeRepository.updateStatus(id, NodeStatus.ACTIVE)
-        nodeRepository.updateHealth(id, "UNREACHABLE")
+        nodeRepository.updateHealth(id, NodeHealth.UNREACHABLE)
     }
 
     fun rejectNode(id: kotlin.uuid.Uuid) {
