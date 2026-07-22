@@ -21,6 +21,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.minutes
 import kotlin.uuid.Uuid
 
@@ -36,6 +37,7 @@ private fun DefaultWebSocketSession.sendConsole(event: ConsoleEvent) {
 
 private class ConsoleSession {
 
+    val viewerCount = AtomicInteger(0)
     val input = Channel<ByteArray>(Channel.BUFFERED)
     val output = MutableSharedFlow<ByteArray>(
         replay = 2000,
@@ -51,22 +53,41 @@ private class ConsoleSessionManager(private val proxy: DataServiceProxy, private
     private val log = LoggerFactory.getLogger(ConsoleSessionManager::class.java)
     private val sessions = ConcurrentHashMap<Uuid, ConsoleSession>()
 
-    fun getOrCreate(serverId: Uuid): ConsoleSession = sessions.getOrPut(serverId) {
-        val session = ConsoleSession()
-        session.job = scope.launch {
-            try {
-                proxy.console(serverId, session.input.receiveAsFlow())
-                    .collect { bytes ->
-                        session.output.emit(bytes)
+    fun getOrCreate(serverId: Uuid): ConsoleSession = sessions.compute(serverId) { _, existing ->
+        val session = existing ?: ConsoleSession()
+        if (existing == null) {
+            session.job = scope.launch {
+                try {
+                    proxy.console(serverId, session.input.receiveAsFlow())
+                        .collect { bytes ->
+                            session.output.emit(bytes)
+                        }
+                }
+                catch (e: Exception) {
+                    log.warn("Console stream for {} ended: {}", serverId, e.message)
+                }
+                finally {
+                    sessions.compute(serverId) { _, s ->
+                        if (s === session) null else s
                     }
-            } catch (e: Exception) {
-                log.warn("Console stream for {} ended: {}", serverId, e.message)
-            } finally {
-                sessions.remove(serverId)
-                session.closed.value = true
+                    session.closed.value = true
+                }
             }
         }
+        session.viewerCount.incrementAndGet()
         session
+    }!!
+
+    fun releaseViewer(serverId: Uuid) {
+        sessions.compute(serverId) { _, existing ->
+            if (existing != null && existing.viewerCount.decrementAndGet() <= 0) {
+                existing.job?.cancel()
+                null
+            }
+            else {
+                existing
+            }
+        }
     }
 }
 
@@ -127,7 +148,8 @@ class ConsoleRoutes(private val wsTicketService: WsTicketService, private val pr
                         val text = chunk.decodeToString()
                         sendConsole(ConsoleEvent.Output(text))
                     }
-                } catch (_: Exception) {
+                }
+                catch (_: Exception) {
                 }
             }
 
@@ -169,10 +191,12 @@ class ConsoleRoutes(private val wsTicketService: WsTicketService, private val pr
                         }.onFailure { log.warn("Malformed console input: {}", it.message) }
                     }
                 }
-            } finally {
+            }
+            finally {
                 outputJob.cancel()
                 revalidationJob.cancel()
                 closeWatcherJob.cancel()
+                sessionManager.releaseViewer(serverInfo.serverId)
             }
         }
 
