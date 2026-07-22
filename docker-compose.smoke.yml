@@ -1,0 +1,26 @@
+name: craftpanel-smoke
+
+# POC: dedicated smoke-test runner, home-network only, no public exposure.
+# This container polls GitHub Actions (outbound only) and never binds a port.
+# Run manually alongside the main stack: docker compose -f docker-compose.smoke.yml up -d
+services:
+  smoke-runner:
+    build:
+      context: ./docker/smoke-runner
+    environment:
+      REPO_URL: ${SMOKE_REPO_URL:?required}
+      REPO_BRANCH: ${SMOKE_REPO_BRANCH:-master}
+      GH_REPO: ${SMOKE_GH_REPO:?required}
+      GH_TOKEN: ${SMOKE_GH_TOKEN:?required}
+      SMOKE_BASE_URL: ${SMOKE_BASE_URL:?required}
+      SMOKE_ADMIN_EMAIL: ${SMOKE_ADMIN_EMAIL:?required}
+      SMOKE_ADMIN_PASSWORD: ${SMOKE_ADMIN_PASSWORD:?required}
+      POLL_INTERVAL_SECONDS: ${SMOKE_POLL_INTERVAL_SECONDS:-300}
+    volumes:
+      - smoke-repo:/repo
+      - smoke-state:/state
+    restart: unless-stopped
+
+volumes:
+  smoke-repo:
+  smoke-state:
