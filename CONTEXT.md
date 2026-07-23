@@ -444,6 +444,31 @@ so the route is pure transport.
 - ADR: `docs/adr/0001-dashboard-service-seam.md`.
 - See candidate 2, `improve-codebase-architecture` review 2026-07-11.
 
+### ConsoleSessionManager (master)
+
+The one seam that owns the console viewer refcount lifecycle. Moved out of
+`ConsoleRoutes.kt` into its own file (`ConsoleSessionManager.kt`), `internal`
+visibility (was a private nested class).
+
+- All map mutation routes through one `private fun mutate(serverId,
+  transform: (ConsoleSession?) -> ConsoleSession?)` wrapping
+  `ConcurrentHashMap.compute` — `getOrCreate`, `releaseViewer`, and the
+  console job's `finally` cleanup (`removeIfCurrent`) each supply their own
+  transform instead of hand-rolling three independent `compute` calls.
+- Job launch (`scope.launch { ... }`) happens **outside** the `compute`
+  lambda — `getOrCreate` tracks a `created` flag from the pure transform,
+  then launches after `mutate` returns. Launching a coroutine inside
+  `compute` violates the map's short/non-blocking contract; this was a
+  latent risk in the pre-refactor code, not just a style choice.
+- Constructor takes `openConsole: (Uuid, Flow<ByteArray>) -> Flow<ByteArray>`
+  (a lambda), not the concrete `DataServiceProxy` — `ConsoleRoutes` passes
+  `proxy::console`. Makes the refcount state machine unit-testable
+  (`ConsoleSessionManagerTest`) without a live gRPC proxy or DB.
+- Public API (`getOrCreate(serverId): ConsoleSession`,
+  `releaseViewer(serverId)`) unchanged — `ConsoleRoutes.register()` call
+  sites untouched.
+- See candidate 1, `improve-codebase-architecture` review 2026-07-23.
+
 ## Open / planned
 
 ### Server lifecycle orchestrator (master) — superseded by ContainerLifecycle
