@@ -100,11 +100,66 @@ test("fabric server can be created on a network", async () => {
     await expect(row).toBeVisible();
 });
 
+test("server can be started, console works, and it can be stopped again", async () => {
+    await page.goto("/servers");
+    await rowByExactName(page, FABRIC_NAME).click();
+    await expect(page).toHaveURL(/\/servers\/[0-9a-f-]+$/);
+
+    await page.getByRole("button", {name: "Start"}).click();
+    await expect(page.getByText("Healthy", {exact: true})).toBeVisible({timeout: 120_000});
+
+    await page.getByRole("button", {name: "Console"}).click();
+    await page.getByRole("textbox", {name: "Terminal input"}).fill("list");
+    await page.getByRole("textbox", {name: "Terminal input"}).press("Enter");
+    await expect(page.getByText("list", {exact: false})).toBeVisible();
+
+    // Stop before the afterAll cleanup runs — Delete is only available on a stopped server.
+    await page.getByRole("button", {name: "Stop"}).click();
+    await expect(page.getByText("Stopped", {exact: true})).toBeVisible({timeout: 30_000});
+});
+
+test("backup can be triggered and appears in the list", async () => {
+    await page.goto("/servers");
+    await rowByExactName(page, FABRIC_NAME).click();
+    await page.getByRole("button", {name: "Backups"}).click();
+
+    await page.getByRole("button", {name: "Trigger Backup"}).click();
+    await expect(page.getByText("0 backups")).not.toBeVisible({timeout: 60_000});
+});
+
+test("file can be created and deleted", async () => {
+    await page.goto("/servers");
+    await rowByExactName(page, FABRIC_NAME).click();
+    await page.getByRole("button", {name: "Files"}).click();
+
+    const folderName = `smoke-test-dir-${RUN_ID}`;
+    await page.getByTitle("New folder").click();
+    await page.getByLabel("Path (relative to /)").fill(folderName);
+    await page.getByRole("button", {name: "Create"}).click();
+    await expect(page.getByText(folderName, {exact: true})).toBeVisible();
+
+    await page.getByText(folderName, {exact: true}).hover();
+    await page.getByTitle("Delete").click();
+    await page.getByRole("alertdialog", {name: "Delete File?"}).getByRole("button", {name: "Confirm"}).click();
+    await expect(page.getByText(folderName, {exact: true})).not.toBeVisible();
+});
+
 test("paper server can be created", async () => {
     await createServer(page, {name: PAPER_NAME, type: "PAPER"});
 
     await page.goto("/servers");
     await expect(rowByExactName(page, PAPER_NAME).getByRole("cell", {name: "PAPER", exact: true})).toBeVisible();
+});
+
+test("plugin can be found via Modrinth search on the paper server", async () => {
+    await page.goto("/servers");
+    await rowByExactName(page, PAPER_NAME).click();
+    await page.getByRole("button", {name: "Plugins"}).click();
+
+    await page.getByRole("button", {name: "Add Plugin"}).click();
+    await page.getByRole("textbox", {name: "Search Modrinth…"}).fill("EssentialsX");
+    await page.getByRole("button", {name: "Search"}).click();
+    await expect(page.getByRole("button", {name: "Add"}).first()).toBeVisible({timeout: 15_000});
 });
 
 test("velocity proxy can be created", async () => {
