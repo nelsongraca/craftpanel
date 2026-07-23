@@ -6,6 +6,8 @@ import {login} from "./helpers";
 // login for the whole file avoids that; tests still run serially against real state
 // (each depends on the network/servers earlier tests created).
 test.describe.configure({mode: "serial"});
+// Real container start/stop can take well over the default 30s test timeout.
+test.setTimeout(180_000);
 
 // Unique per run and namespaced so these can never collide with a real server or
 // network on a live environment that already has its own servers/networks.
@@ -30,7 +32,7 @@ async function createServer(
     {name, type, network}: {name: string; type: string; network?: string},
 ) {
     await p.goto("/servers/new");
-    await p.getByRole("textbox", {name: "Lowercase letters, numbers"}).fill(name);
+    await p.getByLabel("Name*", {exact: true}).fill(name);
     await p.getByLabel("Server Type").selectOption(type);
     if (network) {
         await p.getByLabel("Network").selectOption(network);
@@ -78,7 +80,8 @@ test.beforeAll(async ({browser}: {browser: Browser}) => {
     await expect(page.getByRole("cell", {name: NETWORK_NAME, exact: true})).toBeVisible();
 });
 
-test.afterAll(async () => {
+test.afterAll(async ({}, testInfo) => {
+    testInfo.setTimeout(120_000);
     for (const name of [FABRIC_NAME, PAPER_NAME, VELOCITY_NAME]) {
         await deleteServerByName(page, name);
     }
@@ -106,16 +109,24 @@ test("server can be started, console works, and it can be stopped again", async 
     await expect(page).toHaveURL(/\/servers\/[0-9a-f-]+$/);
 
     await page.getByRole("button", {name: "Start"}).click();
-    await expect(page.getByText("Healthy", {exact: true})).toBeVisible({timeout: 120_000});
+    // "Stop" only replaces "Start" once the server is Healthy — a more specific
+    // gate than the "Healthy" status text, which appears twice on this page.
+    await expect(page.getByRole("button", {name: "Stop"})).toBeVisible({timeout: 120_000});
 
     await page.getByRole("button", {name: "Console"}).click();
-    await page.getByRole("textbox", {name: "Terminal input"}).fill("list");
-    await page.getByRole("textbox", {name: "Terminal input"}).press("Enter");
-    await expect(page.getByText("list", {exact: false})).toBeVisible();
+    // xterm.js keeps its real input as an off-screen focus proxy (not
+    // Playwright-"visible") — click the terminal to focus it, then type via
+    // the keyboard like a real user rather than filling the hidden textarea.
+    await page.locator(".xterm").click();
+    await page.keyboard.type("list");
+    await page.keyboard.press("Enter");
+    // Command round-trips over gRPC to the agent and back before it's echoed —
+    // default 5s assertion timeout is sometimes too tight for that.
+    await expect(page.getByText("list", {exact: false})).toBeVisible({timeout: 15_000});
 
     // Stop before the afterAll cleanup runs — Delete is only available on a stopped server.
     await page.getByRole("button", {name: "Stop"}).click();
-    await expect(page.getByText("Stopped", {exact: true})).toBeVisible({timeout: 30_000});
+    await expect(page.getByRole("button", {name: "Start"})).toBeVisible({timeout: 60_000});
 });
 
 test("backup can be triggered and appears in the list", async () => {
@@ -128,8 +139,14 @@ test("backup can be triggered and appears in the list", async () => {
 });
 
 test("file can be created and deleted", async () => {
+    // File operations go through the agent's live connection to the container,
+    // so the server must be running — the previous test stopped it again.
     await page.goto("/servers");
     await rowByExactName(page, FABRIC_NAME).click();
+    await expect(page).toHaveURL(/\/servers\/[0-9a-f-]+$/);
+    await page.getByRole("button", {name: "Start"}).click();
+    await expect(page.getByRole("button", {name: "Stop"})).toBeVisible({timeout: 120_000});
+
     await page.getByRole("button", {name: "Files"}).click();
 
     const folderName = `smoke-test-dir-${RUN_ID}`;
@@ -138,10 +155,19 @@ test("file can be created and deleted", async () => {
     await page.getByRole("button", {name: "Create"}).click();
     await expect(page.getByText(folderName, {exact: true})).toBeVisible();
 
-    await page.getByText(folderName, {exact: true}).hover();
-    await page.getByTitle("Delete").click();
+    // Scope to the row itself — every file/folder row has its own hover-revealed
+    // Delete button with the same title, so an unscoped getByTitle is ambiguous.
+    // The name span's immediate parent is the flex row holding both the name and
+    // the action buttons.
+    const folderRow = page.getByText(folderName, {exact: true}).locator("..");
+    await folderRow.hover();
+    await folderRow.getByTitle("Delete").click();
     await page.getByRole("alertdialog", {name: "Delete File?"}).getByRole("button", {name: "Confirm"}).click();
     await expect(page.getByText(folderName, {exact: true})).not.toBeVisible();
+
+    // Stop before the afterAll cleanup runs — Delete is only available on a stopped server.
+    await page.getByRole("button", {name: "Stop"}).click();
+    await expect(page.getByRole("button", {name: "Start"})).toBeVisible({timeout: 60_000});
 });
 
 test("paper server can be created", async () => {
