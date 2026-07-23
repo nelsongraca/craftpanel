@@ -23,7 +23,10 @@ class ControlStreamHandler(
     private val rsyncMigrator: RsyncMigrator,
     private val migration: MigrationHandler = MigrationHandler(config, containerManager, rsyncMigrator),
     private val file: FileHandler = FileHandler(config, identity.nodeKey),
-    private val console: ConsoleHandler
+    private val console: ConsoleHandler = ConsoleHandler(
+        DockerConsoleSession.Factory(containerManager),
+        DockerLogFetcher(containerManager)
+    )
 ) {
 
     private val log = LoggerFactory.getLogger(ControlStreamHandler::class.java)

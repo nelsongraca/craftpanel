@@ -51,7 +51,10 @@ val agentModule = module {
         )
     }
     scope<ConnectionScope> {
-        scoped { ConsoleHandler(get()) }
+        scoped {
+            val cm: ContainerManager = get()
+            ConsoleHandler(DockerConsoleSession.Factory(cm), DockerLogFetcher(cm))
+        }
         scoped { (nodeKey: String) -> FileHandler(get(), nodeKey) }
         scoped { (networkManager: NetworkManager) -> ContainerHandler(get(), get(), networkManager) }
         scoped { BackupHandler(get()) }

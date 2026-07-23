@@ -50,7 +50,7 @@ class ControlStreamHandlerTest :
         val routerSupervisor = RouterSupervisor(mockk<McRouterProvisioner>(relaxed = true))
         val eventWatcher = ContainerEventWatcher(mockk(relaxed = true))
         val rsyncMigrator = RsyncMigrator(mockk(relaxed = true), config.craftpanelNetwork, config.containerNamePrefix)
-        val consoleHandler = ConsoleHandler(containerManager)
+        val consoleHandler = ConsoleHandler(mockk(relaxed = true), mockk(relaxed = true))
         val handler = ControlStreamHandler(
             identity,
             config,
