@@ -13,7 +13,7 @@ describe('useResourceList', () => {
 
     it('initialLoad starts true, becomes false after first load, data populated from loader', async () => {
         const loader = vi.fn().mockResolvedValue({ data: [1, 2, 3] })
-        const { result } = renderHook(() => useResourceList(loader))
+        const { result } = renderHook(() => useResourceList(loader, []))
 
         expect(result.current.initialLoad).toBe(true)
         expect(result.current.data).toEqual([])
@@ -28,7 +28,7 @@ describe('useResourceList', () => {
 
     it('loader returning {} leaves data as [] and does not throw', async () => {
         const loader = vi.fn().mockResolvedValue({})
-        const { result } = renderHook(() => useResourceList(loader))
+        const { result } = renderHook(() => useResourceList(loader, []))
 
         await act(async () => {
             await vi.runOnlyPendingTimersAsync()
@@ -42,7 +42,7 @@ describe('useResourceList', () => {
         const loader = vi.fn()
             .mockResolvedValueOnce({ data: [1] })
             .mockResolvedValueOnce({ data: [1, 2] })
-        const { result } = renderHook(() => useResourceList(loader))
+        const { result } = renderHook(() => useResourceList(loader, []))
 
         await act(async () => {
             await vi.advanceTimersByTimeAsync(0)
@@ -59,7 +59,7 @@ describe('useResourceList', () => {
 
     it('polling: advancing pollMs triggers loader again', async () => {
         const loader = vi.fn().mockResolvedValue({ data: [] })
-        renderHook(() => useResourceList(loader, { pollMs: 5_000 }))
+        renderHook(() => useResourceList(loader, [], { pollMs: 5_000 }))
 
         await act(async () => {
             await vi.advanceTimersByTimeAsync(0)
@@ -79,7 +79,7 @@ describe('useResourceList', () => {
 
     it('unmount clears the interval so loader is not called again', async () => {
         const loader = vi.fn().mockResolvedValue({ data: [] })
-        const { unmount } = renderHook(() => useResourceList(loader, { pollMs: 5_000 }))
+        const { unmount } = renderHook(() => useResourceList(loader, [], { pollMs: 5_000 }))
 
         await act(async () => {
             await vi.advanceTimersByTimeAsync(0)
@@ -96,7 +96,7 @@ describe('useResourceList', () => {
 
     it('pollMs: 0 loads once and never polls', async () => {
         const loader = vi.fn().mockResolvedValue({ data: [] })
-        renderHook(() => useResourceList(loader, { pollMs: 0 }))
+        renderHook(() => useResourceList(loader, [], { pollMs: 0 }))
 
         await act(async () => {
             await vi.advanceTimersByTimeAsync(0)
@@ -111,7 +111,7 @@ describe('useResourceList', () => {
 
     it('setData patches state directly (WS seam)', async () => {
         const loader = vi.fn().mockResolvedValue({ data: [{ id: '1', health: 'HEALTHY' }] })
-        const { result } = renderHook(() => useResourceList(loader))
+        const { result } = renderHook(() => useResourceList(loader, []))
 
         await act(async () => {
             await vi.runOnlyPendingTimersAsync()
@@ -124,5 +124,40 @@ describe('useResourceList', () => {
         })
 
         expect(result.current.data).toEqual([{ id: '1', health: 'UNHEALTHY' }])
+    })
+
+    it('stable deps across re-render do not re-trigger the polling effect', async () => {
+        const loader = vi.fn().mockResolvedValue({ data: [] })
+        const { rerender } = renderHook(
+            ({ id }) => useResourceList(loader, [id], { pollMs: 5_000 }),
+            { initialProps: { id: 'a' } },
+        )
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(0)
+        })
+        expect(loader).toHaveBeenCalledTimes(1)
+
+        rerender({ id: 'a' })
+        expect(loader).toHaveBeenCalledTimes(1)
+    })
+
+    it('changed deps re-trigger a load', async () => {
+        const loader = vi.fn().mockResolvedValue({ data: [] })
+        const { rerender } = renderHook(
+            ({ id }) => useResourceList(loader, [id], { pollMs: 5_000 }),
+            { initialProps: { id: 'a' } },
+        )
+
+        await act(async () => {
+            await vi.advanceTimersByTimeAsync(0)
+        })
+        expect(loader).toHaveBeenCalledTimes(1)
+
+        await act(async () => {
+            rerender({ id: 'b' })
+            await vi.advanceTimersByTimeAsync(0)
+        })
+        expect(loader).toHaveBeenCalledTimes(2)
     })
 })

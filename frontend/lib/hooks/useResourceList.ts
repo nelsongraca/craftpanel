@@ -1,9 +1,10 @@
 "use client";
 
-import {useCallback, useEffect, useState, type Dispatch, type SetStateAction} from "react";
+import {useCallback, useEffect, useState, type Dispatch, type DependencyList, type SetStateAction} from "react";
 
 export function useResourceList<T>(
     loader: () => Promise<{data?: T[]}>,
+    deps: DependencyList,
     opts?: {pollMs?: number},
 ): {
     data: T[];
@@ -19,7 +20,8 @@ export function useResourceList<T>(
     const reload = useCallback(async () => {
         const {data} = await loader();
         if (data) setData(data);
-    }, [loader]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/use-memo
+    }, deps);
 
     useEffect(() => {
         let cancelled = false;

@@ -256,7 +256,7 @@ export default function AlertsPage() {
     const canManage = hasPermission(permissions, "system.settings");
     const {subscribe} = useWs();
 
-    const {data: thresholds, initialLoad: loading, setData: setThresholds} = useResourceList(loadThresholds, {pollMs: 0});
+    const {data: thresholds, initialLoad: loading, setData: setThresholds} = useResourceList(loadThresholds, [], {pollMs: 0});
     const [events, setEvents] = useState<AlertEvent[]>([]);
     const [activeOnly, setActiveOnly] = useState(false);
     const [showCreate, setShowCreate] = useState(false);

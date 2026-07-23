@@ -68,7 +68,7 @@ function NetworkForm({
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function NetworksPage() {
-    const {data: networks, initialLoad: loading, reload: load} = useResourceList(listNetworks, {pollMs: 0});
+    const {data: networks, initialLoad: loading, reload: load} = useResourceList(listNetworks, [], {pollMs: 0});
     const [showCreate, setShowCreate] = useState(false);
     const [editing, setEditing] = useState<Network | null>(null);
     const [deleting, setDeleting] = useState<Network | null>(null);

@@ -113,7 +113,7 @@ function GroupForm({
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function GroupsPage() {
-    const {data: groups, initialLoad: loading, reload: load} = useResourceList(listGroups, {pollMs: 0});
+    const {data: groups, initialLoad: loading, reload: load} = useResourceList(listGroups, [], {pollMs: 0});
     const [showCreate, setShowCreate] = useState(false);
     const [editing, setEditing] = useState<Group | null>(null);
     const [deleting, setDeleting] = useState<Group | null>(null);

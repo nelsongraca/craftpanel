@@ -157,7 +157,7 @@ export default function ServersPage() {
     const {user} = useAuth();
     const permissions = user?.permissions ?? [];
 
-    const {data: servers, initialLoad, reload: reloadServers} = useResourceList(listServers);
+    const {data: servers, initialLoad, reload: reloadServers} = useResourceList(listServers, []);
     const [nodes, setNodes] = useState<Node[]>([]);
     const [networks, setNetworks] = useState<Network[]>([]);
     const [actionError, setActionError] = useState<string | null>(null);

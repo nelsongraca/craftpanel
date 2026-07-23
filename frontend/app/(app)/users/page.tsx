@@ -264,7 +264,7 @@ function AssignmentsModal({
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function UsersPage() {
-    const {data: users, initialLoad: loading, reload: load} = useResourceList(loadUsers, {pollMs: 0});
+    const {data: users, initialLoad: loading, reload: load} = useResourceList(loadUsers, [], {pollMs: 0});
     const [groups, setGroups] = useState<Group[]>([]);
     const [showCreate, setShowCreate] = useState(false);
     const [editing, setEditing] = useState<User | null>(null);

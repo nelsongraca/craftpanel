@@ -262,7 +262,7 @@ export default function NodesPage() {
     const {subscribe} = useWs();
     const permissions = user?.permissions ?? [];
 
-    const {data: nodes, initialLoad, reload: reloadNodes, setData: setNodes} = useResourceList(listNodes);
+    const {data: nodes, initialLoad, reload: reloadNodes, setData: setNodes} = useResourceList(listNodes, []);
     const [serverCounts, setServerCounts] = useState<Record<string, number>>({});
     const [actionError, setActionError] = useState<string | null>(null);
     const [pendingAction, setPendingAction] = useState<Record<string, string>>({});
