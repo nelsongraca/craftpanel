@@ -31,12 +31,9 @@ async function createServer(
 ) {
     await p.goto("/servers/new");
     await p.getByRole("textbox", {name: "Lowercase letters, numbers"}).fill(name);
-    // Form labels aren't wired via htmlFor/id, so selects are addressed positionally:
-    // Server Type is always first; Network is always last (Minecraft Version is
-    // omitted for proxy types, which shifts nothing after Server Type).
-    await p.getByRole("combobox").first().selectOption(type);
+    await p.getByLabel("Server Type").selectOption(type);
     if (network) {
-        await p.getByRole("combobox").last().selectOption(network);
+        await p.getByLabel("Network").selectOption(network);
     }
     await p.getByRole("button", {name: "Create Server"}).click();
     await expect(p).toHaveURL(/\/servers\/[0-9a-f-]+$/);
@@ -76,7 +73,7 @@ test.beforeAll(async ({browser}: {browser: Browser}) => {
 
     await page.goto("/networks");
     await page.getByRole("button", {name: "New Network"}).click();
-    await page.getByRole("dialog", {name: "New Network"}).getByRole("textbox").first().fill(NETWORK_NAME);
+    await page.getByRole("dialog", {name: "New Network"}).getByLabel("Name").fill(NETWORK_NAME);
     await page.getByRole("button", {name: "Create"}).click();
     await expect(page.getByRole("cell", {name: NETWORK_NAME, exact: true})).toBeVisible();
 });

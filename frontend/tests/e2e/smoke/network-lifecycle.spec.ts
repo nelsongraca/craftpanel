@@ -12,7 +12,7 @@ test.beforeEach(async ({page}) => {
 
 async function createNetwork(page: Page, name: string) {
     await page.getByRole("button", {name: "New Network"}).click();
-    await page.getByRole("dialog", {name: "New Network"}).getByRole("textbox").first().fill(name);
+    await page.getByRole("dialog", {name: "New Network"}).getByLabel("Name").fill(name);
     await page.getByRole("button", {name: "Create"}).click();
     await expect(page.getByRole("cell", {name, exact: true})).toBeVisible();
 }
