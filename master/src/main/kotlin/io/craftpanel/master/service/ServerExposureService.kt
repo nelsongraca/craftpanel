@@ -17,23 +17,25 @@ class ServerExposureService(
 
     private val log = LoggerFactory.getLogger(ServerExposureService::class.java)
 
-    fun updateExposure(id: Uuid, req: PatchExposureRequest) {
+    fun updateExposure(id: Uuid, exposedExternally: Boolean, publicSubdomain: String?, customHostname: String?) {
         val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
 
-        if (req.exposedExternally && req.publicSubdomain != null) {
-            val existing = serverRepository.findBySubdomain(req.publicSubdomain)
+        if (exposedExternally && publicSubdomain != null) {
+            val existing = serverRepository.findBySubdomain(publicSubdomain)
             if (existing != null && existing.id != id) throw UnprocessableException("Public subdomain already taken")
         }
 
-        val resolvedCustomHostname: String? = if (req.customHostname != null) {
-            val ch = req.customHostname.trim()
+        val resolvedCustomHostname: String? = if (customHostname != null) {
+            val ch = customHostname.trim()
             if (ch.isEmpty()) {
                 null
-            } else {
+            }
+            else {
                 serverExposure.validateCustomHostname(ch, id)
                 ch
             }
-        } else {
+        }
+        else {
             serverRow.customHostname
         }
 
@@ -41,7 +43,7 @@ class ServerExposureService(
         var newHostname: String? = null
         var newRecordId: String? = null
 
-        if (req.exposedExternally && req.publicSubdomain != null) {
+        if (exposedExternally && publicSubdomain != null) {
             val provider = dnsProvider
             val dns = serverExposure.resolveNetworkDns(serverRow.networkId)
 
@@ -52,10 +54,11 @@ class ServerExposureService(
             }
 
             val fullHostname = if (dns != null) {
-                "${req.publicSubdomain}.${dns.domainSuffix}"
-            } else {
+                "$publicSubdomain.${dns.domainSuffix}"
+            }
+            else {
                 serverExposure.resolveSuffix(serverRow.networkId)
-                    ?.let { "${req.publicSubdomain}.$it" }
+                    ?.let { "$publicSubdomain.$it" }
             }
 
             newRecordId = if (provider != null && dns != null) {
@@ -65,18 +68,20 @@ class ServerExposureService(
                     if (existingRecordId != null) {
                         provider.updateARecord(dns.zoneId, existingRecordId, node.publicIp)
                         existingRecordId
-                    } else {
-                        provider.createARecord(dns.zoneId, fullHostname ?: req.publicSubdomain, node.publicIp)
+                    }
+                    else {
+                        provider.createARecord(dns.zoneId, fullHostname ?: publicSubdomain, node.publicIp)
                     }
                 }.getOrElse { ex -> throw BadGatewayException("DNS provider error: ${ex.message}") }
-            } else {
+            }
+            else {
                 null
             }
 
             newHostname = fullHostname
         }
 
-        if (!req.exposedExternally && existingRecordId != null && dnsProvider != null) {
+        if (!exposedExternally && existingRecordId != null && dnsProvider != null) {
             val dns = serverExposure.resolveNetworkDns(serverRow.networkId)
             if (dns != null) {
                 runCatching { dnsProvider!!.deleteARecord(dns.zoneId, existingRecordId) }
@@ -86,25 +91,29 @@ class ServerExposureService(
 
         val prevCustomHostname = serverRow.customHostname
         val customHostnameChanged = resolvedCustomHostname != prevCustomHostname
-        val exposureNeedsRecreate = req.publicSubdomain != null || customHostnameChanged
+        val exposureNeedsRecreate = publicSubdomain != null || customHostnameChanged
 
         serverRepository.updateExposure(
             id = id,
-            exposedExternally = req.exposedExternally,
-            publicSubdomain = if (!req.exposedExternally) null else req.publicSubdomain,
+            exposedExternally = exposedExternally,
+            publicSubdomain = if (!exposedExternally) null else publicSubdomain,
             customHostname = resolvedCustomHostname,
-            dnsRecordId = if (req.exposedExternally && req.publicSubdomain != null) {
+            dnsRecordId = if (exposedExternally && publicSubdomain != null) {
                 newRecordId
-            } else if (!req.exposedExternally) {
+            }
+            else if (!exposedExternally) {
                 null
-            } else {
+            }
+            else {
                 existingRecordId
             },
-            dnsRecordName = if (req.exposedExternally && req.publicSubdomain != null) {
+            dnsRecordName = if (exposedExternally && publicSubdomain != null) {
                 newHostname
-            } else if (!req.exposedExternally) {
+            }
+            else if (!exposedExternally) {
                 null
-            } else {
+            }
+            else {
                 serverRow.dnsRecordName
             },
             needsRecreate = if (exposureNeedsRecreate) true else null

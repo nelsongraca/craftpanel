@@ -1,8 +1,6 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.dns.DnsProvider
-import io.craftpanel.master.domain.ConfigMode
-import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
@@ -14,71 +12,6 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
-
-@Serializable
-data class ServerResponse(
-    val id: String,
-    val name: String,
-    @SerialName("display_name") val displayName: String,
-    val description: String?,
-    @SerialName("server_type") val serverType: String,
-    @SerialName("mc_version") val mcVersion: String,
-    @SerialName("itzg_image_tag") val itzgImageTag: String,
-    val status: ServerStatus,
-    @SerialName("node_id") val nodeId: String,
-    @SerialName("network_id") val networkId: String?,
-    @SerialName("host_port") val hostPort: Int,
-    @SerialName("memory_mb") val memoryMb: Int,
-    @SerialName("cpu_shares") val cpuShares: Int,
-    @SerialName("exposed_externally") val exposedExternally: Boolean,
-    @SerialName("public_subdomain") val publicSubdomain: String?,
-    @SerialName("custom_hostname") val customHostname: String?,
-    @SerialName("canonical_hostname") val canonicalHostname: String?,
-    @SerialName("is_migrating") val isMigrating: Boolean,
-    @SerialName("needs_recreate") val needsRecreate: Boolean,
-    @SerialName("config_mode") val configMode: ConfigMode,
-    @SerialName("stop_command") val stopCommand: String,
-    @SerialName("last_player_count") val lastPlayerCount: Int?,
-    @SerialName("last_player_names") val lastPlayerNames: List<String>?,
-    @SerialName("created_at") val createdAt: String,
-    @SerialName("updated_at") val updatedAt: String
-)
-
-@Serializable
-data class CreateServerRequest(
-    val name: String,
-    @SerialName("display_name") val displayName: String? = null,
-    val description: String? = null,
-    @SerialName("node_id") val nodeId: String,
-    @SerialName("network_id") val networkId: String? = null,
-    @SerialName("server_type") val serverType: String,
-    @SerialName("mc_version") val mcVersion: String = "LATEST",
-    @SerialName("itzg_image_tag") val itzgImageTag: String = "latest",
-    @SerialName("memory_mb") val memoryMb: Int,
-    @SerialName("cpu_shares") val cpuShares: Int = 0
-)
-
-@Serializable
-data class CloneServerRequest(val name: String, @SerialName("display_name") val displayName: String? = null, val description: String? = null)
-
-@Serializable
-data class UpdateServerRequest(
-    @SerialName("display_name") val displayName: String? = null,
-    val description: String? = null,
-    @SerialName("network_id") val networkId: String? = null,
-    @SerialName("mc_version") val mcVersion: String? = null,
-    @SerialName("itzg_image_tag") val itzgImageTag: String? = null
-)
-
-@Serializable
-data class PatchResourcesRequest(@SerialName("memory_mb") val memoryMb: Int, @SerialName("cpu_shares") val cpuShares: Int, @SerialName("itzg_image_tag") val itzgImageTag: String? = null)
-
-@Serializable
-data class PatchExposureRequest(
-    @SerialName("exposed_externally") val exposedExternally: Boolean,
-    @SerialName("public_subdomain") val publicSubdomain: String? = null,
-    @SerialName("custom_hostname") val customHostname: String? = null
-)
 
 @Serializable
 data class ContainerMetricsPoint(val t: String, val v: Double)
@@ -108,7 +41,6 @@ class ServerService(
     private val userRepository: UserRepository,
     private val groupRepository: GroupRepository,
     private val settingsRepository: SettingsRepository,
-    private val serverExposure: ServerExposure,
     private val portRepository: PortRepository,
     private val envVarsRepository: EnvVarsRepository,
     private val modRepository: ModRepository,
@@ -120,7 +52,9 @@ class ServerService(
     private val visibilityResolver = ServerVisibilityResolver(userRepository, groupRepository)
     private val capacityChecker = ResourceCapacityChecker(serverRepository)
 
-    fun listServers(userId: Uuid): List<ServerResponse> {
+    fun isMigrating(id: Uuid): Boolean = migrationRepository.findActiveMigration(id) != null
+
+    fun listServers(userId: Uuid): List<ServerRow> {
         val visibility = visibilityResolver.resolve(userId)
         val rows = when {
             visibility.isGlobal -> serverRepository.listAll()
@@ -132,25 +66,28 @@ class ServerService(
                 visibility.serverIds.toList()
             )
         }
-        val ids = rows.map { it.id }
-        val migratingIds = if (ids.isEmpty()) {
-            emptySet()
-        } else {
-            rows.filter { migrationRepository.findActiveMigration(it.id) != null }
-                .map { it.id }
-                .toSet()
-        }
-        return rows.map { row -> row.toResponse(serverExposure, row.id in migratingIds) }
+        return rows
     }
 
-    fun createServer(req: CreateServerRequest): ServerResponse {
-        if (req.memoryMb <= 0) throw UnprocessableException("memory_mb must be positive")
-        if (req.cpuShares < 0) throw UnprocessableException("cpu_shares must be non-negative")
+    fun createServer(
+        name: String,
+        displayName: String?,
+        description: String?,
+        nodeId: String,
+        networkId: String?,
+        serverType: String,
+        mcVersion: String,
+        itzgImageTag: String,
+        memoryMb: Int,
+        cpuShares: Int,
+    ): ServerRow {
+        if (memoryMb <= 0) throw UnprocessableException("memory_mb must be positive")
+        if (cpuShares < 0) throw UnprocessableException("cpu_shares must be non-negative")
 
-        val serverType = runCatching { ServerType.valueOf(req.serverType) }.getOrNull()
-            ?: throw UnprocessableException("Invalid server_type: ${req.serverType}")
-        val nodeKotlinId = parseUuid(req.nodeId) ?: throw UnprocessableException("Invalid node_id")
-        val networkKotlinId = req.networkId?.let { parseUuid(it) ?: throw UnprocessableException("Invalid network_id") }
+        val st = runCatching { ServerType.valueOf(serverType) }.getOrNull()
+            ?: throw UnprocessableException("Invalid server_type: $serverType")
+        val nodeKotlinId = parseUuid(nodeId) ?: throw UnprocessableException("Invalid node_id")
+        val networkKotlinId = networkId?.let { parseUuid(it) ?: throw UnprocessableException("Invalid network_id") }
 
         if (networkKotlinId != null) {
             val existingNodeIds = serverRepository.listByNetworkId(networkKotlinId)
@@ -160,18 +97,18 @@ class ServerService(
             if (allNodeIds.size > 1) networkService?.validateCrossNodeAssignment(allNodeIds)
         }
 
-        fun attemptCreate(): ServerResponse {
+        fun attemptCreate(): ServerRow {
             val node = nodeRepository.findById(nodeKotlinId) ?: throw UnprocessableException("Node not found")
             if (node.status != "ACTIVE") throw UnprocessableException("Node is not active")
             if (networkKotlinId != null && networkRepository.findById(networkKotlinId) == null) {
                 throw UnprocessableException("Network not found")
             }
-            if (serverRepository.findByName(req.name) != null) throw ConflictException("Server name already taken")
+            if (serverRepository.findByName(name) != null) throw ConflictException("Server name already taken")
 
-            when (capacityChecker.check(node, excludeServerId = null, memoryMb = req.memoryMb, cpuShares = req.cpuShares)) {
+            when (capacityChecker.check(node, excludeServerId = null, memoryMb = memoryMb, cpuShares = cpuShares)) {
                 CapacityResult.InsufficientRam -> throw ConflictException("Insufficient RAM capacity on node")
                 CapacityResult.InsufficientCpu -> throw ConflictException("Insufficient CPU capacity on node")
-                CapacityResult.Ok -> {}
+                CapacityResult.Ok              -> {}
             }
 
             val usedPorts = portRepository.findUsedPortsOnNode(nodeKotlinId)
@@ -179,20 +116,20 @@ class ServerService(
             val port = PortAllocator.pickFreePort(node.portRangeStart, node.portRangeEnd, usedPorts)
                 ?: throw ConflictException("No free ports available on node")
 
-            val stopCommand = if (serverType.isProxy) "end" else "stop"
+            val stopCommand = if (st.isProxy) "end" else "stop"
             val newServer = transaction {
                 val s = serverRepository.create(
-                    name = req.name,
-                    displayName = req.displayName ?: req.name,
-                    description = req.description,
+                    name = name,
+                    displayName = displayName ?: name,
+                    description = description,
                     nodeId = nodeKotlinId,
                     networkId = networkKotlinId,
-                    serverType = serverType,
-                    mcVersion = req.mcVersion,
-                    itzgImageTag = req.itzgImageTag,
+                    serverType = st,
+                    mcVersion = mcVersion,
+                    itzgImageTag = itzgImageTag,
                     hostPort = port,
-                    memoryMb = req.memoryMb,
-                    cpuShares = req.cpuShares,
+                    memoryMb = memoryMb,
+                    cpuShares = cpuShares,
                     configMode = "MANAGED",
                     stopCommand = stopCommand
                 )
@@ -202,18 +139,19 @@ class ServerService(
                 val platformName = settingsRepository.getAll()
                     .firstOrNull { it.key == "CRAFTPANEL_PLATFORM_NAME" }
                     ?.value ?: "CraftPanel"
-                val serverTypeDisplay = req.serverType.lowercase()
+                val serverTypeDisplay = serverType.lowercase()
                     .replaceFirstChar { it.uppercase() }
 
-                if (!serverType.isProxy) {
-                    val defaults = buildDefaultEnvVars(req.mcVersion, serverTypeDisplay, platformName)
+                if (!st.isProxy) {
+                    val defaults = buildDefaultEnvVars(mcVersion, serverTypeDisplay, platformName)
                     envVarsRepository.replaceEnvVars(
                         s.id,
                         defaults.map { (k, v) ->
                             EnvVarRow(k, v)
                         }
                     )
-                } else {
+                }
+                else {
                     serverRepository.updateProxySettings(
                         s.id,
                         motd = "$serverTypeDisplay powered by $platformName",
@@ -225,7 +163,7 @@ class ServerService(
                 s
             }
 
-            return newServer.toResponse(serverExposure, false)
+            return newServer
         }
 
         val result = run {
@@ -233,13 +171,15 @@ class ServerService(
             repeat(3) {
                 try {
                     return@run attemptCreate()
-                } catch (ex: Exception) {
+                }
+                catch (ex: Exception) {
                     val cause = generateSequence(ex as Throwable) { it.cause }
                         .filterIsInstance<java.sql.SQLException>()
                         .firstOrNull()
                     if (cause != null && cause.sqlState?.startsWith("23") == true) {
                         lastEx = cause
-                    } else {
+                    }
+                    else {
                         throw ex
                     }
                 }
@@ -250,20 +190,18 @@ class ServerService(
         return result
     }
 
-    fun getServer(id: Uuid): ServerResponse {
-        val row = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
-        val isMigrating = migrationRepository.findActiveMigration(id) != null
-        return row.toResponse(serverExposure, isMigrating)
+    fun getServer(id: Uuid): ServerRow {
+        return serverRepository.findById(id) ?: throw NotFoundException("Server not found")
     }
 
-    fun cloneServer(sourceId: Uuid, req: CloneServerRequest): ServerResponse {
+    fun cloneServer(sourceId: Uuid, name: String, displayName: String?, description: String?): ServerRow {
         val source = serverRepository.findById(sourceId)
             ?: throw NotFoundException("Source server not found")
 
-        val createReq = CreateServerRequest(
-            name = req.name,
-            displayName = req.displayName ?: source.displayName,
-            description = req.description ?: source.description,
+        val created = createServer(
+            name = name,
+            displayName = displayName ?: source.displayName,
+            description = description ?: source.description,
             nodeId = source.nodeId.toString(),
             networkId = source.networkId?.toString(),
             serverType = source.serverType.toDb(),
@@ -273,16 +211,12 @@ class ServerService(
             cpuShares = source.cpuShares
         )
 
-        val created = createServer(createReq)
-        val newId = parseUuid(created.id)
-            ?: throw IllegalStateException("Created server id was not a valid UUID")
-
-        envVarsRepository.replaceEnvVars(newId, envVarsRepository.getEnvVars(sourceId))
+        envVarsRepository.replaceEnvVars(created.id, envVarsRepository.getEnvVars(sourceId))
 
         modRepository.listMods(sourceId)
             .forEach { mod ->
                 modRepository.createMod(
-                    serverId = newId,
+                    serverId = created.id,
                     modrinthProjectId = mod.modrinthProjectId,
                     displayName = mod.displayName,
                     pinStrategy = mod.pinStrategy,
@@ -291,11 +225,18 @@ class ServerService(
                 )
             }
 
-        return getServer(newId)
+        return getServer(created.id)
     }
 
-    fun updateServer(id: Uuid, req: UpdateServerRequest) {
-        val newNetworkId: Uuid? = req.networkId?.ifEmpty { null }
+    fun updateServer(
+        id: Uuid,
+        displayName: String?,
+        description: String?,
+        networkId: String?,
+        mcVersion: String?,
+        itzgImageTag: String?
+    ) {
+        val newNetworkId: Uuid? = networkId?.ifEmpty { null }
             ?.let { parseUuid(it) ?: throw UnprocessableException("Invalid network_id") }
 
         val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
@@ -312,19 +253,19 @@ class ServerService(
             }
         }
 
-        val needsRecreate = req.mcVersion != null || req.itzgImageTag != null
+        val needsRecreate = mcVersion != null || itzgImageTag != null
 
-        if (req.networkId != null && newNetworkId == null) {
+        if (networkId != null && newNetworkId == null) {
             // empty string = clear networkId
             serverRepository.clearNetworkId(id)
         }
         serverRepository.updateDetails(
             id,
-            req.displayName,
-            req.description?.ifEmpty { null },
+            displayName,
+            description?.ifEmpty { null },
             newNetworkId,
-            req.mcVersion,
-            req.itzgImageTag
+            mcVersion,
+            itzgImageTag
         )
         if (needsRecreate) serverRepository.updateNeedsRecreate(id, true)
     }
@@ -365,18 +306,18 @@ class ServerService(
         serverRepository.delete(id)
     }
 
-    fun updateResources(id: Uuid, req: PatchResourcesRequest) {
-        if (req.memoryMb <= 0) throw UnprocessableException("memory_mb must be positive")
-        if (req.cpuShares < 0) throw UnprocessableException("cpu_shares must be non-negative")
+    fun updateResources(id: Uuid, memoryMb: Int, cpuShares: Int, itzgImageTag: String?) {
+        if (memoryMb <= 0) throw UnprocessableException("memory_mb must be positive")
+        if (cpuShares < 0) throw UnprocessableException("cpu_shares must be non-negative")
         val existing = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
         val nodeKotlinId = existing.nodeId
         val node = nodeRepository.findById(nodeKotlinId) ?: throw UnprocessableException("Node not found")
-        when (capacityChecker.check(node, excludeServerId = id, memoryMb = req.memoryMb, cpuShares = req.cpuShares)) {
+        when (capacityChecker.check(node, excludeServerId = id, memoryMb = memoryMb, cpuShares = cpuShares)) {
             CapacityResult.InsufficientRam -> throw ConflictException("Insufficient RAM capacity on node")
             CapacityResult.InsufficientCpu -> throw ConflictException("Insufficient CPU capacity on node")
-            CapacityResult.Ok -> {}
+            CapacityResult.Ok              -> {}
         }
-        serverRepository.updateResources(id, req.memoryMb, req.cpuShares, req.itzgImageTag, true)
+        serverRepository.updateResources(id, memoryMb, cpuShares, itzgImageTag, true)
     }
 
     fun getMetrics(id: Uuid, from: Instant, to: Instant): ContainerMetricsSeriesResponse {
@@ -395,38 +336,6 @@ class ServerService(
 }
 
 internal data class ServerVisibility(val isGlobal: Boolean, val networkIds: Set<Uuid>, val serverIds: Set<Uuid>)
-
-internal fun ServerRow.toResponse(serverExposure: ServerExposure, isMigrating: Boolean): ServerResponse {
-    val canonicalHostname = serverExposure.canonicalHostname(this)
-    return ServerResponse(
-        id = id.toString(),
-        name = name,
-        displayName = displayName,
-        description = description,
-        serverType = serverType.toDb(),
-        mcVersion = mcVersion,
-        itzgImageTag = itzgImageTag,
-        status = ServerStatus.fromDb(status),
-        nodeId = nodeId.toString(),
-        networkId = networkId?.toString(),
-        hostPort = hostPort,
-        memoryMb = memoryMb,
-        cpuShares = cpuShares,
-        exposedExternally = exposedExternally,
-        publicSubdomain = publicSubdomain,
-        customHostname = customHostname,
-        canonicalHostname = canonicalHostname,
-        isMigrating = isMigrating,
-        needsRecreate = needsRecreate,
-        configMode = ConfigMode.fromDb(configMode),
-        stopCommand = stopCommand,
-        lastPlayerCount = lastPlayerCount,
-        lastPlayerNames = lastPlayerNames?.split(",")
-            ?.filter { it.isNotBlank() },
-        createdAt = createdAt,
-        updatedAt = updatedAt
-    )
-}
 
 private fun parseUuid(raw: String): Uuid? = runCatching { Uuid.parse(raw) }.getOrNull()
 

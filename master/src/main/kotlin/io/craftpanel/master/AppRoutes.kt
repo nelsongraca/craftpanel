@@ -3,6 +3,7 @@ package io.craftpanel.master
 import io.craftpanel.master.auth.routes.authRoutes
 import io.craftpanel.master.config.AppConfig
 import io.craftpanel.master.routes.*
+import io.craftpanel.master.service.ServerExposure
 import io.craftpanel.master.service.ServerExposureService
 import io.ktor.server.routing.*
 import org.koin.ktor.ext.get
@@ -13,7 +14,7 @@ fun Route.registerAppRoutes() {
     nodeIpRoutes()
     nodesRoutes(get())
     networksRoutes(get())
-    serversRoutes(get(), get(), get<ServerExposureService>())
+    serversRoutes(get(), get(), get<ServerExposureService>(), get())
     usersRoutes(get())
     groupsRoutes(get())
     assignmentsRoutes(get())

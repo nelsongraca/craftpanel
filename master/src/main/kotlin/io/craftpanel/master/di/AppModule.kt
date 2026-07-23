@@ -200,7 +200,6 @@ val appModule = module {
             userRepository = get(),
             groupRepository = get(),
             settingsRepository = get(),
-            serverExposure = get(),
             portRepository = get(),
             envVarsRepository = get(),
             modRepository = get(),
@@ -210,7 +209,10 @@ val appModule = module {
     }
     single { BackupService(get<AgentGateway>(), get(), get(), get()) }
     single {
-        ForwardingSecretCipher(java.util.Base64.getDecoder().decode(get<AppConfig>().forwarding.key))
+        ForwardingSecretCipher(
+            java.util.Base64.getDecoder()
+                .decode(get<AppConfig>().forwarding.key)
+        )
     }
     single {
         val dataServiceProxy = get<DataServiceProxy>()

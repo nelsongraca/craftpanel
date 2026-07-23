@@ -1,6 +1,7 @@
 package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.*
+import io.craftpanel.master.routes.dto.*
 import io.craftpanel.master.service.*
 import io.github.smiley4.ktoropenapi.*
 import io.ktor.http.*
@@ -11,7 +12,7 @@ import io.ktor.server.routing.*
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
-fun Route.serversRoutes(serverService: ServerService, lifecycleService: ServerLifecycleService, exposureService: ServerExposureService) {
+fun Route.serversRoutes(serverService: ServerService, lifecycleService: ServerLifecycleService, exposureService: ServerExposureService, serverExposure: ServerExposure) {
     authenticate(JWT_AUTH) {
         route("/api/servers") {
             get("", {
@@ -23,7 +24,12 @@ fun Route.serversRoutes(serverService: ServerService, lifecycleService: ServerLi
                 }
             }) {
                 val userId = call.userId()
-                call.respond(serverService.listServers(userId))
+                val rows = serverService.listServers(userId)
+                val migratingIds = if (rows.isEmpty()) emptySet()
+                else rows.filter { serverService.isMigrating(it.id) }
+                    .map { it.id }
+                    .toSet()
+                call.respond(rows.map { it.toResponse(serverExposure, it.id in migratingIds) })
             }
 
             post("", {
@@ -40,7 +46,19 @@ fun Route.serversRoutes(serverService: ServerService, lifecycleService: ServerLi
             }) {
                 call.requirePermission(Permission.SERVER_CREATE)
                 val req = call.receive<CreateServerRequest>()
-                call.respond(HttpStatusCode.Created, serverService.createServer(req))
+                val row = serverService.createServer(
+                    name = req.name,
+                    displayName = req.displayName,
+                    description = req.description,
+                    nodeId = req.nodeId,
+                    networkId = req.networkId,
+                    serverType = req.serverType,
+                    mcVersion = req.mcVersion,
+                    itzgImageTag = req.itzgImageTag,
+                    memoryMb = req.memoryMb,
+                    cpuShares = req.cpuShares
+                )
+                call.respond(HttpStatusCode.Created, row.toResponse(serverExposure, false))
             }
 
             post("/{id}/clone", {
@@ -65,7 +83,8 @@ fun Route.serversRoutes(serverService: ServerService, lifecycleService: ServerLi
                 val sourceId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: throw UnprocessableException("Invalid server id")
                 val req = call.receive<CloneServerRequest>()
-                call.respond(HttpStatusCode.Created, serverService.cloneServer(sourceId, req))
+                val row = serverService.cloneServer(sourceId, req.name, req.displayName, req.description)
+                call.respond(HttpStatusCode.Created, row.toResponse(serverExposure, false))
             }
 
             get("/{id}", {
@@ -80,7 +99,8 @@ fun Route.serversRoutes(serverService: ServerService, lifecycleService: ServerLi
                 }
             }) {
                 val auth = call.requireServerPermission(Permission.SERVER_VIEW)
-                call.respond(serverService.getServer(auth.serverId))
+                val row = serverService.getServer(auth.serverId)
+                call.respond(row.toResponse(serverExposure, serverService.isMigrating(auth.serverId)))
             }
 
             patch("/{id}", {
@@ -100,7 +120,7 @@ fun Route.serversRoutes(serverService: ServerService, lifecycleService: ServerLi
             }) {
                 val auth = call.requireServerPermission(Permission.SERVER_CONFIGURE)
                 val body = call.receive<UpdateServerRequest>()
-                serverService.updateServer(auth.serverId, body)
+                serverService.updateServer(auth.serverId, body.displayName, body.description, body.networkId, body.mcVersion, body.itzgImageTag)
                 call.respond(HttpStatusCode.NoContent)
             }
 
@@ -139,7 +159,7 @@ fun Route.serversRoutes(serverService: ServerService, lifecycleService: ServerLi
             }) {
                 val auth = call.requireServerPermission(Permission.SERVER_RESOURCES)
                 val req = call.receive<PatchResourcesRequest>()
-                serverService.updateResources(auth.serverId, req)
+                serverService.updateResources(auth.serverId, req.memoryMb, req.cpuShares, req.itzgImageTag)
                 call.respond(HttpStatusCode.NoContent)
             }
 
@@ -257,7 +277,7 @@ fun Route.serversRoutes(serverService: ServerService, lifecycleService: ServerLi
             }) {
                 val auth = call.requireServerPermission(Permission.SERVER_CONFIGURE)
                 val req = call.receive<PatchExposureRequest>()
-                exposureService.updateExposure(auth.serverId, req)
+                exposureService.updateExposure(auth.serverId, req.exposedExternally, req.publicSubdomain, req.customHostname)
                 call.respond(HttpStatusCode.NoContent)
             }
         }

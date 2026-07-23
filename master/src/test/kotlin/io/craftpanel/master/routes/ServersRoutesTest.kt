@@ -80,7 +80,6 @@ class ServersRoutesTest :
                     userRepository = UserRepositoryImpl(),
                     groupRepository = GroupRepositoryImpl(),
                     settingsRepository = settingsRepository,
-                    serverExposure = serverExposure,
                     portRepository = repos.portRepository,
                     envVarsRepository = repos.envVarsRepository,
                     modRepository = repos.modRepository,
@@ -88,7 +87,8 @@ class ServersRoutesTest :
                     migrationRepository = repos.migrationRepository
                 ),
                 lifecycleService,
-                exposureService
+                exposureService,
+                serverExposure
             )
         }
 
