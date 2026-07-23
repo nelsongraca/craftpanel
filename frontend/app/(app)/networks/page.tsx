@@ -50,11 +50,11 @@ function NetworkForm({
 
     return (
         <form onSubmit={handleSubmit} className="space-y-4">
-            <Field label="Name">
-                <TextField value={form.name} onChange={(e) => setForm((f) => ({...f, name: e.target.value}))} required/>
+            <Field label="Name" htmlFor="network-name">
+                <TextField id="network-name" value={form.name} onChange={(e) => setForm((f) => ({...f, name: e.target.value}))} required/>
             </Field>
-            <Field label="Description">
-                <TextField value={form.description} placeholder="Optional" onChange={(e) => setForm((f) => ({...f, description: e.target.value}))}/>
+            <Field label="Description" htmlFor="network-description">
+                <TextField id="network-description" value={form.description} placeholder="Optional" onChange={(e) => setForm((f) => ({...f, description: e.target.value}))}/>
             </Field>
             {error && <p className="text-xs text-error">{error}</p>}
             <div className="flex justify-end gap-2 pt-1">

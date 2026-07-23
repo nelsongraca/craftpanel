@@ -35,9 +35,9 @@ const PROXY_TYPES = ["VELOCITY", "BUNGEECORD", "WATERFALL"] as const;
 
 // ── Field component helpers ───────────────────────────────────────────────────
 
-function Label({children, required}: { children: React.ReactNode; required?: boolean }) {
+function Label({children, required, htmlFor}: { children: React.ReactNode; required?: boolean; htmlFor?: string }) {
     return (
-        <label className="block text-xs font-heading font-bold uppercase tracking-wider text-text-muted mb-1.5">
+        <label htmlFor={htmlFor} className="block text-xs font-heading font-bold uppercase tracking-wider text-text-muted mb-1.5">
             {children}
             {required && <span className="text-error ml-1">*</span>}
         </label>
@@ -213,8 +213,9 @@ export default function NewServerPage() {
 
                 <div className="bg-surface border border-border rounded p-4 space-y-4">
                     <div>
-                        <Label required>Name</Label>
+                        <Label required htmlFor="server-name">Name</Label>
                         <FieldInput
+                            id="server-name"
                             value={name}
                             onChange={(e) => setName(e.target.value)}
                             placeholder="survival-1"
@@ -225,16 +226,18 @@ export default function NewServerPage() {
                         <p className="mt-1 text-xs text-text-muted">Unique slug used internally and for container naming.</p>
                     </div>
                     <div>
-                        <Label>Display Name</Label>
+                        <Label htmlFor="display-name">Display Name</Label>
                         <FieldInput
+                            id="display-name"
                             value={displayName}
                             onChange={(e) => setDisplayName(e.target.value)}
                             placeholder="Survival SMP"
                         />
                     </div>
                     <div>
-                        <Label>Description</Label>
+                        <Label htmlFor="description">Description</Label>
                         <FieldTextarea
+                            id="description"
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
                             placeholder="Optional description"
@@ -247,8 +250,8 @@ export default function NewServerPage() {
 
                 <div className="bg-surface border border-border rounded p-4 space-y-4">
                     <div>
-                        <Label required>Server Type</Label>
-                        <FieldSelect value={serverType} onChange={(e) => setServerType(e.target.value)}>
+                        <Label required htmlFor="server-type">Server Type</Label>
+                        <FieldSelect id="server-type" value={serverType} onChange={(e) => setServerType(e.target.value)}>
                             <optgroup label="Game Servers">
                                 {GAME_SERVER_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
                             </optgroup>
@@ -260,15 +263,16 @@ export default function NewServerPage() {
 
                     {!isProxy && (
                         <div>
-                            <Label required>Minecraft Version</Label>
+                            <Label required htmlFor="mc-version">Minecraft Version</Label>
                             {loadingData ? (
                                 <div className="h-9 bg-surface-high rounded animate-pulse"/>
                             ) : versions.length > 0 ? (
-                                <FieldSelect value={mcVersion} onChange={(e) => setMcVersion(e.target.value)}>
+                                <FieldSelect id="mc-version" value={mcVersion} onChange={(e) => setMcVersion(e.target.value)}>
                                     {versions.map((v) => <option key={v} value={v}>{v}</option>)}
                                 </FieldSelect>
                             ) : (
                                 <FieldInput
+                                    id="mc-version"
                                     value={mcVersion}
                                     onChange={(e) => setMcVersion(e.target.value)}
                                     placeholder="1.21.4"
@@ -280,8 +284,9 @@ export default function NewServerPage() {
                     )}
 
                     <div>
-                        <Label required>itzg Image Tag</Label>
+                        <Label required htmlFor="itzg-image-tag">itzg Image Tag</Label>
                         <FieldInput
+                            id="itzg-image-tag"
                             value={itzgImageTag}
                             onChange={(e) => setItzgImageTag(e.target.value)}
                             placeholder="latest"
@@ -306,11 +311,11 @@ export default function NewServerPage() {
 
                 <div className="bg-surface border border-border rounded p-4 space-y-4">
                     <div>
-                        <Label required>Node</Label>
+                        <Label required htmlFor="node">Node</Label>
                         {loadingData ? (
                             <div className="h-9 bg-surface-high rounded animate-pulse"/>
                         ) : (
-                            <FieldSelect value={nodeId} onChange={(e) => setNodeId(e.target.value)} required>
+                            <FieldSelect id="node" value={nodeId} onChange={(e) => setNodeId(e.target.value)} required>
                                 <option value="">Select a node…</option>
                                 {nodes.filter((n) => n.status === "ACTIVE").map((n) => (
                                     <option key={n.id} value={n.id}>
@@ -322,8 +327,8 @@ export default function NewServerPage() {
                     </div>
 
                     <div>
-                        <Label>Network</Label>
-                        <FieldSelect value={networkId} onChange={(e) => setNetworkId(e.target.value)}>
+                        <Label htmlFor="network">Network</Label>
+                        <FieldSelect id="network" value={networkId} onChange={(e) => setNetworkId(e.target.value)}>
                             <option value="">None</option>
                             {networks.map((n) => (
                                 <option key={n.id} value={n.id}>{n.name}</option>
@@ -337,8 +342,9 @@ export default function NewServerPage() {
 
                 <div className="bg-surface border border-border rounded p-4 space-y-4">
                     <div>
-                        <Label required>RAM (MB)</Label>
+                        <Label required htmlFor="ram-mb">RAM (MB)</Label>
                         <FieldInput
+                            id="ram-mb"
                             type="number"
                             value={ramMb}
                             onChange={(e) => setRamMb(Number(e.target.value))}
@@ -348,8 +354,9 @@ export default function NewServerPage() {
                         />
                     </div>
                     <div>
-                        <Label>CPU Shares</Label>
+                        <Label htmlFor="cpu-shares">CPU Shares</Label>
                         <FieldInput
+                            id="cpu-shares"
                             type="number"
                             value={cpuShares}
                             onChange={(e) => setCpuShares(Number(e.target.value))}

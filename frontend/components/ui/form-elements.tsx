@@ -22,10 +22,10 @@ function Modal({title, onClose, children}: { title: string; onClose: () => void;
     );
 }
 
-function Field({label, children}: { label: string; children: React.ReactNode }) {
+function Field({label, children, htmlFor}: { label: string; children: React.ReactNode; htmlFor?: string }) {
     return (
         <div className="flex flex-col gap-1.5">
-            <label className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">{label}</label>
+            <label htmlFor={htmlFor} className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">{label}</label>
             {children}
         </div>
     );
