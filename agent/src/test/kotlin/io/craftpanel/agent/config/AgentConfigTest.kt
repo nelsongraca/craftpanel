@@ -33,6 +33,17 @@ class AgentConfigTest :
             (ex is IllegalStateException) shouldBe true
         }
 
+        test("validate throws in prod when bootstrapToken is too short") {
+            val config = config(profile = "prod", bootstrapToken = "short", tlsCertPath = "/etc/certs/ca.pem")
+            val ex = runCatching { config.validate() }.exceptionOrNull()
+            (ex is IllegalStateException) shouldBe true
+        }
+
+        test("validate passes in prod with valid token and TLS configured") {
+            val config = config(profile = "prod", bootstrapToken = "valid-token-at-least-16", tlsCertPath = "/etc/certs/ca.pem")
+            config.validate() // must not throw
+        }
+
         test("validate throws in prod when TLS paths missing") {
             val config = config(profile = "prod", bootstrapToken = "valid-token-at-least-16", tlsCertPath = "")
             val ex = runCatching { config.validate() }.exceptionOrNull()

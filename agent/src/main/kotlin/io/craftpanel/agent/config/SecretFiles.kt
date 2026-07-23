@@ -12,8 +12,8 @@ private val log = LoggerFactory.getLogger("io.craftpanel.agent.config.SecretFile
  * A set-but-unreadable `_FILE` path is fatal — failing loudly beats silently
  * falling back to a weaker source for a credential.
  */
-fun secretFromFileOrEnv(envName: String, default: String): String {
-    val filePath = System.getenv("${envName}_FILE")
+fun secretFromFileOrEnv(envName: String, default: String, env: (String) -> String? = System::getenv): String {
+    val filePath = env("${envName}_FILE")
         ?.takeIf { it.isNotBlank() }
     if (filePath != null) {
         val file = File(filePath)
@@ -22,5 +22,5 @@ fun secretFromFileOrEnv(envName: String, default: String): String {
         return file.readText()
             .trim()
     }
-    return System.getenv(envName) ?: default
+    return env(envName) ?: default
 }
