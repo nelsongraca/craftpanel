@@ -1,6 +1,6 @@
 "use client";
 
-import {useRef} from "react";
+import {useEffect, useRef} from "react";
 import {authWsTicket} from "@/lib/generated/sdk.gen";
 import {getAccessToken} from "@/lib/client";
 import {useReconnectingSocket} from "@/lib/hooks/useReconnectingSocket";
@@ -28,7 +28,9 @@ export function useDashboardSocket(
     const {enabled = true} = options;
     const onEventRef = useRef(onEvent);
 
-    onEventRef.current = onEvent;
+    useEffect(() => {
+        onEventRef.current = onEvent;
+    }, [onEvent]);
 
     const urlFactory = async () => {
         if (!getAccessToken()) return null;

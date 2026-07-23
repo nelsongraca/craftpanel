@@ -30,10 +30,12 @@ export function useReconnectingSocket({
     const onErrorRef = useRef(onError);
     const [connected, setConnected] = useState(false);
 
-    onMessageRef.current = onMessage;
-    onOpenRef.current = onOpen;
-    onCloseRef.current = onClose;
-    onErrorRef.current = onError;
+    useEffect(() => {
+        onMessageRef.current = onMessage;
+        onOpenRef.current = onOpen;
+        onCloseRef.current = onClose;
+        onErrorRef.current = onError;
+    }, [onMessage, onOpen, onClose, onError]);
 
     const scheduleRetry = useCallback(() => {
         const delay = Math.min(1000 * 2 ** retryCount.current, 30000);
