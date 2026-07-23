@@ -14,14 +14,10 @@ import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.*
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
 import org.slf4j.LoggerFactory
-import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicInteger
 import kotlin.time.Duration.Companion.minutes
 import kotlin.uuid.Uuid
 
@@ -35,62 +31,6 @@ private fun DefaultWebSocketSession.sendConsole(event: ConsoleEvent) {
     outgoing.trySend(Frame.Text(json.encodeToString(ConsoleEvent.serializer(), event)))
 }
 
-private class ConsoleSession {
-
-    val viewerCount = AtomicInteger(0)
-    val input = Channel<ByteArray>(Channel.BUFFERED)
-    val output = MutableSharedFlow<ByteArray>(
-        replay = 2000,
-        extraBufferCapacity = 512,
-        onBufferOverflow = BufferOverflow.DROP_OLDEST
-    )
-    val closed = MutableStateFlow(false)
-    var job: Job? = null
-}
-
-private class ConsoleSessionManager(private val proxy: DataServiceProxy, private val scope: CoroutineScope) {
-
-    private val log = LoggerFactory.getLogger(ConsoleSessionManager::class.java)
-    private val sessions = ConcurrentHashMap<Uuid, ConsoleSession>()
-
-    fun getOrCreate(serverId: Uuid): ConsoleSession = sessions.compute(serverId) { _, existing ->
-        val session = existing ?: ConsoleSession()
-        if (existing == null) {
-            session.job = scope.launch {
-                try {
-                    proxy.console(serverId, session.input.receiveAsFlow())
-                        .collect { bytes ->
-                            session.output.emit(bytes)
-                        }
-                }
-                catch (e: Exception) {
-                    log.warn("Console stream for {} ended: {}", serverId, e.message)
-                }
-                finally {
-                    sessions.compute(serverId) { _, s ->
-                        if (s === session) null else s
-                    }
-                    session.closed.value = true
-                }
-            }
-        }
-        session.viewerCount.incrementAndGet()
-        session
-    }!!
-
-    fun releaseViewer(serverId: Uuid) {
-        sessions.compute(serverId) { _, existing ->
-            if (existing != null && existing.viewerCount.decrementAndGet() <= 0) {
-                existing.job?.cancel()
-                null
-            }
-            else {
-                existing
-            }
-        }
-    }
-}
-
 internal data class ServerInfo(val serverId: Uuid, val networkId: Uuid?)
 
 fun Route.consoleRoutes(wsTicketService: WsTicketService, proxy: DataServiceProxy, permissionResolver: PermissionResolver, systemService: SystemService) =
@@ -99,7 +39,7 @@ fun Route.consoleRoutes(wsTicketService: WsTicketService, proxy: DataServiceProx
 class ConsoleRoutes(private val wsTicketService: WsTicketService, private val proxy: DataServiceProxy, private val permissionResolver: PermissionResolver, private val systemService: SystemService) {
 
     private val log = LoggerFactory.getLogger(ConsoleRoutes::class.java)
-    private val sessionManager = ConsoleSessionManager(proxy, CoroutineScope(SupervisorJob().plus(Dispatchers.IO)))
+    private val sessionManager = ConsoleSessionManager(proxy::console, CoroutineScope(SupervisorJob().plus(Dispatchers.IO)))
 
     internal fun lookupServer(rawId: String): ServerInfo? {
         val id = runCatching { Uuid.parse(rawId) }.getOrNull() ?: return null
@@ -148,8 +88,7 @@ class ConsoleRoutes(private val wsTicketService: WsTicketService, private val pr
                         val text = chunk.decodeToString()
                         sendConsole(ConsoleEvent.Output(text))
                     }
-                }
-                catch (_: Exception) {
+                } catch (_: Exception) {
                 }
             }
 
@@ -191,8 +130,7 @@ class ConsoleRoutes(private val wsTicketService: WsTicketService, private val pr
                         }.onFailure { log.warn("Malformed console input: {}", it.message) }
                     }
                 }
-            }
-            finally {
+            } finally {
                 outputJob.cancel()
                 revalidationJob.cancel()
                 closeWatcherJob.cancel()
