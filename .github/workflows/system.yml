@@ -95,12 +95,58 @@ jobs:
           path: system-tests/build/reports/tests/test/
           retention-days: 3
 
-      - uses: ./.github/actions/codecov-upload
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }}
+        uses: codecov/test-results-action@v1
         with:
-          flags: system
-          test-results: system-tests/build/test-results/**/*.xml
-          coverage-files: system-tests/build/reports/kover/system-tests/report.xml
           token: ${{ secrets.CODECOV_TOKEN }}
+          files: system-tests/build/test-results/**/*.xml
+          flags: system
+
+      - name: Upload raw coverage .ic files
+        uses: actions/upload-artifact@v4
+        with:
+          name: system-tests-coverage-${{ matrix.tag }}
+          path: system-tests/build/tmp/kover-coverage/
+          retention-days: 1
+
+  merge-coverage:
+    name: Merge System Test Coverage
+    needs: system-tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/setup-gradle
+
+      - name: Restore Gradle build cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.gradle/caches/build-cache-1
+          key: gradle-build-cache-${{ github.sha }}
+          restore-keys: gradle-build-cache-
+
+      - name: Download all shard coverage artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: system-tests-coverage-*
+          path: system-tests/build/tmp/kover-coverage
+          merge-multiple: true
+
+      - name: Build master/agent jars
+        run: ./gradlew :master:jar :agent:jar
+
+      - name: Generate merged coverage report
+        run: ./gradlew :system-tests:koverSystemTestReport -PwithCoverage -PskipDockerBuild
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v5
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: system-tests/build/reports/kover/system-tests/report.xml
+          flags: system
+          fail_ci_if_error: true
 
   e2e-tests:
     name: E2E Tests (MSW)
