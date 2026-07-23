@@ -2,6 +2,7 @@
 
 import {useCallback, useEffect, useRef, useState} from "react";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
+import {usePromptDialog} from "@/lib/hooks/usePromptDialog";
 import {deleteServerFile, listServerFiles, mkdirServerFile, moveServerFile, readServerFile,} from "@/lib/generated/sdk.gen";
 import {ChevronDown, ChevronRight, Download, File, Folder, FolderPlus, Pencil, Save, Trash2, Upload, X} from "lucide-react";
 
@@ -40,6 +41,7 @@ export function FilesTab({serverId}: Props) {
     const [rootLoading, setRootLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const {confirm, dialog} = useConfirmDialog();
+    const {prompt, dialog: promptDialog} = usePromptDialog();
     const [renameNode, setRenameNode] = useState<{ path: string; name: string } | null>(null);
     const [renameValue, setRenameValue] = useState("");
     const uploadRef = useRef<HTMLInputElement>(null);
@@ -149,15 +151,20 @@ export function FilesTab({serverId}: Props) {
         });
     }
 
-    async function mkdirPrompt() {
-        const name = prompt("New folder path (relative to /):");
-        if (!name) return;
-        const {error: err} = await mkdirServerFile({path: {id: serverId}, body: {path: name.startsWith("/") ? name : `/${name}`}});
-        if (err) {
-            setError("Failed to create directory");
-            return;
-        }
-        setRoots(await loadDir("/"));
+    function mkdirPrompt() {
+        prompt({
+            title: "New Folder",
+            label: "Path (relative to /)",
+            confirmLabel: "Create",
+            onConfirm: async (name) => {
+                const {error: err} = await mkdirServerFile({path: {id: serverId}, body: {path: name.startsWith("/") ? name : `/${name}`}});
+                if (err) {
+                    setError("Failed to create directory");
+                    return;
+                }
+                setRoots(await loadDir("/"));
+            },
+        });
     }
 
     async function startRename(node: TreeNode) {
@@ -185,12 +192,9 @@ export function FilesTab({serverId}: Props) {
         setRoots(await loadDir("/"));
     }
 
-    async function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
-        const file = e.target.files?.[0];
-        if (!file) return;
-        const name = prompt("Destination path:", `/${file.name}`) ?? `/${file.name}`;
+    async function uploadFile(file: File, destPath: string) {
         const form = new FormData();
-        form.append("path", name);
+        form.append("path", destPath);
         form.append("file", file);
         const res = await fetch(`/api/servers/${serverId}/files/upload`, {method: "POST", body: form});
         if (!res.ok) {
@@ -198,6 +202,18 @@ export function FilesTab({serverId}: Props) {
             return;
         }
         setRoots(await loadDir("/"));
+    }
+
+    function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        prompt({
+            title: "Upload File",
+            label: "Destination path",
+            defaultValue: `/${file.name}`,
+            confirmLabel: "Upload",
+            onConfirm: (destPath) => void uploadFile(file, destPath),
+        });
         if (e.target) e.target.value = "";
     }
 
@@ -293,10 +309,10 @@ export function FilesTab({serverId}: Props) {
                     <button title="Upload file" className="p-1 text-text-muted hover:text-accent" onClick={() => uploadRef.current?.click()}>
                         <Upload size={13}/>
                     </button>
-                    <button title="New folder" className="p-1 text-text-muted hover:text-accent" onClick={() => void mkdirPrompt()}>
+                    <button title="New folder" className="p-1 text-text-muted hover:text-accent" onClick={mkdirPrompt}>
                         <FolderPlus size={13}/>
                     </button>
-                    <input ref={uploadRef} type="file" className="hidden" onChange={(e) => void handleUpload(e)}/>
+                    <input ref={uploadRef} type="file" className="hidden" onChange={handleUpload}/>
                 </div>
                 <div className="flex-1 overflow-y-auto py-1">
                     {rootLoading ? (
@@ -369,6 +385,7 @@ export function FilesTab({serverId}: Props) {
             </div>
         </div>
         {dialog}
+        {promptDialog}
         </>
     );
 }

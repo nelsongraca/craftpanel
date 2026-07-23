@@ -472,20 +472,24 @@ describe("FilesTab", () => {
 
     describe("mkdir", () => {
         async function setupMkdir() {
+            const user = userEvent.setup();
             vi.mocked(listServerFiles).mockResolvedValue({
                 data: { entries: [] },
             } as never);
-            vi.mocked(mkdirServerFile).mockResolvedValue({ data: {} } as never);
-            vi.spyOn(window, "prompt").mockReturnValue("newfolder");
             render(<FilesTab serverId="s1" />);
             await waitFor(() =>
                 expect(screen.queryByText("Loading\u2026")).not.toBeInTheDocument(),
             );
+            return user;
         }
 
         it("calls mkdirServerFile with user-provided path", async () => {
-            await setupMkdir();
+            vi.mocked(mkdirServerFile).mockResolvedValue({ data: {} } as never);
+            const user = await setupMkdir();
+
             fireEvent.click(screen.getByTitle("New folder"));
+            await user.type(screen.getByLabelText("Path (relative to /)"), "newfolder");
+            await user.click(screen.getByRole("button", { name: "Create" }));
 
             await waitFor(() => {
                 expect(mkdirServerFile).toHaveBeenCalledWith(
@@ -497,37 +501,25 @@ describe("FilesTab", () => {
             });
         });
 
-        it("does not call API when prompt is cancelled", async () => {
-            vi.mocked(listServerFiles).mockResolvedValue({
-                data: { entries: [] },
-            } as never);
-            vi.spyOn(window, "prompt").mockReturnValue(null);
-            render(<FilesTab serverId="s1" />);
-            await waitFor(() =>
-                expect(screen.queryByText("Loading\u2026")).not.toBeInTheDocument(),
-            );
+        it("does not call API when dialog is cancelled", async () => {
+            const user = await setupMkdir();
 
             fireEvent.click(screen.getByTitle("New folder"));
+            await user.type(screen.getByLabelText("Path (relative to /)"), "newfolder");
+            await user.click(screen.getByRole("button", { name: "Cancel" }));
 
-            await waitFor(() => {
-                expect(mkdirServerFile).not.toHaveBeenCalled();
-            });
+            expect(mkdirServerFile).not.toHaveBeenCalled();
         });
 
         it("shows error banner when mkdir fails", async () => {
-            vi.mocked(listServerFiles).mockResolvedValue({
-                data: { entries: [] },
-            } as never);
             vi.mocked(mkdirServerFile).mockResolvedValue({
                 error: { message: "Exists" },
             } as never);
-            vi.spyOn(window, "prompt").mockReturnValue("newfolder");
-            render(<FilesTab serverId="s1" />);
-            await waitFor(() =>
-                expect(screen.queryByText("Loading\u2026")).not.toBeInTheDocument(),
-            );
+            const user = await setupMkdir();
 
             fireEvent.click(screen.getByTitle("New folder"));
+            await user.type(screen.getByLabelText("Path (relative to /)"), "newfolder");
+            await user.click(screen.getByRole("button", { name: "Create" }));
 
             await waitFor(() => {
                 expect(
@@ -662,10 +654,10 @@ describe("FilesTab", () => {
 
     describe("upload", () => {
         it("shows error banner when upload fails", async () => {
+            const user = userEvent.setup();
             vi.mocked(listServerFiles).mockResolvedValue({
                 data: { entries: [] },
             } as never);
-            vi.spyOn(window, "prompt").mockReturnValue("/uploaded.txt");
             globalThis.fetch = vi.fn().mockResolvedValue(
                 new Response(null, { status: 500 }),
             );
@@ -680,6 +672,11 @@ describe("FilesTab", () => {
             fireEvent.change(fileInput, {
                 target: { files: [new File(["data"], "upload.txt")] },
             });
+
+            await waitFor(() =>
+                expect(screen.getByDisplayValue("/upload.txt")).toBeInTheDocument(),
+            );
+            await user.click(screen.getByRole("button", { name: "Upload" }));
 
             await waitFor(() => {
                 expect(screen.getByText("Upload failed")).toBeInTheDocument();
