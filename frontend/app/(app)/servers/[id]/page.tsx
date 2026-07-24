@@ -9,7 +9,8 @@ import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import type {Network, Node, Server} from "@/lib/types";
 import {useWs} from "@/lib/ws-context";
-import {serverStatusClass, serverStatusLabel} from "@/lib/status";
+import {serverStatusLabel, serverStatusVariant} from "@/lib/status";
+import {Badge} from "@/components/ui/badge";
 import {ConsoleTab} from "./console-tab";
 import {FilesTab} from "./files-tab";
 import {BackupsTab} from "./backups-tab";
@@ -235,11 +236,7 @@ export default function ServerDetailPage() {
                         <h1 className="text-[22px] font-heading font-bold uppercase tracking-wide text-text-primary leading-none">
                             {server.display_name}
                         </h1>
-                        <span
-                            className={`text-xs font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${serverStatusClass(sStatus)}`}
-                        >
-              {serverStatusLabel(sStatus)}
-            </span>
+                        <Badge variant={serverStatusVariant(sStatus)}>{serverStatusLabel(sStatus)}</Badge>
                     </div>
 
                     {/* Action buttons + menu */}

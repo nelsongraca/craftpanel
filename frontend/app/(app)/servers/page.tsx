@@ -13,7 +13,8 @@ import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {useResourceList} from "@/lib/hooks/useResourceList";
 import {ListTh, ListTd, IconActionButton} from "@/components/ui/list-table";
 import {fillColor} from "@/lib/utils/format";
-import {serverStatusClass, serverStatusLabel} from "@/lib/status";
+import {serverStatusLabel, serverStatusVariant} from "@/lib/status";
+import {Badge} from "@/components/ui/badge";
 
 // Filter option → backend statuses that match
 const FILTER_MATCHES: Record<string, string[]> = {
@@ -455,11 +456,7 @@ export default function ServersPage() {
 
                                             {/* STATUS */}
                                             <ListTd>
-                      <span
-                          className={`text-xs font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${serverStatusClass(status)}`}
-                      >
-                        {serverStatusLabel(status)}
-                      </span>
+                      <Badge variant={serverStatusVariant(status)}>{serverStatusLabel(status)}</Badge>
                                             </ListTd>
 
                                             {/* PLAYERS */}
@@ -520,9 +517,7 @@ export default function ServersPage() {
                                                     <p className="mt-0.5 font-mono text-xs text-text-muted truncate">{server.public_subdomain}</p>
                                                 )}
                                             </div>
-                                            <span className={`shrink-0 text-xs font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${serverStatusClass(status)}`}>
-                                                {serverStatusLabel(status)}
-                                            </span>
+                                            <Badge variant={serverStatusVariant(status)}>{serverStatusLabel(status)}</Badge>
                                         </div>
                                         <div className="mt-2.5 flex items-center justify-between gap-2">
                                             <RamBar total={server.memory_mb}/>

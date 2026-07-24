@@ -1,10 +1,11 @@
 "use client";
 
 import {useCallback, useEffect, useState} from "react";
-import {ChevronDown, ChevronUp, Plus, Trash2, X} from "lucide-react";
+import {ChevronDown, ChevronUp, Plus, Trash2} from "lucide-react";
 import {getProxyBackends, listServers, replaceProxyBackends} from "@/lib/generated/sdk.gen";
 import type {PutProxyBackendsRequest} from "@/lib/types";
 import type {ServerResponse} from "@/lib/generated/types.gen";
+import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter} from "@/components/ui/dialog";
 
 const PROXY_TYPES = new Set(["VELOCITY", "BUNGEECORD", "WATERFALL"]);
 
@@ -24,6 +25,7 @@ function AddBackendModal({
     onAdd: (server: ServerResponse, backendName: string) => void;
     onClose: () => void;
 }) {
+    const [open, setOpen] = useState(true);
     const [selectedId, setSelectedId] = useState(available[0]?.id ?? "");
     const [backendName, setBackendName] = useState(slugify(available[0]?.display_name ?? ""));
 
@@ -33,23 +35,20 @@ function AddBackendModal({
         if (s) setBackendName(slugify(s.display_name));
     }
 
+    function handleClose() {
+        setOpen(false);
+        onClose();
+    }
+
     const selected = available.find((s) => s.id === selectedId);
     const valid = backendName.trim().length > 0 && /^[a-z0-9_-]+$/.test(backendName.trim());
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80">
-            <div className="bg-surface border border-border rounded-lg p-6 w-[420px] space-y-4">
-                <div className="flex items-center justify-between">
-                    <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">
-                        Add Backend
-                    </p>
-                    <button
-                        onClick={onClose}
-                        className="text-text-muted hover:text-text-primary transition-colors"
-                    >
-                        <X className="w-4 h-4"/>
-                    </button>
-                </div>
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogContent className="w-[420px]">
+                <DialogHeader>
+                    <DialogTitle>Add Backend</DialogTitle>
+                </DialogHeader>
 
                 <div className="space-y-3">
                     <div>
@@ -89,9 +88,9 @@ function AddBackendModal({
                     </div>
                 </div>
 
-                <div className="flex justify-end gap-2 pt-1">
+                <DialogFooter>
                     <button
-                        onClick={onClose}
+                        onClick={handleClose}
                         className="px-3 py-1.5 rounded text-xs font-heading font-bold uppercase tracking-widest text-text-dim border border-border hover:border-text-muted transition-colors"
                     >
                         Cancel
@@ -103,9 +102,9 @@ function AddBackendModal({
                     >
                         Add
                     </button>
-                </div>
-            </div>
-        </div>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }
 

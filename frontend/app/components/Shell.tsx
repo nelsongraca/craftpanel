@@ -1,11 +1,12 @@
 "use client";
 
-import {useEffect, useRef, useState} from "react";
+import {useEffect, useState} from "react";
 import Link from "next/link";
 import {usePathname} from "next/navigation";
 import {AlertTriangle, Bell, ChevronDown, KeyRound, LayoutDashboard, LogOut, type LucideIcon, Menu, Monitor, Network, Server, Settings, Users,} from "lucide-react";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
+import {DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger} from "@/components/ui/dropdown-menu";
 
 interface HealthInfo {
     frontendVersion: string;
@@ -59,10 +60,8 @@ const sidebarSections: SidebarSection[] = [
 export default function Shell({children}: { children: React.ReactNode }) {
     const pathname = usePathname();
     const {user, logout, logoutAll} = useAuth();
-    const [menuOpen, setMenuOpen] = useState(false);
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [health, setHealth] = useState<HealthInfo | null>(null);
-    const menuRef = useRef<HTMLDivElement>(null);
 
     const permissions = user?.permissions ?? [];
 
@@ -72,22 +71,6 @@ export default function Shell({children}: { children: React.ReactNode }) {
             .then(setHealth)
             .catch(() => setHealth(null));
     }, []);
-
-    const closeMenu = (fn: () => void) => () => {
-        setMenuOpen(false);
-        fn();
-    };
-
-    useEffect(() => {
-        function handleClickOutside(e: MouseEvent) {
-            if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-                setMenuOpen(false);
-            }
-        }
-
-        if (menuOpen) document.addEventListener("mousedown", handleClickOutside);
-        return () => document.removeEventListener("mousedown", handleClickOutside);
-    }, [menuOpen]);
 
     // Close the mobile drawer after navigation, else it covers the page just opened.
     useEffect(() => {
@@ -113,38 +96,28 @@ export default function Shell({children}: { children: React.ReactNode }) {
                 </div>
 
                 {/* User menu */}
-                <div ref={menuRef} className="relative flex justify-end">
-                    <button
-                        onClick={() => setMenuOpen((o) => !o)}
-                        className="flex items-center gap-1.5 text-xs font-heading font-bold uppercase tracking-widest text-text-dim hover:text-text-primary transition-colors"
-                    >
-                        <span>{user?.username ?? "User"}</span>
-                        <ChevronDown size={12} strokeWidth={2.5} className={menuOpen ? "rotate-180 transition-transform" : "transition-transform"}/>
-                    </button>
-
-                    {menuOpen && (
-                        <div className="absolute right-0 top-full mt-2 bg-surface-higher border border-border rounded-md shadow-xl z-50 min-w-[180px] py-1 overflow-hidden">
-                            <div className="px-3 py-2 border-b border-border">
-                                <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted truncate">
-                                    {user?.email}
-                                </p>
-                            </div>
-                            <button
-                                onClick={closeMenu(logout)}
-                                className="flex items-center gap-2.5 w-full text-left px-3 py-2 text-xs hover:bg-surface-high text-text-primary transition-colors"
-                            >
-                                <LogOut size={13} strokeWidth={2}/>
-                                Sign out
-                            </button>
-                            <button
-                                onClick={closeMenu(logoutAll)}
-                                className="flex items-center gap-2.5 w-full text-left px-3 py-2 text-xs hover:bg-surface-high text-text-dim transition-colors"
-                            >
-                                <LogOut size={13} strokeWidth={2}/>
-                                Sign out all sessions
-                            </button>
-                        </div>
-                    )}
+                <div className="relative flex justify-end">
+                    <DropdownMenu>
+                        <DropdownMenuTrigger className="flex items-center gap-1.5 text-xs font-heading font-bold uppercase tracking-widest text-text-dim hover:text-text-primary transition-colors">
+                            <span>{user?.username ?? "User"}</span>
+                            <ChevronDown size={12} strokeWidth={2.5}/>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="min-w-[180px] bg-surface-higher border-border">
+                            <DropdownMenuLabel className="text-text-muted truncate">
+                                {user?.email}
+                            </DropdownMenuLabel>
+                            <DropdownMenuGroup>
+                                <DropdownMenuItem onClick={logout} className="text-text-primary">
+                                    <LogOut size={13} strokeWidth={2}/>
+                                    Sign out
+                                </DropdownMenuItem>
+                                <DropdownMenuItem onClick={logoutAll} className="text-text-dim">
+                                    <LogOut size={13} strokeWidth={2}/>
+                                    Sign out all sessions
+                                </DropdownMenuItem>
+                            </DropdownMenuGroup>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </div>
             </header>
 

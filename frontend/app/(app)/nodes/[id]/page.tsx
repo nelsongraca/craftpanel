@@ -16,7 +16,8 @@ import type {ServerResponse as Server} from "@/lib/generated/types.gen";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {HeaderActionButton} from "@/components/servers/header-action-button";
 
-import {nodeStatusClass, nodeStatusLabel, serverStatusClass} from "@/lib/status";
+import {nodeStatusLabel, nodeStatusVariant, serverStatusLabel, serverStatusVariant} from "@/lib/status";
+import {Badge} from "@/components/ui/badge";
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -179,11 +180,7 @@ function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
                     </p>
                 </StatCard>
                 <StatCard label="Status">
-          <span
-              className={`self-start text-xs font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status, node.health)}`}
-          >
-            {nodeStatusLabel(node.status, node.health)}
-          </span>
+                    <Badge variant={nodeStatusVariant(node.status, node.health)}>{nodeStatusLabel(node.status, node.health)}</Badge>
                     {node.last_seen_at && (
                         <p className="text-xs text-text-muted">last seen {timeAgo(node.last_seen_at)}</p>
                     )}
@@ -261,7 +258,7 @@ function ServersTab({servers}: { servers: Server[] }) {
                 </thead>
                 <tbody>
                 {servers.map((s) => {
-                    const sCls = serverStatusClass(s.status);
+                    
                     return (
                         <tr key={s.id} className="border-b border-border hover:bg-surface transition-colors">
                             <td className="py-3 pr-4">
@@ -274,9 +271,7 @@ function ServersTab({servers}: { servers: Server[] }) {
                   </span>
                             </td>
                             <td className="py-3 pr-4">
-                  <span className={`text-xs font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${sCls}`}>
-                    {s.status}
-                  </span>
+                  <Badge variant={serverStatusVariant(s.status)}>{serverStatusLabel(s.status)}</Badge>
                             </td>
                             <td className="py-3 pr-4">
                                 <span className="font-mono text-xs text-text-muted">{fmtMb(s.memory_mb)}</span>
@@ -688,9 +683,7 @@ export default function NodeDetailPage() {
                         <h1 className="text-[22px] font-heading font-bold uppercase tracking-wide text-text-primary leading-none">
                             {node.display_name}
                         </h1>
-                        <span className={`text-xs font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status, node.health)}`}>
-              {nodeStatusLabel(node.status, node.health)}
-            </span>
+                        <Badge variant={nodeStatusVariant(node.status, node.health)}>{nodeStatusLabel(node.status, node.health)}</Badge>
                     </div>
 
                     {canManage && (

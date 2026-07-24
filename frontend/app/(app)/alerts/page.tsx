@@ -10,6 +10,7 @@ import type {AlertEvent, AlertThreshold} from "@/lib/types";
 import {useResourceList} from "@/lib/hooks/useResourceList";
 import {useWs} from "@/lib/ws-context";
 import {timeAgo} from "@/lib/utils/format";
+import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter} from "@/components/ui/dialog";
 
 async function loadThresholds() {
     const {data} = await listAlertThresholds();
@@ -75,6 +76,7 @@ function CreateThresholdModal({
     onClose: () => void;
     onCreate: (threshold: AlertThreshold) => void;
 }) {
+    const [open, setOpen] = useState(true);
     const [scopeType, setScopeType] = useState<"NODE" | "SERVER">("NODE");
     const [scopeId, setScopeId] = useState("");
     const [metric, setMetric] = useState(METRICS[0]);
@@ -100,6 +102,11 @@ function CreateThresholdModal({
         setScopeId("");
     }
 
+    function handleClose() {
+        setOpen(false);
+        onClose();
+    }
+
     async function submit() {
         setSaving(true);
         setError(null);
@@ -118,22 +125,17 @@ function CreateThresholdModal({
             return;
         }
         onCreate(data);
-        onClose();
+        handleClose();
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-bg/80 backdrop-blur-sm">
-            <div className="bg-surface-higher border border-border rounded-lg shadow-2xl w-full max-w-md p-6">
-                <div className="flex items-center justify-between mb-5">
-                    <h2 className="text-sm font-heading font-bold uppercase tracking-widest text-text-primary">
-                        New Alert Threshold
-                    </h2>
-                    <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors">
-                        <X size={14}/>
-                    </button>
-                </div>
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogContent className="w-full max-w-md">
+                <DialogHeader>
+                    <DialogTitle>New Alert Threshold</DialogTitle>
+                </DialogHeader>
 
-                {error && <p className="text-xs text-error mb-4">{error}</p>}
+                {error && <p className="text-xs text-error">{error}</p>}
 
                 <div className="space-y-4">
                     <div className="space-y-1">
@@ -228,9 +230,9 @@ function CreateThresholdModal({
                     )}
                 </div>
 
-                <div className="flex items-center justify-end gap-2 mt-6">
+                <DialogFooter>
                     <button
-                        onClick={onClose}
+                        onClick={handleClose}
                         className="px-3 py-1 text-xs font-heading font-bold uppercase tracking-wider text-text-muted hover:text-text-primary transition-colors"
                     >
                         Cancel
@@ -242,9 +244,9 @@ function CreateThresholdModal({
                     >
                         {saving ? "Creating…" : "Create"}
                     </button>
-                </div>
-            </div>
-        </div>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
     );
 }
 

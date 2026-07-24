@@ -1,11 +1,12 @@
 "use client";
 
 import {useCallback, useEffect, useRef, useState} from "react";
-import {ArrowRight, ChevronDown, ChevronRight, Loader2, Shuffle, X} from "lucide-react";
+import {ArrowRight, ChevronDown, ChevronRight, Loader2, Shuffle} from "lucide-react";
 import {listMigrations, listNodes, startMigration} from "@/lib/generated/sdk.gen";
 import type {MigrationResponse, MigrationStepData} from "@/lib/types";
 import type {Node} from "@/lib/types";
 import {useReconnectingSocket} from "@/lib/hooks/useReconnectingSocket";
+import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter} from "@/components/ui/dialog";
 
 function fmtDate(iso: string): string {
     return new Date(iso).toLocaleString();
@@ -215,6 +216,7 @@ function MigrateModal({
     onClose: () => void;
     onStarted: (migrationId: string) => void;
 }) {
+    const [open, setOpen] = useState(true);
     const [nodes, setNodes] = useState<Node[]>([]);
     const [loadingNodes, setLoadingNodes] = useState(true);
     const [targetNodeId, setTargetNodeId] = useState("");
@@ -233,6 +235,11 @@ function MigrateModal({
             setLoadingNodes(false);
         });
     }, [currentNodeId]);
+
+    function handleClose() {
+        setOpen(false);
+        onClose();
+    }
 
     async function submit() {
         if (!targetNodeId) return;
@@ -255,18 +262,15 @@ function MigrateModal({
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <div className="bg-surface border border-border rounded-md w-full max-w-md shadow-2xl">
-                <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-                    <h2 className="text-sm font-heading font-bold uppercase tracking-wider text-text-primary flex items-center gap-2">
+        <Dialog open={open} onOpenChange={setOpen}>
+            <DialogContent className="w-full max-w-md">
+                <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
                         <Shuffle size={14} className="text-accent"/>
                         Migrate Server
-                    </h2>
-                    <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors">
-                        <X size={16}/>
-                    </button>
-                </div>
-                <div className="p-5 space-y-4">
+                    </DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4">
                     {loadingNodes ? (
                         <p className="text-xs text-text-muted">Loading nodes…</p>
                     ) : nodes.length === 0 ? (
@@ -320,28 +324,29 @@ function MigrateModal({
                             {error && (
                                 <p className="text-xs text-error">{error}</p>
                             )}
-
-                            <div className="flex gap-2 justify-end pt-2">
-                                <button
-                                    onClick={onClose}
-                                    className="px-4 py-2 text-xs font-heading font-bold uppercase tracking-wider text-text-muted hover:text-text-primary border border-border rounded hover:bg-surface-high transition-colors"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    onClick={submit}
-                                    disabled={submitting || !targetNodeId}
-                                    className="px-4 py-2 text-xs font-heading font-bold uppercase tracking-wider bg-accent text-bg rounded hover:bg-accent-bright transition-colors disabled:opacity-50 flex items-center gap-2"
-                                >
-                                    {submitting && <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin"/>}
-                                    {submitting ? "Starting…" : "Start Migration"}
-                                </button>
-                            </div>
                         </>
                     )}
                 </div>
-            </div>
-        </div>
+                {!loadingNodes && nodes.length > 0 && (
+                    <DialogFooter>
+                        <button
+                            onClick={handleClose}
+                            className="px-4 py-2 text-xs font-heading font-bold uppercase tracking-wider text-text-muted hover:text-text-primary border border-border rounded hover:bg-surface-high transition-colors"
+                        >
+                            Cancel
+                        </button>
+                        <button
+                            onClick={submit}
+                            disabled={submitting || !targetNodeId}
+                            className="px-4 py-2 text-xs font-heading font-bold uppercase tracking-wider bg-accent text-bg rounded hover:bg-accent-bright transition-colors disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {submitting && <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin"/>}
+                            {submitting ? "Starting…" : "Start Migration"}
+                        </button>
+                    </DialogFooter>
+                )}
+            </DialogContent>
+        </Dialog>
     );
 }
 

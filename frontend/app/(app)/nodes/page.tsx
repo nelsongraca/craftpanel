@@ -13,7 +13,8 @@ import {TokenModal} from "@/components/nodes/TokenModal";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {useResourceList} from "@/lib/hooks/useResourceList";
 import {useWs} from "@/lib/ws-context";
-import {nodeDisplayStatus, nodeStatusClass, nodeStatusLabel} from "@/lib/status";
+import {nodeDisplayStatus, nodeStatusLabel, nodeStatusVariant} from "@/lib/status";
+import {Badge} from "@/components/ui/badge";
 import {ListTh, ListTd, IconActionButton} from "@/components/ui/list-table";
 
 const STATUS_FILTER_OPTIONS = [
@@ -512,11 +513,7 @@ export default function NodesPage() {
 
                                         {/* STATUS */}
                                         <ListTd>
-                        <span
-                            className={`text-xs font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status, node.health)}`}
-                        >
-                          {nodeStatusLabel(node.status, node.health)}
-                        </span>
+                                            <Badge variant={nodeStatusVariant(node.status, node.health)}>{nodeStatusLabel(node.status, node.health)}</Badge>
                                         </ListTd>
 
                                         {/* RAM */}
@@ -582,9 +579,7 @@ export default function NodesPage() {
                                             <p className="text-sm font-heading font-bold text-text-primary truncate">{node.display_name}</p>
                                             <p className="mt-0.5 font-mono text-xs text-text-muted truncate">{node.hostname}</p>
                                         </div>
-                                        <span className={`shrink-0 text-xs font-heading font-bold uppercase tracking-wider px-2 py-0.5 rounded ${nodeStatusClass(node.status, node.health)}`}>
-                                            {nodeStatusLabel(node.status, node.health)}
-                                        </span>
+                                        <Badge variant={nodeStatusVariant(node.status, node.health)}>{nodeStatusLabel(node.status, node.health)}</Badge>
                                     </div>
                                     <div className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-1.5">
                                         <div>

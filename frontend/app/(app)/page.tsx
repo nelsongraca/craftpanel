@@ -8,22 +8,15 @@ import PageHeader from "@/app/components/PageHeader";
 import {listNodes, listServers} from "@/lib/generated/sdk.gen";
 import type {Node, Server} from "@/lib/types";
 import {timeAgo} from "@/lib/utils/format";
-import {nodeDisplayStatus, nodeStatusClass, serverStatusClass} from "@/lib/status";
+import {nodeStatusLabel, nodeStatusVariant, serverStatusLabel, serverStatusVariant} from "@/lib/status";
+import {Badge} from "@/components/ui/badge";
 
 function NodeStatusBadge({status, health}: { status: string; health?: string }) {
-    return (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-heading font-bold uppercase tracking-wider ${nodeStatusClass(status, health)}`}>
-      {nodeDisplayStatus(status, health)}
-    </span>
-    );
+    return <Badge variant={nodeStatusVariant(status, health)}>{nodeStatusLabel(status, health)}</Badge>;
 }
 
 function ServerStatusBadge({status}: { status: string }) {
-    return (
-        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-heading font-bold uppercase tracking-wider ${serverStatusClass(status)}`}>
-      {status}
-    </span>
-    );
+    return <Badge variant={serverStatusVariant(status)}>{serverStatusLabel(status)}</Badge>;
 }
 
 function RamBar({used, total}: { used: number; total: number }) {

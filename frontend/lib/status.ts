@@ -32,6 +32,17 @@ export function serverStatusClass(status: string): string {
     return SERVER_STATUS_CLASSES[toServerDisplayStatus(status)]
 }
 
+export function serverStatusVariant(status: string): 'success' | 'warning' | 'secondary-neutral' | 'destructive' {
+    const displayStatus = toServerDisplayStatus(status)
+    switch (displayStatus) {
+        case 'HEALTHY': return 'success'
+        case 'UNHEALTHY': return 'destructive'
+        case 'STARTING': return 'warning'
+        case 'STOPPING': return 'warning'
+        case 'STOPPED': return 'secondary-neutral'
+    }
+}
+
 // ── Node status ───────────────────────────────────────────────────────────────
 
 // Combined display status derived from lifecycle + health axes
@@ -75,4 +86,16 @@ export function nodeStatusLabel(status: string, health?: string): string {
 
 export function nodeStatusClass(status: string, health?: string): string {
     return NODE_DISPLAY_CLASSES[toNodeDisplayStatus(status, health)]
+}
+
+export function nodeStatusVariant(status: string, health?: string): 'success' | 'warning' | 'secondary-neutral' | 'destructive' {
+    const displayStatus = toNodeDisplayStatus(status, health)
+    switch (displayStatus) {
+        case 'ACTIVE': return 'success'
+        case 'PENDING': return 'warning'
+        case 'REJECTED': return 'secondary-neutral'
+        case 'DECOMMISSIONED': return 'secondary-neutral'
+        case 'DEGRADED': return 'warning'
+        case 'UNREACHABLE': return 'destructive'
+    }
 }
