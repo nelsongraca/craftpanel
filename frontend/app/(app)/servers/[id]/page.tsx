@@ -19,22 +19,13 @@ import {MigrationTab} from "./migration-tab";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {HeaderActionButton} from "@/components/servers/header-action-button";
 import {OverviewTab} from "@/components/servers/overview-tab";
+import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
 
 type LiveMetrics = { cpuPercent: number; ramUsedMb: number; netInBytes: number; netOutBytes: number };
 type LivePlayers = { count: number; list: string[] };
 
 const TABS = ["Overview", "Console", "Files", "Mods", "Backups", "Configuration", "Migration"] as const;
 type Tab = (typeof TABS)[number];
-
-function ComingSoon({tab}: { tab: string }) {
-    return (
-        <div className="px-6 py-10">
-            <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-sm">
-                {tab} - coming soon
-            </div>
-        </div>
-    );
-}
 
 export default function ServerDetailPage() {
     const params = useParams();
@@ -405,66 +396,70 @@ export default function ServerDetailPage() {
             )}
 
             {/* Tab bar */}
-            <div className="flex items-end px-6 border-b border-border bg-surface">
-                {TABS.filter((tab) => !(isProxy && tab === "Migration")).map((tab) => (
-                    <button
-                        key={tab}
-                        onClick={() => setActiveTab(tab)}
-                        className={[
-                            "relative px-4 py-3 text-xs font-heading font-bold uppercase tracking-widest transition-colors",
-                            activeTab === tab
-                                ? "text-accent after:absolute after:bottom-0 after:left-0 after:right-0 after:h-[2px] after:bg-accent"
-                                : "text-text-dim hover:text-text-primary",
-                        ].join(" ")}
-                    >
-                        {tab === "Mods" && !isModServerType ? "Plugins" : tab}
-                    </button>
-                ))}
-            </div>
-
-            {/* Tab content */}
-            {activeTab === "Console" ? (
-                <ConsoleTab serverId={server.id} serverStatus={server.status}/>
-            ) : activeTab === "Files" ? (
-                <FilesTab serverId={server.id}/>
-            ) : activeTab === "Backups" ? (
-                <BackupsTab serverId={server.id}/>
-            ) : activeTab === "Mods" ? (
-                <ModsTab serverId={server.id} serverType={server.server_type} mcVersion={server.mc_version} onModsChanged={() => void fetchServer()}/>
-            ) : activeTab === "Configuration" ? (
-                <ConfigTab
-                    serverId={server.id}
-                    serverType={server.server_type}
-                    networkId={server.network_id ?? null}
-                    configMode={server.config_mode ?? "MANAGED"}
-                    stopCommand={server.stop_command ?? "stop"}
-                    onOpenGeneralSettings={() => {
-                        setActiveTab("Overview");
-                        setGeneralOpenSignal((n) => (n ?? 0) + 1);
-                    }}
-                />
-            ) : activeTab === "Migration" ? (
-                <div className="px-6 py-4">
-                    <MigrationTab
-                        serverId={server.id}
-                        nodeId={server.node_id}
-                        canMigrate={hasPermission(permissions, "server.migrate")}
-                    />
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as Tab)}>
+                <div className="border-b border-border bg-surface overflow-x-auto">
+                    <TabsList variant="line" className="h-auto w-full justify-start rounded-none bg-transparent px-6 py-0">
+                        {TABS.filter((tab) => !(isProxy && tab === "Migration")).map((tab) => (
+                            <TabsTrigger
+                                key={tab}
+                                value={tab}
+                                className="shrink-0 rounded-none border-none px-4 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-dim data-active:bg-transparent data-active:text-accent data-active:shadow-none after:bg-accent hover:text-text-primary"
+                            >
+                                {tab === "Mods" && !isModServerType ? "Plugins" : tab}
+                            </TabsTrigger>
+                        ))}
+                    </TabsList>
                 </div>
-            ) : activeTab !== "Overview" ? (
-                <ComingSoon tab={activeTab}/>
-            ) : (
-                <OverviewTab
-                    server={server}
-                    node={node}
-                    network={network}
-                    permissions={permissions}
-                    liveMetrics={liveMetrics}
-                    livePlayers={livePlayers}
-                    forceOpenGeneralSignal={generalOpenSignal}
-                    onSaved={() => void fetchServer()}
-                />
-            )}
+
+                <TabsContent value="Overview">
+                    <OverviewTab
+                        server={server}
+                        node={node}
+                        network={network}
+                        permissions={permissions}
+                        liveMetrics={liveMetrics}
+                        livePlayers={livePlayers}
+                        forceOpenGeneralSignal={generalOpenSignal}
+                        onSaved={() => void fetchServer()}
+                    />
+                </TabsContent>
+                <TabsContent value="Console">
+                    <ConsoleTab serverId={server.id} serverStatus={server.status}/>
+                </TabsContent>
+                <TabsContent value="Files">
+                    <FilesTab serverId={server.id}/>
+                </TabsContent>
+                <TabsContent value="Backups">
+                    <BackupsTab serverId={server.id}/>
+                </TabsContent>
+                <TabsContent value="Mods">
+                    <ModsTab serverId={server.id} serverType={server.server_type} mcVersion={server.mc_version} onModsChanged={() => void fetchServer()}/>
+                </TabsContent>
+                <TabsContent value="Configuration">
+                    <ConfigTab
+                        serverId={server.id}
+                        serverType={server.server_type}
+                        networkId={server.network_id ?? null}
+                        configMode={server.config_mode ?? "MANAGED"}
+                        stopCommand={server.stop_command ?? "stop"}
+                        onOpenGeneralSettings={() => {
+                            setActiveTab("Overview");
+                            setGeneralOpenSignal((n) => (n ?? 0) + 1);
+                        }}
+                    />
+                </TabsContent>
+                {!isProxy && (
+                    <TabsContent value="Migration">
+                        <div className="px-6 py-4">
+                            <MigrationTab
+                                serverId={server.id}
+                                nodeId={server.node_id}
+                                canMigrate={hasPermission(permissions, "server.migrate")}
+                            />
+                        </div>
+                    </TabsContent>
+                )}
+            </Tabs>
             {dialog}
         </div>
     );
