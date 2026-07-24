@@ -29,6 +29,7 @@ import {
 } from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import AlertsPage from "../page";
+import {selectComboboxOption} from "@/lib/test-utils";
 
 function threshold(overrides: Record<string, unknown> = {}): Record<string, unknown> {
     return {
@@ -366,7 +367,7 @@ describe("AlertsPage", () => {
             });
 
             const selects = screen.getAllByRole("combobox");
-            await user.selectOptions(selects[1], "n1");
+            await selectComboboxOption(user, selects[1], "Node 1");
 
             const valueInput = screen.getByRole("spinbutton");
             await user.clear(valueInput);

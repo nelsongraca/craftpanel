@@ -2,6 +2,7 @@
 
 import {useCallback, useEffect, useState} from "react";
 import {getProxySettings, updateProxySettings} from "@/lib/generated/sdk.gen";
+import {SelectField} from "@/components/ui/form-elements";
 
 const VELOCITY_FORWARDING_MODES = ["NONE", "LEGACY", "MODERN", "BUNGEEGUARD"];
 
@@ -113,10 +114,11 @@ export function ProxySettingsSection({
                         Forwarding Mode
                     </label>
                     {isVelocity ? (
-                        <select
+                        <SelectField
+                            surface="surface-higher"
+                            className="w-48"
                             value={forwardingMode}
                             onChange={(e) => setForwardingMode(e.target.value)}
-                            className="bg-surface-higher border border-border rounded px-2 py-1.5 text-xs font-mono text-text-primary w-48 focus:border-accent/50 focus:outline-none"
                         >
                             <option value="">Default</option>
                             {VELOCITY_FORWARDING_MODES.map((m) => (
@@ -124,7 +126,7 @@ export function ProxySettingsSection({
                                     {m}
                                 </option>
                             ))}
-                        </select>
+                        </SelectField>
                     ) : (
                         <label className="flex items-center gap-2 text-xs font-mono text-text-primary">
                             <input

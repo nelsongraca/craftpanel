@@ -33,6 +33,7 @@ import {
 } from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import ServersPage from "../page";
+import {selectComboboxOption} from "@/lib/test-utils";
 
 function server(overrides: Record<string, unknown> = {}): Record<string, unknown> {
     return {
@@ -169,7 +170,7 @@ describe("ServersPage", () => {
 
             const selects = screen.getAllByRole("combobox");
             const user = userEvent.setup();
-            await user.selectOptions(selects[0], "STOPPED");
+            await selectComboboxOption(user, selects[0], "Stopped");
 
             await waitFor(() => {
                 expect(screen.queryByText("Alpha")).not.toBeInTheDocument();
@@ -362,8 +363,14 @@ describe("ServersPage", () => {
             expect(screen.getByText("All Networks")).toBeInTheDocument();
             expect(screen.getByText("All Nodes")).toBeInTheDocument();
             expect(screen.getByText("All Types")).toBeInTheDocument();
-            expect(screen.getByText("Main Network")).toBeInTheDocument();
-            expect(screen.getByText("Node 1", {selector: "option"})).toBeInTheDocument();
+
+            const user = userEvent.setup();
+            await user.click(selects[1]);
+            expect(await screen.findByRole("option", {name: "Main Network"})).toBeInTheDocument();
+            await user.keyboard("{Escape}");
+
+            await user.click(selects[2]);
+            expect(await screen.findByRole("option", {name: "Node 1"})).toBeInTheDocument();
         });
 
         it("filtering by network shows only matching servers", async () => {
@@ -377,7 +384,7 @@ describe("ServersPage", () => {
 
             const selects = screen.getAllByRole("combobox");
             const user = userEvent.setup();
-            await user.selectOptions(selects[1], "net1");
+            await selectComboboxOption(user, selects[1], "Main Network");
 
             await waitFor(() => {
                 expect(screen.getAllByText("A").length).toBeGreaterThan(0);
@@ -396,8 +403,12 @@ describe("ServersPage", () => {
             });
 
             expect(screen.getByText("All Types")).toBeInTheDocument();
-            expect(screen.getByText("PAPER", {selector: "option"})).toBeInTheDocument();
-            expect(screen.getByText("FABRIC", {selector: "option"})).toBeInTheDocument();
+
+            const user = userEvent.setup();
+            const typeSelect = screen.getAllByRole("combobox").at(-1)!;
+            await user.click(typeSelect);
+            expect(await screen.findByRole("option", {name: "PAPER"})).toBeInTheDocument();
+            expect(screen.getByRole("option", {name: "FABRIC"})).toBeInTheDocument();
         });
 
         it("filtering by type shows only matching servers", async () => {
@@ -412,7 +423,7 @@ describe("ServersPage", () => {
 
             const selects = screen.getAllByRole("combobox");
             const user = userEvent.setup();
-            await user.selectOptions(selects[3], "FABRIC");
+            await selectComboboxOption(user, selects[3], "FABRIC");
 
             await waitFor(() => {
                 expect(screen.queryByText("A")).not.toBeInTheDocument();

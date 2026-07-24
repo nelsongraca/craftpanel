@@ -42,6 +42,7 @@ import {
 } from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import NodesPage from "../page";
+import {selectComboboxOption} from "@/lib/test-utils";
 
 function node(overrides: Record<string, unknown> = {}): Record<string, unknown> {
     return {
@@ -178,7 +179,7 @@ describe("NodesPage", () => {
 
             const selects = screen.getAllByRole("combobox");
             const user = userEvent.setup();
-            await user.selectOptions(selects[0], "PENDING");
+            await selectComboboxOption(user, selects[0], "Pending");
 
             await waitFor(() => {
                 expect(screen.queryByText("Alpha")).not.toBeInTheDocument();
@@ -192,7 +193,7 @@ describe("NodesPage", () => {
 
             const selects = screen.getAllByRole("combobox");
             const user = userEvent.setup();
-            await user.selectOptions(selects[0], "PENDING");
+            await selectComboboxOption(user, selects[0], "Pending");
 
             await waitFor(() => {
                 expect(screen.getByText(/No nodes match/i)).toBeInTheDocument();
@@ -601,7 +602,7 @@ describe("NodesPage", () => {
 
             const selects = screen.getAllByRole("combobox");
             const user = userEvent.setup();
-            await user.selectOptions(selects[0], "DECOMMISSIONED");
+            await selectComboboxOption(user, selects[0], "Decommissioned");
 
             await waitFor(() => {
                 expect(screen.queryByText("Active Node")).not.toBeInTheDocument();

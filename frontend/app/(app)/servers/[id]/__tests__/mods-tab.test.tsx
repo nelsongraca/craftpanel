@@ -3,6 +3,7 @@ import {render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {ModsTab} from '../mods-tab'
 import type {ModResponse} from '@/lib/generated/types.gen'
+import {selectComboboxOption} from '@/lib/test-utils'
 
 // fetchModrinthVersions calls global fetch — stub it to return [] by default
 vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ok: true, json: async () => []}))
@@ -403,7 +404,7 @@ describe('Add Mod', () => {
         await user.click(screen.getByText('Add'))
 
         const strategySelect = screen.getByRole('combobox')
-        await user.selectOptions(strategySelect, 'PINNED')
+        await selectComboboxOption(user, strategySelect, 'Pinned version')
 
         await waitFor(() => {
             const versionInput = screen.getByPlaceholderText('Version ID')
@@ -533,7 +534,7 @@ describe('Edit Mod', () => {
         await user.click(pinButtons[0])
 
         await waitFor(() => {
-            expect(screen.getByDisplayValue('Latest stable')).toBeInTheDocument()
+            expect(screen.getByRole('combobox')).toHaveTextContent('Latest stable')
             expect(screen.getByRole('button', {name: /^save$/i})).toBeInTheDocument()
             expect(screen.getByRole('button', {name: /cancel/i})).toBeInTheDocument()
         })
@@ -564,14 +565,14 @@ describe('Edit Mod', () => {
         await user.click(pinButtons[0])
 
         await waitFor(() => {
-            expect(screen.getByDisplayValue('Latest stable')).toBeInTheDocument()
+            expect(screen.getByRole('combobox')).toHaveTextContent('Latest stable')
         })
 
-        const strategySelect = screen.getByDisplayValue('Latest stable')
-        await user.selectOptions(strategySelect, 'BETA')
+        const strategySelect = screen.getByRole('combobox')
+        await selectComboboxOption(user, strategySelect, 'Latest beta')
 
         await waitFor(() => {
-            expect(screen.getByDisplayValue('Latest beta')).toBeInTheDocument()
+            expect(screen.getByRole('combobox')).toHaveTextContent('Latest beta')
         })
     })
 
@@ -589,11 +590,11 @@ describe('Edit Mod', () => {
         await user.click(pinButtons[0])
 
         await waitFor(() => {
-            expect(screen.getByDisplayValue('Latest stable')).toBeInTheDocument()
+            expect(screen.getByRole('combobox')).toHaveTextContent('Latest stable')
         })
 
-        const strategySelect = screen.getByDisplayValue('Latest stable')
-        await user.selectOptions(strategySelect, 'PINNED')
+        const strategySelect = screen.getByRole('combobox')
+        await selectComboboxOption(user, strategySelect, 'Pinned version')
 
         await waitFor(() => {
             expect(screen.getByText('1.0 (release)')).toBeInTheDocument()
@@ -615,8 +616,8 @@ describe('Edit Mod', () => {
             expect(screen.getByRole('button', {name: /^save$/i})).toBeInTheDocument()
         })
 
-        const strategySelect = screen.getByDisplayValue('Latest stable')
-        await user.selectOptions(strategySelect, 'BETA')
+        const strategySelect = screen.getByRole('combobox')
+        await selectComboboxOption(user, strategySelect, 'Latest beta')
         await user.click(screen.getByRole('button', {name: /^save$/i}))
 
         await waitFor(() => {
@@ -662,11 +663,11 @@ describe('Edit Mod', () => {
         await user.click(pinButtons[0])
 
         await waitFor(() => {
-            expect(screen.getByDisplayValue('Latest stable')).toBeInTheDocument()
+            expect(screen.getByRole('combobox')).toHaveTextContent('Latest stable')
         })
 
-        const strategySelect = screen.getByDisplayValue('Latest stable')
-        await user.selectOptions(strategySelect, 'PINNED')
+        const strategySelect = screen.getByRole('combobox')
+        await selectComboboxOption(user, strategySelect, 'Pinned version')
 
         await waitFor(() => {
             expect(screen.getByPlaceholderText('Version ID')).toBeInTheDocument()
@@ -732,18 +733,18 @@ describe('Edit Mod', () => {
         await user.click(pinButtons[0])
 
         await waitFor(() => {
-            expect(screen.getByDisplayValue('Latest stable')).toBeInTheDocument()
+            expect(screen.getByRole('combobox')).toHaveTextContent('Latest stable')
         })
 
-        const strategySelect = screen.getByDisplayValue('Latest stable')
-        await user.selectOptions(strategySelect, 'PINNED')
+        const strategySelect = screen.getByRole('combobox')
+        await selectComboboxOption(user, strategySelect, 'Pinned version')
 
         await waitFor(() => {
             expect(screen.getByText('1.0 (release)')).toBeInTheDocument()
         })
 
-        const versionSelect = screen.getByDisplayValue('1.0 (release)')
-        await user.selectOptions(versionSelect, 'v1')
+        const versionSelect = screen.getAllByRole('combobox')[1]
+        await selectComboboxOption(user, versionSelect, '1.0 (release)')
 
         await user.click(screen.getByRole('button', {name: /^save$/i}))
 

@@ -9,6 +9,7 @@ import {useResourceList} from "@/lib/hooks/useResourceList";
 
 import {BTN_PRIMARY, BTN_GHOST, Modal, Field, TextField} from "@/components/ui/form-elements";
 import {ListTh, ListTd, ListActions, IconActionButton} from "@/components/ui/list-table";
+import {Empty, EmptyDescription} from "@/components/ui/empty";
 
 // ── Network form ──────────────────────────────────────────────────────────────
 
@@ -126,9 +127,9 @@ export default function NetworksPage() {
                 {loading ? (
                     <div className="text-xs text-text-muted">Loading…</div>
                 ) : networks.length === 0 ? (
-                    <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-sm">
-                        No networks yet. Create one to group servers.
-                    </div>
+                    <Empty className="border-2 border-border rounded-md py-10">
+                        <EmptyDescription>No networks yet. Create one to group servers.</EmptyDescription>
+                    </Empty>
                 ) : (
                     <>
                         <div className="bg-surface border border-border rounded-md overflow-hidden">

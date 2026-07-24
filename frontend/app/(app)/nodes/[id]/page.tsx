@@ -18,6 +18,8 @@ import {HeaderActionButton} from "@/components/servers/header-action-button";
 
 import {nodeStatusLabel, nodeStatusVariant, serverStatusLabel, serverStatusVariant} from "@/lib/status";
 import {Badge} from "@/components/ui/badge";
+import {Skeleton} from "@/components/ui/skeleton";
+import {Empty, EmptyDescription} from "@/components/ui/empty";
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
@@ -231,9 +233,9 @@ function ServersTab({servers}: { servers: Server[] }) {
     if (servers.length === 0) {
         return (
             <div className="px-6 py-10">
-                <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-sm">
-                    No servers assigned to this node
-                </div>
+                <Empty className="border-2 border-border rounded-md py-10">
+                    <EmptyDescription>No servers assigned to this node</EmptyDescription>
+                </Empty>
             </div>
         );
     }
@@ -376,7 +378,7 @@ function MetricsTab({nodeId}: { nodeId: string }) {
         return (
             <div className="px-6 py-6 space-y-4">
                 {Array.from({length: 3}).map((_, i) => (
-                    <div key={i} className="h-40 bg-surface rounded animate-pulse"/>
+                    <Skeleton key={i} className="h-40 bg-surface"/>
                 ))}
             </div>
         );
@@ -385,9 +387,9 @@ function MetricsTab({nodeId}: { nodeId: string }) {
     if (points.length === 0) {
         return (
             <div className="px-6 py-10">
-                <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-sm">
-                    No metrics available for the selected time range
-                </div>
+                <Empty className="border-2 border-border rounded-md py-10">
+                    <EmptyDescription>No metrics available for the selected time range</EmptyDescription>
+                </Empty>
             </div>
         );
     }
@@ -646,9 +648,9 @@ export default function NodeDetailPage() {
     if (loading) {
         return (
             <div className="px-6 pt-6 space-y-4">
-                <div className="h-4 w-40 bg-surface rounded animate-pulse"/>
-                <div className="h-8 w-64 bg-surface rounded animate-pulse"/>
-                <div className="h-4 w-48 bg-surface rounded animate-pulse"/>
+                <Skeleton className="h-4 w-40 bg-surface"/>
+                <Skeleton className="h-8 w-64 bg-surface"/>
+                <Skeleton className="h-4 w-48 bg-surface"/>
             </div>
         );
     }

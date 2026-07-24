@@ -34,6 +34,7 @@ import {
     listServers, listNetworks,
 } from "@/lib/generated/sdk.gen";
 import UsersPage from "../page";
+import {selectComboboxOption} from "@/lib/test-utils";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────────
 
@@ -355,7 +356,7 @@ describe("UsersPage", () => {
                 expect(screen.getByText(/Groups -/)).toBeInTheDocument();
             });
 
-            await userEv.selectOptions(screen.getAllByRole("combobox")[0], "g1");
+            await selectComboboxOption(userEv, screen.getAllByRole("combobox")[0], "Operator");
 
             await userEv.click(screen.getByRole("button", {name: "Add"}));
 
@@ -395,8 +396,8 @@ describe("UsersPage", () => {
                 expect(screen.getByText(/Groups -/)).toBeInTheDocument();
             });
 
-            await userEv.selectOptions(screen.getAllByRole("combobox")[0], "g1");
-            await userEv.selectOptions(screen.getAllByRole("combobox")[1], "SERVER");
+            await selectComboboxOption(userEv, screen.getAllByRole("combobox")[0], "Server Admin");
+            await selectComboboxOption(userEv, screen.getAllByRole("combobox")[1], "Server");
 
             await userEv.click(screen.getByRole("button", {name: "Add"}));
 

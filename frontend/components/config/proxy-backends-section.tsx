@@ -6,6 +6,8 @@ import {getProxyBackends, listServers, replaceProxyBackends} from "@/lib/generat
 import type {PutProxyBackendsRequest} from "@/lib/types";
 import type {ServerResponse} from "@/lib/generated/types.gen";
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter} from "@/components/ui/dialog";
+import {Empty, EmptyDescription} from "@/components/ui/empty";
+import {SelectField} from "@/components/ui/form-elements";
 
 const PROXY_TYPES = new Set(["VELOCITY", "BUNGEECORD", "WATERFALL"]);
 
@@ -55,17 +57,17 @@ function AddBackendModal({
                         <label className="block text-xs font-heading font-bold uppercase tracking-widest text-text-muted mb-1.5">
                             Server
                         </label>
-                        <select
+                        <SelectField
+                            surface="surface-high"
                             value={selectedId}
                             onChange={(e) => handleServerChange(e.target.value)}
-                            className="w-full bg-surface-high border border-border rounded px-3 py-2 text-xs text-text-primary focus:border-accent/50 focus:outline-none"
                         >
                             {available.map((s) => (
                                 <option key={s.id} value={s.id}>
                                     {s.display_name}
                                 </option>
                             ))}
-                        </select>
+                        </SelectField>
                     </div>
                     <div>
                         <label className="block text-xs font-heading font-bold uppercase tracking-widest text-text-muted mb-1.5">
@@ -302,9 +304,9 @@ export function ProxyBackendsSection({
                 )}
 
                 {backends.length === 0 ? (
-                    <div className="border border-dashed border-border rounded py-8 text-center text-text-muted text-xs">
-                        No backends configured.
-                    </div>
+                    <Empty className="border-border rounded py-8 text-xs">
+                        <EmptyDescription>No backends configured.</EmptyDescription>
+                    </Empty>
                 ) : (
                     <div className="border border-border rounded overflow-hidden">
                         <table className="w-full text-xs">

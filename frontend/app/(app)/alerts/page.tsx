@@ -11,6 +11,7 @@ import {useResourceList} from "@/lib/hooks/useResourceList";
 import {useWs} from "@/lib/ws-context";
 import {timeAgo} from "@/lib/utils/format";
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter} from "@/components/ui/dialog";
+import {SelectField} from "@/components/ui/form-elements";
 
 async function loadThresholds() {
     const {data} = await listAlertThresholds();
@@ -142,43 +143,46 @@ function CreateThresholdModal({
                         <label className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted">
                             Scope Type
                         </label>
-                        <select
+                        <SelectField
+                            surface="bg"
+                            fieldSize="sm"
                             value={scopeType}
                             onChange={(e) => handleScopeTypeChange(e.target.value as "NODE" | "SERVER")}
-                            className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-xs font-mono text-text-primary focus:outline-none focus:border-accent"
                         >
                             <option value="NODE">Node</option>
                             <option value="SERVER">Server</option>
-                        </select>
+                        </SelectField>
                     </div>
 
                     <div className="space-y-1">
                         <label className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted">
                             {scopeType === "NODE" ? "Node" : "Server"}
                         </label>
-                        <select
+                        <SelectField
+                            surface="bg"
+                            fieldSize="sm"
                             value={scopeId}
                             onChange={(e) => setScopeId(e.target.value)}
-                            className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-xs font-mono text-text-primary focus:outline-none focus:border-accent"
                         >
                             <option value="">- select -</option>
                             {(scopeType === "NODE" ? nodes : servers).map((item) => (
                                 <option key={item.id} value={item.id}>{item.display_name}</option>
                             ))}
-                        </select>
+                        </SelectField>
                     </div>
 
                     <div className="space-y-1">
                         <label className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted">
                             Metric
                         </label>
-                        <select
+                        <SelectField
+                            surface="bg"
+                            fieldSize="sm"
                             value={metric}
                             onChange={(e) => setMetric(e.target.value)}
-                            className="w-full bg-bg border border-border rounded px-2.5 py-1.5 text-xs font-mono text-text-primary focus:outline-none focus:border-accent"
                         >
                             {METRICS.map((m) => <option key={m} value={m}>{m}</option>)}
-                        </select>
+                        </SelectField>
                     </div>
 
                     <div className="space-y-1">

@@ -19,6 +19,7 @@ vi.mock("@/lib/auth-context", () => ({
 import {listNodes, listNetworks, createServer} from "@/lib/generated/sdk.gen";
 import type {NodeResponse, NetworkResponse, ServerResponse} from "@/lib/generated/types.gen";
 import NewServerPage from "../page";
+import {selectComboboxOption} from "@/lib/test-utils";
 
 function node(overrides: Record<string, unknown> = {}): Record<string, unknown> {
     return {
@@ -100,7 +101,10 @@ describe("NewServerPage", () => {
 
     it("renders node options in select", async () => {
         await renderWith({nodes: [node({id: "n1", display_name: "Alpha"}), node({id: "n2", display_name: "Beta"})]});
-        const opts = screen.getAllByRole("option");
+        const user = userEvent.setup();
+        const nodeSelect = screen.getByLabelText(/Node/);
+        await user.click(nodeSelect);
+        const opts = await screen.findAllByRole("option");
         const alphaOpt = opts.find((o) => o.textContent?.includes("Alpha"));
         const betaOpt = opts.find((o) => o.textContent?.includes("Beta"));
         expect(alphaOpt).toBeTruthy();
@@ -161,10 +165,11 @@ describe("NewServerPage", () => {
 
     it("renders version dropdown with Mojang versions", async () => {
         await renderWith({mojangVersions: ["1.21.4", "1.21.3"]});
-        await waitFor(() => {
-            expect(screen.getByText("1.21.4")).toBeTruthy();
-            expect(screen.getByText("1.21.3")).toBeTruthy();
-        });
+        const user = userEvent.setup();
+        await waitFor(() => expect(screen.getByLabelText(/Minecraft Version/)).toBeInTheDocument());
+        await user.click(screen.getByLabelText(/Minecraft Version/));
+        expect(await screen.findByRole("option", {name: "1.21.4"})).toBeTruthy();
+        expect(screen.getByRole("option", {name: "1.21.3"})).toBeTruthy();
     });
 
     it("shows text input when Mojang fetch returns empty", async () => {
@@ -199,16 +204,17 @@ describe("NewServerPage", () => {
 
     it("hides version selector for proxy types", async () => {
         await renderWith();
-        await userEvent.setup().selectOptions(
-            screen.getByDisplayValue("PAPER"),
-            "VELOCITY",
-        );
+        const user = userEvent.setup();
+        const serverTypeSelect = screen.getAllByRole("combobox")[0];
+        await selectComboboxOption(user, serverTypeSelect, "VELOCITY");
         expect(screen.queryByText("Minecraft Version")).toBeNull();
     });
 
     it("renders network options", async () => {
         await renderWith({networks: [network({id: "n1", name: "Survival"})]});
-        expect(screen.getByText("Survival")).toBeTruthy();
+        const user = userEvent.setup();
+        await user.click(screen.getByLabelText("Network"));
+        expect(await screen.findByRole("option", {name: "Survival"})).toBeTruthy();
     });
 
     it("renders back link to /servers", async () => {

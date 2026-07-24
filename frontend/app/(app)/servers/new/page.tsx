@@ -8,6 +8,7 @@ import {cloneServer, createServer, getServer, listNetworks, listNodes} from "@/l
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import {SelectField, TextAreaField, TextField} from "@/components/ui/form-elements";
+import {Skeleton} from "@/components/ui/skeleton";
 import type {Network, Node} from "@/lib/types";
 
 // ── Mojang version manifest ───────────────────────────────────────────────────
@@ -265,7 +266,7 @@ export default function NewServerPage() {
                         <div>
                             <Label required htmlFor="mc-version">Minecraft Version</Label>
                             {loadingData ? (
-                                <div className="h-9 bg-surface-high rounded animate-pulse"/>
+                                <Skeleton className="h-9 bg-surface-high"/>
                             ) : versions.length > 0 ? (
                                 <FieldSelect id="mc-version" value={mcVersion} onChange={(e) => setMcVersion(e.target.value)}>
                                     {versions.map((v) => <option key={v} value={v}>{v}</option>)}
@@ -313,7 +314,7 @@ export default function NewServerPage() {
                     <div>
                         <Label required htmlFor="node">Node</Label>
                         {loadingData ? (
-                            <div className="h-9 bg-surface-high rounded animate-pulse"/>
+                            <Skeleton className="h-9 bg-surface-high"/>
                         ) : (
                             <FieldSelect id="node" value={nodeId} onChange={(e) => setNodeId(e.target.value)} required>
                                 <option value="">Select a node…</option>

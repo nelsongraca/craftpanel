@@ -4,6 +4,7 @@ import {useCallback, useEffect, useState} from "react";
 import {Pin, Plus, RefreshCw, Search, Trash2} from "lucide-react";
 import {addMod, deleteMod, listMods, searchMods, updateMod} from "@/lib/generated/sdk.gen";
 import type {ModResponse as Mod} from "@/lib/generated/types.gen";
+import {SelectField} from "@/components/ui/form-elements";
 
 type PinStrategy = "LATEST" | "PINNED" | "BETA" | "ALPHA";
 
@@ -275,30 +276,34 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
                                             <span className="text-xs text-text-muted shrink-0 mt-1">Added</span>
                                         ) : adding === hit.project_id ? (
                                             <div className="shrink-0 space-y-2 min-w-48">
-                                                <select
+                                                <SelectField
+                                                    surface="surface"
+                                                    fieldSize="sm"
+                                                    className="w-full"
                                                     value={addPinStrategy}
                                                     onChange={(e) => void handleAddStrategyChange(e.target.value as PinStrategy, hit.project_id)}
-                                                    className="w-full bg-surface border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent"
                                                 >
                                                     {(Object.keys(PIN_LABELS) as PinStrategy[]).map((s) => (
                                                         <option key={s} value={s}>{PIN_LABELS[s]}</option>
                                                     ))}
-                                                </select>
+                                                </SelectField>
                                                 {addPinStrategy === "PINNED" && (
                                                     loadingAddVersions ? (
                                                         <div className="text-xs text-text-muted">Loading versions…</div>
                                                     ) : addVersions.length > 0 ? (
-                                                        <select
+                                                        <SelectField
+                                                            surface="bg"
+                                                            fieldSize="sm"
+                                                            className="w-full"
                                                             value={addVersionId}
                                                             onChange={(e) => setAddVersionId(e.target.value)}
-                                                            className="w-full bg-bg border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent"
                                                         >
                                                             {addVersions.map((v) => (
                                                                 <option key={v.id} value={v.id}>
                                                                     {v.version_number} ({v.version_type})
                                                                 </option>
                                                             ))}
-                                                        </select>
+                                                        </SelectField>
                                                     ) : (
                                                         <input
                                                             value={addVersionId}
@@ -387,30 +392,32 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
                             {/* Inline edit */}
                             {editingId === mod.id && (
                                 <div className="mt-2 flex items-center gap-2 flex-wrap">
-                                    <select
+                                    <SelectField
+                                        surface="bg"
+                                        fieldSize="sm"
                                         value={editStrategy}
                                         onChange={(e) => void handleEditStrategyChange(e.target.value as PinStrategy, mod)}
-                                        className="bg-bg border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent"
                                     >
                                         {(Object.keys(PIN_LABELS) as PinStrategy[]).map((s) => (
                                             <option key={s} value={s}>{PIN_LABELS[s]}</option>
                                         ))}
-                                    </select>
+                                    </SelectField>
                                     {editStrategy === "PINNED" && (
                                         loadingEditVersions ? (
                                             <span className="text-xs text-text-muted">Loading versions…</span>
                                         ) : editVersions.length > 0 ? (
-                                            <select
+                                            <SelectField
+                                                surface="bg"
+                                                fieldSize="sm"
                                                 value={editVersionId}
                                                 onChange={(e) => setEditVersionId(e.target.value)}
-                                                className="bg-bg border border-border rounded px-2 py-1 text-xs text-text-primary focus:outline-none focus:border-accent"
                                             >
                                                 {editVersions.map((v) => (
                                                     <option key={v.id} value={v.id}>
                                                         {v.version_number} ({v.version_type})
                                                     </option>
                                                 ))}
-                                            </select>
+                                            </SelectField>
                                         ) : (
                                             <input
                                                 value={editVersionId}

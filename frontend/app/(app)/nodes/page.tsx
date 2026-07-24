@@ -15,6 +15,9 @@ import {useResourceList} from "@/lib/hooks/useResourceList";
 import {useWs} from "@/lib/ws-context";
 import {nodeDisplayStatus, nodeStatusLabel, nodeStatusVariant} from "@/lib/status";
 import {Badge} from "@/components/ui/badge";
+import {Skeleton} from "@/components/ui/skeleton";
+import {Empty, EmptyDescription} from "@/components/ui/empty";
+import {SelectField} from "@/components/ui/form-elements";
 import {ListTh, ListTd, IconActionButton} from "@/components/ui/list-table";
 
 const STATUS_FILTER_OPTIONS = [
@@ -429,15 +432,17 @@ export default function NodesPage() {
 
             {/* Filter bar */}
             <div className="flex items-center gap-2 px-6 py-3 border-b border-border bg-surface">
-                <select
+                <SelectField
+                    surface="surface-higher"
+                    fieldSize="sm"
+                    className="h-7 font-heading"
                     value={filterStatus}
                     onChange={(e) => setFilterStatus(e.target.value)}
-                    className="h-7 bg-surface-higher border border-border rounded px-2 text-xs font-heading text-text-primary focus:outline-none focus:border-accent"
                 >
                     {STATUS_FILTER_OPTIONS.map((o) => (
                         <option key={o.value} value={o.value}>{o.label}</option>
                     ))}
-                </select>
+                </SelectField>
             </div>
 
             {/* Pending callout */}
@@ -463,15 +468,17 @@ export default function NodesPage() {
                 {initialLoad ? (
                     <div className="space-y-2">
                         {Array.from({length: 4}).map((_, i) => (
-                            <div key={i} className="h-12 bg-surface rounded animate-pulse"/>
+                            <Skeleton key={i} className="h-12 bg-surface"/>
                         ))}
                     </div>
                 ) : filtered.length === 0 ? (
-                    <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-sm">
-                        {nodes.length === 0
-                            ? "No nodes registered yet - start an agent with a bootstrap token"
-                            : "No nodes match the current filter"}
-                    </div>
+                    <Empty className="border-2 border-border rounded-md py-10">
+                        <EmptyDescription>
+                            {nodes.length === 0
+                                ? "No nodes registered yet - start an agent with a bootstrap token"
+                                : "No nodes match the current filter"}
+                        </EmptyDescription>
+                    </Empty>
                 ) : (
                     <div className="bg-surface border border-border rounded-md overflow-hidden hidden md:block">
                         <table className="w-full text-xs">

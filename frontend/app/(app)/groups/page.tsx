@@ -7,6 +7,7 @@ import {createGroup, deleteGroup, listGroups, setGroupPermissions, updateGroup} 
 import type {Group} from "@/lib/types";
 import {useResourceList} from "@/lib/hooks/useResourceList";
 import {BTN_PRIMARY, BTN_GHOST, Modal, Field, TextField} from "@/components/ui/form-elements";
+import {Empty, EmptyDescription} from "@/components/ui/empty";
 
 
 // ── Permission nodes ───────────────────────────────────────────────────────────
@@ -170,7 +171,9 @@ export default function GroupsPage() {
                 {loading ? (
                     <div className="text-xs text-text-muted">Loading…</div>
                 ) : groups.length === 0 ? (
-                    <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-sm">No groups.</div>
+                    <Empty className="border-2 border-border rounded-md py-10">
+                        <EmptyDescription>No groups.</EmptyDescription>
+                    </Empty>
                 ) : (
                     <div className="bg-surface border border-border rounded-md overflow-hidden">
                         <table className="w-full text-xs">

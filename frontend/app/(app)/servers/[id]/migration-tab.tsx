@@ -7,6 +7,7 @@ import type {MigrationResponse, MigrationStepData} from "@/lib/types";
 import type {Node} from "@/lib/types";
 import {useReconnectingSocket} from "@/lib/hooks/useReconnectingSocket";
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter} from "@/components/ui/dialog";
+import {SelectField} from "@/components/ui/form-elements";
 
 function fmtDate(iso: string): string {
     return new Date(iso).toLocaleString();
@@ -282,15 +283,15 @@ function MigrateModal({
                                     className="block text-xs font-heading font-bold uppercase tracking-wider text-text-dim mb-1.5">
                                     Target Node
                                 </label>
-                                <select
+                                <SelectField
+                                    surface="surface-high"
                                     value={targetNodeId}
                                     onChange={e => setTargetNodeId(e.target.value)}
-                                    className="w-full bg-surface-high border border-border rounded px-3 py-2 text-xs text-text-primary focus:outline-none focus:border-accent"
                                 >
                                     {nodes.map(n => (
                                         <option key={n.id} value={n.id}>{n.display_name} ({n.public_ip})</option>
                                     ))}
-                                </select>
+                                </SelectField>
                             </div>
 
                             <div>

@@ -1,7 +1,9 @@
 "use client";
 
 import type React from "react";
+import {Children, isValidElement} from "react";
 import {X} from "lucide-react";
+import {Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue} from "@/components/ui/select";
 
 const BTN_PRIMARY = "px-4 py-2 rounded text-xs font-heading font-bold uppercase tracking-wider bg-accent text-bg hover:bg-accent-bright transition-colors";
 const BTN_GHOST = "px-4 py-2 rounded text-xs font-heading font-bold uppercase tracking-wider text-text-muted hover:text-text-primary hover:bg-surface-high transition-colors border border-border";
@@ -60,8 +62,66 @@ export function TextField({fieldSize, surface, className, ...props}: React.Input
     return <input {...props} className={fieldClassName({fieldSize, surface}, className)}/>;
 }
 
-export function SelectField({fieldSize, surface, className, ...props}: React.SelectHTMLAttributes<HTMLSelectElement> & FieldStyleProps) {
-    return <select {...props} className={fieldClassName({fieldSize, surface}, className)}/>;
+type OptionElement = React.ReactElement<React.OptionHTMLAttributes<HTMLOptionElement>>;
+type OptGroupElement = React.ReactElement<React.OptgroupHTMLAttributes<HTMLOptGroupElement>>;
+
+function isOptionElement(node: unknown): node is OptionElement {
+    return isValidElement(node) && node.type === "option";
+}
+
+function isOptGroupElement(node: unknown): node is OptGroupElement {
+    return isValidElement(node) && node.type === "optgroup";
+}
+
+function flattenOptions(children: React.ReactNode): OptionElement[] {
+    return Children.toArray(children).flatMap((node) => {
+        if (isOptGroupElement(node)) return flattenOptions(node.props.children);
+        if (isOptionElement(node)) return [node];
+        return [];
+    });
+}
+
+export function SelectField({fieldSize, surface, className, children, value, onChange, disabled, required, id}: React.SelectHTMLAttributes<HTMLSelectElement> & FieldStyleProps) {
+    const options = flattenOptions(children);
+    const selected = options.find((opt) => String(opt.props.value) === String(value));
+    const groups = Children.toArray(children);
+    const hasGroups = groups.some(isOptGroupElement);
+    return (
+        <Select
+            value={value === undefined ? undefined : String(value)}
+            onValueChange={(next) => onChange?.({target: {value: next}} as React.ChangeEvent<HTMLSelectElement>)}
+            disabled={disabled}
+            required={required}
+        >
+            <SelectTrigger id={id} className={fieldClassName({fieldSize, surface}, `w-full justify-between${className ? ` ${className}` : ""}`)}>
+                <SelectValue>{selected?.props.children ?? selected?.props.value}</SelectValue>
+            </SelectTrigger>
+            <SelectContent>
+                {hasGroups
+                    ? groups.map((node, i) =>
+                        isOptGroupElement(node) ? (
+                            <SelectGroup key={node.props.label ?? i}>
+                                <SelectLabel>{node.props.label}</SelectLabel>
+                                {flattenOptions(node.props.children).map((opt) => (
+                                    <SelectItem key={String(opt.props.value)} value={String(opt.props.value)} disabled={opt.props.disabled}>
+                                        {opt.props.children}
+                                    </SelectItem>
+                                ))}
+                            </SelectGroup>
+                        ) : isOptionElement(node) ? (
+                            <SelectItem key={String(node.props.value)} value={String(node.props.value)} disabled={node.props.disabled}>
+                                {node.props.children}
+                            </SelectItem>
+                        ) : null
+                    )
+                    : options.map((opt) => (
+                        <SelectItem key={String(opt.props.value)} value={String(opt.props.value)} disabled={opt.props.disabled}>
+                            {opt.props.children}
+                        </SelectItem>
+                    ))}
+            </SelectContent>
+        </Select>
+    );
 }
 
 export function TextAreaField({fieldSize, surface, className, rows, ...props}: React.TextareaHTMLAttributes<HTMLTextAreaElement> & FieldStyleProps) {

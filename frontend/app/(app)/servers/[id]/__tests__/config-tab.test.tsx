@@ -3,6 +3,7 @@ import { render, screen, within, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { ConfigTab } from '../config-tab'
 import type { ServerResponse } from '@/lib/generated/types.gen'
+import { selectComboboxOption } from '@/lib/test-utils'
 
 // base-ui Switch doesn't fire onCheckedChange via userEvent in jsdom — replace with plain button
 vi.mock('@/components/ui/switch', () => ({
@@ -328,15 +329,15 @@ describe('Gameplay Section', () => {
 
     it('loads with seeded defaults: difficulty=easy, mode=survival, pvp=true', async () => {
         await renderGameServer()
-        expect(getFieldSelect('Difficulty')).toHaveValue('easy')
-        expect(getFieldSelect('Default Game Mode')).toHaveValue('survival')
+        expect(getFieldSelect('Difficulty')).toHaveTextContent('easy')
+        expect(getFieldSelect('Default Game Mode')).toHaveTextContent('survival')
     })
 
     it('changing Difficulty shows unsaved bar; Save calls replaceEnvVars with DIFFICULTY=hard', async () => {
         const user = userEvent.setup()
         await renderGameServer()
 
-        await user.selectOptions(getFieldSelect('Difficulty'), 'hard')
+        await selectComboboxOption(user, getFieldSelect('Difficulty'), 'hard')
         expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
 
         await user.click(screen.getByRole('button', { name: /^save$/i }))
@@ -415,7 +416,7 @@ describe('World Section', () => {
         const user = userEvent.setup()
         await renderGameServer()
 
-        await user.selectOptions(getFieldSelect('World Type'), 'FLAT')
+        await selectComboboxOption(user, getFieldSelect('World Type'), 'FLAT')
         expect(screen.getByText('Generator Settings')).toBeInTheDocument()
     })
 
@@ -423,10 +424,10 @@ describe('World Section', () => {
         const user = userEvent.setup()
         await renderGameServer()
 
-        await user.selectOptions(getFieldSelect('World Type'), 'FLAT')
+        await selectComboboxOption(user, getFieldSelect('World Type'), 'FLAT')
         expect(screen.getByText('Generator Settings')).toBeInTheDocument()
 
-        await user.selectOptions(getFieldSelect('World Type'), 'DEFAULT')
+        await selectComboboxOption(user, getFieldSelect('World Type'), 'DEFAULT')
         expect(screen.queryByText('Generator Settings')).not.toBeInTheDocument()
     })
 
@@ -454,10 +455,10 @@ describe('World Section', () => {
 
         // SEED is not in defaults (omitIfEmpty), so field is empty
         // Just save to confirm SEED absent
-        await user.selectOptions(getFieldSelect('World Type'), 'FLAT') // trigger dirty
-        await user.selectOptions(getFieldSelect('World Type'), 'DEFAULT')
+        await selectComboboxOption(user, getFieldSelect('World Type'), 'FLAT') // trigger dirty
+        await selectComboboxOption(user, getFieldSelect('World Type'), 'DEFAULT')
         // Trigger dirty via a different field
-        await user.selectOptions(getFieldSelect('Difficulty'), 'hard')
+        await selectComboboxOption(user, getFieldSelect('Difficulty'), 'hard')
         await user.click(screen.getByRole('button', { name: /^save$/i }))
 
         await waitFor(() => expect(replaceEnvVars).toHaveBeenCalled())
@@ -796,7 +797,7 @@ describe('Unsaved Changes Bar', () => {
         await renderGameServer()
 
         expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument()
-        await user.selectOptions(getFieldSelect('Difficulty'), 'hard')
+        await selectComboboxOption(user, getFieldSelect('Difficulty'), 'hard')
         expect(screen.getByText('Unsaved changes')).toBeInTheDocument()
     })
 
@@ -804,11 +805,11 @@ describe('Unsaved Changes Bar', () => {
         const user = userEvent.setup()
         await renderGameServer()
 
-        await user.selectOptions(getFieldSelect('Difficulty'), 'hard')
-        expect(getFieldSelect('Difficulty')).toHaveValue('hard')
+        await selectComboboxOption(user, getFieldSelect('Difficulty'), 'hard')
+        expect(getFieldSelect('Difficulty')).toHaveTextContent('hard')
 
         await user.click(screen.getByRole('button', { name: /discard/i }))
-        expect(getFieldSelect('Difficulty')).toHaveValue('easy')
+        expect(getFieldSelect('Difficulty')).toHaveTextContent('easy')
         expect(screen.queryByText('Unsaved changes')).not.toBeInTheDocument()
     })
 
@@ -816,7 +817,7 @@ describe('Unsaved Changes Bar', () => {
         const user = userEvent.setup()
         await renderGameServer()
 
-        await user.selectOptions(getFieldSelect('Difficulty'), 'hard')
+        await selectComboboxOption(user, getFieldSelect('Difficulty'), 'hard')
         await user.click(screen.getByRole('button', { name: /^save$/i }))
 
         await waitFor(() => expect(replaceEnvVars).toHaveBeenCalled())
@@ -1115,7 +1116,7 @@ describe('Backend forwarding warnings', () => {
             },
         } as never)
 
-        await user.selectOptions(screen.getByRole('combobox'), 'MODERN')
+        await selectComboboxOption(user, screen.getByRole('combobox'), 'MODERN')
         await user.click(screen.getByRole('button', { name: /^save$/i }))
 
         await waitFor(() =>
@@ -1137,9 +1138,9 @@ describe('New Server Defaults', () => {
         await renderGameServer()
 
         // Spot-check key defaults
-        expect(getFieldSelect('Difficulty')).toHaveValue('easy')
-        expect(getFieldSelect('Default Game Mode')).toHaveValue('survival')
-        expect(getFieldSelect('World Type')).toHaveValue('DEFAULT')
+        expect(getFieldSelect('Difficulty')).toHaveTextContent('easy')
+        expect(getFieldSelect('Default Game Mode')).toHaveTextContent('survival')
+        expect(getFieldSelect('World Type')).toHaveTextContent('DEFAULT')
         // Max Players is a number input (spinbutton role)
         expect(screen.getByDisplayValue('20')).toBeInTheDocument()
     })

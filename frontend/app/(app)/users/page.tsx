@@ -8,6 +8,7 @@ import type {Assignment, Group, User} from "@/lib/types";
 import {useResourceList} from "@/lib/hooks/useResourceList";
 import {BTN_PRIMARY, BTN_GHOST, Modal, Field, TextField, SelectField} from "@/components/ui/form-elements";
 import {ListTh, ListTd, ListActions, IconActionButton} from "@/components/ui/list-table";
+import {Empty, EmptyDescription} from "@/components/ui/empty";
 
 async function loadUsers() {
     const {data} = await listUsers();
@@ -307,7 +308,9 @@ export default function UsersPage() {
                 {loading ? (
                     <div className="text-xs text-text-muted">Loading…</div>
                 ) : users.length === 0 ? (
-                    <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-sm">No users yet.</div>
+                    <Empty className="border-2 border-border rounded-md py-10">
+                        <EmptyDescription>No users yet.</EmptyDescription>
+                    </Empty>
                 ) : (
                     <>
                         <div className="bg-surface border border-border rounded-md overflow-hidden">

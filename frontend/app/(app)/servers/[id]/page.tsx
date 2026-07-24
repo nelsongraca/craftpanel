@@ -11,6 +11,7 @@ import type {Network, Node, Server} from "@/lib/types";
 import {useWs} from "@/lib/ws-context";
 import {serverStatusLabel, serverStatusVariant} from "@/lib/status";
 import {Badge} from "@/components/ui/badge";
+import {Skeleton} from "@/components/ui/skeleton";
 import {ConsoleTab} from "./console-tab";
 import {FilesTab} from "./files-tab";
 import {BackupsTab} from "./backups-tab";
@@ -181,9 +182,9 @@ export default function ServerDetailPage() {
     if (loading) {
         return (
             <div className="px-6 pt-6 space-y-4">
-                <div className="h-4 w-40 bg-surface rounded animate-pulse"/>
-                <div className="h-8 w-64 bg-surface rounded animate-pulse"/>
-                <div className="h-4 w-48 bg-surface rounded animate-pulse"/>
+                <Skeleton className="h-4 w-40 bg-surface"/>
+                <Skeleton className="h-8 w-64 bg-surface"/>
+                <Skeleton className="h-4 w-48 bg-surface"/>
             </div>
         );
     }

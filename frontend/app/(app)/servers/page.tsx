@@ -15,6 +15,9 @@ import {ListTh, ListTd, IconActionButton} from "@/components/ui/list-table";
 import {fillColor} from "@/lib/utils/format";
 import {serverStatusLabel, serverStatusVariant} from "@/lib/status";
 import {Badge} from "@/components/ui/badge";
+import {Skeleton} from "@/components/ui/skeleton";
+import {Empty, EmptyDescription} from "@/components/ui/empty";
+import {SelectField} from "@/components/ui/form-elements";
 
 // Filter option → backend statuses that match
 const FILTER_MATCHES: Record<string, string[]> = {
@@ -300,50 +303,58 @@ export default function ServersPage() {
                         onChange={(e) => setSearch(e.target.value)}
                         className="h-7 bg-surface-higher border border-border rounded px-2.5 text-xs font-mono text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent w-48"
                     />
-                    <select
+                    <SelectField
+                        surface="surface-higher"
+                        fieldSize="sm"
+                        className="h-7 font-heading"
                         value={filterStatus}
                         onChange={(e) => setFilterStatus(e.target.value)}
-                        className="h-7 bg-surface-higher border border-border rounded px-2 text-xs font-heading text-text-primary focus:outline-none focus:border-accent"
                     >
                         {FILTER_OPTIONS.map((o) => (
                             <option key={o.value} value={o.value}>{o.label}</option>
                         ))}
-                    </select>
+                    </SelectField>
                     {networks.length > 0 && (
-                        <select
+                        <SelectField
+                            surface="surface-higher"
+                            fieldSize="sm"
+                            className="h-7 font-heading"
                             value={filterNetwork}
                             onChange={(e) => setFilterNetwork(e.target.value)}
-                            className="h-7 bg-surface-higher border border-border rounded px-2 text-xs font-heading text-text-primary focus:outline-none focus:border-accent"
                         >
                             <option value="">All Networks</option>
                             {networks.map((n) => (
                                 <option key={n.id} value={n.id}>{n.name}</option>
                             ))}
-                        </select>
+                        </SelectField>
                     )}
                     {nodes.length > 0 && (
-                        <select
+                        <SelectField
+                            surface="surface-higher"
+                            fieldSize="sm"
+                            className="h-7 font-heading"
                             value={filterNode}
                             onChange={(e) => setFilterNode(e.target.value)}
-                            className="h-7 bg-surface-higher border border-border rounded px-2 text-xs font-heading text-text-primary focus:outline-none focus:border-accent"
                         >
                             <option value="">All Nodes</option>
                             {nodes.map((n) => (
                                 <option key={n.id} value={n.id}>{n.display_name}</option>
                             ))}
-                        </select>
+                        </SelectField>
                     )}
                     {typeOptions.length > 0 && (
-                        <select
+                        <SelectField
+                            surface="surface-higher"
+                            fieldSize="sm"
+                            className="h-7 font-heading"
                             value={filterType}
                             onChange={(e) => setFilterType(e.target.value)}
-                            className="h-7 bg-surface-higher border border-border rounded px-2 text-xs font-heading text-text-primary focus:outline-none focus:border-accent"
                         >
                             <option value="">All Types</option>
                             {typeOptions.map((t) => (
                                 <option key={t} value={t}>{t}</option>
                             ))}
-                        </select>
+                        </SelectField>
                     )}
                 </div>
 
@@ -362,15 +373,17 @@ export default function ServersPage() {
                     {initialLoad ? (
                         <div className="space-y-2">
                             {Array.from({length: 5}).map((_, i) => (
-                                <div key={i} className="h-12 bg-surface rounded animate-pulse"/>
+                                <Skeleton key={i} className="h-12 bg-surface"/>
                             ))}
                         </div>
                     ) : sortedServers.length === 0 ? (
-                        <div className="border-2 border-dashed border-border rounded-md py-10 text-center text-text-muted text-sm">
+                        <Empty className="border-2 border-border rounded-md py-10">
+                            <EmptyDescription>
                             {servers.length === 0
                                 ? "No servers yet - create one to get started"
                                 : "No servers match the current filters"}
-                        </div>
+                            </EmptyDescription>
+                        </Empty>
                     ) : (
                         <div className="bg-surface border border-border rounded-md overflow-hidden">
                             <table className="hidden md:table w-full text-xs">
