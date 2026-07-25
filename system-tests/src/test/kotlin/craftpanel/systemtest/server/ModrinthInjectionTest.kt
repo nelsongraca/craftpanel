@@ -1,13 +1,18 @@
 package craftpanel.systemtest.server
 
+import com.google.gson.JsonParser
 import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.ServerHelper
+import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldNotContain
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.delay
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import org.openapitools.client.infrastructure.ClientException
 import kotlin.random.Random
 
 @Tags("ServerOps")
@@ -15,9 +20,35 @@ class ModrinthInjectionTest : BaseSystemTest() {
 
     init {
         lateinit var serverId: String
+        val httpClient = OkHttpClient()
+
+        // Resolves a live Modrinth version id for [projectId] compatible with [mcVersion] on the given [loader], so
+        // fixtures never rot against Modrinth's actual catalog the way hand-picked version numbers eventually did.
+        fun resolveModrinthVersionId(projectId: String, loader: String, mcVersion: String): String {
+            val url = "https://api.modrinth.com/v2/project/$projectId/version" +
+                "?loaders=%5B%22$loader%22%5D&game_versions=%5B%22$mcVersion%22%5D"
+            val body = httpClient.newCall(Request.Builder().url(url).build())
+                .execute()
+                .use { it.body.string() }
+            val versions = JsonParser.parseString(body).asJsonArray
+            check(versions.size() > 0) { "No Modrinth version of '$projectId' compatible with $loader $mcVersion - fixture needs updating" }
+            return versions[0].asJsonObject["id"].asString
+        }
 
         beforeSpec {
-            serverId = helper.createTestServer(nodeId)
+            // FABRIC, not the shared PAPER helper server: lithium/sodium/fabric-api are Fabric-loader mods, and
+            // addMod now validates loader+mcVersion compatibility server-side.
+            serverId = api.createServer(
+                CreateServerRequest(
+                    name = "test-modrinth-${System.currentTimeMillis()}-${Random.nextInt(100000)}",
+                    nodeId = nodeId,
+                    serverType = "FABRIC",
+                    mcVersion = "1.21.4",
+                    itzgImageTag = "latest",
+                    memoryMb = 512,
+                    cpuShares = 0
+                )
+            ).id
             api.startServer(serverId)
             helper.awaitStatus(serverId, ServerStatus.HEALTHY)
             helper.awaitContainerLog(containerName(serverId), "stdin listener ready", docker)
@@ -52,13 +83,14 @@ class ModrinthInjectionTest : BaseSystemTest() {
                 }
 
                 should("adding a pinned mod and restarting injects MODRINTH_PROJECTS into the container") {
+                    val lithiumVersion = resolveModrinthVersionId("lithium", "fabric", "1.21.4")
                     api.addMod(
                         serverId,
                         CreateModRequest(
                             modrinthProjectId = "lithium",
                             displayName = "Lithium",
                             pinStrategy = ModPinStrategy.PINNED,
-                            pinnedVersionId = "mc1.21-0.13.0"
+                            pinnedVersionId = lithiumVersion
                         )
                     )
 
@@ -69,17 +101,19 @@ class ModrinthInjectionTest : BaseSystemTest() {
                         .exec()
                     val env = info.config?.env?.toList()
                         .orEmpty()
-                    env shouldContain "MODRINTH_PROJECTS=lithium:mc1.21-0.13.0"
+                    env shouldContain "MODRINTH_PROJECTS=lithium:$lithiumVersion"
                 }
 
                 should("adding a second mod includes both in MODRINTH_PROJECTS") {
+                    val lithiumVersion = resolveModrinthVersionId("lithium", "fabric", "1.21.4")
+                    val sodiumVersion = resolveModrinthVersionId("sodium", "fabric", "1.21.4")
                     api.addMod(
                         serverId,
                         CreateModRequest(
                             modrinthProjectId = "lithium",
                             displayName = "Lithium",
                             pinStrategy = ModPinStrategy.PINNED,
-                            pinnedVersionId = "mc1.21-0.13.0"
+                            pinnedVersionId = lithiumVersion
                         )
                     )
                     api.addMod(
@@ -88,7 +122,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                             modrinthProjectId = "sodium",
                             displayName = "Sodium",
                             pinStrategy = ModPinStrategy.PINNED,
-                            pinnedVersionId = "mc1.21-0.5.0"
+                            pinnedVersionId = sodiumVersion
                         )
                     )
 
@@ -103,18 +137,20 @@ class ModrinthInjectionTest : BaseSystemTest() {
                     val projects = modrinthEntry?.removePrefix("MODRINTH_PROJECTS=")
                         ?.split(",")
                         .orEmpty()
-                    projects shouldContain "lithium:mc1.21-0.13.0"
-                    projects shouldContain "sodium:mc1.21-0.5.0"
+                    projects shouldContain "lithium:$lithiumVersion"
+                    projects shouldContain "sodium:$sodiumVersion"
                 }
 
                 should("removing a mod and restarting removes it from MODRINTH_PROJECTS") {
+                    val lithiumVersion = resolveModrinthVersionId("lithium", "fabric", "1.21.4")
+                    val sodiumVersion = resolveModrinthVersionId("sodium", "fabric", "1.21.4")
                     api.addMod(
                         serverId,
                         CreateModRequest(
                             modrinthProjectId = "lithium",
                             displayName = "Lithium",
                             pinStrategy = ModPinStrategy.PINNED,
-                            pinnedVersionId = "mc1.21-0.13.0"
+                            pinnedVersionId = lithiumVersion
                         )
                     )
                     val sodium = api.addMod(
@@ -123,7 +159,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                             modrinthProjectId = "sodium",
                             displayName = "Sodium",
                             pinStrategy = ModPinStrategy.PINNED,
-                            pinnedVersionId = "mc1.21-0.5.0"
+                            pinnedVersionId = sodiumVersion
                         )
                     )
 
@@ -143,8 +179,8 @@ class ModrinthInjectionTest : BaseSystemTest() {
                     val projects = modrinthEntry?.removePrefix("MODRINTH_PROJECTS=")
                         ?.split(",")
                         .orEmpty()
-                    projects shouldContain "lithium:mc1.21-0.13.0"
-                    projects shouldNotContain "sodium:mc1.21-0.5.0"
+                    projects shouldContain "lithium:$lithiumVersion"
+                    projects shouldNotContain "sodium:$sodiumVersion"
                 }
             }
 
@@ -174,6 +210,23 @@ class ModrinthInjectionTest : BaseSystemTest() {
                     // LATEST entries use just the project ID with no version suffix
                     projects shouldContain "lithium"
                     projects.none { it.startsWith("lithium:") } shouldBe true
+                }
+
+                should("adding a mod with no version compatible with the server's loader+mcVersion is rejected") {
+                    // essentialsx is a Paper/Spigot-only plugin, never published a Fabric build - exercises the
+                    // root-cause fix: addMod validates loader+mcVersion compatibility before persisting, so an
+                    // incompatible mod can never leave a server unable to boot once itzg tries to resolve it.
+                    val ex = shouldThrow<ClientException> {
+                        api.addMod(
+                            serverId,
+                            CreateModRequest(
+                                modrinthProjectId = "essentialsx",
+                                displayName = "EssentialsX",
+                                pinStrategy = ModPinStrategy.LATEST
+                            )
+                        )
+                    }
+                    ex.statusCode shouldBe 422
                 }
             }
         }

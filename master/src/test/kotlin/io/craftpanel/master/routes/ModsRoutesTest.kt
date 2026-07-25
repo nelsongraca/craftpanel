@@ -7,9 +7,13 @@ import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.ModService
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import io.ktor.client.*
 import io.ktor.client.call.*
+import io.ktor.client.engine.mock.*
+import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
 import io.ktor.http.*
+import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.routing.*
 import io.ktor.server.testing.*
 import kotlinx.serialization.json.*
@@ -18,6 +22,23 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
+
+// Every add-mod test here exercises routing/permissions/persistence, not Modrinth compatibility —
+// stub the client to always report a compatible version so those tests stay network-free and fast.
+private fun modrinthClientWithCompatibleVersion(): HttpClient = HttpClient(MockEngine) {
+    engine {
+        addHandler {
+            respond(
+                """[{"id":"Oa9ZDzZq"}]""",
+                HttpStatusCode.OK,
+                headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
+            )
+        }
+    }
+    install(ContentNegotiation) {
+        json(Json { ignoreUnknownKeys = true })
+    }
+}
 
 class ModsRoutesTest :
     FunSpec({
@@ -37,7 +58,7 @@ class ModsRoutesTest :
         val repos = TestRepositories()
 
         fun Route.configureModsTest() {
-            modsRoutes(ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository))
+            modsRoutes(ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository, client = modrinthClientWithCompatibleVersion()))
         }
 
         fun createUser(email: String = "admin@example.com"): Uuid = transaction {
