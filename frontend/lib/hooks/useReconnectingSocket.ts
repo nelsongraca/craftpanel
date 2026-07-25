@@ -28,7 +28,12 @@ export function useReconnectingSocket({
     const onOpenRef = useRef(onOpen);
     const onCloseRef = useRef(onClose);
     const onErrorRef = useRef(onError);
+    const urlFactoryRef = useRef(urlFactory);
     const [connected, setConnected] = useState(false);
+
+    useEffect(() => {
+        urlFactoryRef.current = urlFactory;
+    }, [urlFactory]);
 
     useEffect(() => {
         onMessageRef.current = onMessage;
@@ -48,7 +53,7 @@ export function useReconnectingSocket({
     const connect = useCallback(async () => {
         if (!mountedRef.current) return;
 
-        const url = await urlFactory();
+        const url = await urlFactoryRef.current();
         if (!url || !mountedRef.current) return;
 
         try {

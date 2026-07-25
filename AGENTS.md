@@ -4,18 +4,15 @@ Self-hosted multi-user multi-node Minecraft server management platform.
 
 ## Base Instructions
 
-ALWAYS context7 when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask.
-When finishing a task always run get_file_problems from intellij/idea to find possible issues and fix them before submitting the code. If there are any warnings or errors that cannot be fixed, list them explicitly in the final answer.
-Before committing any code always use reformat_code from intellij/idea to reformat the files.
-If a method or class is deprecated avoid using it.
+ALWAYS context7 when I need library/API documentation, code generation, setup or configuration steps without me having to explicitly ask. When finishing a task always run get_file_problems from
+intellij/idea to find possible issues and fix them before submitting the code. If there are any warnings or errors that cannot be fixed, list them explicitly in the final answer. Before committing any
+code always use reformat_code from intellij/idea to reformat the files. If a method or class is deprecated avoid using it.
 
 Before starting any task, assess complexity:
 
 - Straightforward implementation (schema, CRUD endpoints, mechanical wiring):
   proceed directly with Haiku
-- Ambiguous architecture, cross-module coordination, new proto changes,
-  state machine logic: pause and flag for advisor review before proceeding
-
+- Ambiguous architecture, cross-module coordination, new proto changes, state machine logic: pause and flag for advisor review before proceeding
 
 **ALL individual advisor calls require user confirmation.** Before calling `advisor()`, ALWAYS ask the user: "Call advisor for [reason]?" and wait for approval. Never call advisor silently.
 
@@ -28,12 +25,12 @@ opencode run "<task>" --dangerously-skip-permissions
 ```
 
 **Prefer this over inline exploration for:**
+
 - Reading and auditing multiple files across the codebase
 - Generating boilerplate, stubs, or mechanical refactors
 - Any task where the first step is "understand the current state of X"
 
-Always delegate the exploration phase before making changes. Review output before applying.
-Max 3 concurrent opencode subagent delegations at any time.
+Always delegate the exploration phase before making changes. Review output before applying. Max 3 concurrent opencode subagent delegations at any time.
 
 ## Module Structure
 
@@ -104,11 +101,10 @@ Dockerfile COPYs `.next/standalone`, `.next/static`, and `public/` into `node:22
 ./gradlew :frontend:generateApiTypes    # runs @hey-api/openapi-ts → frontend/lib/generated/
 ```
 
-Both run automatically as part of `:frontend:assembleFrontend`. `lib/generated/` is gitignored.
-Spec is generated at test time by `OpenApiSpecTask` (a `testApplication` that boots full routing and hits `/openapi.json`).
-Routes are documented inline using the smiley4 DSL (`get("/path", { operationId = "..."; summary = "..."; request { ... }; response { ... } }) { ... }`).
-All routes are registered via `registerAppRoutes()` in `AppRoutes.kt` — add new routes there only (shared by `Main.kt` and `OpenApiSpecTask`).
-Schema generator uses `RefType.OPENAPI_SIMPLE` — do not change to `OPENAPI_FULL` (produces FQN-based schema names → ugly generated client class names).
+Both run automatically as part of `:frontend:assembleFrontend`. `lib/generated/` is gitignored. Spec is generated at test time by `OpenApiSpecTask` (a `testApplication` that boots full routing and
+hits `/openapi.json`). Routes are documented inline using the smiley4 DSL (`get("/path", { operationId = "..."; summary = "..."; request { ... }; response { ... } }) { ... }`). All routes are
+registered via `registerAppRoutes()` in `AppRoutes.kt` — add new routes there only (shared by `Main.kt` and `OpenApiSpecTask`). Schema generator uses `RefType.OPENAPI_SIMPLE` — do not change to
+`OPENAPI_FULL` (produces FQN-based schema names → ugly generated client class names).
 
 ### Aggregation tasks
 
@@ -128,19 +124,20 @@ Schema generator uses `RefType.OPENAPI_SIMPLE` — do not change to `OPENAPI_FUL
 
 ## CI
 
-GitHub Actions builds images and pushes to GHCR (`ghcr.io/nelsongraca`).
-Registry and version passed via `-PimageRegistry` and `-PimageVersion` Gradle properties. Push is opt-in via `-Ppush=true` (default off — `dockerBuildAll` only loads into the local Docker daemon via `com.flowkode.buildx`'s `buildxBuild` task; `dockerPushAll` requires `-Ppush=true`).
-CI config not yet written.
+GitHub Actions builds images and pushes to GHCR (`ghcr.io/nelsongraca`). Registry and version passed via `-PimageRegistry` and `-PimageVersion` Gradle properties. Push is opt-in via `-Ppush=true`
+(default off — `dockerBuildAll` only loads into the local Docker daemon via `com.flowkode.buildx`'s `buildxBuild` task; `dockerPushAll` requires `-Ppush=true`). CI config not yet written.
 
 ## gRPC
 
-Proto files live at repo root `/proto/`, shared by master and agent.
-Two services:
+Proto files live at repo root `/proto/`, shared by master and agent. Two services:
 
-- **ControlService** — persistent bidirectional stream, agent-initiated, lives for the lifetime of the connection. Handles container lifecycle commands, backups, migration, metrics, player updates. Console sessions and small file ops (list, read, write, delete, move, copy, mkdir) are multiplexed over this stream using `request_id` correlation.
-- **BulkDataService** — agent-initiated on-demand connections to master for large file transfers only (upload, download). Isolated from the control stream to prevent head-of-line blocking. Agent authenticates with its node key.
+- **ControlService** — persistent bidirectional stream, agent-initiated, lives for the lifetime of the connection. Handles container lifecycle commands, backups, migration, metrics, player updates.
+  Console sessions and small file ops (list, read, write, delete, move, copy, mkdir) are multiplexed over this stream using `request_id` correlation.
+- **BulkDataService** — agent-initiated on-demand connections to master for large file transfers only (upload, download). Isolated from the control stream to prevent head-of-line blocking. Agent
+  authenticates with its node key.
 
-Master never dials out to agents. Both services are agent-initiated. `DataServiceProxy` in master routes requests through `ControlServiceImpl` (for unary/console ops) or accepts incoming BulkDataService connections from the agent.
+Master never dials out to agents. Both services are agent-initiated. `DataServiceProxy` in master routes requests through `ControlServiceImpl` (for unary/console ops) or accepts incoming
+BulkDataService connections from the agent.
 
 Agent sends `NodeStateSnapshot` as the **first message** on every (re)connect so master can reconcile DB state before issuing commands.
 
@@ -154,35 +151,37 @@ Node authentication over gRPC:
 
 ### Agent registry (`ControlServiceImpl`)
 
-`ConcurrentHashMap<String, SendChannel<MasterMessage>>` tracks connected agents by nodeId.
-Registered on first message inside `channelFlow`, deregistered in `finally` using `remove(nodeId, channel)` (atomic — safe against reconnect races).
+`ConcurrentHashMap<String, SendChannel<MasterMessage>>` tracks connected agents by nodeId. Registered on first message inside `channelFlow`, deregistered in `finally` using `remove(nodeId, channel)`
+(atomic — safe against reconnect races).
 `sendToNode(nodeId, msg)` uses `trySend` — returns `false` if agent disconnected.
 
 ### ControlService stream resilience
 
-Any uncaught exception inside `requests.collect { }` in `ControlServiceImpl.control()` propagates through `channelFlow` and tears down the entire bidirectional stream. Wrap every handler branch in `runCatching { }.onFailure { log.error(...) }`. Re-throw `CancellationException` if catching `Exception` in a `launch {}` body.
+Any uncaught exception inside `requests.collect { }` in `ControlServiceImpl.control()` propagates through `channelFlow` and tears down the entire bidirectional stream. Wrap every handler branch in
+`runCatching { }.onFailure { log.error(...) }`. Re-throw `CancellationException` if catching `Exception` in a `launch {}` body.
 
 ### Agent handler architecture (`agent/src/main/kotlin/io/craftpanel/agent/grpc/`)
 
-`ControlStreamHandler` is a **pure dispatcher** — constructor + `run()` + `dispatch()` + `buildStateSnapshot()` only.
-All logic lives in `handlers/` subpackage, one class per domain:
+`ControlStreamHandler` is a **pure dispatcher** — constructor + `run()` + `dispatch()` + `buildStateSnapshot()` only. All logic lives in `handlers/` subpackage, one class per domain:
 
-| Class | Handles |
-|---|---|
-| `ContainerHandler` | create/start/stop/restart/remove/pullImage/shutdown |
-| `BackupHandler` | triggerBackup/deleteBackup |
-| `MigrationHandler` | prepareRsyncReceive/startRsync/sendRcon |
-| `FileHandler` | all file ops + bulk transfers (download/upload) |
-| `ConsoleHandler` | stateful console session lifecycle (owns `consoleSessions` map + `DockerClient`) |
-| `AgentUtils` | shared `nowTimestamp()` and `generateRsyncPassword()` helpers (package-internal) |
+| Class              | Handles                                                                          |
+|--------------------|----------------------------------------------------------------------------------|
+| `ContainerHandler` | create/start/stop/restart/remove/pullImage/shutdown                              |
+| `BackupHandler`    | triggerBackup/deleteBackup                                                       |
+| `MigrationHandler` | prepareRsyncReceive/startRsync/sendRcon                                          |
+| `FileHandler`      | all file ops + bulk transfers (download/upload)                                  |
+| `ConsoleHandler`   | stateful console session lifecycle (owns `consoleSessions` map + `DockerClient`) |
+| `AgentUtils`       | shared `nowTimestamp()` and `generateRsyncPassword()` helpers (package-internal) |
 
 **`AgentOutbound`** wraps `SendChannel<AgentMessage>` + `nodeId`. Use:
+
 - `out.send { ... }` — suspend send with nodeId pre-filled
 - `out.trySend { ... }` — non-blocking send
 - `out.tryConsoleOutput(reqId) { ... }` — non-blocking console frame
 - `out.serverStatus(...)` / `out.tryServerStatus(...)` — server status updates
 
 **Two-layer error handling in agent handlers (load-bearing):**
+
 - Inner `runCatching` in each handler: `onSuccess` emits HEALTHY/STOPPED, `onFailure` emits UNHEALTHY
 - Outer `dispatch { }` in `ControlStreamHandler`: catches unexpected throws, re-throws `CancellationException`
 
@@ -239,8 +238,7 @@ server.mods      server.console   server.export     server.backup
 server.migrate   server.view
 ```
 
-Wildcards supported at runtime (`*`, `server.*`, `system.*`). Only explicit nodes stored in DB.
-Permissions are **additive only** — no deny rules.
+Wildcards supported at runtime (`*`, `server.*`, `system.*`). Only explicit nodes stored in DB. Permissions are **additive only** — no deny rules.
 
 ### Assignment scopes
 
@@ -325,11 +323,12 @@ cd frontend && .node/bin/pnpm test       # run all tests (use .node/bin/pnpm, no
 
 - `next/navigation` is mocked globally in `vitest.setup.ts` — no per-file mock needed
 - Mock generated SDK: `vi.mock('@/lib/generated', () => ({ fn: vi.fn(), ... }))`
-- Mock client module: `vi.mock('@/lib/client', () => ({ setAccessToken: vi.fn(), getAccessToken: vi.fn(), client: { setConfig: vi.fn(), interceptors: { request: { use: vi.fn() }, response: { use: vi.fn() } } } }))`
+- Mock client module:
+  `vi.mock('@/lib/client', () => ({ setAccessToken: vi.fn(), getAccessToken: vi.fn(), client: { setConfig: vi.fn(), interceptors: { request: { use: vi.fn() }, response: { use: vi.fn() } } } }))`
 - Test files co-located: `lib/foo.test.ts`, `lib/__tests__/bar.test.tsx`, `app/(route)/__tests__/page.test.tsx`
 - `vi.mock()` factories are hoisted before module-level `let`/`const` — any shared state captured inside (interceptor callbacks, mock refs) must be initialised via `vi.hoisted(() => ...)` and accessed
   through the returned object, not a plain variable
-- Vitest excludes `tests/e2e/**` explicitly — without it, Vitest loads Playwright specs and fails with "Playwright Test did not expect test() to be called here" (not a version conflict despite the
+- Vitest excludes `tests/e2e/**` explicitly — without it, Vitest loads Playwright specs and fails with "Playwright Test did not expect test () to be called here" (not a version conflict despite the
   error message)
 
 ### E2E tests (Playwright + MSW)
@@ -342,9 +341,11 @@ cd frontend && .node/bin/pnpm exec playwright test          # run all E2E tests 
 cd frontend && .node/bin/pnpm exec playwright test --ui     # interactive mode
 ```
 
-`:frontend:testE2eMocked` runs MSW-backed specs only (no Docker, Postgres, or live backend). Excluded from `:frontend:check` and root `check` — same rule as system-tests (slower, separate infra). No CI workflow yet (only `docs.yml` exists); add a dedicated job when a build CI workflow is created, independent of the system-tests job.
+`:frontend:testE2eMocked` runs MSW-backed specs only (no Docker, Postgres, or live backend). Excluded from `:frontend:check` and root `check` — same rule as system-tests (slower, separate infra). No
+CI workflow yet (only `docs.yml` exists); add a dedicated job when a build CI workflow is created, independent of the system-tests job.
 
 MSW layer layout:
+
 - `tests/e2e/msw/handlers/` — HTTP handler modules (`auth.ts`, `servers.ts`, `nodes.ts`, `websockets.ts`)
 - `tests/e2e/msw/handlers/index.ts` — exports `handlers` (default set, **WS handlers excluded**)
 - `tests/e2e/msw/fixtures/data.ts` — typed fixture data (uses generated types from `lib/generated/types.gen.ts`)
@@ -356,8 +357,10 @@ WS tests use `page.routeWebSocket()` directly — NOT MSW `ws()` handlers. See f
 
 **E2E footguns:**
 
-- **Never add `ws()` handlers to the default `handlers` array** — `@msw/playwright` installs `routeWebSocket(MATCH_ALL)` whenever any WS handler is present, intercepting Turbopack's `/_next/` HMR WebSocket and breaking React hydration (blank black page). For WS tests use `page.routeWebSocket(/pattern/, handler)` directly.
-- **`getByRole("button", { name: "Add" })` matches "Add Mod"** — Playwright accessible name matching is substring-based by default; always add `exact: true` when the target name is a substring of another button's name.
+- **Never add `ws()` handlers to the default `handlers` array** — `@msw/playwright` installs `routeWebSocket(MATCH_ALL)` whenever any WS handler is present, intercepting Turbopack's `/_next/` HMR
+  WebSocket and breaking React hydration (blank black page). For WS tests use `page.routeWebSocket(/pattern/, handler)` directly.
+- **`getByRole("button", { name: "Add" })` matches "Add Mod"** — Playwright accessible name matching is substring-based by default; always add `exact: true` when the target name is a substring of
+  another button's name.
 - **`getByText("X")` matches elements containing "X" as substring** — e.g. `worldedit-id` can match `WorldEdit`; use `{ exact: true }` for unambiguous matching.
 - **Buttons inside `max-h-* overflow-y-auto` containers may be clipped** — Playwright's `.click()` requires viewport visibility; use `.click({ force: true })` for buttons inside scrollable containers.
 - **`network.use()` handler state closures work** — a `let` variable captured by both GET and POST handlers in a single `network.use()` call correctly mutates across requests (same JS closure).
@@ -371,9 +374,11 @@ Tests live in `master/src/test/kotlin/`. Run with `./gradlew :master:test`. Cove
 
 Singleton H2 in-memory DB shared across all tests. Call `initIfNeeded()` once and `reset()` in `@BeforeTest`.
 
-- Creates: `Users`, `RefreshTokens`, `Groups`, `GroupPermissions`, `UserGroupAssignments`, `ServerNetworks`, `Nodes`, `Servers`, `ServerEnvVars`, `NodeMetrics`, `PortRegistry`, `ServerMigrations`, `MigrationStepLog`, `Backups`, `AlertThresholds`, `AlertEvents`, `ContainerMetrics`, `ServerMods`, `SystemSettings`
+- Creates: `Users`, `RefreshTokens`, `Groups`, `GroupPermissions`, `UserGroupAssignments`, `ServerNetworks`, `Nodes`, `Servers`, `ServerEnvVars`, `NodeMetrics`, `PortRegistry`, `ServerMigrations`,
+  `MigrationStepLog`, `Backups`, `AlertThresholds`, `AlertEvents`, `ContainerMetrics`, `ServerMods`, `SystemSettings`
 - Seeds system groups on first init
-- `reset()` deletes in FK-safe order: `AlertEvents → AlertThresholds → Backups → ServerMods → MigrationStepLog → ServerMigrations → PortRegistry → ContainerMetrics → NodeMetrics → ServerEnvVars → Servers → Nodes → ServerNetworks → SystemSettings → RefreshTokens → UserGroupAssignments → Users`
+- `reset()` deletes in FK-safe order:
+  `AlertEvents → AlertThresholds → Backups → ServerMods → MigrationStepLog → ServerMigrations → PortRegistry → ContainerMetrics → NodeMetrics → ServerEnvVars → Servers → Nodes → ServerNetworks → SystemSettings → RefreshTokens → UserGroupAssignments → Users`
 
 ### Route test conventions
 
@@ -386,7 +391,8 @@ Singleton H2 in-memory DB shared across all tests. Call `initIfNeeded()` once an
 - BouncyCastle IP SANs are stored as `DEROctetString` bytes — `.name.toString()` returns `#7f000001`, not `"127.0.0.1"`; decode with
   `(gn.name as DEROctetString).octets.joinToString(".") { (it.toInt() and 0xFF).toString() }`
 - Inject lambdas for dependencies that require external state (e.g. `sendToNode: (String, MasterMessage) -> Boolean`)
-- `startServer()` sends **1** gRPC message: a single `StartContainerCommand` with `needsRecreate: bool`. The agent owns create/pull logic — master never sends `CreateContainerCommand` (deleted in C5). Tests asserting `sentCommands.size` expect 1.
+- `startServer()` sends **1** gRPC message: a single `StartContainerCommand` with `needsRecreate: bool`. The agent owns create/pull logic — master never sends `CreateContainerCommand` (deleted in C5).
+  Tests asserting `sentCommands.size` expect 1.
 
 ### System tests (`system-tests/`)
 
@@ -404,9 +410,15 @@ Requires Docker daemon running. Tests spin up PostgreSQL, master, agent, and fak
 - Helper classes: `AuthHelper`, `NodeHelper`, `ServerHelper`, `MultiNodeHelper` in `harness/`
 - `MultiNodeHelper.trustAllPendingNodes(n)` — used by `SystemTestConfig` when stack starts with 2 agents
 - `listMods` returns `Map<String, List<ModResponse>>` (bucketed by loader); `.isEmpty()` checks map keys, not entries — use `.values.flatten().isEmpty()`
-- **Kotest 6.x: register spec-level lifecycle hooks at the `init {}` level.** `beforeSpec`/`afterSpec` are spec-global — registering them inside a `context {}` does NOT scope them to that container and is a footgun; declare them in `init`. `beforeContainer`/`afterContainer`/`beforeEach`/`beforeTest` registered inside a `context {}` DO run (verified empirically), scoped to that container's descendants and firing once per child container — which is itself a trap: a `beforeContainer` in a `context` with N nested sub-contexts fires N times (e.g. spinning up N stacks instead of one). Prefer `init`-level hooks, or for per-test resource lifecycle use inline `try/finally` inside each `should`. Declare `lateinit var` state in `init` and reference it from nested `context`/`should` lambdas via closure.
-- Shared servers in system tests: use `beforeSpec`/`afterSpec` with `lateinit var serverId` (and `serverId2` if two configs are needed) rather than per-test `try/finally` creation — reduces container spin-up count significantly.
-- `system-tests/build/generated/` is regenerated at build time via `:master:generateOpenApiSpec` → `:system-tests:generateApiClient`. Manual edits there survive until the next build that re-runs codegen.
+- **Kotest 6.x: register spec-level lifecycle hooks at the `init {}` level.** `beforeSpec`/`afterSpec` are spec-global — registering them inside a `context {}` does NOT scope them to that container
+  and is a footgun; declare them in `init`. `beforeContainer`/`afterContainer`/`beforeEach`/`beforeTest` registered inside a `context {}` DO run (verified empirically), scoped to that container's
+  descendants and firing once per child container — which is itself a trap: a `beforeContainer` in a `context` with N nested sub-contexts fires N times (e.g. spinning up N stacks instead of one).
+  Prefer `init`-level hooks, or for per-test resource lifecycle use inline `try/finally` inside each `should`. Declare `lateinit var` state in `init` and reference it from nested `context`/`should`
+  lambdas via closure.
+- Shared servers in system tests: use `beforeSpec`/`afterSpec` with `lateinit var serverId` (and `serverId2` if two configs are needed) rather than per-test `try/finally` creation — reduces container
+  spin-up count significantly.
+- `system-tests/build/generated/` is regenerated at build time via `:master:generateOpenApiSpec` → `:system-tests:generateApiClient`. Manual edits there survive until the next build that re-runs
+  codegen.
 - **Reading system-test failures:** container `[master]`/`[agent-N]` logs go to `System.err` → they land in the test report (`build/reports/tests/test/*.html`) and the XML `<system-err>` block, NOT
   gradle stdout. Per-spec setup logs (`[setup] Agent N`, `[cleanup] ...`) are in the XML `<system-out>`. Don't expect to `tee` them from the gradle run.
 - `pull access denied for craftpanel-fake-server ... repository does not exist` is EXPECTED — fake-server/fake-proxy are local-only images, never pullable. Not a root cause; ignore it when triaging.
@@ -422,20 +434,21 @@ Requires Docker daemon running. Tests spin up PostgreSQL, master, agent, and fak
 ./gradlew :system-tests:test -PwithCoverage   # runs tests + auto-generates HTML/XML report
 ```
 
-- Testcontainers 2.x `ResourceReaper` sends **SIGKILL** directly — JVM shutdown hooks (including Kover's flush) never run. `CraftPanelStack.gracefulStop()` sends `stopContainerCmd(timeout=30)` first in coverage mode to let the JVM flush `.ic` files before cleanup.
+- Testcontainers 2.x `ResourceReaper` sends **SIGKILL** directly — JVM shutdown hooks (including Kover's flush) never run. `CraftPanelStack.gracefulStop()` sends `stopContainerCmd(timeout=30)` first
+  in coverage mode to let the JVM flush `.ic` files before cleanup.
 - Kover CLI `--classfiles` needs the specific JAR (`master.jar`, `agent.jar`), not the `lib/` directory — the CLI cannot scan a directory of JARs.
 - Coverage runs use `outputs.cacheIf { false }` on the test task — without it, Gradle restores test results from the build cache without running the JVM, leaving the coverage directory empty.
 - `koverSystemTestReport` uses `notCompatibleWithConfigurationCache` because `.ic` files don't exist at configuration time and must be discovered at execution time.
 
 ## Database
 
-PostgreSQL via Exposed ORM 1.0 and HikariCP.
-Use `org.jetbrains.exposed.v1.*` import paths (changed from 0.x).
-Schema migrations via `exposed-migration-jdbc`.
+PostgreSQL via Exposed ORM 1.0 and HikariCP. Use `org.jetbrains.exposed.v1.*` import paths (changed from 0.x). Schema migrations via `exposed-migration-jdbc`.
 
 ## What NOT to Do
 
-- Don't launch long runs (system-test suites, full builds) with `nohup … &` or a bare `&` — that detaches the process outside the harness, so it gets no background-shell UI entry and fires no completion callback. Use the Bash tool's `run_in_background: true` instead (harness-tracked, notifies on exit). If a `timeout` wrapper is needed, put it inside the backgrounded command, not around a detached `&`.
+- Don't launch long runs (system-test suites, full builds) with `nohup … &` or a bare `&` — that detaches the process outside the harness, so it gets no background-shell UI entry and fires no
+  completion callback. Use the Bash tool's `run_in_background: true` instead (harness-tracked, notifies on exit). If a `timeout` wrapper is needed, put it inside the backgrounded command, not around a
+  detached `&`.
 - Don't assume `grep` is GNU grep — on this host it's aliased to `ugrep` (different regex/flag behavior, warns on missing files). Prefer the Grep tool, or `command grep`/`rg` when the shell `grep`
   misbehaves.
 - Don't add a Makefile
@@ -463,13 +476,17 @@ Schema migrations via `exposed-migration-jdbc`.
 - Don't use `apply` for testcontainers configuration
 - Don't use `JsonObject` as a route request body type — leaks internal kotlinx-serialization type schemas into OpenAPI spec; use a typed `@Serializable` DTO instead
 - Don't access `project` inside `onlyIf {}` lambdas — runs at execution time, breaks Gradle config cache; capture value at configuration time or use `enabled = <bool>`
-- Don't use `dependsOn(test)` in a report task triggered via `finalizedBy` — use `mustRunAfter(test)` to avoid double-execution; use a string `finalizedBy("taskName")` not a task-provider reference to avoid forward-reference compile errors
+- Don't use `dependsOn(test)` in a report task triggered via `finalizedBy` — use `mustRunAfter(test)` to avoid double-execution; use a string `finalizedBy("taskName")` not a task-provider reference to
+  avoid forward-reference compile errors
 - Don't use `afterEvaluate {}` closures that capture script-level objects — fail config cache serialization; use plain `tasks.named(...).configure {}` blocks instead
 - Don't use `respondBytesWriter` before verifying file existence — it commits HTTP 200 immediately; call `proxy.downloadFile` (throws on 404) before opening the writer
-- Don't return `application/octet-stream` binary bodies from endpoints consumed by the system-test generated client (jvm-okhttp4+Gson maps binary response as `body.bytes() as? T` → null → NPE) — return JSON `List<Int>` for byte arrays instead, or a typed DTO
+- Don't return `application/octet-stream` binary bodies from endpoints consumed by the system-test generated client (jvm-okhttp4+Gson maps binary response as `body.bytes() as? T` → null → NPE) —
+  return JSON `List<Int>` for byte arrays instead, or a typed DTO
 - Don't conflate `itzgImageTag` (Docker image tag e.g. `"1.21.5"`) with `mcVersion` (the `VERSION` env var passed to `itzg/minecraft-server`) — they are separate fields with separate meanings
 - Don't use `java.util.UUID` — use `kotlin.uuid.Uuid` (`Uuid.random()`, `Uuid.parse()`, no `.toJavaUuid()`/`.toKotlinUuid()` conversions; Exposed 1.3.0 `uuid()` columns return `Uuid` natively)
-- Don't use `kotlin.io.encoding.Base64.encode()` for WS ticket tokens — produces standard base64 with `+`/`/`/`=` that are URL-unsafe in `?ticket=` query params; use `java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)`
+- Don't use `kotlin.io.encoding.Base64.encode()` for WS ticket tokens — produces standard base64 with `+`/`/`/`=` that are URL-unsafe in `?ticket=` query params; use
+  `java.util.Base64.getUrlEncoder().withoutPadding().encodeToString(bytes)`
+
 ## Agent skills
 
 ### Issue tracker

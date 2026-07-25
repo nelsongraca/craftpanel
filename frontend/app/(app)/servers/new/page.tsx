@@ -132,6 +132,7 @@ export default function NewServerPage() {
             : Promise.resolve();
 
         Promise.all([...loadBase, loadClone]).finally(() => setLoadingData(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [cloneId]);
 
     if (!hasPermission(permissions, "server.create")) {

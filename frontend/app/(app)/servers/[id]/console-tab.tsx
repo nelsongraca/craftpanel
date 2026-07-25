@@ -91,7 +91,7 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
         setStatusMsg((s) => s || "Disconnected");
     };
 
-    const {connected, socketRef} = useReconnectingSocket({
+    const {socketRef} = useReconnectingSocket({
         urlFactory,
         onMessage,
         onOpen,
@@ -165,7 +165,7 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
             termRef.current?.dispose();
             termRef.current = null;
         };
-    }, [serverId, serverStatus]);
+    }, [serverId, serverStatus, socketRef]);
 
     if (serverStatus === "UNHEALTHY") {
         return <CrashLogView serverId={serverId}/>;
