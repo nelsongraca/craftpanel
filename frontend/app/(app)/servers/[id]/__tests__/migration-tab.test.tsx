@@ -107,34 +107,36 @@ describe("MigrationTab", () => {
         wsController = ctrl
         vi.stubGlobal(
             "WebSocket",
-            vi.fn(() => ({
-                get onopen() {
-                    return ctrl.onopen
-                },
-                set onopen(fn) {
-                    ctrl.onopen = fn
-                },
-                get onclose() {
-                    return ctrl.onclose
-                },
-                set onclose(fn) {
-                    ctrl.onclose = fn
-                },
-                get onmessage() {
-                    return ctrl.onmessage
-                },
-                set onmessage(fn) {
-                    ctrl.onmessage = fn
-                },
-                get onerror() {
-                    return ctrl.onerror
-                },
-                set onerror(fn) {
-                    ctrl.onerror = fn
-                },
-                close: ctrl.close,
-                readyState: WebSocket.OPEN,
-            })),
+            vi.fn().mockImplementation(function () {
+                return {
+                    get onopen() {
+                        return ctrl.onopen;
+                    },
+                    set onopen(fn) {
+                        ctrl.onopen = fn;
+                    },
+                    get onclose() {
+                        return ctrl.onclose;
+                    },
+                    set onclose(fn) {
+                        ctrl.onclose = fn;
+                    },
+                    get onmessage() {
+                        return ctrl.onmessage;
+                    },
+                    set onmessage(fn) {
+                        ctrl.onmessage = fn;
+                    },
+                    get onerror() {
+                        return ctrl.onerror;
+                    },
+                    set onerror(fn) {
+                        ctrl.onerror = fn;
+                    },
+                    close: ctrl.close,
+                    readyState: 1,
+                };
+            }),
         )
     })
 

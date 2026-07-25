@@ -9,6 +9,8 @@ const { mockTerminal } = vi.hoisted(() => ({
         write: vi.fn(),
         onData: vi.fn(),
         dispose: vi.fn(),
+        onTitleChange: vi.fn(),
+        attachCustomKeyEventHandler: vi.fn(),
     },
 }))
 
@@ -18,11 +20,23 @@ vi.mock('@/lib/generated/sdk.gen', () => ({
 }))
 
 vi.mock('@xterm/xterm', () => ({
-    Terminal: vi.fn(() => mockTerminal),
+    Terminal: class {
+        loadAddon = mockTerminal.loadAddon
+        open = mockTerminal.open
+        write = mockTerminal.write
+        onData = mockTerminal.onData
+        dispose = mockTerminal.dispose
+        onTitleChange = mockTerminal.onTitleChange
+        attachCustomKeyEventHandler = mockTerminal.attachCustomKeyEventHandler
+        constructor() {}
+    },
 }))
 
 vi.mock('@xterm/addon-fit', () => ({
-    FitAddon: vi.fn(() => ({ fit: vi.fn() })),
+    FitAddon: class {
+        fit = vi.fn()
+        constructor() {}
+    },
 }))
 
 vi.mock('@xterm/xterm/css/xterm.css', () => ({}))
@@ -53,10 +67,11 @@ class MockWebSocket {
 
 function stubGlobals() {
     vi.stubGlobal('WebSocket', MockWebSocket)
-    vi.stubGlobal('ResizeObserver', vi.fn(() => ({
-        observe: vi.fn(),
-        disconnect: vi.fn(),
-    })))
+    vi.stubGlobal('ResizeObserver', class {
+        observe = vi.fn()
+        disconnect = vi.fn()
+        constructor() {}
+    })
 }
 
 /** Flush microtasks so the async init() inside useEffect completes. */
