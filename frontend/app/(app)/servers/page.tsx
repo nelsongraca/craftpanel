@@ -3,7 +3,7 @@
 import {useEffect, useMemo, useState} from "react";
 import {useRouter} from "next/navigation";
 import Link from "next/link";
-import {CopyPlus, Play, Plus, RotateCcw, Square, Trash2, X} from "lucide-react";
+import {CopyPlus, Play, Plus, RotateCcw, Skull, Square, Trash2, X} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
 import {deleteServer, listNetworks, listNodes, listServers, restartServer, startServer, stopServer, forceStopServer} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
@@ -88,7 +88,7 @@ function ServerActions({
             )}
             {status === "STOPPING" && hasPermission(permissions, "server.force_stop") && (
                 <IconActionButton
-                    icon={<Square size={11} strokeWidth={2.5}/>}
+                    icon={<Skull size={11} strokeWidth={2.5}/>}
                     label="Force Stop"
                     loading={pending === "forceStop"}
                     onClick={() => doAction(server.id, "forceStop")}

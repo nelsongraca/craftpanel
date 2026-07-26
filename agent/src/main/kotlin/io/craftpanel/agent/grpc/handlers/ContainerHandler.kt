@@ -64,10 +64,10 @@ class ContainerHandler(private val containerManager: ContainerManager, private v
         containerManager.markStopping(cmd.serverId)
         withStatus(out, cmd.serverId, ServerStatusUpdate.ServerStatus.STOPPED, log, "Failed to stop container ${cmd.containerName}") {
             if (cmd.force) {
-                containerManager.killContainer(cmd.containerName)
+                withContext(Dispatchers.IO) { containerManager.killContainer(cmd.containerName) }
             }
             else {
-                containerManager.stopContainer(cmd.containerName, cmd.timeoutSeconds, cmd.stopCommand)
+                withContext(Dispatchers.IO) { containerManager.stopContainer(cmd.containerName, cmd.timeoutSeconds, cmd.stopCommand) }
             }
         }
     }

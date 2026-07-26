@@ -3,7 +3,7 @@
 import {useCallback, useEffect, useState} from "react";
 import {useParams, useRouter} from "next/navigation";
 import Link from "next/link";
-import {ChevronRight, Copy, MoreHorizontal, Play, RotateCcw, Shuffle, Square, Trash2, X,} from "lucide-react";
+import {ChevronRight, Copy, MoreHorizontal, Play, RotateCcw, Shuffle, Skull, Square, Trash2, X,} from "lucide-react";
 import {deleteServer, forceStopServer, getNetwork, getNode, getServer, restartServer, startServer, stopServer} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
@@ -262,7 +262,7 @@ export default function ServerDetailPage() {
                         )}
                         {sStatus === "STOPPING" && hasPermission(permissions, "server.force_stop") && (
                             <HeaderActionButton
-                                icon={<Square size={12} strokeWidth={2.5}/>}
+                                icon={<Skull size={12} strokeWidth={2.5}/>}
                                 label="Force Stop"
                                 loading={pending === "forceStop"}
                                 onClick={() => doAction("forceStop")}

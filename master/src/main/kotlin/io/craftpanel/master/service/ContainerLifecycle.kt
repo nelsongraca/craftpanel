@@ -50,6 +50,21 @@ class ContainerLifecycle(
         )
     }
 
+    fun sendRestart(server: ServerRow, nodeId: String) {
+        val id = server.id
+        sendOrThrow(
+            nodeId,
+            masterMessage {
+                restartContainer = restartContainerCommand {
+                    serverId = id.toString()
+                    containerName = "$containerNamePrefix-$id"
+                    timeoutSeconds = 30
+                    stopCommand = server.stopCommand
+                }
+            }
+        )
+    }
+
     fun sendRemove(server: ServerRow, nodeId: String, force: Boolean = false) {
         val id = server.id
         sendOrThrow(

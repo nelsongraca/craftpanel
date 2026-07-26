@@ -57,12 +57,7 @@ class ServerLifecycleService(
                 publicHostname = serverExposure.mcRouterLabel(serverRow)
             )
         } else {
-            lifecycle.sendStop(serverRow, nodeId)
-            lifecycle.sendStart(
-                serverRow,
-                needsRecreate = false,
-                publicHostname = serverExposure.mcRouterLabel(serverRow)
-            )
+            lifecycle.sendRestart(serverRow, nodeId)
         }
     }
 
