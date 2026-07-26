@@ -4,7 +4,7 @@ import {expect, test} from "../fixture";
 test("installed plugins load and show pin strategy", async ({page}) => {
     await page.goto("/servers/srv-1");
     // srv-1 is PAPER → tab label is "Plugins", button is "Add Plugin"
-    await page.getByRole("button", {name: "Plugins"}).click();
+    await page.getByRole("tab", {name: "Plugins"}).click();
 
     await expect(page.getByText("WorldEdit", {exact: true})).toBeVisible();
     await expect(page.getByText("Latest stable", {exact: true})).toBeVisible();
@@ -12,7 +12,7 @@ test("installed plugins load and show pin strategy", async ({page}) => {
 
 test("search returns results and Add button appears", async ({page}) => {
     await page.goto("/servers/srv-1");
-    await page.getByRole("button", {name: "Plugins"}).click();
+    await page.getByRole("tab", {name: "Plugins"}).click();
 
     await page.getByRole("button", {name: /Add Plugin/i}).click();
     await page.getByPlaceholder("Search Modrinth…").fill("dynmap");
@@ -77,7 +77,7 @@ test("clicking Add then confirming adds plugin to installed list", async ({
     );
 
     await page.goto("/servers/srv-1");
-    await page.getByRole("button", {name: "Plugins"}).click();
+    await page.getByRole("tab", {name: "Plugins"}).click();
     await expect(page.getByText("No plugins installed")).toBeVisible();
 
     await page.getByRole("button", {name: /Add Plugin/i}).click();

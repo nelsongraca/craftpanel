@@ -36,7 +36,8 @@ test("status filter narrows server list", async ({page}) => {
     const table = page.locator("table");
     await expect(table.getByText("Survival World")).toBeVisible();
 
-    await page.getByRole("combobox").first().selectOption("STOPPED");
+    await page.getByRole("combobox").first().click();
+    await page.getByRole("option", {name: "Stopped"}).click();
 
     await expect(table.getByText("Creative World")).toBeVisible();
     await expect(table.getByText("Survival World")).not.toBeVisible();
@@ -51,7 +52,8 @@ test("node filter narrows list to servers on selected node", async ({
     await expect(table.getByText("Survival World")).toBeVisible();
 
     const nodeSelect = page.getByRole("combobox").filter({hasText: "All Nodes"});
-    await nodeSelect.selectOption({label: "Secondary Node"});
+    await nodeSelect.click();
+    await page.getByRole("option", {name: /Secondary Node/}).click();
 
     await expect(table.getByText("Lobby")).toBeVisible();
     await expect(table.getByText("Survival World")).not.toBeVisible();

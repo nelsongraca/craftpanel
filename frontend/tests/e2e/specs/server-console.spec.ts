@@ -13,7 +13,7 @@ test("Connecting status clears on console.ready", async ({page}) => {
     });
 
     await page.goto("/servers/srv-1");
-    await page.getByRole("button", {name: "Console"}).click();
+    await page.getByRole("tab", {name: "Console"}).click();
 
     // statusMsg becomes "" after console.ready → <p> disappears
     await expect(page.getByText("Connecting…")).not.toBeVisible({timeout: 5000});
@@ -33,7 +33,7 @@ test("console.disconnected shows reason in status", async ({page}) => {
     });
 
     await page.goto("/servers/srv-1");
-    await page.getByRole("button", {name: "Console"}).click();
+    await page.getByRole("tab", {name: "Console"}).click();
 
     // Match the status <p> exactly (xterm also renders "[Server stopped]" in its span)
     await expect(
@@ -75,7 +75,7 @@ test("non-HEALTHY server shows not-running message", async ({
     );
 
     await page.goto("/servers/srv-2");
-    await page.getByRole("button", {name: "Console"}).click();
+    await page.getByRole("tab", {name: "Console"}).click();
 
     await expect(page.getByText("Server is not running")).toBeVisible();
 });

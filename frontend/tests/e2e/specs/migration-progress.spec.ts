@@ -5,13 +5,13 @@ import {expect, test} from "../fixture";
 
 test("migration tab shows no-migrations message initially", async ({page}) => {
     await page.goto("/servers/srv-1");
-    await page.getByRole("button", {name: "Migration"}).click();
+    await page.getByRole("tab", {name: "Migration"}).click();
     await expect(page.getByText("No migrations yet.")).toBeVisible();
 });
 
 test("Migrate button opens modal with target node", async ({page}) => {
     await page.goto("/servers/srv-1");
-    await page.getByRole("button", {name: "Migration"}).click();
+    await page.getByRole("tab", {name: "Migration"}).click();
 
     await page.getByRole("button", {name: /Migrate/i}).click();
 
@@ -19,10 +19,12 @@ test("Migrate button opens modal with target node", async ({page}) => {
     await expect(
         page.getByRole("button", {name: "Start Migration"})
     ).toBeVisible();
-    // node-2 appears as an option in the target node select (value attr)
+    // node-2 appears as an option in the target node select
+    await page.getByRole("combobox").click();
     await expect(
-        page.locator("option[value='node-2']")
-    ).toHaveCount(1);
+        page.getByRole("option", {name: /Secondary Node/})
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
 });
 
 test("start migration triggers WS events and updates step tracker", async ({
@@ -51,7 +53,7 @@ test("start migration triggers WS events and updates step tracker", async ({
     });
 
     await page.goto("/servers/srv-1");
-    await page.getByRole("button", {name: "Migration"}).click();
+    await page.getByRole("tab", {name: "Migration"}).click();
     await page.getByRole("button", {name: /Migrate/i}).click();
 
     await expect(
@@ -82,7 +84,7 @@ test("migration completed event updates status", async ({page}) => {
     });
 
     await page.goto("/servers/srv-1");
-    await page.getByRole("button", {name: "Migration"}).click();
+    await page.getByRole("tab", {name: "Migration"}).click();
     await page.getByRole("button", {name: /Migrate/i}).click();
     await page.getByRole("button", {name: "Start Migration"}).click();
 
