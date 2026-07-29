@@ -6,7 +6,7 @@ Access control is implemented as a **permission node** system. Permissions are c
 
 | Permission Node    | Description                                                                |
 |--------------------|----------------------------------------------------------------------------|
-| `system.settings`  | Global application configuration, resource limits, Docker and DNS settings |
+| `system.settings`  | Global application configuration, resource limits, and system settings. DNS integration is configured at deployment time via env vars — see [Enabling Public Hostnames](../usage/enabling-public-hostnames.md). |
 | `system.users`     | Create, edit, and delete users and groups                                  |
 | `system.nodes`     | Register, configure, and decommission nodes                                |
 | `server.create`    | Create new server instances                                                |

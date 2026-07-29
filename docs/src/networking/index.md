@@ -206,15 +206,15 @@ DNS_PROVIDER=cloudflare
 CF_API_TOKEN=<your-cloudflare-api-token>
 ```
 
-The network must also have `dns_zone_id` and `dns_domain_suffix` set — configurable via `POST/PATCH /api/networks`. Master will return `422` if exposure is enabled on a server whose network has no DNS
-zone configured.
+The network must also have `dns_zone_id` and `dns_domain_suffix` set — configurable via `POST/PATCH /api/networks` or the Network settings page in the UI. Master will return `422` if exposure is enabled on a server whose network has no DNS
+zone configured. See [Enabling Public Hostnames](../usage/enabling-public-hostnames.md) for the one-time setup walkthrough.
 
 ### Planned DNS Enhancements
 
 - **Route53 and other providers** — the `DnsProvider` interface is ready; adding a provider requires implementing three methods (`createARecord`, `updateARecord`, `deleteARecord`) and registering it
   in the factory.
 - **Per-network credential sets** — currently all networks share global credentials. Independent credential sets per network require a secret storage strategy outside the database and are future work.
-- **Frontend UI for network DNS configuration** — zone ID and domain suffix are currently set via API only; a UI panel on the Network settings page is planned.
+- **Per-network provider selection at runtime** — the `dns_provider_type` column on Server Networks is stored and returned by the API but not consulted at runtime; provider selection is driven globally by the `DNS_PROVIDER` env var. Routing different networks to different providers is future work.
 
 ## DNS on Migration
 

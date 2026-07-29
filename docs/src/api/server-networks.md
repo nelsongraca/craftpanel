@@ -22,14 +22,20 @@ Base path: `/api/networks`
     {
       "id": "<uuid>",
       "name": "Survival Network",
-      "type": "NORMAL",
+      "proxy_port": null,
       "description": "Main survival network",
+      "domain_suffix": "mc.example.com",
+      "dns_zone_id": "023e105f4ecef8ad9ca31a8482d7aca9",
+      "dns_domain_suffix": "mc.example.com",
+      "dns_provider_type": "CLOUDFLARE",
       "server_count": 3,
       "created_at": "2026-05-04T10:00:00Z"
     }
   ]
 }
 ```
+
+`dns_zone_id`, `dns_domain_suffix`, and `dns_provider_type` are `null` when no DNS provider is configured for the network. `domain_suffix` is a legacy alias of `dns_domain_suffix`; both mirror the same `cf_domain_suffix` DB column.
 
 ---
 
@@ -40,12 +46,25 @@ Base path: `/api/networks`
 ```json
 {
   "name": "Survival Network",
-  "type": "NORMAL",
-  "description": "Main survival network"
+  "proxy_port": 25577,
+  "description": "Main survival network",
+  "domain_suffix": "mc.example.com",
+  "dns_zone_id": "023e105f4ecef8ad9ca31a8482d7aca9",
+  "dns_domain_suffix": "mc.example.com",
+  "dns_provider_type": "CLOUDFLARE"
 }
 ```
 
-`type` must be `NORMAL`, `PROXY`, or `MC_PROXY`. `description` is optional.
+All fields except `name` are optional. `domain_suffix` and `dns_domain_suffix` are accepted for backwards compatibility — both write to the same column, prefer `dns_domain_suffix`. The DNS fields are required only when [exposure is enabled](../usage/enabling-public-hostnames.md) on a server that belongs to the network.
+
+| Field                | Type   | Notes                                                                                              |
+|----------------------|--------|----------------------------------------------------------------------------------------------------|
+| `name`               | string | Required, unique.                                                                                  |
+| `proxy_port`         | int    | Optional, host port for the network's mc-router instance.                                          |
+| `description`        | string | Optional.                                                                                          |
+| `dns_zone_id`        | string | Optional. 32-hex Cloudflare zone ID. Required when `DNS_PROVIDER=cloudflare` and exposing servers. |
+| `dns_domain_suffix`  | string | Optional. Parent domain (e.g. `mc.example.com`); per-server subdomains become `<sub>.<this>`.      |
+| `dns_provider_type`  | string | Optional. Stored but not consulted at runtime — provider selection is global via `DNS_PROVIDER`.   |
 
 **Response `201`:**
 
@@ -53,8 +72,12 @@ Base path: `/api/networks`
 {
   "id": "<uuid>",
   "name": "Survival Network",
-  "type": "NORMAL",
+  "proxy_port": 25577,
   "description": "Main survival network",
+  "domain_suffix": "mc.example.com",
+  "dns_zone_id": "023e105f4ecef8ad9ca31a8482d7aca9",
+  "dns_domain_suffix": "mc.example.com",
+  "dns_provider_type": "CLOUDFLARE",
   "server_count": 0,
   "created_at": "2026-05-04T10:00:00Z"
 }
@@ -77,8 +100,12 @@ Base path: `/api/networks`
 {
   "id": "<uuid>",
   "name": "Survival Network",
-  "type": "NORMAL",
+  "proxy_port": 25577,
   "description": "Main survival network",
+  "domain_suffix": "mc.example.com",
+  "dns_zone_id": "023e105f4ecef8ad9ca31a8482d7aca9",
+  "dns_domain_suffix": "mc.example.com",
+  "dns_provider_type": "CLOUDFLARE",
   "servers": [
     {
       "id": "<uuid>",
@@ -108,11 +135,16 @@ All fields optional.
 ```json
 {
   "name": "Main Network",
-  "description": "Updated description"
+  "description": "Updated description",
+  "dns_zone_id": "023e105f4ecef8ad9ca31a8482d7aca9",
+  "dns_domain_suffix": "mc.example.com",
+  "dns_provider_type": "CLOUDFLARE"
 }
 ```
 
-**Response `200`:** updated network object.
+`proxy_port` is not patchable — it is set at create time only. The DNS fields can be added, updated, or cleared (pass `null`) at any time, but servers already exposed will not retroactively reconcile until their exposure is toggled or the server is migrated.
+
+**Response `204`:** no content.
 
 ---
 

@@ -51,6 +51,7 @@ nav:
       - Deployment: usage/deployment.md
       - First Login & Setup: usage/first-login.md
       - Adding a Node: usage/adding-a-node.md
+      - Enabling Public Hostnames: usage/enabling-public-hostnames.md
       - Creating a Server: usage/creating-a-server.md
   - Reference:
       - Requirements:
