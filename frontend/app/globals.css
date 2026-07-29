@@ -142,7 +142,6 @@
     * {
         @apply border-border outline-ring/50;
     }
-
     body {
         @apply bg-bg text-text-primary;
     }
@@ -156,5 +155,14 @@
         html {
             font-size: 17px;
         }
+    }
+}
+
+@layer utilities {
+    .scrollbar-none {
+        scrollbar-width: none;
+    }
+    .scrollbar-none::-webkit-scrollbar {
+        display: none;
     }
 }

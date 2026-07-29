@@ -395,7 +395,7 @@ export default function ServerDetailPage() {
 
             {/* Tab bar */}
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as Tab)}>
-                <div className="border-b border-border bg-surface overflow-x-auto">
+                <div className="scrollbar-none border-b border-border bg-surface overflow-x-auto pb-[7px]">
                     <TabsList variant="line" className="h-auto w-full justify-start rounded-none bg-transparent px-6 py-0">
                         {TABS.filter((tab) => !(isProxy && tab === "Migration")).map((tab) => (
                             <TabsTrigger
