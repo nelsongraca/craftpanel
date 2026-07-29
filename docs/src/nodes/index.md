@@ -66,7 +66,7 @@ The agent is configured entirely through environment variables.
 | `AGENT_VERSION`                 | `dev`                         | Version string reported to master during registration.                                                                                                                                                                                    |
 | `DATA_PATH`                     | `/data`                       | Container-internal path the agent uses for file access (file browser, backups, migrations).                                                                                                                                               |
 | `HOST_DATA_PATH`                | *(value of `DATA_PATH`)*      | Host path Docker uses as the bind-mount source when creating server containers. Must match the node's **Data Path** field in the UI. Defaults to `DATA_PATH`.                                                                             |
-| `CRAFTPANEL_NETWORK`            | `craftpanel`                  | Name of the Docker bridge network shared by the agent, mc-router, and all server containers. The network must exist before the agent starts. See [Docker Network](../networking/index.md#docker-network).                                 |
+| `CRAFTPANEL_NETWORK`            | `craftpanel`                  | Name of the Docker bridge network shared by the agent, mc-router, and all server containers. The network must exist before the agent starts. See [Docker Network](../networking/index.md#docker-networks).                                 |
 | `CRAFTPANEL_CONTAINER_PREFIX`   | `craftpanel`                  | Prefix applied to all container names created by this agent (e.g. `craftpanel-<server-id>`). Change only when running multiple isolated CraftPanel stacks on the same Docker daemon.                                                      |
 | `MCROUTER_IMAGE`                | `itzg/mc-router:latest`       | Docker image used when provisioning the mc-router container on startup.                                                                                                                                                                   |
 | `MCROUTER_UPDATE_ON_START`      | `true`                        | Pull the mc-router image on every agent startup. Set to `false` to skip the pull and use the locally cached image.                                                                                                                        |
@@ -125,7 +125,7 @@ This container routes incoming Minecraft TCP connections to the correct game ser
 `mc-router.network`).
 
 The mc-router container is attached to the `craftpanel` network (controlled by `CRAFTPANEL_NETWORK`) so it can reach game server containers by their container name.
-See [Docker Network](../networking/index.md#docker-network).
+See [Docker Network](../networking/index.md#docker-networks).
 
 When `MCROUTER_UPDATE_ON_START=true` (default) the agent pulls the configured image before creating the container, so the node always runs the latest version of mc-router. Set to `false` in
 environments where image pulls are restricted or where a pinned digest is baked into `MCROUTER_IMAGE`.

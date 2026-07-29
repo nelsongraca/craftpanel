@@ -81,7 +81,7 @@ Supported `_FILE` variables:
 
 ## Forwarding key
 
-`FORWARDING_KEY` is the AES-256 key used to encrypt the Velocity/BungeeCord modern-forwarding secret before it is stored in the database (see [ADR-0003](../../adr/0003-backend-forwarding-secret-master-owned.md)). Master mints and owns the forwarding secret itself and pushes it to the proxy and to each eligible backend server; `FORWARDING_KEY` only protects that secret at rest — it is not the forwarding secret itself, and it is never written into any Minecraft server config.
+`FORWARDING_KEY` is the AES-256 key used to encrypt the Velocity/BungeeCord modern-forwarding secret before it is stored in the database (see ADR-0003 — `docs/adr/0003-backend-forwarding-secret-master-owned.md`). Master mints and owns the forwarding secret itself and pushes it to the proxy and to each eligible backend server; `FORWARDING_KEY` only protects that secret at rest — it is not the forwarding secret itself, and it is never written into any Minecraft server config.
 
 It must be Base64-encoded 32 raw bytes. Generate one on Linux (or macOS):
 
