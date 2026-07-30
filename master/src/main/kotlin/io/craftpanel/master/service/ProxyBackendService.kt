@@ -1,11 +1,16 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.database.entity.ProxyBackendEntity
 import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.schema.ProxyBackends
+import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.*
-import io.craftpanel.master.service.repo.impl.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
@@ -62,8 +67,18 @@ class ProxyBackendService(
             ProxyBackendInput(backendServerId = backendId, backendName = name, order = b.order)
         }
 
-        proxyBackendRepository.replaceProxyBackends(proxyServerId, inputs)
-        transaction { ServerEntity.findById(proxyServerId)?.let { it.needsRecreate = true } }
+        transaction {
+            ProxyBackendEntity.find { ProxyBackends.proxyServerId eq proxyServerId }.forEach { it.delete() }
+            inputs.forEach { b ->
+                ProxyBackendEntity.new {
+                    this.proxyServerId = EntityID(proxyServerId, Servers)
+                    this.backendServerId = EntityID(b.backendServerId, Servers)
+                    this.backendName = b.backendName
+                    this.order = b.order
+                }
+            }
+            ServerEntity.findById(proxyServerId)?.let { it.needsRecreate = true }
+        }
         writePatchIfRunning(serverRow.id, serverRow.status)
 
         // New/changed backend set on an already-forwarding proxy needs matching config pushed (#44).

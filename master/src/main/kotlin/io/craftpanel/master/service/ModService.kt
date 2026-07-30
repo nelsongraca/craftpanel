@@ -1,10 +1,13 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.database.entity.ModEntity
 import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.schema.ServerMods
+import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ModPinStrategy
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.*
-import io.craftpanel.master.service.repo.impl.*
+import io.craftpanel.master.util.toUtcString
 import io.ktor.client.*
 import io.ktor.client.call.*
 import io.ktor.client.engine.cio.*
@@ -17,6 +20,9 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
 import java.net.URLEncoder
@@ -83,15 +89,29 @@ class ModService(
                 "No Modrinth version of '${req.modrinthProjectId}' is compatible with ${server.serverType} ${server.mcVersion}"
             )
         }
-        val mod = modRepository.createMod(
-            serverId = serverId,
-            modrinthProjectId = req.modrinthProjectId,
-            displayName = req.displayName,
-            pinStrategy = req.pinStrategy.name,
-            pinnedVersionId = req.pinnedVersionId,
-            installedVersionId = null
-        )
-        transaction { ServerEntity.findById(serverId)?.let { it.needsRecreate = true } }
+        val mod = transaction {
+            val m = ModEntity.new {
+                this.serverId = EntityID(serverId, Servers)
+                this.modrinthProjectId = req.modrinthProjectId
+                this.displayName = req.displayName
+                this.pinStrategy = req.pinStrategy.name
+                this.pinnedVersionId = req.pinnedVersionId
+                this.installedVersionId = null
+            }
+            ServerEntity.findById(serverId)?.let { it.needsRecreate = true }
+            val row = ServerMods.selectAll().where { ServerMods.id eq m.id }.first()
+            ModRow(
+                id = row[ServerMods.id].value,
+                serverId = row[ServerMods.serverId].value,
+                modrinthProjectId = row[ServerMods.modrinthProjectId],
+                displayName = row[ServerMods.displayName],
+                pinStrategy = row[ServerMods.pinStrategy],
+                pinnedVersionId = row[ServerMods.pinnedVersionId],
+                installedVersionId = row[ServerMods.installedVersionId],
+                createdAt = row[ServerMods.createdAt].toUtcString(),
+                updatedAt = row[ServerMods.updatedAt].toUtcString()
+            )
+        }
         return mod.toResponse()
     }
 
@@ -107,8 +127,14 @@ class ModService(
             req.pinStrategy != null && req.pinStrategy != ModPinStrategy.PINNED -> null
             else -> modRepository.findModById(modId)?.pinnedVersionId
         }
-        modRepository.updateMod(modId, req.pinStrategy?.name, pinnedVersionId, null)
-        transaction { ServerEntity.findById(serverId)?.let { it.needsRecreate = true } }
+        transaction {
+            ModEntity.findById(modId)?.let {
+                if (req.pinStrategy != null) it.pinStrategy = req.pinStrategy.name
+                it.pinnedVersionId = pinnedVersionId?.ifEmpty { null }
+                it.installedVersionId = null
+            }
+            ServerEntity.findById(serverId)?.let { it.needsRecreate = true }
+        }
         return modRepository.findModById(modId)!!
             .toResponse()
     }
@@ -117,8 +143,10 @@ class ModService(
         modRepository.findModById(modId)
             ?.takeIf { it.serverId == serverId }
             ?: throw NotFoundException("Mod not found")
-        modRepository.deleteMod(modId)
-        transaction { ServerEntity.findById(serverId)?.let { it.needsRecreate = true } }
+        transaction {
+            ModEntity.findById(modId)?.delete()
+            ServerEntity.findById(serverId)?.let { it.needsRecreate = true }
+        }
     }
 
     fun searchModrinth(query: String, limit: Int, serverType: String = "", mcVersion: String = ""): ModrinthSearchResult {

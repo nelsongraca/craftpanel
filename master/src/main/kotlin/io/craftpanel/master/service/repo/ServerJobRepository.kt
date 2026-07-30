@@ -7,5 +7,4 @@ data class ServerJobRow(val id: Uuid, val serverId: Uuid, val type: String, val 
 interface ServerJobRepository {
 
     fun listEnabledServerJobs(): List<ServerJobRow>
-    fun updateServerJobLastFired(jobId: Uuid, lastFired: kotlin.time.Instant)
 }

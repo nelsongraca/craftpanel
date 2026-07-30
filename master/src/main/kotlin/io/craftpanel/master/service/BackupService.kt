@@ -1,15 +1,24 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.database.entity.BackupEntity
 import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.schema.Backups
+import io.craftpanel.master.database.schema.Nodes
+import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.BackupStatus
 import io.craftpanel.master.domain.BackupTrigger
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.service.repo.*
-import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.master.util.formatSymlinkTimestamp
+import io.craftpanel.master.util.toUtcString
 import io.craftpanel.proto.*
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
@@ -72,10 +81,30 @@ class BackupService(private val gateway: AgentGateway, private val dataServicePr
                     continue
                 }
             }
-            backupRepository.deleteBackup(old.id)
+            transaction { BackupEntity.findById(old.id)?.delete() }
         }
 
-        val backup = backupRepository.createBackup(serverId, serverRow.nodeId, trigger)
+        val backup = transaction {
+            val b = BackupEntity.new {
+                this.serverId = EntityID(serverId, Servers)
+                this.nodeId = EntityID(serverRow.nodeId, Nodes)
+                this.trigger = trigger.name
+                this.status = BackupStatus.IN_PROGRESS.name
+            }
+            val row = Backups.selectAll().where { Backups.id eq b.id }.first()
+            BackupRow(
+                id = row[Backups.id].value,
+                serverId = row[Backups.serverId].value,
+                nodeId = row[Backups.nodeId].value,
+                trigger = row[Backups.trigger],
+                status = row[Backups.status],
+                filePath = row[Backups.filePath],
+                sizeBytes = row[Backups.sizeBytes],
+                errorMessage = row[Backups.errorMessage],
+                createdAt = row[Backups.createdAt].toUtcString(),
+                completedAt = row[Backups.completedAt]?.toUtcString()
+            )
+        }
 
         val sent = gateway.sendToNode(
             nodeId,
@@ -91,7 +120,13 @@ class BackupService(private val gateway: AgentGateway, private val dataServicePr
         )
 
         if (!sent) {
-            backupRepository.updateBackupStatus(backup.id, BackupStatus.FAILED, null, null, "Agent not connected", now)
+            transaction {
+            BackupEntity.findById(backup.id)?.let {
+                it.status = BackupStatus.FAILED.name
+                it.errorMessage = "Agent not connected"
+                it.completedAt = now.toLocalDateTime(TimeZone.UTC)
+            }
+        }
             throw BadGatewayException("Agent not connected")
         }
 
@@ -119,7 +154,7 @@ class BackupService(private val gateway: AgentGateway, private val dataServicePr
                 }
             )
         }
-        backupRepository.deleteBackup(backupId)
+        transaction { BackupEntity.findById(backupId)?.delete() }
     }
 
     fun resolveDownload(serverId: Uuid, backupId: Uuid): BackupDownloadInfo {

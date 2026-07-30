@@ -1,15 +1,16 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.auth.ScopeType
-import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.entity.*
+import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.domain.*
 import io.craftpanel.master.service.repo.*
-import io.craftpanel.master.service.repo.impl.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
 import kotlin.time.Clock
@@ -73,35 +74,39 @@ class NodeObserver(
     private fun persistNodeMetrics(event: AgentEvent.NodeMetricsEvent) {
         val kotlinNodeId = runCatching { Uuid.parse(event.nodeId) }.getOrNull() ?: return
 
-        nodeRepository.insertMetrics(
-            nodeId = kotlinNodeId,
-            cpuPercent = event.cpuPercent,
-            ramUsedMb = event.ramUsedMb,
-            ramTotalMb = event.ramTotalMb,
-            netInBytes = event.netInBytes,
-            netOutBytes = event.netOutBytes,
-            diskUsedBytes = event.diskUsedBytes,
-            diskTotalBytes = event.diskTotalBytes,
-            recordedAt = event.recordedAt
-        )
+        transaction {
+            NodeMetricsEntity.new {
+                this.nodeId = EntityID(kotlinNodeId, Nodes)
+                this.cpuPercent = event.cpuPercent
+                this.ramUsedMb = event.ramUsedMb
+                this.ramTotalMb = event.ramTotalMb
+                this.netInBytes = event.netInBytes
+                this.netOutBytes = event.netOutBytes
+                this.diskUsedBytes = event.diskUsedBytes
+                this.diskTotalBytes = event.diskTotalBytes
+                this.recordedAt = event.recordedAt.toLocalDateTime(TimeZone.UTC)
+            }
+        }
         if (event.ramUsedMb > 0) {
-            nodeRepository.updateSystemRam(kotlinNodeId, event.ramUsedMb)
+            transaction { NodeEntity.findById(kotlinNodeId)?.let { it.systemRamUsedMb = event.ramUsedMb } }
         }
     }
 
     private fun persistContainerMetrics(event: AgentEvent.ContainerMetricsEvent) {
         val kotlinServerId = runCatching { Uuid.parse(event.serverId) }.getOrNull() ?: return
 
-        containerMetricsRepository.insertContainerMetrics(
-            serverId = kotlinServerId,
-            cpuPercent = event.cpuPercent,
-            ramUsedMb = event.ramUsedMb,
-            netInBytes = event.netInBytes,
-            netOutBytes = event.netOutBytes,
-            blockInBytes = event.blockInBytes,
-            blockOutBytes = event.blockOutBytes,
-            recordedAt = event.recordedAt
-        )
+        transaction {
+            ContainerMetricsEntity.new {
+                this.serverId = EntityID(kotlinServerId, Servers)
+                this.cpuPercent = event.cpuPercent
+                this.ramUsedMb = event.ramUsedMb
+                this.netInBytes = event.netInBytes
+                this.netOutBytes = event.netOutBytes
+                this.blockInBytes = event.blockInBytes
+                this.blockOutBytes = event.blockOutBytes
+                this.recordedAt = event.recordedAt.toLocalDateTime(TimeZone.UTC)
+            }
+        }
     }
 
     private fun persistServerStatus(event: AgentEvent.ServerStatusEvent) {
@@ -160,7 +165,14 @@ class NodeObserver(
         val sizeBytes = if (event.success) event.sizeBytes.takeIf { it > 0 } else null
         val errorMessage = if (!event.success) event.errorMessage.takeIf { it.isNotBlank() } else null
 
-        backupRepository.updateBackupStatus(backupId, status, null, sizeBytes, errorMessage, event.completedAt)
+        transaction {
+            BackupEntity.findById(backupId)?.let {
+                it.status = status.name
+                if (sizeBytes != null) it.sizeBytes = sizeBytes
+                if (errorMessage != null) it.errorMessage = errorMessage
+                if (event.completedAt != null) it.completedAt = event.completedAt.toLocalDateTime(TimeZone.UTC)
+            }
+        }
     }
 
     // ── Alert evaluation ──────────────────────────────────────────────────────

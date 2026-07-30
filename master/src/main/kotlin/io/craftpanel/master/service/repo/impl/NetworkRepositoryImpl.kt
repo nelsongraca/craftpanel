@@ -36,43 +36,10 @@ class NetworkRepositoryImpl : NetworkRepository {
             .where { ServerNetworks.id inList ids }
             .map { it.toNetworkRow() }
     }
-
-    override fun create(name: String, proxyPort: Int?, description: String?, cfDomainSuffix: String?, cfZoneId: String?, dnsProviderType: String?): NetworkRow = transaction {
-        val id = ServerNetworks.insert {
-            it[ServerNetworks.name] = name
-            it[ServerNetworks.proxyPort] = proxyPort
-            it[ServerNetworks.description] = description
-            it[ServerNetworks.cfDomainSuffix] = cfDomainSuffix
-            it[ServerNetworks.cfZoneId] = cfZoneId
-            it[ServerNetworks.dnsProviderType] = dnsProviderType
-        }[ServerNetworks.id]
-        ServerNetworks.selectAll()
-            .where { ServerNetworks.id eq id }
-            .first()
-            .toNetworkRow()
-    }
-
-    override fun update(id: Uuid, name: String?, description: String?, cfDomainSuffix: String?, cfZoneId: String?, dnsProviderType: String?) {
-        transaction {
-            ServerNetworks.update({ ServerNetworks.id eq id }) {
-                if (name != null) it[ServerNetworks.name] = name
-                if (description != null) it[ServerNetworks.description] = description
-                if (cfDomainSuffix != null) it[ServerNetworks.cfDomainSuffix] = cfDomainSuffix
-                if (cfZoneId != null) it[ServerNetworks.cfZoneId] = cfZoneId
-                if (dnsProviderType != null) it[ServerNetworks.dnsProviderType] = dnsProviderType
-            }
-        }
-    }
-
-    override fun delete(id: Uuid) {
-        transaction {
-            ServerNetworks.deleteWhere { ServerNetworks.id eq id }
-        }
-    }
 }
 
 private fun org.jetbrains.exposed.v1.core.ResultRow.toNetworkRow() = NetworkRow(
-    id = this[ServerNetworks.id],
+    id = this[ServerNetworks.id].value,
     name = this[ServerNetworks.name],
     proxyPort = this[ServerNetworks.proxyPort],
     description = this[ServerNetworks.description],

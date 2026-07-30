@@ -19,15 +19,4 @@ interface NetworkRepository {
     fun findByName(name: String): NetworkRow?
     fun listAll(): List<NetworkRow>
     fun listByIds(ids: List<Uuid>): List<NetworkRow>
-    fun create(
-        name: String,
-        proxyPort: Int?,
-        description: String?,
-        cfDomainSuffix: String?,
-        cfZoneId: String?,
-        dnsProviderType: String?,
-    ): NetworkRow
-
-    fun update(id: Uuid, name: String?, description: String?, cfDomainSuffix: String?, cfZoneId: String?, dnsProviderType: String?)
-    fun delete(id: Uuid)
 }

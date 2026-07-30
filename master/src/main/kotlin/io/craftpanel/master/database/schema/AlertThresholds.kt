@@ -1,12 +1,11 @@
 package io.craftpanel.master.database.schema
 
-import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.dao.id.UuidTable
 import org.jetbrains.exposed.v1.datetime.CurrentDateTime
 import org.jetbrains.exposed.v1.datetime.datetime
 
-object AlertThresholds : Table("alert_thresholds") {
+object AlertThresholds : UuidTable("alert_thresholds") {
 
-    val id = uuid("id").autoGenerate()
     val scopeType = varchar("scope_type", 6)          // NODE | SERVER
 
     // scopeId is polymorphic: references Nodes.id when scopeType=NODE, Servers.id when scopeType=SERVER.
@@ -16,6 +15,4 @@ object AlertThresholds : Table("alert_thresholds") {
     val thresholdValue = double("threshold_value").nullable()
     val thresholdState = varchar("threshold_state", 32).nullable()
     val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
-
-    override val primaryKey = PrimaryKey(id)
 }

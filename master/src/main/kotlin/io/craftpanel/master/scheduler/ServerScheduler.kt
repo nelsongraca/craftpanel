@@ -8,6 +8,7 @@ import io.craftpanel.master.database.entity.ServerEntity
 import io.craftpanel.master.service.repo.ServerJobRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.coroutines.*
+import io.craftpanel.master.database.entity.ServerJobEntity
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -99,7 +100,7 @@ class ServerScheduler(
             val jobId = row.id
             val serverId = row.serverId
             val type = row.type
-            serverJobRepository.updateServerJobLastFired(jobId, now)
+            transaction { ServerJobEntity.findById(jobId)?.let { it.lastFiredAt = now.toLocalDateTime(TimeZone.UTC) } }
             handlers[type]?.let { handler ->
                 scope.launch {
                     handler.execute(JobExecutionContext(serverId, jobId = jobId, scheduledAt = now))

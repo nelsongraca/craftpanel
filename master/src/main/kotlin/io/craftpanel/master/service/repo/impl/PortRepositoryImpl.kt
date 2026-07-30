@@ -1,12 +1,10 @@
 package io.craftpanel.master.service.repo.impl
 
+import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.PortRegistry
-import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
-import org.jetbrains.exposed.v1.core.and
-import org.jetbrains.exposed.v1.core.dao.id.EntityID
-import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
@@ -17,38 +15,5 @@ class PortRepositoryImpl : PortRepository {
         PortRegistry.selectAll()
             .where { PortRegistry.nodeId eq nodeId }
             .map { it[PortRegistry.port] }
-    }
-
-    override fun registerPort(nodeId: Uuid, port: Int, protocol: String, serverId: Uuid?) {
-        transaction {
-            PortRegistry.insert {
-                it[PortRegistry.nodeId] = nodeId
-                it[PortRegistry.port] = port
-                it[PortRegistry.protocol] = protocol
-                it[PortRegistry.serverId] = serverId?.let { EntityID(it, Servers) }
-            }
-        }
-    }
-
-    override fun releasePort(nodeId: Uuid, port: Int, protocol: String) {
-        transaction {
-            PortRegistry.deleteWhere {
-                (PortRegistry.nodeId eq nodeId) and
-                    (PortRegistry.port eq port) and
-                    (PortRegistry.protocol eq protocol)
-            }
-        }
-    }
-
-    override fun releasePortsForServer(serverId: Uuid) {
-        transaction { PortRegistry.deleteWhere { PortRegistry.serverId eq serverId } }
-    }
-
-    override fun releasePortsForServerOnNode(serverId: Uuid, nodeId: Uuid) {
-        transaction {
-            PortRegistry.deleteWhere {
-                (PortRegistry.serverId eq serverId) and (PortRegistry.nodeId eq nodeId)
-            }
-        }
     }
 }

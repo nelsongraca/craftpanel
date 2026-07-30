@@ -78,7 +78,7 @@ class AuthRoutesTest :
                 it[Users.email] = email
                 it[Users.passwordHash] = Argon2Hasher.hash(password)
                 it[Users.isActive] = isActive
-            }[Users.id]
+            }[Users.id].value
         }
 
         fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {

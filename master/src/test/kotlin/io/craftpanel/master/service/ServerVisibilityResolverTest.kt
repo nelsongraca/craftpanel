@@ -31,10 +31,10 @@ class ServerVisibilityResolverTest :
             val groups = FakeGroupRepository()
             val resolver = ServerVisibilityResolver(users, groups)
 
-            val user = users.create("alice", "alice@example.com", "hash")
-            val group = groups.create("Viewers", isSystem = false)
+            val user = users.addUser("alice", "alice@example.com", "hash")
+            val group = groups.addGroup("Viewers", isSystem = false)
             groups.setPermissions(group.id, listOf(Permission.SERVER_VIEW.node))
-            users.createAssignment(user.id, group.id, ScopeType.GLOBAL.name, null)
+            users.addAssignment(user.id, group.id, ScopeType.GLOBAL.name, null)
 
             val result = resolver.resolve(user.id)
 
@@ -46,11 +46,11 @@ class ServerVisibilityResolverTest :
             val groups = FakeGroupRepository()
             val resolver = ServerVisibilityResolver(users, groups)
 
-            val user = users.create("bob", "bob@example.com", "hash")
-            val group = groups.create("Viewers", isSystem = false)
+            val user = users.addUser("bob", "bob@example.com", "hash")
+            val group = groups.addGroup("Viewers", isSystem = false)
             groups.setPermissions(group.id, listOf(Permission.SERVER_VIEW.node))
             val serverId = Uuid.random()
-            users.createAssignment(user.id, group.id, ScopeType.SERVER.name, serverId)
+            users.addAssignment(user.id, group.id, ScopeType.SERVER.name, serverId)
 
             val result = resolver.resolve(user.id)
 
@@ -64,9 +64,9 @@ class ServerVisibilityResolverTest :
             val groups = FakeGroupRepository()
             val resolver = ServerVisibilityResolver(users, groups)
 
-            val user = users.create("carol", "carol@example.com", "hash")
-            val group = groups.create("NoView", isSystem = false)
-            users.createAssignment(user.id, group.id, ScopeType.GLOBAL.name, null)
+            val user = users.addUser("carol", "carol@example.com", "hash")
+            val group = groups.addGroup("NoView", isSystem = false)
+            users.addAssignment(user.id, group.id, ScopeType.GLOBAL.name, null)
 
             val result = resolver.resolve(user.id)
 

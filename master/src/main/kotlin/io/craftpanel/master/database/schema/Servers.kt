@@ -1,6 +1,8 @@
 package io.craftpanel.master.database.schema
 
 import org.jetbrains.exposed.v1.core.dao.id.UuidTable
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.ReferenceOption
 import org.jetbrains.exposed.v1.datetime.CurrentDateTime
 import org.jetbrains.exposed.v1.datetime.datetime
 
@@ -9,8 +11,8 @@ object Servers : UuidTable("servers") {
     val name = varchar("name", 100).uniqueIndex()
     val displayName = varchar("display_name", 100).default("")
     val description = varchar("description", 500).nullable()
-    val nodeId = uuid("node_id").references(Nodes.id)
-    val networkId = uuid("network_id").references(ServerNetworks.id)
+    val nodeId = reference("node_id", Nodes, onDelete = ReferenceOption.CASCADE)
+    val networkId = reference("network_id", ServerNetworks, onDelete = ReferenceOption.SET_NULL)
         .nullable()
     val serverType = varchar("server_type", 20).default("VANILLA")
     val mcVersion = varchar("mc_version", 16).default("LATEST")

@@ -25,6 +25,6 @@ object ServerLookup {
         Servers.selectAll()
             .where { Servers.id eq serverId }
             .firstOrNull()
-            ?.let { ServerScope(it[Servers.networkId]) }
+            ?.let { ServerScope(it[Servers.networkId]?.value) }
     }
 }

@@ -1,19 +1,13 @@
 package io.craftpanel.master.service.repo.impl
 
 import io.craftpanel.master.database.schema.ServerJobs
-import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.master.util.toUtcString
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.ResultRow
-import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
-import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 class ServerJobRepositoryImpl : ServerJobRepository {
@@ -23,18 +17,10 @@ class ServerJobRepositoryImpl : ServerJobRepository {
             .where { ServerJobs.enabled eq true }
             .map { it.toServerJobRow() }
     }
-
-    override fun updateServerJobLastFired(jobId: Uuid, lastFired: Instant) {
-        transaction {
-            ServerJobs.update({ ServerJobs.id eq jobId }) {
-                it[ServerJobs.lastFiredAt] = lastFired.toLocalDateTime(TimeZone.UTC)
-            }
-        }
-    }
 }
 
 private fun ResultRow.toServerJobRow() = ServerJobRow(
-    id = this[ServerJobs.id],
+    id = this[ServerJobs.id].value,
     serverId = this[ServerJobs.serverId].value,
     type = this[ServerJobs.type],
     cronExpression = this[ServerJobs.cronExpression],

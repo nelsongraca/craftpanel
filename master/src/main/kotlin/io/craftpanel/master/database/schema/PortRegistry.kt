@@ -6,7 +6,7 @@ import org.jetbrains.exposed.v1.core.ReferenceOption
 
 object PortRegistry : Table("port_registry") {
 
-    val nodeId = uuid("node_id").references(Nodes.id)
+    val nodeId = reference("node_id", Nodes, onDelete = ReferenceOption.CASCADE)
     val port = integer("port")
     val protocol = varchar("protocol", 3) // TCP | UDP
     val serverId = reference("server_id", Servers, onDelete = ReferenceOption.CASCADE).nullable()

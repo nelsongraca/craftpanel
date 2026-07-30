@@ -3,7 +3,7 @@ package io.craftpanel.master.service
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.database.entity.ServerEntity
-import io.craftpanel.master.database.schema.Nodes
+import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.ProxyBackendInput
 import io.craftpanel.master.service.repo.ServerRepository
@@ -17,7 +17,9 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
-import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
@@ -52,7 +54,7 @@ class ProxyConfigPatchServiceTest :
                 this.name = name
                 this.displayName = name
                 this.description = null
-                this.nodeId = nodeId
+                this.nodeId = EntityID(nodeId, Nodes)
                 this.networkId = null
                 this.serverType = type.toDb()
                 this.mcVersion = "1.21.4"
@@ -84,13 +86,10 @@ class ProxyConfigPatchServiceTest :
 
             val alphaId = createServer(nodeId, "alpha-${Uuid.random()}", ServerType.VANILLA)
             val betaId = createServer(nodeId, "beta-${Uuid.random()}", ServerType.PAPER)
-            repos.proxyBackendRepository.replaceProxyBackends(
-                proxyId,
-                listOf(
-                    ProxyBackendInput(alphaId, "alpha", 0),
-                    ProxyBackendInput(betaId, "beta", 1)
-                )
-            )
+            transaction {
+                ProxyBackends.insert { it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers); it[ProxyBackends.backendServerId] = EntityID(alphaId, Servers); it[ProxyBackends.backendName] = "alpha"; it[ProxyBackends.order] = 0 }
+                ProxyBackends.insert { it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers); it[ProxyBackends.backendServerId] = EntityID(betaId, Servers); it[ProxyBackends.backendName] = "beta"; it[ProxyBackends.order] = 1 }
+            }
 
             val patch = service.generatePatch(proxyId)!!
             val root = Json.parseToJsonElement(patch).jsonObject
@@ -132,13 +131,10 @@ class ProxyConfigPatchServiceTest :
 
             val alphaId = createServer(nodeId, "alpha-${Uuid.random()}", ServerType.VANILLA)
             val betaId = createServer(nodeId, "beta-${Uuid.random()}", ServerType.PAPER)
-            repos.proxyBackendRepository.replaceProxyBackends(
-                proxyId,
-                listOf(
-                    ProxyBackendInput(alphaId, "alpha", 0),
-                    ProxyBackendInput(betaId, "beta", 1)
-                )
-            )
+            transaction {
+                ProxyBackends.insert { it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers); it[ProxyBackends.backendServerId] = EntityID(alphaId, Servers); it[ProxyBackends.backendName] = "alpha"; it[ProxyBackends.order] = 0 }
+                ProxyBackends.insert { it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers); it[ProxyBackends.backendServerId] = EntityID(betaId, Servers); it[ProxyBackends.backendName] = "beta"; it[ProxyBackends.order] = 1 }
+            }
 
             val patch = service.generatePatch(proxyId)!!
             val root = Json.parseToJsonElement(patch).jsonObject
@@ -211,12 +207,9 @@ class ProxyConfigPatchServiceTest :
             val nodeId = createNode()
             val proxyId = createServer(nodeId, "proxy-${Uuid.random()}", ServerType.VELOCITY)
             val alphaId = createServer(nodeId, "alpha-${Uuid.random()}", ServerType.VANILLA)
-            repos.proxyBackendRepository.replaceProxyBackends(
-                proxyId,
-                listOf(
-                    ProxyBackendInput(alphaId, "alpha", 0)
-                )
-            )
+            transaction {
+                ProxyBackends.insert { it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers); it[ProxyBackends.backendServerId] = EntityID(alphaId, Servers); it[ProxyBackends.backendName] = "alpha"; it[ProxyBackends.order] = 0 }
+            }
 
             val patch = service.generatePatch(proxyId)!!
             val ops = opsOf(patch)

@@ -1,44 +1,18 @@
 package io.craftpanel.master.service.repo.impl
 
 import io.craftpanel.master.database.schema.ContainerMetrics
-import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.master.util.toUtcString
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.*
-import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 class ContainerMetricsRepositoryImpl : ContainerMetricsRepository {
-
-    override fun insertContainerMetrics(
-        serverId: Uuid,
-        cpuPercent: Double,
-        ramUsedMb: Int,
-        netInBytes: Long,
-        netOutBytes: Long,
-        blockInBytes: Long,
-        blockOutBytes: Long,
-        recordedAt: kotlin.time.Instant
-    ) {
-        transaction {
-            ContainerMetrics.insert {
-                it[ContainerMetrics.serverId] = EntityID(serverId, Servers)
-                it[ContainerMetrics.cpuPercent] = cpuPercent
-                it[ContainerMetrics.ramUsedMb] = ramUsedMb
-                it[ContainerMetrics.netInBytes] = netInBytes
-                it[ContainerMetrics.netOutBytes] = netOutBytes
-                it[ContainerMetrics.blockInBytes] = blockInBytes
-                it[ContainerMetrics.blockOutBytes] = blockOutBytes
-                it[ContainerMetrics.recordedAt] = recordedAt.toLocalDateTime(TimeZone.UTC)
-            }
-        }
-    }
 
     override fun getContainerMetrics(serverId: Uuid, seconds: Int): List<ContainerMetricsRow> = transaction {
         ContainerMetrics.selectAll()
@@ -47,7 +21,7 @@ class ContainerMetricsRepositoryImpl : ContainerMetricsRepository {
             .map { it.toContainerMetricsRow() }
     }
 
-    override fun getContainerMetricsByRange(serverId: Uuid, from: kotlin.time.Instant, to: Instant): List<ContainerMetricsRow> = transaction {
+    override fun getContainerMetricsByRange(serverId: Uuid, from: Instant, to: Instant): List<ContainerMetricsRow> = transaction {
         val fromLdt = from.toLocalDateTime(TimeZone.UTC)
         val toLdt = to.toLocalDateTime(TimeZone.UTC)
         ContainerMetrics.selectAll()
@@ -79,14 +53,10 @@ class ContainerMetricsRepositoryImpl : ContainerMetricsRepository {
                 ?.toContainerMetricsRow()
         }
     }
-
-    override fun deleteContainerMetricsForServer(serverId: Uuid) {
-        transaction { ContainerMetrics.deleteWhere { ContainerMetrics.serverId eq serverId } }
-    }
 }
 
 private fun ResultRow.toContainerMetricsRow() = ContainerMetricsRow(
-    id = this[ContainerMetrics.id],
+    id = this[ContainerMetrics.id].value,
     serverId = this[ContainerMetrics.serverId].value,
     recordedAt = this[ContainerMetrics.recordedAt].toUtcString(),
     cpuPercent = this[ContainerMetrics.cpuPercent],

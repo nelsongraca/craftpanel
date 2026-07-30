@@ -1,12 +1,11 @@
 package io.craftpanel.master.database.schema
 
-import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.dao.id.UuidTable
 import org.jetbrains.exposed.v1.datetime.CurrentDateTime
 import org.jetbrains.exposed.v1.datetime.datetime
 
-object ServerNetworks : Table("server_networks") {
+object ServerNetworks : UuidTable("server_networks") {
 
-    val id = uuid("id").autoGenerate()
     val name = varchar("name", 100).uniqueIndex()
     val proxyPort = integer("proxy_port").nullable()
     val description = varchar("description", 500).nullable()
@@ -14,6 +13,4 @@ object ServerNetworks : Table("server_networks") {
     val cfDomainSuffix = varchar("cf_domain_suffix", 255).nullable()
     val dnsProviderType = varchar("dns_provider_type", 20).nullable()
     val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
-
-    override val primaryKey = PrimaryKey(id)
 }

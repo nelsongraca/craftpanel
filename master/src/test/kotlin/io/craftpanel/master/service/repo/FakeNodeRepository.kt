@@ -60,14 +60,26 @@ class FakeNodeRepository : NodeRepository {
         }
     }
 
-    override fun findById(id: Uuid): NodeRow? = nodes[id]?.toRow()
-    override fun findByTokenHash(tokenHash: String): NodeRow? = nodes.values.firstOrNull { it.tokenHash == tokenHash }
-        ?.toRow()
+    fun addNode(
+        displayName: String = "node-1",
+        hostname: String = "host",
+        publicIp: String = "1.2.3.4",
+        privateIp: String = "10.0.0.1",
+        tokenHash: String = "hash",
+        portRangeStart: Int = 25570,
+        portRangeEnd: Int = 26070,
+        totalRamMb: Int = 0,
+        totalCpuShares: Int = 0,
+        agentVersion: String? = null,
+        lastSeenAt: String? = null,
+        id: Uuid = Uuid.random()
+    ): NodeRow {
+        val n = MutableNode(id, displayName, hostname, publicIp, privateIp, tokenHash, portRangeStart = portRangeStart, portRangeEnd = portRangeEnd, totalRamMb = totalRamMb, totalCpuShares = totalCpuShares, agentVersion = agentVersion, lastSeenAt = lastSeenAt)
+        nodes[id] = n
+        return n.toRow()
+    }
 
-    override fun listAll(): List<NodeRow> = nodes.values.map { it.toRow() }
-    override fun listByIds(ids: List<Uuid>): List<NodeRow> = ids.mapNotNull { nodes[it]?.toRow() }
-
-    override fun create(
+    fun create(
         displayName: String,
         hostname: String,
         publicIp: String,
@@ -75,95 +87,25 @@ class FakeNodeRepository : NodeRepository {
         tokenHash: String,
         portRangeStart: Int,
         portRangeEnd: Int,
-        totalRamMb: Int,
-        totalCpuShares: Int,
-        agentVersion: String?,
-        lastSeenAt: kotlin.time.Instant?
-    ): NodeRow {
-        val id = Uuid.random()
-        val n = MutableNode(
-            id,
-            displayName,
-            hostname,
-            publicIp,
-            privateIp,
-            tokenHash,
-            portRangeStart = portRangeStart,
-            portRangeEnd = portRangeEnd,
-            totalRamMb = totalRamMb,
-            totalCpuShares = totalCpuShares,
-            agentVersion = agentVersion,
-            lastSeenAt = lastSeenAt?.toString()
-        )
-        nodes[id] = n
-        return n.toRow()
-    }
+        totalRamMb: Int = 0,
+        totalCpuShares: Int = 0,
+        agentVersion: String? = null,
+        lastSeenAt: kotlin.time.Instant? = null
+    ): NodeRow = addNode(displayName = displayName, hostname = hostname, publicIp = publicIp, privateIp = privateIp, tokenHash = tokenHash, portRangeStart = portRangeStart, portRangeEnd = portRangeEnd, totalRamMb = totalRamMb, totalCpuShares = totalCpuShares, agentVersion = agentVersion, lastSeenAt = lastSeenAt?.toString())
 
-    override fun update(id: Uuid, displayName: String?, portRangeStart: Int?, portRangeEnd: Int?, reservedRamMb: Int?) {
-        val n = nodes[id] ?: return
-        if (displayName != null) n.displayName = displayName
-        if (portRangeStart != null) n.portRangeStart = portRangeStart
-        if (portRangeEnd != null) n.portRangeEnd = portRangeEnd
-        if (reservedRamMb != null) n.reservedRamMb = reservedRamMb
-    }
-
-    override fun updateStatus(id: Uuid, status: NodeStatus) {
+    fun updateStatus(id: Uuid, status: NodeStatus) {
         nodes[id]?.status = status.toDb()
     }
 
-    override fun updateHealth(id: Uuid, health: NodeHealth) {
-        nodes[id]?.health = health.name
-    }
+    override fun findById(id: Uuid): NodeRow? = nodes[id]?.toRow()
+    override fun findByTokenHash(tokenHash: String): NodeRow? = nodes.values.firstOrNull { it.tokenHash == tokenHash }
+        ?.toRow()
 
-    override fun updateLastSeen(id: Uuid, lastSeenAt: kotlin.time.Instant, publicIp: String?, agentVersion: String?, privateIp: String?, hostname: String?) {
-        nodes[id]?.let {
-            it.lastSeenAt = lastSeenAt.toString()
-            if (publicIp != null) it.publicIp = publicIp
-            if (agentVersion != null) it.agentVersion = agentVersion
-            if (privateIp != null) it.privateIp = privateIp
-            if (hostname != null) it.hostname = hostname
-        }
-    }
-
-    override fun updateSystemRam(id: Uuid, ramUsedMb: Int) {
-        nodes[id]?.systemRamUsedMb = ramUsedMb
-    }
-
-    override fun updateSwarmActive(id: Uuid, swarmActive: Boolean) {
-        nodes[id]?.swarmActive = swarmActive
-    }
-
-    override fun markUnreachable(id: Uuid, lastSeenAt: kotlin.time.Instant?) {
-        nodes[id]?.let {
-            it.health = "UNREACHABLE"
-            if (lastSeenAt != null) it.lastSeenAt = lastSeenAt.toString()
-        }
-    }
-
-    override fun markDecommissioned(id: Uuid) {
-        nodes[id]?.status = "DECOMMISSIONED"
-    }
-
-    override fun updateTokenHash(id: Uuid, tokenHash: String) {
-        nodes[id]?.tokenHash = tokenHash
-    }
+    override fun listAll(): List<NodeRow> = nodes.values.map { it.toRow() }
+    override fun listByIds(ids: List<Uuid>): List<NodeRow> = ids.mapNotNull { nodes[it]?.toRow() }
 
     override fun calculateAllocatedRam(id: Uuid): Int = allocatedRam(id)
     override fun calculateAllocatedCpu(id: Uuid): Int = allocatedCpu(id)
-
-    override fun insertMetrics(
-        nodeId: Uuid,
-        cpuPercent: Double,
-        ramUsedMb: Int,
-        ramTotalMb: Int,
-        netInBytes: Long,
-        netOutBytes: Long,
-        diskUsedBytes: Long,
-        diskTotalBytes: Long,
-        recordedAt: kotlin.time.Instant
-    ) {
-        metrics.add(MutableNodeMetrics(nodeId, recordedAt.toString(), cpuPercent, ramUsedMb, ramTotalMb, netInBytes, netOutBytes, diskUsedBytes, diskTotalBytes))
-    }
 
     override fun getMetrics(nodeId: Uuid, limit: Int): List<NodeMetricsRow> = metrics.filter { it.nodeId == nodeId }
         .take(limit)

@@ -4,12 +4,9 @@ import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.master.util.toUtcString
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 class UserRepositoryImpl : UserRepository {
@@ -41,7 +38,7 @@ class UserRepositoryImpl : UserRepository {
             .firstOrNull()
             ?.let {
                 CredentialRow(
-                    userId = it[Users.id],
+                    userId = it[Users.id].value,
                     username = it[Users.username],
                     email = it[Users.email],
                     passwordHash = it[Users.passwordHash],
@@ -53,36 +50,6 @@ class UserRepositoryImpl : UserRepository {
     override fun listAll(): List<UserRow> = transaction {
         Users.selectAll()
             .map { it.toUserRow() }
-    }
-
-    override fun create(username: String, email: String, passwordHash: String): UserRow = transaction {
-        val id = Users.insert {
-            it[Users.username] = username
-            it[Users.email] = email
-            it[Users.passwordHash] = passwordHash
-        }[Users.id]
-        Users.selectAll()
-            .where { Users.id eq id }
-            .first()
-            .toUserRow()
-    }
-
-    override fun update(id: Uuid, username: String?, email: String?, isActive: Boolean?) {
-        transaction {
-            Users.update({ Users.id eq id }) {
-                if (username != null) it[Users.username] = username
-                if (email != null) it[Users.email] = email
-                if (isActive != null) it[Users.isActive] = isActive
-            }
-        }
-    }
-
-    override fun delete(id: Uuid) {
-        transaction {
-            UserGroupAssignments.deleteWhere { UserGroupAssignments.userId eq id }
-            RefreshTokens.deleteWhere { RefreshTokens.userId eq id }
-            Users.deleteWhere { Users.id eq id }
-        }
     }
 
     override fun isActive(id: Uuid): Boolean = transaction {
@@ -99,25 +66,6 @@ class UserRepositoryImpl : UserRepository {
             .map { it.toAssignmentRow() }
     }
 
-    override fun createAssignment(userId: Uuid, groupId: Uuid, scopeType: String, scopeId: Uuid?): AssignmentRow = transaction {
-        val id = UserGroupAssignments.insert {
-            it[UserGroupAssignments.userId] = userId
-            it[UserGroupAssignments.groupId] = groupId
-            it[UserGroupAssignments.scopeType] = scopeType
-            it[UserGroupAssignments.scopeId] = scopeId
-        }[UserGroupAssignments.id]
-        UserGroupAssignments.selectAll()
-            .where { UserGroupAssignments.id eq id }
-            .first()
-            .toAssignmentRow()
-    }
-
-    override fun deleteAssignment(id: Uuid) {
-        transaction {
-            UserGroupAssignments.deleteWhere { UserGroupAssignments.id eq id }
-        }
-    }
-
     override fun findAssignment(userId: Uuid, groupId: Uuid, scopeType: String, scopeId: Uuid?): AssignmentRow? = transaction {
         UserGroupAssignments.selectAll()
             .where {
@@ -130,24 +78,6 @@ class UserRepositoryImpl : UserRepository {
             ?.toAssignmentRow()
     }
 
-    override fun deleteAssignmentsForUser(userId: Uuid) {
-        transaction { UserGroupAssignments.deleteWhere { UserGroupAssignments.userId eq userId } }
-    }
-
-    override fun deleteAssignmentsForGroup(groupId: Uuid) {
-        transaction { UserGroupAssignments.deleteWhere { UserGroupAssignments.groupId eq groupId } }
-    }
-
-    override fun issueRefreshToken(userId: Uuid, tokenHash: String, expiresAt: kotlin.time.Instant) {
-        transaction {
-            RefreshTokens.insert {
-                it[RefreshTokens.userId] = userId
-                it[RefreshTokens.tokenHash] = tokenHash
-                it[RefreshTokens.expiresAt] = expiresAt.toLocalDateTime(TimeZone.UTC)
-            }
-        }
-    }
-
     override fun findRefreshTokenByHash(tokenHash: String): RefreshTokenRow? = transaction {
         RefreshTokens.selectAll()
             .where { RefreshTokens.tokenHash eq tokenHash }
@@ -155,45 +85,12 @@ class UserRepositoryImpl : UserRepository {
             ?.let {
                 RefreshTokenRow(
                     id = it[RefreshTokens.id],
-                    userId = it[RefreshTokens.userId],
+                    userId = it[RefreshTokens.userId].value,
                     tokenHash = it[RefreshTokens.tokenHash],
                     expiresAt = it[RefreshTokens.expiresAt].toUtcString(),
                     revoked = it[RefreshTokens.revoked]
                 )
             }
-    }
-
-    override fun rotateRefreshToken(oldHash: String, newHash: String, expiresAt: Instant, userId: Uuid) {
-        transaction {
-            RefreshTokens.update({ RefreshTokens.tokenHash eq oldHash }) {
-                it[RefreshTokens.revoked] = true
-            }
-            RefreshTokens.insert {
-                it[RefreshTokens.userId] = userId
-                it[RefreshTokens.tokenHash] = newHash
-                it[RefreshTokens.expiresAt] = expiresAt.toLocalDateTime(TimeZone.UTC)
-            }
-        }
-    }
-
-    override fun revokeRefreshToken(tokenHash: String) {
-        transaction {
-            RefreshTokens.update({ RefreshTokens.tokenHash eq tokenHash }) {
-                it[RefreshTokens.revoked] = true
-            }
-        }
-    }
-
-    override fun revokeAllRefreshTokens(userId: Uuid) {
-        transaction {
-            RefreshTokens.update({ RefreshTokens.userId eq userId }) {
-                it[RefreshTokens.revoked] = true
-            }
-        }
-    }
-
-    override fun deleteRefreshTokensForUser(userId: Uuid) {
-        transaction { RefreshTokens.deleteWhere { RefreshTokens.userId eq userId } }
     }
 
     override fun getUserGlobalGroups(userId: Uuid): List<GroupAssignmentRow> = transaction {
@@ -205,7 +102,7 @@ class UserRepositoryImpl : UserRepository {
             }
             .map {
                 GroupAssignmentRow(
-                    groupId = it[Groups.id],
+                    groupId = it[Groups.id].value,
                     groupName = it[Groups.name]
                 )
             }
@@ -213,7 +110,7 @@ class UserRepositoryImpl : UserRepository {
 }
 
 private fun ResultRow.toUserRow() = UserRow(
-    id = this[Users.id],
+    id = this[Users.id].value,
     username = this[Users.username],
     email = this[Users.email],
     isActive = this[Users.isActive],
@@ -222,8 +119,8 @@ private fun ResultRow.toUserRow() = UserRow(
 
 private fun ResultRow.toAssignmentRow() = AssignmentRow(
     id = this[UserGroupAssignments.id],
-    userId = this[UserGroupAssignments.userId],
-    groupId = this[UserGroupAssignments.groupId],
+    userId = this[UserGroupAssignments.userId].value,
+    groupId = this[UserGroupAssignments.groupId].value,
     scopeType = this[UserGroupAssignments.scopeType],
     scopeId = this[UserGroupAssignments.scopeId]
 )

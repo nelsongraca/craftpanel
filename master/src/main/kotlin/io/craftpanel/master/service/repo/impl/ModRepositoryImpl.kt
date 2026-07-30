@@ -1,12 +1,10 @@
 package io.craftpanel.master.service.repo.impl
 
 import io.craftpanel.master.database.schema.ServerMods
-import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.master.util.toUtcString
 import org.jetbrains.exposed.v1.core.*
-import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
@@ -32,43 +30,10 @@ class ModRepositoryImpl : ModRepository {
             .firstOrNull()
             ?.toModRow()
     }
-
-    override fun createMod(serverId: Uuid, modrinthProjectId: String, displayName: String, pinStrategy: String, pinnedVersionId: String?, installedVersionId: String?): ModRow = transaction {
-        val id = ServerMods.insert {
-            it[ServerMods.serverId] = EntityID(serverId, Servers)
-            it[ServerMods.modrinthProjectId] = modrinthProjectId
-            it[ServerMods.displayName] = displayName
-            it[ServerMods.pinStrategy] = pinStrategy
-            it[ServerMods.pinnedVersionId] = pinnedVersionId
-            it[ServerMods.installedVersionId] = installedVersionId
-        }[ServerMods.id]
-        ServerMods.selectAll()
-            .where { ServerMods.id eq id }
-            .first()
-            .toModRow()
-    }
-
-    override fun updateMod(id: Uuid, pinStrategy: String?, pinnedVersionId: String?, installedVersionId: String?) {
-        transaction {
-            ServerMods.update({ ServerMods.id eq id }) {
-                if (pinStrategy != null) it[ServerMods.pinStrategy] = pinStrategy
-                it[ServerMods.pinnedVersionId] = pinnedVersionId?.ifEmpty { null }
-                if (installedVersionId != null) it[ServerMods.installedVersionId] = installedVersionId
-            }
-        }
-    }
-
-    override fun deleteMod(id: Uuid) {
-        transaction { ServerMods.deleteWhere { ServerMods.id eq id } }
-    }
-
-    override fun deleteModsForServer(serverId: Uuid) {
-        transaction { ServerMods.deleteWhere { ServerMods.serverId eq serverId } }
-    }
 }
 
 private fun ResultRow.toModRow() = ModRow(
-    id = this[ServerMods.id],
+    id = this[ServerMods.id].value,
     serverId = this[ServerMods.serverId].value,
     modrinthProjectId = this[ServerMods.modrinthProjectId],
     displayName = this[ServerMods.displayName],

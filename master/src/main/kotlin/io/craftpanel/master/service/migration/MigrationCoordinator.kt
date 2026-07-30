@@ -1,16 +1,24 @@
 package io.craftpanel.master.service.migration
 
+import io.craftpanel.master.database.entity.MigrationStepEntity
+import io.craftpanel.master.database.entity.ServerMigrationEntity
+import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.MigrationStatus
 import io.craftpanel.master.domain.MigrationStepStatus
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.*
-import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.restartContainerCommand
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.jdbc.*
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
@@ -41,29 +49,44 @@ open class MigrationCoordinator(
 
     open fun updateStatus(plan: MigrationPlan, status: MigrationStatus) {
         val ts = clock.now()
-        migrationRepository.updateMigrationStatus(
-            plan.migrationId,
-            status,
-            if (status == MigrationStatus.COMPLETED || status == MigrationStatus.FAILED) ts else null
-        )
+        transaction {
+            ServerMigrationEntity.findById(plan.migrationId)?.let {
+                it.status = status.name
+                if (status == MigrationStatus.COMPLETED || status == MigrationStatus.FAILED) {
+                    it.completedAt = ts.toLocalDateTime(TimeZone.UTC)
+                }
+            }
+        }
         scope.launch { emit(MigrationEvent.Status(status.name)) }
     }
 
     open fun startStep(plan: MigrationPlan, stepNum: Int, description: String): Uuid {
-        val step = migrationRepository.createMigrationStep(plan.migrationId, stepNum, description)
-        migrationRepository.updateMigrationStepStatus(step.id, MigrationStepStatus.RUNNING, clock.now(), null, null)
+        val step = transaction {
+            MigrationStepEntity.new {
+                this.migrationId = EntityID(plan.migrationId, ServerMigrations)
+                this.stepNumber = stepNum
+                this.description = description
+                this.status = MigrationStepStatus.PENDING.name
+            }.toMigrationStepRow()
+        }
+        transaction {
+            MigrationStepEntity.findById(step.id)?.let {
+                it.status = MigrationStepStatus.RUNNING.name
+                it.startedAt = clock.now().toLocalDateTime(TimeZone.UTC)
+            }
+        }
         scope.launch { emit(MigrationEvent.StepStarted(stepNum, description)) }
         return step.id
     }
 
     open fun completeStep(stepId: Uuid, success: Boolean, error: String? = null) {
-        migrationRepository.updateMigrationStepStatus(
-            stepId,
-            if (success) MigrationStepStatus.SUCCESS else MigrationStepStatus.FAILED,
-            null,
-            clock.now(),
-            error
-        )
+        transaction {
+            MigrationStepEntity.findById(stepId)?.let {
+                it.status = if (success) MigrationStepStatus.SUCCESS.name else MigrationStepStatus.FAILED.name
+                it.completedAt = clock.now().toLocalDateTime(TimeZone.UTC)
+                if (error != null) it.errorMessage = error
+            }
+        }
     }
 
     open suspend fun failMigration(plan: MigrationPlan, error: String) {
@@ -87,7 +110,7 @@ open class MigrationCoordinator(
             ?: throw PortExhaustedException(
                 "No free ports in range ${plan.targetNodeRow.portRangeStart}-${plan.targetNodeRow.portRangeEnd} on node ${plan.targetNodeId}"
             )
-        portRepository.registerPort(plan.targetNodeId, port, "TCP", null)
+        transaction { PortRegistry.insert { it[PortRegistry.nodeId] = EntityID(plan.targetNodeId, Nodes); it[PortRegistry.port] = port; it[PortRegistry.protocol] = "TCP" } }
         return port
     }
 

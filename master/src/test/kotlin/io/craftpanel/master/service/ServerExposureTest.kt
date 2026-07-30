@@ -69,13 +69,13 @@ class ServerExposureTest :
 
         context("resolveSuffix") {
             test("falls back to global setting when network has no suffix") {
-                settingsRepository.upsert("dns_domain_suffix", "global.example.com", null, null)
+                settingsRepository.addSetting("dns_domain_suffix", "global.example.com")
                 serverExposure.resolveSuffix(null) shouldBe "global.example.com"
             }
 
             test("prefers network suffix over global setting") {
-                settingsRepository.upsert("dns_domain_suffix", "global.example.com", null, null)
-                val network = networkRepository.create(
+                settingsRepository.addSetting("dns_domain_suffix", "global.example.com")
+                val network = networkRepository.addNetwork(
                     name = "net1",
                     proxyPort = null,
                     description = null,
@@ -99,7 +99,7 @@ class ServerExposureTest :
             }
 
             test("returns null when network has no zone or suffix") {
-                val network = networkRepository.create(
+                val network = networkRepository.addNetwork(
                     name = "net1",
                     proxyPort = null,
                     description = null,
@@ -112,7 +112,7 @@ class ServerExposureTest :
             }
 
             test("returns NetworkDns when network has zone and suffix") {
-                val network = networkRepository.create(
+                val network = networkRepository.addNetwork(
                     name = "net1",
                     proxyPort = null,
                     description = null,
@@ -144,7 +144,7 @@ class ServerExposureTest :
             }
 
             test("falls back to subdomain + resolved suffix when dnsRecordName absent") {
-                settingsRepository.upsert("dns_domain_suffix", "example.com", null, null)
+                settingsRepository.addSetting("dns_domain_suffix", "example.com")
                 val row = testServerRow(exposedExternally = true, publicSubdomain = "play", dnsRecordName = null)
                 serverExposure.managedHostname(row) shouldBe "play.example.com"
             }
@@ -251,7 +251,7 @@ class ServerExposureTest :
             }
 
             test("rejects hostname under a panel-managed network suffix") {
-                networkRepository.create(
+                networkRepository.addNetwork(
                     name = "net1",
                     proxyPort = null,
                     description = null,
@@ -265,7 +265,7 @@ class ServerExposureTest :
             }
 
             test("rejects hostname under the global managed suffix") {
-                settingsRepository.upsert("dns_domain_suffix", "global.example.com", null, null)
+                settingsRepository.addSetting("dns_domain_suffix", "global.example.com")
                 shouldThrow<UnprocessableException> {
                     serverExposure.validateCustomHostname("sub.global.example.com", Uuid.random())
                 }

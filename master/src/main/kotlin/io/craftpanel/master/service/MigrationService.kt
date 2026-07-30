@@ -1,19 +1,29 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.database.entity.MigrationStepEntity
+import io.craftpanel.master.database.entity.ServerMigrationEntity
+import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.MigrationStatus
 import io.craftpanel.master.domain.MigrationStepStatus
 import io.craftpanel.master.service.migration.*
 import io.craftpanel.master.service.migration.steps.*
 import io.craftpanel.master.service.repo.*
-import io.craftpanel.master.service.repo.impl.*
+import io.craftpanel.master.util.toUtcString
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.*
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.jdbc.*
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
 @Serializable
@@ -85,7 +95,14 @@ class MigrationService(
 
     private val eventFlows = ConcurrentHashMap<String, MutableSharedFlow<MigrationEvent>>()
 
-    fun failStuckMigrations() = migrationRepository.failAllStuckMigrations()
+    fun failStuckMigrations() = transaction {
+        ServerMigrationEntity.find {
+            ServerMigrations.status inList listOf("PENDING", "SYNCING", "CUTTING_OVER", "RUNNING")
+        }.forEach {
+            it.status = "FAILED"
+            it.completedAt = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        }
+    }
 
     fun startMigration(serverId: Uuid, req: MigrateRequest): MigrationResponse {
         val serverRow = serverRepository.findById(serverId)
@@ -109,7 +126,24 @@ class MigrationService(
         val inProgress = migrationRepository.findActiveMigration(serverId) != null
         if (inProgress) throw ConflictException("Migration already in progress for this server")
 
-        val migration = migrationRepository.createMigration(serverId, sourceNodeId, targetNodeId)
+        val migration = transaction {
+            val e = ServerMigrationEntity.new {
+                this.serverId = EntityID(serverId, Servers)
+                this.sourceNodeId = EntityID(sourceNodeId, Nodes)
+                this.targetNodeId = EntityID(targetNodeId, Nodes)
+                this.status = MigrationStatus.PENDING.name
+            }
+            val row = ServerMigrations.selectAll().where { ServerMigrations.id eq e.id }.first()
+            MigrationRow(
+                id = row[ServerMigrations.id].value,
+                serverId = row[ServerMigrations.serverId].value,
+                sourceNodeId = row[ServerMigrations.sourceNodeId].value,
+                targetNodeId = row[ServerMigrations.targetNodeId].value,
+                status = row[ServerMigrations.status],
+                createdAt = row[ServerMigrations.createdAt].toUtcString(),
+                completedAt = row[ServerMigrations.completedAt]?.toUtcString()
+            )
+        }
 
         eventFlows[migration.id.toString()] =
             MutableSharedFlow(replay = 128, onBufferOverflow = BufferOverflow.DROP_OLDEST)

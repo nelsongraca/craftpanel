@@ -4,8 +4,7 @@ import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.master.util.toUtcString
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
@@ -43,31 +42,6 @@ class GroupRepositoryImpl : GroupRepository {
             }
     }
 
-    override fun create(name: String, isSystem: Boolean): GroupRow = transaction {
-        val id = Groups.insert {
-            it[Groups.name] = name
-            it[Groups.isSystem] = isSystem
-        }[Groups.id]
-        Groups.selectAll()
-            .where { Groups.id eq id }
-            .first()
-            .toGroupRow(emptyList())
-    }
-
-    override fun update(id: Uuid, name: String) {
-        transaction {
-            Groups.update({ Groups.id eq id }) { it[Groups.name] = name }
-        }
-    }
-
-    override fun delete(id: Uuid) {
-        transaction {
-            UserGroupAssignments.deleteWhere { UserGroupAssignments.groupId eq id }
-            GroupPermissions.deleteWhere { GroupPermissions.groupId eq id }
-            Groups.deleteWhere { Groups.id eq id }
-        }
-    }
-
     override fun getPermissions(groupId: Uuid): List<String> = transaction {
         GroupPermissions.selectAll()
             .where { GroupPermissions.groupId eq groupId }
@@ -79,29 +53,10 @@ class GroupRepositoryImpl : GroupRepository {
             .where { GroupPermissions.groupId inList groupIds }
             .map { it[GroupPermissions.permission] }
     }
-
-    override fun setPermissions(groupId: Uuid, permissions: List<String>) {
-        transaction {
-            GroupPermissions.deleteWhere { GroupPermissions.groupId eq groupId }
-            permissions.distinct()
-                .forEach { perm ->
-                    GroupPermissions.insert {
-                        it[GroupPermissions.groupId] = groupId
-                        it[GroupPermissions.permission] = perm
-                    }
-                }
-        }
-    }
-
-    override fun deletePermissionsForGroup(groupId: Uuid) {
-        transaction {
-            GroupPermissions.deleteWhere { GroupPermissions.groupId eq groupId }
-        }
-    }
 }
 
 private fun org.jetbrains.exposed.v1.core.ResultRow.toGroupRow(permissions: List<String>) = GroupRow(
-    id = this[Groups.id],
+    id = this[Groups.id].value,
     name = this[Groups.name],
     isSystem = this[Groups.isSystem],
     permissions = permissions,

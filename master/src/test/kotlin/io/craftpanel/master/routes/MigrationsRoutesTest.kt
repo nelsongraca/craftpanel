@@ -105,7 +105,7 @@ class MigrationsRoutesTest :
                     it[Nodes.status] = status
                 }[Nodes.id]
             }
-            return Uuid.parse(nodeId.toString()) to nodeId
+            return (nodeId.value) to nodeId.value
         }
 
         fun insertServer(nodeId: Uuid): Pair<Uuid, Uuid> {

@@ -4,7 +4,6 @@
     <content url="file://$MODULE_DIR$/../.." dumb="true">
       <excludeFolder url="file://$MODULE_DIR$/../../.local" />
       <excludeFolder url="file://$MODULE_DIR$/../../.remember" />
-      <excludeFolder url="file://$MODULE_DIR$/../../graphify-out" />
       <excludeFolder url="file://$MODULE_DIR$/../../plans" />
     </content>
   </component>

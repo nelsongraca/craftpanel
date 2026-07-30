@@ -262,13 +262,17 @@ class ControlServiceImplTest :
                     }
                 )
 
-                val stored = fakeRepo.findById(Uuid.parse(response.nodeId))
+                val stored = transaction {
+                    Nodes.selectAll()
+                        .where { Nodes.id eq Uuid.parse(response.nodeId) }
+                        .firstOrNull()
+                }
                 stored.shouldNotBeNull()
-                stored.status shouldBe "PENDING"
-                stored.hostname shouldBe "fake-node"
-                stored.totalRamMb shouldBe 2048
-                stored.totalCpuShares shouldBe 1024
-                stored.agentVersion shouldBe "1.0.0"
+                stored[Nodes.status] shouldBe "PENDING"
+                stored[Nodes.hostname] shouldBe "fake-node"
+                stored[Nodes.totalRamMb] shouldBe 2048
+                stored[Nodes.totalCpuShares] shouldBe 1024
+                stored[Nodes.agentVersion] shouldBe "1.0.0"
             }
         }
 
@@ -284,7 +288,20 @@ class ControlServiceImplTest :
                             .formatHex(it)
                     }
 
-                val created = fakeRepo.create(
+                val createdNodeId = transaction {
+                    Nodes.insert {
+                        it[Nodes.displayName] = "n"
+                        it[Nodes.hostname] = "n"
+                        it[Nodes.publicIp] = "1.1.1.1"
+                        it[Nodes.privateIp] = "10.0.0.1"
+                        it[Nodes.tokenHash] = keyHash
+                        it[Nodes.portRangeStart] = 25570
+                        it[Nodes.portRangeEnd] = 26070
+                        it[Nodes.status] = "ACTIVE"
+                    }[Nodes.id].let { Uuid.parse(it.toString()) }
+                }
+                val created = fakeRepo.addNode(
+                    id = createdNodeId,
                     displayName = "n",
                     hostname = "n",
                     publicIp = "1.1.1.1",
@@ -308,11 +325,15 @@ class ControlServiceImplTest :
                 response.status shouldBe IdentifyNodeResponse.IdentifyStatus.ACTIVE
                 response.nodeId shouldBe created.id.toString()
 
-                val updated = fakeRepo.findById(created.id)
+                val updated = transaction {
+                    Nodes.selectAll()
+                        .where { Nodes.id eq created.id }
+                        .firstOrNull()
+                }
                 updated.shouldNotBeNull()
-                updated.publicIp shouldBe "9.9.9.9"
-                updated.privateIp shouldBe "10.0.0.42"
-                updated.lastSeenAt.shouldNotBeNull()
+                updated[Nodes.publicIp] shouldBe "9.9.9.9"
+                updated[Nodes.privateIp] shouldBe "10.0.0.42"
+                updated[Nodes.lastSeenAt].shouldNotBeNull()
             }
         }
 

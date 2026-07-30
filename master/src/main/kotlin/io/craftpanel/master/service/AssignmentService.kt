@@ -1,10 +1,16 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.auth.ScopeType
+import io.craftpanel.master.database.schema.Groups
+import io.craftpanel.master.database.schema.UserGroupAssignments
+import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.service.repo.*
-import io.craftpanel.master.service.repo.impl.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.jdbc.*
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
 @Serializable
@@ -60,15 +66,22 @@ class AssignmentService(
         val exists = userRepository.findAssignment(targetId, groupId, req.scopeType, scopeId)
         if (exists != null) throw ConflictException("Assignment already exists")
 
-        return userRepository.createAssignment(targetId, groupId, req.scopeType, scopeId)
-            .toResponse()
+        return transaction {
+            val id = UserGroupAssignments.insert {
+                it[UserGroupAssignments.userId] = EntityID(targetId, Users)
+                it[UserGroupAssignments.groupId] = EntityID(groupId, Groups)
+                it[UserGroupAssignments.scopeType] = req.scopeType
+                it[UserGroupAssignments.scopeId] = scopeId
+            }[UserGroupAssignments.id]
+            AssignmentRow(id = id, userId = targetId, groupId = groupId, scopeType = req.scopeType, scopeId = scopeId)
+        }.toResponse()
     }
 
     fun deleteAssignment(targetId: Uuid, assignmentId: Uuid) {
         val all = userRepository.listAssignments(targetId)
         val assignment = all.firstOrNull { it.id == assignmentId }
             ?: throw NotFoundException("Assignment not found")
-        userRepository.deleteAssignment(assignment.id)
+        transaction { UserGroupAssignments.deleteWhere { UserGroupAssignments.id eq assignment.id } }
     }
 }
 

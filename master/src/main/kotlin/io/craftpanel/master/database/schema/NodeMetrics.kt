@@ -1,12 +1,13 @@
 package io.craftpanel.master.database.schema
 
-import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.dao.id.UuidTable
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.ReferenceOption
 import org.jetbrains.exposed.v1.datetime.datetime
 
-object NodeMetrics : Table("node_metrics") {
+object NodeMetrics : UuidTable("node_metrics") {
 
-    val id = uuid("id").autoGenerate()
-    val nodeId = uuid("node_id").references(Nodes.id)
+    val nodeId = reference("node_id", Nodes, onDelete = ReferenceOption.CASCADE)
     val recordedAt = datetime("recorded_at")
 
     val cpuPercent = double("cpu_percent")
@@ -16,8 +17,6 @@ object NodeMetrics : Table("node_metrics") {
     val netOutBytes = long("net_out_bytes")
     val diskUsedBytes = long("disk_used_bytes")
     val diskTotalBytes = long("disk_total_bytes")
-
-    override val primaryKey = PrimaryKey(id)
 
     init {
         index(false, nodeId, recordedAt)

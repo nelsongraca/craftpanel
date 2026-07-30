@@ -1,10 +1,18 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.database.entity.UserEntity
+import io.craftpanel.master.database.schema.RefreshTokens
+import io.craftpanel.master.database.schema.UserGroupAssignments
+import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.service.repo.UserRepository
 import io.craftpanel.master.service.repo.UserRow
+import io.craftpanel.master.util.toUtcString
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.jdbc.*
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
 @Serializable
@@ -41,8 +49,17 @@ class UserService(private val userRepository: UserRepository) {
         val byUsername = userRepository.findByUsername(req.username)
         val byEmail = userRepository.findByEmail(req.email)
         if (byUsername != null || byEmail != null) throw ConflictException("Username or email already taken")
-        return userRepository.create(req.username, req.email, hash)
-            .toResponse()
+        return transaction {
+            val e = UserEntity.new { this.username = req.username; this.email = req.email; this.passwordHash = hash }
+            val row = Users.selectAll().where { Users.id eq e.id }.first()
+            UserRow(
+                id = row[Users.id].value,
+                username = row[Users.username],
+                email = row[Users.email],
+                isActive = row[Users.isActive],
+                createdAt = row[Users.createdAt].toUtcString()
+            )
+        }.toResponse()
     }
 
     fun getUser(targetId: Uuid): UserResponse =
@@ -57,14 +74,24 @@ class UserService(private val userRepository: UserRepository) {
             val conflict = listOfNotNull(byUsername, byEmail).any { it.id != targetId }
             if (conflict) throw UnprocessableException("Username or email already taken")
         }
-        userRepository.update(targetId, req.username, req.email, req.isActive)
+        transaction {
+            UserEntity.findById(targetId)?.let {
+                if (req.username != null) it.username = req.username
+                if (req.email != null) it.email = req.email
+                if (req.isActive != null) it.isActive = req.isActive
+            }
+        }
         return userRepository.findById(targetId)!!
             .toResponse()
     }
 
     fun deleteUser(targetId: Uuid) {
         userRepository.findById(targetId) ?: throw NotFoundException("User not found")
-        userRepository.delete(targetId)
+        transaction {
+            UserGroupAssignments.deleteWhere { UserGroupAssignments.userId eq targetId }
+            RefreshTokens.deleteWhere { RefreshTokens.userId eq targetId }
+            UserEntity.findById(targetId)?.delete()
+        }
     }
 }
 

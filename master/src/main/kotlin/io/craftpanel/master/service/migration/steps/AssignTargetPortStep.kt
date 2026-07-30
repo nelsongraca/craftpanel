@@ -1,7 +1,15 @@
 package io.craftpanel.master.service.migration.steps
 
+import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.schema.Nodes
+import io.craftpanel.master.database.schema.PortRegistry
+import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.service.PortExhaustedException
 import io.craftpanel.master.service.migration.*
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.jdbc.*
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
 class AssignTargetPortStep : MigrationStep {
 
@@ -22,11 +30,11 @@ class AssignTargetPortStep : MigrationStep {
                 existingPort
             }
 
-            coord.portRepository.releasePortsForServer(plan.serverId)
-            coord.portRepository.registerPort(plan.targetNodeId, plan.assignedPort, "TCP", plan.serverId)
+            transaction { PortRegistry.deleteWhere { PortRegistry.serverId eq plan.serverId } }
+            transaction { PortRegistry.insert { it[PortRegistry.nodeId] = EntityID(plan.targetNodeId, Nodes); it[PortRegistry.port] = plan.assignedPort; it[PortRegistry.protocol] = "TCP"; it[PortRegistry.serverId] = EntityID(plan.serverId, Servers) } }
 
             if (plan.assignedPort != existingPort) {
-                coord.migrationRepository.updateMigrationHostPort(plan.serverId, plan.assignedPort)
+                transaction { ServerEntity.findById(plan.serverId)?.let { it.hostPort = plan.assignedPort } }
             }
 
             plan.freshServerRow = coord.serverRepository.findById(plan.serverId)

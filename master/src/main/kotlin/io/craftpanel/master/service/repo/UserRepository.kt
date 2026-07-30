@@ -17,24 +17,12 @@ interface UserRepository {
     fun findByUsername(username: String): UserRow?
     fun findCredentials(email: String): CredentialRow?
     fun listAll(): List<UserRow>
-    fun create(username: String, email: String, passwordHash: String): UserRow
-    fun update(id: Uuid, username: String?, email: String?, isActive: Boolean?)
-    fun delete(id: Uuid)
     fun isActive(id: Uuid): Boolean
 
     fun listAssignments(userId: Uuid): List<AssignmentRow>
-    fun createAssignment(userId: Uuid, groupId: Uuid, scopeType: String, scopeId: Uuid?): AssignmentRow
-    fun deleteAssignment(id: Uuid)
     fun findAssignment(userId: Uuid, groupId: Uuid, scopeType: String, scopeId: Uuid?): AssignmentRow?
-    fun deleteAssignmentsForUser(userId: Uuid)
-    fun deleteAssignmentsForGroup(groupId: Uuid)
 
-    fun issueRefreshToken(userId: Uuid, tokenHash: String, expiresAt: kotlin.time.Instant)
     fun findRefreshTokenByHash(tokenHash: String): RefreshTokenRow?
-    fun rotateRefreshToken(oldHash: String, newHash: String, expiresAt: kotlin.time.Instant, userId: Uuid)
-    fun revokeRefreshToken(tokenHash: String)
-    fun revokeAllRefreshTokens(userId: Uuid)
-    fun deleteRefreshTokensForUser(userId: Uuid)
 
     fun getUserGlobalGroups(userId: Uuid): List<GroupAssignmentRow>
 }

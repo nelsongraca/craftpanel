@@ -8,6 +8,7 @@ import io.craftpanel.master.util.toUtcString
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.time.Instant
@@ -65,8 +66,8 @@ class AlertRepositoryImpl : AlertRepository {
             .orderBy(AlertEvents.firedAt, SortOrder.DESC)
             .map {
                 AlertEventRow(
-                    id = it[AlertEvents.id],
-                    thresholdId = it[AlertEvents.thresholdId],
+                    id = it[AlertEvents.id].value,
+                    thresholdId = it[AlertEvents.thresholdId].value,
                     firedAt = it[AlertEvents.firedAt].toUtcString(),
                     resolvedAt = it[AlertEvents.resolvedAt]?.toUtcString(),
                     message = it[AlertEvents.message]
@@ -80,8 +81,8 @@ class AlertRepositoryImpl : AlertRepository {
             .firstOrNull()
             ?.let {
                 AlertEventRow(
-                    id = it[AlertEvents.id],
-                    thresholdId = it[AlertEvents.thresholdId],
+                    id = it[AlertEvents.id].value,
+                    thresholdId = it[AlertEvents.thresholdId].value,
                     firedAt = it[AlertEvents.firedAt].toUtcString(),
                     resolvedAt = null,
                     message = it[AlertEvents.message]
@@ -91,16 +92,16 @@ class AlertRepositoryImpl : AlertRepository {
 
     override fun createEvent(thresholdId: Uuid, message: String): AlertEventRow = transaction {
         val id = AlertEvents.insert {
-            it[AlertEvents.thresholdId] = thresholdId
+            it[AlertEvents.thresholdId] = EntityID(thresholdId, AlertThresholds)
             it[AlertEvents.message] = message
-        }[AlertEvents.id]
+        }[AlertEvents.id].value
         AlertEvents.selectAll()
             .where { AlertEvents.id eq id }
             .first()
             .let {
                 AlertEventRow(
-                    id = it[AlertEvents.id],
-                    thresholdId = it[AlertEvents.thresholdId],
+                    id = it[AlertEvents.id].value,
+                    thresholdId = it[AlertEvents.thresholdId].value,
                     firedAt = it[AlertEvents.firedAt].toUtcString(),
                     resolvedAt = null,
                     message = it[AlertEvents.message]
@@ -122,7 +123,7 @@ class AlertRepositoryImpl : AlertRepository {
 }
 
 private fun ResultRow.toThresholdRow() = AlertThresholdRow(
-    id = this[AlertThresholds.id],
+    id = this[AlertThresholds.id].value,
     scopeType = this[AlertThresholds.scopeType],
     scopeId = this[AlertThresholds.scopeId],
     metric = this[AlertThresholds.metric],

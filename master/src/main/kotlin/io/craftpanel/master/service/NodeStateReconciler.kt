@@ -1,14 +1,17 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.entity.*
+import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.*
-import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.proto.ContainerState
 import io.craftpanel.proto.NodeStateSnapshot
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
 import kotlin.time.Clock
@@ -58,14 +61,18 @@ class NodeStateReconciler(
 
         if (currentStatus == "ACTIVE") {
             val newHealth = if (snapshot.routerRunning) NodeHealth.HEALTHY else NodeHealth.DEGRADED
-            nodeRepository.updateHealth(kotlinNodeId, newHealth)
-            nodeRepository.updateLastSeen(kotlinNodeId, now, null, null)
-            nodeRepository.updateSwarmActive(kotlinNodeId, snapshot.swarmActive)
+            transaction {
+                NodeEntity.findById(kotlinNodeId)?.let {
+                    it.health = newHealth.name
+                    it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
+                    it.swarmActive = snapshot.swarmActive
+                }
+            }
             resultHealth = newHealth
             log.debug("Node {}: reconciled health={} (routerRunning={})", nodeId, newHealth, snapshot.routerRunning)
         } else {
             log.debug("Node $nodeId: status=$currentStatus — only updating lastSeenAt")
-            nodeRepository.updateLastSeen(kotlinNodeId, now, null, null)
+            transaction { NodeEntity.findById(kotlinNodeId)?.let { it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC) } }
         }
 
         return resultHealth
@@ -84,9 +91,23 @@ class NodeStateReconciler(
             return
         }
 
-        nodeRepository.markUnreachable(kotlinNodeId, now)
-        migrationRepository.failMigrationsForNode(kotlinNodeId)
-        backupRepository.failBackupsForNode(kotlinNodeId)
+        transaction { NodeEntity.findById(kotlinNodeId)?.let { it.health = "UNREACHABLE"; it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC) } }
+        transaction {
+            ServerMigrationEntity.find {
+                ((ServerMigrations.sourceNodeId eq kotlinNodeId) or (ServerMigrations.targetNodeId eq kotlinNodeId)) and
+                    (ServerMigrations.status inList listOf("PENDING", "SYNCING", "CUTTING_OVER"))
+            }.forEach {
+                it.status = "FAILED"
+                it.completedAt = now.toLocalDateTime(TimeZone.UTC)
+            }
+        }
+        transaction {
+            BackupEntity.find { (Backups.nodeId eq kotlinNodeId) and (Backups.status eq "IN_PROGRESS") }.forEach {
+                it.status = "FAILED"
+                it.errorMessage = "Node went offline during backup"
+                it.completedAt = now.toLocalDateTime(TimeZone.UTC)
+            }
+        }
 
         log.warn("Node $nodeId marked UNREACHABLE: migrations → FAILED, backups → FAILED")
     }
@@ -96,7 +117,7 @@ class NodeStateReconciler(
             log.warn("updateNodeHealth: invalid nodeId format: $nodeId")
             return
         }
-        nodeRepository.updateHealth(kotlinNodeId, health)
+        transaction { NodeEntity.findById(kotlinNodeId)?.let { it.health = health.name } }
     }
 
     fun updateNodeLastSeen(nodeId: String) {
@@ -104,7 +125,7 @@ class NodeStateReconciler(
             log.warn("updateNodeLastSeen: invalid nodeId format: $nodeId")
             return
         }
-        nodeRepository.updateLastSeen(kotlinNodeId, Clock.System.now(), null, null)
+        transaction { NodeEntity.findById(kotlinNodeId)?.let { it.lastSeenAt = Clock.System.now().toLocalDateTime(TimeZone.UTC) } }
     }
 }
 

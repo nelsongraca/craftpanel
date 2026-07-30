@@ -1,5 +1,7 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.database.entity.EnvVarEntity
+import io.craftpanel.master.database.entity.ModEntity
 import io.craftpanel.master.database.entity.ServerEntity
 import io.craftpanel.master.database.schema.Backups
 import io.craftpanel.master.database.schema.ContainerMetrics
@@ -9,6 +11,9 @@ import io.craftpanel.master.database.schema.ServerEnvVars
 import io.craftpanel.master.database.schema.ServerJobs
 import io.craftpanel.master.database.schema.ServerMigrations
 import io.craftpanel.master.database.schema.ServerMods
+import io.craftpanel.master.database.schema.Nodes
+import io.craftpanel.master.database.schema.ServerNetworks
+import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.*
@@ -18,6 +23,9 @@ import io.craftpanel.proto.removeContainerCommand
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
@@ -133,8 +141,8 @@ class ServerService(
                     this.name = name
                     this.displayName = displayName ?: name
                     this.description = description
-                    this.nodeId = nodeKotlinId
-                    this.networkId = networkKotlinId
+                    this.nodeId = EntityID(nodeKotlinId, Nodes)
+                    this.networkId = networkKotlinId?.let { EntityID(it, ServerNetworks) }
                     this.serverType = st.toDb()
                     this.mcVersion = mcVersion
                     this.itzgImageTag = itzgImageTag
@@ -145,7 +153,12 @@ class ServerService(
                     this.stopCommand = stopCommand
                 }
 
-                portRepository.registerPort(nodeKotlinId, port, "TCP", entity.id.value)
+                PortRegistry.insert {
+                    it[PortRegistry.nodeId] = EntityID(nodeKotlinId, Nodes)
+                    it[PortRegistry.port] = port
+                    it[PortRegistry.protocol] = "TCP"
+                    it[PortRegistry.serverId] = EntityID(entity.id.value, Servers)
+                }
 
                 val platformName = settingsRepository.getAll()
                     .firstOrNull { it.key == "CRAFTPANEL_PLATFORM_NAME" }
@@ -155,12 +168,14 @@ class ServerService(
 
                 if (!st.isProxy) {
                     val defaults = buildDefaultEnvVars(mcVersion, serverTypeDisplay, platformName)
-                    envVarsRepository.replaceEnvVars(
-                        entity.id.value,
-                        defaults.map { (k, v) ->
-                            EnvVarRow(k, v)
+                    EnvVarEntity.find { ServerEnvVars.serverId eq entity.id.value }.forEach { it.delete() }
+                    defaults.forEach { (k, v) ->
+                        EnvVarEntity.new {
+                            this.serverId = EntityID(entity.id.value, Servers)
+                            key = k
+                            value = v
                         }
-                    )
+                    }
                 } else {
                     entity.proxyMotd = "$serverTypeDisplay powered by $platformName"
                     entity.proxyMaxPlayers = null
@@ -214,18 +229,29 @@ class ServerService(
             cpuShares = source.cpuShares
         )
 
-        envVarsRepository.replaceEnvVars(created.id, envVarsRepository.getEnvVars(sourceId))
+        transaction {
+            EnvVarEntity.find { ServerEnvVars.serverId eq created.id }.forEach { it.delete() }
+            envVarsRepository.getEnvVars(sourceId).forEach { ev ->
+                EnvVarEntity.new {
+                    this.serverId = EntityID(created.id, Servers)
+                    key = ev.key
+                    value = ev.value
+                }
+            }
+        }
 
         modRepository.listMods(sourceId)
             .forEach { mod ->
-                modRepository.createMod(
-                    serverId = created.id,
-                    modrinthProjectId = mod.modrinthProjectId,
-                    displayName = mod.displayName,
-                    pinStrategy = mod.pinStrategy,
-                    pinnedVersionId = mod.pinnedVersionId,
-                    installedVersionId = mod.installedVersionId
-                )
+                transaction {
+                    ModEntity.new {
+                        this.serverId = EntityID(created.id, Servers)
+                        this.modrinthProjectId = mod.modrinthProjectId
+                        this.displayName = mod.displayName
+                        this.pinStrategy = mod.pinStrategy
+                        this.pinnedVersionId = mod.pinnedVersionId
+                        this.installedVersionId = mod.installedVersionId
+                    }
+                }
             }
 
         return getServer(created.id)
@@ -259,7 +285,7 @@ class ServerService(
             if (displayName != null) e.displayName = displayName
             val cleanDesc = description?.ifEmpty { null }
             if (cleanDesc != null) e.description = cleanDesc
-            if (newNetworkId != null) e.networkId = newNetworkId
+            if (newNetworkId != null) e.networkId = EntityID(newNetworkId, ServerNetworks)
             if (mcVersion != null) e.mcVersion = mcVersion
             if (itzgImageTag != null) e.itzgImageTag = itzgImageTag
             if (needsRecreate) e.needsRecreate = true

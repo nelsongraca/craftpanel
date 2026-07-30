@@ -1,9 +1,15 @@
 package io.craftpanel.master.auth
 
+import io.craftpanel.master.database.schema.RefreshTokens
+import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.service.repo.UserRepository
 import io.craftpanel.master.util.CryptoUtils
 import kotlinx.datetime.*
 import kotlinx.datetime.TimeZone
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.jdbc.*
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.security.MessageDigest
 import java.util.*
 import kotlin.time.Clock
@@ -23,7 +29,13 @@ class RefreshTokenService(private val userRepository: UserRepository) {
         val expiresAt = Clock.System.now()
             .plus(tokenLifetime)
 
-        userRepository.issueRefreshToken(userId, hash, expiresAt)
+        transaction {
+            RefreshTokens.insert {
+                it[RefreshTokens.userId] = EntityID(userId, Users)
+                it[RefreshTokens.tokenHash] = hash
+                it[RefreshTokens.expiresAt] = expiresAt.toLocalDateTime(TimeZone.UTC)
+            }
+        }
 
         return RefreshTokenResult(rawToken, expiresAt.toLocalDateTime(TimeZone.UTC))
     }
@@ -44,18 +56,25 @@ class RefreshTokenService(private val userRepository: UserRepository) {
         val newHash = sha256Hex(rawNewToken)
         val newExpiresAt = now.plus(tokenLifetime)
 
-        userRepository.rotateRefreshToken(hash, newHash, newExpiresAt, userId)
+        transaction {
+            RefreshTokens.update({ RefreshTokens.tokenHash eq hash }) { it[RefreshTokens.revoked] = true }
+            RefreshTokens.insert {
+                it[RefreshTokens.userId] = EntityID(userId, Users)
+                it[RefreshTokens.tokenHash] = newHash
+                it[RefreshTokens.expiresAt] = newExpiresAt.toLocalDateTime(TimeZone.UTC)
+            }
+        }
 
         return Pair(userId, RefreshTokenResult(rawNewToken, newExpiresAt.toLocalDateTime(TimeZone.UTC)))
     }
 
     fun revoke(rawToken: String) {
         val hash = sha256Hex(rawToken)
-        userRepository.revokeRefreshToken(hash)
+        transaction { RefreshTokens.update({ RefreshTokens.tokenHash eq hash }) { it[RefreshTokens.revoked] = true } }
     }
 
     fun revokeAll(userId: Uuid) {
-        userRepository.revokeAllRefreshTokens(userId)
+        transaction { RefreshTokens.update({ RefreshTokens.userId eq userId }) { it[RefreshTokens.revoked] = true } }
     }
 
     private fun generateRaw(): String = CryptoUtils.generateToken(48)

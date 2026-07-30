@@ -1,8 +1,15 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.database.schema.SystemSettings
+import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.service.repo.SettingsRepository
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.upsert
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
@@ -91,7 +98,16 @@ class SystemService(private val settingsRepository: SettingsRepository) {
             if (req.imageProxy != null) put("image_proxy", req.imageProxy)
             if (req.consoleTailLines != null) put("console_tail_lines", req.consoleTailLines.toString())
         }
-        updates.forEach { (k, v) -> settingsRepository.upsert(k, v, now, updatedBy) }
+        transaction {
+            updates.forEach { (k, v) ->
+                SystemSettings.upsert {
+                    it[SystemSettings.key] = k
+                    it[SystemSettings.value] = v
+                    it[SystemSettings.updatedBy] = EntityID(updatedBy, Users)
+                    it[SystemSettings.updatedAt] = now.toLocalDateTime(TimeZone.UTC)
+                }
+            }
+        }
 
         val stored = loadSettings()
         val resolvedStart = req.defaultPortRangeStart ?: stored.settings.defaultPortRangeStart

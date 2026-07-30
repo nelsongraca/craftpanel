@@ -20,29 +20,17 @@ class FakeGroupRepository : GroupRepository {
 
     override fun listAll(): List<GroupRow> = groups.values.map { it.toRow() }
 
-    override fun create(name: String, isSystem: Boolean): GroupRow {
-        val id = Uuid.random()
-        val g = MutableGroup(id, name, isSystem)
+    override fun getPermissions(groupId: Uuid): List<String> = groups[groupId]?.permissions?.toList() ?: emptyList()
+    override fun getPermissionsForGroups(groupIds: List<Uuid>): List<String> = groupIds.flatMap { getPermissions(it) }
+
+    fun addGroup(name: String, isSystem: Boolean = false, permissions: List<String> = emptyList(), id: Uuid = Uuid.random()): GroupRow {
+        val g = MutableGroup(id, name, isSystem, permissions.toMutableList())
         groups[id] = g
         return g.toRow()
     }
 
-    override fun update(id: Uuid, name: String) {
-        groups[id]?.name = name
-    }
-
-    override fun delete(id: Uuid) {
-        groups.remove(id)
-    }
-
-    override fun getPermissions(groupId: Uuid): List<String> = groups[groupId]?.permissions?.toList() ?: emptyList()
-    override fun getPermissionsForGroups(groupIds: List<Uuid>): List<String> = groupIds.flatMap { getPermissions(it) }
-    override fun setPermissions(groupId: Uuid, permissions: List<String>) {
+    fun setPermissions(groupId: Uuid, permissions: List<String>) {
         groups[groupId]?.permissions?.apply { clear(); addAll(permissions) }
-    }
-
-    override fun deletePermissionsForGroup(groupId: Uuid) {
-        groups[groupId]?.permissions?.clear()
     }
 
     private fun MutableGroup.toRow() = GroupRow(id, name, isSystem, permissions.toList(), createdAt)

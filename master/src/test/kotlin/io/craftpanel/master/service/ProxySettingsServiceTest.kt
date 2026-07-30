@@ -10,6 +10,7 @@ import io.craftpanel.master.service.repo.ServerRepository
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
@@ -52,7 +53,7 @@ class ProxySettingsServiceTest :
                 name = "srv-${Uuid.random()}"
                 displayName = "srv"
                 description = null
-                this.nodeId = nodeId
+                this.nodeId = EntityID(nodeId, Nodes)
                 networkId = null
                 serverType = type.toDb()
                 mcVersion = "1.21.4"

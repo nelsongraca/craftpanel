@@ -1,12 +1,14 @@
 package io.craftpanel.master.database.schema
 
 import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.ReferenceOption
 
 object UserGroupAssignments : Table("user_group_assignments") {
 
     val id = uuid("id").autoGenerate()
-    val userId = uuid("user_id").references(Users.id)
-    val groupId = uuid("group_id").references(Groups.id)
+    val userId = reference("user_id", Users, onDelete = ReferenceOption.CASCADE)
+    val groupId = reference("group_id", Groups, onDelete = ReferenceOption.CASCADE)
 
     // GLOBAL | SERVER | NETWORK
     val scopeType = varchar("scope_type", 10)

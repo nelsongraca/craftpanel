@@ -1,11 +1,13 @@
 package io.craftpanel.master.service
 
 import com.github.dockerjava.api.DockerClient
+import io.craftpanel.master.database.entity.NetworkEntity
 import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.*
-import io.craftpanel.master.service.repo.impl.*
+import io.craftpanel.master.util.toUtcString
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.eq
@@ -141,14 +143,27 @@ class NetworkService(
 
     fun createNetwork(req: CreateNetworkRequest): NetworkResponse {
         if (networkRepository.findByName(req.name) != null) throw ConflictException("Network name already taken")
-        val row = networkRepository.create(
-            name = req.name,
-            proxyPort = req.proxyPort,
-            description = req.description,
-            cfDomainSuffix = req.domainSuffix ?: req.dnsDomainSuffix,
-            cfZoneId = req.dnsZoneId,
-            dnsProviderType = req.dnsProviderType
-        )
+        val row = transaction {
+            val e = NetworkEntity.new {
+                this.name = req.name
+                this.proxyPort = req.proxyPort
+                this.description = req.description
+                this.cfDomainSuffix = req.domainSuffix ?: req.dnsDomainSuffix
+                this.cfZoneId = req.dnsZoneId
+                this.dnsProviderType = req.dnsProviderType
+            }
+            val r = ServerNetworks.selectAll().where { ServerNetworks.id eq e.id }.first()
+            NetworkRow(
+                id = r[ServerNetworks.id].value,
+                name = r[ServerNetworks.name],
+                proxyPort = r[ServerNetworks.proxyPort],
+                description = r[ServerNetworks.description],
+                cfZoneId = r[ServerNetworks.cfZoneId],
+                cfDomainSuffix = r[ServerNetworks.cfDomainSuffix],
+                dnsProviderType = r[ServerNetworks.dnsProviderType],
+                createdAt = r[ServerNetworks.createdAt].toUtcString()
+            )
+        }
         createOverlayNetwork(row.id.toString())
         return row.toResponse(0)
     }
@@ -185,13 +200,22 @@ class NetworkService(
             val existing = networkRepository.findByName(req.name)
             if (existing != null && existing.id != id) throw ConflictException("Network name already taken")
         }
-        networkRepository.update(id, req.name, req.description, req.domainSuffix ?: req.dnsDomainSuffix, req.dnsZoneId, req.dnsProviderType)
+        transaction {
+            NetworkEntity.findById(id)?.let {
+                if (req.name != null) it.name = req.name
+                if (req.description != null) it.description = req.description
+                if (req.domainSuffix != null) it.cfDomainSuffix = req.domainSuffix
+                else if (req.dnsDomainSuffix != null) it.cfDomainSuffix = req.dnsDomainSuffix
+                if (req.dnsZoneId != null) it.cfZoneId = req.dnsZoneId
+                if (req.dnsProviderType != null) it.dnsProviderType = req.dnsProviderType
+            }
+        }
     }
 
     fun deleteNetwork(id: Uuid) {
         networkRepository.findById(id) ?: throw NotFoundException("Network not found")
         transaction { Servers.selectAll().where { Servers.networkId eq id }.forEach { ServerEntity.findById(it[Servers.id])?.let { s -> s.networkId = null } } }
-        networkRepository.delete(id)
+        transaction { NetworkEntity.findById(id)?.delete() }
         deleteOverlayNetwork(id.toString())
     }
 }

@@ -1,6 +1,6 @@
 package io.craftpanel.master.service.migration
 import io.craftpanel.master.*
-import io.craftpanel.master.database.schema.Nodes
+import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.migration.steps.AllocateRsyncPortStep
@@ -12,7 +12,9 @@ import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
-import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
@@ -109,7 +111,7 @@ class AllocateRsyncPortStepTest :
 
         test("returns Success with next port when first port taken") {
             runTest {
-                coord.portRepository.registerPort(plan.targetNodeId, 25565, "TCP", null)
+                transaction { PortRegistry.insert { it[PortRegistry.nodeId] = EntityID(plan.targetNodeId, Nodes); it[PortRegistry.port] = 25565; it[PortRegistry.protocol] = "TCP" } }
                 val step = AllocateRsyncPortStep()
                 val result = step.execute(plan, coord)
                 result.shouldBeInstanceOf<StepResult.Success>()
@@ -120,7 +122,7 @@ class AllocateRsyncPortStepTest :
         test("returns Failure when port range exhausted") {
             runTest {
                 for (i in 25565..25600) {
-                    coord.portRepository.registerPort(plan.targetNodeId, i, "TCP", null)
+                    transaction { PortRegistry.insert { it[PortRegistry.nodeId] = EntityID(plan.targetNodeId, Nodes); it[PortRegistry.port] = i; it[PortRegistry.protocol] = "TCP" } }
                 }
                 val step = AllocateRsyncPortStep()
                 val result = step.execute(plan, coord)

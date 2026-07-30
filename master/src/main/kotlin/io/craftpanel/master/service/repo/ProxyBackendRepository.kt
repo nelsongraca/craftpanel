@@ -9,7 +9,5 @@ data class ProxyBackendInput(val backendServerId: Uuid, val backendName: String,
 interface ProxyBackendRepository {
 
     fun listProxyBackends(proxyServerId: Uuid): List<ProxyBackendRow>
-    fun replaceProxyBackends(proxyServerId: Uuid, backends: List<ProxyBackendInput>)
     fun findProxyServersForBackend(backendServerId: Uuid): List<Uuid>
-    fun deleteProxyBackendsForServer(serverId: Uuid)
 }

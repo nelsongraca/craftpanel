@@ -46,7 +46,7 @@ object PermissionResolver {
                 base
             }
         }
-        .map { it[UserGroupAssignments.groupId] }
+        .map { it[UserGroupAssignments.groupId].value }
 
     private fun matches(granted: String, required: String): Boolean {
         if (granted == "*") return true

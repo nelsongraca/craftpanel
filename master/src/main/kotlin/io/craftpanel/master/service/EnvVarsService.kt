@@ -1,11 +1,16 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.database.entity.EnvVarEntity
 import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.schema.ServerEnvVars
+import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ConfigMode
 import io.craftpanel.master.service.repo.*
-import io.craftpanel.master.service.repo.impl.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
@@ -37,8 +42,17 @@ class EnvVarsService(private val serverRepository: ServerRepository, private val
         serverRepository.findById(serverId) ?: throw NotFoundException("Server not found")
         val keys = req.envVars.map { it.key.trim() }
         if (keys.size != keys.toSet().size) throw UnprocessableException("Duplicate env var keys")
-        envVarsRepository.replaceEnvVars(serverId, req.envVars.map { EnvVarRow(it.key.trim(), it.value) })
-        transaction { ServerEntity.findById(serverId)?.let { it.needsRecreate = true } }
+        transaction {
+            EnvVarEntity.find { ServerEnvVars.serverId eq serverId }.forEach { it.delete() }
+            req.envVars.forEach { ev ->
+                EnvVarEntity.new {
+                    this.serverId = EntityID(serverId, Servers)
+                    key = ev.key.trim()
+                    value = ev.value
+                }
+            }
+            ServerEntity.findById(serverId)?.let { it.needsRecreate = true }
+        }
         return getEnvVars(serverId)
     }
 

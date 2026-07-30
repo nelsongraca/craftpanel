@@ -1,14 +1,15 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.database.entity.NodeEntity
 import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.NodeStatus
 import io.craftpanel.master.service.repo.*
-import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.master.util.CryptoUtils
 import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.shutdownCommand
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.security.MessageDigest
 import java.util.*
 
@@ -74,21 +75,20 @@ class NodeService(private val gateway: AgentGateway, private val nodeRepository:
     fun trustNode(id: kotlin.uuid.Uuid) {
         val node = nodeRepository.findById(id) ?: throw NotFoundException("Node not found")
         if (node.status == "ACTIVE") throw ConflictException("Node is already active")
-        nodeRepository.updateStatus(id, NodeStatus.ACTIVE)
-        nodeRepository.updateHealth(id, NodeHealth.UNREACHABLE)
+        transaction { NodeEntity.findById(id)?.let { it.status = NodeStatus.ACTIVE.toDb(); it.health = NodeHealth.UNREACHABLE.name } }
     }
 
     fun rejectNode(id: kotlin.uuid.Uuid) {
         val node = nodeRepository.findById(id) ?: throw NotFoundException("Node not found")
         if (node.status == "ACTIVE") throw ConflictException("Cannot reject an active node")
-        nodeRepository.updateStatus(id, NodeStatus.REJECTED)
+        transaction { NodeEntity.findById(id)?.let { it.status = NodeStatus.REJECTED.name } }
     }
 
     fun rotateToken(id: kotlin.uuid.Uuid): String {
         if (nodeRepository.findById(id) == null) throw NotFoundException("Node not found")
         val raw = generateNodeKey()
         val hash = sha256Hex(raw)
-        nodeRepository.updateTokenHash(id, hash)
+        transaction { NodeEntity.findById(id)?.let { it.tokenHash = hash } }
         return raw
     }
 
@@ -104,14 +104,14 @@ class NodeService(private val gateway: AgentGateway, private val nodeRepository:
         val newEnd = req.portRangeEnd ?: node.portRangeEnd
         if (newStart >= newEnd) throw UnprocessableException("Port range start must be less than end")
         if (req.reservedRamMb != null && req.reservedRamMb < 0) throw UnprocessableException("reserved_ram_mb must not be negative")
-        nodeRepository.update(id, req.displayName, newStart, newEnd, req.reservedRamMb)
+        transaction { NodeEntity.findById(id)?.let { it.displayName = req.displayName ?: it.displayName; it.portRangeStart = newStart; it.portRangeEnd = newEnd; it.reservedRamMb = req.reservedRamMb ?: it.reservedRamMb } }
     }
 
     fun decommissionNode(id: kotlin.uuid.Uuid) {
         val node = nodeRepository.findById(id) ?: throw NotFoundException("Node not found")
         if (node.status != "ACTIVE" && node.status != "PENDING") throw ConflictException("Node cannot be decommissioned")
         if (serverRepository.countByNodeId(id) > 0) throw ConflictException("Node has active servers")
-        nodeRepository.markDecommissioned(id)
+        transaction { NodeEntity.findById(id)?.let { it.status = NodeStatus.DECOMMISSIONED.name } }
     }
 
     fun getNodeMetrics(id: kotlin.uuid.Uuid, limit: Int): NodeMetricsResponse {

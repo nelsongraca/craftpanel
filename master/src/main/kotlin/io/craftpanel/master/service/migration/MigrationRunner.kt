@@ -1,10 +1,14 @@
 package io.craftpanel.master.service.migration
 
+import io.craftpanel.master.database.schema.PortRegistry
 import io.craftpanel.master.domain.MigrationStatus
 import io.craftpanel.master.service.MigrationEvent
 import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.removeContainerCommand
 import kotlinx.coroutines.delay
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.jdbc.*
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.time.Duration.Companion.seconds
 
 class MigrationRunner(private val steps: List<MigrationStep>, private val plan: MigrationPlan, private val coord: MigrationCoordinator) {
@@ -38,7 +42,7 @@ class MigrationRunner(private val steps: List<MigrationStep>, private val plan: 
                     }
                 )
             }
-            coord.portRepository.releasePort(plan.targetNodeId, plan.rsyncPort, "TCP")
+            transaction { PortRegistry.deleteWhere { (PortRegistry.nodeId eq plan.targetNodeId) and (PortRegistry.port eq plan.rsyncPort) and (PortRegistry.protocol eq "TCP") } }
         }
     }
 }

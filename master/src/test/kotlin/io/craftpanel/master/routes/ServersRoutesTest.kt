@@ -20,6 +20,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.*
+import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
@@ -574,7 +575,7 @@ class ServersRoutesTest :
                         .where { Servers.id eq serverId }
                         .first()
                 }
-                row[Servers.networkId] shouldBe netId
+                row[Servers.networkId]?.value shouldBe netId
             }
         }
 
@@ -1129,18 +1130,9 @@ class ServersRoutesTest :
                 val nodeId = createNode()
                 val sourceId = createServer(nodeId, "source", memoryMb = 2048, mcVersion = "1.21.4")
                 transaction {
-                    repos.envVarsRepository.replaceEnvVars(
-                        sourceId,
-                        listOf(EnvVarRow("EULA", "TRUE"), EnvVarRow("LEVEL", "world"))
-                    )
-                    repos.modRepository.createMod(
-                        serverId = sourceId,
-                        modrinthProjectId = "fabric-api",
-                        displayName = "Fabric API",
-                        pinStrategy = "LATEST",
-                        pinnedVersionId = null,
-                        installedVersionId = null
-                    )
+                    ServerEnvVars.insert { it[ServerEnvVars.serverId] = EntityID(sourceId, Servers); it[ServerEnvVars.key] = "EULA"; it[ServerEnvVars.value] = "TRUE" }
+                    ServerEnvVars.insert { it[ServerEnvVars.serverId] = EntityID(sourceId, Servers); it[ServerEnvVars.key] = "LEVEL"; it[ServerEnvVars.value] = "world" }
+                    ServerMods.insert { it[ServerMods.serverId] = EntityID(sourceId, Servers); it[ServerMods.modrinthProjectId] = "fabric-api"; it[ServerMods.displayName] = "Fabric API"; it[ServerMods.pinStrategy] = "LATEST" }
                 }
 
                 val resp = client.post("/api/servers/$sourceId/clone") {

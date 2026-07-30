@@ -9,6 +9,7 @@ import io.craftpanel.master.domain.ServerType
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
@@ -47,8 +48,8 @@ class ServerRepositoryImplTest :
                 this.name = name
                 this.displayName = name
                 this.description = null
-                this.nodeId = nodeId
-                this.networkId = networkId
+                this.nodeId = EntityID(nodeId, Nodes)
+                this.networkId = networkId?.let { EntityID(it, ServerNetworks) }
                 this.serverType = ServerType.VANILLA.toDb()
                 this.mcVersion = "LATEST"
                 this.itzgImageTag = "latest"

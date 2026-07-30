@@ -1,7 +1,6 @@
 package io.craftpanel.master.service.migration
 import io.craftpanel.master.*
-import io.craftpanel.master.database.schema.Nodes
-import io.craftpanel.master.database.schema.Servers
+import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.domain.MigrationStatus
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.*
@@ -12,7 +11,9 @@ import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
-import org.jetbrains.exposed.v1.jdbc.insert
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
@@ -127,7 +128,8 @@ class MigrationRunnerTest :
 
         test("all steps succeed - status COMPLETED") {
             runTest {
-                val migration = coord.migrationRepository.createMigration(serverId, nodeId, targetNodeId)
+                val migrationId = transaction { ServerMigrations.insert { it[ServerMigrations.serverId] = EntityID(serverId, Servers); it[ServerMigrations.sourceNodeId] = EntityID(nodeId, Nodes); it[ServerMigrations.targetNodeId] = EntityID(targetNodeId, Nodes); it[ServerMigrations.status] = "PENDING" }[ServerMigrations.id].value }
+                val migration = MigrationRow(id = migrationId, serverId = serverId, sourceNodeId = nodeId, targetNodeId = targetNodeId, status = "PENDING", createdAt = "", completedAt = null)
                 val plan = createPlan(migration.id)
 
                 val allSuccess = object : MigrationStep {
@@ -145,7 +147,8 @@ class MigrationRunnerTest :
         test("step fails - runner stops and remaining steps not executed") {
             runTest {
                 var secondExecuted = false
-                val migration = coord.migrationRepository.createMigration(serverId, nodeId, targetNodeId)
+                val migrationId = transaction { ServerMigrations.insert { it[ServerMigrations.serverId] = EntityID(serverId, Servers); it[ServerMigrations.sourceNodeId] = EntityID(nodeId, Nodes); it[ServerMigrations.targetNodeId] = EntityID(targetNodeId, Nodes); it[ServerMigrations.status] = "PENDING" }[ServerMigrations.id].value }
+                val migration = MigrationRow(id = migrationId, serverId = serverId, sourceNodeId = nodeId, targetNodeId = targetNodeId, status = "PENDING", createdAt = "", completedAt = null)
                 val plan = createPlan(migration.id)
 
                 val steps = listOf(
@@ -173,10 +176,11 @@ class MigrationRunnerTest :
 
         test("finally block cleans up rsync port even on failure") {
             runTest {
-                val migration = coord.migrationRepository.createMigration(serverId, nodeId, targetNodeId)
+                val migrationId = transaction { ServerMigrations.insert { it[ServerMigrations.serverId] = EntityID(serverId, Servers); it[ServerMigrations.sourceNodeId] = EntityID(nodeId, Nodes); it[ServerMigrations.targetNodeId] = EntityID(targetNodeId, Nodes); it[ServerMigrations.status] = "PENDING" }[ServerMigrations.id].value }
+                val migration = MigrationRow(id = migrationId, serverId = serverId, sourceNodeId = nodeId, targetNodeId = targetNodeId, status = "PENDING", createdAt = "", completedAt = null)
                 val plan = createPlan(migration.id)
                 plan.rsyncPort = 25566
-                coord.portRepository.registerPort(plan.targetNodeId, 25566, "TCP", null)
+                transaction { PortRegistry.insert { it[PortRegistry.nodeId] = EntityID(plan.targetNodeId, Nodes); it[PortRegistry.port] = 25566; it[PortRegistry.protocol] = "TCP" } }
 
                 val failing = object : MigrationStep {
                     override val stepNumber = 1
@@ -192,7 +196,8 @@ class MigrationRunnerTest :
 
         test("runner works against a fake coordinator subclass (proves plan/coord seam is swappable)") {
             runTest {
-                val migration = coord.migrationRepository.createMigration(serverId, nodeId, targetNodeId)
+                val migrationId = transaction { ServerMigrations.insert { it[ServerMigrations.serverId] = EntityID(serverId, Servers); it[ServerMigrations.sourceNodeId] = EntityID(nodeId, Nodes); it[ServerMigrations.targetNodeId] = EntityID(targetNodeId, Nodes); it[ServerMigrations.status] = "PENDING" }[ServerMigrations.id].value }
+                val migration = MigrationRow(id = migrationId, serverId = serverId, sourceNodeId = nodeId, targetNodeId = targetNodeId, status = "PENDING", createdAt = "", completedAt = null)
                 val plan = createPlan(migration.id)
                 var completeStepCalls = 0
 

@@ -7,10 +7,6 @@ class FakeServerJobRepository(private val state: FakeRepositories) : ServerJobRe
     override fun listEnabledServerJobs(): List<ServerJobRow> = state.serverJobs.values.filter { it.enabled }
         .map { it.toRow() }
 
-    override fun updateServerJobLastFired(jobId: Uuid, lastFired: kotlin.time.Instant) {
-        state.serverJobs[jobId]?.lastFiredAt = lastFired.toString()
-    }
-
     fun addServerJob(job: FakeServerRepository.MutableServerJob) {
         state.serverJobs[job.id] = job
     }

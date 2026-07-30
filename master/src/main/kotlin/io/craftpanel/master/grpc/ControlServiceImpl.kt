@@ -1,21 +1,31 @@
 package io.craftpanel.master.grpc
 
 import io.craftpanel.master.config.NodeConfig
+import io.craftpanel.master.database.entity.NodeEntity
+import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.domain.*
 import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.service.AgentGateway
 import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.master.service.repo.BackupRepository
 import io.craftpanel.master.service.repo.NodeRepository
+import io.craftpanel.master.service.repo.NodeRow
 import io.craftpanel.master.service.repo.ServerRepository
 import io.craftpanel.master.util.CryptoUtils
 import io.craftpanel.master.util.formatSymlinkTimestamp
+import io.craftpanel.master.util.toUtcString
 import io.craftpanel.proto.*
 import io.grpc.Status
 import io.grpc.StatusException
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.*
 import kotlinx.coroutines.flow.*
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
 import java.security.MessageDigest
 import java.security.SecureRandom
@@ -138,19 +148,43 @@ class ControlServiceImpl(
         val meta = request.metadata
         val now = Clock.System.now()
 
-        val created = nodeRepository.create(
-            displayName = meta.hostname,
-            hostname = meta.hostname,
-            publicIp = meta.publicIp,
-            privateIp = meta.privateIp,
-            tokenHash = keyHash,
-            portRangeStart = DEFAULT_PORT_RANGE_START,
-            portRangeEnd = DEFAULT_PORT_RANGE_END,
-            totalRamMb = meta.totalRamMb,
-            totalCpuShares = meta.totalCpuShares,
-            agentVersion = meta.agentVersion.takeIf { v -> v.isNotEmpty() },
-            lastSeenAt = now
-        )
+        val created = transaction {
+            val e = NodeEntity.new {
+                this.displayName = meta.hostname
+                this.hostname = meta.hostname
+                this.publicIp = meta.publicIp
+                this.privateIp = meta.privateIp
+                this.tokenHash = keyHash
+                this.portRangeStart = DEFAULT_PORT_RANGE_START
+                this.portRangeEnd = DEFAULT_PORT_RANGE_END
+                this.totalRamMb = meta.totalRamMb
+                this.totalCpuShares = meta.totalCpuShares
+                this.agentVersion = meta.agentVersion.takeIf { v -> v.isNotEmpty() }
+                this.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
+            }
+            val row = Nodes.selectAll().where { Nodes.id eq e.id }.first()
+            NodeRow(
+                id = row[Nodes.id].value,
+                displayName = row[Nodes.displayName],
+                hostname = row[Nodes.hostname],
+                publicIp = row[Nodes.publicIp],
+                privateIp = row[Nodes.privateIp],
+                tokenHash = row[Nodes.tokenHash],
+                status = row[Nodes.status],
+                health = row[Nodes.health],
+                totalRamMb = row[Nodes.totalRamMb],
+                totalCpuShares = row[Nodes.totalCpuShares],
+                systemRamUsedMb = row[Nodes.systemRamUsedMb],
+                reservedRamMb = row[Nodes.reservedRamMb],
+                portRangeStart = row[Nodes.portRangeStart],
+                portRangeEnd = row[Nodes.portRangeEnd],
+                swarmActive = row[Nodes.swarmActive],
+                agentVersion = row[Nodes.agentVersion],
+                lastSeenAt = row[Nodes.lastSeenAt]?.toUtcString(),
+                createdAt = row[Nodes.createdAt].toUtcString(),
+                updatedAt = row[Nodes.updatedAt].toUtcString()
+            )
+        }
 
         log.info("Node registered: ${created.id} (${meta.hostname}) — status PENDING, awaiting admin approval")
         return registerNodeResponse {
@@ -165,14 +199,15 @@ class ControlServiceImpl(
 
         val existing = nodeRepository.findByTokenHash(keyHash)
         if (existing != null) {
-            nodeRepository.updateLastSeen(
-                id = existing.id,
-                lastSeenAt = now,
-                publicIp = request.metadata.publicIp,
-                agentVersion = request.metadata.agentVersion.takeIf { v -> v.isNotEmpty() },
-                privateIp = request.metadata.privateIp,
-                hostname = request.metadata.hostname.takeIf { v -> v.isNotEmpty() }
-            )
+            transaction {
+                NodeEntity.findById(existing.id)?.let {
+                    it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
+                    it.publicIp = request.metadata.publicIp
+                    if (request.metadata.agentVersion.isNotEmpty()) it.agentVersion = request.metadata.agentVersion
+                    it.privateIp = request.metadata.privateIp
+                    if (request.metadata.hostname.isNotEmpty()) it.hostname = request.metadata.hostname
+                }
+            }
         }
 
         val identifyStatus = when (existing?.let { NodeStatus.fromDb(it.status) }) {
