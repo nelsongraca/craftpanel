@@ -16,6 +16,7 @@ import io.kotest.matchers.shouldNotBe
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -75,7 +76,7 @@ class ContainerLifecycleTest :
                 .first()
                 .let { r ->
                     ServerRow(
-                        id = r[Servers.id],
+                        id = r[Servers.id].value,
                         name = r[Servers.name],
                         displayName = r[Servers.displayName],
                         description = r[Servers.description],
@@ -207,22 +208,22 @@ class ContainerLifecycleTest :
                     it[ServerEnvVars.value] = "true"
                 }
                 ServerEnvVars.insert {
-                    it[ServerEnvVars.serverId] = serverId
+                    it[ServerEnvVars.serverId] = EntityID(serverId, Servers)
                     it[ServerEnvVars.key] = "USE_MEOWICE_FLAGS"
                     it[ServerEnvVars.value] = "true"
                 }
                 ServerEnvVars.insert {
-                    it[ServerEnvVars.serverId] = serverId
+                    it[ServerEnvVars.serverId] = EntityID(serverId, Servers)
                     it[ServerEnvVars.key] = "JVM_OPTS"
                     it[ServerEnvVars.value] = "-Xmx4G"
                 }
                 ServerEnvVars.insert {
-                    it[ServerEnvVars.serverId] = serverId
+                    it[ServerEnvVars.serverId] = EntityID(serverId, Servers)
                     it[ServerEnvVars.key] = "JVM_XX_OPTS"
                     it[ServerEnvVars.value] = "-XX:+UseG1GC"
                 }
                 ServerEnvVars.insert {
-                    it[ServerEnvVars.serverId] = serverId
+                    it[ServerEnvVars.serverId] = EntityID(serverId, Servers)
                     it[ServerEnvVars.key] = "DIFFICULTY"
                     it[ServerEnvVars.value] = "hard"
                 }
@@ -241,7 +242,7 @@ class ContainerLifecycleTest :
         test("start - MANAGED config mode - no OVERRIDE_SERVER_PROPERTIES, JVM flag vars preserved") {
             transaction {
                 ServerEnvVars.insert {
-                    it[ServerEnvVars.serverId] = serverId
+                    it[ServerEnvVars.serverId] = EntityID(serverId, Servers)
                     it[ServerEnvVars.key] = "USE_AIKAR_FLAGS"
                     it[ServerEnvVars.value] = "true"
                 }

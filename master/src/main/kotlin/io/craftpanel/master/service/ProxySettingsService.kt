@@ -1,10 +1,12 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.database.entity.ServerEntity
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
 @Serializable
@@ -53,8 +55,13 @@ class ProxySettingsService(
             throw UnprocessableException("maxPlayers must be greater than 0")
         }
 
-        serverRepository.updateProxySettings(proxyServerId, req.motd, req.maxPlayers, mode)
-        serverRepository.updateNeedsRecreate(proxyServerId, true)
+        transaction {
+            val e = ServerEntity.findById(proxyServerId) ?: return@transaction
+            e.proxyMotd = req.motd
+            e.proxyMaxPlayers = req.maxPlayers
+            e.proxyForwardingMode = mode
+            e.needsRecreate = true
+        }
         writePatchIfRunning(proxyServerId, row.status)
 
         val warnings = if (mode != null) {

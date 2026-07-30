@@ -119,7 +119,7 @@ class MigrationsRoutesTest :
                     it[Servers.status] = "HEALTHY"
                 }[Servers.id]
             }
-            return Uuid.parse(serverId.toString()) to serverId
+            return Uuid.parse(serverId.toString()) to serverId.value
         }
 
         test("list migrations returns empty for new server") {

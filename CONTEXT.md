@@ -469,6 +469,36 @@ visibility (was a private nested class).
   sites untouched.
 - See candidate 1, `improve-codebase-architecture` review 2026-07-23.
 
+### DAO Entity seam (master)
+
+The one pattern for all database writes. Uses Exposed DAO entities with
+automatic dirty tracking instead of the DSL `update {}` pattern. Services own
+`transaction {}` boundaries; repositories keep only read-side query methods.
+FK `ON DELETE CASCADE` replaces manual cascade in repo `delete()` methods.
+
+- **Entity** — `ServerEntity(id: EntityID<Uuid>) : UUIDEntity(id)`, one `var`
+  per column. Exposed generates `UPDATE only_changed_columns …` at flush time.
+- **Repository interface** — query methods only (`findById`, `listAll`, …),
+  returns `ServerRow` (read-only data class). No update/delete/insert methods.
+- **Delete** — FK cascade from `Servers` to child tables (env_vars, mods,
+  backups, ports, migrations, proxy_backends, container_metrics, server_jobs).
+  No 8-repo delete ceremony.
+- **Service** — opens `transaction { }`, reads via repo, mutates via entity.
+  Pattern:
+  ```kotlin
+  transaction {
+      val s = ServerEntity.findById(id) ?: throw NotFoundException()
+      s.status = "STARTING"
+  }
+  ```
+- **Testing** — `FakeServerRepository` for unit tests (queries only).
+  Entity-write tests use `TestDatabase` + `transaction { }`.
+- **Scope** — start with `Servers`/`ServerEntity`. Expand to all tables
+  (Nodes, Networks, Users, Groups, Backups, Mods, …) in follow-up passes.
+  Each table gets `FooEntity`, its `FooRepository` shrinks to queries only,
+  `FooService` opens `transaction { mutate(entity) }`.
+- See architecture review 2026-07-30, candidate 3.
+
 ## Open / planned
 
 ### Server lifecycle orchestrator (master) — superseded by ContainerLifecycle

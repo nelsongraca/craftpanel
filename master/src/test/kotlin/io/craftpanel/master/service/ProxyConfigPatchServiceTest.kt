@@ -2,6 +2,7 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
+import io.craftpanel.master.database.entity.ServerEntity
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.ProxyBackendInput
@@ -46,21 +47,23 @@ class ProxyConfigPatchServiceTest :
             }[Nodes.id].let { Uuid.parse(it.toString()) }
         }
 
-        fun createServer(nodeId: Uuid, name: String, type: ServerType): Uuid = serverRepository.create(
-            name = name,
-            displayName = name,
-            description = null,
-            nodeId = nodeId,
-            networkId = null,
-            serverType = type,
-            mcVersion = "1.21.4",
-            itzgImageTag = "latest",
-            hostPort = 25565,
-            memoryMb = 1024,
-            cpuShares = 0,
-            configMode = "MANAGED",
-            stopCommand = "stop"
-        ).id
+        fun createServer(nodeId: Uuid, name: String, type: ServerType): Uuid = transaction {
+            ServerEntity.new {
+                this.name = name
+                this.displayName = name
+                this.description = null
+                this.nodeId = nodeId
+                this.networkId = null
+                this.serverType = type.toDb()
+                this.mcVersion = "1.21.4"
+                this.itzgImageTag = "latest"
+                this.hostPort = 25565
+                this.memoryMb = 1024
+                this.cpuShares = 0
+                this.configMode = "MANAGED"
+                this.stopCommand = "stop"
+            }.id.value
+        }
 
         fun opsOf(patch: String): List<JsonObject> {
             val root = Json.parseToJsonElement(patch).jsonObject
@@ -72,7 +75,12 @@ class ProxyConfigPatchServiceTest :
         test("generates Velocity patch with all settings and backends") {
             val nodeId = createNode()
             val proxyId = createServer(nodeId, "proxy-${Uuid.random()}", ServerType.VELOCITY)
-            serverRepository.updateProxySettings(proxyId, "Welcome", 20, "LEGACY")
+            transaction {
+                val e = ServerEntity.findById(proxyId) ?: return@transaction
+                e.proxyMotd = "Welcome"
+                e.proxyMaxPlayers = 20
+                e.proxyForwardingMode = "LEGACY"
+            }
 
             val alphaId = createServer(nodeId, "alpha-${Uuid.random()}", ServerType.VANILLA)
             val betaId = createServer(nodeId, "beta-${Uuid.random()}", ServerType.PAPER)
@@ -115,7 +123,12 @@ class ProxyConfigPatchServiceTest :
         test("generates BungeeCord patch with all settings and backends") {
             val nodeId = createNode()
             val proxyId = createServer(nodeId, "proxy-${Uuid.random()}", ServerType.BUNGEECORD)
-            serverRepository.updateProxySettings(proxyId, "Welcome", 20, "LEGACY")
+            transaction {
+                val e = ServerEntity.findById(proxyId) ?: return@transaction
+                e.proxyMotd = "Welcome"
+                e.proxyMaxPlayers = 20
+                e.proxyForwardingMode = "LEGACY"
+            }
 
             val alphaId = createServer(nodeId, "alpha-${Uuid.random()}", ServerType.VANILLA)
             val betaId = createServer(nodeId, "beta-${Uuid.random()}", ServerType.PAPER)
@@ -172,7 +185,7 @@ class ProxyConfigPatchServiceTest :
         test("MANUAL config mode - returns null") {
             val nodeId = createNode()
             val proxyId = createServer(nodeId, "proxy-${Uuid.random()}", ServerType.VELOCITY)
-            serverRepository.updateConfigMode(proxyId, "MANUAL")
+            transaction { ServerEntity.findById(proxyId)?.let { it.configMode = "MANUAL" } }
 
             service.generatePatch(proxyId) shouldBe null
         }

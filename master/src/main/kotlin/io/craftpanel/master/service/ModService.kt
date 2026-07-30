@@ -1,5 +1,6 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.database.entity.ServerEntity
 import io.craftpanel.master.domain.ModPinStrategy
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.*
@@ -16,6 +17,7 @@ import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
 import java.net.URLEncoder
 import kotlin.uuid.Uuid
@@ -89,7 +91,7 @@ class ModService(
             pinnedVersionId = req.pinnedVersionId,
             installedVersionId = null
         )
-        serverRepository.updateNeedsRecreate(serverId, true)
+        transaction { ServerEntity.findById(serverId)?.let { it.needsRecreate = true } }
         return mod.toResponse()
     }
 
@@ -106,7 +108,7 @@ class ModService(
             else -> modRepository.findModById(modId)?.pinnedVersionId
         }
         modRepository.updateMod(modId, req.pinStrategy?.name, pinnedVersionId, null)
-        serverRepository.updateNeedsRecreate(serverId, true)
+        transaction { ServerEntity.findById(serverId)?.let { it.needsRecreate = true } }
         return modRepository.findModById(modId)!!
             .toResponse()
     }
@@ -116,7 +118,7 @@ class ModService(
             ?.takeIf { it.serverId == serverId }
             ?: throw NotFoundException("Mod not found")
         modRepository.deleteMod(modId)
-        serverRepository.updateNeedsRecreate(serverId, true)
+        transaction { ServerEntity.findById(serverId)?.let { it.needsRecreate = true } }
     }
 
     fun searchModrinth(query: String, limit: Int, serverType: String = "", mcVersion: String = ""): ModrinthSearchResult {

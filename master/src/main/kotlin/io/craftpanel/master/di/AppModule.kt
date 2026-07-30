@@ -33,16 +33,7 @@ val appModule = module {
     single<ContainerMetricsRepository> { ContainerMetricsRepositoryImpl() }
     single<ServerJobRepository> { ServerJobRepositoryImpl() }
     single<ServerRepository> {
-        ServerRepositoryImpl(
-            envVarsRepository = get(),
-            modRepository = get(),
-            migrationRepository = get(),
-            portRepository = get(),
-            backupRepository = get(),
-            proxyBackendRepository = get(),
-            containerMetricsRepository = get(),
-            serverJobRepository = get()
-        )
+        ServerRepositoryImpl()
     }
     single<NetworkRepository> { NetworkRepositoryImpl() }
     single<GroupRepository> { GroupRepositoryImpl() }

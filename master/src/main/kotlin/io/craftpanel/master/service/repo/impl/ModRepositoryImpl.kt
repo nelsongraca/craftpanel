@@ -1,10 +1,12 @@
 package io.craftpanel.master.service.repo.impl
 
 import io.craftpanel.master.database.schema.ServerMods
+import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.master.util.toUtcString
 import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
@@ -33,7 +35,7 @@ class ModRepositoryImpl : ModRepository {
 
     override fun createMod(serverId: Uuid, modrinthProjectId: String, displayName: String, pinStrategy: String, pinnedVersionId: String?, installedVersionId: String?): ModRow = transaction {
         val id = ServerMods.insert {
-            it[ServerMods.serverId] = serverId
+            it[ServerMods.serverId] = EntityID(serverId, Servers)
             it[ServerMods.modrinthProjectId] = modrinthProjectId
             it[ServerMods.displayName] = displayName
             it[ServerMods.pinStrategy] = pinStrategy
@@ -67,7 +69,7 @@ class ModRepositoryImpl : ModRepository {
 
 private fun ResultRow.toModRow() = ModRow(
     id = this[ServerMods.id],
-    serverId = this[ServerMods.serverId],
+    serverId = this[ServerMods.serverId].value,
     modrinthProjectId = this[ServerMods.modrinthProjectId],
     displayName = this[ServerMods.displayName],
     pinStrategy = this[ServerMods.pinStrategy],

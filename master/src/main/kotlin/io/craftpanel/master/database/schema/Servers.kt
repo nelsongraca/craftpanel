@@ -1,12 +1,11 @@
 package io.craftpanel.master.database.schema
 
-import org.jetbrains.exposed.v1.core.Table
+import org.jetbrains.exposed.v1.core.dao.id.UuidTable
 import org.jetbrains.exposed.v1.datetime.CurrentDateTime
 import org.jetbrains.exposed.v1.datetime.datetime
 
-object Servers : Table("servers") {
+object Servers : UuidTable("servers") {
 
-    val id = uuid("id").autoGenerate()
     val name = varchar("name", 100).uniqueIndex()
     val displayName = varchar("display_name", 100).default("")
     val description = varchar("description", 500).nullable()
@@ -43,6 +42,4 @@ object Servers : Table("servers") {
     val lastSeenAt = datetime("last_seen_at").nullable()
     val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
     val updatedAt = datetime("updated_at").defaultExpression(CurrentDateTime)
-
-    override val primaryKey = PrimaryKey(id)
 }

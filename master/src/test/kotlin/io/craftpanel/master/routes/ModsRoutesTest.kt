@@ -17,6 +17,7 @@ import io.ktor.serialization.kotlinx.json.*
 import io.ktor.server.routing.*
 import io.ktor.server.testing.*
 import kotlinx.serialization.json.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -337,7 +338,7 @@ class ModsRoutesTest :
 
                 val modId = transaction {
                     ServerMods.insert {
-                        it[ServerMods.serverId] = serverId
+                        it[ServerMods.serverId] = EntityID(serverId, Servers)
                         it[ServerMods.modrinthProjectId] = "fabric-api"
                         it[ServerMods.displayName] = "Fabric API"
                         it[ServerMods.pinStrategy] = "LATEST"
@@ -392,7 +393,7 @@ class ModsRoutesTest :
             val serverId = createServer(nodeId)
             transaction {
                 ServerMods.insert {
-                    it[ServerMods.serverId] = serverId
+                    it[ServerMods.serverId] = EntityID(serverId, Servers)
                     it[ServerMods.modrinthProjectId] = "fabric-api"
                     it[ServerMods.displayName] = "Fabric API"
                     it[ServerMods.pinStrategy] = "PINNED"
@@ -407,7 +408,7 @@ class ModsRoutesTest :
             val serverId = createServer(nodeId)
             transaction {
                 ServerMods.insert {
-                    it[ServerMods.serverId] = serverId
+                    it[ServerMods.serverId] = EntityID(serverId, Servers)
                     it[ServerMods.modrinthProjectId] = "some-mod"
                     it[ServerMods.displayName] = "Some Mod"
                     it[ServerMods.pinStrategy] = "BETA"
@@ -421,7 +422,7 @@ class ModsRoutesTest :
             val serverId = createServer(nodeId)
             transaction {
                 ServerMods.insert {
-                    it[ServerMods.serverId] = serverId
+                    it[ServerMods.serverId] = EntityID(serverId, Servers)
                     it[ServerMods.modrinthProjectId] = "some-mod"
                     it[ServerMods.displayName] = "Some Mod"
                     it[ServerMods.pinStrategy] = "ALPHA"
@@ -435,14 +436,14 @@ class ModsRoutesTest :
             val serverId = createServer(nodeId)
             transaction {
                 ServerMods.insert {
-                    it[ServerMods.serverId] = serverId
-                    it[ServerMods.modrinthProjectId] = "fabric-api"
-                    it[ServerMods.displayName] = "Fabric API"
-                    it[ServerMods.pinStrategy] = "LATEST"
-                }
-                ServerMods.insert {
-                    it[ServerMods.serverId] = serverId
-                    it[ServerMods.modrinthProjectId] = "sodium"
+                        it[ServerMods.serverId] = EntityID(serverId, Servers)
+                        it[ServerMods.modrinthProjectId] = "fabric-api"
+                        it[ServerMods.displayName] = "Fabric API"
+                        it[ServerMods.pinStrategy] = "LATEST"
+                    }
+                    ServerMods.insert {
+                        it[ServerMods.serverId] = EntityID(serverId, Servers)
+                        it[ServerMods.modrinthProjectId] = "sodium"
                     it[ServerMods.displayName] = "Sodium"
                     it[ServerMods.pinStrategy] = "PINNED"
                     it[ServerMods.pinnedVersionId] = "abc123"

@@ -4,8 +4,8 @@ import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.config.AppConfig
 import io.craftpanel.master.database.DatabaseFactory
+import io.craftpanel.master.database.entity.ServerEntity
 import io.craftpanel.master.database.migrations.seedAdminUser
-import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.di.DnsProviderHolder
 import io.craftpanel.master.di.appModule
 import io.craftpanel.master.dns.DnsProvider
@@ -42,12 +42,8 @@ import io.ktor.server.websocket.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.json.Json
-import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import org.koin.ktor.ext.get
@@ -55,7 +51,6 @@ import org.koin.ktor.plugin.Koin
 import org.koin.logger.slf4jLogger
 import org.slf4j.LoggerFactory
 import org.slf4j.event.Level
-import kotlin.time.Clock
 import kotlin.time.Duration.Companion.minutes
 import kotlin.uuid.Uuid
 
@@ -115,12 +110,9 @@ fun Application.module() {
                 runCatching {
                     val clearRecreate = event.status == ServerStatus.HEALTHY
                     transaction {
-                        Servers.update({ Servers.id eq Uuid.parse(event.serverId) }) {
-                            it[Servers.status] = event.status.toDb()
-                            if (clearRecreate) it[Servers.needsRecreate] = false
-                            it[Servers.updatedAt] = Clock.System.now()
-                                .toLocalDateTime(TimeZone.UTC)
-                        }
+                        val entity = ServerEntity.findById(Uuid.parse(event.serverId)) ?: return@transaction
+                        entity.status = event.status.toDb()
+                        if (clearRecreate) entity.needsRecreate = false
                     }
                 }.onFailure {
                     log.error("Failed to update status for server {}", event.serverId, it)

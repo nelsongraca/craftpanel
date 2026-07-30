@@ -1,10 +1,12 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.database.entity.ServerEntity
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
 private val BACKEND_NAME_PATTERN = Regex("^[A-Za-z0-9_-]+$")
@@ -61,7 +63,7 @@ class ProxyBackendService(
         }
 
         proxyBackendRepository.replaceProxyBackends(proxyServerId, inputs)
-        serverRepository.updateNeedsRecreate(proxyServerId, true)
+        transaction { ServerEntity.findById(proxyServerId)?.let { it.needsRecreate = true } }
         writePatchIfRunning(serverRow.id, serverRow.status)
 
         // New/changed backend set on an already-forwarding proxy needs matching config pushed (#44).

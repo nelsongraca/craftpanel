@@ -11,6 +11,7 @@ import io.kotest.matchers.shouldBe
 import io.kotest.matchers.types.shouldBeInstanceOf
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runTest
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -75,7 +76,7 @@ class UpdateNodeAssignmentStepTest :
                     it[PortRegistry.nodeId] = targetNodeId
                     it[PortRegistry.port] = 25601
                     it[PortRegistry.protocol] = "TCP"
-                    it[PortRegistry.serverId] = serverId
+                    it[PortRegistry.serverId] = EntityID(serverId, Servers)
                 }
             }
             plan = MigrationPlan(

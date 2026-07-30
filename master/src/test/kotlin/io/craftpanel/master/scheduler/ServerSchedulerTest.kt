@@ -8,6 +8,7 @@ import io.kotest.matchers.shouldBe
 import io.mockk.*
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.time.ZoneOffset
@@ -137,7 +138,7 @@ class ServerSchedulerTest :
 
             transaction {
                 ServerJobs.insert {
-                    it[ServerJobs.serverId] = serverId
+                    it[ServerJobs.serverId] = EntityID(serverId, Servers)
                     it[ServerJobs.type] = "MY_JOB"
                     it[ServerJobs.cronExpression] = "* * * * *"
                     it[ServerJobs.enabled] = true
@@ -162,7 +163,7 @@ class ServerSchedulerTest :
 
             transaction {
                 ServerJobs.insert {
-                    it[ServerJobs.serverId] = serverId
+                    it[ServerJobs.serverId] = EntityID(serverId, Servers)
                     it[ServerJobs.type] = "UNKNOWN"
                     it[ServerJobs.cronExpression] = "* * * * *"
                     it[ServerJobs.enabled] = true

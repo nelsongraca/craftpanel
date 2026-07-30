@@ -1,5 +1,6 @@
 package io.craftpanel.master.service.repo.impl
 
+import io.craftpanel.master.database.entity.ServerEntity
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.domain.MigrationStatus
 import io.craftpanel.master.domain.MigrationStepStatus
@@ -9,6 +10,7 @@ import io.craftpanel.master.util.toUtcString
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.time.Clock
@@ -43,7 +45,7 @@ class MigrationRepositoryImpl : MigrationRepository {
 
     override fun createMigration(serverId: Uuid, sourceNodeId: Uuid, targetNodeId: Uuid): MigrationRow = transaction {
         val id = ServerMigrations.insert {
-            it[ServerMigrations.serverId] = serverId
+            it[ServerMigrations.serverId] = EntityID(serverId, Servers)
             it[ServerMigrations.sourceNodeId] = sourceNodeId
             it[ServerMigrations.targetNodeId] = targetNodeId
             it[ServerMigrations.status] = MigrationStatus.PENDING.name
@@ -90,17 +92,11 @@ class MigrationRepositoryImpl : MigrationRepository {
     }
 
     override fun updateNodeId(id: Uuid, nodeId: Uuid) {
-        transaction {
-            Servers.update({ Servers.id eq id }) {
-                it[Servers.nodeId] = nodeId
-                it[Servers.updatedAt] = Clock.System.now()
-                    .toLocalDateTime(TimeZone.UTC)
-            }
-        }
+        transaction { ServerEntity.findById(id)?.let { it.nodeId = nodeId } }
     }
 
     override fun updateMigrationHostPort(id: Uuid, hostPort: Int) {
-        transaction { Servers.update({ Servers.id eq id }) { it[Servers.hostPort] = hostPort } }
+        transaction { ServerEntity.findById(id)?.let { it.hostPort = hostPort } }
     }
 
     override fun listMigrationSteps(migrationId: Uuid): List<MigrationStepRow> = transaction {
@@ -152,7 +148,7 @@ class MigrationRepositoryImpl : MigrationRepository {
 
 private fun ResultRow.toMigrationRow() = MigrationRow(
     id = this[ServerMigrations.id],
-    serverId = this[ServerMigrations.serverId],
+    serverId = this[ServerMigrations.serverId].value,
     sourceNodeId = this[ServerMigrations.sourceNodeId],
     targetNodeId = this[ServerMigrations.targetNodeId],
     status = this[ServerMigrations.status],

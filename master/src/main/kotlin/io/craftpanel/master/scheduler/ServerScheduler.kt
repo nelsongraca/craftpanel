@@ -4,9 +4,13 @@ import com.cronutils.model.CronType
 import com.cronutils.model.definition.CronDefinitionBuilder
 import com.cronutils.model.time.ExecutionTime
 import com.cronutils.parser.CronParser
+import io.craftpanel.master.database.entity.ServerEntity
 import io.craftpanel.master.service.repo.ServerJobRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.coroutines.*
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
@@ -73,7 +77,7 @@ class ServerScheduler(
                 if (lastFiredMinute == nowMinute) continue
             }
             val serverId = row.id
-            serverRepository.updateBackupScheduleLastFired(serverId, now)
+            transaction { ServerEntity.findById(serverId)?.let { it.backupScheduleLastFired = now.toLocalDateTime(TimeZone.UTC) } }
             handlers["BACKUP"]?.let { handler ->
                 scope.launch {
                     handler.execute(JobExecutionContext(serverId, jobId = null, scheduledAt = now))

@@ -1,11 +1,15 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.database.entity.ServerEntity
 import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.proto.ContainerState
 import io.craftpanel.proto.NodeStateSnapshot
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
@@ -43,7 +47,12 @@ class NodeStateReconciler(
 
                 if (newStatus != null) {
                     log.info("Node $nodeId reconcile: server $serverId $dbStatus → $newStatus")
-                    serverRepository.updateStatus(serverId, newStatus.toDb(), now)
+                    transaction {
+                        ServerEntity.findById(serverId)?.let {
+                            it.status = newStatus.toDb()
+                            it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
+                        }
+                    }
                 }
             }
 

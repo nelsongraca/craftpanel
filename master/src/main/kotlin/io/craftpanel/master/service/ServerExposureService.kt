@@ -1,9 +1,11 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.database.entity.ServerEntity
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.service.repo.ServerRepository
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
 import kotlin.uuid.Uuid
 
@@ -29,13 +31,11 @@ class ServerExposureService(
             val ch = customHostname.trim()
             if (ch.isEmpty()) {
                 null
-            }
-            else {
+            } else {
                 serverExposure.validateCustomHostname(ch, id)
                 ch
             }
-        }
-        else {
+        } else {
             serverRow.customHostname
         }
 
@@ -55,8 +55,7 @@ class ServerExposureService(
 
             val fullHostname = if (dns != null) {
                 "$publicSubdomain.${dns.domainSuffix}"
-            }
-            else {
+            } else {
                 serverExposure.resolveSuffix(serverRow.networkId)
                     ?.let { "$publicSubdomain.$it" }
             }
@@ -68,13 +67,11 @@ class ServerExposureService(
                     if (existingRecordId != null) {
                         provider.updateARecord(dns.zoneId, existingRecordId, node.publicIp)
                         existingRecordId
-                    }
-                    else {
+                    } else {
                         provider.createARecord(dns.zoneId, fullHostname ?: publicSubdomain, node.publicIp)
                     }
                 }.getOrElse { ex -> throw BadGatewayException("DNS provider error: ${ex.message}") }
-            }
-            else {
+            } else {
                 null
             }
 
@@ -93,36 +90,32 @@ class ServerExposureService(
         val customHostnameChanged = resolvedCustomHostname != prevCustomHostname
         val exposureNeedsRecreate = publicSubdomain != null || customHostnameChanged
 
-        serverRepository.updateExposure(
-            id = id,
-            exposedExternally = exposedExternally,
-            publicSubdomain = if (!exposedExternally) null else publicSubdomain,
-            customHostname = resolvedCustomHostname,
-            dnsRecordId = if (exposedExternally && publicSubdomain != null) {
+        transaction {
+            val e = ServerEntity.findById(id) ?: return@transaction
+            e.exposedExternally = exposedExternally
+            e.publicSubdomain = if (!exposedExternally) null else publicSubdomain
+            e.customHostname = resolvedCustomHostname
+            e.dnsRecordId = if (exposedExternally && publicSubdomain != null) {
                 newRecordId
-            }
-            else if (!exposedExternally) {
+            } else if (!exposedExternally) {
                 null
-            }
-            else {
+            } else {
                 existingRecordId
-            },
-            dnsRecordName = if (exposedExternally && publicSubdomain != null) {
+            }
+            e.dnsRecordName = if (exposedExternally && publicSubdomain != null) {
                 newHostname
-            }
-            else if (!exposedExternally) {
+            } else if (!exposedExternally) {
                 null
-            }
-            else {
+            } else {
                 serverRow.dnsRecordName
-            },
-            needsRecreate = if (exposureNeedsRecreate) true else null
-        )
+            }
+            if (exposureNeedsRecreate) e.needsRecreate = true
+        }
 
         val currentStatus = ServerStatus.fromDb(serverRow.status)
         if (currentStatus.isRunning && exposureNeedsRecreate) {
             val freshRow = serverRepository.findById(id)!!
-            serverRepository.updateStatus(id, "STARTING", null)
+            transaction { ServerEntity.findById(id)?.let { it.status = "STARTING" } }
             lifecycle.sendStart(freshRow, needsRecreate = true, publicHostname = serverExposure.mcRouterLabel(freshRow))
         }
     }

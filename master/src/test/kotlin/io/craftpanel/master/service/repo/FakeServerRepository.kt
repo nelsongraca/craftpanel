@@ -134,140 +134,16 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
 
     override fun countByNetworkId(networkId: Uuid): Int = state.servers.values.count { it.networkId == networkId }
     override fun countByNodeId(nodeId: Uuid): Int = state.servers.values.count { it.nodeId == nodeId }
+    override fun updateNeedsRecreate(id: Uuid, value: Boolean) {
+        state.servers[id]?.needsRecreate = value
+    }
+
+    override fun updateForwardingSecret(id: Uuid, enc: String) {
+        state.servers[id]?.forwardingSecretEnc = enc
+    }
+
     override fun findIdsNeedingRecreateByNode(nodeId: Uuid): List<Uuid> = state.servers.values.filter { it.nodeId == nodeId && it.needsRecreate }
         .map { it.id }
-
-    override fun create(
-        name: String,
-        displayName: String,
-        description: String?,
-        nodeId: Uuid,
-        networkId: Uuid?,
-        serverType: ServerType,
-        mcVersion: String,
-        itzgImageTag: String,
-        hostPort: Int,
-        memoryMb: Int,
-        cpuShares: Int,
-        configMode: String,
-        stopCommand: String
-    ): ServerRow {
-        val id = Uuid.random()
-        val s = MutableServer(
-            id,
-            name,
-            displayName,
-            description,
-            nodeId,
-            networkId,
-            serverType,
-            mcVersion,
-            hostPort = hostPort,
-            memoryMb = memoryMb,
-            cpuShares = cpuShares,
-            configMode = configMode,
-            stopCommand = stopCommand,
-            itzgImageTag = itzgImageTag
-        )
-        state.servers[id] = s
-        return s.toRow()
-    }
-
-    override fun updateDetails(id: Uuid, displayName: String?, description: String?, networkId: Uuid?, mcVersion: String?, itzgImageTag: String?) {
-        val s = state.servers[id] ?: return
-        if (displayName != null) s.displayName = displayName
-        if (description != null) s.description = description
-        if (networkId != null) s.networkId = networkId
-        if (mcVersion != null) s.mcVersion = mcVersion
-        if (itzgImageTag != null) s.itzgImageTag = itzgImageTag
-    }
-
-    override fun clearNetworkId(id: Uuid) {
-        state.servers[id]?.networkId = null
-    }
-
-    override fun updateResources(id: Uuid, memoryMb: Int, cpuShares: Int, itzgImageTag: String?, needsRecreate: Boolean) {
-        val s = state.servers[id] ?: return
-        s.memoryMb = memoryMb
-        s.cpuShares = cpuShares
-        s.needsRecreate = needsRecreate
-        if (itzgImageTag != null) s.itzgImageTag = itzgImageTag
-    }
-
-    override fun updateStatus(id: Uuid, status: String, lastSeenAt: kotlin.time.Instant?) {
-        state.servers[id]?.let {
-            it.status = status
-            if (lastSeenAt != null) it.lastSeenAt = lastSeenAt.toString()
-        }
-    }
-
-    override fun updateExposure(id: Uuid, exposedExternally: Boolean?, publicSubdomain: String?, customHostname: String?, dnsRecordId: String?, dnsRecordName: String?, needsRecreate: Boolean?) {
-        state.servers[id]?.let {
-            if (exposedExternally != null) it.exposedExternally = exposedExternally
-            if (publicSubdomain != null) it.publicSubdomain = publicSubdomain
-            it.customHostname = customHostname
-            if (dnsRecordId != null) it.dnsRecordId = dnsRecordId
-            if (dnsRecordName != null) it.dnsRecordName = dnsRecordName
-            if (needsRecreate != null) it.needsRecreate = needsRecreate
-        }
-    }
-
-    override fun updateNeedsRecreate(id: Uuid, needsRecreate: Boolean) {
-        state.servers[id]?.needsRecreate = needsRecreate
-    }
-
-    override fun updatePlayerInfo(id: Uuid, playerCount: Int?, playerNames: String?, lastUpdate: kotlin.time.Instant?) {
-        state.servers[id]?.let {
-            if (playerCount != null) it.lastPlayerCount = playerCount
-            if (playerNames != null) it.lastPlayerNames = playerNames
-            if (lastUpdate != null) it.lastPlayerUpdate = lastUpdate.toString()
-        }
-    }
-
-    override fun updateBackupSchedule(id: Uuid, schedule: String?, maxCount: Int?) {
-        state.servers[id]?.let {
-            if (schedule != null) it.backupSchedule = schedule
-            if (maxCount != null) it.backupMaxCount = maxCount
-        }
-    }
-
-    override fun updateBackupScheduleLastFired(id: Uuid, lastFired: kotlin.time.Instant?) {
-        state.servers[id]?.backupScheduleLastFired = lastFired?.toString()
-    }
-
-    override fun updateConfigMode(id: Uuid, configMode: String) {
-        state.servers[id]?.configMode = configMode
-    }
-
-    override fun updateStopCommand(id: Uuid, stopCommand: String) {
-        state.servers[id]?.stopCommand = stopCommand
-    }
-
-    override fun updateProxySettings(id: Uuid, motd: String?, maxPlayers: Int?, forwardingMode: String?) {
-        state.servers[id]?.let { s ->
-            s.proxyMotd = motd
-            s.proxyMaxPlayers = maxPlayers
-            s.proxyForwardingMode = forwardingMode
-        }
-    }
-
-    override fun updateForwardingSecret(id: Uuid, forwardingSecretEnc: String?) {
-        state.servers[id]?.forwardingSecretEnc = forwardingSecretEnc
-    }
-
-    override fun delete(id: Uuid) {
-        state.servers.remove(id)
-        state.mods.remove(id)
-        state.envVars.remove(id)
-        state.backups.values.removeAll { it.serverId == id }
-        state.containerMetrics.removeAll { it.serverId == id }
-        state.ports.removeAll { it.serverId == id }
-    }
-
-    override fun nullifyNetworkId(networkId: Uuid) {
-        state.servers.values.filter { it.networkId == networkId }
-            .forEach { it.networkId = null }
-    }
 
     private fun MutableServer.toRow() = ServerRow(
         id,

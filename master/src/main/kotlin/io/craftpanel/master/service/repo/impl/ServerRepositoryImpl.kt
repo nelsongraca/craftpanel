@@ -1,37 +1,23 @@
 package io.craftpanel.master.service.repo.impl
 
+import io.craftpanel.master.database.entity.ServerEntity
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.*
-import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.master.util.toUtcString
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
-class ServerRepositoryImpl(
-    private val envVarsRepository: EnvVarsRepository,
-    private val modRepository: ModRepository,
-    private val migrationRepository: MigrationRepository,
-    private val portRepository: PortRepository,
-    private val backupRepository: BackupRepository,
-    private val proxyBackendRepository: ProxyBackendRepository,
-    private val containerMetricsRepository: ContainerMetricsRepository,
-    private val serverJobRepository: ServerJobRepository
-) : AbstractCachedRepository<ServerRow>(),
-    ServerRepository {
+class ServerRepositoryImpl : ServerRepository {
 
-    override fun findById(id: Uuid): ServerRow? = cachedFindById(id) {
-        transaction {
-            Servers.selectAll()
-                .where { Servers.id eq id }
-                .firstOrNull()
-                ?.toServerRow()
-        }
+    override fun findById(id: Uuid): ServerRow? = transaction {
+        Servers.selectAll()
+            .where { Servers.id eq id }
+            .firstOrNull()
+            ?.toServerRow()
     }
 
     override fun findByName(name: String): ServerRow? = transaction {
@@ -73,7 +59,7 @@ class ServerRepositoryImpl(
             .where {
                 buildList<Op<Boolean>> {
                     if (networkIds.isNotEmpty()) add(Servers.networkId inList networkIds)
-                    if (serverIds.isNotEmpty()) add(Servers.id inList serverIds)
+                    if (serverIds.isNotEmpty()) add(Servers.id inList serverIds.map { EntityID(it, Servers) })
                 }.reduce { a, b -> a or b }
             }
             .map { it.toServerRow() }
@@ -93,7 +79,7 @@ class ServerRepositoryImpl(
 
     override fun listIds(ids: List<Uuid>): List<ServerRow> = transaction {
         Servers.selectAll()
-            .where { Servers.id inList ids }
+            .where { Servers.id inList ids.map { EntityID(it, Servers) } }
             .map { it.toServerRow() }
     }
 
@@ -117,196 +103,25 @@ class ServerRepositoryImpl(
             .size
     }
 
+    override fun updateNeedsRecreate(id: Uuid, value: Boolean) = transaction {
+        ServerEntity.findById(id)?.let { it.needsRecreate = value }
+        Unit
+    }
+
+    override fun updateForwardingSecret(id: Uuid, enc: String) = transaction {
+        ServerEntity.findById(id)?.let { it.forwardingSecretEnc = enc }
+        Unit
+    }
+
     override fun findIdsNeedingRecreateByNode(nodeId: Uuid): List<Uuid> = transaction {
         Servers.selectAll()
             .where { (Servers.nodeId eq nodeId) and (Servers.needsRecreate eq true) }
-            .map { it[Servers.id] }
-    }
-
-    override fun create(
-        name: String,
-        displayName: String,
-        description: String?,
-        nodeId: Uuid,
-        networkId: Uuid?,
-        serverType: ServerType,
-        mcVersion: String,
-        itzgImageTag: String,
-        hostPort: Int,
-        memoryMb: Int,
-        cpuShares: Int,
-        configMode: String,
-        stopCommand: String
-    ): ServerRow = transaction {
-        val id = Servers.insert {
-            it[Servers.name] = name
-            it[Servers.displayName] = displayName
-            it[Servers.description] = description
-            it[Servers.nodeId] = nodeId
-            it[Servers.networkId] = networkId
-            it[Servers.serverType] = serverType.toDb()
-            it[Servers.mcVersion] = mcVersion
-            it[Servers.itzgImageTag] = itzgImageTag
-            it[Servers.hostPort] = hostPort
-            it[Servers.memoryMb] = memoryMb
-            it[Servers.cpuShares] = cpuShares
-            it[Servers.configMode] = configMode
-            it[Servers.stopCommand] = stopCommand
-        }[Servers.id]
-        Servers.selectAll()
-            .where { Servers.id eq id }
-            .first()
-            .toServerRow()
-    }
-
-    override fun updateDetails(id: Uuid, displayName: String?, description: String?, networkId: Uuid?, mcVersion: String?, itzgImageTag: String?) {
-        if (displayName == null && description == null && networkId == null && mcVersion == null && itzgImageTag == null) return
-        transaction {
-            Servers.update({ Servers.id eq id }) {
-                if (displayName != null) it[Servers.displayName] = displayName
-                if (description != null) it[Servers.description] = description
-                if (networkId != null) it[Servers.networkId] = networkId
-                if (mcVersion != null) it[Servers.mcVersion] = mcVersion
-                if (itzgImageTag != null) it[Servers.itzgImageTag] = itzgImageTag
-            }
-        }
-        invalidate(id)
-    }
-
-    override fun clearNetworkId(id: Uuid) {
-        transaction {
-            Servers.update({ Servers.id eq id }) { it[Servers.networkId] = null }
-        }
-        invalidate(id)
-    }
-
-    override fun updateResources(id: Uuid, memoryMb: Int, cpuShares: Int, itzgImageTag: String?, needsRecreate: Boolean) {
-        transaction {
-            Servers.update({ Servers.id eq id }) {
-                it[Servers.memoryMb] = memoryMb
-                it[Servers.cpuShares] = cpuShares
-                if (itzgImageTag != null) it[Servers.itzgImageTag] = itzgImageTag
-                it[Servers.needsRecreate] = needsRecreate
-            }
-        }
-        invalidate(id)
-    }
-
-    override fun updateStatus(id: Uuid, status: String, lastSeenAt: kotlin.time.Instant?) {
-        transaction {
-            Servers.update({ Servers.id eq id }) {
-                it[Servers.status] = status
-                if (lastSeenAt != null) {
-                    it[Servers.lastSeenAt] = lastSeenAt.toLocalDateTime(TimeZone.UTC)
-                }
-            }
-        }
-        invalidate(id)
-    }
-
-    override fun updateExposure(id: Uuid, exposedExternally: Boolean?, publicSubdomain: String?, customHostname: String?, dnsRecordId: String?, dnsRecordName: String?, needsRecreate: Boolean?) {
-        transaction {
-            Servers.update({ Servers.id eq id }) {
-                if (exposedExternally != null) it[Servers.exposedExternally] = exposedExternally
-                if (publicSubdomain != null) it[Servers.publicSubdomain] = publicSubdomain
-                it[Servers.customHostname] = customHostname
-                if (dnsRecordId != null) it[Servers.dnsRecordId] = dnsRecordId
-                if (dnsRecordName != null) it[Servers.dnsRecordName] = dnsRecordName
-                if (needsRecreate != null) it[Servers.needsRecreate] = needsRecreate
-            }
-        }
-        invalidate(id)
-    }
-
-    override fun updateNeedsRecreate(id: Uuid, needsRecreate: Boolean) {
-        transaction { Servers.update({ Servers.id eq id }) { it[Servers.needsRecreate] = needsRecreate } }
-        invalidate(id)
-    }
-
-    override fun updatePlayerInfo(id: Uuid, playerCount: Int?, playerNames: String?, lastUpdate: kotlin.time.Instant?) {
-        transaction {
-            Servers.update({ Servers.id eq id }) {
-                if (playerCount != null) it[Servers.lastPlayerCount] = playerCount
-                if (playerNames != null) it[Servers.lastPlayerNames] = playerNames
-                if (lastUpdate != null) it[Servers.lastPlayerUpdate] = lastUpdate.toLocalDateTime(TimeZone.UTC)
-            }
-        }
-        invalidate(id)
-    }
-
-    override fun updateBackupSchedule(id: Uuid, schedule: String?, maxCount: Int?) {
-        if (schedule == null && maxCount == null) return
-        transaction {
-            Servers.update({ Servers.id eq id }) {
-                if (schedule != null) it[Servers.backupSchedule] = schedule
-                if (maxCount != null) it[Servers.backupMaxCount] = maxCount
-            }
-        }
-        invalidate(id)
-    }
-
-    override fun updateBackupScheduleLastFired(id: Uuid, lastFired: Instant?) {
-        transaction {
-            Servers.update({ Servers.id eq id }) {
-                if (lastFired != null) it[Servers.backupScheduleLastFired] = lastFired.toLocalDateTime(TimeZone.UTC)
-            }
-        }
-        invalidate(id)
-    }
-
-    override fun updateConfigMode(id: Uuid, configMode: String) {
-        transaction { Servers.update({ Servers.id eq id }) { it[Servers.configMode] = configMode } }
-        invalidate(id)
-    }
-
-    override fun updateStopCommand(id: Uuid, stopCommand: String) {
-        transaction { Servers.update({ Servers.id eq id }) { it[Servers.stopCommand] = stopCommand } }
-        invalidate(id)
-    }
-
-    override fun updateProxySettings(id: Uuid, motd: String?, maxPlayers: Int?, forwardingMode: String?) {
-        transaction {
-            Servers.update({ Servers.id eq id }) {
-                it[Servers.proxyMotd] = motd
-                it[Servers.proxyMaxPlayers] = maxPlayers
-                it[Servers.proxyForwardingMode] = forwardingMode
-            }
-        }
-        invalidate(id)
-    }
-
-    override fun updateForwardingSecret(id: Uuid, forwardingSecretEnc: String?) {
-        transaction {
-            Servers.update({ Servers.id eq id }) {
-                it[Servers.forwardingSecretEnc] = forwardingSecretEnc
-            }
-        }
-        invalidate(id)
-    }
-
-    override fun delete(id: Uuid) {
-        transaction {
-            migrationRepository.deleteMigrationStepsForServer(id)
-            migrationRepository.deleteMigrationsForServer(id)
-            proxyBackendRepository.deleteProxyBackendsForServer(id)
-            envVarsRepository.deleteEnvVarsForServer(id)
-            modRepository.deleteModsForServer(id)
-            backupRepository.deleteBackupsForServer(id)
-            containerMetricsRepository.deleteContainerMetricsForServer(id)
-            portRepository.releasePortsForServer(id)
-            Servers.deleteWhere { Servers.id eq id }
-        }
-        invalidate(id)
-    }
-
-    override fun nullifyNetworkId(networkId: Uuid) {
-        transaction { Servers.update({ Servers.networkId eq networkId }) { it[Servers.networkId] = null } }
-        cache.values.filter { it.networkId == networkId }.forEach { row -> cache.remove(row.id) }
+            .map { it[Servers.id].value }
     }
 }
 
 private fun ResultRow.toServerRow() = ServerRow(
-    id = this[Servers.id],
+    id = this[Servers.id].value,
     name = this[Servers.name],
     displayName = this[Servers.displayName],
     description = this[Servers.description],

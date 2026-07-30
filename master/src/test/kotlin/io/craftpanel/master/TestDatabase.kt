@@ -2,8 +2,6 @@ package io.craftpanel.master
 
 import io.craftpanel.master.database.migrations.seedSystemGroups
 import io.craftpanel.master.database.schema.*
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
@@ -19,7 +17,7 @@ object TestDatabase {
                 Users, RefreshTokens, Groups, GroupPermissions, UserGroupAssignments,
                 ServerNetworks, Nodes, Servers, ServerEnvVars, NodeMetrics, PortRegistry, ServerMigrations,
                 MigrationStepLog, Backups, AlertThresholds, AlertEvents, ContainerMetrics, ServerMods,
-                SystemSettings, ServerJobs, ProxyBackends,
+                SystemSettings, ServerJobs, ProxyBackends
             )
             seedSystemGroups()
         }
@@ -28,32 +26,15 @@ object TestDatabase {
 
     fun reset() {
         transaction {
-            AlertEvents.deleteAll()
-            AlertThresholds.deleteAll()
-            Backups.deleteAll()
-            ServerMods.deleteAll()
-            ProxyBackends.deleteAll()
-            MigrationStepLog.deleteAll()
-            ServerMigrations.deleteAll()
-            PortRegistry.deleteAll()
-            ContainerMetrics.deleteAll()
-            NodeMetrics.deleteAll()
-            ServerEnvVars.deleteAll()
-            ServerJobs.deleteAll()
-            Servers.deleteAll()
-            Nodes.deleteAll()
-            ServerNetworks.deleteAll()
-            SystemSettings.deleteAll()
-            RefreshTokens.deleteAll()
-            UserGroupAssignments.deleteAll()
-            Users.deleteAll()
-            val nonSystemGroupIds = Groups.selectAll()
-                .where { Groups.isSystem eq false }
-                .map { it[Groups.id] }
-            if (nonSystemGroupIds.isNotEmpty()) {
-                GroupPermissions.deleteWhere { GroupPermissions.groupId inList nonSystemGroupIds }
-                Groups.deleteWhere { Groups.isSystem eq false }
-            }
+            exec("SET REFERENTIAL_INTEGRITY FALSE")
+            listOf(
+                AlertEvents, AlertThresholds, Backups, ServerMods, ProxyBackends,
+                MigrationStepLog, ServerMigrations, PortRegistry, ContainerMetrics,
+                NodeMetrics, ServerEnvVars, ServerJobs, Servers, Nodes, ServerNetworks,
+                SystemSettings, RefreshTokens, UserGroupAssignments, Groups, Users
+            ).forEach { it.deleteAll() }
+            exec("SET REFERENTIAL_INTEGRITY TRUE")
+            seedSystemGroups()
         }
     }
 }

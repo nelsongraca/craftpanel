@@ -1,5 +1,6 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.database.entity.ServerEntity
 import io.craftpanel.master.domain.BackupStatus
 import io.craftpanel.master.domain.BackupTrigger
 import io.craftpanel.master.grpc.DataServiceProxy
@@ -9,6 +10,7 @@ import io.craftpanel.master.util.formatSymlinkTimestamp
 import io.craftpanel.proto.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
@@ -145,7 +147,11 @@ class BackupService(private val gateway: AgentGateway, private val dataServicePr
         if (req.backupMaxCount != null && req.backupMaxCount < 1) {
             throw UnprocessableException("backup_max_count must be at least 1")
         }
-        serverRepository.updateBackupSchedule(serverId, req.backupSchedule, req.backupMaxCount)
+        transaction {
+            val e = ServerEntity.findById(serverId) ?: return@transaction
+            e.backupSchedule = req.backupSchedule
+            if (req.backupMaxCount != null) e.backupMaxCount = req.backupMaxCount
+        }
     }
 }
 

@@ -1,8 +1,10 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.database.entity.ServerEntity
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.ServerRepository
 import io.craftpanel.master.service.repo.ServerRow
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
 class ServerLifecycleService(
@@ -24,7 +26,7 @@ class ServerLifecycleService(
         // surface loudly and leave the server's prior status untouched, not strand it at
         // STARTING with no process actually starting.
         writeProxyPatch(serverRow)
-        serverRepository.updateStatus(id, "STARTING", null)
+        transaction { ServerEntity.findById(id)?.let { it.status = "STARTING" } }
         lifecycle.sendStart(serverRow, needsRecreate = serverRow.needsRecreate, publicHostname = publicHostname)
     }
 
@@ -32,7 +34,7 @@ class ServerLifecycleService(
         val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
         if (serverRow.status == "STOPPED") throw ConflictException("Server is already stopped")
         val nodeId = serverRow.nodeId.toString()
-        serverRepository.updateStatus(id, "STOPPING", null)
+        transaction { ServerEntity.findById(id)?.let { it.status = "STOPPING" } }
         lifecycle.sendStop(serverRow, nodeId)
     }
 
@@ -40,7 +42,7 @@ class ServerLifecycleService(
         val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
         if (serverRow.status == "STOPPED") throw ConflictException("Server is already stopped")
         val nodeId = serverRow.nodeId.toString()
-        serverRepository.updateStatus(id, "STOPPING", null)
+        transaction { ServerEntity.findById(id)?.let { it.status = "STOPPING" } }
         lifecycle.sendStop(serverRow, nodeId, force = true)
     }
 
@@ -49,7 +51,7 @@ class ServerLifecycleService(
         if (ServerStatus.fromDb(serverRow.status).isStopped) throw ConflictException("Server is not running")
         val nodeId = serverRow.nodeId.toString()
         writeProxyPatch(serverRow)
-        serverRepository.updateStatus(id, "STARTING", null)
+        transaction { ServerEntity.findById(id)?.let { it.status = "STARTING" } }
         if (serverRow.needsRecreate) {
             lifecycle.sendStart(
                 serverRow,

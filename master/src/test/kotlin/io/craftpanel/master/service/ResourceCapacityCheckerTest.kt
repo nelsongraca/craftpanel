@@ -4,6 +4,7 @@ import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
+import kotlin.uuid.Uuid
 
 class ResourceCapacityCheckerTest :
     FunSpec({
@@ -65,15 +66,17 @@ class ResourceCapacityCheckerTest :
         }
 
         test("existing servers on node count toward used RAM") {
+            val repos = FakeRepositories()
             val nodes = FakeNodeRepository()
-            val servers = FakeServerRepository(FakeRepositories())
+            val servers = repos.serverRepository
             val checker = ResourceCapacityChecker(servers)
 
             val node = nodes.create("node-1", "host", "1.2.3.4", "10.0.0.1", "hash", 25570, 26070)
             nodes.setCapacity(node.id, totalRamMb = 2048, totalCpuShares = 2048, reservedRamMb = 0)
             val freshNode = nodes.findById(node.id)!!
-            servers.create(
-                name = "existing", displayName = "existing", description = null,
+            val sid = Uuid.random()
+            repos.servers[sid] = FakeServerRepository.MutableServer(
+                id = sid, name = "existing", displayName = "existing", description = null,
                 nodeId = node.id, networkId = null, serverType = ServerType.VANILLA,
                 mcVersion = "1.21.4", itzgImageTag = "latest", hostPort = 25565,
                 memoryMb = 1500, cpuShares = 0, configMode = "MANAGED", stopCommand = "stop"
@@ -85,21 +88,23 @@ class ResourceCapacityCheckerTest :
         }
 
         test("excludeServerId excludes that server's own usage from the check") {
+            val repos = FakeRepositories()
             val nodes = FakeNodeRepository()
-            val servers = FakeServerRepository(FakeRepositories())
+            val servers = repos.serverRepository
             val checker = ResourceCapacityChecker(servers)
 
             val node = nodes.create("node-1", "host", "1.2.3.4", "10.0.0.1", "hash", 25570, 26070)
             nodes.setCapacity(node.id, totalRamMb = 2048, totalCpuShares = 2048, reservedRamMb = 0)
             val freshNode = nodes.findById(node.id)!!
-            val existing = servers.create(
-                name = "existing", displayName = "existing", description = null,
+            val existingId = Uuid.random()
+            repos.servers[existingId] = FakeServerRepository.MutableServer(
+                id = existingId, name = "existing", displayName = "existing", description = null,
                 nodeId = node.id, networkId = null, serverType = ServerType.VANILLA,
                 mcVersion = "1.21.4", itzgImageTag = "latest", hostPort = 25565,
                 memoryMb = 1500, cpuShares = 0, configMode = "MANAGED", stopCommand = "stop"
             )
 
-            val result = checker.check(freshNode, excludeServerId = existing.id, memoryMb = 2048, cpuShares = 0)
+            val result = checker.check(freshNode, excludeServerId = existingId, memoryMb = 2048, cpuShares = 0)
 
             result shouldBe CapacityResult.Ok
         }

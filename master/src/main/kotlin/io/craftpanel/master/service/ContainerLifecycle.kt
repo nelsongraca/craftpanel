@@ -1,6 +1,7 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.config.ImagesConfig
+import io.craftpanel.master.database.entity.ServerEntity
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.domain.ServerType
@@ -10,6 +11,7 @@ import io.craftpanel.proto.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.filterIsInstance
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -189,8 +191,11 @@ class ContainerLifecycle(
     }
 
     fun writeStatus(id: Uuid, status: ServerStatus, clearNeedsRecreate: Boolean = false) {
-        serverRepository.updateStatus(id, status.toDb(), null)
-        if (clearNeedsRecreate) serverRepository.updateNeedsRecreate(id, false)
+        transaction {
+            val e = ServerEntity.findById(id) ?: return@transaction
+            e.status = status.toDb()
+            if (clearNeedsRecreate) e.needsRecreate = false
+        }
     }
 
     // ── Core await primitive ──────────────────────────────────────────────────

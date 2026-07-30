@@ -17,6 +17,7 @@ import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.server.routing.*
 import io.ktor.server.testing.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.json.*
@@ -198,11 +199,11 @@ class BackupsRoutesTest :
                 transaction {
                     repeat(2) { i ->
                         Backups.insert {
-                            it[Backups.serverId] = serverId
-                            it[Backups.nodeId] = nodeId
-                            it[Backups.trigger] = "MANUAL"
-                            it[Backups.status] = "COMPLETED"
-                            it[Backups.filePath] = "/data/backups/backup-$i.tar.gz"
+                        it[Backups.serverId] = EntityID(serverId, Servers)
+                        it[Backups.nodeId] = nodeId
+                        it[Backups.trigger] = "MANUAL"
+                        it[Backups.status] = "COMPLETED"
+                        it[Backups.filePath] = "/data/backups/backup-$i.tar.gz"
                             it[Backups.completedAt] = now
                         }
                     }
@@ -238,7 +239,7 @@ class BackupsRoutesTest :
 
                 val backupId = transaction {
                     Backups.insert {
-                        it[Backups.serverId] = serverId
+                        it[Backups.serverId] = EntityID(serverId, Servers)
                         it[Backups.nodeId] = nodeId
                         it[Backups.trigger] = "MANUAL"
                         it[Backups.status] = "COMPLETED"
@@ -280,7 +281,7 @@ class BackupsRoutesTest :
 
                 val backupId = transaction {
                     Backups.insert {
-                        it[Backups.serverId] = serverId
+                        it[Backups.serverId] = EntityID(serverId, Servers)
                         it[Backups.nodeId] = nodeId
                         it[Backups.trigger] = "MANUAL"
                         it[Backups.status] = "IN_PROGRESS"

@@ -1,12 +1,14 @@
 package io.craftpanel.master.service.repo.impl
 
 import io.craftpanel.master.database.schema.ContainerMetrics
+import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.master.util.toUtcString
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.time.Instant
@@ -26,7 +28,7 @@ class ContainerMetricsRepositoryImpl : ContainerMetricsRepository {
     ) {
         transaction {
             ContainerMetrics.insert {
-                it[ContainerMetrics.serverId] = serverId
+                it[ContainerMetrics.serverId] = EntityID(serverId, Servers)
                 it[ContainerMetrics.cpuPercent] = cpuPercent
                 it[ContainerMetrics.ramUsedMb] = ramUsedMb
                 it[ContainerMetrics.netInBytes] = netInBytes
@@ -85,7 +87,7 @@ class ContainerMetricsRepositoryImpl : ContainerMetricsRepository {
 
 private fun ResultRow.toContainerMetricsRow() = ContainerMetricsRow(
     id = this[ContainerMetrics.id],
-    serverId = this[ContainerMetrics.serverId],
+    serverId = this[ContainerMetrics.serverId].value,
     recordedAt = this[ContainerMetrics.recordedAt].toUtcString(),
     cpuPercent = this[ContainerMetrics.cpuPercent],
     ramUsedMb = this[ContainerMetrics.ramUsedMb],

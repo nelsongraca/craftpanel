@@ -1,5 +1,14 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.schema.Backups
+import io.craftpanel.master.database.schema.ContainerMetrics
+import io.craftpanel.master.database.schema.PortRegistry
+import io.craftpanel.master.database.schema.ProxyBackends
+import io.craftpanel.master.database.schema.ServerEnvVars
+import io.craftpanel.master.database.schema.ServerJobs
+import io.craftpanel.master.database.schema.ServerMigrations
+import io.craftpanel.master.database.schema.ServerMods
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.*
@@ -8,6 +17,8 @@ import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.removeContainerCommand
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
 import kotlin.time.Instant
@@ -79,7 +90,7 @@ class ServerService(
         mcVersion: String,
         itzgImageTag: String,
         memoryMb: Int,
-        cpuShares: Int,
+        cpuShares: Int
     ): ServerRow {
         if (memoryMb <= 0) throw UnprocessableException("memory_mb must be positive")
         if (cpuShares < 0) throw UnprocessableException("cpu_shares must be non-negative")
@@ -108,7 +119,7 @@ class ServerService(
             when (capacityChecker.check(node, excludeServerId = null, memoryMb = memoryMb, cpuShares = cpuShares)) {
                 CapacityResult.InsufficientRam -> throw ConflictException("Insufficient RAM capacity on node")
                 CapacityResult.InsufficientCpu -> throw ConflictException("Insufficient CPU capacity on node")
-                CapacityResult.Ok              -> {}
+                CapacityResult.Ok -> {}
             }
 
             val usedPorts = portRepository.findUsedPortsOnNode(nodeKotlinId)
@@ -118,23 +129,23 @@ class ServerService(
 
             val stopCommand = if (st.isProxy) "end" else "stop"
             val newServer = transaction {
-                val s = serverRepository.create(
-                    name = name,
-                    displayName = displayName ?: name,
-                    description = description,
-                    nodeId = nodeKotlinId,
-                    networkId = networkKotlinId,
-                    serverType = st,
-                    mcVersion = mcVersion,
-                    itzgImageTag = itzgImageTag,
-                    hostPort = port,
-                    memoryMb = memoryMb,
-                    cpuShares = cpuShares,
-                    configMode = "MANAGED",
-                    stopCommand = stopCommand
-                )
+                val entity = ServerEntity.new {
+                    this.name = name
+                    this.displayName = displayName ?: name
+                    this.description = description
+                    this.nodeId = nodeKotlinId
+                    this.networkId = networkKotlinId
+                    this.serverType = st.toDb()
+                    this.mcVersion = mcVersion
+                    this.itzgImageTag = itzgImageTag
+                    this.hostPort = port
+                    this.memoryMb = memoryMb
+                    this.cpuShares = cpuShares
+                    this.configMode = "MANAGED"
+                    this.stopCommand = stopCommand
+                }
 
-                portRepository.registerPort(nodeKotlinId, port, "TCP", s.id)
+                portRepository.registerPort(nodeKotlinId, port, "TCP", entity.id.value)
 
                 val platformName = settingsRepository.getAll()
                     .firstOrNull { it.key == "CRAFTPANEL_PLATFORM_NAME" }
@@ -145,22 +156,18 @@ class ServerService(
                 if (!st.isProxy) {
                     val defaults = buildDefaultEnvVars(mcVersion, serverTypeDisplay, platformName)
                     envVarsRepository.replaceEnvVars(
-                        s.id,
+                        entity.id.value,
                         defaults.map { (k, v) ->
                             EnvVarRow(k, v)
                         }
                     )
-                }
-                else {
-                    serverRepository.updateProxySettings(
-                        s.id,
-                        motd = "$serverTypeDisplay powered by $platformName",
-                        maxPlayers = null,
-                        forwardingMode = null
-                    )
+                } else {
+                    entity.proxyMotd = "$serverTypeDisplay powered by $platformName"
+                    entity.proxyMaxPlayers = null
+                    entity.proxyForwardingMode = null
                 }
 
-                s
+                entity.toServerRow()
             }
 
             return newServer
@@ -171,15 +178,13 @@ class ServerService(
             repeat(3) {
                 try {
                     return@run attemptCreate()
-                }
-                catch (ex: Exception) {
+                } catch (ex: Exception) {
                     val cause = generateSequence(ex as Throwable) { it.cause }
                         .filterIsInstance<java.sql.SQLException>()
                         .firstOrNull()
                     if (cause != null && cause.sqlState?.startsWith("23") == true) {
                         lastEx = cause
-                    }
-                    else {
+                    } else {
                         throw ex
                     }
                 }
@@ -190,9 +195,7 @@ class ServerService(
         return result
     }
 
-    fun getServer(id: Uuid): ServerRow {
-        return serverRepository.findById(id) ?: throw NotFoundException("Server not found")
-    }
+    fun getServer(id: Uuid): ServerRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
 
     fun cloneServer(sourceId: Uuid, name: String, displayName: String?, description: String?): ServerRow {
         val source = serverRepository.findById(sourceId)
@@ -228,14 +231,7 @@ class ServerService(
         return getServer(created.id)
     }
 
-    fun updateServer(
-        id: Uuid,
-        displayName: String?,
-        description: String?,
-        networkId: String?,
-        mcVersion: String?,
-        itzgImageTag: String?
-    ) {
+    fun updateServer(id: Uuid, displayName: String?, description: String?, networkId: String?, mcVersion: String?, itzgImageTag: String?) {
         val newNetworkId: Uuid? = networkId?.ifEmpty { null }
             ?.let { parseUuid(it) ?: throw UnprocessableException("Invalid network_id") }
 
@@ -255,19 +251,19 @@ class ServerService(
 
         val needsRecreate = mcVersion != null || itzgImageTag != null
 
-        if (networkId != null && newNetworkId == null) {
-            // empty string = clear networkId
-            serverRepository.clearNetworkId(id)
+        transaction {
+            val e = ServerEntity.findById(id) ?: return@transaction
+            if (networkId != null && newNetworkId == null) {
+                e.networkId = null
+            }
+            if (displayName != null) e.displayName = displayName
+            val cleanDesc = description?.ifEmpty { null }
+            if (cleanDesc != null) e.description = cleanDesc
+            if (newNetworkId != null) e.networkId = newNetworkId
+            if (mcVersion != null) e.mcVersion = mcVersion
+            if (itzgImageTag != null) e.itzgImageTag = itzgImageTag
+            if (needsRecreate) e.needsRecreate = true
         }
-        serverRepository.updateDetails(
-            id,
-            displayName,
-            description?.ifEmpty { null },
-            newNetworkId,
-            mcVersion,
-            itzgImageTag
-        )
-        if (needsRecreate) serverRepository.updateNeedsRecreate(id, true)
     }
 
     fun deleteServer(id: Uuid) {
@@ -303,7 +299,18 @@ class ServerService(
             }
         )
 
-        serverRepository.delete(id)
+        transaction {
+            PortRegistry.deleteWhere { PortRegistry.serverId eq id }
+            ServerMods.deleteWhere { ServerMods.serverId eq id }
+            ServerJobs.deleteWhere { ServerJobs.serverId eq id }
+            ServerMigrations.deleteWhere { ServerMigrations.serverId eq id }
+            ServerEnvVars.deleteWhere { ServerEnvVars.serverId eq id }
+            Backups.deleteWhere { Backups.serverId eq id }
+            ContainerMetrics.deleteWhere { ContainerMetrics.serverId eq id }
+            ProxyBackends.deleteWhere { ProxyBackends.proxyServerId eq id }
+            ProxyBackends.deleteWhere { ProxyBackends.backendServerId eq id }
+            ServerEntity.findById(id)?.delete()
+        }
     }
 
     fun updateResources(id: Uuid, memoryMb: Int, cpuShares: Int, itzgImageTag: String?) {
@@ -315,9 +322,15 @@ class ServerService(
         when (capacityChecker.check(node, excludeServerId = id, memoryMb = memoryMb, cpuShares = cpuShares)) {
             CapacityResult.InsufficientRam -> throw ConflictException("Insufficient RAM capacity on node")
             CapacityResult.InsufficientCpu -> throw ConflictException("Insufficient CPU capacity on node")
-            CapacityResult.Ok              -> {}
+            CapacityResult.Ok -> {}
         }
-        serverRepository.updateResources(id, memoryMb, cpuShares, itzgImageTag, true)
+        transaction {
+            val e = ServerEntity.findById(id) ?: return@transaction
+            e.memoryMb = memoryMb
+            e.cpuShares = cpuShares
+            if (itzgImageTag != null) e.itzgImageTag = itzgImageTag
+            e.needsRecreate = true
+        }
     }
 
     fun getMetrics(id: Uuid, from: Instant, to: Instant): ContainerMetricsSeriesResponse {

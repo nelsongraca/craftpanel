@@ -1,9 +1,11 @@
 package io.craftpanel.master.service.repo.impl
 
 import io.craftpanel.master.database.schema.PortRegistry
+import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -23,7 +25,7 @@ class PortRepositoryImpl : PortRepository {
                 it[PortRegistry.nodeId] = nodeId
                 it[PortRegistry.port] = port
                 it[PortRegistry.protocol] = protocol
-                it[PortRegistry.serverId] = serverId
+                it[PortRegistry.serverId] = serverId?.let { EntityID(it, Servers) }
             }
         }
     }

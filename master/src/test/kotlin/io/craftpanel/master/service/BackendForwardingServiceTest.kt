@@ -3,6 +3,7 @@ package io.craftpanel.master.service
 import io.craftpanel.master.crypto.ForwardingSecretCipher
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.FakeRepositories
+import io.craftpanel.master.service.repo.FakeServerRepository
 import io.craftpanel.master.service.repo.ProxyBackendInput
 import io.craftpanel.master.service.repo.ServerRepository
 import io.kotest.core.spec.style.FunSpec
@@ -32,38 +33,67 @@ class BackendForwardingServiceTest :
 
         fun createNode(hostname: String = "node-1"): Uuid {
             val id = Uuid.random()
-            repos.serverRepository.create(
+            repos.servers[id] = FakeServerRepository.MutableServer(
+                id = id,
                 name = "node-$id",
                 displayName = hostname,
-                description = null, nodeId = id, networkId = null,
-                serverType = ServerType.VANILLA, mcVersion = "1.21.4",
-                itzgImageTag = "latest", hostPort = 25565, memoryMb = 1024,
-                cpuShares = 0, configMode = "MANAGED", stopCommand = "stop"
+                description = null,
+                nodeId = id,
+                networkId = null,
+                serverType = ServerType.VANILLA,
+                mcVersion = "1.21.4",
+                hostPort = 25565,
+                memoryMb = 1024,
+                cpuShares = 0,
+                configMode = "MANAGED",
+                stopCommand = "stop",
+                itzgImageTag = "latest"
             )
             return id
         }
 
         fun createProxy(nodeId: Uuid, name: String = "proxy", forwardingMode: String = "MODERN"): Uuid {
-            val id = serverRepository.create(
+            val id = Uuid.random()
+            repos.servers[id] = FakeServerRepository.MutableServer(
+                id = id,
                 name = name,
                 displayName = name,
-                description = null, nodeId = nodeId, networkId = null,
-                serverType = ServerType.VELOCITY, mcVersion = "1.21.4",
-                itzgImageTag = "latest", hostPort = 25577, memoryMb = 1024,
-                cpuShares = 0, configMode = "MANAGED", stopCommand = "stop"
-            ).id
-            serverRepository.updateProxySettings(id, null, null, forwardingMode)
+                description = null,
+                nodeId = nodeId,
+                networkId = null,
+                serverType = ServerType.VELOCITY,
+                mcVersion = "1.21.4",
+                hostPort = 25577,
+                memoryMb = 1024,
+                cpuShares = 0,
+                configMode = "MANAGED",
+                stopCommand = "stop",
+                itzgImageTag = "latest",
+                proxyForwardingMode = forwardingMode
+            )
             return id
         }
 
-        fun createBackend(nodeId: Uuid, name: String, type: ServerType, configMode: String = "MANAGED"): Uuid = serverRepository.create(
-            name = name,
-            displayName = name,
-            description = null, nodeId = nodeId, networkId = null,
-            serverType = type, mcVersion = "1.21.4",
-            itzgImageTag = "latest", hostPort = 25565, memoryMb = 1024,
-            cpuShares = 0, configMode = configMode, stopCommand = "stop"
-        ).id
+        fun createBackend(nodeId: Uuid, name: String, type: ServerType, configMode: String = "MANAGED"): Uuid {
+            val id = Uuid.random()
+            repos.servers[id] = FakeServerRepository.MutableServer(
+                id = id,
+                name = name,
+                displayName = name,
+                description = null,
+                nodeId = nodeId,
+                networkId = null,
+                serverType = type,
+                mcVersion = "1.21.4",
+                hostPort = 25565,
+                memoryMb = 1024,
+                cpuShares = 0,
+                configMode = configMode,
+                stopCommand = "stop",
+                itzgImageTag = "latest"
+            )
+            return id
+        }
 
         beforeEach {
             writeCalls.clear()
@@ -150,7 +180,7 @@ class BackendForwardingServiceTest :
         test("skips entire fan-out when proxy is MANUAL") {
             val nodeId = createNode()
             val proxyId = createProxy(nodeId)
-            serverRepository.updateConfigMode(proxyId, "MANUAL")
+            repos.servers[proxyId]!!.configMode = "MANUAL"
             val paperId = createBackend(nodeId, "paper-1", ServerType.PAPER)
             repos.proxyBackendRepository.replaceProxyBackends(proxyId, listOf(ProxyBackendInput(paperId, "paper-1", 0)))
 

@@ -3,9 +3,8 @@ package io.craftpanel.master.service
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.crypto.ForwardingSecretCipher
+import io.craftpanel.master.database.entity.ServerEntity
 import io.craftpanel.master.database.schema.Nodes
-import io.craftpanel.master.database.schema.ServerNetworks
-import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.ServerRepository
 import io.kotest.assertions.throwables.shouldThrow
@@ -48,21 +47,23 @@ class ProxySettingsServiceTest :
             }[Nodes.id].let { Uuid.parse(it.toString()) }
         }
 
-        fun createServer(nodeId: Uuid, type: ServerType): Uuid = serverRepository.create(
-            name = "srv-${Uuid.random()}",
-            displayName = "srv",
-            description = null,
-            nodeId = nodeId,
-            networkId = null,
-            serverType = type,
-            mcVersion = "1.21.4",
-            itzgImageTag = "latest",
-            hostPort = 25565,
-            memoryMb = 1024,
-            cpuShares = 0,
-            configMode = "MANAGED",
-            stopCommand = "stop"
-        ).id
+        fun createServer(nodeId: Uuid, type: ServerType): Uuid = transaction {
+            ServerEntity.new {
+                name = "srv-${Uuid.random()}"
+                displayName = "srv"
+                description = null
+                this.nodeId = nodeId
+                networkId = null
+                serverType = type.toDb()
+                mcVersion = "1.21.4"
+                itzgImageTag = "latest"
+                hostPort = 25565
+                memoryMb = 1024
+                cpuShares = 0
+                configMode = "MANAGED"
+                stopCommand = "stop"
+            }.id.value
+        }
 
         test("rejects a non-proxy server with ConflictException") {
             val nodeId = createNode()

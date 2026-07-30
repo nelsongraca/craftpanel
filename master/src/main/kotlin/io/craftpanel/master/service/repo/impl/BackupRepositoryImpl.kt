@@ -1,6 +1,7 @@
 package io.craftpanel.master.service.repo.impl
 
 import io.craftpanel.master.database.schema.Backups
+import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.BackupStatus
 import io.craftpanel.master.domain.BackupTrigger
 import io.craftpanel.master.service.repo.*
@@ -9,6 +10,7 @@ import io.craftpanel.master.util.toUtcString
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.time.Clock
@@ -33,7 +35,7 @@ class BackupRepositoryImpl : BackupRepository {
 
     override fun createBackup(serverId: Uuid, nodeId: Uuid, trigger: BackupTrigger): BackupRow = transaction {
         val id = Backups.insert {
-            it[Backups.serverId] = serverId
+            it[Backups.serverId] = EntityID(serverId, Servers)
             it[Backups.nodeId] = nodeId
             it[Backups.trigger] = trigger.name
             it[Backups.status] = BackupStatus.IN_PROGRESS.name
@@ -99,7 +101,7 @@ class BackupRepositoryImpl : BackupRepository {
 
 private fun ResultRow.toBackupRow() = BackupRow(
     id = this[Backups.id],
-    serverId = this[Backups.serverId],
+    serverId = this[Backups.serverId].value,
     nodeId = this[Backups.nodeId],
     trigger = this[Backups.trigger],
     status = this[Backups.status],

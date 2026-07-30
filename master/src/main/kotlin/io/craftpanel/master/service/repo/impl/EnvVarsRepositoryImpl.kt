@@ -1,9 +1,11 @@
 package io.craftpanel.master.service.repo.impl
 
 import io.craftpanel.master.database.schema.ServerEnvVars
+import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
@@ -21,7 +23,7 @@ class EnvVarsRepositoryImpl : EnvVarsRepository {
             ServerEnvVars.deleteWhere { ServerEnvVars.serverId eq serverId }
             envVars.forEach { ev ->
                 ServerEnvVars.insert {
-                    it[ServerEnvVars.serverId] = serverId
+                    it[ServerEnvVars.serverId] = EntityID(serverId, Servers)
                     it[ServerEnvVars.key] = ev.key
                     it[ServerEnvVars.value] = ev.value
                 }
@@ -40,7 +42,7 @@ class EnvVarsRepositoryImpl : EnvVarsRepository {
                 }
             } else {
                 ServerEnvVars.insert {
-                    it[ServerEnvVars.serverId] = serverId
+                    it[ServerEnvVars.serverId] = EntityID(serverId, Servers)
                     it[ServerEnvVars.key] = key
                     it[ServerEnvVars.value] = value
                 }

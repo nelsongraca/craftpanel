@@ -7,7 +7,6 @@ plans
 openapi.json
 .env
 .local/
-graphify-out/
 .claude
 .agents
 .antigravitycli
@@ -16,3 +15,6 @@ graphify-out/
 .scratch
 .serena
 .playwright-mcp
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+graft/

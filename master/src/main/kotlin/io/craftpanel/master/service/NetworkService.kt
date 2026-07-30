@@ -1,11 +1,16 @@
 package io.craftpanel.master.service
 
 import com.github.dockerjava.api.DockerClient
+import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
 @Serializable
@@ -185,7 +190,7 @@ class NetworkService(
 
     fun deleteNetwork(id: Uuid) {
         networkRepository.findById(id) ?: throw NotFoundException("Network not found")
-        serverRepository.nullifyNetworkId(id)
+        transaction { Servers.selectAll().where { Servers.networkId eq id }.forEach { ServerEntity.findById(it[Servers.id])?.let { s -> s.networkId = null } } }
         networkRepository.delete(id)
         deleteOverlayNetwork(id.toString())
     }

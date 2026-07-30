@@ -1,7 +1,10 @@
 package io.craftpanel.master.service
 import io.craftpanel.master.domain.ServerType
-import io.craftpanel.master.service.repo.*
-import io.craftpanel.master.service.repo.impl.*
+import io.craftpanel.master.service.repo.FakeNetworkRepository
+import io.craftpanel.master.service.repo.FakeRepositories
+import io.craftpanel.master.service.repo.FakeServerRepository
+import io.craftpanel.master.service.repo.FakeSettingsRepository
+import io.craftpanel.master.service.repo.ServerRow
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
@@ -52,13 +55,15 @@ class ServerExposureTest :
     FunSpec({
         lateinit var networkRepository: FakeNetworkRepository
         lateinit var settingsRepository: FakeSettingsRepository
+        lateinit var repos: FakeRepositories
         lateinit var serverRepository: FakeServerRepository
         lateinit var serverExposure: ServerExposure
 
         beforeTest {
             networkRepository = FakeNetworkRepository()
             settingsRepository = FakeSettingsRepository()
-            serverRepository = FakeServerRepository(FakeRepositories())
+            repos = FakeRepositories()
+            serverRepository = FakeServerRepository(repos)
             serverExposure = ServerExposure(networkRepository, settingsRepository, serverRepository)
         }
 
@@ -202,20 +207,14 @@ class ServerExposureTest :
             }
 
             test("rejects collision with another server's custom hostname") {
-                val other = serverRepository.create(
+                val otherId = Uuid.random()
+                repos.servers[otherId] = FakeServerRepository.MutableServer(
+                    id = otherId,
                     name = "other", displayName = "other", description = null,
                     nodeId = Uuid.random(), networkId = null, serverType = ServerType.VANILLA,
                     mcVersion = "1.21.4", itzgImageTag = "latest", hostPort = 25566,
-                    memoryMb = 1024, cpuShares = 0, configMode = "MANAGED", stopCommand = "stop"
-                )
-                serverRepository.updateExposure(
-                    id = other.id,
-                    exposedExternally = true,
-                    publicSubdomain = null,
-                    customHostname = "taken.example.com",
-                    dnsRecordId = null,
-                    dnsRecordName = null,
-                    needsRecreate = null
+                    memoryMb = 1024, cpuShares = 0, configMode = "MANAGED", stopCommand = "stop",
+                    exposedExternally = true, customHostname = "taken.example.com"
                 )
                 shouldThrow<UnprocessableException> {
                     serverExposure.validateCustomHostname("taken.example.com", Uuid.random())
@@ -223,39 +222,28 @@ class ServerExposureTest :
             }
 
             test("allows a server to keep its own custom hostname (excludeServerId)") {
-                val server = serverRepository.create(
+                val serverId = Uuid.random()
+                repos.servers[serverId] = FakeServerRepository.MutableServer(
+                    id = serverId,
                     name = "self", displayName = "self", description = null,
                     nodeId = Uuid.random(), networkId = null, serverType = ServerType.VANILLA,
                     mcVersion = "1.21.4", itzgImageTag = "latest", hostPort = 25567,
-                    memoryMb = 1024, cpuShares = 0, configMode = "MANAGED", stopCommand = "stop"
+                    memoryMb = 1024, cpuShares = 0, configMode = "MANAGED", stopCommand = "stop",
+                    exposedExternally = true, customHostname = "self.example.com"
                 )
-                serverRepository.updateExposure(
-                    id = server.id,
-                    exposedExternally = true,
-                    publicSubdomain = null,
-                    customHostname = "self.example.com",
-                    dnsRecordId = null,
-                    dnsRecordName = null,
-                    needsRecreate = null
-                )
-                serverExposure.validateCustomHostname("self.example.com", server.id)
+                serverExposure.validateCustomHostname("self.example.com", serverId)
             }
 
             test("rejects collision with a managed DNS record name") {
-                val other = serverRepository.create(
+                val otherId = Uuid.random()
+                repos.servers[otherId] = FakeServerRepository.MutableServer(
+                    id = otherId,
                     name = "other2", displayName = "other2", description = null,
                     nodeId = Uuid.random(), networkId = null, serverType = ServerType.VANILLA,
                     mcVersion = "1.21.4", itzgImageTag = "latest", hostPort = 25568,
-                    memoryMb = 1024, cpuShares = 0, configMode = "MANAGED", stopCommand = "stop"
-                )
-                serverRepository.updateExposure(
-                    id = other.id,
-                    exposedExternally = true,
-                    publicSubdomain = "play",
-                    customHostname = null,
-                    dnsRecordId = "rec1",
-                    dnsRecordName = "play.example.com",
-                    needsRecreate = null
+                    memoryMb = 1024, cpuShares = 0, configMode = "MANAGED", stopCommand = "stop",
+                    exposedExternally = true, publicSubdomain = "play",
+                    dnsRecordId = "rec1", dnsRecordName = "play.example.com"
                 )
                 shouldThrow<UnprocessableException> {
                     serverExposure.validateCustomHostname("play.example.com", Uuid.random())

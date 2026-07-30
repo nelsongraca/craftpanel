@@ -1,10 +1,12 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.database.entity.ServerEntity
 import io.craftpanel.master.domain.ConfigMode
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
 @Serializable
@@ -36,20 +38,26 @@ class EnvVarsService(private val serverRepository: ServerRepository, private val
         val keys = req.envVars.map { it.key.trim() }
         if (keys.size != keys.toSet().size) throw UnprocessableException("Duplicate env var keys")
         envVarsRepository.replaceEnvVars(serverId, req.envVars.map { EnvVarRow(it.key.trim(), it.value) })
-        serverRepository.updateNeedsRecreate(serverId, true)
+        transaction { ServerEntity.findById(serverId)?.let { it.needsRecreate = true } }
         return getEnvVars(serverId)
     }
 
     fun updateStopCommand(serverId: Uuid, req: PatchStopCommandRequest) {
         serverRepository.findById(serverId) ?: throw NotFoundException("Server not found")
-        serverRepository.updateStopCommand(serverId, req.stopCommand)
-        serverRepository.updateNeedsRecreate(serverId, true)
+        transaction {
+            val e = ServerEntity.findById(serverId) ?: return@transaction
+            e.stopCommand = req.stopCommand
+            e.needsRecreate = true
+        }
     }
 
     fun updateConfigMode(serverId: Uuid, req: PatchConfigModeRequest): EnvVarsResponse {
         serverRepository.findById(serverId) ?: throw NotFoundException("Server not found")
-        serverRepository.updateConfigMode(serverId, req.configMode.name)
-        serverRepository.updateNeedsRecreate(serverId, true)
+        transaction {
+            val e = ServerEntity.findById(serverId) ?: return@transaction
+            e.configMode = req.configMode.name
+            e.needsRecreate = true
+        }
         return getEnvVars(serverId)
     }
 }

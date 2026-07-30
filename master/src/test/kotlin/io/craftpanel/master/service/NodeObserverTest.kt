@@ -18,6 +18,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.uuid.Uuid
 
@@ -57,7 +58,7 @@ class NodeObserverTest :
                     it[Servers.memoryMb] = 1024
                     it[Servers.cpuShares] = 0
                     it[Servers.status] = "HEALTHY"
-                }[Servers.id]
+                }[Servers.id].value
             }
         }
 
@@ -102,7 +103,11 @@ class NodeObserverTest :
                 val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
                 val crashRestarts = Channel<Uuid>(Channel.BUFFERED)
                 val restartManager = ServerRestartManager(maxAttempts = 3, windowSeconds = 3600)
-                repos.serverRepository.updateStatus(serverId, "STOPPED", null)
+                transaction {
+                    Servers.update({ Servers.id eq serverId }) {
+                        it[Servers.status] = "STOPPED"
+                    }
+                }
                 val job = observer(restartManager, crashRestarts, events).start(this)
                 delay(50.milliseconds)
 

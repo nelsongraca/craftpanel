@@ -17,6 +17,7 @@ import io.ktor.server.routing.*
 import io.ktor.server.testing.*
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -214,7 +215,7 @@ class ServersRoutesTest :
                 val serverId = createServer(nodeId, "migrating-server")
                 transaction {
                     ServerMigrations.insert {
-                        it[ServerMigrations.serverId] = serverId
+                        it[ServerMigrations.serverId] = EntityID(serverId, Servers)
                         it[ServerMigrations.sourceNodeId] = nodeId
                         it[ServerMigrations.targetNodeId] = nodeId
                         it[ServerMigrations.status] = "RUNNING"
@@ -623,7 +624,7 @@ class ServersRoutesTest :
                         it[PortRegistry.nodeId] = nodeId
                         it[PortRegistry.port] = 25565
                         it[PortRegistry.protocol] = "TCP"
-                        it[PortRegistry.serverId] = serverId
+                        it[PortRegistry.serverId] = EntityID(serverId, Servers)
                     }
                 }
                 val resp = client.delete("/api/servers/$serverId") { bearerAuth(tokenFor(userId)) }

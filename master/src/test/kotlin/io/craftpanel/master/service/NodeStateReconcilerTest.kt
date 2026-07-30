@@ -8,6 +8,7 @@ import io.craftpanel.proto.*
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -55,7 +56,7 @@ class NodeStateReconcilerTest :
 
         fun createMigration(nodeId: Uuid, status: String): Uuid = transaction {
             ServerMigrations.insert {
-                it[ServerMigrations.serverId] = createServer(nodeId)
+                it[ServerMigrations.serverId] = EntityID(createServer(nodeId), Servers)
                 it[ServerMigrations.sourceNodeId] = nodeId
                 it[ServerMigrations.targetNodeId] = nodeId
                 it[ServerMigrations.status] = status
@@ -64,7 +65,7 @@ class NodeStateReconcilerTest :
 
         fun createBackup(nodeId: Uuid, serverId: Uuid, status: String): Uuid = transaction {
             Backups.insert {
-                it[Backups.serverId] = serverId
+                it[Backups.serverId] = EntityID(serverId, Servers)
                 it[Backups.nodeId] = nodeId
                 it[Backups.trigger] = "MANUAL"
                 it[Backups.status] = status

@@ -1,12 +1,16 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.auth.ScopeType
+import io.craftpanel.master.database.entity.ServerEntity
 import io.craftpanel.master.domain.*
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.SendChannel
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
@@ -106,7 +110,12 @@ class NodeObserver(
 
         val prevStatus = serverRepository.findById(serverId)
             ?.let { ServerStatus.fromDb(it.status) }
-        serverRepository.updateStatus(serverId, event.status.toDb(), now)
+        transaction {
+            ServerEntity.findById(serverId)?.let {
+                it.status = event.status.toDb()
+                it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
+            }
+        }
 
         maybeRestartOnCrash(serverId, prevStatus, event.status)
     }
@@ -137,7 +146,12 @@ class NodeObserver(
         val namesString = event.playerNames.joinToString(",")
             .takeIf { s -> s.isNotBlank() }
 
-        serverRepository.updatePlayerInfo(serverId, event.playerCount, namesString, now)
+        transaction {
+            val e = ServerEntity.findById(serverId) ?: return@transaction
+            e.lastPlayerCount = event.playerCount
+            e.lastPlayerNames = namesString
+            e.lastPlayerUpdate = now.toLocalDateTime(TimeZone.UTC)
+        }
     }
 
     private fun persistBackupComplete(event: AgentEvent.BackupCompleteEvent) {

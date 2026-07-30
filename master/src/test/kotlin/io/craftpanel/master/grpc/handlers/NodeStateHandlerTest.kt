@@ -15,6 +15,7 @@ import io.craftpanel.proto.nodeStateSnapshot
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.MutableSharedFlow
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
@@ -73,7 +74,7 @@ class NodeStateHandlerTest :
             val serverId = createServer(nodeId, "survival-world")
             transaction {
                 Backups.insert {
-                    it[Backups.serverId] = serverId
+                    it[Backups.serverId] = EntityID(serverId, Servers)
                     it[Backups.nodeId] = nodeId
                     it[Backups.trigger] = "MANUAL"
                     it[Backups.status] = "COMPLETED"
