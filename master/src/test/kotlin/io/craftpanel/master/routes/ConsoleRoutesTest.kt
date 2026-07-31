@@ -3,14 +3,11 @@ package io.craftpanel.master.routes
 import io.craftpanel.master.*
 import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.auth.WsTicketService
-import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
-import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.master.service.SystemService
-import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
 import io.craftpanel.master.service.repo.impl.SettingsRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
@@ -22,14 +19,8 @@ import kotlin.uuid.Uuid
 class ConsoleRoutesTest :
     FunSpec({
         val repos = TestRepositories()
-        val reconciler = NodeStateReconciler(
-            serverRepository = repos.serverRepository,
-            nodeRepository = NodeRepositoryImpl(),
-            migrationRepository = repos.migrationRepository,
-            backupRepository = repos.backupRepository
-        )
-        val noopControlSvc = createTestControlServiceImpl(NodeConfig("test-token", 50052), reconciler)
-        val noopProxy = DataServiceProxy(noopControlSvc, BulkDataServiceImpl(noopControlSvc), repos.serverRepository)
+        val noopNodeRegistrar = createTestNodeRegistrar()
+        val noopProxy = DataServiceProxy(createTestAgentDataOps(), BulkDataServiceImpl(noopNodeRegistrar), repos.serverRepository)
         val consoleRoutes = ConsoleRoutes(WsTicketService(), noopProxy, PermissionResolver, SystemService(settingsRepository = SettingsRepositoryImpl()))
 
         beforeTest {

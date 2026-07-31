@@ -3,12 +3,9 @@ package io.craftpanel.master.routes
 import io.craftpanel.master.*
 import io.craftpanel.master.auth.*
 import io.craftpanel.master.config.JwtConfig
-import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
-import io.craftpanel.master.service.NodeStateReconciler
-import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.ktor.client.request.*
@@ -31,14 +28,8 @@ class FilesRoutesTest :
         )
         val jwtManager = JwtManager(jwtConfig)
         val repos = TestRepositories()
-        val reconciler = NodeStateReconciler(
-            serverRepository = repos.serverRepository,
-            nodeRepository = NodeRepositoryImpl(),
-            migrationRepository = repos.migrationRepository,
-            backupRepository = repos.backupRepository
-        )
-        val noopControlSvc = createTestControlServiceImpl(NodeConfig("test-token", 50052), reconciler)
-        val noopProxy = DataServiceProxy(noopControlSvc, BulkDataServiceImpl(noopControlSvc), repos.serverRepository)
+        val noopNodeRegistrar = createTestNodeRegistrar()
+        val noopProxy = DataServiceProxy(createTestAgentDataOps(), BulkDataServiceImpl(noopNodeRegistrar), repos.serverRepository)
 
         beforeTest {
             TestDatabase.initIfNeeded()

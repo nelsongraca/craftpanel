@@ -1,52 +1,32 @@
 package io.craftpanel.master.grpc
 
-import io.craftpanel.master.config.NodeConfig
-import io.craftpanel.master.database.entity.Node
-import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.domain.*
 import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.service.AgentGateway
 import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.master.service.repo.BackupRepository
-import io.craftpanel.master.service.repo.NodeRepository
-import io.craftpanel.master.service.repo.NodeRow
 import io.craftpanel.master.service.repo.ServerRepository
-import io.craftpanel.master.util.CryptoUtils
 import io.craftpanel.master.util.formatSymlinkTimestamp
-import io.craftpanel.master.util.toUtcString
 import io.craftpanel.proto.*
-import io.grpc.Status
-import io.grpc.StatusException
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.*
 import kotlinx.coroutines.flow.*
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
-import org.jetbrains.exposed.v1.core.dao.id.EntityID
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.selectAll
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
-import java.security.MessageDigest
-import java.security.SecureRandom
-import java.util.*
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Clock
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 class ControlServiceImpl(
-    private val nodeConfig: NodeConfig,
     private val nodeStateReconciler: NodeStateReconciler,
-    private val nodeRepository: NodeRepository,
+    private val nodeRegistrar: NodeRegistrar,
     private val onNodeDisconnect: (String) -> Unit = {},
     // Shared agent events flow (passed to handlers)
     private val agentEventsFlow: MutableSharedFlow<AgentEvent>,
-    // Shared data op context (passed to DataOpResponseHandler)
+    // Shared data op context (drained on node disconnect)
     private val dataOpContext: DataOpContext,
     // Handlers (all share the same agentEventsFlow)
     private val nodeStateHandler: NodeStateHandler,
@@ -63,16 +43,7 @@ class ControlServiceImpl(
     AgentGateway {
 
     private val log = LoggerFactory.getLogger(ControlServiceImpl::class.java)
-    private val random = SecureRandom()
     private val connectedAgents = ConcurrentHashMap<String, SendChannel<MasterMessage>>()
-
-    companion object {
-
-        // Mirrors Nodes.portRangeStart/portRangeEnd column defaults — actual range is assigned
-        // by an admin at node-approval time (trustNode), not at registration.
-        private const val DEFAULT_PORT_RANGE_START = 25570
-        private const val DEFAULT_PORT_RANGE_END = 26070
-    }
 
     // ── Observability flows ───────────────────────────────────────────────────
     override val agentEvents = agentEventsFlow.asSharedFlow()
@@ -135,95 +106,9 @@ class ControlServiceImpl(
 
     // ── gRPC: registration / identification ──────────────────────────────────
 
-    override suspend fun registerNode(request: RegisterNodeRequest): RegisterNodeResponse {
-        require(
-            MessageDigest.isEqual(
-                request.bootstrapToken.toByteArray(Charsets.UTF_8),
-                nodeConfig.bootstrapToken.toByteArray(Charsets.UTF_8)
-            )
-        ) { "Invalid bootstrap token" }
+    override suspend fun registerNode(request: RegisterNodeRequest): RegisterNodeResponse = nodeRegistrar.registerNode(request)
 
-        val rawKey = generateNodeKey()
-        val keyHash = sha256Hex(rawKey)
-        val meta = request.metadata
-        val now = Clock.System.now()
-
-        val created = transaction {
-            val e = Node.new {
-                this.displayName = meta.hostname
-                this.hostname = meta.hostname
-                this.publicIp = meta.publicIp
-                this.privateIp = meta.privateIp
-                this.tokenHash = keyHash
-                this.portRangeStart = DEFAULT_PORT_RANGE_START
-                this.portRangeEnd = DEFAULT_PORT_RANGE_END
-                this.totalRamMb = meta.totalRamMb
-                this.totalCpuShares = meta.totalCpuShares
-                this.agentVersion = meta.agentVersion.takeIf { v -> v.isNotEmpty() }
-                this.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
-            }
-            val row = Nodes.selectAll().where { Nodes.id eq e.id }.first()
-            NodeRow(
-                id = row[Nodes.id].value,
-                displayName = row[Nodes.displayName],
-                hostname = row[Nodes.hostname],
-                publicIp = row[Nodes.publicIp],
-                privateIp = row[Nodes.privateIp],
-                tokenHash = row[Nodes.tokenHash],
-                status = row[Nodes.status],
-                health = row[Nodes.health],
-                totalRamMb = row[Nodes.totalRamMb],
-                totalCpuShares = row[Nodes.totalCpuShares],
-                systemRamUsedMb = row[Nodes.systemRamUsedMb],
-                reservedRamMb = row[Nodes.reservedRamMb],
-                portRangeStart = row[Nodes.portRangeStart],
-                portRangeEnd = row[Nodes.portRangeEnd],
-                swarmActive = row[Nodes.swarmActive],
-                agentVersion = row[Nodes.agentVersion],
-                lastSeenAt = row[Nodes.lastSeenAt]?.toUtcString(),
-                createdAt = row[Nodes.createdAt].toUtcString(),
-                updatedAt = row[Nodes.updatedAt].toUtcString()
-            )
-        }
-
-        log.info("Node registered: ${created.id} (${meta.hostname}) — status PENDING, awaiting admin approval")
-        return registerNodeResponse {
-            nodeKey = rawKey
-            nodeId = created.id.toString()
-        }
-    }
-
-    override suspend fun identifyNode(request: IdentifyNodeRequest): IdentifyNodeResponse {
-        val keyHash = sha256Hex(request.nodeKey)
-        val now = Clock.System.now()
-
-        val existing = nodeRepository.findByTokenHash(keyHash)
-        if (existing != null) {
-            transaction {
-                Node.findById(existing.id)?.let {
-                    it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
-                    it.publicIp = request.metadata.publicIp
-                    if (request.metadata.agentVersion.isNotEmpty()) it.agentVersion = request.metadata.agentVersion
-                    it.privateIp = request.metadata.privateIp
-                    if (request.metadata.hostname.isNotEmpty()) it.hostname = request.metadata.hostname
-                }
-            }
-        }
-
-        val identifyStatus = when (existing?.let { NodeStatus.fromDb(it.status) }) {
-            NodeStatus.ACTIVE -> IdentifyNodeResponse.IdentifyStatus.ACTIVE
-            NodeStatus.PENDING -> IdentifyNodeResponse.IdentifyStatus.PENDING
-            else -> IdentifyNodeResponse.IdentifyStatus.REJECTED
-        }
-
-        val rowId = existing?.id
-            ?.toString() ?: ""
-        log.info("Node identified: $rowId — $identifyStatus")
-        return identifyNodeResponse {
-            status = identifyStatus
-            nodeId = rowId
-        }
-    }
+    override suspend fun identifyNode(request: IdentifyNodeRequest): IdentifyNodeResponse = nodeRegistrar.identifyNode(request)
 
     // ── gRPC: control stream ─────────────────────────────────────────────────
 
@@ -268,17 +153,7 @@ class ControlServiceImpl(
     }
 
     private fun authenticate(nodeId: String, outChannel: SendChannel<MasterMessage>) {
-        val nodeStatus = nodeRepository.findById(Uuid.parse(nodeId))?.status
-        log.info("Node $nodeId: first message, db status=$nodeStatus")
-        if (nodeStatus != "ACTIVE") {
-            val reason = when (nodeStatus) {
-                "PENDING" -> "Node $nodeId is pending admin approval"
-                "REJECTED" -> "Node $nodeId has been rejected"
-                "DECOMMISSIONED" -> "Node $nodeId has been decommissioned"
-                else -> "Node $nodeId is not authorized to connect"
-            }
-            throw StatusException(Status.PERMISSION_DENIED.withDescription(reason))
-        }
+        nodeRegistrar.requireActive(nodeId)
         connectedAgents[nodeId] = outChannel
         log.debug("Node $nodeId: registered in connectedAgents (channel=${System.identityHashCode(outChannel)})")
     }
@@ -375,114 +250,4 @@ class ControlServiceImpl(
             }
         }
     }
-
-    // ── Public data op methods (called by DataServiceProxy) ──────────────────
-
-    /** Send a MasterMessage and wait for the agent's AgentMessage response. */
-    internal suspend fun sendAndAwait(nodeId: String, reqId: String, msg: MasterMessage, timeoutMs: Long = 30_000): AgentMessage {
-        val deferred = CompletableDeferred<AgentMessage>()
-        pendingRequests["$nodeId/$reqId"] = deferred
-        if (!sendToNode(nodeId, msg)) {
-            pendingRequests.remove("$nodeId/$reqId")
-            error("Node $nodeId is not connected")
-        }
-        return try {
-            withTimeout(timeoutMs.milliseconds) { deferred.await() }
-        } finally {
-            pendingRequests.remove("$nodeId/$reqId")
-        }
-    }
-
-    /** Open a multiplexed console session over the control stream. */
-    internal fun openConsole(nodeId: String, serverId: String, input: Flow<ByteArray>): Flow<ConsoleOutput> = channelFlow {
-        val reqId = Uuid.random()
-            .toString()
-        val outputChannel = Channel<ConsoleOutput>(Channel.BUFFERED)
-        consoleOutputChannels["$nodeId/$reqId"] = outputChannel
-
-        if (!sendToNode(
-                nodeId,
-                masterMessage {
-                    consoleAttach = consoleAttach {
-                        requestId = reqId
-                        this.serverId = serverId
-                    }
-                }
-            )
-        ) {
-            consoleOutputChannels.remove("$nodeId/$reqId")
-            error("Node $nodeId is not connected")
-        }
-
-        // Forward browser input to agent
-        val inputJob = launch {
-            try {
-                input.collect { bytes ->
-                    sendToNode(
-                        nodeId,
-                        masterMessage {
-                            consoleInput = consoleInput {
-                                requestId = reqId
-                                data = com.google.protobuf.ByteString.copyFrom(bytes)
-                            }
-                        }
-                    )
-                }
-            } finally {
-                sendToNode(
-                    nodeId,
-                    masterMessage {
-                        consoleDetach = consoleDetach { requestId = reqId }
-                    }
-                )
-            }
-        }
-
-        // Forward agent output to caller
-        try {
-            for (output in outputChannel) {
-                send(output)
-                if (output.closed) break
-            }
-        } finally {
-            consoleOutputChannels.remove("$nodeId/$reqId")
-                ?.close()
-            inputJob.cancel()
-        }
-    }
-
-    /** Fetch static container logs for crash diagnosis. Works for any container state. */
-    internal suspend fun fetchContainerLogs(nodeId: String, serverId: String, tailLines: Int): List<String> {
-        val reqId = Uuid.random().toString()
-        val response = sendAndAwait(
-            nodeId,
-            reqId,
-            masterMessage {
-                fetchContainerLogs = fetchContainerLogsRequest {
-                    requestId = reqId
-                    this.serverId = serverId
-                    this.tailLines = tailLines
-                }
-            }
-        )
-        val fetchResponse = response.fetchContainerLogsResponse
-        if (fetchResponse.closed) return emptyList()
-        return fetchResponse.linesList
-    }
-
-    /** Verify a node key from a bulk transfer auth header against the DB. */
-    internal fun verifyNodeKey(rawNodeKey: String): Boolean {
-        val hash = sha256Hex(rawNodeKey)
-        return nodeRepository.findByTokenHash(hash)?.status == "ACTIVE"
-    }
-
-    // ── Utility ───────────────────────────────────────────────────────────────
-
-    fun generateNodeKey(): String = CryptoUtils.generateToken(32)
-
-    private fun sha256Hex(input: String): String = HexFormat.of()
-        .formatHex(
-            MessageDigest.getInstance("SHA-256")
-                .digest(input.toByteArray())
-        )
 }

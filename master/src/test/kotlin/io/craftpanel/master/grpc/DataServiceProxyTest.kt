@@ -3,7 +3,7 @@ package io.craftpanel.master.grpc
 import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
-import io.craftpanel.master.config.NodeConfig
+import io.craftpanel.master.createTestNodeRegistrar
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.grpc.handlers.*
@@ -25,7 +25,6 @@ import kotlin.uuid.Uuid
 
 class DataServiceProxyTest :
     FunSpec({
-        lateinit var controlSvc: ControlServiceImpl
         lateinit var proxy: DataServiceProxy
 
         beforeTest {
@@ -44,10 +43,9 @@ class DataServiceProxyTest :
             val backupHandler = BackupHandler(agentEvents)
             val migrationHandler = MigrationHandler(agentEvents)
             val dataOpResponseHandler = DataOpResponseHandler(dataOpContext)
-            controlSvc = ControlServiceImpl(
-                nodeConfig = NodeConfig("test-token", 50052),
+            val controlSvc = ControlServiceImpl(
                 nodeStateReconciler = reconciler,
-                nodeRepository = nodeRepository,
+                nodeRegistrar = createTestNodeRegistrar(nodeRepository = nodeRepository),
                 agentEventsFlow = agentEvents,
                 dataOpContext = dataOpContext,
                 nodeStateHandler = nodeStateHandler,
@@ -61,7 +59,8 @@ class DataServiceProxyTest :
                 serverRepository = repos.serverRepository,
                 backupRepository = repos.backupRepository
             )
-            proxy = DataServiceProxy(controlSvc, BulkDataServiceImpl(controlSvc), repos.serverRepository)
+            val agentDataOps = AgentDataOps(dataOpContext) { nodeId, msg -> controlSvc.sendToNode(nodeId, msg) }
+            proxy = DataServiceProxy(agentDataOps, BulkDataServiceImpl(createTestNodeRegistrar(nodeRepository = nodeRepository)), repos.serverRepository)
         }
 
         fun createNode(): Uuid = transaction {

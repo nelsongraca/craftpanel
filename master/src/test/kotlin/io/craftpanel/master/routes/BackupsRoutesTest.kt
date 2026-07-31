@@ -3,13 +3,10 @@ package io.craftpanel.master.routes
 import io.craftpanel.master.*
 import io.craftpanel.master.auth.*
 import io.craftpanel.master.config.JwtConfig
-import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.service.BackupService
-import io.craftpanel.master.service.NodeStateReconciler
-import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.ktor.client.call.*
@@ -17,10 +14,10 @@ import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.server.routing.*
 import io.ktor.server.testing.*
-import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.json.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -37,14 +34,8 @@ class BackupsRoutesTest :
         )
         val jwtManager = JwtManager(jwtConfig)
         val repos = TestRepositories()
-        val reconciler = NodeStateReconciler(
-            serverRepository = repos.serverRepository,
-            nodeRepository = NodeRepositoryImpl(),
-            migrationRepository = repos.migrationRepository,
-            backupRepository = repos.backupRepository
-        )
-        val noopControlSvc = createTestControlServiceImpl(NodeConfig("test-token", 50052), reconciler)
-        val noopProxy = DataServiceProxy(noopControlSvc, BulkDataServiceImpl(noopControlSvc), repos.serverRepository)
+        val noopNodeRegistrar = createTestNodeRegistrar()
+        val noopProxy = DataServiceProxy(createTestAgentDataOps(), BulkDataServiceImpl(noopNodeRegistrar), repos.serverRepository)
         val noopGateway = TestAgentGateway()
 
         beforeTest {
@@ -199,11 +190,11 @@ class BackupsRoutesTest :
                 transaction {
                     repeat(2) { i ->
                         Backups.insert {
-                        it[Backups.serverId] = EntityID(serverId, Servers)
-                        it[Backups.nodeId] = nodeId
-                        it[Backups.trigger] = "MANUAL"
-                        it[Backups.status] = "COMPLETED"
-                        it[Backups.filePath] = "/data/backups/backup-$i.tar.gz"
+                            it[Backups.serverId] = EntityID(serverId, Servers)
+                            it[Backups.nodeId] = nodeId
+                            it[Backups.trigger] = "MANUAL"
+                            it[Backups.status] = "COMPLETED"
+                            it[Backups.filePath] = "/data/backups/backup-$i.tar.gz"
                             it[Backups.completedAt] = now
                         }
                     }

@@ -55,8 +55,11 @@ val appModule = module {
     // Shared agent events flow
     single { MutableSharedFlow<AgentEvent>(extraBufferCapacity = 1024) }
 
-    // Shared data op context (passed to ControlServiceImpl and DataOpResponseHandler)
+    // Shared data op context (passed to AgentDataOps and DataOpResponseHandler)
     single { DataOpContext(ConcurrentHashMap(), ConcurrentHashMap()) }
+
+    single { NodeRegistrar(nodeConfig = get<AppConfig>().node, nodeRepository = get()) }
+    single { AgentDataOps(dataOpContext = get(), sendToNode = { nodeId, msg -> get<ControlServiceImpl>().sendToNode(nodeId, msg) }) }
 
     // Handlers
     single { NodeStateHandler(get(), get()) }
@@ -70,9 +73,8 @@ val appModule = module {
 
     single {
         ControlServiceImpl(
-            nodeConfig = get<AppConfig>().node,
             nodeStateReconciler = get(),
-            nodeRepository = get(),
+            nodeRegistrar = get(),
             agentEventsFlow = get(),
             dataOpContext = get(),
             nodeStateHandler = get(),
@@ -88,7 +90,7 @@ val appModule = module {
         )
     }
     single { BulkDataServiceImpl(get()) }
-    single { DataServiceProxy(get(), get(), get<ServerRepository>()) }
+    single { DataServiceProxy(get<AgentDataOps>(), get(), get<ServerRepository>()) }
     single { ProxyConfigPatchService(get(), get(), get(), get(named("containerPrefix"))) }
 
     // Observability — subscribes to agentEvents emitted by ControlServiceImpl

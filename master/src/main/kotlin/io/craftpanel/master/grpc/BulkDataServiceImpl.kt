@@ -10,7 +10,7 @@ import kotlinx.coroutines.flow.flow
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 
-class BulkDataServiceImpl(private val controlService: ControlServiceImpl) : BulkDataServiceGrpcKt.BulkDataServiceCoroutineImplBase() {
+class BulkDataServiceImpl(private val nodeRegistrar: NodeRegistrar) : BulkDataServiceGrpcKt.BulkDataServiceCoroutineImplBase() {
 
     private val log = LoggerFactory.getLogger(BulkDataServiceImpl::class.java)
 
@@ -66,7 +66,7 @@ class BulkDataServiceImpl(private val controlService: ControlServiceImpl) : Bulk
                 if (transferId.isEmpty()) {
                     transferId = chunk.transferId
                     val nodeKey = chunk.nodeKey
-                    if (!controlService.verifyNodeKey(nodeKey)) {
+                    if (!nodeRegistrar.verifyNodeKey(nodeKey)) {
                         throw StatusException(Status.UNAUTHENTICATED.withDescription("Invalid node key"))
                     }
                     authenticated = true
@@ -109,7 +109,7 @@ class BulkDataServiceImpl(private val controlService: ControlServiceImpl) : Bulk
     // ── gRPC: master → agent (file upload from user perspective) ─────────────
 
     override fun receiveFromMaster(request: BulkTransferInit): Flow<BulkChunk> = flow {
-        if (!controlService.verifyNodeKey(request.nodeKey)) {
+        if (!nodeRegistrar.verifyNodeKey(request.nodeKey)) {
             throw StatusException(Status.UNAUTHENTICATED.withDescription("Invalid node key"))
         }
 

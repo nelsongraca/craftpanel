@@ -4,8 +4,10 @@ import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.domain.AgentEvent
+import io.craftpanel.master.grpc.AgentDataOps
 import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataOpContext
+import io.craftpanel.master.grpc.NodeRegistrar
 import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.service.AgentGateway
 import io.craftpanel.master.service.NodeStateReconciler
@@ -13,6 +15,13 @@ import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
 import kotlinx.coroutines.flow.MutableSharedFlow
 import java.util.concurrent.ConcurrentHashMap
+
+fun createTestNodeRegistrar(nodeConfig: NodeConfig = NodeConfig("test-token", 50052), nodeRepository: NodeRepository = NodeRepositoryImpl()): NodeRegistrar = NodeRegistrar(nodeConfig, nodeRepository)
+
+fun createTestAgentDataOps(
+    dataOpContext: DataOpContext = DataOpContext(ConcurrentHashMap(), ConcurrentHashMap()),
+    sendToNode: (String, io.craftpanel.proto.MasterMessage) -> Boolean = { _, _ -> false }
+): AgentDataOps = AgentDataOps(dataOpContext, sendToNode)
 
 fun createTestControlServiceImpl(
     nodeConfig: NodeConfig = NodeConfig("test-token", 50052),
@@ -35,9 +44,8 @@ fun createTestControlServiceImpl(
     val migrationHandler = MigrationHandler(agentEvents)
     val dataOpResponseHandler = DataOpResponseHandler(dataOpContext)
     return ControlServiceImpl(
-        nodeConfig = nodeConfig,
         nodeStateReconciler = nodeStateReconciler,
-        nodeRepository = nodeRepository,
+        nodeRegistrar = createTestNodeRegistrar(nodeConfig, nodeRepository),
         agentEventsFlow = agentEvents,
         dataOpContext = dataOpContext,
         nodeStateHandler = nodeStateHandler,

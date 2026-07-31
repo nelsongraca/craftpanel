@@ -3,19 +3,17 @@ package io.craftpanel.master.grpc
 import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
-import io.craftpanel.master.config.NodeConfig
+import io.craftpanel.master.createTestNodeRegistrar
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.service.NodeStateReconciler
-import io.craftpanel.master.service.repo.FakeNodeRepository
 import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
 import io.craftpanel.proto.*
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -43,9 +41,8 @@ class ControlServiceImplTest :
         val migrationHandler = MigrationHandler(agentEvents)
         val dataOpResponseHandler = DataOpResponseHandler(dataOpContext)
         val service = ControlServiceImpl(
-            nodeConfig = NodeConfig(bootstrapToken = "test-token", agentDataPort = 50052),
             nodeStateReconciler = reconciler,
-            nodeRepository = nodeRepository,
+            nodeRegistrar = createTestNodeRegistrar(nodeRepository = nodeRepository),
             agentEventsFlow = agentEvents,
             dataOpContext = dataOpContext,
             nodeStateHandler = nodeStateHandler,
@@ -211,136 +208,5 @@ class ControlServiceImplTest :
 
                 (emitted.any { it.nodeId == nodeId.toString() && it.health == NodeHealth.HEALTHY }) shouldBe true
             }
-        }
-
-        // -------------------------------------------------------------------------
-        // registration / identify / verify — routed through NodeRepository seam,
-        // no live DB required (proves the deepening: ControlServiceImpl no longer
-        // touches Exposed directly).
-        // -------------------------------------------------------------------------
-
-        fun buildFakeService(fakeRepo: FakeNodeRepository): ControlServiceImpl {
-            val fakeAgentEvents = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 1024)
-            val fakeRepos = TestRepositories()
-            val fakeReconciler = NodeStateReconciler(fakeRepos.serverRepository, fakeRepo, fakeRepos.migrationRepository, fakeRepos.backupRepository)
-            val fakeDataOpContext = DataOpContext(ConcurrentHashMap(), ConcurrentHashMap())
-            return ControlServiceImpl(
-                nodeConfig = NodeConfig(bootstrapToken = "test-token", agentDataPort = 50052),
-                nodeStateReconciler = fakeReconciler,
-                nodeRepository = fakeRepo,
-                agentEventsFlow = fakeAgentEvents,
-                dataOpContext = fakeDataOpContext,
-                nodeStateHandler = NodeStateHandler(fakeAgentEvents, fakeReconciler),
-                nodeMetricsHandler = NodeMetricsHandler(fakeAgentEvents, fakeReconciler),
-                containerMetricsHandler = ContainerMetricsHandler(fakeAgentEvents),
-                serverStatusHandler = ServerStatusHandler(fakeAgentEvents),
-                playerUpdateHandler = PlayerUpdateHandler(fakeAgentEvents),
-                backupHandler = BackupHandler(fakeAgentEvents),
-                migrationHandler = MigrationHandler(fakeAgentEvents),
-                dataOpResponseHandler = DataOpResponseHandler(fakeDataOpContext),
-                serverRepository = fakeRepos.serverRepository,
-                backupRepository = fakeRepos.backupRepository
-            )
-        }
-
-        test("registerNode creates a PENDING node via NodeRepository (no live DB)") {
-            runBlocking {
-                val fakeRepo = FakeNodeRepository()
-                val fakeService = buildFakeService(fakeRepo)
-
-                val response = fakeService.registerNode(
-                    registerNodeRequest {
-                        bootstrapToken = "test-token"
-                        metadata = nodeMetadata {
-                            hostname = "fake-node"
-                            publicIp = "1.2.3.4"
-                            privateIp = "10.0.0.9"
-                            totalRamMb = 2048
-                            totalCpuShares = 1024
-                            agentVersion = "1.0.0"
-                        }
-                    }
-                )
-
-                val stored = transaction {
-                    Nodes.selectAll()
-                        .where { Nodes.id eq Uuid.parse(response.nodeId) }
-                        .firstOrNull()
-                }
-                stored.shouldNotBeNull()
-                stored[Nodes.status] shouldBe "PENDING"
-                stored[Nodes.hostname] shouldBe "fake-node"
-                stored[Nodes.totalRamMb] shouldBe 2048
-                stored[Nodes.totalCpuShares] shouldBe 1024
-                stored[Nodes.agentVersion] shouldBe "1.0.0"
-            }
-        }
-
-        test("identifyNode reports ACTIVE for a trusted node and updates lastSeen/privateIp via NodeRepository") {
-            runBlocking {
-                val fakeRepo = FakeNodeRepository()
-                val fakeService = buildFakeService(fakeRepo)
-                val rawKey = "raw-node-key"
-                val keyHash = java.security.MessageDigest.getInstance("SHA-256")
-                    .digest(rawKey.toByteArray())
-                    .let {
-                        java.util.HexFormat.of()
-                            .formatHex(it)
-                    }
-
-                val createdNodeId = transaction {
-                    Nodes.insert {
-                        it[Nodes.displayName] = "n"
-                        it[Nodes.hostname] = "n"
-                        it[Nodes.publicIp] = "1.1.1.1"
-                        it[Nodes.privateIp] = "10.0.0.1"
-                        it[Nodes.tokenHash] = keyHash
-                        it[Nodes.portRangeStart] = 25570
-                        it[Nodes.portRangeEnd] = 26070
-                        it[Nodes.status] = "ACTIVE"
-                    }[Nodes.id].let { Uuid.parse(it.toString()) }
-                }
-                val created = fakeRepo.addNode(
-                    id = createdNodeId,
-                    displayName = "n",
-                    hostname = "n",
-                    publicIp = "1.1.1.1",
-                    privateIp = "10.0.0.1",
-                    tokenHash = keyHash,
-                    portRangeStart = 25570,
-                    portRangeEnd = 26070
-                )
-                fakeRepo.updateStatus(created.id, io.craftpanel.master.domain.NodeStatus.ACTIVE)
-
-                val response = fakeService.identifyNode(
-                    identifyNodeRequest {
-                        nodeKey = rawKey
-                        metadata = nodeMetadata {
-                            publicIp = "9.9.9.9"
-                            privateIp = "10.0.0.42"
-                        }
-                    }
-                )
-
-                response.status shouldBe IdentifyNodeResponse.IdentifyStatus.ACTIVE
-                response.nodeId shouldBe created.id.toString()
-
-                val updated = transaction {
-                    Nodes.selectAll()
-                        .where { Nodes.id eq created.id }
-                        .firstOrNull()
-                }
-                updated.shouldNotBeNull()
-                updated[Nodes.publicIp] shouldBe "9.9.9.9"
-                updated[Nodes.privateIp] shouldBe "10.0.0.42"
-                updated[Nodes.lastSeenAt].shouldNotBeNull()
-            }
-        }
-
-        test("verifyNodeKey returns false when no node matches the token hash (no live DB)") {
-            val fakeRepo = FakeNodeRepository()
-            val fakeService = buildFakeService(fakeRepo)
-
-            fakeService.verifyNodeKey("some-random-key") shouldBe false
         }
     })

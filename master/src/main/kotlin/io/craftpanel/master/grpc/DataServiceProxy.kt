@@ -18,7 +18,7 @@ import kotlin.uuid.Uuid
  *
  * Master never dials agents — all connections are agent-initiated.
  */
-class DataServiceProxy(private val controlService: ControlServiceImpl, private val bulkService: BulkDataServiceImpl, private val serverRepository: ServerRepository) {
+class DataServiceProxy(private val agentDataOps: AgentDataOps, private val bulkService: BulkDataServiceImpl, private val serverRepository: ServerRepository) {
 
     private fun lookupNodeId(serverId: Uuid): String = serverRepository.findById(serverId)?.nodeId?.toString()
         ?: error("Server $serverId not found")
@@ -39,7 +39,7 @@ class DataServiceProxy(private val controlService: ControlServiceImpl, private v
     fun console(serverId: Uuid, input: Flow<ByteArray>): Flow<ByteArray> {
         val (nodeId, status) = lookupServer(serverId)
         if (ServerStatus.fromDb(status).isStopped) return emptyFlow()
-        return controlService.openConsole(nodeId, serverId.toString(), input)
+        return agentDataOps.openConsole(nodeId, serverId.toString(), input)
             .map { output -> output.data.toByteArray() }
     }
 
@@ -50,7 +50,7 @@ class DataServiceProxy(private val controlService: ControlServiceImpl, private v
      */
     suspend fun fetchContainerLogs(serverId: Uuid, tailLines: Int): List<String> {
         val (nodeId, _) = lookupServer(serverId)
-        return controlService.fetchContainerLogs(nodeId, serverId.toString(), tailLines)
+        return agentDataOps.fetchContainerLogs(nodeId, serverId.toString(), tailLines)
     }
 
     // ── File operations ───────────────────────────────────────────────────────
@@ -77,7 +77,7 @@ class DataServiceProxy(private val controlService: ControlServiceImpl, private v
         val nodeId = lookupNodeId(serverId)
         val reqId = Uuid.random()
             .toString()
-        val response = controlService.sendAndAwait(nodeId, reqId, build(reqId))
+        val response = agentDataOps.sendAndAwait(nodeId, reqId, build(reqId))
         val r = extract(response)
         val (code, msg) = err(r)
         if (msg.isNotBlank()) throw agentErrorToException(code, msg)
@@ -239,7 +239,7 @@ class DataServiceProxy(private val controlService: ControlServiceImpl, private v
         uploadChannel.close()
 
         // Signal agent to open BulkDataService ReceiveFromMaster connection.
-        val response = controlService.sendAndAwait(
+        val response = agentDataOps.sendAndAwait(
             nodeId,
             reqId,
             masterMessage {
@@ -274,7 +274,7 @@ class DataServiceProxy(private val controlService: ControlServiceImpl, private v
         val downloadFlow = bulkService.registerDownload(transferId)
 
         val response = runCatching {
-            controlService.sendAndAwait(
+            agentDataOps.sendAndAwait(
                 nodeId,
                 reqId,
                 masterMessage {
@@ -310,7 +310,7 @@ class DataServiceProxy(private val controlService: ControlServiceImpl, private v
         val downloadFlow = bulkService.registerDownload(transferId)
 
         val response = runCatching {
-            controlService.sendAndAwait(
+            agentDataOps.sendAndAwait(
                 nodeId,
                 reqId,
                 masterMessage {
