@@ -7,17 +7,38 @@ import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.util.toUtcString
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.dao.EntityHook
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.slf4j.LoggerFactory
 import kotlin.uuid.Uuid
 
-class ServerRepositoryImpl : ServerRepository {
+class ServerRepositoryImpl :
+    AbstractCachedRepository<ServerRow>(),
+    ServerRepository {
 
-    override fun findById(id: Uuid): ServerRow? = transaction {
-        Servers.selectAll()
-            .where { Servers.id eq id }
-            .firstOrNull()
-            ?.toServerRow()
+    private val log = LoggerFactory.getLogger(ServerRepositoryImpl::class.java)
+
+    init {
+        EntityHook.subscribe { change ->
+            try {
+                if (change.entityClass == Server) {
+                    val id = change.entityId.value as? Uuid ?: return@subscribe
+                    invalidate(id)
+                }
+            } catch (e: Exception) {
+                log.error("Failed to invalidate cached server row from EntityHook change", e)
+            }
+        }
+    }
+
+    override fun findById(id: Uuid): ServerRow? = cachedFindById(id) {
+        transaction {
+            Servers.selectAll()
+                .where { Servers.id eq id }
+                .firstOrNull()
+                ?.toServerRow()
+        }
     }
 
     override fun findByName(name: String): ServerRow? = transaction {

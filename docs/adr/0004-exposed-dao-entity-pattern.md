@@ -4,6 +4,19 @@
 
 accepted
 
+## Amendment (2026-08-01)
+
+The identity-map claim in Decision #6 is **transaction-scoped only** — Exposed's
+`EntityCache` batches writes and dedupes repeat reads within a single
+`transaction {}` block, then dies with the transaction. It does not survive
+across requests or WebSocket events. The process-scoped `findById` cache is
+therefore reinstated: `AbstractCachedRepository<ServerRow>` is back, and
+`ServerRepositoryImpl` extends it. Invalidation no longer happens at write
+sites (the migration removed them); instead `ServerRepositoryImpl` subscribes
+to Exposed's `EntityHook` in its init block and evicts the row for any
+`Server` entity `Created`/`Updated`/`Removed` flush. Full reasoning in
+`.scratch/networkid-cache/DESIGN.md`.
+
 ## Context
 
 The master module uses Exposed's DSL `update {}` pattern for database writes.
