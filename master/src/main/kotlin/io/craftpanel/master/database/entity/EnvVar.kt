@@ -7,8 +7,8 @@ import org.jetbrains.exposed.v1.dao.UuidEntity
 import org.jetbrains.exposed.v1.dao.UuidEntityClass
 import kotlin.uuid.Uuid
 
-class EnvVarEntity(id: EntityID<Uuid>) : UuidEntity(id) {
-    companion object : UuidEntityClass<EnvVarEntity>(ServerEnvVars)
+class EnvVar(id: EntityID<Uuid>) : UuidEntity(id) {
+    companion object : UuidEntityClass<EnvVar>(ServerEnvVars)
 
     var serverId by ServerEnvVars.serverId
     var key by ServerEnvVars.key

@@ -8,8 +8,8 @@ import org.jetbrains.exposed.v1.dao.UuidEntity
 import org.jetbrains.exposed.v1.dao.UuidEntityClass
 import kotlin.uuid.Uuid
 
-class MigrationStepEntity(id: EntityID<Uuid>) : UuidEntity(id) {
-    companion object : UuidEntityClass<MigrationStepEntity>(MigrationStepLog)
+class MigrationStep(id: EntityID<Uuid>) : UuidEntity(id) {
+    companion object : UuidEntityClass<MigrationStep>(MigrationStepLog)
 
     var migrationId by MigrationStepLog.migrationId
     var stepNumber by MigrationStepLog.stepNumber

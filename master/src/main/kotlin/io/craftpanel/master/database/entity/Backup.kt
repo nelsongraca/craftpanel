@@ -8,8 +8,8 @@ import org.jetbrains.exposed.v1.dao.UuidEntity
 import org.jetbrains.exposed.v1.dao.UuidEntityClass
 import kotlin.uuid.Uuid
 
-class BackupEntity(id: EntityID<Uuid>) : UuidEntity(id) {
-    companion object : UuidEntityClass<BackupEntity>(Backups)
+class Backup(id: EntityID<Uuid>) : UuidEntity(id) {
+    companion object : UuidEntityClass<Backup>(Backups)
 
     var serverId by Backups.serverId
     var nodeId by Backups.nodeId

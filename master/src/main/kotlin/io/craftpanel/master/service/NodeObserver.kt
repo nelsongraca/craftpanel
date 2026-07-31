@@ -75,7 +75,7 @@ class NodeObserver(
         val kotlinNodeId = runCatching { Uuid.parse(event.nodeId) }.getOrNull() ?: return
 
         transaction {
-            NodeMetricsEntity.new {
+            NodeMetricsRecord.new {
                 this.nodeId = EntityID(kotlinNodeId, Nodes)
                 this.cpuPercent = event.cpuPercent
                 this.ramUsedMb = event.ramUsedMb
@@ -88,7 +88,7 @@ class NodeObserver(
             }
         }
         if (event.ramUsedMb > 0) {
-            transaction { NodeEntity.findById(kotlinNodeId)?.let { it.systemRamUsedMb = event.ramUsedMb } }
+            transaction { Node.findById(kotlinNodeId)?.let { it.systemRamUsedMb = event.ramUsedMb } }
         }
     }
 
@@ -96,7 +96,7 @@ class NodeObserver(
         val kotlinServerId = runCatching { Uuid.parse(event.serverId) }.getOrNull() ?: return
 
         transaction {
-            ContainerMetricsEntity.new {
+            ContainerMetricsRecord.new {
                 this.serverId = EntityID(kotlinServerId, Servers)
                 this.cpuPercent = event.cpuPercent
                 this.ramUsedMb = event.ramUsedMb
@@ -116,7 +116,7 @@ class NodeObserver(
         val prevStatus = serverRepository.findById(serverId)
             ?.let { ServerStatus.fromDb(it.status) }
         transaction {
-            ServerEntity.findById(serverId)?.let {
+            Server.findById(serverId)?.let {
                 it.status = event.status.toDb()
                 it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
             }
@@ -152,7 +152,7 @@ class NodeObserver(
             .takeIf { s -> s.isNotBlank() }
 
         transaction {
-            val e = ServerEntity.findById(serverId) ?: return@transaction
+            val e = Server.findById(serverId) ?: return@transaction
             e.lastPlayerCount = event.playerCount
             e.lastPlayerNames = namesString
             e.lastPlayerUpdate = now.toLocalDateTime(TimeZone.UTC)
@@ -166,7 +166,7 @@ class NodeObserver(
         val errorMessage = if (!event.success) event.errorMessage.takeIf { it.isNotBlank() } else null
 
         transaction {
-            BackupEntity.findById(backupId)?.let {
+            Backup.findById(backupId)?.let {
                 it.status = status.name
                 if (sizeBytes != null) it.sizeBytes = sizeBytes
                 if (errorMessage != null) it.errorMessage = errorMessage

@@ -1,7 +1,7 @@
 package io.craftpanel.master.grpc
 
 import io.craftpanel.master.config.NodeConfig
-import io.craftpanel.master.database.entity.NodeEntity
+import io.craftpanel.master.database.entity.Node
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.domain.*
 import io.craftpanel.master.grpc.handlers.*
@@ -149,7 +149,7 @@ class ControlServiceImpl(
         val now = Clock.System.now()
 
         val created = transaction {
-            val e = NodeEntity.new {
+            val e = Node.new {
                 this.displayName = meta.hostname
                 this.hostname = meta.hostname
                 this.publicIp = meta.publicIp
@@ -200,7 +200,7 @@ class ControlServiceImpl(
         val existing = nodeRepository.findByTokenHash(keyHash)
         if (existing != null) {
             transaction {
-                NodeEntity.findById(existing.id)?.let {
+                Node.findById(existing.id)?.let {
                     it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
                     it.publicIp = request.metadata.publicIp
                     if (request.metadata.agentVersion.isNotEmpty()) it.agentVersion = request.metadata.agentVersion

@@ -8,8 +8,8 @@ import org.jetbrains.exposed.v1.dao.UuidEntity
 import org.jetbrains.exposed.v1.dao.UuidEntityClass
 import kotlin.uuid.Uuid
 
-class ContainerMetricsEntity(id: EntityID<Uuid>) : UuidEntity(id) {
-    companion object : UuidEntityClass<ContainerMetricsEntity>(ContainerMetrics)
+class ContainerMetricsRecord(id: EntityID<Uuid>) : UuidEntity(id) {
+    companion object : UuidEntityClass<ContainerMetricsRecord>(ContainerMetrics)
 
     var serverId by ContainerMetrics.serverId
     var recordedAt by ContainerMetrics.recordedAt

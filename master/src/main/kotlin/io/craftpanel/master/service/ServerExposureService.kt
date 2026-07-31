@@ -1,6 +1,6 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.NodeRepository
@@ -91,7 +91,7 @@ class ServerExposureService(
         val exposureNeedsRecreate = publicSubdomain != null || customHostnameChanged
 
         transaction {
-            val e = ServerEntity.findById(id) ?: return@transaction
+            val e = Server.findById(id) ?: return@transaction
             e.exposedExternally = exposedExternally
             e.publicSubdomain = if (!exposedExternally) null else publicSubdomain
             e.customHostname = resolvedCustomHostname
@@ -115,7 +115,7 @@ class ServerExposureService(
         val currentStatus = ServerStatus.fromDb(serverRow.status)
         if (currentStatus.isRunning && exposureNeedsRecreate) {
             val freshRow = serverRepository.findById(id)!!
-            transaction { ServerEntity.findById(id)?.let { it.status = "STARTING" } }
+            transaction { Server.findById(id)?.let { it.status = "STARTING" } }
             lifecycle.sendStart(freshRow, needsRecreate = true, publicHostname = serverExposure.mcRouterLabel(freshRow))
         }
     }

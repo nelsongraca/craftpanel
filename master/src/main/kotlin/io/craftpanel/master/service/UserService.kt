@@ -1,6 +1,6 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.database.entity.UserEntity
+import io.craftpanel.master.database.entity.User
 import io.craftpanel.master.database.schema.RefreshTokens
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
@@ -50,7 +50,7 @@ class UserService(private val userRepository: UserRepository) {
         val byEmail = userRepository.findByEmail(req.email)
         if (byUsername != null || byEmail != null) throw ConflictException("Username or email already taken")
         return transaction {
-            val e = UserEntity.new { this.username = req.username; this.email = req.email; this.passwordHash = hash }
+            val e = User.new { this.username = req.username; this.email = req.email; this.passwordHash = hash }
             val row = Users.selectAll().where { Users.id eq e.id }.first()
             UserRow(
                 id = row[Users.id].value,
@@ -75,7 +75,7 @@ class UserService(private val userRepository: UserRepository) {
             if (conflict) throw UnprocessableException("Username or email already taken")
         }
         transaction {
-            UserEntity.findById(targetId)?.let {
+            User.findById(targetId)?.let {
                 if (req.username != null) it.username = req.username
                 if (req.email != null) it.email = req.email
                 if (req.isActive != null) it.isActive = req.isActive
@@ -90,7 +90,7 @@ class UserService(private val userRepository: UserRepository) {
         transaction {
             UserGroupAssignments.deleteWhere { UserGroupAssignments.userId eq targetId }
             RefreshTokens.deleteWhere { RefreshTokens.userId eq targetId }
-            UserEntity.findById(targetId)?.delete()
+            User.findById(targetId)?.delete()
         }
     }
 }

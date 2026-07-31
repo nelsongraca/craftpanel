@@ -1,7 +1,7 @@
 package io.craftpanel.master.service.repo.impl
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
-import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.Servers
@@ -44,7 +44,7 @@ class ServerRepositoryImplTest :
         }
 
         fun createServer(nodeId: Uuid, networkId: Uuid? = null, name: String = "server-1"): Uuid = transaction {
-            val entity = ServerEntity.new {
+            val entity = Server.new {
                 this.name = name
                 this.displayName = name
                 this.description = null
@@ -102,7 +102,7 @@ class ServerRepositoryImplTest :
             val id = createServer(nodeId, name = "proxy-1")
 
             transaction {
-                val e = ServerEntity.findById(id) ?: return@transaction
+                val e = Server.findById(id) ?: return@transaction
                 e.proxyMotd = "Welcome"
                 e.proxyMaxPlayers = 50
                 e.proxyForwardingMode = "legacy"

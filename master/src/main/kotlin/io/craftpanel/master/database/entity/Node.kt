@@ -8,8 +8,8 @@ import org.jetbrains.exposed.v1.dao.UuidEntity
 import org.jetbrains.exposed.v1.dao.UuidEntityClass
 import kotlin.uuid.Uuid
 
-class NodeEntity(id: EntityID<Uuid>) : UuidEntity(id) {
-    companion object : UuidEntityClass<NodeEntity>(Nodes)
+class Node(id: EntityID<Uuid>) : UuidEntity(id) {
+    companion object : UuidEntityClass<Node>(Nodes)
 
     var displayName by Nodes.displayName
     var hostname by Nodes.hostname

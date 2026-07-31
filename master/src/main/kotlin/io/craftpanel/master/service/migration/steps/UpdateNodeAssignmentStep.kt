@@ -1,6 +1,6 @@
 package io.craftpanel.master.service.migration.steps
 
-import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.PortRegistry
 import io.craftpanel.master.service.migration.*
@@ -15,7 +15,7 @@ class UpdateNodeAssignmentStep : MigrationStep {
     override val description = "Update server node assignment in database"
 
     override suspend fun execute(plan: MigrationPlan, coord: MigrationCoordinator): StepResult = try {
-        transaction { ServerEntity.findById(plan.serverId)?.let { it.nodeId = EntityID(plan.targetNodeId, Nodes) } }
+        transaction { Server.findById(plan.serverId)?.let { it.nodeId = EntityID(plan.targetNodeId, Nodes) } }
         transaction { PortRegistry.deleteWhere { (PortRegistry.nodeId eq plan.targetNodeId) and (PortRegistry.port eq plan.rsyncPort) and (PortRegistry.protocol eq "TCP") } }
         StepResult.Success
     } catch (e: Exception) {

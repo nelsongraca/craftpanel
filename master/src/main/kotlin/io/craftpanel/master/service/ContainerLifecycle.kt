@@ -1,7 +1,7 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.config.ImagesConfig
-import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.domain.ServerType
@@ -192,7 +192,7 @@ class ContainerLifecycle(
 
     fun writeStatus(id: Uuid, status: ServerStatus, clearNeedsRecreate: Boolean = false) {
         transaction {
-            val e = ServerEntity.findById(id) ?: return@transaction
+            val e = Server.findById(id) ?: return@transaction
             e.status = status.toDb()
             if (clearNeedsRecreate) e.needsRecreate = false
         }

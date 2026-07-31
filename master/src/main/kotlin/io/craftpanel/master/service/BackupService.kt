@@ -1,7 +1,7 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.database.entity.BackupEntity
-import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.entity.Backup
+import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.Backups
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
@@ -81,11 +81,11 @@ class BackupService(private val gateway: AgentGateway, private val dataServicePr
                     continue
                 }
             }
-            transaction { BackupEntity.findById(old.id)?.delete() }
+            transaction { Backup.findById(old.id)?.delete() }
         }
 
         val backup = transaction {
-            val b = BackupEntity.new {
+            val b = Backup.new {
                 this.serverId = EntityID(serverId, Servers)
                 this.nodeId = EntityID(serverRow.nodeId, Nodes)
                 this.trigger = trigger.name
@@ -121,7 +121,7 @@ class BackupService(private val gateway: AgentGateway, private val dataServicePr
 
         if (!sent) {
             transaction {
-            BackupEntity.findById(backup.id)?.let {
+            Backup.findById(backup.id)?.let {
                 it.status = BackupStatus.FAILED.name
                 it.errorMessage = "Agent not connected"
                 it.completedAt = now.toLocalDateTime(TimeZone.UTC)
@@ -154,7 +154,7 @@ class BackupService(private val gateway: AgentGateway, private val dataServicePr
                 }
             )
         }
-        transaction { BackupEntity.findById(backupId)?.delete() }
+        transaction { Backup.findById(backupId)?.delete() }
     }
 
     fun resolveDownload(serverId: Uuid, backupId: Uuid): BackupDownloadInfo {
@@ -183,7 +183,7 @@ class BackupService(private val gateway: AgentGateway, private val dataServicePr
             throw UnprocessableException("backup_max_count must be at least 1")
         }
         transaction {
-            val e = ServerEntity.findById(serverId) ?: return@transaction
+            val e = Server.findById(serverId) ?: return@transaction
             e.backupSchedule = req.backupSchedule
             if (req.backupMaxCount != null) e.backupMaxCount = req.backupMaxCount
         }

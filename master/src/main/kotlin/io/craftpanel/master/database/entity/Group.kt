@@ -8,8 +8,8 @@ import org.jetbrains.exposed.v1.dao.UuidEntity
 import org.jetbrains.exposed.v1.dao.UuidEntityClass
 import kotlin.uuid.Uuid
 
-class GroupEntity(id: EntityID<Uuid>) : UuidEntity(id) {
-    companion object : UuidEntityClass<GroupEntity>(Groups)
+class Group(id: EntityID<Uuid>) : UuidEntity(id) {
+    companion object : UuidEntityClass<Group>(Groups)
 
     var name by Groups.name
     var isSystem by Groups.isSystem

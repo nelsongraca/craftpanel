@@ -6,8 +6,8 @@ import org.jetbrains.exposed.v1.dao.UuidEntity
 import org.jetbrains.exposed.v1.dao.UuidEntityClass
 import kotlin.uuid.Uuid
 
-class NodeMetricsEntity(id: EntityID<Uuid>) : UuidEntity(id) {
-    companion object : UuidEntityClass<NodeMetricsEntity>(NodeMetrics)
+class NodeMetricsRecord(id: EntityID<Uuid>) : UuidEntity(id) {
+    companion object : UuidEntityClass<NodeMetricsRecord>(NodeMetrics)
 
     var nodeId by NodeMetrics.nodeId
     var recordedAt by NodeMetrics.recordedAt

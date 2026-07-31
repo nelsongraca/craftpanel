@@ -1,8 +1,8 @@
 package io.craftpanel.master.service
 
 import com.github.dockerjava.api.DockerClient
-import io.craftpanel.master.database.entity.NetworkEntity
-import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.entity.Network
+import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ServerStatus
@@ -144,7 +144,7 @@ class NetworkService(
     fun createNetwork(req: CreateNetworkRequest): NetworkResponse {
         if (networkRepository.findByName(req.name) != null) throw ConflictException("Network name already taken")
         val row = transaction {
-            val e = NetworkEntity.new {
+            val e = Network.new {
                 this.name = req.name
                 this.proxyPort = req.proxyPort
                 this.description = req.description
@@ -201,7 +201,7 @@ class NetworkService(
             if (existing != null && existing.id != id) throw ConflictException("Network name already taken")
         }
         transaction {
-            NetworkEntity.findById(id)?.let {
+            Network.findById(id)?.let {
                 if (req.name != null) it.name = req.name
                 if (req.description != null) it.description = req.description
                 if (req.domainSuffix != null) it.cfDomainSuffix = req.domainSuffix
@@ -214,8 +214,8 @@ class NetworkService(
 
     fun deleteNetwork(id: Uuid) {
         networkRepository.findById(id) ?: throw NotFoundException("Network not found")
-        transaction { Servers.selectAll().where { Servers.networkId eq id }.forEach { ServerEntity.findById(it[Servers.id])?.let { s -> s.networkId = null } } }
-        transaction { NetworkEntity.findById(id)?.delete() }
+        transaction { Servers.selectAll().where { Servers.networkId eq id }.forEach { Server.findById(it[Servers.id])?.let { s -> s.networkId = null } } }
+        transaction { Network.findById(id)?.delete() }
         deleteOverlayNetwork(id.toString())
     }
 }

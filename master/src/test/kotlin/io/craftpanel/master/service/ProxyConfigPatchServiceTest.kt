@@ -2,7 +2,7 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
-import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.ProxyBackendInput
@@ -50,7 +50,7 @@ class ProxyConfigPatchServiceTest :
         }
 
         fun createServer(nodeId: Uuid, name: String, type: ServerType): Uuid = transaction {
-            ServerEntity.new {
+            Server.new {
                 this.name = name
                 this.displayName = name
                 this.description = null
@@ -78,7 +78,7 @@ class ProxyConfigPatchServiceTest :
             val nodeId = createNode()
             val proxyId = createServer(nodeId, "proxy-${Uuid.random()}", ServerType.VELOCITY)
             transaction {
-                val e = ServerEntity.findById(proxyId) ?: return@transaction
+                val e = Server.findById(proxyId) ?: return@transaction
                 e.proxyMotd = "Welcome"
                 e.proxyMaxPlayers = 20
                 e.proxyForwardingMode = "LEGACY"
@@ -123,7 +123,7 @@ class ProxyConfigPatchServiceTest :
             val nodeId = createNode()
             val proxyId = createServer(nodeId, "proxy-${Uuid.random()}", ServerType.BUNGEECORD)
             transaction {
-                val e = ServerEntity.findById(proxyId) ?: return@transaction
+                val e = Server.findById(proxyId) ?: return@transaction
                 e.proxyMotd = "Welcome"
                 e.proxyMaxPlayers = 20
                 e.proxyForwardingMode = "LEGACY"
@@ -181,7 +181,7 @@ class ProxyConfigPatchServiceTest :
         test("MANUAL config mode - returns null") {
             val nodeId = createNode()
             val proxyId = createServer(nodeId, "proxy-${Uuid.random()}", ServerType.VELOCITY)
-            transaction { ServerEntity.findById(proxyId)?.let { it.configMode = "MANUAL" } }
+            transaction { Server.findById(proxyId)?.let { it.configMode = "MANUAL" } }
 
             service.generatePatch(proxyId) shouldBe null
         }

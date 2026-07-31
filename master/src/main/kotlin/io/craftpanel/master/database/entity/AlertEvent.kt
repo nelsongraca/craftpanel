@@ -8,8 +8,8 @@ import org.jetbrains.exposed.v1.dao.UuidEntity
 import org.jetbrains.exposed.v1.dao.UuidEntityClass
 import kotlin.uuid.Uuid
 
-class AlertEventEntity(id: EntityID<Uuid>) : UuidEntity(id) {
-    companion object : UuidEntityClass<AlertEventEntity>(AlertEvents)
+class AlertEvent(id: EntityID<Uuid>) : UuidEntity(id) {
+    companion object : UuidEntityClass<AlertEvent>(AlertEvents)
 
     var thresholdId by AlertEvents.thresholdId
     var firedAt by AlertEvents.firedAt

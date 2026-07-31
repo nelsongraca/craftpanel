@@ -2,9 +2,9 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
-import io.craftpanel.master.database.entity.EnvVarEntity
-import io.craftpanel.master.database.entity.ProxyBackendEntity
-import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.entity.EnvVar
+import io.craftpanel.master.database.entity.ProxyBackend
+import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.ProxyBackends
 import io.craftpanel.master.database.schema.ServerEnvVars
@@ -129,21 +129,21 @@ class BackendForwardingServiceTest :
             writeCalls[1].path shouldBe "craftpanel-paper-global.yml"
 
             val paperEnv = transaction {
-                EnvVarEntity.find { (ServerEnvVars.serverId eq EntityID(paperId, Servers)) }
+                EnvVar.find { (ServerEnvVars.serverId eq EntityID(paperId, Servers)) }
                     .associate { it.key to it.value }
             }
             paperEnv["ONLINE_MODE"] shouldBe "false"
             paperEnv["PATCH_DEFINITIONS"] shouldBe "/data/craftpanel-paper-global.yml"
 
             val purpurEnv = transaction {
-                EnvVarEntity.find { (ServerEnvVars.serverId eq EntityID(purpurId, Servers)) }
+                EnvVar.find { (ServerEnvVars.serverId eq EntityID(purpurId, Servers)) }
                     .associate { it.key to it.value }
             }
             purpurEnv["ONLINE_MODE"] shouldBe "false"
             purpurEnv["PATCH_DEFINITIONS"] shouldBe "/data/craftpanel-paper-global.yml"
 
-            transaction { ServerEntity.findById(paperId)!!.needsRecreate shouldBe true }
-            transaction { ServerEntity.findById(purpurId)!!.needsRecreate shouldBe true }
+            transaction { Server.findById(paperId)!!.needsRecreate shouldBe true }
+            transaction { Server.findById(purpurId)!!.needsRecreate shouldBe true }
         }
 
         test("warns for Vanilla backend (modern)") {
@@ -283,7 +283,7 @@ class BackendForwardingServiceTest :
             writeCalls[0].path shouldBe "craftpanel-spigot.yml"
 
             val env = transaction {
-                EnvVarEntity.find { (ServerEnvVars.serverId eq EntityID(spigotId, Servers)) }
+                EnvVar.find { (ServerEnvVars.serverId eq EntityID(spigotId, Servers)) }
                     .associate { it.key to it.value }
             }
             env["PATCH_DEFINITIONS"] shouldBe "/data/craftpanel-spigot.yml"

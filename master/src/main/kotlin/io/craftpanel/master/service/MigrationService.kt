@@ -1,7 +1,7 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.database.entity.MigrationStepEntity
-import io.craftpanel.master.database.entity.ServerMigrationEntity
+import io.craftpanel.master.database.entity.MigrationStep
+import io.craftpanel.master.database.entity.ServerMigration
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.MigrationStatus
@@ -96,7 +96,7 @@ class MigrationService(
     private val eventFlows = ConcurrentHashMap<String, MutableSharedFlow<MigrationEvent>>()
 
     fun failStuckMigrations() = transaction {
-        ServerMigrationEntity.find {
+        ServerMigration.find {
             ServerMigrations.status inList listOf("PENDING", "SYNCING", "CUTTING_OVER", "RUNNING")
         }.forEach {
             it.status = "FAILED"
@@ -127,7 +127,7 @@ class MigrationService(
         if (inProgress) throw ConflictException("Migration already in progress for this server")
 
         val migration = transaction {
-            val e = ServerMigrationEntity.new {
+            val e = ServerMigration.new {
                 this.serverId = EntityID(serverId, Servers)
                 this.sourceNodeId = EntityID(sourceNodeId, Nodes)
                 this.targetNodeId = EntityID(targetNodeId, Nodes)

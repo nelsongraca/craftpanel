@@ -1,8 +1,8 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.database.entity.EnvVarEntity
-import io.craftpanel.master.database.entity.ModEntity
-import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.entity.EnvVar
+import io.craftpanel.master.database.entity.Mod
+import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.Backups
 import io.craftpanel.master.database.schema.ContainerMetrics
 import io.craftpanel.master.database.schema.PortRegistry
@@ -137,7 +137,7 @@ class ServerService(
 
             val stopCommand = if (st.isProxy) "end" else "stop"
             val newServer = transaction {
-                val entity = ServerEntity.new {
+                val entity = Server.new {
                     this.name = name
                     this.displayName = displayName ?: name
                     this.description = description
@@ -168,9 +168,9 @@ class ServerService(
 
                 if (!st.isProxy) {
                     val defaults = buildDefaultEnvVars(mcVersion, serverTypeDisplay, platformName)
-                    EnvVarEntity.find { ServerEnvVars.serverId eq entity.id.value }.forEach { it.delete() }
+                    EnvVar.find { ServerEnvVars.serverId eq entity.id.value }.forEach { it.delete() }
                     defaults.forEach { (k, v) ->
-                        EnvVarEntity.new {
+                        EnvVar.new {
                             this.serverId = EntityID(entity.id.value, Servers)
                             key = k
                             value = v
@@ -230,9 +230,9 @@ class ServerService(
         )
 
         transaction {
-            EnvVarEntity.find { ServerEnvVars.serverId eq created.id }.forEach { it.delete() }
+            EnvVar.find { ServerEnvVars.serverId eq created.id }.forEach { it.delete() }
             envVarsRepository.getEnvVars(sourceId).forEach { ev ->
-                EnvVarEntity.new {
+                EnvVar.new {
                     this.serverId = EntityID(created.id, Servers)
                     key = ev.key
                     value = ev.value
@@ -243,7 +243,7 @@ class ServerService(
         modRepository.listMods(sourceId)
             .forEach { mod ->
                 transaction {
-                    ModEntity.new {
+                    Mod.new {
                         this.serverId = EntityID(created.id, Servers)
                         this.modrinthProjectId = mod.modrinthProjectId
                         this.displayName = mod.displayName
@@ -278,7 +278,7 @@ class ServerService(
         val needsRecreate = mcVersion != null || itzgImageTag != null
 
         transaction {
-            val e = ServerEntity.findById(id) ?: return@transaction
+            val e = Server.findById(id) ?: return@transaction
             if (networkId != null && newNetworkId == null) {
                 e.networkId = null
             }
@@ -335,7 +335,7 @@ class ServerService(
             ContainerMetrics.deleteWhere { ContainerMetrics.serverId eq id }
             ProxyBackends.deleteWhere { ProxyBackends.proxyServerId eq id }
             ProxyBackends.deleteWhere { ProxyBackends.backendServerId eq id }
-            ServerEntity.findById(id)?.delete()
+            Server.findById(id)?.delete()
         }
     }
 
@@ -351,7 +351,7 @@ class ServerService(
             CapacityResult.Ok -> {}
         }
         transaction {
-            val e = ServerEntity.findById(id) ?: return@transaction
+            val e = Server.findById(id) ?: return@transaction
             e.memoryMb = memoryMb
             e.cpuShares = cpuShares
             if (itzgImageTag != null) e.itzgImageTag = itzgImageTag

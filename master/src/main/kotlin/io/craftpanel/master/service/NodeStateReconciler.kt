@@ -51,7 +51,7 @@ class NodeStateReconciler(
                 if (newStatus != null) {
                     log.info("Node $nodeId reconcile: server $serverId $dbStatus → $newStatus")
                     transaction {
-                        ServerEntity.findById(serverId)?.let {
+                        Server.findById(serverId)?.let {
                             it.status = newStatus.toDb()
                             it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
                         }
@@ -62,7 +62,7 @@ class NodeStateReconciler(
         if (currentStatus == "ACTIVE") {
             val newHealth = if (snapshot.routerRunning) NodeHealth.HEALTHY else NodeHealth.DEGRADED
             transaction {
-                NodeEntity.findById(kotlinNodeId)?.let {
+                Node.findById(kotlinNodeId)?.let {
                     it.health = newHealth.name
                     it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
                     it.swarmActive = snapshot.swarmActive
@@ -72,7 +72,7 @@ class NodeStateReconciler(
             log.debug("Node {}: reconciled health={} (routerRunning={})", nodeId, newHealth, snapshot.routerRunning)
         } else {
             log.debug("Node $nodeId: status=$currentStatus — only updating lastSeenAt")
-            transaction { NodeEntity.findById(kotlinNodeId)?.let { it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC) } }
+            transaction { Node.findById(kotlinNodeId)?.let { it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC) } }
         }
 
         return resultHealth
@@ -91,9 +91,9 @@ class NodeStateReconciler(
             return
         }
 
-        transaction { NodeEntity.findById(kotlinNodeId)?.let { it.health = "UNREACHABLE"; it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC) } }
+        transaction { Node.findById(kotlinNodeId)?.let { it.health = "UNREACHABLE"; it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC) } }
         transaction {
-            ServerMigrationEntity.find {
+            ServerMigration.find {
                 ((ServerMigrations.sourceNodeId eq kotlinNodeId) or (ServerMigrations.targetNodeId eq kotlinNodeId)) and
                     (ServerMigrations.status inList listOf("PENDING", "SYNCING", "CUTTING_OVER"))
             }.forEach {
@@ -102,7 +102,7 @@ class NodeStateReconciler(
             }
         }
         transaction {
-            BackupEntity.find { (Backups.nodeId eq kotlinNodeId) and (Backups.status eq "IN_PROGRESS") }.forEach {
+            Backup.find { (Backups.nodeId eq kotlinNodeId) and (Backups.status eq "IN_PROGRESS") }.forEach {
                 it.status = "FAILED"
                 it.errorMessage = "Node went offline during backup"
                 it.completedAt = now.toLocalDateTime(TimeZone.UTC)
@@ -117,7 +117,7 @@ class NodeStateReconciler(
             log.warn("updateNodeHealth: invalid nodeId format: $nodeId")
             return
         }
-        transaction { NodeEntity.findById(kotlinNodeId)?.let { it.health = health.name } }
+        transaction { Node.findById(kotlinNodeId)?.let { it.health = health.name } }
     }
 
     fun updateNodeLastSeen(nodeId: String) {
@@ -125,7 +125,7 @@ class NodeStateReconciler(
             log.warn("updateNodeLastSeen: invalid nodeId format: $nodeId")
             return
         }
-        transaction { NodeEntity.findById(kotlinNodeId)?.let { it.lastSeenAt = Clock.System.now().toLocalDateTime(TimeZone.UTC) } }
+        transaction { Node.findById(kotlinNodeId)?.let { it.lastSeenAt = Clock.System.now().toLocalDateTime(TimeZone.UTC) } }
     }
 }
 

@@ -1,7 +1,7 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.database.entity.ModEntity
-import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.entity.Mod
+import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.ServerMods
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ModPinStrategy
@@ -90,7 +90,7 @@ class ModService(
             )
         }
         val mod = transaction {
-            val m = ModEntity.new {
+            val m = Mod.new {
                 this.serverId = EntityID(serverId, Servers)
                 this.modrinthProjectId = req.modrinthProjectId
                 this.displayName = req.displayName
@@ -98,7 +98,7 @@ class ModService(
                 this.pinnedVersionId = req.pinnedVersionId
                 this.installedVersionId = null
             }
-            ServerEntity.findById(serverId)?.let { it.needsRecreate = true }
+            Server.findById(serverId)?.let { it.needsRecreate = true }
             val row = ServerMods.selectAll().where { ServerMods.id eq m.id }.first()
             ModRow(
                 id = row[ServerMods.id].value,
@@ -128,12 +128,12 @@ class ModService(
             else -> modRepository.findModById(modId)?.pinnedVersionId
         }
         transaction {
-            ModEntity.findById(modId)?.let {
+            Mod.findById(modId)?.let {
                 if (req.pinStrategy != null) it.pinStrategy = req.pinStrategy.name
                 it.pinnedVersionId = pinnedVersionId?.ifEmpty { null }
                 it.installedVersionId = null
             }
-            ServerEntity.findById(serverId)?.let { it.needsRecreate = true }
+            Server.findById(serverId)?.let { it.needsRecreate = true }
         }
         return modRepository.findModById(modId)!!
             .toResponse()
@@ -144,8 +144,8 @@ class ModService(
             ?.takeIf { it.serverId == serverId }
             ?: throw NotFoundException("Mod not found")
         transaction {
-            ModEntity.findById(modId)?.delete()
-            ServerEntity.findById(serverId)?.let { it.needsRecreate = true }
+            Mod.findById(modId)?.delete()
+            Server.findById(serverId)?.let { it.needsRecreate = true }
         }
     }
 

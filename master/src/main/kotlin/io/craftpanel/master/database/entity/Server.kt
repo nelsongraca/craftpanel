@@ -9,8 +9,8 @@ import org.jetbrains.exposed.v1.dao.UuidEntity
 import org.jetbrains.exposed.v1.dao.UuidEntityClass
 import kotlin.uuid.Uuid
 
-class ServerEntity(id: EntityID<Uuid>) : UuidEntity(id) {
-    companion object : UuidEntityClass<ServerEntity>(Servers)
+class Server(id: EntityID<Uuid>) : UuidEntity(id) {
+    companion object : UuidEntityClass<Server>(Servers)
 
     var name by Servers.name
     var displayName by Servers.displayName

@@ -7,8 +7,8 @@ import org.jetbrains.exposed.v1.dao.UuidEntity
 import org.jetbrains.exposed.v1.dao.UuidEntityClass
 import kotlin.uuid.Uuid
 
-class ProxyBackendEntity(id: EntityID<Uuid>) : UuidEntity(id) {
-    companion object : UuidEntityClass<ProxyBackendEntity>(ProxyBackends)
+class ProxyBackend(id: EntityID<Uuid>) : UuidEntity(id) {
+    companion object : UuidEntityClass<ProxyBackend>(ProxyBackends)
 
     var proxyServerId by ProxyBackends.proxyServerId
     var backendServerId by ProxyBackends.backendServerId

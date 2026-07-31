@@ -8,8 +8,8 @@ import org.jetbrains.exposed.v1.dao.UuidEntity
 import org.jetbrains.exposed.v1.dao.UuidEntityClass
 import kotlin.uuid.Uuid
 
-class ModEntity(id: EntityID<Uuid>) : UuidEntity(id) {
-    companion object : UuidEntityClass<ModEntity>(ServerMods)
+class Mod(id: EntityID<Uuid>) : UuidEntity(id) {
+    companion object : UuidEntityClass<Mod>(ServerMods)
 
     var serverId by ServerMods.serverId
     var modrinthProjectId by ServerMods.modrinthProjectId

@@ -8,8 +8,8 @@ import org.jetbrains.exposed.v1.dao.UuidEntity
 import org.jetbrains.exposed.v1.dao.UuidEntityClass
 import kotlin.uuid.Uuid
 
-class NetworkEntity(id: EntityID<Uuid>) : UuidEntity(id) {
-    companion object : UuidEntityClass<NetworkEntity>(ServerNetworks)
+class Network(id: EntityID<Uuid>) : UuidEntity(id) {
+    companion object : UuidEntityClass<Network>(ServerNetworks)
 
     var name by ServerNetworks.name
     var proxyPort by ServerNetworks.proxyPort

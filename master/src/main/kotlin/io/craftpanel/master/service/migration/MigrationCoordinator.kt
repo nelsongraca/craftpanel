@@ -1,7 +1,7 @@
 package io.craftpanel.master.service.migration
 
-import io.craftpanel.master.database.entity.MigrationStepEntity
-import io.craftpanel.master.database.entity.ServerMigrationEntity
+import io.craftpanel.master.database.entity.MigrationStep
+import io.craftpanel.master.database.entity.ServerMigration
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.MigrationStatus
@@ -50,7 +50,7 @@ open class MigrationCoordinator(
     open fun updateStatus(plan: MigrationPlan, status: MigrationStatus) {
         val ts = clock.now()
         transaction {
-            ServerMigrationEntity.findById(plan.migrationId)?.let {
+            ServerMigration.findById(plan.migrationId)?.let {
                 it.status = status.name
                 if (status == MigrationStatus.COMPLETED || status == MigrationStatus.FAILED) {
                     it.completedAt = ts.toLocalDateTime(TimeZone.UTC)
@@ -62,7 +62,7 @@ open class MigrationCoordinator(
 
     open fun startStep(plan: MigrationPlan, stepNum: Int, description: String): Uuid {
         val step = transaction {
-            MigrationStepEntity.new {
+            MigrationStep.new {
                 this.migrationId = EntityID(plan.migrationId, ServerMigrations)
                 this.stepNumber = stepNum
                 this.description = description
@@ -70,7 +70,7 @@ open class MigrationCoordinator(
             }.toMigrationStepRow()
         }
         transaction {
-            MigrationStepEntity.findById(step.id)?.let {
+            MigrationStep.findById(step.id)?.let {
                 it.status = MigrationStepStatus.RUNNING.name
                 it.startedAt = clock.now().toLocalDateTime(TimeZone.UTC)
             }
@@ -81,7 +81,7 @@ open class MigrationCoordinator(
 
     open fun completeStep(stepId: Uuid, success: Boolean, error: String? = null) {
         transaction {
-            MigrationStepEntity.findById(stepId)?.let {
+            MigrationStep.findById(stepId)?.let {
                 it.status = if (success) MigrationStepStatus.SUCCESS.name else MigrationStepStatus.FAILED.name
                 it.completedAt = clock.now().toLocalDateTime(TimeZone.UTC)
                 if (error != null) it.errorMessage = error

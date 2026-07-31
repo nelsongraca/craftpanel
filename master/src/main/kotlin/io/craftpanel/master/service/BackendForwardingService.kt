@@ -1,7 +1,7 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.database.entity.EnvVarEntity
-import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.entity.EnvVar
+import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.ServerEnvVars
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.crypto.ForwardingSecretCipher
@@ -60,11 +60,11 @@ class BackendForwardingService(
                     val patchJson = BackendForwardingRenderer.render(classification.file, secret)
                     writeFile(backend.backendServerId, patchFileName(classification.file), patchJson.toByteArray())
                     transaction {
-                        val existingOnline = EnvVarEntity.find { (ServerEnvVars.serverId eq backend.backendServerId) and (ServerEnvVars.key eq "ONLINE_MODE") }.firstOrNull()
-                        if (existingOnline != null) existingOnline.value = "false" else EnvVarEntity.new { this.serverId = EntityID(backend.backendServerId, Servers); key = "ONLINE_MODE"; value = "false" }
-                        val existingPatch = EnvVarEntity.find { (ServerEnvVars.serverId eq backend.backendServerId) and (ServerEnvVars.key eq "PATCH_DEFINITIONS") }.firstOrNull()
-                        if (existingPatch != null) existingPatch.value = patchFileEnvValue(classification.file) else EnvVarEntity.new { this.serverId = EntityID(backend.backendServerId, Servers); key = "PATCH_DEFINITIONS"; value = patchFileEnvValue(classification.file) }
-                        ServerEntity.findById(backend.backendServerId)?.let { it.needsRecreate = true }
+                        val existingOnline = EnvVar.find { (ServerEnvVars.serverId eq backend.backendServerId) and (ServerEnvVars.key eq "ONLINE_MODE") }.firstOrNull()
+                        if (existingOnline != null) existingOnline.value = "false" else EnvVar.new { this.serverId = EntityID(backend.backendServerId, Servers); key = "ONLINE_MODE"; value = "false" }
+                        val existingPatch = EnvVar.find { (ServerEnvVars.serverId eq backend.backendServerId) and (ServerEnvVars.key eq "PATCH_DEFINITIONS") }.firstOrNull()
+                        if (existingPatch != null) existingPatch.value = patchFileEnvValue(classification.file) else EnvVar.new { this.serverId = EntityID(backend.backendServerId, Servers); key = "PATCH_DEFINITIONS"; value = patchFileEnvValue(classification.file) }
+                        Server.findById(backend.backendServerId)?.let { it.needsRecreate = true }
                     }
                 }
             }

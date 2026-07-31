@@ -4,11 +4,11 @@ import com.cronutils.model.CronType
 import com.cronutils.model.definition.CronDefinitionBuilder
 import com.cronutils.model.time.ExecutionTime
 import com.cronutils.parser.CronParser
-import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.service.repo.ServerJobRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.coroutines.*
-import io.craftpanel.master.database.entity.ServerJobEntity
+import io.craftpanel.master.database.entity.ServerJob
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -78,7 +78,7 @@ class ServerScheduler(
                 if (lastFiredMinute == nowMinute) continue
             }
             val serverId = row.id
-            transaction { ServerEntity.findById(serverId)?.let { it.backupScheduleLastFired = now.toLocalDateTime(TimeZone.UTC) } }
+            transaction { Server.findById(serverId)?.let { it.backupScheduleLastFired = now.toLocalDateTime(TimeZone.UTC) } }
             handlers["BACKUP"]?.let { handler ->
                 scope.launch {
                     handler.execute(JobExecutionContext(serverId, jobId = null, scheduledAt = now))
@@ -100,7 +100,7 @@ class ServerScheduler(
             val jobId = row.id
             val serverId = row.serverId
             val type = row.type
-            transaction { ServerJobEntity.findById(jobId)?.let { it.lastFiredAt = now.toLocalDateTime(TimeZone.UTC) } }
+            transaction { ServerJob.findById(jobId)?.let { it.lastFiredAt = now.toLocalDateTime(TimeZone.UTC) } }
             handlers[type]?.let { handler ->
                 scope.launch {
                     handler.execute(JobExecutionContext(serverId, jobId = jobId, scheduledAt = now))

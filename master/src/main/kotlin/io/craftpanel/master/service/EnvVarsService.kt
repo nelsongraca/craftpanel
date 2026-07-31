@@ -1,7 +1,7 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.database.entity.EnvVarEntity
-import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.entity.EnvVar
+import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.ServerEnvVars
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ConfigMode
@@ -43,15 +43,15 @@ class EnvVarsService(private val serverRepository: ServerRepository, private val
         val keys = req.envVars.map { it.key.trim() }
         if (keys.size != keys.toSet().size) throw UnprocessableException("Duplicate env var keys")
         transaction {
-            EnvVarEntity.find { ServerEnvVars.serverId eq serverId }.forEach { it.delete() }
+            EnvVar.find { ServerEnvVars.serverId eq serverId }.forEach { it.delete() }
             req.envVars.forEach { ev ->
-                EnvVarEntity.new {
+                EnvVar.new {
                     this.serverId = EntityID(serverId, Servers)
                     key = ev.key.trim()
                     value = ev.value
                 }
             }
-            ServerEntity.findById(serverId)?.let { it.needsRecreate = true }
+            Server.findById(serverId)?.let { it.needsRecreate = true }
         }
         return getEnvVars(serverId)
     }
@@ -59,7 +59,7 @@ class EnvVarsService(private val serverRepository: ServerRepository, private val
     fun updateStopCommand(serverId: Uuid, req: PatchStopCommandRequest) {
         serverRepository.findById(serverId) ?: throw NotFoundException("Server not found")
         transaction {
-            val e = ServerEntity.findById(serverId) ?: return@transaction
+            val e = Server.findById(serverId) ?: return@transaction
             e.stopCommand = req.stopCommand
             e.needsRecreate = true
         }
@@ -68,7 +68,7 @@ class EnvVarsService(private val serverRepository: ServerRepository, private val
     fun updateConfigMode(serverId: Uuid, req: PatchConfigModeRequest): EnvVarsResponse {
         serverRepository.findById(serverId) ?: throw NotFoundException("Server not found")
         transaction {
-            val e = ServerEntity.findById(serverId) ?: return@transaction
+            val e = Server.findById(serverId) ?: return@transaction
             e.configMode = req.configMode.name
             e.needsRecreate = true
         }

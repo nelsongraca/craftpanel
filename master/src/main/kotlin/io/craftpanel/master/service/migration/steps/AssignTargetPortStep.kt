@@ -1,6 +1,6 @@
 package io.craftpanel.master.service.migration.steps
 
-import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.PortRegistry
 import io.craftpanel.master.database.schema.Servers
@@ -34,7 +34,7 @@ class AssignTargetPortStep : MigrationStep {
             transaction { PortRegistry.insert { it[PortRegistry.nodeId] = EntityID(plan.targetNodeId, Nodes); it[PortRegistry.port] = plan.assignedPort; it[PortRegistry.protocol] = "TCP"; it[PortRegistry.serverId] = EntityID(plan.serverId, Servers) } }
 
             if (plan.assignedPort != existingPort) {
-                transaction { ServerEntity.findById(plan.serverId)?.let { it.hostPort = plan.assignedPort } }
+                transaction { Server.findById(plan.serverId)?.let { it.hostPort = plan.assignedPort } }
             }
 
             plan.freshServerRow = coord.serverRepository.findById(plan.serverId)

@@ -1,6 +1,6 @@
 package io.craftpanel.master.service.repo.impl
 
-import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.*
@@ -104,12 +104,12 @@ class ServerRepositoryImpl : ServerRepository {
     }
 
     override fun updateNeedsRecreate(id: Uuid, value: Boolean) = transaction {
-        ServerEntity.findById(id)?.let { it.needsRecreate = value }
+        Server.findById(id)?.let { it.needsRecreate = value }
         Unit
     }
 
     override fun updateForwardingSecret(id: Uuid, enc: String) = transaction {
-        ServerEntity.findById(id)?.let { it.forwardingSecretEnc = enc }
+        Server.findById(id)?.let { it.forwardingSecretEnc = enc }
         Unit
     }
 

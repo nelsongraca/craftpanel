@@ -1,6 +1,6 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.ServerRepository
@@ -56,7 +56,7 @@ class ProxySettingsService(
         }
 
         transaction {
-            val e = ServerEntity.findById(proxyServerId) ?: return@transaction
+            val e = Server.findById(proxyServerId) ?: return@transaction
             e.proxyMotd = req.motd
             e.proxyMaxPlayers = req.maxPlayers
             e.proxyForwardingMode = mode

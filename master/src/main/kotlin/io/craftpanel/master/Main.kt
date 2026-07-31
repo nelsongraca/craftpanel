@@ -4,7 +4,7 @@ import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.config.AppConfig
 import io.craftpanel.master.database.DatabaseFactory
-import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.migrations.seedAdminUser
 import io.craftpanel.master.di.DnsProviderHolder
 import io.craftpanel.master.di.appModule
@@ -110,7 +110,7 @@ fun Application.module() {
                 runCatching {
                     val clearRecreate = event.status == ServerStatus.HEALTHY
                     transaction {
-                        val entity = ServerEntity.findById(Uuid.parse(event.serverId)) ?: return@transaction
+                        val entity = Server.findById(Uuid.parse(event.serverId)) ?: return@transaction
                         entity.status = event.status.toDb()
                         if (clearRecreate) entity.needsRecreate = false
                     }

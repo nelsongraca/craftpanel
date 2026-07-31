@@ -1,6 +1,6 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.database.entity.GroupEntity
+import io.craftpanel.master.database.entity.Group
 import io.craftpanel.master.database.schema.GroupPermissions
 import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
@@ -47,7 +47,7 @@ class GroupService(private val groupRepository: GroupRepository) {
         if (groupRepository.findByName(req.name) != null)
             throw ConflictException("Group name already taken")
         return transaction {
-            val e = GroupEntity.new { this.name = req.name }
+            val e = Group.new { this.name = req.name }
             val row = Groups.selectAll().where { Groups.id eq e.id }.first()
             GroupRow(
                 id = row[Groups.id].value,
@@ -66,7 +66,7 @@ class GroupService(private val groupRepository: GroupRepository) {
     fun updateGroup(targetId: Uuid, req: PatchGroupRequest): GroupResponse {
         val existing = groupRepository.findById(targetId) ?: throw NotFoundException("Group not found")
         if (existing.isSystem) throw ConflictException("Cannot modify a system group")
-        transaction { GroupEntity.findById(targetId)?.let { it.name = req.name } }
+        transaction { Group.findById(targetId)?.let { it.name = req.name } }
         return groupRepository.findById(targetId)!!
             .toResponse()
     }
@@ -77,7 +77,7 @@ class GroupService(private val groupRepository: GroupRepository) {
         transaction {
             UserGroupAssignments.deleteWhere { UserGroupAssignments.groupId eq targetId }
             GroupPermissions.deleteWhere { GroupPermissions.groupId eq targetId }
-            GroupEntity.findById(targetId)?.delete()
+            Group.findById(targetId)?.delete()
         }
     }
 

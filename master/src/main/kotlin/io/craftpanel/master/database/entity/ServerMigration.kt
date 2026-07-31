@@ -8,8 +8,8 @@ import org.jetbrains.exposed.v1.dao.UuidEntity
 import org.jetbrains.exposed.v1.dao.UuidEntityClass
 import kotlin.uuid.Uuid
 
-class ServerMigrationEntity(id: EntityID<Uuid>) : UuidEntity(id) {
-    companion object : UuidEntityClass<ServerMigrationEntity>(ServerMigrations)
+class ServerMigration(id: EntityID<Uuid>) : UuidEntity(id) {
+    companion object : UuidEntityClass<ServerMigration>(ServerMigrations)
 
     var serverId by ServerMigrations.serverId
     var sourceNodeId by ServerMigrations.sourceNodeId

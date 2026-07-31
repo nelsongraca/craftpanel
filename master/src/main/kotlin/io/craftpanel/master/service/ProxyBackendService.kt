@@ -1,7 +1,7 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.database.entity.ProxyBackendEntity
-import io.craftpanel.master.database.entity.ServerEntity
+import io.craftpanel.master.database.entity.ProxyBackend
+import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.ProxyBackends
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ServerStatus
@@ -68,16 +68,16 @@ class ProxyBackendService(
         }
 
         transaction {
-            ProxyBackendEntity.find { ProxyBackends.proxyServerId eq proxyServerId }.forEach { it.delete() }
+            ProxyBackend.find { ProxyBackends.proxyServerId eq proxyServerId }.forEach { it.delete() }
             inputs.forEach { b ->
-                ProxyBackendEntity.new {
+                ProxyBackend.new {
                     this.proxyServerId = EntityID(proxyServerId, Servers)
                     this.backendServerId = EntityID(b.backendServerId, Servers)
                     this.backendName = b.backendName
                     this.order = b.order
                 }
             }
-            ServerEntity.findById(proxyServerId)?.let { it.needsRecreate = true }
+            Server.findById(proxyServerId)?.let { it.needsRecreate = true }
         }
         writePatchIfRunning(serverRow.id, serverRow.status)
 
