@@ -28,7 +28,7 @@ import kotlin.time.Duration.Companion.milliseconds
 @Tags("Misc")
 class McRouterRoutingTest : BaseSystemTest() {
 
-    // A network with a domain suffix so master can resolve a public hostname for the
+    // Global DNS domain suffix so master can resolve a public hostname for the
     // exposed server in `none` DNS mode (no DNS provider configured). The matching Docker
     // network must exist before the server starts — master sets
     // dockerNetwork=<prefix>-net-<networkId> and nothing else creates it in tests.
@@ -58,10 +58,11 @@ class McRouterRoutingTest : BaseSystemTest() {
             authHelper.login()
             nodeHelper.pollUntilActive(nodeId)
 
+            api.updateSystemSettings(PatchSettingsRequest(dnsDomainSuffix = domainSuffix))
+
             val network = api.createNetwork(
                 CreateNetworkRequest(
-                    name = "mcrouter-net-${System.currentTimeMillis()}",
-                    domainSuffix = domainSuffix
+                    name = "mcrouter-net-${System.currentTimeMillis()}"
                 )
             )
             networkId = network.id
