@@ -5,13 +5,13 @@ import io.craftpanel.master.database.entity.Mod
 import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.Backups
 import io.craftpanel.master.database.schema.ContainerMetrics
+import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.PortRegistry
 import io.craftpanel.master.database.schema.ProxyBackends
 import io.craftpanel.master.database.schema.ServerEnvVars
 import io.craftpanel.master.database.schema.ServerJobs
 import io.craftpanel.master.database.schema.ServerMigrations
 import io.craftpanel.master.database.schema.ServerMods
-import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.dns.DnsProvider
@@ -24,9 +24,8 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.*
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
 import kotlin.time.Instant
@@ -300,13 +299,9 @@ class ServerService(
         if (recordId != null) {
             val provider = dnsProvider
                 ?: throw ConflictException("Cannot delete server with DNS record: DNS provider not configured")
-            val networkId = existing.networkId
-            val networkRow = networkId?.let { networkRepository.findById(it) }
-            val zoneId = networkRow?.cfZoneId
-            val domainSuffix = networkRow?.cfDomainSuffix
-            if (zoneId == null || domainSuffix == null) {
-                throw ConflictException("Cannot delete server with DNS record: network has no DNS config")
-            }
+            val settings = settingsRepository.getAll().associate { it.key to it.value }
+            val zoneId = settings["dns_zone_id"]?.takeIf { it.isNotBlank() }
+                ?: throw ConflictException("Cannot delete server with DNS record: no DNS zone configured")
             runCatching { provider.deleteARecord(zoneId, recordId) }
                 .onFailure { log.warn("Failed to delete DNS record $recordId during server delete", it) }
         }

@@ -197,7 +197,7 @@ Master uses a pluggable `DnsProvider` interface. The active provider is selected
 | `none` (default) | DNS records are not created. Subdomains are still stored for mc-router label use. |
 | `cloudflare`     | A records are managed via the Cloudflare API. Requires `CF_API_TOKEN`.            |
 
-The zone ID and domain suffix are configured per Server Network (not globally), allowing each network to use a different zone.
+The zone ID and domain suffix are configured once globally, in System Settings — not per Server Network. There is only ever one Cloudflare API token for the whole install, so per-network DNS configuration would be redundant.
 
 ### DNS Provider Configuration (Cloudflare)
 
@@ -206,15 +206,13 @@ DNS_PROVIDER=cloudflare
 CF_API_TOKEN=<your-cloudflare-api-token>
 ```
 
-The network must also have `dns_zone_id` and `dns_domain_suffix` set — configurable via `POST/PATCH /api/networks` or the Network settings page in the UI. Master will return `422` if exposure is enabled on a server whose network has no DNS
-zone configured. See [Enabling Public Hostnames](../usage/enabling-public-hostnames.md) for the one-time setup walkthrough.
+`dns_zone_id` and `dns_domain_suffix` must also be set via `PATCH /api/system/settings` (or the Settings page in the UI). Master will return `422` if exposure is enabled on a server while no DNS
+zone is configured. See [Enabling Public Hostnames](../usage/enabling-public-hostnames.md) for the one-time setup walkthrough.
 
 ### Planned DNS Enhancements
 
 - **Route53 and other providers** — the `DnsProvider` interface is ready; adding a provider requires implementing three methods (`createARecord`, `updateARecord`, `deleteARecord`) and registering it
   in the factory.
-- **Per-network credential sets** — currently all networks share global credentials. Independent credential sets per network require a secret storage strategy outside the database and are future work.
-- **Per-network provider selection at runtime** — the `dns_provider_type` column on Server Networks is stored and returned by the API but not consulted at runtime; provider selection is driven globally by the `DNS_PROVIDER` env var. Routing different networks to different providers is future work.
 
 ## DNS on Migration
 

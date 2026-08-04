@@ -56,7 +56,6 @@ class MigrationsRoutesTest :
                 envVarsRepository = repos.envVarsRepository
             ),
             serverExposure = ServerExposure(
-                networkRepository = NetworkRepositoryImpl(),
                 settingsRepository = SettingsRepositoryImpl(),
                 serverRepository = repos.serverRepository
             )

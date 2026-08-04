@@ -6,16 +6,7 @@ class FakeNetworkRepository : NetworkRepository {
 
     private val networks = mutableMapOf<Uuid, MutableNetwork>()
 
-    data class MutableNetwork(
-        var id: Uuid,
-        var name: String,
-        var proxyPort: Int?,
-        var description: String?,
-        var cfZoneId: String?,
-        var cfDomainSuffix: String?,
-        var dnsProviderType: String?,
-        var createdAt: String = "2025-01-01T00:00:00Z",
-    )
+    data class MutableNetwork(var id: Uuid, var name: String, var proxyPort: Int?, var description: String?, var createdAt: String = "2025-01-01T00:00:00Z")
 
     override fun findById(id: Uuid): NetworkRow? = networks[id]?.toRow()
     override fun findByName(name: String): NetworkRow? = networks.values.firstOrNull { it.name == name }
@@ -24,19 +15,12 @@ class FakeNetworkRepository : NetworkRepository {
     override fun listAll(): List<NetworkRow> = networks.values.map { it.toRow() }
     override fun listByIds(ids: List<Uuid>): List<NetworkRow> = ids.mapNotNull { networks[it]?.toRow() }
 
-    fun addNetwork(
-        name: String,
-        proxyPort: Int?,
-        description: String?,
-        cfDomainSuffix: String?,
-        cfZoneId: String?,
-        dnsProviderType: String?,
-    ): NetworkRow {
+    fun addNetwork(name: String, proxyPort: Int?, description: String?): NetworkRow {
         val id = Uuid.random()
-        val row = MutableNetwork(id, name, proxyPort, description, cfZoneId, cfDomainSuffix, dnsProviderType)
+        val row = MutableNetwork(id, name, proxyPort, description)
         networks[id] = row
         return row.toRow()
     }
 
-    private fun MutableNetwork.toRow() = NetworkRow(id, name, proxyPort, description, cfZoneId, cfDomainSuffix, dnsProviderType, createdAt)
+    private fun MutableNetwork.toRow() = NetworkRow(id, name, proxyPort, description, createdAt)
 }

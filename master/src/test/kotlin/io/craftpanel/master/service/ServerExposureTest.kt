@@ -1,6 +1,5 @@
 package io.craftpanel.master.service
 import io.craftpanel.master.domain.ServerType
-import io.craftpanel.master.service.repo.FakeNetworkRepository
 import io.craftpanel.master.service.repo.FakeRepositories
 import io.craftpanel.master.service.repo.FakeServerRepository
 import io.craftpanel.master.service.repo.FakeSettingsRepository
@@ -53,74 +52,40 @@ private fun testServerRow(
 
 class ServerExposureTest :
     FunSpec({
-        lateinit var networkRepository: FakeNetworkRepository
         lateinit var settingsRepository: FakeSettingsRepository
         lateinit var repos: FakeRepositories
         lateinit var serverRepository: FakeServerRepository
         lateinit var serverExposure: ServerExposure
 
         beforeTest {
-            networkRepository = FakeNetworkRepository()
             settingsRepository = FakeSettingsRepository()
             repos = FakeRepositories()
             serverRepository = FakeServerRepository(repos)
-            serverExposure = ServerExposure(networkRepository, settingsRepository, serverRepository)
+            serverExposure = ServerExposure(settingsRepository, serverRepository)
         }
 
         context("resolveSuffix") {
-            test("falls back to global setting when network has no suffix") {
+            test("returns the global setting when configured") {
                 settingsRepository.addSetting("dns_domain_suffix", "global.example.com")
-                serverExposure.resolveSuffix(null) shouldBe "global.example.com"
+                serverExposure.resolveSuffix() shouldBe "global.example.com"
             }
 
-            test("prefers network suffix over global setting") {
-                settingsRepository.addSetting("dns_domain_suffix", "global.example.com")
-                val network = networkRepository.addNetwork(
-                    name = "net1",
-                    proxyPort = null,
-                    description = null,
-                    cfDomainSuffix = "net1.example.com",
-                    cfZoneId = "zone1",
-                    dnsProviderType = "CLOUDFLARE"
-                )
-                serverExposure.resolveSuffix(network.id) shouldBe "net1.example.com"
-            }
-
-            test("returns null when neither network nor global setting resolve") {
-                serverExposure.resolveSuffix(null)
+            test("returns null when global setting not configured") {
+                serverExposure.resolveSuffix()
                     .shouldBeNull()
             }
         }
 
-        context("resolveNetworkDns") {
-            test("returns null for null networkId") {
-                serverExposure.resolveNetworkDns(null)
+        context("resolveGlobalDns") {
+            test("returns null when zone or suffix missing") {
+                serverExposure.resolveGlobalDns()
                     .shouldBeNull()
             }
 
-            test("returns null when network has no zone or suffix") {
-                val network = networkRepository.addNetwork(
-                    name = "net1",
-                    proxyPort = null,
-                    description = null,
-                    cfDomainSuffix = null,
-                    cfZoneId = null,
-                    dnsProviderType = null
-                )
-                serverExposure.resolveNetworkDns(network.id)
-                    .shouldBeNull()
-            }
-
-            test("returns NetworkDns when network has zone and suffix") {
-                val network = networkRepository.addNetwork(
-                    name = "net1",
-                    proxyPort = null,
-                    description = null,
-                    cfDomainSuffix = "net1.example.com",
-                    cfZoneId = "zone1",
-                    dnsProviderType = "CLOUDFLARE"
-                )
-                val dns = serverExposure.resolveNetworkDns(network.id)
+            test("returns NetworkDns when zone and suffix configured") {
+                settingsRepository.addSetting("dns_zone_id", "zone1")
+                settingsRepository.addSetting("dns_domain_suffix", "net1.example.com")
+                val dns = serverExposure.resolveGlobalDns()
                 dns shouldBe ServerExposure.NetworkDns("zone1", "net1.example.com")
             }
         }
@@ -247,20 +212,6 @@ class ServerExposureTest :
                 )
                 shouldThrow<UnprocessableException> {
                     serverExposure.validateCustomHostname("play.example.com", Uuid.random())
-                }
-            }
-
-            test("rejects hostname under a panel-managed network suffix") {
-                networkRepository.addNetwork(
-                    name = "net1",
-                    proxyPort = null,
-                    description = null,
-                    cfDomainSuffix = "managed.example.com",
-                    cfZoneId = "zone1",
-                    dnsProviderType = "CLOUDFLARE"
-                )
-                shouldThrow<UnprocessableException> {
-                    serverExposure.validateCustomHostname("sub.managed.example.com", Uuid.random())
                 }
             }
 

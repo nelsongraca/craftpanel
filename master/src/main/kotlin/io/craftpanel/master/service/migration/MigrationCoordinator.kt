@@ -110,7 +110,13 @@ open class MigrationCoordinator(
             ?: throw PortExhaustedException(
                 "No free ports in range ${plan.targetNodeRow.portRangeStart}-${plan.targetNodeRow.portRangeEnd} on node ${plan.targetNodeId}"
             )
-        transaction { PortRegistry.insert { it[PortRegistry.nodeId] = EntityID(plan.targetNodeId, Nodes); it[PortRegistry.port] = port; it[PortRegistry.protocol] = "TCP" } }
+        transaction {
+            PortRegistry.insert {
+                it[PortRegistry.nodeId] = EntityID(plan.targetNodeId, Nodes)
+                it[PortRegistry.port] = port
+                it[PortRegistry.protocol] = "TCP"
+            }
+        }
         return port
     }
 
@@ -134,5 +140,5 @@ open class MigrationCoordinator(
         }
     }
 
-    open fun resolveTargetDns(plan: MigrationPlan): ServerExposure.NetworkDns? = serverExposure.resolveNetworkDns(plan.serverRow.networkId)
+    open fun resolveTargetDns(plan: MigrationPlan): ServerExposure.NetworkDns? = serverExposure.resolveGlobalDns()
 }

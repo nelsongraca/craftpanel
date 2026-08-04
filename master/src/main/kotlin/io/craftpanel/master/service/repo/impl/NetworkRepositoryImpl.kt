@@ -43,8 +43,5 @@ private fun org.jetbrains.exposed.v1.core.ResultRow.toNetworkRow() = NetworkRow(
     name = this[ServerNetworks.name],
     proxyPort = this[ServerNetworks.proxyPort],
     description = this[ServerNetworks.description],
-    cfZoneId = this[ServerNetworks.cfZoneId],
-    cfDomainSuffix = this[ServerNetworks.cfDomainSuffix],
-    dnsProviderType = this[ServerNetworks.dnsProviderType],
     createdAt = this[ServerNetworks.createdAt].toUtcString()
 )

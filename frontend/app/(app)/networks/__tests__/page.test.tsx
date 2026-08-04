@@ -31,10 +31,6 @@ function network(overrides: Record<string, unknown> = {}): Record<string, unknow
         name: "Survival Network",
         description: "Main survival servers",
         proxy_port: null,
-        domain_suffix: null,
-        dns_zone_id: null,
-        dns_domain_suffix: null,
-        dns_provider_type: null,
         server_count: 3,
         created_at: "2026-01-01T00:00:00Z",
         ...overrides,
@@ -162,57 +158,6 @@ describe("NetworksPage", () => {
         await userEvent.setup().click(editBtns[0]);
         await userEvent.setup().click(screen.getByText("Cancel"));
         expect(updateNetwork).not.toHaveBeenCalled();
-    });
-
-    it("create modal includes DNS fields", async () => {
-        await renderWith({networks: []});
-        await userEvent.setup().click(screen.getByText("New Network"));
-        expect(screen.getByPlaceholderText("32-hex Cloudflare zone ID")).toBeTruthy();
-        expect(screen.getByPlaceholderText("mc.example.com")).toBeTruthy();
-        expect(screen.getByText(/Informational — provider is selected globally/)).toBeTruthy();
-    });
-
-    it("create modal submits DNS fields when filled", async () => {
-        vi.mocked(createNetwork).mockResolvedValue({data: {id: "new-n"} as unknown as NetworkResponse, error: undefined});
-        vi.mocked(listNetworks).mockResolvedValue({data: []});
-        await renderWith({networks: []});
-
-        await userEvent.setup().click(screen.getByText("New Network"));
-        await userEvent.setup().type(screen.getByLabelText(/Name/), "NewNet");
-        await userEvent.setup().type(screen.getByPlaceholderText("32-hex Cloudflare zone ID"), "023e105f4ecef8ad9ca31a8482d7aca9");
-        await userEvent.setup().type(screen.getByPlaceholderText("mc.example.com"), "mc.example.com");
-        await userEvent.setup().click(screen.getByText("Create"));
-
-        await waitFor(() => {
-            expect(createNetwork).toHaveBeenCalledWith(expect.objectContaining({
-                body: expect.objectContaining({
-                    dns_zone_id: "023e105f4ecef8ad9ca31a8482d7aca9",
-                    dns_domain_suffix: "mc.example.com",
-                }),
-            }));
-        });
-    });
-
-    it("edit modal pre-fills DNS fields from the network", async () => {
-        await renderWith({
-            networks: [network({
-                dns_zone_id: "abc123def456abc123def456abc123de",
-                dns_domain_suffix: "mc.example.com",
-                dns_provider_type: "cloudflare",
-            })],
-        });
-        const editBtns = screen.getAllByTitle("Edit");
-        await userEvent.setup().click(editBtns[0]);
-        expect(screen.getByDisplayValue("abc123def456abc123def456abc123de")).toBeTruthy();
-        expect(screen.getByDisplayValue("mc.example.com")).toBeTruthy();
-    });
-
-    it("DNS provider type select is disabled", async () => {
-        const {container} = await renderWith({networks: []});
-        await userEvent.setup().click(screen.getByText("New Network"));
-        const trigger = container.querySelector('[data-slot="select-trigger"]');
-        expect(trigger).not.toBeNull();
-        expect(trigger?.hasAttribute("disabled")).toBe(true);
     });
 
     it("delete modal opens on trash click", async () => {

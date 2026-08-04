@@ -21,10 +21,6 @@ data class NetworkResponse(
     val name: String,
     @SerialName("proxy_port") val proxyPort: Int?,
     val description: String?,
-    @SerialName("domain_suffix") val domainSuffix: String?,
-    @SerialName("dns_zone_id") val dnsZoneId: String?,
-    @SerialName("dns_domain_suffix") val dnsDomainSuffix: String?,
-    @SerialName("dns_provider_type") val dnsProviderType: String?,
     @SerialName("server_count") val serverCount: Int,
     @SerialName("created_at") val createdAt: String
 )
@@ -38,35 +34,16 @@ data class NetworkDetailResponse(
     val name: String,
     @SerialName("proxy_port") val proxyPort: Int?,
     val description: String?,
-    @SerialName("domain_suffix") val domainSuffix: String?,
-    @SerialName("dns_zone_id") val dnsZoneId: String?,
-    @SerialName("dns_domain_suffix") val dnsDomainSuffix: String?,
-    @SerialName("dns_provider_type") val dnsProviderType: String?,
     @SerialName("server_count") val serverCount: Int,
     val servers: List<NetworkServerItem>,
     @SerialName("created_at") val createdAt: String
 )
 
 @Serializable
-data class CreateNetworkRequest(
-    val name: String,
-    @SerialName("proxy_port") val proxyPort: Int? = null,
-    val description: String? = null,
-    @SerialName("domain_suffix") val domainSuffix: String? = null,
-    @SerialName("dns_zone_id") val dnsZoneId: String? = null,
-    @SerialName("dns_domain_suffix") val dnsDomainSuffix: String? = null,
-    @SerialName("dns_provider_type") val dnsProviderType: String? = null
-)
+data class CreateNetworkRequest(val name: String, @SerialName("proxy_port") val proxyPort: Int? = null, val description: String? = null)
 
 @Serializable
-data class PatchNetworkRequest(
-    val name: String? = null,
-    val description: String? = null,
-    @SerialName("domain_suffix") val domainSuffix: String? = null,
-    @SerialName("dns_zone_id") val dnsZoneId: String? = null,
-    @SerialName("dns_domain_suffix") val dnsDomainSuffix: String? = null,
-    @SerialName("dns_provider_type") val dnsProviderType: String? = null
-)
+data class PatchNetworkRequest(val name: String? = null, val description: String? = null)
 
 class NetworkService(
     private val dockerClient: DockerClient? = null,
@@ -148,9 +125,6 @@ class NetworkService(
                 this.name = req.name
                 this.proxyPort = req.proxyPort
                 this.description = req.description
-                this.cfDomainSuffix = req.domainSuffix ?: req.dnsDomainSuffix
-                this.cfZoneId = req.dnsZoneId
-                this.dnsProviderType = req.dnsProviderType
             }
             val r = ServerNetworks.selectAll().where { ServerNetworks.id eq e.id }.first()
             NetworkRow(
@@ -158,9 +132,6 @@ class NetworkService(
                 name = r[ServerNetworks.name],
                 proxyPort = r[ServerNetworks.proxyPort],
                 description = r[ServerNetworks.description],
-                cfZoneId = r[ServerNetworks.cfZoneId],
-                cfDomainSuffix = r[ServerNetworks.cfDomainSuffix],
-                dnsProviderType = r[ServerNetworks.dnsProviderType],
                 createdAt = r[ServerNetworks.createdAt].toUtcString()
             )
         }
@@ -184,10 +155,6 @@ class NetworkService(
             name = row.name,
             proxyPort = row.proxyPort,
             description = row.description,
-            domainSuffix = row.cfDomainSuffix,
-            dnsZoneId = row.cfZoneId,
-            dnsDomainSuffix = row.cfDomainSuffix,
-            dnsProviderType = row.dnsProviderType,
             serverCount = members.size,
             servers = members,
             createdAt = row.createdAt
@@ -204,10 +171,6 @@ class NetworkService(
             Network.findById(id)?.let {
                 if (req.name != null) it.name = req.name
                 if (req.description != null) it.description = req.description
-                if (req.domainSuffix != null) it.cfDomainSuffix = req.domainSuffix
-                else if (req.dnsDomainSuffix != null) it.cfDomainSuffix = req.dnsDomainSuffix
-                if (req.dnsZoneId != null) it.cfZoneId = req.dnsZoneId
-                if (req.dnsProviderType != null) it.dnsProviderType = req.dnsProviderType
             }
         }
     }
@@ -225,10 +188,6 @@ private fun NetworkRow.toResponse(serverCount: Int) = NetworkResponse(
     name = name,
     proxyPort = proxyPort,
     description = description,
-    domainSuffix = cfDomainSuffix,
-    dnsZoneId = cfZoneId,
-    dnsDomainSuffix = cfDomainSuffix,
-    dnsProviderType = dnsProviderType,
     serverCount = serverCount,
     createdAt = createdAt
 )

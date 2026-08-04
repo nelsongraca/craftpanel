@@ -122,7 +122,7 @@ class PlayerWarningStepTest :
                     serverRepository = repos.serverRepository,
                     envVarsRepository = repos.envVarsRepository
                 ),
-                serverExposure = ServerExposure(NetworkRepositoryImpl(), SettingsRepositoryImpl(), repos.serverRepository),
+                serverExposure = ServerExposure(SettingsRepositoryImpl(), repos.serverRepository),
                 scope = TestScope(),
                 eventFlow = null
             )

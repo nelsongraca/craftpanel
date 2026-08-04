@@ -20,7 +20,6 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.*
-import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
@@ -55,7 +54,6 @@ class ServersRoutesTest :
             )
             val nodeRepository = NodeRepositoryImpl()
             val serverExposure = ServerExposure(
-                networkRepository = networkRepository,
                 settingsRepository = settingsRepository,
                 serverRepository = serverRepository
             )
@@ -1130,9 +1128,23 @@ class ServersRoutesTest :
                 val nodeId = createNode()
                 val sourceId = createServer(nodeId, "source", memoryMb = 2048, mcVersion = "1.21.4")
                 transaction {
-                    ServerEnvVars.insert { it[ServerEnvVars.serverId] = EntityID(sourceId, Servers); it[ServerEnvVars.key] = "EULA"; it[ServerEnvVars.value] = "TRUE" }
-                    ServerEnvVars.insert { it[ServerEnvVars.serverId] = EntityID(sourceId, Servers); it[ServerEnvVars.key] = "LEVEL"; it[ServerEnvVars.value] = "world" }
-                    ServerMods.insert { it[ServerMods.serverId] = EntityID(sourceId, Servers); it[ServerMods.modrinthProjectId] = "fabric-api"; it[ServerMods.displayName] = "Fabric API"; it[ServerMods.pinStrategy] = "LATEST" }
+                    ServerEnvVars.insert {
+                        it[ServerEnvVars.serverId] = EntityID(sourceId, Servers)
+                        it[ServerEnvVars.key] = "EULA"
+                        it[ServerEnvVars.value] = "TRUE"
+                    }
+                    ServerEnvVars.insert {
+                        it[ServerEnvVars.serverId] = EntityID(sourceId, Servers)
+                        it[ServerEnvVars.key] = "LEVEL"
+                        it[ServerEnvVars.value] = "world"
+                    }
+                    ServerMods.insert {
+                        it[ServerMods.serverId] = EntityID(sourceId, Servers)
+                        it[ServerMods.modrinthProjectId] = "fabric-api"
+                        it[ServerMods.displayName] = "Fabric API"
+                        it[ServerMods.pinStrategy] =
+                            "LATEST"
+                    }
                 }
 
                 val resp = client.post("/api/servers/$sourceId/clone") {

@@ -45,33 +45,23 @@ CF_API_TOKEN_FILE=/run/secrets/cf_api_token
 
 Restart master so the `DnsProviderFactory` picks up the new provider. With `DNS_PROVIDER=cloudflare` set and `CF_API_TOKEN` blank, master fails to start with `"CF_API_TOKEN must be set when DNS_PROVIDER=cloudflare"`.
 
-## Step 4 — Configure the Server Network
+## Step 4 — Configure the global DNS settings
 
-The zone ID and domain suffix are set **per Server Network**, not globally — this lets each network use a different zone. Create or edit a network with the two DNS fields:
+The zone ID and domain suffix are set **once for the whole install**, in System Settings — there is only ever one Cloudflare API token, so per-network DNS configuration would be redundant. Update them via `PATCH /api/system/settings`:
 
 ```bash
-curl -X POST https://panel.example.com/api/networks \
+curl -X PATCH https://panel.example.com/api/system/settings \
   -H "Authorization: Bearer <access-token>" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "Main Network",
     "dns_zone_id": "023e105f4ecef8ad9ca31a8482d7aca9",
     "dns_domain_suffix": "mc.example.com"
   }'
 ```
 
-Or edit an existing network with `PATCH /api/networks/{id}`:
+`dns_domain_suffix` is the parent domain — per-server subdomains become `<sub>.mc.example.com`. Until both `dns_zone_id` and `dns_domain_suffix` are set, no server can be exposed externally: enabling exposure returns `422` with `"No DNS zone configured (set dns_zone_id and dns_domain_suffix in System Settings)"`.
 
-```json
-{
-  "dns_zone_id": "023e105f4ecef8ad9ca31a8482d7aca9",
-  "dns_domain_suffix": "mc.example.com"
-}
-```
-
-The `dns_domain_suffix` is the parent domain — per-server subdomains become `<sub>.mc.example.com`. A network with no `dns_zone_id`/`dns_domain_suffix` cannot host externally-exposed servers: enabling exposure returns `422` with `"Server's network has no DNS zone configured (set dns_zone_id and dns_domain_suffix on the network)"`.
-
-The frontend Network settings page also exposes these fields as **DNS Zone ID** and **DNS Domain Suffix**.
+The frontend Settings page also exposes these fields as **DNS Zone ID** and **DNS Domain Suffix** under the DNS (Cloudflare) section.
 
 ## Step 5 — Static DNS records you must create
 
@@ -101,7 +91,7 @@ Disabling exposure deletes the A record automatically. Deleting the server also 
 ## Notes & limits
 
 - **TTL is 60 seconds** and is hardcoded as the default in `DnsProvider.createARecord`. There is no panel-side setting to change it today; you can lower Cloudflare's "Minimum TTL" zone override if you need faster propagation, but the API record itself is created at 60s.
-- **Per-network credentials** are not supported — all networks share the global `CF_API_TOKEN`. Independent tokens per network require a secret storage strategy outside the database and are future work.
+- **DNS is global, not per-network** — one zone ID and one domain suffix for the whole install, matching the single global `CF_API_TOKEN`.
 - **Other DNS providers** (Route53, etc.) — the `DnsProvider` interface is ready, but only Cloudflare is implemented.
 
 ## Next steps

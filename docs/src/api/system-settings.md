@@ -22,7 +22,9 @@ see [Configuration & Secrets](../tech-stack/configuration.md).
     "metric_retention_days": 30,
     "default_backup_max_count": 10,
     "default_port_range_start": 25570,
-    "default_port_range_end": 26070
+    "default_port_range_end": 26070,
+    "dns_domain_suffix": "mc.example.com",
+    "dns_zone_id": "023e105f4ecef8ad9ca31a8482d7aca9"
   },
   "updated_at": "2026-05-04T10:00:00Z",
   "updated_by": "<user-uuid>"
@@ -52,9 +54,11 @@ Partial update — only provided keys are changed. Omitted keys are unchanged.
 
 ### Available settings
 
-| Key                        | Type    | Default | Description                                               |
-|----------------------------|---------|---------|-----------------------------------------------------------|
-| `metric_retention_days`    | integer | `30`    | Days of node and container metric snapshots to retain     |
-| `default_backup_max_count` | integer | `10`    | Default backup retention limit for newly created servers  |
-| `default_port_range_start` | integer | `25570` | Default start of the host port range applied to new nodes |
-| `default_port_range_end`   | integer | `26070` | Default end of the host port range applied to new nodes   |
+| Key                        | Type    | Default | Description                                                                                           |
+|----------------------------|---------|---------|---------------------------------------------------------------------------------------------------------|
+| `metric_retention_days`    | integer | `30`    | Days of node and container metric snapshots to retain                                                 |
+| `default_backup_max_count` | integer | `10`    | Default backup retention limit for newly created servers                                              |
+| `default_port_range_start` | integer | `25570` | Default start of the host port range applied to new nodes                                             |
+| `default_port_range_end`   | integer | `26070` | Default end of the host port range applied to new nodes                                               |
+| `dns_domain_suffix`        | string  | `null`  | Global parent domain for managed subdomains, e.g. `mc.example.com`                                    |
+| `dns_zone_id`              | string  | `null`  | Global Cloudflare zone ID. Both this and `dns_domain_suffix` are required to expose servers publicly  |

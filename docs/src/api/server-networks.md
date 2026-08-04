@@ -10,6 +10,8 @@ Base path: `/api/networks`
 | PATCH  | `/networks/{id}` | `server.configure` (scoped to network) | Update name or description     |
 | DELETE | `/networks/{id}` | `server.delete` (scoped to network)    | Delete network                 |
 
+DNS configuration (zone ID, domain suffix) is global, not per-network — see [System Settings](system-settings.md) and [Enabling Public Hostnames](../usage/enabling-public-hostnames.md).
+
 ---
 
 ## `GET /networks`
@@ -24,18 +26,12 @@ Base path: `/api/networks`
       "name": "Survival Network",
       "proxy_port": null,
       "description": "Main survival network",
-      "domain_suffix": "mc.example.com",
-      "dns_zone_id": "023e105f4ecef8ad9ca31a8482d7aca9",
-      "dns_domain_suffix": "mc.example.com",
-      "dns_provider_type": "CLOUDFLARE",
       "server_count": 3,
       "created_at": "2026-05-04T10:00:00Z"
     }
   ]
 }
 ```
-
-`dns_zone_id`, `dns_domain_suffix`, and `dns_provider_type` are `null` when no DNS provider is configured for the network. `domain_suffix` is a legacy alias of `dns_domain_suffix`; both mirror the same `cf_domain_suffix` DB column.
 
 ---
 
@@ -47,24 +43,17 @@ Base path: `/api/networks`
 {
   "name": "Survival Network",
   "proxy_port": 25577,
-  "description": "Main survival network",
-  "domain_suffix": "mc.example.com",
-  "dns_zone_id": "023e105f4ecef8ad9ca31a8482d7aca9",
-  "dns_domain_suffix": "mc.example.com",
-  "dns_provider_type": "CLOUDFLARE"
+  "description": "Main survival network"
 }
 ```
 
-All fields except `name` are optional. `domain_suffix` and `dns_domain_suffix` are accepted for backwards compatibility — both write to the same column, prefer `dns_domain_suffix`. The DNS fields are required only when [exposure is enabled](../usage/enabling-public-hostnames.md) on a server that belongs to the network.
+All fields except `name` are optional.
 
-| Field                | Type   | Notes                                                                                              |
-|----------------------|--------|----------------------------------------------------------------------------------------------------|
-| `name`               | string | Required, unique.                                                                                  |
-| `proxy_port`         | int    | Optional, host port for the network's mc-router instance.                                          |
-| `description`        | string | Optional.                                                                                          |
-| `dns_zone_id`        | string | Optional. 32-hex Cloudflare zone ID. Required when `DNS_PROVIDER=cloudflare` and exposing servers. |
-| `dns_domain_suffix`  | string | Optional. Parent domain (e.g. `mc.example.com`); per-server subdomains become `<sub>.<this>`.      |
-| `dns_provider_type`  | string | Optional. Stored but not consulted at runtime — provider selection is global via `DNS_PROVIDER`.   |
+| Field          | Type   | Notes                                                       |
+|----------------|--------|--------------------------------------------------------------|
+| `name`         | string | Required, unique.                                            |
+| `proxy_port`   | int    | Optional, host port for the network's mc-router instance.    |
+| `description`  | string | Optional.                                                    |
 
 **Response `201`:**
 
@@ -74,10 +63,6 @@ All fields except `name` are optional. `domain_suffix` and `dns_domain_suffix` a
   "name": "Survival Network",
   "proxy_port": 25577,
   "description": "Main survival network",
-  "domain_suffix": "mc.example.com",
-  "dns_zone_id": "023e105f4ecef8ad9ca31a8482d7aca9",
-  "dns_domain_suffix": "mc.example.com",
-  "dns_provider_type": "CLOUDFLARE",
   "server_count": 0,
   "created_at": "2026-05-04T10:00:00Z"
 }
@@ -102,10 +87,6 @@ All fields except `name` are optional. `domain_suffix` and `dns_domain_suffix` a
   "name": "Survival Network",
   "proxy_port": 25577,
   "description": "Main survival network",
-  "domain_suffix": "mc.example.com",
-  "dns_zone_id": "023e105f4ecef8ad9ca31a8482d7aca9",
-  "dns_domain_suffix": "mc.example.com",
-  "dns_provider_type": "CLOUDFLARE",
   "servers": [
     {
       "id": "<uuid>",
@@ -135,14 +116,11 @@ All fields optional.
 ```json
 {
   "name": "Main Network",
-  "description": "Updated description",
-  "dns_zone_id": "023e105f4ecef8ad9ca31a8482d7aca9",
-  "dns_domain_suffix": "mc.example.com",
-  "dns_provider_type": "CLOUDFLARE"
+  "description": "Updated description"
 }
 ```
 
-`proxy_port` is not patchable — it is set at create time only. The DNS fields can be added, updated, or cleared (pass `null`) at any time, but servers already exposed will not retroactively reconcile until their exposure is toggled or the server is migrated.
+`proxy_port` is not patchable — it is set at create time only.
 
 **Response `204`:** no content.
 

@@ -142,7 +142,6 @@ val appModule = module {
 
     single {
         ServerExposure(
-            networkRepository = get(),
             settingsRepository = get(),
             serverRepository = get()
         )

@@ -7,7 +7,7 @@ import {createNetwork, deleteNetwork, listNetworks, updateNetwork} from "@/lib/g
 import type {Network} from "@/lib/types";
 import {useResourceList} from "@/lib/hooks/useResourceList";
 
-import {BTN_PRIMARY, BTN_GHOST, Modal, Field, TextField, SelectField} from "@/components/ui/form-elements";
+import {BTN_PRIMARY, BTN_GHOST, Modal, Field, TextField} from "@/components/ui/form-elements";
 import {ListTh, ListTd, ListActions, IconActionButton} from "@/components/ui/list-table";
 import {Empty, EmptyDescription} from "@/components/ui/empty";
 
@@ -16,9 +16,6 @@ import {Empty, EmptyDescription} from "@/components/ui/empty";
 interface NetworkFormState {
     name: string;
     description: string;
-    dnsZoneId: string;
-    dnsDomainSuffix: string;
-    dnsProviderType: string;
 }
 
 function NetworkForm({
@@ -35,9 +32,6 @@ function NetworkForm({
     const [form, setForm] = useState<NetworkFormState>({
         name: initial?.name ?? "",
         description: initial?.description ?? "",
-        dnsZoneId: initial?.dnsZoneId ?? "",
-        dnsDomainSuffix: initial?.dnsDomainSuffix ?? "",
-        dnsProviderType: initial?.dnsProviderType ?? "",
     });
     const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
@@ -64,44 +58,6 @@ function NetworkForm({
                 <TextField id="network-description" value={form.description} placeholder="Optional" onChange={(e) => setForm((f) => ({...f, description: e.target.value}))}/>
             </Field>
 
-            <div className="pt-2 border-t border-border">
-                <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted pt-2">DNS (Cloudflare)</p>
-                <p className="text-xs text-text-muted mt-1">
-                    Optional. Required on networks that will host externally-exposed servers. See the docs for the one-time Cloudflare setup.
-                </p>
-            </div>
-            <Field label="DNS Zone ID" htmlFor="network-dns-zone-id">
-                <TextField
-                    id="network-dns-zone-id"
-                    value={form.dnsZoneId}
-                    placeholder="32-hex Cloudflare zone ID"
-                    onChange={(e) => setForm((f) => ({...f, dnsZoneId: e.target.value}))}
-                />
-            </Field>
-            <Field label="DNS Domain Suffix" htmlFor="network-dns-domain-suffix">
-                <TextField
-                    id="network-dns-domain-suffix"
-                    value={form.dnsDomainSuffix}
-                    placeholder="mc.example.com"
-                    onChange={(e) => setForm((f) => ({...f, dnsDomainSuffix: e.target.value}))}
-                />
-            </Field>
-            <Field label="DNS Provider Type" htmlFor="network-dns-provider-type">
-                <SelectField
-                    id="network-dns-provider-type"
-                    value={form.dnsProviderType}
-                    disabled
-                    onChange={() => {
-                    }}
-                >
-                    <option value="">none</option>
-                    <option value="cloudflare">cloudflare</option>
-                </SelectField>
-                <p className="text-xs text-text-muted mt-1">
-                    Informational — provider is selected globally via the <code>DNS_PROVIDER</code> env var. Stored for future per-network selection.
-                </p>
-            </Field>
-
             {error && <p className="text-xs text-error">{error}</p>}
             <div className="flex justify-end gap-2 pt-1">
                 <button type="button" className={BTN_GHOST} onClick={onCancel}>Cancel</button>
@@ -125,8 +81,6 @@ export default function NetworksPage() {
             body: {
                 name: form.name,
                 description: form.description || undefined,
-                dns_zone_id: form.dnsZoneId || undefined,
-                dns_domain_suffix: form.dnsDomainSuffix || undefined,
             },
         });
         if (res.error) throw new Error((res.error as { message?: string }).message ?? "Failed to create network");
@@ -141,8 +95,6 @@ export default function NetworksPage() {
             body: {
                 name: form.name,
                 description: form.description || undefined,
-                dns_zone_id: form.dnsZoneId || undefined,
-                dns_domain_suffix: form.dnsDomainSuffix || undefined,
             },
         });
         if (res.error) throw new Error((res.error as { message?: string }).message ?? "Failed to update network");
@@ -270,9 +222,6 @@ export default function NetworksPage() {
                         initial={{
                             name: editing.name,
                             description: editing.description ?? "",
-                            dnsZoneId: editing.dns_zone_id ?? "",
-                            dnsDomainSuffix: editing.dns_domain_suffix ?? "",
-                            dnsProviderType: editing.dns_provider_type ?? "",
                         }}
                         onSubmit={handleEdit}
                         onCancel={() => setEditing(null)}

@@ -94,7 +94,7 @@ class AllocateRsyncPortStepTest :
                     serverRepository = repos.serverRepository,
                     envVarsRepository = repos.envVarsRepository
                 ),
-                serverExposure = ServerExposure(NetworkRepositoryImpl(), SettingsRepositoryImpl(), repos.serverRepository),
+                serverExposure = ServerExposure(SettingsRepositoryImpl(), repos.serverRepository),
                 scope = TestScope(),
                 eventFlow = MutableSharedFlow()
             )
@@ -111,7 +111,13 @@ class AllocateRsyncPortStepTest :
 
         test("returns Success with next port when first port taken") {
             runTest {
-                transaction { PortRegistry.insert { it[PortRegistry.nodeId] = EntityID(plan.targetNodeId, Nodes); it[PortRegistry.port] = 25565; it[PortRegistry.protocol] = "TCP" } }
+                transaction {
+                    PortRegistry.insert {
+                        it[PortRegistry.nodeId] = EntityID(plan.targetNodeId, Nodes)
+                        it[PortRegistry.port] = 25565
+                        it[PortRegistry.protocol] = "TCP"
+                    }
+                }
                 val step = AllocateRsyncPortStep()
                 val result = step.execute(plan, coord)
                 result.shouldBeInstanceOf<StepResult.Success>()
@@ -122,7 +128,13 @@ class AllocateRsyncPortStepTest :
         test("returns Failure when port range exhausted") {
             runTest {
                 for (i in 25565..25600) {
-                    transaction { PortRegistry.insert { it[PortRegistry.nodeId] = EntityID(plan.targetNodeId, Nodes); it[PortRegistry.port] = i; it[PortRegistry.protocol] = "TCP" } }
+                    transaction {
+                        PortRegistry.insert {
+                            it[PortRegistry.nodeId] = EntityID(plan.targetNodeId, Nodes)
+                            it[PortRegistry.port] = i
+                            it[PortRegistry.protocol] = "TCP"
+                        }
+                    }
                 }
                 val step = AllocateRsyncPortStep()
                 val result = step.execute(plan, coord)
@@ -142,7 +154,7 @@ class AllocateRsyncPortStepTest :
                     gateway = coord.gateway,
                     dnsProvider = null,
                     lifecycle = coord.lifecycle,
-                    serverExposure = ServerExposure(NetworkRepositoryImpl(), SettingsRepositoryImpl(), coord.serverRepository),
+                    serverExposure = ServerExposure(SettingsRepositoryImpl(), coord.serverRepository),
                     scope = coord.scope,
                     eventFlow = null
                 ) {

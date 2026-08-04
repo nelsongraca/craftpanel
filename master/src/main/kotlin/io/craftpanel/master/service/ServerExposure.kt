@@ -1,34 +1,31 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.service.repo.*
-import io.craftpanel.master.service.repo.impl.*
 import kotlin.uuid.Uuid
 
 /**
  * The one module that answers "what is a server's hostname?" — managed hostname,
- * mc-router label, canonical hostname, network→DNS resolution, and custom-hostname
+ * mc-router label, canonical hostname, global DNS resolution, and custom-hostname
  * validation.
  */
-class ServerExposure(private val networkRepository: NetworkRepository, private val settingsRepository: SettingsRepository, private val serverRepository: ServerRepository) {
+class ServerExposure(private val settingsRepository: SettingsRepository, private val serverRepository: ServerRepository) {
 
-    /** network → (zoneId, suffix), null if the network has no DNS zone. */
-    fun resolveNetworkDns(networkId: Uuid?): NetworkDns? {
-        networkId ?: return null
-        val row = networkRepository.findById(networkId) ?: return null
-        val zoneId = row.cfZoneId ?: return null
-        val suffix = row.cfDomainSuffix ?: return null
+    /** the global (zoneId, suffix), null if either is unconfigured. */
+    fun resolveGlobalDns(): NetworkDns? {
+        val settings = settingsRepository.getAll().associate { it.key to it.value }
+        val zoneId = settings["dns_zone_id"]?.takeIf { it.isNotBlank() } ?: return null
+        val suffix = settings["dns_domain_suffix"]?.takeIf { it.isNotBlank() } ?: return null
         return NetworkDns(zoneId, suffix)
     }
 
-    /** the domain suffix for a network, falling back to the global setting. */
-    fun resolveSuffix(networkId: Uuid?): String? = networkId?.let { networkRepository.findById(it)?.cfDomainSuffix }
-        ?: settingsRepository.getAll()
-            .firstOrNull { it.key == "dns_domain_suffix" }?.value
+    /** the global domain suffix, or null if unconfigured. */
+    fun resolveSuffix(): String? = settingsRepository.getAll()
+        .firstOrNull { it.key == "dns_domain_suffix" }?.value?.takeIf { it.isNotBlank() }
 
     /** managed hostname for an exposed server (subdomain.suffix), or null. */
     fun managedHostname(row: ServerRow): String? {
         if (!row.exposedExternally || row.publicSubdomain == null) return null
-        return row.dnsRecordName ?: resolveSuffix(row.networkId)?.let { "${row.publicSubdomain}.$it" }
+        return row.dnsRecordName ?: resolveSuffix()?.let { "${row.publicSubdomain}.$it" }
     }
 
     /** the mc-router label: managed + custom hostnames comma-joined, or null. */
@@ -58,25 +55,13 @@ class ServerExposure(private val networkRepository: NetworkRepository, private v
             throw UnprocessableException("custom_hostname conflicts with a managed DNS record name")
         }
 
-        val managedSuffixes = collectManagedSuffixes()
-        for (suffix in managedSuffixes) {
-            if (hostname.endsWith(".$suffix") || hostname == suffix) {
-                throw UnprocessableException(
-                    "custom_hostname must not be under a panel-managed domain suffix ($suffix). " +
-                        "Use the managed subdomain path instead."
-                )
-            }
+        val suffix = resolveSuffix()
+        if (suffix != null && (hostname.endsWith(".$suffix") || hostname == suffix)) {
+            throw UnprocessableException(
+                "custom_hostname must not be under the panel-managed domain suffix ($suffix). " +
+                    "Use the managed subdomain path instead."
+            )
         }
-    }
-
-    private fun collectManagedSuffixes(): Set<String> {
-        val suffixes = mutableSetOf<String>()
-        networkRepository.listAll()
-            .mapNotNull { it.cfDomainSuffix }
-            .forEach { suffixes += it }
-        settingsRepository.getAll()
-            .firstOrNull { it.key == "dns_domain_suffix" }?.value?.let { suffixes += it }
-        return suffixes
     }
 
     data class NetworkDns(val zoneId: String, val domainSuffix: String)

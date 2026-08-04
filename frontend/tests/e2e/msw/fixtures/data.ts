@@ -78,10 +78,6 @@ export const fakeNetwork: NetworkResponse = {
     name: "default",
     proxy_port: null,
     description: null,
-    domain_suffix: null,
-    dns_zone_id: null,
-    dns_domain_suffix: null,
-    dns_provider_type: null,
     server_count: 4,
     created_at: "2025-01-01T00:00:00Z",
 };

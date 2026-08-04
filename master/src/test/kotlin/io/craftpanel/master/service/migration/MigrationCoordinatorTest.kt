@@ -124,7 +124,7 @@ class MigrationCoordinatorTest :
                     serverRepository = repos.serverRepository,
                     envVarsRepository = repos.envVarsRepository
                 ),
-                serverExposure = ServerExposure(NetworkRepositoryImpl(), SettingsRepositoryImpl(), repos.serverRepository),
+                serverExposure = ServerExposure(SettingsRepositoryImpl(), repos.serverRepository),
                 scope = TestScope(),
                 eventFlow = MutableSharedFlow()
             )
@@ -132,8 +132,17 @@ class MigrationCoordinatorTest :
 
         test("startStep creates step and returns step id") {
             runTest {
-                val migrationId = transaction { ServerMigrations.insert { it[ServerMigrations.serverId] = EntityID(plan.serverId, Servers); it[ServerMigrations.sourceNodeId] = EntityID(plan.sourceNodeId, Nodes); it[ServerMigrations.targetNodeId] = EntityID(plan.targetNodeId, Nodes); it[ServerMigrations.status] = "PENDING" }[ServerMigrations.id].value }
-                val migration = MigrationRow(id = migrationId, serverId = plan.serverId, sourceNodeId = plan.sourceNodeId, targetNodeId = plan.targetNodeId, status = "PENDING", createdAt = "", completedAt = null)
+                val migrationId = transaction {
+                    ServerMigrations.insert {
+                        it[ServerMigrations.serverId] = EntityID(plan.serverId, Servers)
+                        it[ServerMigrations.sourceNodeId] =
+                            EntityID(plan.sourceNodeId, Nodes)
+                        it[ServerMigrations.targetNodeId] = EntityID(plan.targetNodeId, Nodes)
+                        it[ServerMigrations.status] = "PENDING"
+                    }[ServerMigrations.id].value
+                }
+                val migration =
+                    MigrationRow(id = migrationId, serverId = plan.serverId, sourceNodeId = plan.sourceNodeId, targetNodeId = plan.targetNodeId, status = "PENDING", createdAt = "", completedAt = null)
                 val p = plan.copy(migrationId = migration.id, migrationIdStr = migration.id.toString())
                 val stepId = coord.startStep(p, 1, "Test step")
                 stepId.shouldNotBeNull()
@@ -147,8 +156,17 @@ class MigrationCoordinatorTest :
 
         test("completeStep marks step success") {
             runTest {
-                val migrationId = transaction { ServerMigrations.insert { it[ServerMigrations.serverId] = EntityID(plan.serverId, Servers); it[ServerMigrations.sourceNodeId] = EntityID(plan.sourceNodeId, Nodes); it[ServerMigrations.targetNodeId] = EntityID(plan.targetNodeId, Nodes); it[ServerMigrations.status] = "PENDING" }[ServerMigrations.id].value }
-                val migration = MigrationRow(id = migrationId, serverId = plan.serverId, sourceNodeId = plan.sourceNodeId, targetNodeId = plan.targetNodeId, status = "PENDING", createdAt = "", completedAt = null)
+                val migrationId = transaction {
+                    ServerMigrations.insert {
+                        it[ServerMigrations.serverId] = EntityID(plan.serverId, Servers)
+                        it[ServerMigrations.sourceNodeId] =
+                            EntityID(plan.sourceNodeId, Nodes)
+                        it[ServerMigrations.targetNodeId] = EntityID(plan.targetNodeId, Nodes)
+                        it[ServerMigrations.status] = "PENDING"
+                    }[ServerMigrations.id].value
+                }
+                val migration =
+                    MigrationRow(id = migrationId, serverId = plan.serverId, sourceNodeId = plan.sourceNodeId, targetNodeId = plan.targetNodeId, status = "PENDING", createdAt = "", completedAt = null)
                 val p = plan.copy(migrationId = migration.id, migrationIdStr = migration.id.toString())
                 val stepId = coord.startStep(p, 1, "Test step")
                 coord.completeStep(stepId, true)
@@ -160,8 +178,17 @@ class MigrationCoordinatorTest :
 
         test("completeStep marks step failure with error") {
             runTest {
-                val migrationId = transaction { ServerMigrations.insert { it[ServerMigrations.serverId] = EntityID(plan.serverId, Servers); it[ServerMigrations.sourceNodeId] = EntityID(plan.sourceNodeId, Nodes); it[ServerMigrations.targetNodeId] = EntityID(plan.targetNodeId, Nodes); it[ServerMigrations.status] = "PENDING" }[ServerMigrations.id].value }
-                val migration = MigrationRow(id = migrationId, serverId = plan.serverId, sourceNodeId = plan.sourceNodeId, targetNodeId = plan.targetNodeId, status = "PENDING", createdAt = "", completedAt = null)
+                val migrationId = transaction {
+                    ServerMigrations.insert {
+                        it[ServerMigrations.serverId] = EntityID(plan.serverId, Servers)
+                        it[ServerMigrations.sourceNodeId] =
+                            EntityID(plan.sourceNodeId, Nodes)
+                        it[ServerMigrations.targetNodeId] = EntityID(plan.targetNodeId, Nodes)
+                        it[ServerMigrations.status] = "PENDING"
+                    }[ServerMigrations.id].value
+                }
+                val migration =
+                    MigrationRow(id = migrationId, serverId = plan.serverId, sourceNodeId = plan.sourceNodeId, targetNodeId = plan.targetNodeId, status = "PENDING", createdAt = "", completedAt = null)
                 val p = plan.copy(migrationId = migration.id, migrationIdStr = migration.id.toString())
                 val stepId = coord.startStep(p, 1, "Test step")
                 coord.completeStep(stepId, false, "Something went wrong")
@@ -174,8 +201,17 @@ class MigrationCoordinatorTest :
 
         test("failMigration sets FAILED status") {
             runTest {
-                val migrationId = transaction { ServerMigrations.insert { it[ServerMigrations.serverId] = EntityID(plan.serverId, Servers); it[ServerMigrations.sourceNodeId] = EntityID(plan.sourceNodeId, Nodes); it[ServerMigrations.targetNodeId] = EntityID(plan.targetNodeId, Nodes); it[ServerMigrations.status] = "PENDING" }[ServerMigrations.id].value }
-                val migration = MigrationRow(id = migrationId, serverId = plan.serverId, sourceNodeId = plan.sourceNodeId, targetNodeId = plan.targetNodeId, status = "PENDING", createdAt = "", completedAt = null)
+                val migrationId = transaction {
+                    ServerMigrations.insert {
+                        it[ServerMigrations.serverId] = EntityID(plan.serverId, Servers)
+                        it[ServerMigrations.sourceNodeId] =
+                            EntityID(plan.sourceNodeId, Nodes)
+                        it[ServerMigrations.targetNodeId] = EntityID(plan.targetNodeId, Nodes)
+                        it[ServerMigrations.status] = "PENDING"
+                    }[ServerMigrations.id].value
+                }
+                val migration =
+                    MigrationRow(id = migrationId, serverId = plan.serverId, sourceNodeId = plan.sourceNodeId, targetNodeId = plan.targetNodeId, status = "PENDING", createdAt = "", completedAt = null)
                 val p = plan.copy(migrationId = migration.id, migrationIdStr = migration.id.toString())
                 coord.failMigration(p, "Test error")
                 val row = coord.migrationRepository.findMigrationById(p.migrationId)
@@ -201,7 +237,13 @@ class MigrationCoordinatorTest :
         test("allocateRsyncPort throws when port range exhausted") {
             runTest {
                 for (i in 25565..25600) {
-                    transaction { PortRegistry.insert { it[PortRegistry.nodeId] = EntityID(plan.targetNodeId, Nodes); it[PortRegistry.port] = i; it[PortRegistry.protocol] = "TCP" } }
+                    transaction {
+                        PortRegistry.insert {
+                            it[PortRegistry.nodeId] = EntityID(plan.targetNodeId, Nodes)
+                            it[PortRegistry.port] = i
+                            it[PortRegistry.protocol] = "TCP"
+                        }
+                    }
                 }
                 shouldThrow<PortExhaustedException> {
                     coord.allocateRsyncPort(plan)
@@ -233,7 +275,15 @@ class MigrationCoordinatorTest :
                         it[Servers.status] = "RUNNING"
                     }[Servers.id].let { id -> Uuid.parse(id.toString()) }
                 }
-                transaction { ProxyBackends.insert { it[ProxyBackends.proxyServerId] = EntityID(proxyServerId, Servers); it[ProxyBackends.backendServerId] = EntityID(plan.serverId, Servers); it[ProxyBackends.backendName] = "backend"; it[ProxyBackends.order] = 0 } }
+                transaction {
+                    ProxyBackends.insert {
+                        it[ProxyBackends.proxyServerId] = EntityID(proxyServerId, Servers)
+                        it[ProxyBackends.backendServerId] = EntityID(plan.serverId, Servers)
+                        it[ProxyBackends.backendName] =
+                            "backend"
+                        it[ProxyBackends.order] = 0
+                    }
+                }
 
                 val gateway = coord.gateway as TestAgentGateway
                 coord.updateProxyBackendsAfterMigration(plan.serverId, plan.targetNodeRow.privateIp, 25565)

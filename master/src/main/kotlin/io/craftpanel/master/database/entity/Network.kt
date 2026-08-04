@@ -14,9 +14,6 @@ class Network(id: EntityID<Uuid>) : UuidEntity(id) {
     var name by ServerNetworks.name
     var proxyPort by ServerNetworks.proxyPort
     var description by ServerNetworks.description
-    var cfZoneId by ServerNetworks.cfZoneId
-    var cfDomainSuffix by ServerNetworks.cfDomainSuffix
-    var dnsProviderType by ServerNetworks.dnsProviderType
     var createdAt by ServerNetworks.createdAt
 
     fun toNetworkRow() = NetworkRow(
@@ -24,9 +21,6 @@ class Network(id: EntityID<Uuid>) : UuidEntity(id) {
         name = name,
         proxyPort = proxyPort,
         description = description,
-        cfZoneId = cfZoneId,
-        cfDomainSuffix = cfDomainSuffix,
-        dnsProviderType = dnsProviderType,
         createdAt = createdAt.toUtcString()
     )
 }

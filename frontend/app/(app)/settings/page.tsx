@@ -20,6 +20,8 @@ type FormState = {
     image_minecraft: string;
     image_proxy: string;
     console_tail_lines: string;
+    dns_domain_suffix: string;
+    dns_zone_id: string;
 };
 
 function toForm(s: SettingsMap): FormState {
@@ -35,6 +37,8 @@ function toForm(s: SettingsMap): FormState {
         image_minecraft: s.image_minecraft,
         image_proxy: s.image_proxy,
         console_tail_lines: String(s.console_tail_lines),
+        dns_domain_suffix: s.dns_domain_suffix ?? "",
+        dns_zone_id: s.dns_zone_id ?? "",
     };
 }
 
@@ -85,6 +89,8 @@ export default function SettingsPage() {
                 image_minecraft: form.image_minecraft || undefined,
                 image_proxy: form.image_proxy || undefined,
                 console_tail_lines: parseInt(form.console_tail_lines, 10) || undefined,
+                dns_domain_suffix: form.dns_domain_suffix,
+                dns_zone_id: form.dns_zone_id,
             },
         });
 
@@ -247,6 +253,32 @@ export default function SettingsPage() {
                                     value={form.image_proxy}
                                     onChange={(e) => set("image_proxy", e.target.value)}
                                     required
+                                />
+                            </Field>
+                        </section>
+
+                        {/* ── DNS (Cloudflare) ────────────────────────────────── */}
+                        <section className="bg-surface border border-border rounded-md p-5 space-y-5">
+                            <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                                DNS (Cloudflare)
+                            </h2>
+                            <p className="text-xs text-text-muted -mt-2">
+                                Optional. Required to expose servers publicly. Applies to the whole install — see the docs for the one-time Cloudflare setup.
+                            </p>
+                            <Field label="DNS Zone ID">
+                                <TextField
+                                    type="text"
+                                    placeholder="32-hex Cloudflare zone ID"
+                                    value={form.dns_zone_id}
+                                    onChange={(e) => set("dns_zone_id", e.target.value)}
+                                />
+                            </Field>
+                            <Field label="DNS Domain Suffix">
+                                <TextField
+                                    type="text"
+                                    placeholder="mc.example.com"
+                                    value={form.dns_domain_suffix}
+                                    onChange={(e) => set("dns_domain_suffix", e.target.value)}
                                 />
                             </Field>
                         </section>

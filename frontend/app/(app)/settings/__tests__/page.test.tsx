@@ -42,6 +42,8 @@ const defaultSettings = {
         image_minecraft: "itzg/minecraft-server",
         image_proxy: "itzg/mc-proxy",
         console_tail_lines: 200,
+        dns_domain_suffix: "mc.example.com",
+        dns_zone_id: "023e105f4ecef8ad9ca31a8482d7aca9",
     },
 };
 

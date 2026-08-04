@@ -45,18 +45,18 @@ class ServerExposureService(
 
         if (exposedExternally && publicSubdomain != null) {
             val provider = dnsProvider
-            val dns = serverExposure.resolveNetworkDns(serverRow.networkId)
+            val dns = serverExposure.resolveGlobalDns()
 
             if (provider != null && dns == null) {
                 throw UnprocessableException(
-                    "Server's network has no DNS zone configured (set dns_zone_id and dns_domain_suffix on the network)"
+                    "No DNS zone configured (set dns_zone_id and dns_domain_suffix in System Settings)"
                 )
             }
 
             val fullHostname = if (dns != null) {
                 "$publicSubdomain.${dns.domainSuffix}"
             } else {
-                serverExposure.resolveSuffix(serverRow.networkId)
+                serverExposure.resolveSuffix()
                     ?.let { "$publicSubdomain.$it" }
             }
 
@@ -79,7 +79,7 @@ class ServerExposureService(
         }
 
         if (!exposedExternally && existingRecordId != null && dnsProvider != null) {
-            val dns = serverExposure.resolveNetworkDns(serverRow.networkId)
+            val dns = serverExposure.resolveGlobalDns()
             if (dns != null) {
                 runCatching { dnsProvider!!.deleteARecord(dns.zoneId, existingRecordId) }
                     .onFailure { log.warn("Failed to delete DNS record $existingRecordId — continuing", it) }

@@ -3,13 +3,13 @@ package io.craftpanel.master.service
 import io.craftpanel.master.database.schema.SystemSettings
 import io.craftpanel.master.database.schema.Users
 import io.craftpanel.master.service.repo.SettingsRepository
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.upsert
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
@@ -25,7 +25,9 @@ data class SettingsMap(
     @SerialName("rate_limit_refresh_per_minute") val rateLimitRefreshPerMinute: Int,
     @SerialName("image_minecraft") val imageMinecraft: String,
     @SerialName("image_proxy") val imageProxy: String,
-    @SerialName("console_tail_lines") val consoleTailLines: Int
+    @SerialName("console_tail_lines") val consoleTailLines: Int,
+    @SerialName("dns_domain_suffix") val dnsDomainSuffix: String?,
+    @SerialName("dns_zone_id") val dnsZoneId: String?
 )
 
 @Serializable
@@ -43,7 +45,9 @@ data class PatchSettingsRequest(
     @SerialName("rate_limit_refresh_per_minute") val rateLimitRefreshPerMinute: Int? = null,
     @SerialName("image_minecraft") val imageMinecraft: String? = null,
     @SerialName("image_proxy") val imageProxy: String? = null,
-    @SerialName("console_tail_lines") val consoleTailLines: Int? = null
+    @SerialName("console_tail_lines") val consoleTailLines: Int? = null,
+    @SerialName("dns_domain_suffix") val dnsDomainSuffix: String? = null,
+    @SerialName("dns_zone_id") val dnsZoneId: String? = null
 )
 
 class SystemService(private val settingsRepository: SettingsRepository) {
@@ -97,6 +101,8 @@ class SystemService(private val settingsRepository: SettingsRepository) {
             if (req.imageMinecraft != null) put("image_minecraft", req.imageMinecraft)
             if (req.imageProxy != null) put("image_proxy", req.imageProxy)
             if (req.consoleTailLines != null) put("console_tail_lines", req.consoleTailLines.toString())
+            if (req.dnsDomainSuffix != null) put("dns_domain_suffix", req.dnsDomainSuffix)
+            if (req.dnsZoneId != null) put("dns_zone_id", req.dnsZoneId)
         }
         transaction {
             updates.forEach { (k, v) ->
@@ -134,7 +140,9 @@ class SystemService(private val settingsRepository: SettingsRepository) {
                 rateLimitRefreshPerMinute = map["rate_limit_refresh_per_minute"]?.toIntOrNull() ?: 30,
                 imageMinecraft = map["image_minecraft"] ?: "itzg/minecraft-server",
                 imageProxy = map["image_proxy"] ?: "itzg/mc-proxy",
-                consoleTailLines = map["console_tail_lines"]?.toIntOrNull() ?: 200
+                consoleTailLines = map["console_tail_lines"]?.toIntOrNull() ?: 200,
+                dnsDomainSuffix = map["dns_domain_suffix"]?.takeIf { it.isNotBlank() },
+                dnsZoneId = map["dns_zone_id"]?.takeIf { it.isNotBlank() }
             ),
             updatedAt = latest?.updatedAt,
             updatedBy = latest?.updatedBy?.toString()
