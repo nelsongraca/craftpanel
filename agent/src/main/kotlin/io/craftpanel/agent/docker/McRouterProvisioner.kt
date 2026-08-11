@@ -22,15 +22,21 @@ class McRouterProvisioner(private val docker: DockerClient, private val image: S
         }.getOrNull()
 
         if (existing != null) {
-            // Recreate only if IN_DOCKER=true is missing — that's the flag that enables label-based
+            // Recreate if IN_DOCKER=true is missing — that's the flag that enables label-based
             // auto-discovery. Without it mc-router ignores container labels and routes nothing.
+            // Also recreate if the docker.sock GID isn't in group_add — a container created by
+            // an older agent build predates the group_add fix and will crash-loop forever on
+            // permission-denied, and restarting it (the "exists but not running" branch below)
+            // can never fix that since the group membership is fixed at container-creation time.
             // The host-port binding is always set on creation and not re-checked here: Docker inspect
             // may not expose bindings via networkSettings.ports inside the container network, and
             // a running shared container must not be destroyed while co-located agents depend on it.
             val hasAutoDiscovery = existing.config?.env
                 ?.any { it == "IN_DOCKER=true" } == true
-            if (!hasAutoDiscovery) {
-                log.info("mc-router drift (autoDiscovery=false) — recreating")
+            val socketGid = this.socketGid
+            val hasSocketGroup = socketGid == null || existing.hostConfig?.groupAdd?.contains(socketGid) == true
+            if (!hasAutoDiscovery || !hasSocketGroup) {
+                log.info("mc-router drift (autoDiscovery=$hasAutoDiscovery, socketGroup=$hasSocketGroup) — recreating")
                 runCatching {
                     docker.removeContainerCmd(existing.id)
                         .withForce(true)
@@ -68,6 +74,10 @@ class McRouterProvisioner(private val docker: DockerClient, private val image: S
             .withPortBindings(bindings)
             .withBinds(Bind("/var/run/docker.sock", Volume("/var/run/docker.sock"), AccessMode.rw))
             .withRestartPolicy(RestartPolicy.unlessStoppedRestart())
+        // mc-router runs as a fixed nonroot UID with no entrypoint logic to join the socket's
+        // group (unlike our own agent image). Without group_add it gets a permanent
+        // permission-denied on docker.sock and crash-loops forever.
+        socketGid?.let { hostConfig.withGroupAdd(listOf(it)) }
         val id = try {
             docker.createContainerCmd(image)
                 .withName(containerName)
@@ -163,6 +173,21 @@ class McRouterProvisioner(private val docker: DockerClient, private val image: S
                 .exec()
         }.onFailure { log.warn("Could not connect mc-router to $networkName: ${it.message}") }
     }
+
+    // Cached only on success: doesn't change while the agent process is alive, and
+    // ensureRunning() is polled periodically by RouterSupervisor — avoids forking `stat` on
+    // every tick. A failed lookup is NOT cached (retried each call) — a transient failure on
+    // an early tick (e.g. socket not yet mounted) must not permanently disable the drift check
+    // for the rest of the agent's lifetime.
+    private var cachedSocketGid: String? = null
+    private val socketGid: String?
+        get() = cachedSocketGid ?: runCatching {
+            ProcessBuilder("stat", "-c", "%g", "/var/run/docker.sock")
+                .redirectErrorStream(true)
+                .start()
+                .let { it.inputStream.bufferedReader().readText().trim().toLong().also { _ -> it.waitFor() } }
+        }.onFailure { log.warn("Could not stat docker.sock GID — mc-router may fail with permission denied: ${it.message}") }
+            .getOrNull()?.toString()?.also { cachedSocketGid = it }
 
     private fun pullIfAbsent() {
         val present = runCatching {

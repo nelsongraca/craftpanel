@@ -484,6 +484,8 @@ PostgreSQL via Exposed ORM 1.0 and HikariCP. Use `org.jetbrains.exposed.v1.*` im
 - Don't launch long runs (system-test suites, full builds) with `nohup … &` or a bare `&` — that detaches the process outside the harness, so it gets no background-shell UI entry and fires no
   completion callback. Use the Bash tool's `run_in_background: true` instead (harness-tracked, notifies on exit). If a `timeout` wrapper is needed, put it inside the backgrounded command, not around a
   detached `&`.
+- Don't pipe a backgrounded long-running gradle command through `| tail -N` — if the outer timeout kills the process, `tail` never flushes its buffer and the log ends up empty ("Terminated" only).
+  Redirect stdout straight to a file (`> log 2>&1`) and `tail`/`grep` the file afterward instead.
 - Don't assume `grep` is GNU grep — on this host it's aliased to `ugrep` (different regex/flag behavior, warns on missing files). Prefer the Grep tool, or `command grep`/`rg` when the shell `grep`
   misbehaves.
 - Don't add a Makefile
