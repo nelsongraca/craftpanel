@@ -2,7 +2,7 @@
 
 CraftPanel can expose Minecraft servers on public hostnames like `survival.mc.example.com` so players can connect without knowing node IPs or ports. This page walks through the one-time setup required before the **expose externally** toggle on a server will work.
 
-Exposure is optional. If you never enable it, servers are still reachable within their Docker network and by node IP + port — sufficient for cross-node proxy setups. See [Networking & Ingress](../networking/index.md) for the full picture.
+Exposure is optional. If you never enable it, servers are still reachable within their Docker network and by node IP + port — sufficient for cross-node proxy setups.
 
 ## Prerequisites
 
@@ -47,21 +47,11 @@ Restart master so the `DnsProviderFactory` picks up the new provider. With `DNS_
 
 ## Step 4 — Configure the global DNS settings
 
-The zone ID and domain suffix are set **once for the whole install**, in System Settings — there is only ever one Cloudflare API token, so per-network DNS configuration would be redundant. Update them via `PATCH /api/system/settings`:
+The zone ID and domain suffix are set **once for the whole install** — there is only ever one Cloudflare API token, so per-network DNS configuration would be redundant.
 
-```bash
-curl -X PATCH https://panel.example.com/api/system/settings \
-  -H "Authorization: Bearer <access-token>" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "dns_zone_id": "023e105f4ecef8ad9ca31a8482d7aca9",
-    "dns_domain_suffix": "mc.example.com"
-  }'
-```
+Go to **Settings** in the panel UI → **DNS (Cloudflare)** section → fill in **DNS Zone ID** and **DNS Domain Suffix** → Save.
 
-`dns_domain_suffix` is the parent domain — per-server subdomains become `<sub>.mc.example.com`. Until both `dns_zone_id` and `dns_domain_suffix` are set, no server can be exposed externally: enabling exposure returns `422` with `"No DNS zone configured (set dns_zone_id and dns_domain_suffix in System Settings)"`.
-
-The frontend Settings page also exposes these fields as **DNS Zone ID** and **DNS Domain Suffix** under the DNS (Cloudflare) section.
+`dns_domain_suffix` is the parent domain — per-server subdomains become `<sub>.mc.example.com`. Until both fields are set, no server can be exposed externally: enabling exposure returns `422` with `"No DNS zone configured (set dns_zone_id and dns_domain_suffix in System Settings)"`.
 
 ## Step 5 — Static DNS records you must create
 
@@ -78,7 +68,7 @@ The zone's parent domain (`example.com`) and its NS delegation must already be l
 
 ## Step 6 — Expose a server
 
-With both env vars on master and the network's DNS fields set, the exposure toggle now works. On a server's detail page:
+With the env vars on master (Step 3) and the global DNS settings saved (Step 4), the exposure toggle now works. On a server's detail page:
 
 1. Toggle **expose externally** on
 2. Enter a subdomain (e.g. `survival`) — master validates uniqueness
@@ -97,5 +87,3 @@ Disabling exposure deletes the A record automatically. Deleting the server also 
 ## Next steps
 
 - [Creating a Server](creating-a-server.md)
-- [Networking & Ingress reference](../networking/index.md)
-- [Migration and DNS propagation](../migration/index.md)
