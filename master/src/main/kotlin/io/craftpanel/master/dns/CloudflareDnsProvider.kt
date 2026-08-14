@@ -17,19 +17,13 @@ private const val CF_API = "https://api.cloudflare.com/client/v4"
 private val CF_ID_REGEX = Regex("^[a-f0-9]{32}$")
 
 @Serializable
-private data class DnsRecordBody(
-    val type: String = "A",
-    val name: String,
-    val content: String,
-    val ttl: Int,
-)
+private data class DnsRecordBody(val type: String, val name: String, val content: String, val ttl: Int)
 
 @Serializable
-private data class CfResponse(
-    val success: Boolean,
-    val errors: List<CfError> = emptyList(),
-    val result: CfResult? = null,
-)
+private data class DnsRecordPatchBody(val content: String, val ttl: Int)
+
+@Serializable
+private data class CfResponse(val success: Boolean, val errors: List<CfError> = emptyList(), val result: CfResult? = null)
 
 @Serializable
 private data class CfResult(val id: String)
@@ -43,7 +37,7 @@ class CloudflareDnsProvider(
         install(ContentNegotiation) {
             json(Json { ignoreUnknownKeys = true })
         }
-    },
+    }
 ) : DnsProvider {
 
     override val type = "cloudflare"
@@ -58,7 +52,7 @@ class CloudflareDnsProvider(
             val res: CfResponse = client.post("$CF_API/zones/$zoneId/dns_records") {
                 bearerAuth(apiToken)
                 contentType(ContentType.Application.Json)
-                setBody(DnsRecordBody(name = hostname, content = ip, ttl = ttl))
+                setBody(DnsRecordBody(type = "A", name = hostname, content = ip, ttl = ttl))
             }
                 .asCfResponse()
             if (!res.success) throw BadGatewayException("DNS error: ${res.errors.joinToString { it.message }}")
@@ -72,7 +66,7 @@ class CloudflareDnsProvider(
             val res: CfResponse = client.patch("$CF_API/zones/$zoneId/dns_records/$recordId") {
                 bearerAuth(apiToken)
                 contentType(ContentType.Application.Json)
-                setBody(DnsRecordBody(name = "", content = ip, ttl = ttl))
+                setBody(DnsRecordPatchBody(content = ip, ttl = ttl))
             }
                 .asCfResponse()
             if (!res.success) throw BadGatewayException("DNS error: ${res.errors.joinToString { it.message }}")
