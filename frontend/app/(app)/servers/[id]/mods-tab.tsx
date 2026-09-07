@@ -372,7 +372,14 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
                             <div className="flex items-center justify-between">
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-medium text-text-primary truncate">{mod.display_name}</span>
+                                        <a
+                                            href={`https://modrinth.com/${MOD_SERVER_TYPES.has(serverType.toUpperCase()) ? "mod" : "plugin"}/${mod.modrinth_project_id}`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-sm font-medium text-text-primary truncate hover:text-accent hover:underline"
+                                        >
+                                            {mod.display_name}
+                                        </a>
                                         <span className="text-xs text-text-muted font-mono shrink-0">{mod.modrinth_project_id}</span>
                                     </div>
                                     {editingId !== mod.id && (
