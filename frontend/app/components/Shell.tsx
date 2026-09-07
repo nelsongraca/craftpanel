@@ -103,10 +103,10 @@ export default function Shell({children}: { children: React.ReactNode }) {
                             <ChevronDown size={12} strokeWidth={2.5}/>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="min-w-[180px] bg-surface-higher border-border">
-                            <DropdownMenuLabel className="text-text-muted truncate">
-                                {user?.email}
-                            </DropdownMenuLabel>
                             <DropdownMenuGroup>
+                                <DropdownMenuLabel className="text-text-muted truncate">
+                                    {user?.email}
+                                </DropdownMenuLabel>
                                 <DropdownMenuItem onClick={logout} className="text-text-primary">
                                     <LogOut size={13} strokeWidth={2}/>
                                     Sign out
