@@ -3,7 +3,7 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {usePromptDialog} from "@/lib/hooks/usePromptDialog";
-import {deleteServerFile, listServerFiles, mkdirServerFile, moveServerFile, readServerFile,} from "@/lib/generated/sdk.gen";
+import {deleteServerFile, listServerFiles, mkdirServerFile, moveServerFile, readServerFile, uploadServerFile, writeServerFile,} from "@/lib/generated/sdk.gen";
 import {ChevronDown, ChevronRight, Download, File, Folder, FolderPlus, Pencil, Save, Trash2, Upload, X} from "lucide-react";
 
 interface FileEntry {
@@ -116,12 +116,13 @@ export function FilesTab({serverId}: Props) {
         if (!selectedPath || fileEncoding === "binary") return;
         setSavingFile(true);
         setError(null);
-        const res = await fetch(
-            `/api/servers/${serverId}/files/content?path=${encodeURIComponent(selectedPath)}`,
-            {method: "PUT", body: fileContent, headers: {"Content-Type": "text/plain"}},
-        );
+        const {error: err} = await writeServerFile({
+            path: {id: serverId},
+            query: {path: selectedPath},
+            body: fileContent,
+        });
         setSavingFile(false);
-        if (!res.ok) {
+        if (err) {
             setError("Failed to save file");
             return;
         }
@@ -193,11 +194,11 @@ export function FilesTab({serverId}: Props) {
     }
 
     async function uploadFile(file: File, destPath: string) {
-        const form = new FormData();
-        form.append("path", destPath);
-        form.append("file", file);
-        const res = await fetch(`/api/servers/${serverId}/files/upload`, {method: "POST", body: form});
-        if (!res.ok) {
+        const {error: err} = await uploadServerFile({
+            path: {id: serverId},
+            body: {path: destPath, file: file as unknown as number[]},
+        });
+        if (err) {
             setError("Upload failed");
             return;
         }
@@ -301,91 +302,91 @@ export function FilesTab({serverId}: Props) {
 
     return (
         <>
-        <div className="flex h-[600px]">
-            {/* ── Tree ── */}
-            <div className="w-64 shrink-0 border-r border-border flex flex-col overflow-hidden">
-                <div className="flex items-center gap-1 px-3 py-2 border-b border-border">
-                    <span className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted flex-1">Files</span>
-                    <button title="Upload file" className="p-1 text-text-muted hover:text-accent" onClick={() => uploadRef.current?.click()}>
-                        <Upload size={13}/>
-                    </button>
-                    <button title="New folder" className="p-1 text-text-muted hover:text-accent" onClick={mkdirPrompt}>
-                        <FolderPlus size={13}/>
-                    </button>
-                    <input ref={uploadRef} type="file" className="hidden" onChange={handleUpload}/>
+            <div className="flex h-[600px]">
+                {/* ── Tree ── */}
+                <div className="w-64 shrink-0 border-r border-border flex flex-col overflow-hidden">
+                    <div className="flex items-center gap-1 px-3 py-2 border-b border-border">
+                        <span className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted flex-1">Files</span>
+                        <button title="Upload file" className="p-1 text-text-muted hover:text-accent" onClick={() => uploadRef.current?.click()}>
+                            <Upload size={13}/>
+                        </button>
+                        <button title="New folder" className="p-1 text-text-muted hover:text-accent" onClick={mkdirPrompt}>
+                            <FolderPlus size={13}/>
+                        </button>
+                        <input ref={uploadRef} type="file" className="hidden" onChange={handleUpload}/>
+                    </div>
+                    <div className="flex-1 overflow-y-auto py-1">
+                        {rootLoading ? (
+                            <p className="text-text-muted text-xs px-3 py-2">Loading…</p>
+                        ) : roots.length === 0 && !error ? (
+                            <p className="text-text-muted text-xs px-3 py-2">Empty directory</p>
+                        ) : (
+                            renderTree(roots)
+                        )}
+                    </div>
                 </div>
-                <div className="flex-1 overflow-y-auto py-1">
-                    {rootLoading ? (
-                        <p className="text-text-muted text-xs px-3 py-2">Loading…</p>
-                    ) : roots.length === 0 && !error ? (
-                        <p className="text-text-muted text-xs px-3 py-2">Empty directory</p>
+
+                {/* ── Editor ── */}
+                <div className="flex-1 flex flex-col overflow-hidden">
+                    {error && (
+                        <div className="px-4 py-1.5 bg-error/10 border-b border-error/20 text-error text-xs font-mono flex items-center gap-2">
+                            <X size={12}/>
+                            {error}
+                        </div>
+                    )}
+
+                    {selectedPath ? (
+                        <>
+                            <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
+                                <span className="font-mono text-xs text-text-dim flex-1 truncate">{selectedPath}</span>
+                                {fileEncoding !== "binary" && (
+                                    <button
+                                        className="flex items-center gap-1 px-2.5 py-1 bg-accent text-bg text-xs font-bold rounded disabled:opacity-50"
+                                        onClick={() => void saveFile()}
+                                        disabled={savingFile || !dirty}
+                                    >
+                                        <Save size={11}/>
+                                        {savingFile ? "Saving…" : "Save"}
+                                    </button>
+                                )}
+                                {fileEncoding === "binary" && (
+                                    <a
+                                        href={`/api/servers/${serverId}/files/download?path=${encodeURIComponent(selectedPath)}`}
+                                        download
+                                        className="flex items-center gap-1 px-2.5 py-1 bg-surface-higher text-text-primary text-xs font-bold rounded border border-border"
+                                    >
+                                        <Download size={11}/>
+                                        Download
+                                    </a>
+                                )}
+                            </div>
+                            <div className="flex-1 overflow-auto">
+                                {loadingFile ? (
+                                    <p className="text-text-muted text-xs p-4">Loading…</p>
+                                ) : fileEncoding === "binary" ? (
+                                    <p className="text-text-muted text-xs p-4">Binary file - use the download button to retrieve it.</p>
+                                ) : (
+                                    <textarea
+                                        className="w-full h-full bg-bg font-mono text-xs text-text-primary p-4 resize-none focus:outline-none leading-relaxed"
+                                        value={fileContent}
+                                        onChange={(e) => {
+                                            setFileContent(e.target.value);
+                                            setDirty(true);
+                                        }}
+                                        spellCheck={false}
+                                    />
+                                )}
+                            </div>
+                        </>
                     ) : (
-                        renderTree(roots)
+                        <div className="flex-1 flex items-center justify-center">
+                            <p className="text-text-muted text-xs">Select a file to edit</p>
+                        </div>
                     )}
                 </div>
             </div>
-
-            {/* ── Editor ── */}
-            <div className="flex-1 flex flex-col overflow-hidden">
-                {error && (
-                    <div className="px-4 py-1.5 bg-error/10 border-b border-error/20 text-error text-xs font-mono flex items-center gap-2">
-                        <X size={12}/>
-                        {error}
-                    </div>
-                )}
-
-                {selectedPath ? (
-                    <>
-                        <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
-                            <span className="font-mono text-xs text-text-dim flex-1 truncate">{selectedPath}</span>
-                            {fileEncoding !== "binary" && (
-                                <button
-                                    className="flex items-center gap-1 px-2.5 py-1 bg-accent text-bg text-xs font-bold rounded disabled:opacity-50"
-                                    onClick={() => void saveFile()}
-                                    disabled={savingFile || !dirty}
-                                >
-                                    <Save size={11}/>
-                                    {savingFile ? "Saving…" : "Save"}
-                                </button>
-                            )}
-                            {fileEncoding === "binary" && (
-                                <a
-                                    href={`/api/servers/${serverId}/files/download?path=${encodeURIComponent(selectedPath)}`}
-                                    download
-                                    className="flex items-center gap-1 px-2.5 py-1 bg-surface-higher text-text-primary text-xs font-bold rounded border border-border"
-                                >
-                                    <Download size={11}/>
-                                    Download
-                                </a>
-                            )}
-                        </div>
-                        <div className="flex-1 overflow-auto">
-                            {loadingFile ? (
-                                <p className="text-text-muted text-xs p-4">Loading…</p>
-                            ) : fileEncoding === "binary" ? (
-                                <p className="text-text-muted text-xs p-4">Binary file - use the download button to retrieve it.</p>
-                            ) : (
-                                <textarea
-                                    className="w-full h-full bg-bg font-mono text-xs text-text-primary p-4 resize-none focus:outline-none leading-relaxed"
-                                    value={fileContent}
-                                    onChange={(e) => {
-                                        setFileContent(e.target.value);
-                                        setDirty(true);
-                                    }}
-                                    spellCheck={false}
-                                />
-                            )}
-                        </div>
-                    </>
-                ) : (
-                    <div className="flex-1 flex items-center justify-center">
-                        <p className="text-text-muted text-xs">Select a file to edit</p>
-                    </div>
-                )}
-            </div>
-        </div>
-        {dialog}
-        {promptDialog}
+            {dialog}
+            {promptDialog}
         </>
     );
 }
