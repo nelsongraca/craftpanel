@@ -49,6 +49,7 @@ class NodeRegistrarTest :
                             totalRamMb = 2048
                             totalCpuShares = 1024
                             agentVersion = "1.0.0"
+                            reservedRamMb = 512
                         }
                     }
                 )
@@ -62,6 +63,7 @@ class NodeRegistrarTest :
                 stored[Nodes.status] shouldBe "PENDING"
                 stored[Nodes.hostname] shouldBe "fake-node"
                 stored[Nodes.totalRamMb] shouldBe 2048
+                stored[Nodes.reservedRamMb] shouldBe 512
                 stored[Nodes.totalCpuShares] shouldBe 1024
                 stored[Nodes.agentVersion] shouldBe "1.0.0"
             }
@@ -109,6 +111,8 @@ class NodeRegistrarTest :
                         metadata = nodeMetadata {
                             publicIp = "9.9.9.9"
                             privateIp = "10.0.0.42"
+                            totalRamMb = 4096
+                            reservedRamMb = 768
                         }
                     }
                 )
@@ -124,6 +128,8 @@ class NodeRegistrarTest :
                 updated.shouldNotBeNull()
                 updated[Nodes.publicIp] shouldBe "9.9.9.9"
                 updated[Nodes.privateIp] shouldBe "10.0.0.42"
+                updated[Nodes.totalRamMb] shouldBe 4096
+                updated[Nodes.reservedRamMb] shouldBe 768
                 updated[Nodes.lastSeenAt].shouldNotBeNull()
             }
         }

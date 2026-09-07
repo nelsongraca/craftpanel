@@ -40,8 +40,7 @@ data class NodeResponse(
 data class PatchNodeRequest(
     @SerialName("display_name") val displayName: String? = null,
     @SerialName("port_range_start") val portRangeStart: Int? = null,
-    @SerialName("port_range_end") val portRangeEnd: Int? = null,
-    @SerialName("reserved_ram_mb") val reservedRamMb: Int? = null
+    @SerialName("port_range_end") val portRangeEnd: Int? = null
 )
 
 @Serializable
@@ -75,20 +74,29 @@ class NodeService(private val gateway: AgentGateway, private val nodeRepository:
     fun trustNode(id: kotlin.uuid.Uuid) {
         val node = nodeRepository.findById(id) ?: throw NotFoundException("Node not found")
         if (node.status == "ACTIVE") throw ConflictException("Node is already active")
-        transaction { Node.findById(id)?.let { it.status = NodeStatus.ACTIVE.toDb(); it.health = NodeHealth.UNREACHABLE.name } }
+        transaction {
+            Node.findById(id)
+                ?.let { it.status = NodeStatus.ACTIVE.toDb(); it.health = NodeHealth.UNREACHABLE.name }
+        }
     }
 
     fun rejectNode(id: kotlin.uuid.Uuid) {
         val node = nodeRepository.findById(id) ?: throw NotFoundException("Node not found")
         if (node.status == "ACTIVE") throw ConflictException("Cannot reject an active node")
-        transaction { Node.findById(id)?.let { it.status = NodeStatus.REJECTED.name } }
+        transaction {
+            Node.findById(id)
+                ?.let { it.status = NodeStatus.REJECTED.name }
+        }
     }
 
     fun rotateToken(id: kotlin.uuid.Uuid): String {
         if (nodeRepository.findById(id) == null) throw NotFoundException("Node not found")
         val raw = generateNodeKey()
         val hash = sha256Hex(raw)
-        transaction { Node.findById(id)?.let { it.tokenHash = hash } }
+        transaction {
+            Node.findById(id)
+                ?.let { it.tokenHash = hash }
+        }
         return raw
     }
 
@@ -103,15 +111,20 @@ class NodeService(private val gateway: AgentGateway, private val nodeRepository:
         val newStart = req.portRangeStart ?: node.portRangeStart
         val newEnd = req.portRangeEnd ?: node.portRangeEnd
         if (newStart >= newEnd) throw UnprocessableException("Port range start must be less than end")
-        if (req.reservedRamMb != null && req.reservedRamMb < 0) throw UnprocessableException("reserved_ram_mb must not be negative")
-        transaction { Node.findById(id)?.let { it.displayName = req.displayName ?: it.displayName; it.portRangeStart = newStart; it.portRangeEnd = newEnd; it.reservedRamMb = req.reservedRamMb ?: it.reservedRamMb } }
+        transaction {
+            Node.findById(id)
+                ?.let { it.displayName = req.displayName ?: it.displayName; it.portRangeStart = newStart; it.portRangeEnd = newEnd }
+        }
     }
 
     fun decommissionNode(id: kotlin.uuid.Uuid) {
         val node = nodeRepository.findById(id) ?: throw NotFoundException("Node not found")
         if (node.status != "ACTIVE" && node.status != "PENDING") throw ConflictException("Node cannot be decommissioned")
         if (serverRepository.countByNodeId(id) > 0) throw ConflictException("Node has active servers")
-        transaction { Node.findById(id)?.let { it.status = NodeStatus.DECOMMISSIONED.name } }
+        transaction {
+            Node.findById(id)
+                ?.let { it.status = NodeStatus.DECOMMISSIONED.name }
+        }
     }
 
     fun getNodeMetrics(id: kotlin.uuid.Uuid, limit: Int): NodeMetricsResponse {

@@ -65,7 +65,6 @@ function EditModal({node, onClose, onSaved}: { node: Node; onClose: () => void; 
     const [displayName, setDisplayName] = useState(node.display_name);
     const [portStart, setPortStart] = useState(String(node.port_range_start));
     const [portEnd, setPortEnd] = useState(String(node.port_range_end));
-    const [reservedRam, setReservedRam] = useState(String(node.reserved_ram_mb));
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
@@ -78,7 +77,6 @@ function EditModal({node, onClose, onSaved}: { node: Node; onClose: () => void; 
                 display_name: displayName || undefined,
                 port_range_start: portStart ? parseInt(portStart) : undefined,
                 port_range_end: portEnd ? parseInt(portEnd) : undefined,
-                reserved_ram_mb: reservedRam ? parseInt(reservedRam) : undefined,
             },
         });
         if (error) {
@@ -118,11 +116,6 @@ function EditModal({node, onClose, onSaved}: { node: Node; onClose: () => void; 
                                    className="w-full h-8 bg-surface border border-border rounded px-2.5 text-xs font-mono text-text-primary focus:outline-none focus:border-accent"/>
                         </label>
                     </div>
-                    <label className="block">
-                        <span className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">Reserved RAM (MB)</span>
-                        <input type="number" value={reservedRam} onChange={(e) => setReservedRam(e.target.value)}
-                               className="w-full h-8 bg-surface border border-border rounded px-2.5 text-xs font-mono text-text-primary focus:outline-none focus:border-accent"/>
-                    </label>
                 </div>
                 <div className="flex justify-end gap-2 mt-6">
                     <button onClick={onClose}

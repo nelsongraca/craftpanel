@@ -63,11 +63,14 @@ class NodeRegistrar(private val nodeConfig: NodeConfig, private val nodeReposito
                 this.portRangeStart = DEFAULT_PORT_RANGE_START
                 this.portRangeEnd = DEFAULT_PORT_RANGE_END
                 this.totalRamMb = meta.totalRamMb
+                this.reservedRamMb = meta.reservedRamMb
                 this.totalCpuShares = meta.totalCpuShares
                 this.agentVersion = meta.agentVersion.takeIf { v -> v.isNotEmpty() }
                 this.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
             }
-            val row = Nodes.selectAll().where { Nodes.id eq e.id }.first()
+            val row = Nodes.selectAll()
+                .where { Nodes.id eq e.id }
+                .first()
             NodeRow(
                 id = row[Nodes.id].value,
                 displayName = row[Nodes.displayName],
@@ -105,20 +108,23 @@ class NodeRegistrar(private val nodeConfig: NodeConfig, private val nodeReposito
         val existing = nodeRepository.findByTokenHash(keyHash)
         if (existing != null) {
             transaction {
-                Node.findById(existing.id)?.let {
-                    it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
-                    it.publicIp = request.metadata.publicIp
-                    if (request.metadata.agentVersion.isNotEmpty()) it.agentVersion = request.metadata.agentVersion
-                    it.privateIp = request.metadata.privateIp
-                    if (request.metadata.hostname.isNotEmpty()) it.hostname = request.metadata.hostname
-                }
+                Node.findById(existing.id)
+                    ?.let {
+                        it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
+                        it.publicIp = request.metadata.publicIp
+                        if (request.metadata.agentVersion.isNotEmpty()) it.agentVersion = request.metadata.agentVersion
+                        it.privateIp = request.metadata.privateIp
+                        if (request.metadata.hostname.isNotEmpty()) it.hostname = request.metadata.hostname
+                        it.totalRamMb = request.metadata.totalRamMb
+                        it.reservedRamMb = request.metadata.reservedRamMb
+                    }
             }
         }
 
         val identifyStatus = when (existing?.let { NodeStatus.fromDb(it.status) }) {
-            NodeStatus.ACTIVE -> IdentifyNodeResponse.IdentifyStatus.ACTIVE
+            NodeStatus.ACTIVE  -> IdentifyNodeResponse.IdentifyStatus.ACTIVE
             NodeStatus.PENDING -> IdentifyNodeResponse.IdentifyStatus.PENDING
-            else -> IdentifyNodeResponse.IdentifyStatus.REJECTED
+            else               -> IdentifyNodeResponse.IdentifyStatus.REJECTED
         }
 
         val rowId = existing?.id
@@ -136,10 +142,10 @@ class NodeRegistrar(private val nodeConfig: NodeConfig, private val nodeReposito
         log.info("Node $nodeId: first message, db status=$nodeStatus")
         if (nodeStatus != "ACTIVE") {
             val reason = when (nodeStatus) {
-                "PENDING" -> "Node $nodeId is pending admin approval"
-                "REJECTED" -> "Node $nodeId has been rejected"
+                "PENDING"        -> "Node $nodeId is pending admin approval"
+                "REJECTED"       -> "Node $nodeId has been rejected"
                 "DECOMMISSIONED" -> "Node $nodeId has been decommissioned"
-                else -> "Node $nodeId is not authorized to connect"
+                else             -> "Node $nodeId is not authorized to connect"
             }
             throw StatusException(Status.PERMISSION_DENIED.withDescription(reason))
         }

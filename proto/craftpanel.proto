@@ -97,6 +97,9 @@ message NodeMetadata {
   int32  total_cpu_shares = 5;
   // Agent version string — for compatibility checks.
   string agent_version = 6;
+  // Host RAM reserved for the OS/host, in MiB — subtracted from capacity for
+  // server scheduling. Reported by the agent (single source of truth).
+  int32  reserved_ram_mb = 7;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

@@ -22,15 +22,15 @@ class NodeAuthenticator(
 
     suspend fun authenticate(channel: ManagedChannel): NodeIdentity {
         val stub = ControlServiceGrpcKt.ControlServiceCoroutineStub(channel)
-        val (rawTotalRamMb, totalCpuShares) = metricsCollector.collectCapacity()
-        val totalRamMb = maxOf(0, rawTotalRamMb - config.systemReservedRamMb)
+        val (totalRamMb, totalCpuShares) = metricsCollector.collectCapacity()
         val metadata = nodeMetadata {
             hostname = config.hostnameOverride.ifBlank { InetAddress.getLocalHost().hostName }
             publicIp = resolvePublicIp()
             privateIp = resolvePrivateIp()
             agentVersion = config.agentVersion
-            this.totalRamMb = totalRamMb
+            this.totalRamMb = maxOf(0, totalRamMb)
             this.totalCpuShares = totalCpuShares
+            this.reservedRamMb = maxOf(0, config.systemReservedRamMb)
         }
 
         val existingKey = NodeKeyStore.read(config.keyFilePath)
