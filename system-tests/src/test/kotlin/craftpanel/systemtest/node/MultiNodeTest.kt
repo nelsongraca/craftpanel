@@ -3,6 +3,7 @@ package craftpanel.systemtest.node
 import craftpanel.systemtest.client.model.NodeStatus
 import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
+import craftpanel.systemtest.harness.pollUntilNotNull
 import io.kotest.core.annotation.Isolate
 import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldContainAll
@@ -94,7 +95,12 @@ class MultiNodeTest : BaseSystemTest() {
             should("node metrics available for both nodes") {
                 val nodes = api.listNodes()
                 for (node in nodes) {
-                    val metrics = api.getNodeMetrics(node.id)
+                    // First metric tick arrives up to METRICS_POLL_INTERVAL_SECONDS
+                    // after the agent connects, so poll instead of asserting once.
+                    val metrics = pollUntilNotNull(60_000) {
+                        api.getNodeMetrics(node.id)
+                            .takeIf { it.ramTotalMb.isNotEmpty() }
+                    } ?: error("No metrics recorded for node ${node.id} within 60s")
                     metrics.ramTotalMb.isNotEmpty() shouldBe true
                 }
             }
