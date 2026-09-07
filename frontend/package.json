@@ -46,6 +46,7 @@
     "eslint": "^9.39.5",
     "eslint-config-next": "16.3.4",
     "jsdom": "^30.0.1",
+    "monocart-coverage-reports": "^2.13.0",
     "msw": "^2.15.0",
     "shadcn": "^4.21.0",
     "tailwindcss": "^4.3.3",

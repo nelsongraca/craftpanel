@@ -58,6 +58,16 @@ tasks.register<Exec>("testE2eMocked") {
     environment("CI", "true")
 }
 
+tasks.register<Exec>("testE2eCoverage") {
+    group = "verification"
+    description = "Runs MSW-backed Playwright E2E tests with V8 code coverage"
+    dependsOn("generateApiTypes")
+    workingDir = layout.projectDirectory.asFile
+    commandLine(layout.projectDirectory.file(".node/bin/pnpm").asFile, "run", "test:e2e")
+    environment("CI", "true")
+    environment("E2E_COVERAGE", "true")
+}
+
 tasks.named("check") {
     dependsOn("typecheckFrontend", "testFrontend", "testE2eMocked")
 }

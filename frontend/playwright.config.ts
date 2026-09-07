@@ -3,6 +3,8 @@ import {defineConfig, devices} from "@playwright/test";
 export default defineConfig({
     testDir: "./tests/e2e/specs",
     outputDir: "build/test-results/playwright",
+    globalSetup: require.resolve("./tests/e2e/global-setup"),
+    globalTeardown: require.resolve("./tests/e2e/global-teardown"),
     fullyParallel: true,
     forbidOnly: !!process.env.CI,
     retries: process.env.CI ? 2 : 0,

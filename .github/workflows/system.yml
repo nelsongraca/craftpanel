@@ -171,10 +171,11 @@ jobs:
         run: ./gradlew :frontend:installFrontend && cd frontend && .node/bin/pnpm exec playwright install --with-deps chromium
 
       - name: Run E2E tests
-        run: ./gradlew :frontend:testE2eMocked --configuration-cache-problems=warn
+        run: ./gradlew :frontend:testE2eCoverage --configuration-cache-problems=warn
 
       - uses: ./.github/actions/codecov-upload
         with:
           flags: e2e
           test-results: frontend/build/reports/junit/playwright.xml
+          coverage-files: frontend/build/reports/coverage-e2e/lcov.info
           token: ${{ secrets.CODECOV_TOKEN }}
