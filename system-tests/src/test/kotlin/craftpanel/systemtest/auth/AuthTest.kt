@@ -1,8 +1,7 @@
 package craftpanel.systemtest.auth
 
 import craftpanel.systemtest.client.api.DefaultApi
-import craftpanel.systemtest.client.model.ChangePasswordRequest
-import craftpanel.systemtest.client.model.LoginRequest
+import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.*
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.annotation.Tags
@@ -82,27 +81,64 @@ class AuthTest : BaseSystemTest() {
             }
 
             should("change-password with correct old password returns 204") {
-                authHelper.login()
-                api.authChangePassword(ChangePasswordRequest(ADMIN_PASSWORD, "new-pw-change-1"))
+                val email = "pw-change-1-${System.currentTimeMillis()}@test.com"
+                createPasswordTestUser(email, "old-pw-1")
+                val userApi = authenticatedAs(email, "old-pw-1")
+                userApi.authChangePassword(ChangePasswordRequest("old-pw-1", "new-pw-1"))
             }
 
             should("can login with new password after change-password") {
-                authHelper.login()
-                api.authChangePassword(ChangePasswordRequest(ADMIN_PASSWORD, "new-pw-change-2"))
+                val email = "pw-change-2-${System.currentTimeMillis()}@test.com"
+                createPasswordTestUser(email, "old-pw-2")
+                val userApi = authenticatedAs(email, "old-pw-2")
+                userApi.authChangePassword(ChangePasswordRequest("old-pw-2", "new-pw-2"))
 
-                val newApi = DefaultApi(basePath = SharedStack.masterApiUrl)
-                newApi.authLogin(LoginRequest(ADMIN_EMAIL, "new-pw-change-2"))
-                newApi.authMe()
-                newApi.authChangePassword(ChangePasswordRequest("new-pw-change-2", ADMIN_PASSWORD))
+                authenticatedAs(email, "new-pw-2").authMe()
             }
 
             should("change-password with wrong old password returns 400") {
-                authHelper.login()
+                val email = "pw-change-3-${System.currentTimeMillis()}@test.com"
+                createPasswordTestUser(email, "old-pw-3")
+                val userApi = authenticatedAs(email, "old-pw-3")
                 val ex = shouldThrow<ClientException> {
-                    api.authChangePassword(ChangePasswordRequest("wrong-old-pw", "new-pw-change-3"))
+                    userApi.authChangePassword(ChangePasswordRequest("wrong-old-pw", "new-pw-3"))
                 }
                 ex.statusCode shouldBe 400
             }
         }
+    }
+
+    /**
+     * Change-password tests must never mutate the shared admin password: every later spec
+     * (and every beforeTest hook) logs in with ADMIN_PASSWORD, so leaving it changed turns
+     * the whole run red with 401s. Each change-password test gets its own throwaway user.
+     */
+    private suspend fun createPasswordTestUser(email: String, password: String) {
+        val group = api.createGroup(
+            CreateGroupRequest(name = "pw-group-${System.currentTimeMillis()}")
+        )
+        api.setGroupPermissions(
+            group.id,
+            PutGroupPermissionsRequest(permissions = listOf("server.view"))
+        )
+        val user = api.createUser(
+            CreateUserRequest(
+                username = "pw-${System.currentTimeMillis()}",
+                email = email,
+                password = password
+            )
+        )
+        api.createAssignment(
+            user.id,
+            CreateAssignmentRequest(groupId = group.id, scopeType = "GLOBAL")
+        )
+    }
+
+    /** Logs in as [email] and returns a DefaultApi bound to that user's access token. */
+    private suspend fun authenticatedAs(email: String, password: String): DefaultApi {
+        val userApi = DefaultApi(basePath = SharedStack.masterApiUrl)
+        val login = userApi.authLogin(LoginRequest(email, password))
+        userApi.accessTokenProvider = { login.accessToken }
+        return userApi
     }
 }
