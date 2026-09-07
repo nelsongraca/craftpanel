@@ -3,8 +3,8 @@
 import {useEffect, useState} from "react";
 import {InfoRow} from "./server-info";
 import {EditFieldRow, EditInput, EditSelect, EditTextarea, SaveCancelRow} from "./edit-fields";
+import {McVersionSelect} from "@/components/ui/mc-version";
 import {updateServer, listNetworks} from "@/lib/generated/sdk.gen";
-import {fetchReleaseVersions} from "@/lib/utils/format";
 import type {Network, Server} from "@/lib/types";
 
 interface EditGeneralProps {
@@ -25,7 +25,6 @@ export function EditGeneral({server, forceOpenSignal, onSaved}: EditGeneralProps
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [networks, setNetworks] = useState<Network[]>([]);
-    const [mcVersions, setMcVersions] = useState<string[]>([]);
 
     function open() {
         setDisplayName(server.display_name);
@@ -38,9 +37,6 @@ export function EditGeneral({server, forceOpenSignal, onSaved}: EditGeneralProps
             listNetworks().then(({data}) => {
                 if (data) setNetworks(data);
             });
-        }
-        if (mcVersions.length === 0) {
-            fetchReleaseVersions().then(setMcVersions);
         }
     }
 
@@ -130,17 +126,13 @@ export function EditGeneral({server, forceOpenSignal, onSaved}: EditGeneralProps
                     </EditFieldRow>
                     {!isProxy && (
                         <EditFieldRow label="Minecraft Version">
-                            {mcVersions.length > 0 ? (
-                                <EditSelect value={mcVersion} onChange={(e) => setMcVersion(e.target.value)}>
-                                    {mcVersions.map((v) => <option key={v} value={v}>{v}</option>)}
-                                </EditSelect>
-                            ) : (
-                                <EditInput
-                                    value={mcVersion}
-                                    onChange={(e) => setMcVersion(e.target.value)}
-                                    placeholder="1.21.4"
-                                />
-                            )}
+                            <McVersionSelect
+                                value={mcVersion}
+                                onChange={setMcVersion}
+                                placeholder="1.21.4"
+                                fieldSize="sm"
+                                surface="bg"
+                            />
                             <p className="text-xs text-text-muted mt-1">Requires restart to take effect.</p>
                         </EditFieldRow>
                     )}

@@ -5,6 +5,7 @@ import {Check, GitCompare, Pin, Plus, RefreshCw, Search, Trash2, X} from "lucide
 import {addMod, checkModCompatibility, deleteMod, listMods, searchMods, updateMod} from "@/lib/generated/sdk.gen";
 import type {ModResponse as Mod} from "@/lib/generated/types.gen";
 import {SelectField} from "@/components/ui/form-elements";
+import {McVersionSelect} from "@/components/ui/mc-version";
 
 type PinStrategy = "LATEST" | "PINNED" | "BETA" | "ALPHA";
 
@@ -294,14 +295,16 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
             {/* Compatibility check */}
             {showCompatCheck && (
                 <div className="bg-surface border border-border rounded-lg p-4 space-y-3">
-                    <div className="flex gap-2">
-                        <input
-                            value={compatTargetVersion}
-                            onChange={(e) => setCompatTargetVersion(e.target.value)}
-                            onKeyDown={(e) => e.key === "Enter" && handleCompatCheck()}
-                            placeholder="Target MC version (e.g. 1.22)"
-                            className="flex-1 bg-bg border border-border rounded px-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent"
-                        />
+                    <div className="flex gap-2 items-center">
+                        <div className="flex-1 min-w-0">
+                            <McVersionSelect
+                                value={compatTargetVersion}
+                                onChange={setCompatTargetVersion}
+                                placeholder="Target MC version (e.g. 1.22)"
+                                fieldSize="sm"
+                                surface="bg"
+                            />
+                        </div>
                         <button
                             onClick={handleCompatCheck}
                             disabled={compatChecking || !compatTargetVersion.trim()}

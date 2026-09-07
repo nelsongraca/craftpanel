@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect, useState} from "react";
+import {useEffect, useRef, useState} from "react";
 import {useRouter, useSearchParams} from "next/navigation";
 import Link from "next/link";
 import {ChevronLeft} from "lucide-react";
@@ -8,22 +8,9 @@ import {cloneServer, createServer, getServer, listNetworks, listNodes} from "@/l
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import {SelectField, TextAreaField, TextField} from "@/components/ui/form-elements";
+import {McVersionSelect} from "@/components/ui/mc-version";
 import {Skeleton} from "@/components/ui/skeleton";
 import type {Network, Node} from "@/lib/types";
-
-// ── Mojang version manifest ───────────────────────────────────────────────────
-
-type MojangVersion = { id: string; type: string; releaseTime: string };
-
-async function fetchReleaseVersions(): Promise<string[]> {
-    const res = await fetch(
-        "https://launchermeta.mojang.com/mc/game/version_manifest_v2.json"
-    );
-    const json = await res.json() as { versions: MojangVersion[] };
-    return json.versions
-        .filter((v) => v.type === "release")
-        .map((v) => v.id);
-}
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -76,8 +63,8 @@ export default function NewServerPage() {
 
     const [nodes, setNodes] = useState<Node[]>([]);
     const [networks, setNetworks] = useState<Network[]>([]);
-    const [versions, setVersions] = useState<string[]>([]);
     const [loadingData, setLoadingData] = useState(true);
+    const latestVersionsRef = useRef<string[]>([]);
 
     const [name, setName] = useState("");
     const [displayName, setDisplayName] = useState("");
@@ -106,11 +93,6 @@ export default function NewServerPage() {
             listNetworks().then(({data}) => {
                 if (data) setNetworks(data);
             }),
-            fetchReleaseVersions().then((vs) => {
-                setVersions(vs);
-                if (vs.length > 0) setMcVersion(vs[0]);
-            }).catch(() => {
-            }),
         ];
 
         const loadClone = cloneId
@@ -120,7 +102,7 @@ export default function NewServerPage() {
                 setDescription(data.description ?? "");
                 setServerType(data.server_type);
                 if (!data.server_type.startsWith("VELOCITY") && !data.server_type.startsWith("BUNGEE") && !data.server_type.startsWith("WATERFALL")) {
-                    setMcVersion(data.mc_version === "LATEST" ? versions[0] ?? "" : data.mc_version);
+                    setMcVersion(data.mc_version === "LATEST" ? latestVersionsRef.current[0] ?? "" : data.mc_version);
                 }
                 setItzgImageTag(data.itzg_image_tag || "latest");
                 setNodeId(data.node_id);
@@ -132,7 +114,6 @@ export default function NewServerPage() {
             : Promise.resolve();
 
         Promise.all([...loadBase, loadClone]).finally(() => setLoadingData(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [cloneId]);
 
     if (!hasPermission(permissions, "server.create")) {
@@ -266,21 +247,17 @@ export default function NewServerPage() {
                     {!isProxy && (
                         <div>
                             <Label required htmlFor="mc-version">Minecraft Version</Label>
-                            {loadingData ? (
-                                <Skeleton className="h-9 bg-surface-high"/>
-                            ) : versions.length > 0 ? (
-                                <FieldSelect id="mc-version" value={mcVersion} onChange={(e) => setMcVersion(e.target.value)}>
-                                    {versions.map((v) => <option key={v} value={v}>{v}</option>)}
-                                </FieldSelect>
-                            ) : (
-                                <FieldInput
-                                    id="mc-version"
-                                    value={mcVersion}
-                                    onChange={(e) => setMcVersion(e.target.value)}
-                                    placeholder="1.21.4"
-                                    required
-                                />
-                            )}
+                            <McVersionSelect
+                                id="mc-version"
+                                value={mcVersion}
+                                onChange={setMcVersion}
+                                placeholder="1.21.4"
+                                required
+                                onLoaded={(vs) => {
+                                    latestVersionsRef.current = vs;
+                                    setMcVersion((prev) => prev || vs[0] || prev);
+                                }}
+                            />
                             <p className="mt-1 text-xs text-text-muted">Release versions from Mojang. Passed to itzg as VERSION env var.</p>
                         </div>
                     )}
