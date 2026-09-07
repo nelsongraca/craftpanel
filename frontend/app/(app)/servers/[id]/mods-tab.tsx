@@ -41,6 +41,7 @@ async function fetchModrinthVersions(projectId: string, serverType: string, mcVe
 
 interface ModrinthHit {
     project_id: string;
+    slug: string;
     title: string;
     description: string;
     author: string;
@@ -268,8 +269,22 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
                                 return (
                                     <div key={hit.project_id} className="flex items-start justify-between gap-3 p-2 rounded border border-border bg-bg">
                                         <div className="min-w-0 flex-1">
-                                            <div className="text-sm font-medium text-text-primary truncate">{hit.title}</div>
-                                            <div className="text-xs text-text-muted truncate">{hit.description}</div>
+                                            <a
+                                                href={`https://modrinth.com/${MOD_SERVER_TYPES.has(serverType.toUpperCase()) ? "mod" : "plugin"}/${hit.slug}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-sm font-medium text-text-primary truncate block hover:text-accent hover:underline"
+                                            >
+                                                {hit.title}
+                                            </a>
+                                            <a
+                                                href={`https://modrinth.com/${MOD_SERVER_TYPES.has(serverType.toUpperCase()) ? "mod" : "plugin"}/${hit.slug}`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-xs text-text-muted truncate block hover:text-accent"
+                                            >
+                                                {hit.description}
+                                            </a>
                                             <div className="text-xs text-text-muted mt-0.5">by {hit.author} · {hit.downloads.toLocaleString()} downloads</div>
                                         </div>
                                         {alreadyAdded ? (

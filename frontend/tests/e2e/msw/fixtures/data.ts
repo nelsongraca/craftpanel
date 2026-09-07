@@ -188,6 +188,7 @@ export const fakeMods: Record<string, ModResponse[]> = {
 export const fakeModSearchHits = [
     {
         project_id: "dynmap-id",
+        slug: "dynmap",
         title: "Dynmap",
         description: "A Google Maps-like map for Minecraft servers.",
         author: "webbukkit",
@@ -195,6 +196,7 @@ export const fakeModSearchHits = [
     },
     {
         project_id: "essentialsx-id",
+        slug: "essentialsx",
         title: "EssentialsX",
         description: "The essential plugin for Spigot servers.",
         author: "EssentialsX",
