@@ -44,17 +44,19 @@ class NodeStateReconciler(
 
                 val newStatus: ServerStatus? = if (container == null) {
                     mapMissingContainer(dbStatus)
-                } else {
+                }
+                else {
                     mapContainerState(container.runState, dbStatus)
                 }
 
                 if (newStatus != null) {
                     log.info("Node $nodeId reconcile: server $serverId $dbStatus → $newStatus")
                     transaction {
-                        Server.findById(serverId)?.let {
-                            it.status = newStatus.toDb()
-                            it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
-                        }
+                        Server.findById(serverId)
+                            ?.let {
+                                it.status = newStatus.toDb()
+                                it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
+                            }
                     }
                 }
             }
@@ -62,17 +64,22 @@ class NodeStateReconciler(
         if (currentStatus == "ACTIVE") {
             val newHealth = if (snapshot.routerRunning) NodeHealth.HEALTHY else NodeHealth.DEGRADED
             transaction {
-                Node.findById(kotlinNodeId)?.let {
-                    it.health = newHealth.name
-                    it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
-                    it.swarmActive = snapshot.swarmActive
-                }
+                Node.findById(kotlinNodeId)
+                    ?.let {
+                        it.health = newHealth.name
+                        it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
+                        it.swarmActive = snapshot.swarmActive
+                    }
             }
             resultHealth = newHealth
             log.debug("Node {}: reconciled health={} (routerRunning={})", nodeId, newHealth, snapshot.routerRunning)
-        } else {
+        }
+        else {
             log.debug("Node $nodeId: status=$currentStatus — only updating lastSeenAt")
-            transaction { Node.findById(kotlinNodeId)?.let { it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC) } }
+            transaction {
+                Node.findById(kotlinNodeId)
+                    ?.let { it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC) }
+            }
         }
 
         return resultHealth
@@ -91,22 +98,27 @@ class NodeStateReconciler(
             return
         }
 
-        transaction { Node.findById(kotlinNodeId)?.let { it.health = "UNREACHABLE"; it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC) } }
+        transaction {
+            Node.findById(kotlinNodeId)
+                ?.let { it.health = "UNREACHABLE"; it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC) }
+        }
         transaction {
             ServerMigration.find {
                 ((ServerMigrations.sourceNodeId eq kotlinNodeId) or (ServerMigrations.targetNodeId eq kotlinNodeId)) and
                     (ServerMigrations.status inList listOf("PENDING", "SYNCING", "CUTTING_OVER"))
-            }.forEach {
-                it.status = "FAILED"
-                it.completedAt = now.toLocalDateTime(TimeZone.UTC)
             }
+                .forEach {
+                    it.status = "FAILED"
+                    it.completedAt = now.toLocalDateTime(TimeZone.UTC)
+                }
         }
         transaction {
-            Backup.find { (Backups.nodeId eq kotlinNodeId) and (Backups.status eq "IN_PROGRESS") }.forEach {
-                it.status = "FAILED"
-                it.errorMessage = "Node went offline during backup"
-                it.completedAt = now.toLocalDateTime(TimeZone.UTC)
-            }
+            Backup.find { (Backups.nodeId eq kotlinNodeId) and (Backups.status eq "IN_PROGRESS") }
+                .forEach {
+                    it.status = "FAILED"
+                    it.errorMessage = "Node went offline during backup"
+                    it.completedAt = now.toLocalDateTime(TimeZone.UTC)
+                }
         }
 
         log.warn("Node $nodeId marked UNREACHABLE: migrations → FAILED, backups → FAILED")
@@ -117,7 +129,10 @@ class NodeStateReconciler(
             log.warn("updateNodeHealth: invalid nodeId format: $nodeId")
             return
         }
-        transaction { Node.findById(kotlinNodeId)?.let { it.health = health.name } }
+        transaction {
+            Node.findById(kotlinNodeId)
+                ?.let { it.health = health.name }
+        }
     }
 
     fun updateNodeLastSeen(nodeId: String) {
@@ -125,15 +140,22 @@ class NodeStateReconciler(
             log.warn("updateNodeLastSeen: invalid nodeId format: $nodeId")
             return
         }
-        transaction { Node.findById(kotlinNodeId)?.let { it.lastSeenAt = Clock.System.now().toLocalDateTime(TimeZone.UTC) } }
+        transaction {
+            Node.findById(kotlinNodeId)
+                ?.let {
+                    it.lastSeenAt = Clock.System.now()
+                        .toLocalDateTime(TimeZone.UTC)
+                }
+        }
     }
 }
 
 fun mapContainerState(runState: ContainerState.RunState, dbStatus: ServerStatus): ServerStatus? = when {
-    runState == ContainerState.RunState.RUNNING && dbStatus != ServerStatus.HEALTHY -> ServerStatus.HEALTHY
-    runState == ContainerState.RunState.STOPPED && dbStatus.isRunning -> ServerStatus.STOPPED
-    runState == ContainerState.RunState.EXITED && dbStatus != ServerStatus.UNHEALTHY -> ServerStatus.UNHEALTHY
-    else -> null
+    runState == ContainerState.RunState.RUNNING && dbStatus != ServerStatus.HEALTHY && dbStatus != ServerStatus.STOPPING -> ServerStatus.HEALTHY
+    runState == ContainerState.RunState.STOPPED && dbStatus.isRunning                                                    -> ServerStatus.STOPPED
+    runState == ContainerState.RunState.EXITED && dbStatus == ServerStatus.STOPPING                                      -> ServerStatus.STOPPED
+    runState == ContainerState.RunState.EXITED && dbStatus != ServerStatus.UNHEALTHY                                     -> ServerStatus.UNHEALTHY
+    else                                                                                                                 -> null
 }
 
 fun mapMissingContainer(dbStatus: ServerStatus): ServerStatus? = if (dbStatus != ServerStatus.STOPPED) ServerStatus.STOPPED else null

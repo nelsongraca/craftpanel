@@ -37,11 +37,17 @@ class ServerStatusTest :
 
         // ── Container→status mapper matrix ───────────────────────────────────────
 
-        test("RUNNING container when not HEALTHY → HEALTHY") {
-            val nonHealthy = ServerStatus.entries.filter { it != ServerStatus.HEALTHY }
-            nonHealthy.forEach { db ->
+        test("RUNNING container when not HEALTHY and not STOPPING → HEALTHY") {
+            val transitional = ServerStatus.entries.filter {
+                it != ServerStatus.HEALTHY && it != ServerStatus.STOPPING
+            }
+            transitional.forEach { db ->
                 mapContainerState(ContainerState.RunState.RUNNING, db) shouldBe ServerStatus.HEALTHY
             }
+        }
+
+        test("RUNNING container when STOPPING → null (stop in flight)") {
+            mapContainerState(ContainerState.RunState.RUNNING, ServerStatus.STOPPING) shouldBe null
         }
 
         test("RUNNING container when already HEALTHY → null") {
@@ -59,8 +65,14 @@ class ServerStatusTest :
             mapContainerState(ContainerState.RunState.STOPPED, ServerStatus.STOPPING) shouldBe null
         }
 
-        test("EXITED container when not UNHEALTHY → UNHEALTHY") {
-            val nonUnhealthy = ServerStatus.entries.filter { it != ServerStatus.UNHEALTHY }
+        test("EXITED container when STOPPING → STOPPED (stop completed)") {
+            mapContainerState(ContainerState.RunState.EXITED, ServerStatus.STOPPING) shouldBe ServerStatus.STOPPED
+        }
+
+        test("EXITED container when not UNHEALTHY and not STOPPING → UNHEALTHY") {
+            val nonUnhealthy = ServerStatus.entries.filter {
+                it != ServerStatus.UNHEALTHY && it != ServerStatus.STOPPING
+            }
             nonUnhealthy.forEach { db ->
                 mapContainerState(ContainerState.RunState.EXITED, db) shouldBe ServerStatus.UNHEALTHY
             }
