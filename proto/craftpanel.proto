@@ -100,6 +100,9 @@ message NodeMetadata {
   // Host RAM reserved for the OS/host, in MiB — subtracted from capacity for
   // server scheduling. Reported by the agent (single source of truth).
   int32  reserved_ram_mb = 7;
+  // Host CPU shares reserved for the OS/host — subtracted from capacity for
+  // server scheduling. Reported by the agent (single source of truth).
+  int32  reserved_cpu_shares = 8;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

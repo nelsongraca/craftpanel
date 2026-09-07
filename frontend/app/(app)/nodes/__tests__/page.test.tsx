@@ -58,6 +58,9 @@ function node(overrides: Record<string, unknown> = {}): Record<string, unknown> 
         allocated_ram_mb: 8192,
         allocated_cpu_shares: 1024,
         system_ram_used_mb: null,
+        system_cpu_percent: null,
+        reserved_ram_mb: 1024,
+        reserved_cpu_shares: 1024,
         port_range_start: 25565,
         port_range_end: 25600,
         agent_version: "1.0.0",
@@ -165,7 +168,7 @@ describe("NodesPage", () => {
             expect(screen.getAllByText(nd.hostname as string).length).toBeGreaterThan(0);
             expect(screen.getAllByText("Active").length).toBeGreaterThan(0);
             expect(screen.getAllByText(/8\.0 GB \/ 32\.0 GB/).length).toBeGreaterThan(0);
-            expect(screen.getAllByText("1c / 4c").length).toBeGreaterThan(0);
+            expect(screen.getAllByText("0% / 100%").length).toBeGreaterThan(0);
             expect(screen.getAllByText("1").length).toBeGreaterThan(0);
             expect(screen.getAllByText(/ago/).length).toBeGreaterThan(0);
         });

@@ -41,7 +41,7 @@ Master stores metric snapshots at **1-minute intervals** in PostgreSQL. Historic
 
 ## Capacity Tracking
 
-Each node has a configured resource envelope (total allocatable RAM, CPU shares). Before reporting capacity to master, the agent subtracts `SYSTEM_RESERVED_RAM_MB` so that OS and infrastructure
+Each node has a configured resource envelope (total allocatable RAM, CPU shares). Before reporting capacity to master, the agent subtracts `SYSTEM_RESERVED_RAM_MB` and `SYSTEM_RESERVED_CPU_SHARES` so that OS and infrastructure
 daemons always retain guaranteed headroom. Master tracks allocated vs. available capacity and prevents over-provisioning when creating or resizing servers.
 
 ## Agent Configuration
@@ -71,6 +71,7 @@ The agent is configured entirely through environment variables.
 | `MCROUTER_IMAGE`                | `itzg/mc-router:latest`       | Docker image used when provisioning the mc-router container on startup.                                                                                                                                                                   |
 | `MCROUTER_UPDATE_ON_START`      | `true`                        | Pull the mc-router image on every agent startup. Set to `false` to skip the pull and use the locally cached image.                                                                                                                        |
 | `SYSTEM_RESERVED_RAM_MB`        | `0`                           | Megabytes of RAM the agent will not offer to servers. Subtracted from the node's physical total before reporting to master. On a co-located node running master + PostgreSQL, `1024`–`2048` is typical.                                   |
+| `SYSTEM_RESERVED_CPU_SHARES`    | `0`                           | CPU shares the agent will not offer to servers (1024 shares per core). Subtracted from the node's total before reporting to master.                                                                                                          |
 | `METRICS_POLL_INTERVAL_SECONDS` | `60`                          | How often the agent polls `/proc` and Docker Stats for node and container metrics. Minimum 5 seconds.                                                                                                                                     |
 
 ### Private IP discovery

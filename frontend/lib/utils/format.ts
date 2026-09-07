@@ -38,6 +38,10 @@ export function fillColorBg(pct: number): string {
     return "bg-accent";
 }
 
+export function fmtPct(v: number): string {
+    return `${Math.round(v)}%`;
+}
+
 type MojangVersion = { id: string; type: string };
 
 export async function fetchReleaseVersions(): Promise<string[]> {

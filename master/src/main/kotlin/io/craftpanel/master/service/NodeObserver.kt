@@ -90,6 +90,7 @@ class NodeObserver(
         if (event.ramUsedMb > 0) {
             transaction { Node.findById(kotlinNodeId)?.let { it.systemRamUsedMb = event.ramUsedMb } }
         }
+        transaction { Node.findById(kotlinNodeId)?.let { it.systemCpuPercent = event.cpuPercent } }
     }
 
     private fun persistContainerMetrics(event: AgentEvent.ContainerMetricsEvent) {

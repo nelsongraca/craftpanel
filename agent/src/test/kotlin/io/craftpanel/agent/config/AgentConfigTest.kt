@@ -122,6 +122,7 @@ class AgentConfigTest :
             publicIpUrl = publicIpUrl,
             hostnameOverride = hostnameOverride,
             systemReservedRamMb = 0,
+            systemReservedCpuShares = 0,
             craftpanelNetwork = craftpanelNetwork,
             containerNamePrefix = containerNamePrefix,
             metricsPollIntervalSeconds = metricsPollIntervalSeconds,

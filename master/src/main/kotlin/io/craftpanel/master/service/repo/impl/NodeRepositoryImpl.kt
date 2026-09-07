@@ -89,5 +89,7 @@ private fun ResultRow.toNodeRow() = NodeRow(
     agentVersion = this[Nodes.agentVersion],
     lastSeenAt = this[Nodes.lastSeenAt]?.toUtcString(),
     createdAt = this[Nodes.createdAt].toUtcString(),
-    updatedAt = this[Nodes.updatedAt].toUtcString()
+    updatedAt = this[Nodes.updatedAt].toUtcString(),
+    reservedCpuShares = this[Nodes.reservedCpuShares],
+    systemCpuPercent = this[Nodes.systemCpuPercent]
 )

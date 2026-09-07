@@ -18,7 +18,7 @@ internal class ResourceCapacityChecker(private val serverRepository: ServerRepos
         val usedRam = others.sumOf { it.memoryMb }
         val usedCpu = others.sumOf { it.cpuShares }
         if (usedRam + memoryMb > node.totalRamMb - node.reservedRamMb) return CapacityResult.InsufficientRam
-        if (node.totalCpuShares > 0 && usedCpu + cpuShares > node.totalCpuShares) return CapacityResult.InsufficientCpu
+        if (node.totalCpuShares > 0 && usedCpu + cpuShares > node.totalCpuShares - node.reservedCpuShares) return CapacityResult.InsufficientCpu
         return CapacityResult.Ok
     }
 }

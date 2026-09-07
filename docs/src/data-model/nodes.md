@@ -48,6 +48,9 @@ Runtime health — master/agent-observed, independent of lifecycle status.
 | `total_ram_mb`         | INT                | Total RAM reported by agent at registration                                |
 | `total_cpu_shares`     | INT                | Configured allocatable CPU share envelope                                  |
 | `system_ram_used_mb`   | INT                | RAM used by the agent host itself; reported by agent each snapshot; `NULL` if not yet collected |
+| `system_cpu_percent`   | NUMERIC(5,2)       | CPU utilisation of the agent host; reported by agent each snapshot; `NULL` if not yet collected |
+| `reserved_ram_mb`      | INT                | RAM reserved for the OS/host, excluded from server allocation capacity     |
+| `reserved_cpu_shares`  | INT                | CPU shares reserved for the OS/host, excluded from server allocation capacity |
 | `allocated_ram_mb`     | INT                | Sum of `ram_mb` across all servers currently on this node                  |
 | `allocated_cpu_shares` | INT                | Sum of `cpu_shares` across all servers currently on this node              |
 | `port_range_start`     | INT                | First port in the assignable range; default `25570`                        |
@@ -60,7 +63,7 @@ Runtime health — master/agent-observed, independent of lifecycle status.
 
 !!! note "Computed fields"
 `allocated_ram_mb` and `allocated_cpu_shares` are not stored columns — they are computed at query time by summing `memory_mb` and `cpu_shares` across all servers currently assigned to the node. Master
-checks available capacity (`total - allocated`) before allowing a new allocation.
+checks available capacity (`total - reserved`) before allowing a new allocation.
 
 !!! note "`data_path`"
 `data_path` is not stored in the database — it is agent runtime configuration only, set via the `DATA_PATH` / `HOST_DATA_PATH` environment variables on each agent. It defaults to `/data` inside the agent container.

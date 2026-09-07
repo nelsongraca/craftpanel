@@ -191,6 +191,9 @@ class NodesRoutesTest :
                 node["total_cpu_shares"] shouldNotBe null
                 node["allocated_ram_mb"] shouldNotBe null
                 node["allocated_cpu_shares"] shouldNotBe null
+                node["reserved_ram_mb"] shouldNotBe null
+                node["reserved_cpu_shares"] shouldNotBe null
+                node["system_cpu_percent"] shouldNotBe null
                 node["port_range_start"] shouldNotBe null
                 node["port_range_end"] shouldNotBe null
                 node["created_at"] shouldNotBe null

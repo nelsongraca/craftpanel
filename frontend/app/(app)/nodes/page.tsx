@@ -8,7 +8,7 @@ import {decommissionNode, listNodes, listServers, rejectNode, rotateNodeToken, s
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import type {Node} from "@/lib/types";
-import {timeAgo, fmtMb, fillColor} from "@/lib/utils/format";
+import {timeAgo, fmtMb, fillColor, fmtPct} from "@/lib/utils/format";
 import {TokenModal} from "@/components/nodes/TokenModal";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {useResourceList} from "@/lib/hooks/useResourceList";
@@ -530,7 +530,7 @@ export default function NodesPage() {
 
                                         {/* CPU */}
                                         <ListTd>
-                                            <MiniBar used={node.allocated_cpu_shares} total={node.total_cpu_shares} fmt={fmtShares}/>
+                                            <MiniBar used={node.system_cpu_percent ?? 0} total={100} fmt={fmtPct}/>
                                         </ListTd>
 
                                         {/* SERVERS */}
@@ -595,7 +595,7 @@ export default function NodesPage() {
                                         </div>
                                         <div>
                                             <p className="text-xs text-text-muted">CPU</p>
-                                            <MiniBar used={node.allocated_cpu_shares} total={node.total_cpu_shares} fmt={fmtShares}/>
+                                            <MiniBar used={node.system_cpu_percent ?? 0} total={100} fmt={fmtPct}/>
                                         </div>
                                         <div>
                                             <p className="text-xs text-text-muted">Servers</p>

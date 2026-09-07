@@ -51,6 +51,34 @@ class ResourceCapacityCheckerTest :
             result shouldBe CapacityResult.InsufficientCpu
         }
 
+        test("reservedCpuShares is withheld from allocatable capacity") {
+            val nodes = FakeNodeRepository()
+            val servers = FakeServerRepository(FakeRepositories())
+            val checker = ResourceCapacityChecker(servers)
+
+            val node = nodes.create("node-1", "host", "1.2.3.4", "10.0.0.1", "hash", 25570, 26070)
+            nodes.setCapacity(node.id, totalRamMb = 8192, totalCpuShares = 2048, reservedRamMb = 0, reservedCpuShares = 1024)
+            val freshNode = nodes.findById(node.id)!!
+
+            val result = checker.check(freshNode, excludeServerId = null, memoryMb = 0, cpuShares = 1200)
+
+            result shouldBe CapacityResult.InsufficientCpu
+        }
+
+        test("request that fits after accounting for reservedCpuShares returns Ok") {
+            val nodes = FakeNodeRepository()
+            val servers = FakeServerRepository(FakeRepositories())
+            val checker = ResourceCapacityChecker(servers)
+
+            val node = nodes.create("node-1", "host", "1.2.3.4", "10.0.0.1", "hash", 25570, 26070)
+            nodes.setCapacity(node.id, totalRamMb = 8192, totalCpuShares = 2048, reservedRamMb = 0, reservedCpuShares = 1024)
+            val freshNode = nodes.findById(node.id)!!
+
+            val result = checker.check(freshNode, excludeServerId = null, memoryMb = 0, cpuShares = 1024)
+
+            result shouldBe CapacityResult.Ok
+        }
+
         test("totalCpuShares of 0 means unlimited CPU, never blocks") {
             val nodes = FakeNodeRepository()
             val servers = FakeServerRepository(FakeRepositories())

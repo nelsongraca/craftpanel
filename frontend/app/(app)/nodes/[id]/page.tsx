@@ -10,7 +10,7 @@ import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import {useWs} from "@/lib/ws-context";
 import type {Node} from "@/lib/types";
-import {timeAgo, fmtBytes, fmtMb, fmtBytesNetworkIo, fillColorBg} from "@/lib/utils/format";
+import {timeAgo, fmtBytes, fmtMb, fmtBytesNetworkIo, fillColorBg, fmtPct} from "@/lib/utils/format";
 import {TokenModal} from "@/components/nodes/TokenModal";
 import type {ServerResponse as Server} from "@/lib/generated/types.gen";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
@@ -57,6 +57,11 @@ function InfoRow({label, value}: { label: string; value: React.ReactNode }) {
             <span className="font-mono text-xs text-text-primary text-right">{value}</span>
         </div>
     );
+}
+
+function fmtCores(shares: number): string {
+    const cores = shares / 1024;
+    return cores >= 1 ? `${cores % 1 === 0 ? cores.toFixed(0) : cores.toFixed(1)}c` : `${shares}`;
 }
 
 // ── Edit modal ─────────────────────────────────────────────────────────────────
@@ -142,6 +147,9 @@ type Tab = (typeof TABS)[number];
 function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
     const ramPct = node.total_ram_mb > 0 ? Math.min(100, (node.allocated_ram_mb / node.total_ram_mb) * 100) : 0;
     const cpuPct = node.total_cpu_shares > 0 ? Math.min(100, (node.allocated_cpu_shares / node.total_cpu_shares) * 100) : 0;
+    const ramUsedMb = Math.max(node.allocated_ram_mb, node.system_ram_used_mb ?? 0);
+    const ramUsagePct = node.total_ram_mb > 0 ? Math.min(100, (ramUsedMb / node.total_ram_mb) * 100) : 0;
+    const cpuUsagePct = node.system_cpu_percent != null ? Math.min(100, node.system_cpu_percent) : 0;
 
     return (
         <div className="px-6 py-6 space-y-6">
@@ -192,28 +200,47 @@ function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
                 <InfoRow label="Private IP" value={node.private_ip}/>
                 <InfoRow label="Port Range" value={`${node.port_range_start}–${node.port_range_end}`}/>
                 <InfoRow label="Agent" value={node.agent_version ?? "-"}/>
-                <InfoRow label="RAM Total" value={fmtMb(node.total_ram_mb)}/>
-                <InfoRow label="RAM Reserved" value={fmtMb(node.reserved_ram_mb)}/>
-                <InfoRow label="CPU Shares" value={String(node.total_cpu_shares)}/>
+<InfoRow label="RAM Total" value={fmtMb(node.total_ram_mb)}/>
+                                <InfoRow label="RAM Reserved" value={fmtMb(node.reserved_ram_mb)}/>
+                                <InfoRow label="CPU Total" value={fmtCores(node.total_cpu_shares)}/>
+                                <InfoRow label="CPU Reserved" value={fmtCores(node.reserved_cpu_shares)}/>
                 <InfoRow label="Last Seen" value={node.last_seen_at ? timeAgo(node.last_seen_at) : "-"}/>
                 <InfoRow label="Created" value={new Date(node.created_at).toLocaleDateString()}/>
             </div>
 
-            {/* RAM allocation bar */}
-            <div className="bg-surface border border-border rounded p-4">
-                <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted mb-3">
-                    RAM Allocation
-                </p>
-                <div className="flex items-center gap-3">
-                    <div className="flex-1 h-3 rounded-full bg-surface-higher overflow-hidden">
-                        <div
-                            className={`h-full rounded-full transition-all ${fillColorBg(ramPct)}`}
-                            style={{width: `${ramPct}%`}}
-                        />
+            {/* Resource usage bars */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="bg-surface border border-border rounded p-4">
+                    <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted mb-3">
+                        RAM Usage
+                    </p>
+                    <div className="flex items-center gap-3">
+                        <div className="flex-1 h-3 rounded-full bg-surface-higher overflow-hidden">
+                            <div
+                                className={`h-full rounded-full transition-all ${fillColorBg(ramUsagePct)}`}
+                                style={{width: `${ramUsagePct}%`}}
+                            />
+                        </div>
+                        <span className="font-mono text-xs text-text-dim shrink-0 w-36 text-right">
+              {fmtMb(ramUsedMb)} / {fmtMb(node.total_ram_mb)}
+            </span>
                     </div>
-                    <span className="font-mono text-xs text-text-dim shrink-0 w-36 text-right">
-            {fmtMb(node.allocated_ram_mb)} / {fmtMb(node.total_ram_mb)}
-          </span>
+                </div>
+                <div className="bg-surface border border-border rounded p-4">
+                    <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted mb-3">
+                        CPU Usage
+                    </p>
+                    <div className="flex items-center gap-3">
+                        <div className="flex-1 h-3 rounded-full bg-surface-higher overflow-hidden">
+                            <div
+                                className={`h-full rounded-full transition-all ${fillColorBg(cpuUsagePct)}`}
+                                style={{width: `${cpuUsagePct}%`}}
+                            />
+                        </div>
+                        <span className="font-mono text-xs text-text-dim shrink-0 w-36 text-right">
+              {node.system_cpu_percent != null ? fmtPct(node.system_cpu_percent) : "-"}
+            </span>
+                    </div>
                 </div>
             </div>
         </div>

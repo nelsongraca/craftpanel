@@ -13,10 +13,7 @@ internal class NodeRejectedException(message: String) : Exception(message)
 
 data class NodeIdentity(val nodeId: String, val nodeKey: String)
 
-class NodeAuthenticator(
-    private val config: AgentConfig,
-    private val metricsCollector: MetricsCollector,
-) {
+class NodeAuthenticator(private val config: AgentConfig, private val metricsCollector: MetricsCollector) {
 
     private val log = LoggerFactory.getLogger(NodeAuthenticator::class.java)
 
@@ -31,29 +28,34 @@ class NodeAuthenticator(
             this.totalRamMb = maxOf(0, totalRamMb)
             this.totalCpuShares = totalCpuShares
             this.reservedRamMb = maxOf(0, config.systemReservedRamMb)
+            this.reservedCpuShares = maxOf(0, config.systemReservedCpuShares)
         }
 
         val existingKey = NodeKeyStore.read(config.keyFilePath)
 
         if (existingKey == null) {
             log.info("No node key found — registering with master using bootstrap token")
-            val response = stub.registerNode(registerNodeRequest {
-                bootstrapToken = config.bootstrapToken
-                this.metadata = metadata
-            })
+            val response = stub.registerNode(
+                registerNodeRequest {
+                    bootstrapToken = config.bootstrapToken
+                    this.metadata = metadata
+                }
+            )
             NodeKeyStore.write(config.keyFilePath, response.nodeKey)
             log.info("Registered as node ${response.nodeId} — status PENDING, awaiting admin approval")
             return NodeIdentity(nodeId = response.nodeId, nodeKey = response.nodeKey)
         }
 
         log.info("Node key found — identifying with master")
-        val response = stub.identifyNode(identifyNodeRequest {
-            nodeKey = existingKey
-            this.metadata = metadata
-        })
+        val response = stub.identifyNode(
+            identifyNodeRequest {
+                nodeKey = existingKey
+                this.metadata = metadata
+            }
+        )
 
         return when (response.status) {
-            IdentifyNodeResponse.IdentifyStatus.ACTIVE  -> {
+            IdentifyNodeResponse.IdentifyStatus.ACTIVE -> {
                 log.info("Node ${response.nodeId} is ACTIVE")
                 NodeIdentity(nodeId = response.nodeId, nodeKey = existingKey)
             }
@@ -63,7 +65,7 @@ class NodeAuthenticator(
                 NodeIdentity(nodeId = response.nodeId, nodeKey = existingKey)
             }
 
-            else                                        -> throw NodeRejectedException("Node ${response.nodeId} was REJECTED by master")
+            else -> throw NodeRejectedException("Node ${response.nodeId} was REJECTED by master")
         }
     }
 
@@ -81,10 +83,9 @@ class NodeAuthenticator(
         }.getOrElse { resolvePrivateIp() }
     }
 
-    private fun resolvePrivateIp(): String =
-        config.privateIpOverride.takeIf { it.isNotBlank() }
-            ?: fetchPrivateIpFromMaster()
-            ?: runCatching { InetAddress.getLocalHost().hostAddress }.getOrElse { "unknown" }
+    private fun resolvePrivateIp(): String = config.privateIpOverride.takeIf { it.isNotBlank() }
+        ?: fetchPrivateIpFromMaster()
+        ?: runCatching { InetAddress.getLocalHost().hostAddress }.getOrElse { "unknown" }
 
     private fun fetchPrivateIpFromMaster(): String? = runCatching {
         val url = URI("http://${config.masterAddress}:${config.masterHttpPort}/api/nodes/my-ip").toURL()

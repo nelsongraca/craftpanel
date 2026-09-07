@@ -21,7 +21,9 @@ data class NodeRow(
     val agentVersion: String?,
     val lastSeenAt: String?,
     val createdAt: String,
-    val updatedAt: String
+    val updatedAt: String,
+    val reservedCpuShares: Int = 1024,
+    val systemCpuPercent: Double? = null
 )
 
 data class NodeMetricsRow(

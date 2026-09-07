@@ -22,6 +22,8 @@ class FakeNodeRepository : NodeRepository {
         var totalCpuShares: Int = 0,
         var systemRamUsedMb: Int? = null,
         var reservedRamMb: Int = 1024,
+        var reservedCpuShares: Int = 1024,
+        var systemCpuPercent: Double? = null,
         var portRangeStart: Int = 25570,
         var portRangeEnd: Int = 26070,
         var swarmActive: Boolean = false,
@@ -51,12 +53,14 @@ class FakeNodeRepository : NodeRepository {
         allocatedCpu = cpu
     }
 
-    fun setCapacity(id: Uuid, totalRamMb: Int, totalCpuShares: Int = 0, systemRamUsedMb: Int? = null, reservedRamMb: Int = 1024) {
+    fun setCapacity(id: Uuid, totalRamMb: Int, totalCpuShares: Int = 0, systemRamUsedMb: Int? = null, reservedRamMb: Int = 1024, reservedCpuShares: Int = 1024, systemCpuPercent: Double? = null) {
         nodes[id]?.let {
             it.totalRamMb = totalRamMb
             it.totalCpuShares = totalCpuShares
             it.systemRamUsedMb = systemRamUsedMb
             it.reservedRamMb = reservedRamMb
+            it.reservedCpuShares = reservedCpuShares
+            it.systemCpuPercent = systemCpuPercent
         }
     }
 
@@ -74,7 +78,12 @@ class FakeNodeRepository : NodeRepository {
         lastSeenAt: String? = null,
         id: Uuid = Uuid.random()
     ): NodeRow {
-        val n = MutableNode(id, displayName, hostname, publicIp, privateIp, tokenHash, portRangeStart = portRangeStart, portRangeEnd = portRangeEnd, totalRamMb = totalRamMb, totalCpuShares = totalCpuShares, agentVersion = agentVersion, lastSeenAt = lastSeenAt)
+        val n = MutableNode(
+            id, displayName, hostname, publicIp, privateIp, tokenHash,
+            portRangeStart = portRangeStart, portRangeEnd = portRangeEnd,
+            totalRamMb = totalRamMb, totalCpuShares = totalCpuShares,
+            agentVersion = agentVersion, lastSeenAt = lastSeenAt
+        )
         nodes[id] = n
         return n.toRow()
     }
@@ -91,7 +100,13 @@ class FakeNodeRepository : NodeRepository {
         totalCpuShares: Int = 0,
         agentVersion: String? = null,
         lastSeenAt: kotlin.time.Instant? = null
-    ): NodeRow = addNode(displayName = displayName, hostname = hostname, publicIp = publicIp, privateIp = privateIp, tokenHash = tokenHash, portRangeStart = portRangeStart, portRangeEnd = portRangeEnd, totalRamMb = totalRamMb, totalCpuShares = totalCpuShares, agentVersion = agentVersion, lastSeenAt = lastSeenAt?.toString())
+    ): NodeRow = addNode(
+        displayName = displayName, hostname = hostname,
+        publicIp = publicIp, privateIp = privateIp, tokenHash = tokenHash,
+        portRangeStart = portRangeStart, portRangeEnd = portRangeEnd,
+        totalRamMb = totalRamMb, totalCpuShares = totalCpuShares,
+        agentVersion = agentVersion, lastSeenAt = lastSeenAt?.toString()
+    )
 
     fun updateStatus(id: Uuid, status: NodeStatus) {
         nodes[id]?.status = status.toDb()
@@ -130,6 +145,8 @@ class FakeNodeRepository : NodeRepository {
         agentVersion,
         lastSeenAt,
         createdAt,
-        updatedAt
+        updatedAt,
+        reservedCpuShares,
+        systemCpuPercent
     )
 }

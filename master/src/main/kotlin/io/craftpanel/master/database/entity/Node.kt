@@ -21,7 +21,9 @@ class Node(id: EntityID<Uuid>) : UuidEntity(id) {
     var totalRamMb by Nodes.totalRamMb
     var totalCpuShares by Nodes.totalCpuShares
     var systemRamUsedMb by Nodes.systemRamUsedMb
+    var systemCpuPercent by Nodes.systemCpuPercent
     var reservedRamMb by Nodes.reservedRamMb
+    var reservedCpuShares by Nodes.reservedCpuShares
     var portRangeStart by Nodes.portRangeStart
     var portRangeEnd by Nodes.portRangeEnd
     var swarmActive by Nodes.swarmActive
@@ -43,6 +45,8 @@ class Node(id: EntityID<Uuid>) : UuidEntity(id) {
         totalCpuShares = totalCpuShares,
         systemRamUsedMb = systemRamUsedMb,
         reservedRamMb = reservedRamMb,
+        reservedCpuShares = reservedCpuShares,
+        systemCpuPercent = systemCpuPercent,
         portRangeStart = portRangeStart,
         portRangeEnd = portRangeEnd,
         swarmActive = swarmActive,

@@ -28,6 +28,8 @@ data class NodeResponse(
     @SerialName("allocated_cpu_shares") val allocatedCpuShares: Int,
     @SerialName("system_ram_used_mb") val systemRamUsedMb: Int?,
     @SerialName("reserved_ram_mb") val reservedRamMb: Int,
+    @SerialName("reserved_cpu_shares") val reservedCpuShares: Int,
+    @SerialName("system_cpu_percent") val systemCpuPercent: Double?,
     @SerialName("port_range_start") val portRangeStart: Int,
     @SerialName("port_range_end") val portRangeEnd: Int,
     @SerialName("agent_version") val agentVersion: String?,
@@ -76,7 +78,10 @@ class NodeService(private val gateway: AgentGateway, private val nodeRepository:
         if (node.status == "ACTIVE") throw ConflictException("Node is already active")
         transaction {
             Node.findById(id)
-                ?.let { it.status = NodeStatus.ACTIVE.toDb(); it.health = NodeHealth.UNREACHABLE.name }
+                ?.let {
+                    it.status = NodeStatus.ACTIVE.toDb()
+                    it.health = NodeHealth.UNREACHABLE.name
+                }
         }
     }
 
@@ -113,7 +118,11 @@ class NodeService(private val gateway: AgentGateway, private val nodeRepository:
         if (newStart >= newEnd) throw UnprocessableException("Port range start must be less than end")
         transaction {
             Node.findById(id)
-                ?.let { it.displayName = req.displayName ?: it.displayName; it.portRangeStart = newStart; it.portRangeEnd = newEnd }
+                ?.let {
+                    it.displayName = req.displayName ?: it.displayName
+                    it.portRangeStart = newStart
+                    it.portRangeEnd = newEnd
+                }
         }
     }
 
@@ -158,6 +167,8 @@ private fun NodeRow.toNodeResponse(allocatedRamMb: Int, allocatedCpuShares: Int)
     allocatedCpuShares = allocatedCpuShares,
     systemRamUsedMb = systemRamUsedMb,
     reservedRamMb = reservedRamMb,
+    reservedCpuShares = reservedCpuShares,
+    systemCpuPercent = systemCpuPercent,
     portRangeStart = portRangeStart,
     portRangeEnd = portRangeEnd,
     agentVersion = agentVersion,

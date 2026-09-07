@@ -38,6 +38,7 @@ class ControlStreamHandlerTest :
             publicIpUrl = "",
             hostnameOverride = "",
             systemReservedRamMb = 0,
+            systemReservedCpuShares = 0,
             craftpanelNetwork = "craftpanel",
             containerNamePrefix = "craftpanel",
             metricsPollIntervalSeconds = 60,

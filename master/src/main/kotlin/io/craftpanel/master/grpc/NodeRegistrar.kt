@@ -64,6 +64,7 @@ class NodeRegistrar(private val nodeConfig: NodeConfig, private val nodeReposito
                 this.portRangeEnd = DEFAULT_PORT_RANGE_END
                 this.totalRamMb = meta.totalRamMb
                 this.reservedRamMb = meta.reservedRamMb
+                this.reservedCpuShares = meta.reservedCpuShares
                 this.totalCpuShares = meta.totalCpuShares
                 this.agentVersion = meta.agentVersion.takeIf { v -> v.isNotEmpty() }
                 this.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
@@ -90,7 +91,9 @@ class NodeRegistrar(private val nodeConfig: NodeConfig, private val nodeReposito
                 agentVersion = row[Nodes.agentVersion],
                 lastSeenAt = row[Nodes.lastSeenAt]?.toUtcString(),
                 createdAt = row[Nodes.createdAt].toUtcString(),
-                updatedAt = row[Nodes.updatedAt].toUtcString()
+                updatedAt = row[Nodes.updatedAt].toUtcString(),
+                reservedCpuShares = row[Nodes.reservedCpuShares],
+                systemCpuPercent = row[Nodes.systemCpuPercent]
             )
         }
 
@@ -117,14 +120,16 @@ class NodeRegistrar(private val nodeConfig: NodeConfig, private val nodeReposito
                         if (request.metadata.hostname.isNotEmpty()) it.hostname = request.metadata.hostname
                         it.totalRamMb = request.metadata.totalRamMb
                         it.reservedRamMb = request.metadata.reservedRamMb
+                        it.totalCpuShares = request.metadata.totalCpuShares
+                        it.reservedCpuShares = request.metadata.reservedCpuShares
                     }
             }
         }
 
         val identifyStatus = when (existing?.let { NodeStatus.fromDb(it.status) }) {
-            NodeStatus.ACTIVE  -> IdentifyNodeResponse.IdentifyStatus.ACTIVE
+            NodeStatus.ACTIVE -> IdentifyNodeResponse.IdentifyStatus.ACTIVE
             NodeStatus.PENDING -> IdentifyNodeResponse.IdentifyStatus.PENDING
-            else               -> IdentifyNodeResponse.IdentifyStatus.REJECTED
+            else -> IdentifyNodeResponse.IdentifyStatus.REJECTED
         }
 
         val rowId = existing?.id
@@ -142,10 +147,10 @@ class NodeRegistrar(private val nodeConfig: NodeConfig, private val nodeReposito
         log.info("Node $nodeId: first message, db status=$nodeStatus")
         if (nodeStatus != "ACTIVE") {
             val reason = when (nodeStatus) {
-                "PENDING"        -> "Node $nodeId is pending admin approval"
-                "REJECTED"       -> "Node $nodeId has been rejected"
+                "PENDING" -> "Node $nodeId is pending admin approval"
+                "REJECTED" -> "Node $nodeId has been rejected"
                 "DECOMMISSIONED" -> "Node $nodeId has been decommissioned"
-                else             -> "Node $nodeId is not authorized to connect"
+                else -> "Node $nodeId is not authorized to connect"
             }
             throw StatusException(Status.PERMISSION_DENIED.withDescription(reason))
         }
