@@ -1,12 +1,25 @@
 "use client";
 
 import {useCallback, useEffect, useState} from "react";
-import {Pin, Plus, RefreshCw, Search, Trash2} from "lucide-react";
-import {addMod, deleteMod, listMods, searchMods, updateMod} from "@/lib/generated/sdk.gen";
+import {Check, GitCompare, Pin, Plus, RefreshCw, Search, Trash2, X} from "lucide-react";
+import {addMod, checkModCompatibility, deleteMod, listMods, searchMods, updateMod} from "@/lib/generated/sdk.gen";
 import type {ModResponse as Mod} from "@/lib/generated/types.gen";
 import {SelectField} from "@/components/ui/form-elements";
 
 type PinStrategy = "LATEST" | "PINNED" | "BETA" | "ALPHA";
+
+interface ModCompatibilityResult {
+    modrinth_project_id: string;
+    display_name: string;
+    compatible: boolean;
+    latest_compatible_version_id: string | null;
+    latest_compatible_version_number: string | null;
+}
+
+interface CompatibilityCheckResponse {
+    target_version: string;
+    results: ModCompatibilityResult[];
+}
 
 const PIN_LABELS: Record<PinStrategy, string> = {
     LATEST: "Latest stable",
@@ -80,6 +93,13 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
     const [savingEdit, setSavingEdit] = useState(false);
     const [editVersions, setEditVersions] = useState<ModrinthVersion[]>([]);
     const [loadingEditVersions, setLoadingEditVersions] = useState(false);
+
+    // Compatibility check state
+    const [showCompatCheck, setShowCompatCheck] = useState(false);
+    const [compatTargetVersion, setCompatTargetVersion] = useState(mcVersion);
+    const [compatChecking, setCompatChecking] = useState(false);
+    const [compatResults, setCompatResults] = useState<CompatibilityCheckResponse | null>(null);
+    const [compatError, setCompatError] = useState<string | null>(null);
 
     const load = useCallback(async () => {
         setLoading(true);
@@ -210,6 +230,27 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
         setSavingEdit(false);
     }
 
+    async function handleCompatCheck() {
+        if (!compatTargetVersion.trim()) return;
+        setCompatChecking(true);
+        setCompatError(null);
+        setCompatResults(null);
+        const res = await checkModCompatibility({
+            path: {id: serverId},
+            query: {target_version: compatTargetVersion.trim()},
+        });
+        if (res.error) setCompatError((res.error as { message?: string })?.message ?? "Failed to check compatibility");
+        else if (res.data) setCompatResults(res.data as CompatibilityCheckResponse);
+        else setCompatError("Failed to check compatibility");
+        setCompatChecking(false);
+    }
+
+    function dismissCompatCheck() {
+        setShowCompatCheck(false);
+        setCompatResults(null);
+        setCompatError(null);
+    }
+
     if (loading) {
         return <div className="text-text-dim text-sm p-4">Loading {itemLabel}s…</div>;
     }
@@ -231,6 +272,15 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
                         <RefreshCw className="w-3 h-3"/>
                         Refresh
                     </button>
+                    {mods.length > 0 && (
+                        <button
+                            onClick={() => setShowCompatCheck(!showCompatCheck)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded text-xs text-text-dim hover:text-text-primary transition-colors"
+                        >
+                            <GitCompare className="w-3 h-3"/>
+                            Check Version
+                        </button>
+                    )}
                     <button
                         onClick={() => setShowSearch(!showSearch)}
                         className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-bg text-xs rounded hover:bg-accent-bright transition-colors"
@@ -240,6 +290,76 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
                     </button>
                 </div>
             </div>
+
+            {/* Compatibility check */}
+            {showCompatCheck && (
+                <div className="bg-surface border border-border rounded-lg p-4 space-y-3">
+                    <div className="flex gap-2">
+                        <input
+                            value={compatTargetVersion}
+                            onChange={(e) => setCompatTargetVersion(e.target.value)}
+                            onKeyDown={(e) => e.key === "Enter" && handleCompatCheck()}
+                            placeholder="Target MC version (e.g. 1.22)"
+                            className="flex-1 bg-bg border border-border rounded px-3 py-1.5 text-sm text-text-primary placeholder:text-text-muted focus:outline-none focus:border-accent"
+                        />
+                        <button
+                            onClick={handleCompatCheck}
+                            disabled={compatChecking || !compatTargetVersion.trim()}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-accent text-bg text-xs rounded hover:bg-accent-bright transition-colors disabled:opacity-50"
+                        >
+                            <Search className="w-3 h-3"/>
+                            {compatChecking ? "Checking…" : "Check"}
+                        </button>
+                        <button
+                            onClick={dismissCompatCheck}
+                            className="flex items-center gap-1.5 px-3 py-1.5 border border-border text-text-dim text-xs rounded hover:text-text-primary transition-colors"
+                        >
+                            <X className="w-3 h-3"/>
+                            Cancel
+                        </button>
+                    </div>
+
+                    {compatError && (
+                        <div className="text-error text-sm bg-error/10 border border-error/30 rounded px-3 py-2">{compatError}</div>
+                    )}
+
+                    {compatResults && (
+                        <div className="space-y-2">
+                            {(() => {
+                                const compatCount = compatResults.results.filter((r) => r.compatible).length;
+                                const total = compatResults.results.length;
+                                const summaryClass = compatCount === total
+                                    ? "text-healthy"
+                                    : compatCount === 0
+                                        ? "text-error"
+                                        : "text-warning";
+                                return (
+                                    <div className={`text-sm ${summaryClass}`}>
+                                        {compatCount}/{total} {itemLabel}{total !== 1 ? "s" : ""} compatible with {compatResults.target_version}
+                                    </div>
+                                );
+                            })()}
+                            <div className="space-y-2 max-h-64 overflow-y-auto">
+                                {compatResults.results.map((r) => (
+                                    <div key={r.modrinth_project_id} className="flex items-center justify-between gap-3 p-2 rounded border border-border bg-bg">
+                                        <div className="flex items-center gap-2 min-w-0">
+                                            {r.compatible
+                                                ? <Check className="w-3.5 h-3.5 text-healthy shrink-0"/>
+                                                : <X className="w-3.5 h-3.5 text-error shrink-0"/>}
+                                            <span className="text-sm text-text-primary truncate">{r.display_name}</span>
+                                        </div>
+                                        <span className={`text-xs shrink-0 ${r.compatible ? "text-healthy" : "text-error"}`}>
+                                            {r.compatible
+                                                ? `Compatible with ${compatResults.target_version}`
+                                                : "Not compatible"}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Modrinth search */}
             {showSearch && (

@@ -144,6 +144,32 @@ class ModsRoutes(val modService: ModService) {
                     call.response.headers.append("Content-Type", "application/json")
                     call.respond(HttpStatusCode.OK, result.body)
                 }
+
+                get("/compatibility", {
+                    operationId = "checkModCompatibility"
+                    summary = "Check mod compatibility with a target MC version"
+                    request {
+                        pathParameter<String>("id")
+                        queryParameter<String>("target_version")
+                    }
+                    response {
+                        code(HttpStatusCode.OK) { body<CompatibilityCheckResponse>() }
+                        code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                        code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                        code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                        code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                        code(HttpStatusCode.BadGateway) { body<ErrorResponse>() }
+                    }
+                }) {
+                    val auth = call.requireServerPermission(Permission.SERVER_MODS)
+                    val targetVersion = call.request.queryParameters["target_version"]
+                        ?.takeIf { it.isNotBlank() }
+                        ?: return@get call.respond(
+                            HttpStatusCode.UnprocessableEntity,
+                            ErrorResponse("target_version is required")
+                        )
+                    call.respond(modService.checkCompatibility(auth.serverId, targetVersion))
+                }
             }
         }
     }

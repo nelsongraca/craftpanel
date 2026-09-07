@@ -14,9 +14,18 @@ vi.mock('@/lib/generated/sdk.gen', () => ({
     deleteMod: vi.fn(),
     updateMod: vi.fn(),
     searchMods: vi.fn(),
+    checkModCompatibility: vi.fn(),
 }))
 
-import {listMods, addMod, deleteMod, updateMod} from '@/lib/generated/sdk.gen'
+import {listMods, addMod, deleteMod, updateMod, checkModCompatibility} from '@/lib/generated/sdk.gen'
+
+interface ModCompatibilityResult {
+    modrinth_project_id: string;
+    display_name: string;
+    compatible: boolean;
+    latest_compatible_version_id: string | null;
+    latest_compatible_version_number: string | null;
+}
 
 // ---------------------------------------------------------------------------
 // Fixtures
@@ -757,5 +766,160 @@ describe('Edit Mod', () => {
                 },
             })
         })
+    })
+})
+
+// ---------------------------------------------------------------------------
+// Compatibility Check
+// ---------------------------------------------------------------------------
+
+describe('Compatibility Check', () => {
+    beforeEach(() => vi.clearAllMocks())
+
+    function compatResponse(overrides: Partial<ModCompatibilityResult>[] = []) {
+        const defaults: ModCompatibilityResult[] = [
+            {
+                modrinth_project_id: 'abc123',
+                display_name: 'WorldEdit',
+                compatible: true,
+                latest_compatible_version_id: 'v-compat',
+                latest_compatible_version_number: '7.4.0+1.22',
+            },
+            {
+                modrinth_project_id: 'def456',
+                display_name: 'JEI',
+                compatible: false,
+                latest_compatible_version_id: null,
+                latest_compatible_version_number: null,
+            },
+        ]
+        overrides.forEach((o, i) => {
+            if (defaults[i]) defaults[i] = {...defaults[i], ...o}
+        })
+        return {target_version: '1.22', results: defaults}
+    }
+
+    it('does not show Check Version button when no mods installed', async () => {
+        await renderEmpty()
+        await waitFor(() => expect(screen.queryByText('No mods installed')).toBeInTheDocument())
+        expect(screen.queryByRole('button', {name: /check version/i})).not.toBeInTheDocument()
+    })
+
+    it('shows Check Version button when mods exist', async () => {
+        await renderModsTab()
+        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+        expect(screen.getByRole('button', {name: /check version/i})).toBeInTheDocument()
+    })
+
+    it('expands the version input form when clicked', async () => {
+        await renderModsTab()
+        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+
+        const user = userEvent.setup()
+        await user.click(screen.getByRole('button', {name: /check version/i}))
+
+        await waitFor(() => {
+            expect(screen.getByPlaceholderText('Target MC version (e.g. 1.22)')).toBeInTheDocument()
+        })
+    })
+
+    it('pre-fills version input with current server version', async () => {
+        await renderModsTab()
+        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+
+        const user = userEvent.setup()
+        await user.click(screen.getByRole('button', {name: /check version/i}))
+
+        await waitFor(() => {
+            expect(screen.getByPlaceholderText('Target MC version (e.g. 1.22)')).toHaveValue('1.21')
+        })
+    })
+
+    it('calls checkModCompatibility and shows compatible results', async () => {
+        vi.mocked(checkModCompatibility).mockResolvedValue({data: compatResponse()} as never)
+
+        await renderModsTab()
+        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+
+        const user = userEvent.setup()
+        await user.click(screen.getByRole('button', {name: /check version/i}))
+        const input = screen.getByPlaceholderText('Target MC version (e.g. 1.22)')
+        await user.clear(input)
+        await user.type(input, '1.22')
+        await user.click(screen.getByRole('button', {name: /^check$/i}))
+
+        await waitFor(() => {
+            expect(checkModCompatibility).toHaveBeenCalledWith({
+                path: {id: 's1'},
+                query: {target_version: '1.22'},
+            })
+        })
+        await waitFor(() => expect(screen.getByText('1/2 mods compatible with 1.22')).toBeInTheDocument())
+        expect(screen.getAllByText('WorldEdit').length).toBeGreaterThan(0)
+        expect(screen.getByText('Compatible with 1.22')).toBeInTheDocument()
+        expect(screen.getByText('Not compatible')).toBeInTheDocument()
+    })
+
+    it('shows all-compatible summary in green when every mod is compatible', async () => {
+        vi.mocked(checkModCompatibility).mockResolvedValue({
+            data: compatResponse([
+                {compatible: true, latest_compatible_version_id: 'v2', latest_compatible_version_number: '11.0.0'},
+                {compatible: true, latest_compatible_version_id: 'v3', latest_compatible_version_number: '12.0.0'},
+            ]) as never
+        })
+
+        await renderModsTab()
+        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+
+        const user = userEvent.setup()
+        await user.click(screen.getByRole('button', {name: /check version/i}))
+        await user.click(screen.getByRole('button', {name: /^check$/i}))
+
+        await waitFor(() => expect(screen.getByText('2/2 mods compatible with 1.22')).toBeInTheDocument())
+    })
+
+    it('shows loading state while checking', async () => {
+        vi.mocked(checkModCompatibility).mockReturnValue(new Promise(() => {
+        }) as never)
+
+        await renderModsTab()
+        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+
+        const user = userEvent.setup()
+        await user.click(screen.getByRole('button', {name: /check version/i}))
+        await user.click(screen.getByRole('button', {name: /^check$/i}))
+
+        await waitFor(() => expect(screen.getByText('Checking…')).toBeInTheDocument())
+    })
+
+    it('shows error message when check fails', async () => {
+        vi.mocked(checkModCompatibility).mockResolvedValue({error: {message: 'Modrinth unreachable'}} as never)
+
+        await renderModsTab()
+        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+
+        const user = userEvent.setup()
+        await user.click(screen.getByRole('button', {name: /check version/i}))
+        await user.click(screen.getByRole('button', {name: /^check$/i}))
+
+        await waitFor(() => expect(screen.getByText('Modrinth unreachable')).toBeInTheDocument())
+    })
+
+    it('dismissing the form clears results and error', async () => {
+        vi.mocked(checkModCompatibility).mockResolvedValue({data: compatResponse()} as never)
+
+        await renderModsTab()
+        await waitFor(() => expect(screen.queryByText('Loading mods…')).not.toBeInTheDocument())
+
+        const user = userEvent.setup()
+        await user.click(screen.getByRole('button', {name: /check version/i}))
+        await user.click(screen.getByRole('button', {name: /^check$/i}))
+        await waitFor(() => expect(screen.getByText('1/2 mods compatible with 1.22')).toBeInTheDocument())
+
+        await user.click(screen.getByRole('button', {name: /^cancel$/i}))
+        await waitFor(() => {
+            expect(screen.queryByText(/mods compatible with/)).not.toBeInTheDocument()
+        })
+        expect(screen.queryByPlaceholderText('Target MC version (e.g. 1.22)')).not.toBeInTheDocument()
     })
 })

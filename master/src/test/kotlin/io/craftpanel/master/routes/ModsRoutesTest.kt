@@ -30,7 +30,7 @@ private fun modrinthClientWithCompatibleVersion(): HttpClient = HttpClient(MockE
     engine {
         addHandler {
             respond(
-                """[{"id":"Oa9ZDzZq"}]""",
+                """[{"id":"Oa9ZDzZq","version_number":"1.0.0","version_type":"release"}]""",
                 HttpStatusCode.OK,
                 headersOf(HttpHeaders.ContentType, ContentType.Application.Json.toString())
             )
@@ -372,6 +372,111 @@ class ModsRoutesTest :
             }
         }
 
+        // ── Compatibility check ──────────────────────────────────────────────────
+
+        test("compatibility check requires target_version param") {
+            testApplication {
+                testApp { _ -> configureModsTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val token = tokenFor(userId)
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+
+                val res = client.get("/api/servers/$serverId/mods/compatibility") {
+                    header("Authorization", "Bearer $token")
+                }
+                res.status shouldBe HttpStatusCode.UnprocessableEntity
+            }
+        }
+
+        test("compatibility check returns empty results when no mods installed") {
+            testApplication {
+                testApp { _ -> configureModsTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val token = tokenFor(userId)
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+
+                val res = client.get("/api/servers/$serverId/mods/compatibility?target_version=1.22") {
+                    header("Authorization", "Bearer $token")
+                }
+                res.status shouldBe HttpStatusCode.OK
+                val body = res.body<JsonObject>()
+                body["target_version"]!!.jsonPrimitive.content shouldBe "1.22"
+                body["results"]!!.jsonArray.size shouldBe 0
+            }
+        }
+
+        test("compatibility check returns per-mod results") {
+            testApplication {
+                testApp { _ -> configureModsTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val token = tokenFor(userId)
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+                transaction {
+                    ServerMods.insert {
+                        it[ServerMods.serverId] = EntityID(serverId, Servers)
+                        it[ServerMods.modrinthProjectId] = "fabric-api"
+                        it[ServerMods.displayName] = "Fabric API"
+                        it[ServerMods.pinStrategy] = "LATEST"
+                    }
+                }
+
+                val res = client.get("/api/servers/$serverId/mods/compatibility?target_version=1.22") {
+                    header("Authorization", "Bearer $token")
+                }
+                res.status shouldBe HttpStatusCode.OK
+                val body = res.body<JsonObject>()
+                val results = body["results"]!!.jsonArray
+                results.size shouldBe 1
+                val r = results[0].jsonObject
+                r["modrinth_project_id"]!!.jsonPrimitive.content shouldBe "fabric-api"
+                r["display_name"]!!.jsonPrimitive.content shouldBe "Fabric API"
+                r["compatible"]!!.jsonPrimitive.boolean shouldBe true
+                r["latest_compatible_version_id"]!!.jsonPrimitive.content shouldBe "Oa9ZDzZq"
+                r["latest_compatible_version_number"]!!.jsonPrimitive.content shouldBe "1.0.0"
+            }
+        }
+
+        test("compatibility check requires server_mods permission") {
+            testApplication {
+                testApp { _ -> configureModsTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Viewer")
+                val token = tokenFor(userId)
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+
+                val res = client.get("/api/servers/$serverId/mods/compatibility?target_version=1.22") {
+                    header("Authorization", "Bearer $token")
+                }
+                res.status shouldBe HttpStatusCode.Forbidden
+            }
+        }
+
+        test("compatibility check returns 404 for nonexistent server") {
+            testApplication {
+                testApp { _ -> configureModsTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val token = tokenFor(userId)
+
+                val res = client.get("/api/servers/${Uuid.random()}/mods/compatibility?target_version=1.22") {
+                    header("Authorization", "Bearer $token")
+                }
+                res.status shouldBe HttpStatusCode.NotFound
+            }
+        }
+
         // ── MODRINTH_PROJECTS serialization ───────────────────────────────────────
 
         test("modrinthProjectsEnvVar serializes LATEST correctly") {
@@ -436,14 +541,14 @@ class ModsRoutesTest :
             val serverId = createServer(nodeId)
             transaction {
                 ServerMods.insert {
-                        it[ServerMods.serverId] = EntityID(serverId, Servers)
-                        it[ServerMods.modrinthProjectId] = "fabric-api"
-                        it[ServerMods.displayName] = "Fabric API"
-                        it[ServerMods.pinStrategy] = "LATEST"
-                    }
-                    ServerMods.insert {
-                        it[ServerMods.serverId] = EntityID(serverId, Servers)
-                        it[ServerMods.modrinthProjectId] = "sodium"
+                    it[ServerMods.serverId] = EntityID(serverId, Servers)
+                    it[ServerMods.modrinthProjectId] = "fabric-api"
+                    it[ServerMods.displayName] = "Fabric API"
+                    it[ServerMods.pinStrategy] = "LATEST"
+                }
+                ServerMods.insert {
+                    it[ServerMods.serverId] = EntityID(serverId, Servers)
+                    it[ServerMods.modrinthProjectId] = "sodium"
                     it[ServerMods.displayName] = "Sodium"
                     it[ServerMods.pinStrategy] = "PINNED"
                     it[ServerMods.pinnedVersionId] = "abc123"
