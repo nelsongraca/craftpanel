@@ -11,6 +11,7 @@ vi.mock("@/lib/generated/sdk.gen", () => ({
     moveServerFile: vi.fn(),
     writeServerFile: vi.fn(),
     uploadServerFile: vi.fn(),
+    downloadServerFile: vi.fn(),
 }));
 
 import {
@@ -21,6 +22,7 @@ import {
     moveServerFile,
     writeServerFile,
     uploadServerFile,
+    downloadServerFile,
 } from "@/lib/generated/sdk.gen";
 
 vi.mock("@/components/ui/confirm-dialog", () => ({
@@ -690,19 +692,52 @@ describe("FilesTab", () => {
     });
 
     describe("download", () => {
-        it("renders download link for file entries", async () => {
+        it("downloadServerFile fetches blob and triggers anchor click", async () => {
+            const user = userEvent.setup();
             vi.mocked(listServerFiles).mockResolvedValue({
                 data: {entries: [fileEntry("backup.zip")]},
+            } as never);
+            vi.mocked(downloadServerFile).mockResolvedValue({
+                data: new Blob(["x"]),
+            } as never);
+            const createUrl = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock");
+            const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
+            const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+            render(<FilesTab serverId="s1"/>);
+            await waitFor(() =>
+                expect(screen.getByText("backup.zip")).toBeInTheDocument(),
+            );
+
+            await user.click(screen.getByTitle("Download"));
+
+            await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
+            expect(downloadServerFile).toHaveBeenCalledWith({
+                path: {id: "s1"},
+                query: {path: "/backup.zip"},
+            });
+            expect(createUrl).toHaveBeenCalledTimes(1);
+
+            createUrl.mockRestore();
+            revoke.mockRestore();
+            click.mockRestore();
+        });
+
+        it("shows error banner when download fails", async () => {
+            const user = userEvent.setup();
+            vi.mocked(listServerFiles).mockResolvedValue({
+                data: {entries: [fileEntry("backup.zip")]},
+            } as never);
+            vi.mocked(downloadServerFile).mockResolvedValue({
+                error: {message: "No access"},
             } as never);
             render(<FilesTab serverId="s1"/>);
             await waitFor(() =>
                 expect(screen.getByText("backup.zip")).toBeInTheDocument(),
             );
 
-            const link = screen.getByTitle("Download") as HTMLAnchorElement;
-            expect(link).toBeInTheDocument();
-            expect(link.href).toContain(
-                "/api/servers/s1/files/download?path=%2Fbackup.zip",
+            await user.click(screen.getByTitle("Download"));
+            await waitFor(() =>
+                expect(screen.getByText("Failed to download file")).toBeInTheDocument(),
             );
         });
     });

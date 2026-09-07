@@ -3,7 +3,7 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {usePromptDialog} from "@/lib/hooks/usePromptDialog";
-import {deleteServerFile, listServerFiles, mkdirServerFile, moveServerFile, readServerFile, uploadServerFile, writeServerFile,} from "@/lib/generated/sdk.gen";
+import {deleteServerFile, downloadServerFile, listServerFiles, mkdirServerFile, moveServerFile, readServerFile, uploadServerFile, writeServerFile,} from "@/lib/generated/sdk.gen";
 import {ChevronDown, ChevronRight, Download, File, Folder, FolderPlus, Pencil, Save, Trash2, Upload, X} from "lucide-react";
 
 interface FileEntry {
@@ -193,6 +193,25 @@ export function FilesTab({serverId}: Props) {
         setRoots(await loadDir("/"));
     }
 
+    async function handleDownload(path: string) {
+        setError(null);
+        const {data, error: err} = await downloadServerFile({
+            path: {id: serverId},
+            query: {path},
+        });
+        if (err || !data) {
+            setError("Failed to download file");
+            return;
+        }
+        const blob = data as Blob;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = path.split("/").filter(Boolean).pop() ?? "download";
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
     async function uploadFile(file: File, destPath: string) {
         const {error: err} = await uploadServerFile({
             path: {id: serverId},
@@ -271,15 +290,16 @@ export function FilesTab({serverId}: Props) {
               <Pencil size={10}/>
             </button>
                         {!node.isDirectory && (
-                            <a
+                            <button
                                 title="Download"
-                                href={`/api/servers/${serverId}/files/download?path=${encodeURIComponent(node.path)}`}
-                                download
                                 className="p-0.5 hover:text-accent"
-                                onClick={(e) => e.stopPropagation()}
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    void handleDownload(node.path);
+                                }}
                             >
                                 <Download size={10}/>
-                            </a>
+                            </button>
                         )}
                         <button
                             title="Delete"
@@ -350,14 +370,13 @@ export function FilesTab({serverId}: Props) {
                                     </button>
                                 )}
                                 {fileEncoding === "binary" && (
-                                    <a
-                                        href={`/api/servers/${serverId}/files/download?path=${encodeURIComponent(selectedPath)}`}
-                                        download
+                                    <button
                                         className="flex items-center gap-1 px-2.5 py-1 bg-surface-higher text-text-primary text-xs font-bold rounded border border-border"
+                                        onClick={() => void handleDownload(selectedPath)}
                                     >
                                         <Download size={11}/>
                                         Download
-                                    </a>
+                                    </button>
                                 )}
                             </div>
                             <div className="flex-1 overflow-auto">

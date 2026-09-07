@@ -92,6 +92,14 @@ fun Route.backupsRoutes(backupService: BackupService) {
                     runCatching { Uuid.parse(it) }.getOrNull()
                 }
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid backup ID"))
+                call.response.header(
+                    HttpHeaders.ContentDisposition,
+                    ContentDisposition.Attachment.withParameter(
+                        ContentDisposition.Parameters.FileName,
+                        "$backupId.tar.gz"
+                    )
+                        .toString()
+                )
                 val info = backupService.resolveDownload(auth.serverId, backupId)
                 call.respondBinaryFlow(backupService.downloadStream(info))
             }

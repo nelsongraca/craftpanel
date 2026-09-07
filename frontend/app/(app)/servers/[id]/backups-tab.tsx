@@ -2,7 +2,7 @@
 
 import {useCallback, useEffect, useState} from "react";
 import {Clock, Download, Play, RefreshCw, Trash2} from "lucide-react";
-import {deleteBackup, getBackupSchedule, listBackups, triggerBackup, updateBackupSchedule,} from "@/lib/generated/sdk.gen";
+import {deleteBackup, downloadBackup, getBackupSchedule, listBackups, triggerBackup, updateBackupSchedule,} from "@/lib/generated/sdk.gen";
 import type {BackupResponse as Backup, BackupScheduleResponse as Schedule,} from "@/lib/generated/types.gen";
 import {fmtBytes} from "@/lib/utils/format";
 import {useWs} from "@/lib/ws-context";
@@ -86,6 +86,22 @@ export function BackupsTab({serverId}: { serverId: string }) {
         if (res.error) setError((res.error as { message?: string })?.message ?? "Failed to trigger backup");
         else await load();
         setTriggering(false);
+    }
+
+    async function handleDownload(backupId: string) {
+        setError(null);
+        const res = await downloadBackup({path: {id: serverId, backupId}});
+        if (res.error) {
+            setError((res.error as { message?: string })?.message ?? "Failed to download backup");
+            return;
+        }
+        const blob = res.data as Blob;
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${backupId}.tar.gz`;
+        a.click();
+        URL.revokeObjectURL(url);
     }
 
     async function handleDelete(backupId: string) {
@@ -279,14 +295,13 @@ export function BackupsTab({serverId}: { serverId: string }) {
 
                             <div className="flex items-center gap-2 shrink-0 ml-3">
                                 {backup.status === "COMPLETED" && (
-                                    <a
-                                        href={`/api/servers/${serverId}/backups/${backup.id}/download`}
-                                        download
+                                    <button
+                                        onClick={() => handleDownload(backup.id!)}
                                         className="flex items-center gap-1 px-2 py-1 text-xs border border-border rounded text-text-dim hover:text-text-primary transition-colors"
                                     >
                                         <Download className="w-3 h-3"/>
                                         Download
-                                    </a>
+                                    </button>
                                 )}
                                 {backup.status !== "IN_PROGRESS" && (
                                     <button

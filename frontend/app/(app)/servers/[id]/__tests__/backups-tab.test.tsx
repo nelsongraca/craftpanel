@@ -8,6 +8,7 @@ vi.mock("@/lib/generated/sdk.gen", () => ({
     getBackupSchedule: vi.fn(),
     triggerBackup: vi.fn(),
     deleteBackup: vi.fn(),
+    downloadBackup: vi.fn(),
     updateBackupSchedule: vi.fn(),
 }));
 
@@ -20,6 +21,7 @@ import {
     getBackupSchedule,
     triggerBackup,
     deleteBackup,
+    downloadBackup,
     updateBackupSchedule,
 } from "@/lib/generated/sdk.gen";
 
@@ -115,6 +117,35 @@ describe("BackupsTab", () => {
         expect(screen.getByRole("button", {name: /triggering…/i})).toBeDisabled();
         resolveTrigger!({data: {}});
         await waitFor(() => expect(screen.getByRole("button", {name: /trigger backup/i})).not.toBeDisabled());
+    });
+
+    it("downloadBackup fetches blob and triggers anchor download", async () => {
+        const createUrl = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock");
+        const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {
+        });
+        const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {
+        });
+        const user = userEvent.setup();
+        await renderWith([b({id: "b1"})]);
+        vi.mocked(downloadBackup).mockResolvedValue({data: new Blob(["x"])} as never);
+
+        await user.click(screen.getByRole("button", {name: /download/i}));
+        expect(downloadBackup).toHaveBeenCalledWith({path: {id: "s1", backupId: "b1"}});
+        await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
+        expect(createUrl).toHaveBeenCalledTimes(1);
+
+        createUrl.mockRestore();
+        revoke.mockRestore();
+        click.mockRestore();
+    });
+
+    it("shows error banner on download failure", async () => {
+        const user = userEvent.setup();
+        await renderWith([b({id: "b1"})]);
+        vi.mocked(downloadBackup).mockResolvedValue({error: {message: "No access"}} as never);
+
+        await user.click(screen.getByRole("button", {name: /download/i}));
+        await waitFor(() => expect(screen.getByText("No access")).toBeInTheDocument());
     });
 
     it("deleteBackup calls API and removes row", async () => {
