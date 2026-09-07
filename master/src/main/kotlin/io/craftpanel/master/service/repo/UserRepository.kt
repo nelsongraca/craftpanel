@@ -25,6 +25,8 @@ interface UserRepository {
     fun findRefreshTokenByHash(tokenHash: String): RefreshTokenRow?
 
     fun getUserGlobalGroups(userId: Uuid): List<GroupAssignmentRow>
+
+    fun updatePassword(userId: Uuid, newHash: String)
 }
 
 data class RefreshTokenRow(val id: Uuid, val userId: Uuid, val tokenHash: String, val expiresAt: String, val revoked: Boolean)

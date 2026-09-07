@@ -107,6 +107,14 @@ class UserRepositoryImpl : UserRepository {
                 )
             }
     }
+
+    override fun updatePassword(userId: Uuid, newHash: String) {
+        transaction {
+            Users.update({ Users.id eq userId }) {
+                it[passwordHash] = newHash
+            }
+        }
+    }
 }
 
 private fun ResultRow.toUserRow() = UserRow(

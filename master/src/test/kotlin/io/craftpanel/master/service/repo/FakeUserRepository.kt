@@ -51,6 +51,10 @@ class FakeUserRepository : UserRepository {
 
     override fun getUserGlobalGroups(userId: Uuid): List<GroupAssignmentRow> = emptyList()
 
+    override fun updatePassword(userId: Uuid, newHash: String) {
+        users[userId]?.passwordHash = newHash
+    }
+
     private fun MutableUser.toRow() = UserRow(id, username, email, isActive, createdAt)
     private fun MutableAssignment.toRow() = AssignmentRow(id, userId, groupId, scopeType, scopeId)
 }

@@ -28,6 +28,12 @@ data class LoginResponse(@SerialName("access_token") val accessToken: String, @S
 data class WsTicketResponse(val ticket: String, @SerialName("expires_in") val expiresIn: Int)
 
 @Serializable
+data class ChangePasswordRequest(
+    @SerialName("old_password") val oldPassword: String,
+    @SerialName("new_password") val newPassword: String
+)
+
+@Serializable
 data class MeResponse(val id: String, val username: String, val email: String, val groups: List<String>, val permissions: List<String>)
 
 private data class UserRecord(val userId: Uuid, val username: String, val email: String, val passwordHash: String, val isActive: Boolean, val groupNames: List<String>)
@@ -197,6 +203,52 @@ fun Route.authRoutes(
                     path = "/api/auth",
                     domain = cookieDomainOrNull,
                     maxAge = 0
+                )
+                call.respond(HttpStatusCode.NoContent)
+            }
+
+            post("/change-password", {
+                operationId = "authChangePassword"
+                summary = "Change password"
+                request { body<ChangePasswordRequest>() }
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.BadRequest) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                val userId = call.userId()
+                val req = call.receive<ChangePasswordRequest>()
+
+                val userRecord = lookupUserById(userRepository, userId)
+                    ?: run {
+                        call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found"))
+                        return@post
+                    }
+
+                val user = userRepository.findById(userId)!!
+                val credentials = userRepository.findCredentials(user.email)!!
+                val passwordOk = Argon2Hasher.verify(req.oldPassword, credentials.passwordHash)
+
+                if (!passwordOk) {
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Current password is incorrect"))
+                    return@post
+                }
+
+                val newHash = Argon2Hasher.hash(req.newPassword)
+                userRepository.updatePassword(userId, newHash)
+
+                refreshTokenService.revokeAll(userId)
+
+                val refreshResult = refreshTokenService.issue(userId)
+                call.response.cookies.append(
+                    name = "refresh_token",
+                    value = refreshResult.rawToken,
+                    httpOnly = true,
+                    secure = secureCookies,
+                    extensions = mapOf("SameSite" to "Strict"),
+                    path = "/api/auth",
+                    domain = cookieDomainOrNull
                 )
                 call.respond(HttpStatusCode.NoContent)
             }

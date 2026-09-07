@@ -327,6 +327,112 @@ class AuthRoutesTest :
         }
 
         // -------------------------------------------------------------------------
+        // change-password
+        // -------------------------------------------------------------------------
+
+        test("change-password with correct old password returns 204 and rotates cookie") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser()
+
+                val (accessToken, refreshToken) = login()
+
+                val response = client.post("/api/auth/change-password") {
+                    bearerAuth(accessToken)
+                    contentType(ContentType.Application.Json)
+                    setBody(ChangePasswordRequest("hunter2", "newpwd123"))
+                }
+
+                response.status shouldBe HttpStatusCode.NoContent
+                val newRefreshCookie = response.refreshTokenCookie()
+                newRefreshCookie shouldNotBe null
+                newRefreshCookie shouldNotBe refreshToken
+            }
+        }
+
+        test("change-password invalidates old refresh tokens from other sessions") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser()
+
+                val (originalAccessToken, originalRefreshToken) = login()
+
+                val secondAccessToken = login().first
+
+                client.post("/api/auth/change-password") {
+                    bearerAuth(originalAccessToken)
+                    contentType(ContentType.Application.Json)
+                    setBody(ChangePasswordRequest("hunter2", "newpwd456"))
+                }.status shouldBe HttpStatusCode.NoContent
+
+                client.post("/api/auth/refresh") { cookie("refresh_token", originalRefreshToken) }
+                    .status shouldBe HttpStatusCode.Unauthorized
+            }
+        }
+
+        test("change-password with wrong old password returns 400") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser()
+
+                val (accessToken, _) = login()
+
+                val response = client.post("/api/auth/change-password") {
+                    bearerAuth(accessToken)
+                    contentType(ContentType.Application.Json)
+                    setBody(ChangePasswordRequest("wrong-old-pw", "newpwd123"))
+                }
+
+                response.status shouldBe HttpStatusCode.BadRequest
+            }
+        }
+
+        test("change-password without JWT returns 401") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser()
+
+                client.post("/api/auth/change-password") {
+                    contentType(ContentType.Application.Json)
+                    setBody(ChangePasswordRequest("hunter2", "newpwd123"))
+                }.status shouldBe HttpStatusCode.Unauthorized
+            }
+        }
+
+        test("login with old password fails after change-password, new password works") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser()
+
+                val (accessToken, _) = login()
+
+                client.post("/api/auth/change-password") {
+                    bearerAuth(accessToken)
+                    contentType(ContentType.Application.Json)
+                    setBody(ChangePasswordRequest("hunter2", "newpwd789"))
+                }.status shouldBe HttpStatusCode.NoContent
+
+                client.post("/api/auth/login") {
+                    contentType(ContentType.Application.Json)
+                    setBody(LoginRequest("alice@example.com", "hunter2"))
+                }.status shouldBe HttpStatusCode.Unauthorized
+
+                val newLogin = client.post("/api/auth/login") {
+                    contentType(ContentType.Application.Json)
+                    setBody(LoginRequest("alice@example.com", "newpwd789"))
+                }
+
+                newLogin.status shouldBe HttpStatusCode.OK
+                newLogin.body<LoginResponse>().accessToken.isNotBlank() shouldBe true
+            }
+        }
+
+        // -------------------------------------------------------------------------
         // me
         // -------------------------------------------------------------------------
 

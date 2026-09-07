@@ -2,7 +2,7 @@
 
 import {createContext, useCallback, useContext, useEffect, useState} from "react";
 import {setAccessToken} from "./client";
-import {authLogin, authLogout, authLogoutAll, authMe, authRefresh} from "@/lib/generated";
+import {authLogin, authLogout, authLogoutAll, authMe, authRefresh, authChangePassword} from "@/lib/generated";
 import {useRouter} from "next/navigation";
 
 export interface AuthUser {
@@ -19,6 +19,7 @@ interface AuthContextValue {
     login: (email: string, password: string) => Promise<void>;
     logout: () => Promise<void>;
     logoutAll: () => Promise<void>;
+    changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -76,8 +77,15 @@ export function AuthProvider({children}: { children: React.ReactNode }) {
         router.push("/login");
     }, [router]);
 
+    const changePassword = useCallback(async (oldPassword: string, newPassword: string) => {
+        const {error} = await authChangePassword({body: {old_password: oldPassword, new_password: newPassword}});
+        if (error) throw new Error(error.message ?? "Failed to change password");
+        const {data: me} = await authMe();
+        if (me) setUser(me);
+    }, []);
+
     return (
-        <AuthContext.Provider value={{user, isLoading, login, logout, logoutAll}}>
+        <AuthContext.Provider value={{user, isLoading, login, logout, logoutAll, changePassword}}>
             {children}
         </AuthContext.Provider>
     );

@@ -1,6 +1,6 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor, act } from '@testing-library/react'
-import { AuthProvider, useAuth } from '../auth-context'
+import {describe, it, expect, vi, beforeEach} from 'vitest'
+import {render, screen, waitFor, act} from '@testing-library/react'
+import {AuthProvider, useAuth} from '../auth-context'
 
 vi.mock('@/lib/generated', () => ({
     authRefresh: vi.fn(),
@@ -8,19 +8,20 @@ vi.mock('@/lib/generated', () => ({
     authLogin: vi.fn(),
     authLogout: vi.fn(),
     authLogoutAll: vi.fn(),
+    authChangePassword: vi.fn(),
 }))
 
 vi.mock('@/lib/client', () => ({
     setAccessToken: vi.fn(),
     getAccessToken: vi.fn(() => null),
-    client: { setConfig: vi.fn(), interceptors: { request: { use: vi.fn() }, response: { use: vi.fn() } } },
+    client: {setConfig: vi.fn(), interceptors: {request: {use: vi.fn()}, response: {use: vi.fn()}}},
 }))
 
 import * as generated from '@/lib/generated'
 import * as clientModule from '@/lib/client'
 
 function TestConsumer() {
-    const { user, isLoading } = useAuth()
+    const {user, isLoading} = useAuth()
     return (
         <>
             <div data-testid="loading">{isLoading ? 'loading' : 'ready'}</div>
@@ -30,20 +31,25 @@ function TestConsumer() {
 }
 
 function TestLogin() {
-    const { login } = useAuth()
+    const {login} = useAuth()
     return (
         <button onClick={() => login('u@test.com', 'pass')}>login</button>
     )
 }
 
 function TestLogout() {
-    const { logout } = useAuth()
+    const {logout} = useAuth()
     return <button onClick={() => logout()}>logout</button>
 }
 
 function TestLogoutAll() {
-    const { logoutAll } = useAuth()
+    const {logoutAll} = useAuth()
     return <button onClick={() => logoutAll()}>logout all</button>
+}
+
+function TestChangePassword() {
+    const {changePassword} = useAuth()
+    return <button onClick={() => changePassword('old', 'new')}>change pw</button>
 }
 
 const mockUser = {
@@ -60,10 +66,10 @@ describe('AuthProvider', () => {
     })
 
     it('restores session when refresh succeeds', async () => {
-        vi.mocked(generated.authRefresh).mockResolvedValue({ data: { access_token: 'tok' } } as never)
-        vi.mocked(generated.authMe).mockResolvedValue({ data: mockUser } as never)
+        vi.mocked(generated.authRefresh).mockResolvedValue({data: {access_token: 'tok'}} as never)
+        vi.mocked(generated.authMe).mockResolvedValue({data: mockUser} as never)
 
-        render(<AuthProvider><TestConsumer /></AuthProvider>)
+        render(<AuthProvider><TestConsumer/></AuthProvider>)
 
         await waitFor(() => {
             expect(screen.getByTestId('loading')).toHaveTextContent('ready')
@@ -73,9 +79,9 @@ describe('AuthProvider', () => {
     })
 
     it('finishes loading with no user when refresh returns no data', async () => {
-        vi.mocked(generated.authRefresh).mockResolvedValue({ data: undefined } as never)
+        vi.mocked(generated.authRefresh).mockResolvedValue({data: undefined} as never)
 
-        render(<AuthProvider><TestConsumer /></AuthProvider>)
+        render(<AuthProvider><TestConsumer/></AuthProvider>)
 
         await waitFor(() => {
             expect(screen.getByTestId('loading')).toHaveTextContent('ready')
@@ -86,7 +92,7 @@ describe('AuthProvider', () => {
     it('finishes loading with no user when refresh throws', async () => {
         vi.mocked(generated.authRefresh).mockRejectedValue(new Error('network'))
 
-        render(<AuthProvider><TestConsumer /></AuthProvider>)
+        render(<AuthProvider><TestConsumer/></AuthProvider>)
 
         await waitFor(() => {
             expect(screen.getByTestId('loading')).toHaveTextContent('ready')
@@ -95,11 +101,11 @@ describe('AuthProvider', () => {
     })
 
     it('login() sets user and navigates to /', async () => {
-        vi.mocked(generated.authRefresh).mockResolvedValue({ data: undefined } as never)
-        vi.mocked(generated.authLogin).mockResolvedValue({ data: { access_token: 'tok2' }, error: undefined } as never)
-        vi.mocked(generated.authMe).mockResolvedValue({ data: mockUser } as never)
+        vi.mocked(generated.authRefresh).mockResolvedValue({data: undefined} as never)
+        vi.mocked(generated.authLogin).mockResolvedValue({data: {access_token: 'tok2'}, error: undefined} as never)
+        vi.mocked(generated.authMe).mockResolvedValue({data: mockUser} as never)
 
-        render(<AuthProvider><TestConsumer /><TestLogin /></AuthProvider>)
+        render(<AuthProvider><TestConsumer/><TestLogin/></AuthProvider>)
         await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('ready'))
 
         await act(async () => {
@@ -113,21 +119,27 @@ describe('AuthProvider', () => {
     })
 
     it('login() throws when API returns error', async () => {
-        vi.mocked(generated.authRefresh).mockResolvedValue({ data: undefined } as never)
-        vi.mocked(generated.authLogin).mockResolvedValue({ data: undefined, error: { message: 'Invalid credentials' } } as never)
+        vi.mocked(generated.authRefresh).mockResolvedValue({data: undefined} as never)
+        vi.mocked(generated.authLogin).mockResolvedValue({data: undefined, error: {message: 'Invalid credentials'}} as never)
 
         let caughtMessage = ''
+
         function TestLoginError() {
-            const { login } = useAuth()
+            const {login} = useAuth()
             return (
                 <button onClick={async () => {
-                    try { await login('x', 'y') } catch (e) { caughtMessage = (e as Error).message }
+                    try {
+                        await login('x', 'y')
+                    } catch (e) {
+                        caughtMessage = (e as Error).message
+                    }
                 }}>login</button>
             )
         }
 
-        render(<AuthProvider><TestLoginError /></AuthProvider>)
-        await waitFor(() => {})
+        render(<AuthProvider><TestLoginError/></AuthProvider>)
+        await waitFor(() => {
+        })
 
         await act(async () => {
             screen.getByText('login').click()
@@ -137,11 +149,11 @@ describe('AuthProvider', () => {
     })
 
     it('logout() clears user and navigates to /login', async () => {
-        vi.mocked(generated.authRefresh).mockResolvedValue({ data: { access_token: 'tok' } } as never)
-        vi.mocked(generated.authMe).mockResolvedValue({ data: mockUser } as never)
+        vi.mocked(generated.authRefresh).mockResolvedValue({data: {access_token: 'tok'}} as never)
+        vi.mocked(generated.authMe).mockResolvedValue({data: mockUser} as never)
         vi.mocked(generated.authLogout).mockResolvedValue({} as never)
 
-        render(<AuthProvider><TestConsumer /><TestLogout /></AuthProvider>)
+        render(<AuthProvider><TestConsumer/><TestLogout/></AuthProvider>)
         await waitFor(() => expect(screen.getByTestId('user')).toHaveTextContent('u@test.com'))
 
         await act(async () => {
@@ -159,15 +171,16 @@ describe('AuthProvider', () => {
             useAuth()
             return null
         }
-        expect(() => render(<Bare />)).toThrow('useAuth must be used within AuthProvider')
+
+        expect(() => render(<Bare/>)).toThrow('useAuth must be used within AuthProvider')
     })
 
     it('logoutAll calls authLogoutAll, clears token/user, redirects to /login', async () => {
-        vi.mocked(generated.authRefresh).mockResolvedValue({ data: { access_token: 'tok' } } as never)
-        vi.mocked(generated.authMe).mockResolvedValue({ data: mockUser } as never)
+        vi.mocked(generated.authRefresh).mockResolvedValue({data: {access_token: 'tok'}} as never)
+        vi.mocked(generated.authMe).mockResolvedValue({data: mockUser} as never)
         vi.mocked(generated.authLogoutAll).mockResolvedValue({} as never)
 
-        render(<AuthProvider><TestConsumer /><TestLogoutAll /></AuthProvider>)
+        render(<AuthProvider><TestConsumer/><TestLogoutAll/></AuthProvider>)
         await waitFor(() => expect(screen.getByTestId('user')).toHaveTextContent('u@test.com'))
 
         await act(async () => {
@@ -182,11 +195,11 @@ describe('AuthProvider', () => {
     })
 
     it('authLogoutAll failure still clears token/user and redirects', async () => {
-        vi.mocked(generated.authRefresh).mockResolvedValue({ data: { access_token: 'tok' } } as never)
-        vi.mocked(generated.authMe).mockResolvedValue({ data: mockUser } as never)
+        vi.mocked(generated.authRefresh).mockResolvedValue({data: {access_token: 'tok'}} as never)
+        vi.mocked(generated.authMe).mockResolvedValue({data: mockUser} as never)
         vi.mocked(generated.authLogoutAll).mockRejectedValue(new Error('network'))
 
-        render(<AuthProvider><TestConsumer /><TestLogoutAll /></AuthProvider>)
+        render(<AuthProvider><TestConsumer/><TestLogoutAll/></AuthProvider>)
         await waitFor(() => expect(screen.getByTestId('user')).toHaveTextContent('u@test.com'))
 
         await act(async () => {
@@ -197,5 +210,56 @@ describe('AuthProvider', () => {
             expect(screen.getByTestId('user')).toHaveTextContent('none')
         })
         expect(clientModule.setAccessToken).toHaveBeenCalledWith(null)
+    })
+
+    it('changePassword calls API and refreshes user', async () => {
+        vi.mocked(generated.authRefresh).mockResolvedValue({data: {access_token: 'tok'}} as never)
+        vi.mocked(generated.authMe).mockResolvedValue({data: mockUser} as never)
+        vi.mocked(generated.authChangePassword).mockResolvedValue({data: undefined, error: undefined} as never)
+
+        render(<AuthProvider><TestConsumer/><TestChangePassword/></AuthProvider>)
+        await waitFor(() => expect(screen.getByTestId('user')).toHaveTextContent('u@test.com'))
+
+        await act(async () => {
+            screen.getByText('change pw').click()
+        })
+
+        await waitFor(() => {
+            expect(generated.authChangePassword).toHaveBeenCalledWith({body: {old_password: 'old', new_password: 'new'}})
+        })
+        await waitFor(() => {
+            expect(screen.getByTestId('user')).toHaveTextContent('u@test.com')
+        })
+    })
+
+    it('changePassword throws when API returns error', async () => {
+        vi.mocked(generated.authRefresh).mockResolvedValue({data: {access_token: 'tok'}} as never)
+        vi.mocked(generated.authMe).mockResolvedValue({data: mockUser} as never)
+        vi.mocked(generated.authChangePassword).mockResolvedValue({data: undefined, error: {message: 'Current password is incorrect'}} as never)
+
+        let caughtMessage = ''
+
+        function TestChangePwError() {
+            const {changePassword} = useAuth()
+            return (
+                <button onClick={async () => {
+                    try {
+                        await changePassword('wrong', 'new')
+                    } catch (e) {
+                        caughtMessage = (e as Error).message
+                    }
+                }}>change pw</button>
+            )
+        }
+
+        render(<AuthProvider><TestChangePwError/></AuthProvider>)
+        await waitFor(() => {
+        })
+
+        await act(async () => {
+            screen.getByText('change pw').click()
+        })
+
+        expect(caughtMessage).toBe('Current password is incorrect')
     })
 })

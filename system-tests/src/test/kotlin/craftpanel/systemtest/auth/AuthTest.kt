@@ -1,5 +1,7 @@
 package craftpanel.systemtest.auth
 
+import craftpanel.systemtest.client.api.DefaultApi
+import craftpanel.systemtest.client.model.ChangePasswordRequest
 import craftpanel.systemtest.client.model.LoginRequest
 import craftpanel.systemtest.harness.*
 import io.kotest.assertions.throwables.shouldThrow
@@ -77,6 +79,29 @@ class AuthTest : BaseSystemTest() {
             should("logout-all returns 204") {
                 authHelper.login()
                 api.authLogoutAll()
+            }
+
+            should("change-password with correct old password returns 204") {
+                authHelper.login()
+                api.authChangePassword(ChangePasswordRequest(ADMIN_PASSWORD, "new-pw-change-1"))
+            }
+
+            should("can login with new password after change-password") {
+                authHelper.login()
+                api.authChangePassword(ChangePasswordRequest(ADMIN_PASSWORD, "new-pw-change-2"))
+
+                val newApi = DefaultApi(basePath = SharedStack.masterApiUrl)
+                newApi.authLogin(LoginRequest(ADMIN_EMAIL, "new-pw-change-2"))
+                newApi.authMe()
+                newApi.authChangePassword(ChangePasswordRequest("new-pw-change-2", ADMIN_PASSWORD))
+            }
+
+            should("change-password with wrong old password returns 400") {
+                authHelper.login()
+                val ex = shouldThrow<ClientException> {
+                    api.authChangePassword(ChangePasswordRequest("wrong-old-pw", "new-pw-change-3"))
+                }
+                ex.statusCode shouldBe 400
             }
         }
     }
