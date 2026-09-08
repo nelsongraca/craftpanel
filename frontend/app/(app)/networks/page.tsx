@@ -5,6 +5,8 @@ import {Pencil, Plus, Trash2} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
 import {createNetwork, deleteNetwork, listNetworks, updateNetwork} from "@/lib/generated/sdk.gen";
 import type {Network} from "@/lib/types";
+import {useAuth} from "@/lib/auth-context";
+import {hasPermission} from "@/lib/permissions";
 import {useResourceList} from "@/lib/hooks/useResourceList";
 
 import {BTN_PRIMARY, BTN_GHOST, Modal, Field, TextField} from "@/components/ui/form-elements";
@@ -70,7 +72,9 @@ function NetworkForm({
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function NetworksPage() {
+    const {user} = useAuth();
     const {data: networks, initialLoad: loading, reload: load} = useResourceList(listNetworks, [], {pollMs: 0});
+    const canCreate = hasPermission(user?.permissions ?? [], "server.create");
     const [showCreate, setShowCreate] = useState(false);
     const [editing, setEditing] = useState<Network | null>(null);
     const [deleting, setDeleting] = useState<Network | null>(null);
@@ -120,10 +124,12 @@ export default function NetworksPage() {
                 title="Networks"
                 subtitle="Manage server networks and proxies"
                 action={
-                    <button onClick={() => setShowCreate(true)} className={BTN_PRIMARY + " flex items-center gap-1.5"}>
-                        <Plus size={13} strokeWidth={2.5}/>
-                        New Network
-                    </button>
+                    canCreate ? (
+                        <button onClick={() => setShowCreate(true)} className={BTN_PRIMARY + " flex items-center gap-1.5"}>
+                            <Plus size={13} strokeWidth={2.5}/>
+                            New Network
+                        </button>
+                    ) : undefined
                 }
             />
 

@@ -11,7 +11,7 @@ vi.mock("@/lib/generated/sdk.gen", () => ({
 
 vi.mock("@/app/components/PageHeader", () => ({
     default: vi.fn(
-        ({title, subtitle, action}: {title?: string; subtitle?: string; action?: React.ReactNode}) => (
+        ({title, subtitle, action}: { title?: string; subtitle?: string; action?: React.ReactNode }) => (
             <div>
                 {title && <h1>{title}</h1>}
                 {subtitle && <p>{subtitle}</p>}
@@ -21,7 +21,12 @@ vi.mock("@/app/components/PageHeader", () => ({
     ),
 }));
 
+vi.mock("@/lib/auth-context", () => ({
+    useAuth: vi.fn(() => ({user: {permissions: ["*"]}})),
+}));
+
 import {listNetworks, createNetwork, updateNetwork, deleteNetwork} from "@/lib/generated/sdk.gen";
+import {useAuth} from "@/lib/auth-context";
 import type {ErrorResponse, NetworkResponse} from "@/lib/generated/types.gen";
 import NetworksPage from "../page";
 
@@ -39,7 +44,9 @@ function network(overrides: Record<string, unknown> = {}): Record<string, unknow
 
 function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
     let resolve!: (v: T) => void;
-    const promise = new Promise<T>((r) => { resolve = r; });
+    const promise = new Promise<T>((r) => {
+        resolve = r;
+    });
     return {promise, resolve};
 }
 
@@ -54,6 +61,7 @@ async function renderWith(mocks: { networks?: Record<string, unknown>[] } = {}) 
 describe("NetworksPage", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        (vi.mocked(useAuth) as ReturnType<typeof vi.fn>).mockReturnValue({user: {permissions: ["*"]}});
     });
 
     it("renders loading state initially", () => {
@@ -114,6 +122,12 @@ describe("NetworksPage", () => {
         await renderWith({networks: []});
         await userEvent.setup().click(screen.getByText("New Network"));
         expect(screen.getByText("Create")).toBeTruthy();
+    });
+
+    it("hides 'New Network' button without server.create", async () => {
+        (vi.mocked(useAuth) as ReturnType<typeof vi.fn>).mockReturnValue({user: {permissions: ["server.view"]}});
+        await renderWith({networks: []});
+        expect(screen.queryByText("New Network")).toBeNull();
     });
 
     it("create modal submits name and description", async () => {
