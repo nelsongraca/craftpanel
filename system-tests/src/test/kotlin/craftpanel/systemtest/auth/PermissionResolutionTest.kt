@@ -142,6 +142,7 @@ class PermissionResolutionTest : BaseSystemTest() {
                     )
                     withViewerApi(email, "pw") { vApi ->
                         vApi.startServer(serverId)
+                        helper.awaitStatus(serverId, ServerStatus.HEALTHY)
 
                         shouldThrow<ClientException> { vApi.startServer(otherServer) }.statusCode shouldBe 403
                     }
