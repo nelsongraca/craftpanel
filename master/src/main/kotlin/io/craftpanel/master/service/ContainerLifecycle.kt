@@ -38,9 +38,6 @@ class ContainerLifecycle(
 
     fun sendStop(server: ServerRow, nodeId: String, force: Boolean = false) {
         val id = server.id
-        // Mark STOPPING in the DB before dispatching so NodeObserver never treats the
-        // subsequent STOPPED event as an unexpected graceful stop (crash-restart guard).
-        writeStatus(id, ServerStatus.STOPPING)
         sendOrThrow(
             nodeId,
             masterMessage {
@@ -98,7 +95,6 @@ class ContainerLifecycle(
 
     suspend fun stop(server: ServerRow, nodeId: String) {
         val id = server.id
-        // sendStop writes STOPPING; we only need to await the STOPPED confirmation.
         awaitStatus(id.toString(), ServerStatus.STOPPED, stopTimeout) {
             sendStop(server, nodeId)
         }

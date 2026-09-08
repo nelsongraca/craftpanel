@@ -34,6 +34,7 @@ class ServerLifecycleService(
         val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
         if (serverRow.status == "STOPPED") throw ConflictException("Server is already stopped")
         val nodeId = serverRow.nodeId.toString()
+        transaction { Server.findById(id)?.let { it.status = "STOPPING" } }
         lifecycle.sendStop(serverRow, nodeId)
     }
 
@@ -41,6 +42,7 @@ class ServerLifecycleService(
         val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
         if (serverRow.status == "STOPPED") throw ConflictException("Server is already stopped")
         val nodeId = serverRow.nodeId.toString()
+        transaction { Server.findById(id)?.let { it.status = "STOPPING" } }
         lifecycle.sendStop(serverRow, nodeId, force = true)
     }
 
