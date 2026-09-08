@@ -1,6 +1,7 @@
 "use client";
 
 import {useEffect, useState} from "react";
+import Image from "next/image";
 import Link from "next/link";
 import {usePathname} from "next/navigation";
 import {AlertTriangle, Bell, ChevronDown, KeyRound, LayoutDashboard, LogOut, type LucideIcon, Lock, Menu, Monitor, Network, Server, Settings, Users,} from "lucide-react";
@@ -92,8 +93,9 @@ export default function Shell({children}: { children: React.ReactNode }) {
                     >
                         <Menu size={20} strokeWidth={2}/>
                     </button>
+                    <Image src="/logo.svg" alt="CraftPanel logo" width={26} height={26} unoptimized className="shrink-0"/>
                     <span className="text-base font-bold font-heading tracking-widest uppercase text-accent">
-                        ⛏ CraftPanel
+                        CraftPanel
                     </span>
                 </div>
 
