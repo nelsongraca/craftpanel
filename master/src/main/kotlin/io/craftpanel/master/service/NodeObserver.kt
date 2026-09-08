@@ -13,7 +13,9 @@ import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Clock
+import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
 /**
@@ -39,6 +41,12 @@ class NodeObserver(
 
     private val log = LoggerFactory.getLogger(NodeObserver::class.java)
 
+    // Servers for which a crash or unexpected graceful stop has been dispatched to the restart
+    // loop and has not yet recovered (HEALTHY) or been superseded. Guards against dispatching a
+    // second restart for the same death episode (several status events fire per death: die watcher
+    // + console-teardown STOPPED + snapshot UNHEALTHY). Cleared when the server reaches HEALTHY.
+    private val restartInFlight = ConcurrentHashMap.newKeySet<Uuid>()
+
     fun start(scope: CoroutineScope): Job = scope.launch {
         agentEvents.collect { event ->
             try {
@@ -63,7 +71,8 @@ class NodeObserver(
                         /* unrelated events */
                     }
                 }
-            } catch (e: Exception) {
+            }
+            catch (e: Exception) {
                 log.warn("NodeObserver: failed to process event {} — {}", event::class.simpleName, e.message)
             }
         }
@@ -88,9 +97,15 @@ class NodeObserver(
             }
         }
         if (event.ramUsedMb > 0) {
-            transaction { Node.findById(kotlinNodeId)?.let { it.systemRamUsedMb = event.ramUsedMb } }
+            transaction {
+                Node.findById(kotlinNodeId)
+                    ?.let { it.systemRamUsedMb = event.ramUsedMb }
+            }
         }
-        transaction { Node.findById(kotlinNodeId)?.let { it.systemCpuPercent = event.cpuPercent } }
+        transaction {
+            Node.findById(kotlinNodeId)
+                ?.let { it.systemCpuPercent = event.cpuPercent }
+        }
     }
 
     private fun persistContainerMetrics(event: AgentEvent.ContainerMetricsEvent) {
@@ -113,17 +128,48 @@ class NodeObserver(
     private fun persistServerStatus(event: AgentEvent.ServerStatusEvent) {
         val serverId = runCatching { Uuid.parse(event.serverId) }.getOrNull() ?: return
         val now = clock.now()
-
         val prevStatus = serverRepository.findById(serverId)
             ?.let { ServerStatus.fromDb(it.status) }
+
+        // A STOPPED event with no prior STOPPING/STOPPED in the DB means the container stopped
+        // (exit 0) without a platform stop request — an in-game /stop or unexpected death with
+        // exit 0. Treat as a crash: route into the restart machinery instead of persisting STOPPED
+        // (which would wedge the DB and cause subsequent API calls to 409).
+        val unexpectedStop = event.status == ServerStatus.STOPPED &&
+            prevStatus != ServerStatus.STOPPED && prevStatus != ServerStatus.STOPPING
+        if (unexpectedStop) {
+            val restarting = handleUnexpectedStop(serverId, prevStatus)
+            if (restarting) return
+        }
+
         transaction {
-            Server.findById(serverId)?.let {
-                it.status = event.status.toDb()
-                it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
-            }
+            Server.findById(serverId)
+                ?.let {
+                    it.status = event.status.toDb()
+                    it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
+                }
         }
 
         maybeRestartOnCrash(serverId, prevStatus, event.status)
+    }
+
+    /**
+     * Handles a container stop that master did NOT request (no prior STOPPING/STOPPED). A graceful
+     * stop (exit 0) with the DB still in a running state is an unexpected death — route it into
+     * the crash-restart machinery. Returns true when a restart is dispatched (or a duplicate of an
+     * in-flight death is swallowed) so the caller skips persisting STOPPED; false when no restart
+     * can fire (cap exhausted or manager disabled) so the caller persists the real state.
+     */
+    private fun handleUnexpectedStop(serverId: Uuid, prevStatus: ServerStatus?): Boolean {
+        val mgr = restartManager ?: return false
+        if (restartInFlight.contains(serverId)) return true
+        if (mgr.recordCrashAndShouldRestart(serverId)) {
+            restartInFlight.add(serverId)
+            crashRestarts.trySend(serverId)
+            log.info("Unexpected graceful stop for server {} (prev={}) — crash-restarting", serverId, prevStatus)
+            return true
+        }
+        return false
     }
 
     /**
@@ -136,12 +182,23 @@ class NodeObserver(
         val mgr = restartManager ?: return
         if (newStatus == ServerStatus.HEALTHY) {
             mgr.reset(serverId)
+            restartInFlight.remove(serverId)
             return
         }
         val crashed = newStatus == ServerStatus.UNHEALTHY &&
             (prevStatus == ServerStatus.HEALTHY || prevStatus == ServerStatus.STARTING)
         if (!crashed) return
+
+        // A single unexpected death can emit several events (die watcher → UNHEALTHY or STOPPED,
+        // console teardown → STOPPED). Restart once per death, not once per event.
+        // UNHEALTHY after a dispatched restart (DB shows STARTING) is a fresh failure of that
+        // restart — clear the flag and retry within the cap.
+        if (restartInFlight.contains(serverId)) {
+            if (prevStatus != ServerStatus.STARTING) return
+            restartInFlight.remove(serverId)
+        }
         if (mgr.recordCrashAndShouldRestart(serverId)) {
+            restartInFlight.add(serverId)
             crashRestarts.trySend(serverId)
         }
     }
@@ -167,12 +224,13 @@ class NodeObserver(
         val errorMessage = if (!event.success) event.errorMessage.takeIf { it.isNotBlank() } else null
 
         transaction {
-            Backup.findById(backupId)?.let {
-                it.status = status.name
-                if (sizeBytes != null) it.sizeBytes = sizeBytes
-                if (errorMessage != null) it.errorMessage = errorMessage
-                if (event.completedAt != null) it.completedAt = event.completedAt.toLocalDateTime(TimeZone.UTC)
-            }
+            Backup.findById(backupId)
+                ?.let {
+                    it.status = status.name
+                    if (sizeBytes != null) it.sizeBytes = sizeBytes
+                    if (errorMessage != null) it.errorMessage = errorMessage
+                    if (event.completedAt != null) it.completedAt = event.completedAt.toLocalDateTime(TimeZone.UTC)
+                }
         }
     }
 

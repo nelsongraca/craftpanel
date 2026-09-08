@@ -172,6 +172,135 @@ class NodeObserverTest :
             }
         }
 
+        test("unexpected graceful stop (exit 0, prev HEALTHY) dispatches a restart without wedging STOPPED") {
+            runTest {
+                val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
+                val crashRestarts = Channel<Uuid>(Channel.BUFFERED)
+                val restartManager = ServerRestartManager(maxAttempts = 3, windowSeconds = 3600)
+                val job = observer(restartManager, crashRestarts, events).start(this)
+                delay(50.milliseconds)
+
+                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STOPPED))
+                delay(50.milliseconds)
+
+                // Restart dispatched; the DB must NOT settle on STOPPED (the restart loop writes STARTING
+                // when it picks the message up) — otherwise a subsequent stopServer would 409.
+                dbStatus() shouldBe "HEALTHY"
+                crashRestarts.tryReceive()
+                    .getOrNull() shouldBe serverId
+                job.cancel()
+            }
+        }
+
+        test("duplicate STOPPED events for one death dispatch exactly one restart") {
+            runTest {
+                val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
+                val crashRestarts = Channel<Uuid>(Channel.BUFFERED)
+                val restartManager = ServerRestartManager(maxAttempts = 3, windowSeconds = 3600)
+                val job = observer(restartManager, crashRestarts, events).start(this)
+                delay(50.milliseconds)
+
+                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STOPPED))
+                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STOPPED))
+                delay(50.milliseconds)
+
+                crashRestarts.tryReceive()
+                    .getOrNull() shouldBe serverId
+                crashRestarts.tryReceive()
+                    .getOrNull() shouldBe null
+                job.cancel()
+            }
+        }
+
+        test("UNHEALTHY for the same death while a restart is in flight is swallowed") {
+            runTest {
+                val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
+                val crashRestarts = Channel<Uuid>(Channel.BUFFERED)
+                val restartManager = ServerRestartManager(maxAttempts = 3, windowSeconds = 3600)
+                val job = observer(restartManager, crashRestarts, events).start(this)
+                delay(50.milliseconds)
+
+                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STOPPED))
+                delay(50.milliseconds)
+                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.UNHEALTHY))
+                delay(50.milliseconds)
+
+                crashRestarts.tryReceive()
+                    .getOrNull() shouldBe serverId
+                crashRestarts.tryReceive()
+                    .getOrNull() shouldBe null
+                job.cancel()
+            }
+        }
+
+        test("restart failure after dispatch (prev STARTING) is retried within the cap") {
+            runTest {
+                val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
+                val crashRestarts = Channel<Uuid>(Channel.BUFFERED)
+                val restartManager = ServerRestartManager(maxAttempts = 2, windowSeconds = 3600)
+                val job = observer(restartManager, crashRestarts, events).start(this)
+                delay(50.milliseconds)
+
+                // Crash #1 (death event), then the restart loop flips DB to STARTING, then UNHEALTHY
+                // signals the dispatched restart failed — a fresh death, retry within the cap.
+                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.UNHEALTHY))
+                delay(50.milliseconds)
+                transaction {
+                    Servers.update({ Servers.id eq serverId }) {
+                        it[Servers.status] = "STARTING"
+                    }
+                }
+                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.UNHEALTHY))
+                delay(50.milliseconds)
+
+                crashRestarts.tryReceive()
+                    .getOrNull() shouldBe serverId
+                crashRestarts.tryReceive()
+                    .getOrNull() shouldBe serverId
+                job.cancel()
+            }
+        }
+
+        test("intentional stop (prev STOPPING) persists STOPPED with no restart") {
+            runTest {
+                val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
+                val crashRestarts = Channel<Uuid>(Channel.BUFFERED)
+                val restartManager = ServerRestartManager(maxAttempts = 3, windowSeconds = 3600)
+                transaction {
+                    Servers.update({ Servers.id eq serverId }) {
+                        it[Servers.status] = "STOPPING"
+                    }
+                }
+                val job = observer(restartManager, crashRestarts, events).start(this)
+                delay(50.milliseconds)
+
+                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STOPPED))
+                delay(50.milliseconds)
+
+                dbStatus() shouldBe "STOPPED"
+                crashRestarts.tryReceive()
+                    .getOrNull() shouldBe null
+                job.cancel()
+            }
+        }
+
+        test("disabled restartManager persists unexpected STOPPED so the DB reflects reality") {
+            runTest {
+                val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
+                val crashRestarts = Channel<Uuid>(Channel.BUFFERED)
+                val job = observer(null, crashRestarts, events).start(this)
+                delay(50.milliseconds)
+
+                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STOPPED))
+                delay(50.milliseconds)
+
+                dbStatus() shouldBe "STOPPED"
+                crashRestarts.tryReceive()
+                    .getOrNull() shouldBe null
+                job.cancel()
+            }
+        }
+
         test("null restartManager disables crash restart entirely") {
             runTest {
                 val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
