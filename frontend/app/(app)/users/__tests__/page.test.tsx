@@ -9,6 +9,7 @@ vi.mock("@/lib/generated/sdk.gen", () => ({
     createUser: vi.fn(),
     updateUser: vi.fn(),
     deleteUser: vi.fn(),
+    resetUserPassword: vi.fn(),
     listUserAssignments: vi.fn(),
     createAssignment: vi.fn(),
     deleteAssignment: vi.fn(),
@@ -29,7 +30,7 @@ vi.mock("@/app/components/PageHeader", () => ({
 }));
 
 import {
-    listUsers, listGroups, createUser, updateUser, deleteUser,
+    listUsers, listGroups, createUser, updateUser, deleteUser, resetUserPassword,
     listUserAssignments, createAssignment, deleteAssignment,
     listServers, listNetworks,
 } from "@/lib/generated/sdk.gen";
@@ -70,7 +71,7 @@ function assignment(overrides: Record<string, unknown> = {}): Record<string, unk
     };
 }
 
-function deferred<T>(): {promise: Promise<T>; resolve: (v: T) => void} {
+function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
     let resolve!: (v: T) => void;
     const promise = new Promise<T>((r) => {
         resolve = r;
@@ -426,6 +427,83 @@ describe("UsersPage", () => {
                 expect(deleteAssignment).toHaveBeenCalledWith({
                     path: {userId: "u1", assignmentId: "a1"},
                 });
+            });
+        });
+    });
+
+    describe("Reset Password modal", () => {
+        it("clicking key opens modal, submitting matching passwords calls resetUserPassword", async () => {
+            const u = user({username: "alice"});
+            vi.mocked(resetUserPassword).mockResolvedValue({data: {}} as never);
+            await renderWith({users: [u]});
+
+            const userEv = userEvent.setup();
+            await userEv.click(screen.getAllByTitle("Reset password")[0]);
+
+            await waitFor(() => {
+                expect(screen.getByText(/Reset Password - alice/)).toBeInTheDocument();
+            });
+
+            const dialog = screen.getByRole("dialog");
+            const passwordInputs = dialog.querySelectorAll<HTMLInputElement>('input[type="password"]');
+            await userEv.type(passwordInputs[0], "newSecret1");
+            await userEv.type(passwordInputs[1], "newSecret1");
+
+            await userEv.click(screen.getByRole("button", {name: "Reset Password"}));
+
+            await waitFor(() => {
+                expect(resetUserPassword).toHaveBeenCalledWith({
+                    path: {id: "u1"},
+                    body: {password: "newSecret1"},
+                });
+            });
+        });
+
+        it("mismatched passwords shows error and does not call API", async () => {
+            const u = user({username: "alice"});
+            await renderWith({users: [u]});
+
+            const userEv = userEvent.setup();
+            await userEv.click(screen.getAllByTitle("Reset password")[0]);
+
+            await waitFor(() => {
+                expect(screen.getByText(/Reset Password - alice/)).toBeInTheDocument();
+            });
+
+            const dialog = screen.getByRole("dialog");
+            const passwordInputs = dialog.querySelectorAll<HTMLInputElement>('input[type="password"]');
+            await userEv.type(passwordInputs[0], "abc123");
+            await userEv.type(passwordInputs[1], "def456");
+
+            await userEv.click(screen.getByRole("button", {name: "Reset Password"}));
+
+            expect(screen.getByText("Passwords do not match")).toBeInTheDocument();
+            expect(resetUserPassword).not.toHaveBeenCalled();
+        });
+
+        it("API error displays error message", async () => {
+            const u = user({username: "alice"});
+            vi.mocked(resetUserPassword).mockResolvedValue({
+                error: {message: "Reset failed"},
+            } as never);
+            await renderWith({users: [u]});
+
+            const userEv = userEvent.setup();
+            await userEv.click(screen.getAllByTitle("Reset password")[0]);
+
+            await waitFor(() => {
+                expect(screen.getByText(/Reset Password - alice/)).toBeInTheDocument();
+            });
+
+            const dialog = screen.getByRole("dialog");
+            const passwordInputs = dialog.querySelectorAll<HTMLInputElement>('input[type="password"]');
+            await userEv.type(passwordInputs[0], "newSecret1");
+            await userEv.type(passwordInputs[1], "newSecret1");
+
+            await userEv.click(screen.getByRole("button", {name: "Reset Password"}));
+
+            await waitFor(() => {
+                expect(screen.getByText("Reset failed")).toBeInTheDocument();
             });
         });
     });

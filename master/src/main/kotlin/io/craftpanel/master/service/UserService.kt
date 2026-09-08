@@ -26,6 +26,9 @@ data class PatchUserRequest(
 )
 
 @Serializable
+data class ResetPasswordRequest(val password: String)
+
+@Serializable
 data class UserResponse(
     val id: String,
     val username: String,
@@ -51,7 +54,9 @@ class UserService(private val userRepository: UserRepository) {
         if (byUsername != null || byEmail != null) throw ConflictException("Username or email already taken")
         return transaction {
             val e = User.new { this.username = req.username; this.email = req.email; this.passwordHash = hash }
-            val row = Users.selectAll().where { Users.id eq e.id }.first()
+            val row = Users.selectAll()
+                .where { Users.id eq e.id }
+                .first()
             UserRow(
                 id = row[Users.id].value,
                 username = row[Users.username],
@@ -75,11 +80,12 @@ class UserService(private val userRepository: UserRepository) {
             if (conflict) throw UnprocessableException("Username or email already taken")
         }
         transaction {
-            User.findById(targetId)?.let {
-                if (req.username != null) it.username = req.username
-                if (req.email != null) it.email = req.email
-                if (req.isActive != null) it.isActive = req.isActive
-            }
+            User.findById(targetId)
+                ?.let {
+                    if (req.username != null) it.username = req.username
+                    if (req.email != null) it.email = req.email
+                    if (req.isActive != null) it.isActive = req.isActive
+                }
         }
         return userRepository.findById(targetId)!!
             .toResponse()
@@ -90,8 +96,15 @@ class UserService(private val userRepository: UserRepository) {
         transaction {
             UserGroupAssignments.deleteWhere { UserGroupAssignments.userId eq targetId }
             RefreshTokens.deleteWhere { RefreshTokens.userId eq targetId }
-            User.findById(targetId)?.delete()
+            User.findById(targetId)
+                ?.delete()
         }
+    }
+
+    fun resetPassword(targetId: Uuid, req: ResetPasswordRequest) {
+        userRepository.findById(targetId) ?: throw NotFoundException("User not found")
+        val hash = Argon2Hasher.hash(req.password)
+        userRepository.updatePassword(targetId, hash)
     }
 }
 

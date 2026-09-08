@@ -3,10 +3,11 @@
 import {useEffect, useState} from "react";
 import Link from "next/link";
 import {usePathname} from "next/navigation";
-import {AlertTriangle, Bell, ChevronDown, KeyRound, LayoutDashboard, LogOut, type LucideIcon, Menu, Monitor, Network, Server, Settings, Users,} from "lucide-react";
+import {AlertTriangle, Bell, ChevronDown, KeyRound, LayoutDashboard, LogOut, type LucideIcon, Lock, Menu, Monitor, Network, Server, Settings, Users,} from "lucide-react";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import {DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger} from "@/components/ui/dropdown-menu";
+import {ChangePasswordModal} from "@/app/components/ChangePasswordModal";
 
 interface HealthInfo {
     frontendVersion: string;
@@ -61,6 +62,7 @@ export default function Shell({children}: { children: React.ReactNode }) {
     const pathname = usePathname();
     const {user, logout, logoutAll} = useAuth();
     const [drawerOpen, setDrawerOpen] = useState(false);
+    const [changePasswordOpen, setChangePasswordOpen] = useState(false);
     const [health, setHealth] = useState<HealthInfo | null>(null);
 
     const permissions = user?.permissions ?? [];
@@ -107,6 +109,10 @@ export default function Shell({children}: { children: React.ReactNode }) {
                                 <DropdownMenuLabel className="text-text-muted truncate">
                                     {user?.email}
                                 </DropdownMenuLabel>
+                                <DropdownMenuItem onClick={() => setChangePasswordOpen(true)} className="text-text-primary">
+                                    <Lock size={13} strokeWidth={2}/>
+                                    Change password
+                                </DropdownMenuItem>
                                 <DropdownMenuItem onClick={logout} className="text-text-primary">
                                     <LogOut size={13} strokeWidth={2}/>
                                     Sign out
@@ -190,6 +196,10 @@ export default function Shell({children}: { children: React.ReactNode }) {
                     frontend {health?.frontendVersion ?? "…"} · master {health?.masterVersion ?? "…"}
                 </span>
             </footer>
+
+            {changePasswordOpen && (
+                <ChangePasswordModal onClose={() => setChangePasswordOpen(false)}/>
+            )}
         </div>
     );
 }

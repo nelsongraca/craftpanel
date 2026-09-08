@@ -1,9 +1,21 @@
 "use client";
 
 import {useCallback, useEffect, useState} from "react";
-import {Pencil, Plus, Trash2, Users2} from "lucide-react";
+import {KeyRound, Pencil, Plus, Trash2, Users2} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
-import {createAssignment, createUser, deleteAssignment, deleteUser, listGroups, listNetworks, listServers, listUserAssignments, listUsers, updateUser,} from "@/lib/generated/sdk.gen";
+import {
+    createAssignment,
+    createUser,
+    deleteAssignment,
+    deleteUser,
+    listGroups,
+    listNetworks,
+    listServers,
+    listUserAssignments,
+    listUsers,
+    resetUserPassword,
+    updateUser,
+} from "@/lib/generated/sdk.gen";
 import type {Assignment, Group, User} from "@/lib/types";
 import {useResourceList} from "@/lib/hooks/useResourceList";
 import {BTN_PRIMARY, BTN_GHOST, Modal, Field, TextField, SelectField} from "@/components/ui/form-elements";
@@ -109,6 +121,55 @@ function EditUserModal({user, onClose, onDone}: { user: User; onClose: () => voi
                 <div className="flex justify-end gap-2 pt-1">
                     <button type="button" className={BTN_GHOST} onClick={onClose}>Cancel</button>
                     <button type="submit" className={BTN_PRIMARY} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
+                </div>
+            </form>
+        </Modal>
+    );
+}
+
+// ── Reset Password Modal ──────────────────────────────────────────────────────
+
+function ResetPasswordModal({user, onClose, onDone}: { user: User; onClose: () => void; onDone: () => void }) {
+    const [password, setPassword] = useState("");
+    const [confirm, setConfirm] = useState("");
+    const [error, setError] = useState("");
+    const [saving, setSaving] = useState(false);
+
+    async function handleSubmit(e: React.FormEvent) {
+        e.preventDefault();
+        setError("");
+        if (password !== confirm) {
+            setError("Passwords do not match");
+            return;
+        }
+        if (!password) {
+            setError("Password is required");
+            return;
+        }
+        setSaving(true);
+        const {error} = await resetUserPassword({path: {id: user.id}, body: {password}});
+        setSaving(false);
+        if (error) {
+            setError(error.message ?? "Failed to reset password");
+            return;
+        }
+        onDone();
+    }
+
+    return (
+        <Modal title={`Reset Password - ${user.username}`} onClose={onClose}>
+            <form onSubmit={handleSubmit} className="space-y-4">
+                <p className="text-xs text-text-muted -mt-1">This will set a new password for {user.username}. Any active sessions for this user will remain signed in.</p>
+                <Field label="New Password">
+                    <TextField type="password" value={password} onChange={(e) => setPassword(e.target.value)} required/>
+                </Field>
+                <Field label="Confirm New Password">
+                    <TextField type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required/>
+                </Field>
+                {error && <p className="text-xs text-error">{error}</p>}
+                <div className="flex justify-end gap-2 pt-1">
+                    <button type="button" className={BTN_GHOST} onClick={onClose}>Cancel</button>
+                    <button type="submit" className={BTN_PRIMARY} disabled={saving}>{saving ? "Resetting…" : "Reset Password"}</button>
                 </div>
             </form>
         </Modal>
@@ -270,6 +331,7 @@ export default function UsersPage() {
     const [showCreate, setShowCreate] = useState(false);
     const [editing, setEditing] = useState<User | null>(null);
     const [managingGroups, setManagingGroups] = useState<User | null>(null);
+    const [resettingPassword, setResettingPassword] = useState<User | null>(null);
     const [deleting, setDeleting] = useState<User | null>(null);
     const [deleteError, setDeleteError] = useState("");
 
@@ -341,6 +403,7 @@ export default function UsersPage() {
                                         <ListActions>
                                             <IconActionButton icon={<Pencil size={13}/>} label="Edit" onClick={() => setEditing(u)}/>
                                             <IconActionButton icon={<Users2 size={13}/>} label="Manage groups" onClick={() => setManagingGroups(u)}/>
+                                            <IconActionButton icon={<KeyRound size={13}/>} label="Reset password" onClick={() => setResettingPassword(u)}/>
                                             <IconActionButton
                                                 icon={<Trash2 size={13}/>}
                                                 label="Delete"
@@ -377,6 +440,7 @@ export default function UsersPage() {
                                     <div className="mt-2.5 flex items-center justify-end gap-1">
                                         <IconActionButton icon={<Pencil size={15}/>} label="Edit" onClick={() => setEditing(u)}/>
                                         <IconActionButton icon={<Users2 size={15}/>} label="Manage groups" onClick={() => setManagingGroups(u)}/>
+                                        <IconActionButton icon={<KeyRound size={15}/>} label="Reset password" onClick={() => setResettingPassword(u)}/>
                                         <IconActionButton
                                             icon={<Trash2 size={15}/>}
                                             label="Delete"
@@ -410,6 +474,10 @@ export default function UsersPage() {
 
             {managingGroups && (
                 <AssignmentsModal user={managingGroups} groups={groups} onClose={() => setManagingGroups(null)}/>
+            )}
+
+            {resettingPassword && (
+                <ResetPasswordModal user={resettingPassword} onClose={() => setResettingPassword(null)} onDone={() => setResettingPassword(null)}/>
             )}
 
             {deleting && (

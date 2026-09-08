@@ -103,6 +103,28 @@ fun Route.usersRoutes(userService: UserService) {
                 userService.deleteUser(targetId)
                 call.respond(HttpStatusCode.NoContent)
             }
+
+            put("/{id}/password", {
+                operationId = "resetUserPassword"
+                summary = "Reset user password"
+                request {
+                    pathParameter<String>("id")
+                    body<ResetPasswordRequest>()
+                }
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                call.requirePermission(Permission.SYSTEM_USERS)
+                val targetId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
+                    ?: return@put call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
+                val req = call.receive<ResetPasswordRequest>()
+                userService.resetPassword(targetId, req)
+                call.respond(HttpStatusCode.NoContent)
+            }
         }
     }
 }

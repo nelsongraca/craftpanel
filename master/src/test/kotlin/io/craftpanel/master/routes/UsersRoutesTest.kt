@@ -271,4 +271,61 @@ class UsersRoutesTest :
                 client.delete("/api/users/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }.status shouldBe HttpStatusCode.NotFound
             }
         }
+
+        // ── PUT /api/users/{id}/password ─────────────────────────────────────────
+
+        test("resetUserPassword returns 403 without permission") {
+            testApplication {
+                testApp { _ -> configureUsersTest() }
+                val userId = createUser()
+                val targetId = createUser(username = "target", email = "target@example.com")
+
+                val response = client.put("/api/users/$targetId/password") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"password":"newpass123"}""")
+                }
+                response.status shouldBe HttpStatusCode.Forbidden
+            }
+        }
+
+        test("resetUserPassword updates stored hash and returns 204") {
+            testApplication {
+                testApp { _ -> configureUsersTest() }
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val targetId = createUser(username = "target", email = "target@example.com", password = "oldpass")
+
+                val response = client.put("/api/users/$targetId/password") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"password":"newpass123"}""")
+                }
+                response.status shouldBe HttpStatusCode.NoContent
+
+                // Old password should no longer verify; new one should.
+                val hash = transaction {
+                    Users.selectAll()
+                        .where { Users.id eq targetId }
+                        .first()[Users.passwordHash]
+                }
+                Argon2Hasher.verify("oldpass", hash) shouldBe false
+                Argon2Hasher.verify("newpass123", hash) shouldBe true
+            }
+        }
+
+        test("resetUserPassword returns 404 for unknown user") {
+            testApplication {
+                testApp { _ -> configureUsersTest() }
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+
+                val response = client.put("/api/users/${Uuid.random()}/password") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"password":"newpass123"}""")
+                }
+                response.status shouldBe HttpStatusCode.NotFound
+            }
+        }
     })
