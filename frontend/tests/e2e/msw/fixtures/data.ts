@@ -28,6 +28,7 @@ export const fakeUser: MeResponse = {
     email: "admin@craftpanel.test",
     groups: ["Super Admin"],
     permissions: ["*"],
+    server_permissions: {},
 };
 
 const NODE_DEFAULTS = {

@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest'
-import { hasPermission } from './permissions'
+import {describe, it, expect} from 'vitest'
+import {hasPermission, serverPermissions} from './permissions'
 
 describe('hasPermission', () => {
     it('grants everything with wildcard *', () => {
@@ -36,5 +36,30 @@ describe('hasPermission', () => {
 
     it('does not treat partial prefix as wildcard', () => {
         expect(hasPermission(['server'], 'server.start')).toBe(false)
+    })
+})
+
+describe('serverPermissions', () => {
+    it('unions global and server-scoped permissions without duplicates', () => {
+        const perms = serverPermissions(
+            ['server.view'],
+            {'s1': ['server.restart', 'server.view']},
+            's1',
+        )
+        expect(perms.sort()).toEqual(['server.restart', 'server.view'])
+    })
+
+    it('falls back to global only when no server id is given', () => {
+        expect(serverPermissions(['server.view'], {'s1': ['server.restart']}, undefined))
+            .toEqual(['server.view'])
+    })
+
+    it('returns global only when the server has no scoped permissions', () => {
+        expect(serverPermissions(['server.view'], {}, 's1')).toEqual(['server.view'])
+    })
+
+    it('scoped permissions alone surface when no global permissions exist', () => {
+        expect(serverPermissions([], {'s1': ['server.restart']}, 's1'))
+            .toEqual(['server.restart'])
     })
 })

@@ -8,6 +8,7 @@ import io.craftpanel.master.service.repo.impl.UserRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.string.shouldContain
 import io.ktor.client.call.*
 import io.ktor.client.request.*
@@ -89,6 +90,54 @@ class AuthRoutesTest :
                 it[UserGroupAssignments.userId] = userId
                 it[UserGroupAssignments.groupId] = groupId
                 it[UserGroupAssignments.scopeType] = "GLOBAL"
+            }
+        }
+
+        fun createNode(): Uuid = transaction {
+            Nodes.insert {
+                it[Nodes.hostname] = "node-1"
+                it[Nodes.displayName] = "node-1"
+                it[Nodes.publicIp] = "1.2.3.4"
+                it[Nodes.privateIp] = "10.0.0.1"
+                it[Nodes.tokenHash] = "a".repeat(64)
+                it[Nodes.status] = "ACTIVE"
+                it[Nodes.totalRamMb] = 8192
+                it[Nodes.totalCpuShares] = 0
+                it[Nodes.portRangeStart] = 25565
+                it[Nodes.portRangeEnd] = 25600
+            }[Nodes.id].let { Uuid.parse(it.toString()) }
+        }
+
+        fun createNetwork(): Uuid = transaction {
+            ServerNetworks.insert {
+                it[ServerNetworks.name] = "net-1"
+            }[ServerNetworks.id].let { Uuid.parse(it.toString()) }
+        }
+
+        fun createServer(nodeId: Uuid, networkId: Uuid?): Uuid = transaction {
+            Servers.insert {
+                it[Servers.nodeId] = nodeId
+                it[Servers.networkId] = networkId
+                it[Servers.name] = "srv"
+                it[Servers.displayName] = "srv"
+                it[Servers.serverType] = "VANILLA"
+                it[Servers.mcVersion] = "1.21.4"
+                it[Servers.hostPort] = 25565
+                it[Servers.memoryMb] = 1024
+                it[Servers.cpuShares] = 0
+                it[Servers.status] = "STOPPED"
+            }[Servers.id].let { Uuid.parse(it.toString()) }
+        }
+
+        fun assignScopedGroup(userId: Uuid, groupName: String, scopeType: String, scopeId: Uuid) = transaction {
+            val groupId = Groups.selectAll()
+                .where { Groups.name eq groupName }
+                .first()[Groups.id]
+            UserGroupAssignments.insert {
+                it[UserGroupAssignments.userId] = userId
+                it[UserGroupAssignments.groupId] = groupId
+                it[UserGroupAssignments.scopeType] = scopeType
+                it[UserGroupAssignments.scopeId] = scopeId
             }
         }
 
@@ -468,6 +517,47 @@ class AuthRoutesTest :
 
                 me.permissions shouldBe listOf("server.view")
                 me.groups shouldBe listOf("Viewer")
+            }
+        }
+
+        test("me returns per-server permissions for server-scoped group assignment") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, null)
+                assignScopedGroup(userId, "Operator", "SERVER", serverId)
+
+                val (accessToken, _) = login()
+
+                val me = client.get("/api/auth/me") { bearerAuth(accessToken) }
+                    .body<MeResponse>()
+
+                me.permissions shouldBe emptyList()
+                me.serverPermissions.getValue(serverId.toString()) shouldContain "server.restart"
+                me.serverPermissions.getValue(serverId.toString()) shouldContain "server.view"
+            }
+        }
+
+        test("me returns per-server permissions for network-scoped group assignment") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                val nodeId = createNode()
+                val networkId = createNetwork()
+                val serverId = createServer(nodeId, networkId)
+                assignScopedGroup(userId, "Operator", "NETWORK", networkId)
+
+                val (accessToken, _) = login()
+
+                val me = client.get("/api/auth/me") { bearerAuth(accessToken) }
+                    .body<MeResponse>()
+
+                me.permissions shouldBe emptyList()
+                me.serverPermissions.getValue(serverId.toString()) shouldContain "server.restart"
+                me.serverPermissions.getValue(serverId.toString()) shouldContain "server.view"
             }
         }
 

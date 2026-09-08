@@ -7,7 +7,7 @@ import {CopyPlus, Play, Plus, RotateCcw, Skull, Square, Trash2, X} from "lucide-
 import PageHeader from "@/app/components/PageHeader";
 import {deleteServer, listNetworks, listNodes, listServers, restartServer, startServer, stopServer, forceStopServer} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
-import {hasPermission} from "@/lib/permissions";
+import {hasPermission, serverPermissions} from "@/lib/permissions";
 import type {Network, Node, Server} from "@/lib/types";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {useResourceList} from "@/lib/hooks/useResourceList";
@@ -379,9 +379,9 @@ export default function ServersPage() {
                     ) : sortedServers.length === 0 ? (
                         <Empty className="border-2 border-border rounded-md py-10">
                             <EmptyDescription>
-                            {servers.length === 0
-                                ? "No servers yet - create one to get started"
-                                : "No servers match the current filters"}
+                                {servers.length === 0
+                                    ? "No servers yet - create one to get started"
+                                    : "No servers match the current filters"}
                             </EmptyDescription>
                         </Empty>
                     ) : (
@@ -433,6 +433,7 @@ export default function ServersPage() {
                                     const node = nodeMap[server.node_id];
                                     const pending = pendingAction[server.id];
                                     const status = server.status;
+                                    const serverPerms = serverPermissions(permissions, user?.server_permissions ?? {}, server.id);
 
                                     return (
                                         <tr
@@ -469,7 +470,7 @@ export default function ServersPage() {
 
                                             {/* STATUS */}
                                             <ListTd>
-                      <Badge variant={serverStatusVariant(status)}>{serverStatusLabel(status)}</Badge>
+                                                <Badge variant={serverStatusVariant(status)}>{serverStatusLabel(status)}</Badge>
                                             </ListTd>
 
                                             {/* PLAYERS */}
@@ -494,7 +495,7 @@ export default function ServersPage() {
                                                 <div onClick={(e) => e.stopPropagation()}>
                                                     <ServerActions
                                                         server={server} status={status} pending={pending}
-                                                        permissions={permissions}
+                                                        permissions={serverPerms}
                                                         doAction={doAction} doDelete={doDelete} doDuplicate={doDuplicate}
                                                     />
                                                 </div>
@@ -514,6 +515,7 @@ export default function ServersPage() {
                                 const node = nodeMap[server.node_id];
                                 const pending = pendingAction[server.id];
                                 const status = server.status;
+                                const serverPerms = serverPermissions(permissions, user?.server_permissions ?? {}, server.id);
                                 return (
                                     <div
                                         key={server.id}
@@ -537,7 +539,7 @@ export default function ServersPage() {
                                             <div onClick={(e) => e.stopPropagation()}>
                                                 <ServerActions
                                                     server={server} status={status} pending={pending}
-                                                    permissions={permissions}
+                                                    permissions={serverPerms}
                                                     doAction={doAction} doDelete={doDelete} doDuplicate={doDuplicate}
                                                 />
                                             </div>

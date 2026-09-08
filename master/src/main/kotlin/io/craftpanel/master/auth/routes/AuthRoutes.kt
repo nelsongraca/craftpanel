@@ -34,7 +34,14 @@ data class ChangePasswordRequest(
 )
 
 @Serializable
-data class MeResponse(val id: String, val username: String, val email: String, val groups: List<String>, val permissions: List<String>)
+data class MeResponse(
+    val id: String,
+    val username: String,
+    val email: String,
+    val groups: List<String>,
+    val permissions: List<String>,
+    @SerialName("server_permissions") val serverPermissions: Map<String, List<String>>
+)
 
 private data class UserRecord(val userId: Uuid, val username: String, val email: String, val passwordHash: String, val isActive: Boolean, val groupNames: List<String>)
 
@@ -286,13 +293,21 @@ fun Route.authRoutes(
                     .toList()
                     .sorted()
 
+                val serverPermissions = PermissionResolver.serverPermissions(userId)
+                    .mapKeys { it.key.toString() }
+                    .mapValues { (_, perms) ->
+                        perms.toList()
+                            .sorted()
+                    }
+
                 call.respond(
                     MeResponse(
                         id = userId.toString(),
                         username = username,
                         email = email,
                         groups = groupNames,
-                        permissions = permissions
+                        permissions = permissions,
+                        serverPermissions = serverPermissions
                     )
                 )
             }

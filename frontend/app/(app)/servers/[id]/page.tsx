@@ -6,7 +6,7 @@ import Link from "next/link";
 import {ChevronRight, Copy, MoreHorizontal, Play, RotateCcw, Shuffle, Skull, Square, Trash2, X,} from "lucide-react";
 import {deleteServer, forceStopServer, getNetwork, getNode, getServer, restartServer, startServer, stopServer} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
-import {hasPermission} from "@/lib/permissions";
+import {hasPermission, serverPermissions} from "@/lib/permissions";
 import type {Network, Node, Server} from "@/lib/types";
 import {useWs} from "@/lib/ws-context";
 import {serverStatusLabel, serverStatusVariant} from "@/lib/status";
@@ -36,7 +36,6 @@ export default function ServerDetailPage() {
     const {user} = useAuth();
     const permissions = user?.permissions ?? [];
     const {subscribe} = useWs();
-
     const [server, setServer] = useState<Server | null>(null);
     const [node, setNode] = useState<Node | null>(null);
     const [network, setNetwork] = useState<Network | null>(null);
@@ -205,6 +204,7 @@ export default function ServerDetailPage() {
     const sStatus = server.status;
     const isProxy = ["VELOCITY", "BUNGEECORD", "WATERFALL"].includes(server.server_type);
     const isModServerType = ["FABRIC", "FORGE", "NEOFORGE", "QUILT"].includes(server.server_type);
+    const serverPerms = serverPermissions(permissions, user?.server_permissions ?? {}, server.id);
 
     return (
         <div>
@@ -242,7 +242,7 @@ export default function ServerDetailPage() {
 
                     {/* Action buttons + menu */}
                     <div className="flex items-center gap-2 shrink-0">
-                        {sStatus === "STOPPED" && hasPermission(permissions, "server.start") && (
+                        {sStatus === "STOPPED" && hasPermission(serverPerms, "server.start") && (
                             <HeaderActionButton
                                 icon={<Play size={12} strokeWidth={2.5}/>}
                                 label="Start"
@@ -251,7 +251,7 @@ export default function ServerDetailPage() {
                                 variant="green"
                             />
                         )}
-                        {(sStatus === "HEALTHY" || sStatus === "STARTING" || sStatus === "UNHEALTHY") && hasPermission(permissions, "server.stop") && (
+                        {(sStatus === "HEALTHY" || sStatus === "STARTING" || sStatus === "UNHEALTHY") && hasPermission(serverPerms, "server.stop") && (
                             <HeaderActionButton
                                 icon={<Square size={12} strokeWidth={2.5}/>}
                                 label="Stop"
@@ -260,7 +260,7 @@ export default function ServerDetailPage() {
                                 variant="red"
                             />
                         )}
-                        {sStatus === "STOPPING" && hasPermission(permissions, "server.force_stop") && (
+                        {sStatus === "STOPPING" && hasPermission(serverPerms, "server.force_stop") && (
                             <HeaderActionButton
                                 icon={<Skull size={12} strokeWidth={2.5}/>}
                                 label="Force Stop"
@@ -269,7 +269,7 @@ export default function ServerDetailPage() {
                                 variant="red"
                             />
                         )}
-                        {sStatus === "HEALTHY" && hasPermission(permissions, "server.restart") && (
+                        {sStatus === "HEALTHY" && hasPermission(serverPerms, "server.restart") && (
                             <HeaderActionButton
                                 icon={<RotateCcw size={12} strokeWidth={2.5}/>}
                                 label="Restart"
@@ -278,7 +278,7 @@ export default function ServerDetailPage() {
                                 variant="yellow"
                             />
                         )}
-                        {sStatus === "STOPPED" && hasPermission(permissions, "server.delete") && (
+                        {sStatus === "STOPPED" && hasPermission(serverPerms, "server.delete") && (
                             <HeaderActionButton
                                 icon={<Trash2 size={12} strokeWidth={2.5}/>}
                                 label="Delete"
@@ -288,7 +288,7 @@ export default function ServerDetailPage() {
                         )}
 
                         {/* Overflow menu */}
-                        {hasPermission(permissions, "server.migrate") && (
+                        {hasPermission(serverPerms, "server.migrate") && (
                             <div className="relative">
                                 <button
                                     onClick={(e) => {
@@ -315,7 +315,7 @@ export default function ServerDetailPage() {
                                             <Shuffle size={12} strokeWidth={2}/>
                                             Migrate
                                         </button>
-                                        {hasPermission(permissions, "server.create") && (
+                                        {hasPermission(serverPerms, "server.create") && (
                                             <Link
                                                 href={`/servers/new?clone=${server.id}`}
                                                 onClick={() => setMenuOpen(false)}
@@ -382,7 +382,7 @@ export default function ServerDetailPage() {
             {server.needs_recreate && (
                 <div className="mx-6 mt-4 flex items-center justify-between bg-warning/10 border border-warning/30 text-warning rounded px-3 py-2 text-xs">
                     <span>Settings saved. Restart the server for changes to take effect.</span>
-                    {(server.status === "HEALTHY") && hasPermission(permissions, "server.restart") && (
+                    {(server.status === "HEALTHY") && hasPermission(serverPerms, "server.restart") && (
                         <button
                             onClick={() => void doAction("restart")}
                             className="ml-4 shrink-0 text-xs font-heading font-bold uppercase tracking-wider underline hover:no-underline"
@@ -414,7 +414,7 @@ export default function ServerDetailPage() {
                         server={server}
                         node={node}
                         network={network}
-                        permissions={permissions}
+                        permissions={serverPerms}
                         liveMetrics={liveMetrics}
                         livePlayers={livePlayers}
                         forceOpenGeneralSignal={generalOpenSignal}
@@ -452,7 +452,7 @@ export default function ServerDetailPage() {
                             <MigrationTab
                                 serverId={server.id}
                                 nodeId={server.node_id}
-                                canMigrate={hasPermission(permissions, "server.migrate")}
+                                canMigrate={hasPermission(serverPerms, "server.migrate")}
                             />
                         </div>
                     </TabsContent>

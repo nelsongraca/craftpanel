@@ -11,6 +11,7 @@ export interface AuthUser {
     email: string;
     groups: string[];
     permissions: string[];
+    server_permissions: Record<string, string[]>;
 }
 
 interface AuthContextValue {
