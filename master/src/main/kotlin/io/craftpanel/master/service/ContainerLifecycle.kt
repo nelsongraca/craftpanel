@@ -38,6 +38,7 @@ class ContainerLifecycle(
 
     fun sendStop(server: ServerRow, nodeId: String, force: Boolean = false) {
         val id = server.id
+        writeStatus(id, ServerStatus.STOPPING)
         sendOrThrow(
             nodeId,
             masterMessage {
