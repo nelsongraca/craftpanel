@@ -285,6 +285,7 @@ function MigrateModal({
                                 </label>
                                 <SelectField
                                     surface="surface-high"
+                                    className="w-full"
                                     value={targetNodeId}
                                     onChange={e => setTargetNodeId(e.target.value)}
                                 >

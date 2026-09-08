@@ -8,7 +8,7 @@ export function EditInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
 }
 
 export function EditSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
-    return <SelectField {...props} surface="bg" fieldSize="sm"/>;
+    return <SelectField {...props} surface="bg" fieldSize="sm" className="w-full"/>;
 }
 
 export function EditTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {

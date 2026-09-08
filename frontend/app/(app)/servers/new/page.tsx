@@ -37,7 +37,7 @@ function FieldInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
 }
 
 function FieldSelect(props: React.SelectHTMLAttributes<HTMLSelectElement>) {
-    return <SelectField {...props} surface="surface" fieldSize="md"/>;
+    return <SelectField {...props} surface="surface" fieldSize="md" className="w-full"/>;
 }
 
 function FieldTextarea(props: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {

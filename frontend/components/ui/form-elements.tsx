@@ -93,7 +93,7 @@ export function SelectField({fieldSize, surface, className, children, value, onC
             disabled={disabled}
             required={required}
         >
-            <SelectTrigger id={id} className={fieldClassName({fieldSize, surface}, `w-full justify-between${className ? ` ${className}` : ""}`)}>
+            <SelectTrigger id={id} className={fieldClassName({fieldSize, surface}, className)}>
                 <SelectValue>{selected?.props.children ?? selected?.props.value}</SelectValue>
             </SelectTrigger>
             <SelectContent>

@@ -221,7 +221,7 @@ function AssignmentsModal({
                 <div className="border-t border-border pt-4 space-y-3">
                     <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Add Assignment</p>
                     <Field label="Group">
-                        <SelectField value={newGroup} onChange={(e) => setNewGroup(e.target.value)}>
+                        <SelectField className="w-full" value={newGroup} onChange={(e) => setNewGroup(e.target.value)}>
                             <option value="">Select…</option>
                             {groups.map((g) => (
                                 <option key={g.id} value={g.id}>{g.name}</option>
@@ -229,7 +229,7 @@ function AssignmentsModal({
                         </SelectField>
                     </Field>
                     <Field label="Scope">
-                        <SelectField value={newScope} onChange={(e) => {
+                        <SelectField className="w-full" value={newScope} onChange={(e) => {
                             setNewScope(e.target.value);
                             setNewScopeId("");
                         }}>
@@ -240,7 +240,7 @@ function AssignmentsModal({
                     </Field>
                     {newScope === "SERVER" && (
                         <Field label="Server">
-                            <SelectField value={newScopeId} onChange={(e) => setNewScopeId(e.target.value)}>
+                            <SelectField className="w-full" value={newScopeId} onChange={(e) => setNewScopeId(e.target.value)}>
                                 <option value="">Select…</option>
                                 {servers.map((s) => <option key={s.id} value={s.id}>{s.display_name}</option>)}
                             </SelectField>
@@ -248,7 +248,7 @@ function AssignmentsModal({
                     )}
                     {newScope === "NETWORK" && (
                         <Field label="Network">
-                            <SelectField value={newScopeId} onChange={(e) => setNewScopeId(e.target.value)}>
+                            <SelectField className="w-full" value={newScopeId} onChange={(e) => setNewScopeId(e.target.value)}>
                                 <option value="">Select…</option>
                                 {networks.map((n) => <option key={n.id} value={n.id}>{n.name}</option>)}
                             </SelectField>

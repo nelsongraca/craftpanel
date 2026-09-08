@@ -146,6 +146,7 @@ function CreateThresholdModal({
                         <SelectField
                             surface="bg"
                             fieldSize="sm"
+                            className="w-full"
                             value={scopeType}
                             onChange={(e) => handleScopeTypeChange(e.target.value as "NODE" | "SERVER")}
                         >
@@ -161,6 +162,7 @@ function CreateThresholdModal({
                         <SelectField
                             surface="bg"
                             fieldSize="sm"
+                            className="w-full"
                             value={scopeId}
                             onChange={(e) => setScopeId(e.target.value)}
                         >
@@ -178,6 +180,7 @@ function CreateThresholdModal({
                         <SelectField
                             surface="bg"
                             fieldSize="sm"
+                            className="w-full"
                             value={metric}
                             onChange={(e) => setMetric(e.target.value)}
                         >

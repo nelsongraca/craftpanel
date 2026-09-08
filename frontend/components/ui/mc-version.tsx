@@ -65,7 +65,7 @@ export function McVersionSelect({
                 required={required}
                 fieldSize={fieldSize}
                 surface={surface}
-                className={className}
+                className={`w-full${className ? ` ${className}` : ""}`}
             >
                 {versions.map((v) => <option key={v} value={v}>{v}</option>)}
             </SelectField>

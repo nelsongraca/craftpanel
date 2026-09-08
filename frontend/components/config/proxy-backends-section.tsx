@@ -59,6 +59,7 @@ function AddBackendModal({
                         </label>
                         <SelectField
                             surface="surface-high"
+                            className="w-full"
                             value={selectedId}
                             onChange={(e) => handleServerChange(e.target.value)}
                         >
