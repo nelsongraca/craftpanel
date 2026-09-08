@@ -1,11 +1,10 @@
-import { type NextRequest, NextResponse } from "next/server";
-
-const MASTER_URL = process.env.MASTER_URL ?? "http://localhost:8080";
+import {type NextRequest, NextResponse} from "next/server";
 
 async function proxy(req: NextRequest): Promise<NextResponse> {
+    const masterUrl = process.env.MASTER_URL ?? "http://localhost:8080";
     const path = req.nextUrl.pathname;
     const search = req.nextUrl.search;
-    const target = `${MASTER_URL}${path}${search}`;
+    const target = `${masterUrl}${path}${search}`;
 
     const headers = new Headers(req.headers);
     headers.delete("host");
