@@ -1,4 +1,5 @@
-import type {Metadata} from "next";
+import {SerwistProvider} from "@serwist/turbopack/react";
+import type {Metadata, Viewport} from "next";
 import {Barlow, Barlow_Condensed, JetBrains_Mono} from "next/font/google";
 import "./globals.css";
 import {AuthProvider} from "@/lib/auth-context";
@@ -24,6 +25,23 @@ const jetbrainsMono = JetBrains_Mono({
 export const metadata: Metadata = {
     title: "CraftPanel",
     description: "Minecraft server management dashboard",
+    manifest: "/manifest.json",
+    icons: {
+        icon: "/icon-192.png",
+        apple: "/apple-touch-icon.png",
+    },
+    appleWebApp: {
+        capable: true,
+        title: "CraftPanel",
+        statusBarStyle: "black-translucent",
+    },
+};
+
+export const viewport: Viewport = {
+    themeColor: "#d97706",
+    width: "device-width",
+    initialScale: 1,
+    viewportFit: "cover",
 };
 
 export default function RootLayout({
@@ -44,7 +62,9 @@ export default function RootLayout({
             />
         </head>
         <body className="min-h-full flex flex-col bg-bg text-text-primary font-sans">
-        <AuthProvider>{children}</AuthProvider>
+        <SerwistProvider swUrl="/serwist/sw.js">
+            <AuthProvider>{children}</AuthProvider>
+        </SerwistProvider>
         </body>
         </html>
     );

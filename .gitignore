@@ -18,3 +18,10 @@ openapi.json
 
 # graft's local graph cache — regenerable, not committed (run `graft build`).
 graft/
+
+# PWA icons — generated at build time from frontend/public/logo.svg via scripts/generate-icons.mjs.
+# Single committed source of truth is the SVG; the PNGs are never committed.
+frontend/public/icon-192.png
+frontend/public/icon-512.png
+frontend/public/icon-maskable-512.png
+frontend/public/apple-touch-icon.png
