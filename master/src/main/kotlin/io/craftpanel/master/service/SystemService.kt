@@ -23,6 +23,7 @@ data class SettingsMap(
     @SerialName("restart_window_seconds") val restartWindowSeconds: Long,
     @SerialName("rate_limit_login_per_minute") val rateLimitLoginPerMinute: Int,
     @SerialName("rate_limit_refresh_per_minute") val rateLimitRefreshPerMinute: Int,
+    @SerialName("rate_limit_totp_verify_per_minute") val rateLimitTotpVerifyPerMinute: Int,
     @SerialName("image_minecraft") val imageMinecraft: String,
     @SerialName("image_proxy") val imageProxy: String,
     @SerialName("console_tail_lines") val consoleTailLines: Int,
@@ -43,6 +44,7 @@ data class PatchSettingsRequest(
     @SerialName("restart_window_seconds") val restartWindowSeconds: Long? = null,
     @SerialName("rate_limit_login_per_minute") val rateLimitLoginPerMinute: Int? = null,
     @SerialName("rate_limit_refresh_per_minute") val rateLimitRefreshPerMinute: Int? = null,
+    @SerialName("rate_limit_totp_verify_per_minute") val rateLimitTotpVerifyPerMinute: Int? = null,
     @SerialName("image_minecraft") val imageMinecraft: String? = null,
     @SerialName("image_proxy") val imageProxy: String? = null,
     @SerialName("console_tail_lines") val consoleTailLines: Int? = null,
@@ -78,6 +80,9 @@ class SystemService(private val settingsRepository: SettingsRepository) {
         if (req.rateLimitRefreshPerMinute != null && req.rateLimitRefreshPerMinute < 1) {
             throw UnprocessableException("rate_limit_refresh_per_minute must be at least 1")
         }
+        if (req.rateLimitTotpVerifyPerMinute != null && req.rateLimitTotpVerifyPerMinute < 1) {
+            throw UnprocessableException("rate_limit_totp_verify_per_minute must be at least 1")
+        }
         if (req.imageMinecraft != null && req.imageMinecraft.isBlank()) {
             throw UnprocessableException("image_minecraft must not be blank")
         }
@@ -98,6 +103,7 @@ class SystemService(private val settingsRepository: SettingsRepository) {
             if (req.restartWindowSeconds != null) put("restart_window_seconds", req.restartWindowSeconds.toString())
             if (req.rateLimitLoginPerMinute != null) put("rate_limit_login_per_minute", req.rateLimitLoginPerMinute.toString())
             if (req.rateLimitRefreshPerMinute != null) put("rate_limit_refresh_per_minute", req.rateLimitRefreshPerMinute.toString())
+            if (req.rateLimitTotpVerifyPerMinute != null) put("rate_limit_totp_verify_per_minute", req.rateLimitTotpVerifyPerMinute.toString())
             if (req.imageMinecraft != null) put("image_minecraft", req.imageMinecraft)
             if (req.imageProxy != null) put("image_proxy", req.imageProxy)
             if (req.consoleTailLines != null) put("console_tail_lines", req.consoleTailLines.toString())
@@ -138,6 +144,7 @@ class SystemService(private val settingsRepository: SettingsRepository) {
                 restartWindowSeconds = map["restart_window_seconds"]?.toLongOrNull() ?: 600L,
                 rateLimitLoginPerMinute = map["rate_limit_login_per_minute"]?.toIntOrNull() ?: 10,
                 rateLimitRefreshPerMinute = map["rate_limit_refresh_per_minute"]?.toIntOrNull() ?: 30,
+                rateLimitTotpVerifyPerMinute = map["rate_limit_totp_verify_per_minute"]?.toIntOrNull() ?: 10,
                 imageMinecraft = map["image_minecraft"] ?: "itzg/minecraft-server",
                 imageProxy = map["image_proxy"] ?: "itzg/mc-proxy",
                 consoleTailLines = map["console_tail_lines"]?.toIntOrNull() ?: 200,

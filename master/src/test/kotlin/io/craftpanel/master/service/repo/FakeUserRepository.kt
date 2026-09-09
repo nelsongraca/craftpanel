@@ -8,7 +8,16 @@ class FakeUserRepository : UserRepository {
     private val assignments = mutableMapOf<Uuid, MutableAssignment>()
     private val tokens = mutableMapOf<String, MutableToken>()
 
-    data class MutableUser(val id: Uuid, var username: String, var email: String, var passwordHash: String, var isActive: Boolean = true, val createdAt: String = "2025-01-01T00:00:00Z")
+    data class MutableUser(
+        val id: Uuid,
+        var username: String,
+        var email: String,
+        var passwordHash: String,
+        var isActive: Boolean = true,
+        val createdAt: String = "2025-01-01T00:00:00Z",
+        var totpEnabled: Boolean = false,
+        var totpSecret: String? = null
+    )
 
     data class MutableAssignment(val id: Uuid, val userId: Uuid, val groupId: Uuid, val scopeType: String, val scopeId: Uuid?)
 
@@ -22,7 +31,7 @@ class FakeUserRepository : UserRepository {
         ?.toRow()
 
     override fun findCredentials(email: String): CredentialRow? = users.values.firstOrNull { it.email == email }
-        ?.let { CredentialRow(it.id, it.username, it.email, it.passwordHash, it.isActive) }
+        ?.let { CredentialRow(it.id, it.username, it.email, it.passwordHash, it.isActive, it.totpEnabled) }
 
     override fun listAll(): List<UserRow> = users.values.map { it.toRow() }
 
@@ -55,6 +64,23 @@ class FakeUserRepository : UserRepository {
         users[userId]?.passwordHash = newHash
     }
 
-    private fun MutableUser.toRow() = UserRow(id, username, email, isActive, createdAt)
+    override fun findTotpSecret(userId: Uuid): String? = users[userId]?.totpSecret
+
+    override fun storeTotpSecret(userId: Uuid, encryptedSecret: String) {
+        users[userId]?.totpSecret = encryptedSecret
+    }
+
+    override fun enableTotp(userId: Uuid) {
+        users[userId]?.totpEnabled = true
+    }
+
+    override fun disableTotp(userId: Uuid) {
+        users[userId]?.let {
+            it.totpSecret = null
+            it.totpEnabled = false
+        }
+    }
+
+    private fun MutableUser.toRow() = UserRow(id, username, email, isActive, createdAt, totpEnabled)
     private fun MutableAssignment.toRow() = AssignmentRow(id, userId, groupId, scopeType, scopeId)
 }

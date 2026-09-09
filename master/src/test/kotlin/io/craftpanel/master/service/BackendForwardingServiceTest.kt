@@ -9,7 +9,7 @@ import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.ProxyBackends
 import io.craftpanel.master.database.schema.ServerEnvVars
 import io.craftpanel.master.database.schema.Servers
-import io.craftpanel.master.crypto.ForwardingSecretCipher
+import io.craftpanel.master.crypto.SecretCipher
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.ServerRepository
 import io.kotest.core.spec.style.FunSpec
@@ -34,7 +34,7 @@ class BackendForwardingServiceTest :
         val repos = TestRepositories()
         val serverRepository: ServerRepository = repos.serverRepository
         val bytes = ByteArray(32) { 0x42 }
-        val cipher = ForwardingSecretCipher(bytes)
+        val cipher = SecretCipher(bytes)
 
         data class WriteCall(val serverId: Uuid, val path: String, val content: ByteArray)
         val writeCalls = mutableListOf<WriteCall>()

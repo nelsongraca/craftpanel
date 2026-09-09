@@ -179,6 +179,9 @@ fun Application.module() {
         register(RateLimitName("auth-refresh")) {
             rateLimiter(limit = startupSettings.rateLimitRefreshPerMinute, refillPeriod = 1.minutes)
         }
+        register(RateLimitName("auth-totp-verify")) {
+            rateLimiter(limit = startupSettings.rateLimitTotpVerifyPerMinute, refillPeriod = 1.minutes)
+        }
     }
 
     install(StatusPages) {

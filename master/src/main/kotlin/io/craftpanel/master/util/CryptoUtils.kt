@@ -1,5 +1,6 @@
 package io.craftpanel.master.util
 
+import java.security.MessageDigest
 import java.security.SecureRandom
 import java.util.*
 
@@ -13,4 +14,11 @@ object CryptoUtils {
             .withoutPadding()
             .encodeToString(buf)
     }
+
+    fun sha256Hex(input: String): String =
+        HexFormat.of()
+            .formatHex(
+                MessageDigest.getInstance("SHA-256")
+                    .digest(input.toByteArray())
+            )
 }

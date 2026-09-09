@@ -16,12 +16,14 @@ class User(id: EntityID<Uuid>) : UuidEntity(id) {
     var passwordHash by Users.passwordHash
     var isActive by Users.isActive
     var createdAt by Users.createdAt
+    var totpEnabled by Users.totpEnabled
 
     fun toUserRow() = UserRow(
         id = id.value,
         username = username,
         email = email,
         isActive = isActive,
-        createdAt = createdAt.toUtcString()
+        createdAt = createdAt.toUtcString(),
+        totpEnabled = totpEnabled
     )
 }

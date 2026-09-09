@@ -1,6 +1,6 @@
 import {describe, it, expect, vi, beforeEach} from 'vitest'
 import {render, screen, waitFor, act} from '@testing-library/react'
-import {AuthProvider, useAuth} from '../auth-context'
+import {AuthProvider, useAuth, type LoginOutcome} from '../auth-context'
 
 vi.mock('@/lib/generated', () => ({
     authRefresh: vi.fn(),
@@ -9,6 +9,8 @@ vi.mock('@/lib/generated', () => ({
     authLogout: vi.fn(),
     authLogoutAll: vi.fn(),
     authChangePassword: vi.fn(),
+    authTotpVerify: vi.fn(),
+    authTotpRecovery: vi.fn(),
 }))
 
 vi.mock('@/lib/client', () => ({
@@ -58,6 +60,7 @@ const mockUser = {
     email: 'u@test.com',
     groups: [],
     permissions: [],
+    totp_enabled: false,
 }
 
 describe('AuthProvider', () => {
@@ -116,6 +119,122 @@ describe('AuthProvider', () => {
             expect(screen.getByTestId('user')).toHaveTextContent('u@test.com')
         })
         expect(clientModule.setAccessToken).toHaveBeenCalledWith('tok2')
+    })
+
+    it('login() returns a totp challenge without authenticating when 2FA is required', async () => {
+        vi.mocked(generated.authRefresh).mockResolvedValue({data: undefined} as never)
+        vi.mocked(generated.authLogin).mockResolvedValue({
+            data: {requires_totp: true, temp_token: 'temp123', expires_in: 60},
+            error: undefined,
+        } as never)
+
+        let outcome: LoginOutcome | null = null
+
+        function TestLoginChallenge() {
+            const {login} = useAuth()
+            return (
+                <button onClick={async () => {
+                    try {
+                        outcome = await login('u@test.com', 'pass')
+                    } catch (e) {
+                        outcome = null
+                    }
+                }}>login</button>
+            )
+        }
+
+        render(<AuthProvider><TestConsumer/><TestLoginChallenge/></AuthProvider>)
+        await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('ready'))
+
+        await act(async () => {
+            screen.getByText('login').click()
+        })
+
+        await waitFor(() => expect(outcome).toEqual({requiresTotp: true, tempToken: 'temp123'}))
+        expect(clientModule.setAccessToken).not.toHaveBeenCalled()
+        expect(generated.authMe).not.toHaveBeenCalled()
+        expect(screen.getByTestId('user')).toHaveTextContent('none')
+    })
+
+    it('verifyTotp completes login after a totp challenge', async () => {
+        vi.mocked(generated.authRefresh).mockResolvedValue({data: undefined} as never)
+        vi.mocked(generated.authTotpVerify).mockResolvedValue({data: {access_token: 'tok3'}, error: undefined} as never)
+        vi.mocked(generated.authMe).mockResolvedValue({data: mockUser} as never)
+
+        function TestVerify() {
+            const {verifyTotp} = useAuth()
+            return <button onClick={() => verifyTotp('temp123', '123456')}>verify</button>
+        }
+
+        render(<AuthProvider><TestConsumer/><TestVerify/></AuthProvider>)
+        await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('ready'))
+
+        await act(async () => {
+            screen.getByText('verify').click()
+        })
+
+        await waitFor(() => {
+            expect(generated.authTotpVerify).toHaveBeenCalledWith({body: {temp_token: 'temp123', code: '123456'}})
+            expect(clientModule.setAccessToken).toHaveBeenCalledWith('tok3')
+            expect(screen.getByTestId('user')).toHaveTextContent('u@test.com')
+        })
+    })
+
+    it('verifyTotp throws when the API returns an error', async () => {
+        vi.mocked(generated.authRefresh).mockResolvedValue({data: undefined} as never)
+        vi.mocked(generated.authTotpVerify).mockResolvedValue({
+            data: undefined,
+            error: {message: 'Invalid verification code'},
+        } as never)
+
+        let caughtMessage = ''
+
+        function TestVerifyError() {
+            const {verifyTotp} = useAuth()
+            return (
+                <button onClick={async () => {
+                    try {
+                        await verifyTotp('temp123', '000000')
+                    } catch (e) {
+                        caughtMessage = (e as Error).message
+                    }
+                }}>verify</button>
+            )
+        }
+
+        render(<AuthProvider><TestVerifyError/></AuthProvider>)
+        await waitFor(() => {
+        })
+
+        await act(async () => {
+            screen.getByText('verify').click()
+        })
+
+        expect(caughtMessage).toBe('Invalid verification code')
+    })
+
+    it('verifyRecovery completes login using a recovery code', async () => {
+        vi.mocked(generated.authRefresh).mockResolvedValue({data: undefined} as never)
+        vi.mocked(generated.authTotpRecovery).mockResolvedValue({data: {access_token: 'tok4'}, error: undefined} as never)
+        vi.mocked(generated.authMe).mockResolvedValue({data: mockUser} as never)
+
+        function TestRecovery() {
+            const {verifyRecovery} = useAuth()
+            return <button onClick={() => verifyRecovery('temp123', 'ABCD-EFGH')}>recover</button>
+        }
+
+        render(<AuthProvider><TestConsumer/><TestRecovery/></AuthProvider>)
+        await waitFor(() => expect(screen.getByTestId('loading')).toHaveTextContent('ready'))
+
+        await act(async () => {
+            screen.getByText('recover').click()
+        })
+
+        await waitFor(() => {
+            expect(generated.authTotpRecovery).toHaveBeenCalledWith({body: {temp_token: 'temp123', code: 'ABCD-EFGH'}})
+            expect(clientModule.setAccessToken).toHaveBeenCalledWith('tok4')
+            expect(screen.getByTestId('user')).toHaveTextContent('u@test.com')
+        })
     })
 
     it('login() throws when API returns error', async () => {

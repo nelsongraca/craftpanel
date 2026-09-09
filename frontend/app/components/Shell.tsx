@@ -4,7 +4,7 @@ import {useEffect, useState} from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {usePathname} from "next/navigation";
-import {AlertTriangle, Bell, ChevronDown, KeyRound, LayoutDashboard, LogOut, type LucideIcon, Lock, Menu, Monitor, Network, Server, Settings, Users,} from "lucide-react";
+import {AlertTriangle, Bell, ChevronDown, KeyRound, LayoutDashboard, LogOut, type LucideIcon, Lock, Menu, Monitor, Network, Server, Settings, UserCircle, Users,} from "lucide-react";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import {DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger} from "@/components/ui/dropdown-menu";
@@ -46,6 +46,12 @@ const sidebarSections: SidebarSection[] = [
         title: "Infrastructure",
         items: [
             {label: "Nodes", href: "/nodes", icon: Monitor, permission: "system.nodes"},
+        ],
+    },
+    {
+        title: "Account",
+        items: [
+            {label: "Account", href: "/account", icon: UserCircle},
         ],
     },
     {

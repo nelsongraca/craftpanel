@@ -2,7 +2,6 @@ package io.craftpanel.master.service.repo.impl
 
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.repo.*
-import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.master.util.toUtcString
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.*
@@ -42,7 +41,8 @@ class UserRepositoryImpl : UserRepository {
                     username = it[Users.username],
                     email = it[Users.email],
                     passwordHash = it[Users.passwordHash],
-                    isActive = it[Users.isActive]
+                    isActive = it[Users.isActive],
+                    totpEnabled = it[Users.totpEnabled]
                 )
             }
     }
@@ -115,6 +115,38 @@ class UserRepositoryImpl : UserRepository {
             }
         }
     }
+
+    override fun findTotpSecret(userId: Uuid): String? = transaction {
+        Users.selectAll()
+            .where { Users.id eq userId }
+            .firstOrNull()
+            ?.get(Users.totpSecret)
+    }
+
+    override fun storeTotpSecret(userId: Uuid, encryptedSecret: String) {
+        transaction {
+            Users.update({ Users.id eq userId }) {
+                it[totpSecret] = encryptedSecret
+            }
+        }
+    }
+
+    override fun enableTotp(userId: Uuid) {
+        transaction {
+            Users.update({ Users.id eq userId }) {
+                it[totpEnabled] = true
+            }
+        }
+    }
+
+    override fun disableTotp(userId: Uuid) {
+        transaction {
+            Users.update({ Users.id eq userId }) {
+                it[totpSecret] = null
+                it[totpEnabled] = false
+            }
+        }
+    }
 }
 
 private fun ResultRow.toUserRow() = UserRow(
@@ -122,7 +154,8 @@ private fun ResultRow.toUserRow() = UserRow(
     username = this[Users.username],
     email = this[Users.email],
     isActive = this[Users.isActive],
-    createdAt = this[Users.createdAt].toUtcString()
+    createdAt = this[Users.createdAt].toUtcString(),
+    totpEnabled = this[Users.totpEnabled]
 )
 
 private fun ResultRow.toAssignmentRow() = AssignmentRow(

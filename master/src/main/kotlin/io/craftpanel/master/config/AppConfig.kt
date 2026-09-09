@@ -34,7 +34,7 @@ data class CorsConfig(val origins: List<CorsOrigin>)
 
 data class AuthConfig(val secureCookies: Boolean, val cookieDomain: String = "")
 
-data class RateLimitConfig(val loginPerMinute: Int, val refreshPerMinute: Int)
+data class RateLimitConfig(val loginPerMinute: Int, val refreshPerMinute: Int, val totpVerifyPerMinute: Int = 10)
 
 data class ImagesConfig(val minecraftImage: String, val proxyImage: String) {
 
@@ -159,7 +159,10 @@ class AppConfig(config: ApplicationConfig) {
             ?.toIntOrNull() ?: 10,
         refreshPerMinute = config.propertyOrNull("rateLimit.refreshPerMinute")
             ?.getString()
-            ?.toIntOrNull() ?: 30
+            ?.toIntOrNull() ?: 30,
+        totpVerifyPerMinute = config.propertyOrNull("rateLimit.totpVerifyPerMinute")
+            ?.getString()
+            ?.toIntOrNull() ?: 10
     )
     val adminSeed = AdminSeedConfig(
         email = config.propertyOrNull("adminSeed.email")

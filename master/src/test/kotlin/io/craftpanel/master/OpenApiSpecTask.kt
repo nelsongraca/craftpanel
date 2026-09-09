@@ -59,7 +59,8 @@ class OpenApiSpecTask :
                     "grpc.port" to "50051",
                     "node.bootstrapToken" to "test",
                     "node.agentDataPort" to "50052",
-                    "forwarding.key" to java.util.Base64.getEncoder().encodeToString(ByteArray(32) { 0x42 })
+                    "forwarding.key" to java.util.Base64.getEncoder()
+                        .encodeToString(ByteArray(32) { 0x42 })
                 )
             )
 
@@ -82,6 +83,7 @@ class OpenApiSpecTask :
                     install(RateLimit) {
                         register(RateLimitName("auth-login")) { rateLimiter(limit = 100, refillPeriod = kotlin.time.Duration.INFINITE) }
                         register(RateLimitName("auth-refresh")) { rateLimiter(limit = 100, refillPeriod = kotlin.time.Duration.INFINITE) }
+                        register(RateLimitName("auth-totp-verify")) { rateLimiter(limit = 100, refillPeriod = kotlin.time.Duration.INFINITE) }
                     }
                     install(OpenApi) {
                         ignoredRouteSelectors += RateLimitRouteSelector::class
@@ -129,7 +131,8 @@ class OpenApiSpecTask :
                     }
                 }
 
-                val spec = client.get("/openapi.json").bodyAsText()
+                val spec = client.get("/openapi.json")
+                    .bodyAsText()
                 val output = System.getProperty("openapi.output")
                     ?: error("System property 'openapi.output' not set — run via :master:generateOpenApiSpec")
                 val outputFile = File(output)

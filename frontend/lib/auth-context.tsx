@@ -2,7 +2,16 @@
 
 import {createContext, useCallback, useContext, useEffect, useState} from "react";
 import {setAccessToken} from "./client";
-import {authLogin, authLogout, authLogoutAll, authMe, authRefresh, authChangePassword} from "@/lib/generated";
+import {
+    authChangePassword,
+    authLogin,
+    authLogout,
+    authLogoutAll,
+    authMe,
+    authRefresh,
+    authTotpRecovery,
+    authTotpVerify,
+} from "@/lib/generated";
 import {useRouter} from "next/navigation";
 
 export interface AuthUser {
@@ -12,12 +21,20 @@ export interface AuthUser {
     groups: string[];
     permissions: string[];
     server_permissions: Record<string, string[]>;
+    totp_enabled: boolean;
+}
+
+export interface LoginOutcome {
+    requiresTotp: boolean;
+    tempToken: string | null;
 }
 
 interface AuthContextValue {
     user: AuthUser | null;
     isLoading: boolean;
-    login: (email: string, password: string) => Promise<void>;
+    login: (email: string, password: string) => Promise<LoginOutcome>;
+    verifyTotp: (tempToken: string, code: string) => Promise<void>;
+    verifyRecovery: (tempToken: string, code: string) => Promise<void>;
     logout: () => Promise<void>;
     logoutAll: () => Promise<void>;
     changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
@@ -35,7 +52,7 @@ export function AuthProvider({children}: { children: React.ReactNode }) {
             try {
                 const {data: refreshData} = await authRefresh();
                 if (!refreshData) return;
-                setAccessToken(refreshData.access_token);
+                setAccessToken(refreshData.access_token ?? null);
 
                 const {data: me} = await authMe();
                 if (me) setUser(me);
@@ -49,17 +66,44 @@ export function AuthProvider({children}: { children: React.ReactNode }) {
         void restoreSession();
     }, []);
 
+    const finishAuth = useCallback(async () => {
+        const {data: me} = await authMe();
+        if (me) setUser(me);
+        router.push("/");
+    }, [router]);
+
     const login = useCallback(
-        async (email: string, password: string) => {
+        async (email: string, password: string): Promise<LoginOutcome> => {
             const {data, error} = await authLogin({body: {email, password}});
             if (error) throw new Error(error.message ?? "Invalid credentials");
-            setAccessToken(data!.access_token);
-
-            const {data: me} = await authMe();
-            if (me) setUser(me);
-            router.push("/");
+            if (data?.requires_totp) {
+                return {requiresTotp: true, tempToken: data.temp_token ?? null};
+            }
+            setAccessToken(data!.access_token ?? null);
+            await finishAuth();
+            return {requiresTotp: false, tempToken: null};
         },
-        [router]
+        [finishAuth]
+    );
+
+    const verifyTotp = useCallback(
+        async (tempToken: string, code: string) => {
+            const {data, error} = await authTotpVerify({body: {temp_token: tempToken, code}});
+            if (error) throw new Error(error.message ?? "Invalid verification code");
+            setAccessToken(data!.access_token ?? null);
+            await finishAuth();
+        },
+        [finishAuth]
+    );
+
+    const verifyRecovery = useCallback(
+        async (tempToken: string, code: string) => {
+            const {data, error} = await authTotpRecovery({body: {temp_token: tempToken, code}});
+            if (error) throw new Error(error.message ?? "Invalid recovery code");
+            setAccessToken(data!.access_token ?? null);
+            await finishAuth();
+        },
+        [finishAuth]
     );
 
     const logout = useCallback(async () => {
@@ -86,7 +130,7 @@ export function AuthProvider({children}: { children: React.ReactNode }) {
     }, []);
 
     return (
-        <AuthContext.Provider value={{user, isLoading, login, logout, logoutAll, changePassword}}>
+        <AuthContext.Provider value={{user, isLoading, login, verifyTotp, verifyRecovery, logout, logoutAll, changePassword}}>
             {children}
         </AuthContext.Provider>
     );

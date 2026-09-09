@@ -36,4 +36,22 @@ class JwtManager(private val config: JwtConfig) {
             .withExpiresAt(now.plusSeconds(config.expirySeconds))
             .sign(algorithm)
     }
+
+    // Short-lived single-purpose token that proves the password step of a login
+    // but has no access rights. Verified against the standard verifier.
+    fun generateTotpTempToken(userId: Uuid): String {
+        val now = Instant.now()
+        return JWT.create()
+            .withIssuer(config.issuer)
+            .withAudience(config.audience)
+            .withSubject(userId.toString())
+            .withClaim("totp_challenge", true)
+            .withIssuedAt(now)
+            .withExpiresAt(now.plusSeconds(tempTokenTtlSeconds))
+            .sign(algorithm)
+    }
+
+    companion object {
+        const val tempTokenTtlSeconds = 60L
+    }
 }

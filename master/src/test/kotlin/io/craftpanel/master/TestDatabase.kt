@@ -14,7 +14,7 @@ object TestDatabase {
         Database.connect("jdbc:h2:mem:craftpanel_test;DB_CLOSE_DELAY=-1", driver = "org.h2.Driver")
         transaction {
             SchemaUtils.create(
-                Users, RefreshTokens, Groups, GroupPermissions, UserGroupAssignments,
+                Users, RefreshTokens, RecoveryCodes, Groups, GroupPermissions, UserGroupAssignments,
                 ServerNetworks, Nodes, Servers, ServerEnvVars, NodeMetrics, PortRegistry, ServerMigrations,
                 MigrationStepLog, Backups, AlertThresholds, AlertEvents, ContainerMetrics, ServerMods,
                 SystemSettings, ServerJobs, ProxyBackends
@@ -31,7 +31,7 @@ object TestDatabase {
                 AlertEvents, AlertThresholds, Backups, ServerMods, ProxyBackends,
                 MigrationStepLog, ServerMigrations, PortRegistry, ContainerMetrics,
                 NodeMetrics, ServerEnvVars, ServerJobs, Servers, Nodes, ServerNetworks,
-                SystemSettings, RefreshTokens, UserGroupAssignments, Groups, Users
+                SystemSettings, RefreshTokens, RecoveryCodes, UserGroupAssignments, Groups, Users
             ).forEach { it.deleteAll() }
             exec("SET REFERENTIAL_INTEGRITY TRUE")
             seedSystemGroups()

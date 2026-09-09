@@ -2,13 +2,13 @@ package io.craftpanel.master.service.repo
 
 import kotlin.uuid.Uuid
 
-data class UserRow(val id: Uuid, val username: String, val email: String, val isActive: Boolean, val createdAt: String)
+data class UserRow(val id: Uuid, val username: String, val email: String, val isActive: Boolean, val createdAt: String, val totpEnabled: Boolean = false)
 
 data class AssignmentRow(val id: Uuid, val userId: Uuid, val groupId: Uuid, val scopeType: String, val scopeId: Uuid?)
 
 data class GroupAssignmentRow(val groupId: Uuid, val groupName: String)
 
-data class CredentialRow(val userId: Uuid, val username: String, val email: String, val passwordHash: String, val isActive: Boolean)
+data class CredentialRow(val userId: Uuid, val username: String, val email: String, val passwordHash: String, val isActive: Boolean, val totpEnabled: Boolean = false)
 
 interface UserRepository {
 
@@ -27,6 +27,11 @@ interface UserRepository {
     fun getUserGlobalGroups(userId: Uuid): List<GroupAssignmentRow>
 
     fun updatePassword(userId: Uuid, newHash: String)
+
+    fun findTotpSecret(userId: Uuid): String?
+    fun storeTotpSecret(userId: Uuid, encryptedSecret: String)
+    fun enableTotp(userId: Uuid)
+    fun disableTotp(userId: Uuid)
 }
 
 data class RefreshTokenRow(val id: Uuid, val userId: Uuid, val tokenHash: String, val expiresAt: String, val revoked: Boolean)

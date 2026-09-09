@@ -6,10 +6,10 @@ import javax.crypto.Cipher
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
-class ForwardingSecretCipher(private val key: ByteArray) {
+class SecretCipher(private val key: ByteArray) {
 
     init {
-        require(key.size == 32) { "Forwarding key must be 32 bytes (256 bits), got ${key.size}" }
+        require(key.size == 32) { "Encryption key must be 32 bytes (256 bits), got ${key.size}" }
     }
 
     fun encrypt(plain: String): String {

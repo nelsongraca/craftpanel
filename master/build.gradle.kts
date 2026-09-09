@@ -44,6 +44,7 @@ dependencies {
     implementation(libs.cron.utils)
     implementation(libs.bcprov.jdk18on)
     implementation(libs.bcpkix.jdk18on)
+    implementation(libs.totp)
     implementation(libs.docker.java.api)
     implementation(libs.docker.java.core)
     implementation(libs.docker.java.transport.httpclient5)

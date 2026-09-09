@@ -29,6 +29,7 @@ object DatabaseFactory {
             SchemaUtils.createMissingTablesAndColumns(
                 Users,
                 RefreshTokens,
+                RecoveryCodes,
                 Groups,
                 GroupPermissions,
                 UserGroupAssignments,

@@ -4,7 +4,7 @@ import io.craftpanel.master.database.entity.EnvVar
 import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.ServerEnvVars
 import io.craftpanel.master.database.schema.Servers
-import io.craftpanel.master.crypto.ForwardingSecretCipher
+import io.craftpanel.master.crypto.SecretCipher
 import io.craftpanel.master.service.repo.EnvVarsRepository
 import io.craftpanel.master.service.repo.ProxyBackendRepository
 import io.craftpanel.master.service.repo.ServerRepository
@@ -24,7 +24,7 @@ class BackendForwardingService(
     private val serverRepository: ServerRepository,
     private val proxyBackendRepository: ProxyBackendRepository,
     private val envVarsRepository: EnvVarsRepository,
-    private val cipher: ForwardingSecretCipher,
+    private val cipher: SecretCipher,
     private val writeFile: suspend (Uuid, String, ByteArray) -> Unit
 ) {
 

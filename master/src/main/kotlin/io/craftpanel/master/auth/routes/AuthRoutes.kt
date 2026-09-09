@@ -1,13 +1,16 @@
 package io.craftpanel.master.auth.routes
 
+import com.auth0.jwt.exceptions.JWTVerificationException
 import io.craftpanel.master.auth.*
 import io.craftpanel.master.config.RateLimitConfig
 import io.craftpanel.master.routes.ErrorResponse
 import io.craftpanel.master.routes.userId
+import io.craftpanel.master.service.repo.RecoveryCodeRepository
 import io.craftpanel.master.service.repo.UserRepository
 import io.github.smiley4.ktoropenapi.get
 import io.github.smiley4.ktoropenapi.post
 import io.ktor.http.*
+import io.ktor.server.application.ApplicationCall
 import io.ktor.server.auth.*
 import io.ktor.server.auth.jwt.*
 import io.ktor.server.plugins.ratelimit.*
@@ -22,7 +25,37 @@ import kotlin.uuid.Uuid
 data class LoginRequest(val email: String, val password: String)
 
 @Serializable
-data class LoginResponse(@SerialName("access_token") val accessToken: String, @SerialName("expires_in") val expiresIn: Long)
+data class LoginResponse(
+    @SerialName("access_token") val accessToken: String? = null,
+    @SerialName("expires_in") val expiresIn: Long,
+    @SerialName("requires_totp") val requiresTotp: Boolean = false,
+    @SerialName("temp_token") val tempToken: String? = null
+)
+
+@Serializable
+data class TotpVerifyRequest(@SerialName("temp_token") val tempToken: String, val code: String)
+
+@Serializable
+data class TotpRecoveryRequest(@SerialName("temp_token") val tempToken: String, val code: String)
+
+@Serializable
+data class TotpSetupResponse(
+    val secret: String,
+    @SerialName("qr_data_uri") val qrDataUri: String,
+    @SerialName("recovery_codes") val recoveryCodes: List<String>
+)
+
+@Serializable
+data class TotpStatusResponse(
+    val enabled: Boolean,
+    @SerialName("recovery_codes_remaining") val recoveryCodesRemaining: Int
+)
+
+@Serializable
+data class TotpEnableRequest(val code: String)
+
+@Serializable
+data class TotpDisableRequest(val code: String)
 
 @Serializable
 data class WsTicketResponse(val ticket: String, @SerialName("expires_in") val expiresIn: Int)
@@ -40,10 +73,11 @@ data class MeResponse(
     val email: String,
     val groups: List<String>,
     val permissions: List<String>,
-    @SerialName("server_permissions") val serverPermissions: Map<String, List<String>>
+    @SerialName("server_permissions") val serverPermissions: Map<String, List<String>>,
+    @SerialName("totp_enabled") val totpEnabled: Boolean
 )
 
-private data class UserRecord(val userId: Uuid, val username: String, val email: String, val passwordHash: String, val isActive: Boolean, val groupNames: List<String>)
+private data class UserRecord(val userId: Uuid, val username: String, val email: String, val passwordHash: String, val isActive: Boolean, val totpEnabled: Boolean, val groupNames: List<String>)
 
 private fun lookupUser(userRepository: UserRepository, email: String): UserRecord? {
     val credentials = userRepository.findCredentials(email) ?: return null
@@ -56,6 +90,7 @@ private fun lookupUser(userRepository: UserRepository, email: String): UserRecor
         email = credentials.email,
         passwordHash = credentials.passwordHash,
         isActive = credentials.isActive,
+        totpEnabled = credentials.totpEnabled,
         groupNames = groups
     )
 }
@@ -71,12 +106,54 @@ private fun lookupUserById(userRepository: UserRepository, userId: Uuid): Triple
     return Triple(user.username, user.email, groups)
 }
 
+private fun verifyTotpTempToken(jwtManager: JwtManager, rawToken: String): Uuid? {
+    val decoded = try {
+        jwtManager.verifier.verify(rawToken)
+    }
+    catch (_: JWTVerificationException) {
+        return null
+    }
+    if (decoded.getClaim("totp_challenge")
+            .asBoolean() != true
+    ) return null
+    return decoded.subject?.let { runCatching { Uuid.parse(it) }.getOrNull() }
+}
+
+private fun ApplicationCall.issueSessionCookies(
+    jwtManager: JwtManager,
+    refreshTokenService: RefreshTokenService,
+    userId: Uuid,
+    username: String,
+    email: String,
+    groupNames: List<String>,
+    secureCookies: Boolean,
+    cookieDomainOrNull: String?
+): LoginResponse {
+    val accessToken = jwtManager.generate(
+        TokenClaims(userId = userId, name = username, email = email, groups = groupNames)
+    )
+    val refreshResult = refreshTokenService.issue(userId)
+
+    response.cookies.append(
+        name = "refresh_token",
+        value = refreshResult.rawToken,
+        httpOnly = true,
+        secure = secureCookies,
+        extensions = mapOf("SameSite" to "Strict"),
+        path = "/api/auth",
+        domain = cookieDomainOrNull
+    )
+    return LoginResponse(accessToken = accessToken, expiresIn = jwtManager.expirySeconds)
+}
+
 fun Route.authRoutes(
     jwtManager: JwtManager,
     refreshTokenService: RefreshTokenService,
     wsTicketService: WsTicketService,
     userRepository: UserRepository,
-    @Suppress("UNUSED_PARAMETER") rateLimitConfig: RateLimitConfig = RateLimitConfig(10, 30),
+    totpService: TotpService,
+    recoveryCodeRepository: RecoveryCodeRepository,
+    @Suppress("UNUSED_PARAMETER") rateLimitConfig: RateLimitConfig = RateLimitConfig(10, 30, 10),
     secureCookies: Boolean = true,
     cookieDomain: String = ""
 ) {
@@ -103,23 +180,147 @@ fun Route.authRoutes(
                     return@post
                 }
 
-                val accessToken = jwtManager.generate(
-                    TokenClaims(userId = record.userId, name = record.username, email = record.email, groups = record.groupNames)
-                )
-                val refreshResult = refreshTokenService.issue(record.userId)
+                if (record.totpEnabled) {
+                    val tempToken = jwtManager.generateTotpTempToken(record.userId)
+                    call.respond(
+                        LoginResponse(
+                            expiresIn = JwtManager.tempTokenTtlSeconds,
+                            requiresTotp = true,
+                            tempToken = tempToken
+                        )
+                    )
+                    return@post
+                }
 
-                call.response.cookies.append(
-                    name = "refresh_token",
-                    value = refreshResult.rawToken,
-                    httpOnly = true,
-                    secure = secureCookies,
-                    extensions = mapOf("SameSite" to "Strict"),
-                    path = "/api/auth",
-                    domain = cookieDomainOrNull
+                call.respond(
+                    call.issueSessionCookies(
+                        jwtManager = jwtManager,
+                        refreshTokenService = refreshTokenService,
+                        userId = record.userId,
+                        username = record.username,
+                        email = record.email,
+                        groupNames = record.groupNames,
+                        secureCookies = secureCookies,
+                        cookieDomainOrNull = cookieDomainOrNull
+                    )
                 )
-                call.respond(LoginResponse(accessToken, jwtManager.expirySeconds))
             }
         } // rateLimit auth-login
+
+        rateLimit(RateLimitName("auth-totp-verify")) {
+            post("/totp-verify", {
+                operationId = "authTotpVerify"
+                summary = "Verify TOTP code after password login"
+                securitySchemeNames = emptyList()
+                request { body<TotpVerifyRequest>() }
+                response {
+                    code(HttpStatusCode.OK) { body<LoginResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                    code(HttpStatusCode.BadRequest) { body<ErrorResponse>() }
+                }
+            }) {
+                val req = call.receive<TotpVerifyRequest>()
+                val userId = verifyTotpTempToken(jwtManager, req.tempToken)
+                    ?: run {
+                        call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid or expired login"))
+                        return@post
+                    }
+
+                val user = userRepository.findById(userId)
+                val record = user?.let { userRepository.findCredentials(it.email) }
+                if (record == null || !record.isActive) {
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found or inactive"))
+                    return@post
+                }
+                if (!record.totpEnabled) {
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("TOTP is not enabled"))
+                    return@post
+                }
+
+                val storedSecret = userRepository.findTotpSecret(userId)
+                    ?: run {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("TOTP is not enabled"))
+                        return@post
+                    }
+
+                val secret = runCatching { totpService.decryptSecret(storedSecret) }.getOrNull()
+                    ?: run {
+                        call.respond(HttpStatusCode.InternalServerError, ErrorResponse("Could not read TOTP secret"))
+                        return@post
+                    }
+
+                if (!totpService.validate(secret, req.code.trim())) {
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid verification code"))
+                    return@post
+                }
+
+                val groups = userRepository.getUserGlobalGroups(userId)
+                    .map { it.groupName }
+                call.respond(
+                    call.issueSessionCookies(
+                        jwtManager = jwtManager,
+                        refreshTokenService = refreshTokenService,
+                        userId = userId,
+                        username = record.username,
+                        email = record.email,
+                        groupNames = groups,
+                        secureCookies = secureCookies,
+                        cookieDomainOrNull = cookieDomainOrNull
+                    )
+                )
+            }
+
+            post("/totp-recovery", {
+                operationId = "authTotpRecovery"
+                summary = "Verify recovery code after password login"
+                securitySchemeNames = emptyList()
+                request { body<TotpRecoveryRequest>() }
+                response {
+                    code(HttpStatusCode.OK) { body<LoginResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                    code(HttpStatusCode.BadRequest) { body<ErrorResponse>() }
+                }
+            }) {
+                val req = call.receive<TotpRecoveryRequest>()
+                val userId = verifyTotpTempToken(jwtManager, req.tempToken)
+                    ?: run {
+                        call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid or expired login"))
+                        return@post
+                    }
+
+                val user = userRepository.findById(userId)
+                val record = user?.let { userRepository.findCredentials(it.email) }
+                if (record == null || !record.isActive) {
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found or inactive"))
+                    return@post
+                }
+                if (!record.totpEnabled) {
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("TOTP is not enabled"))
+                    return@post
+                }
+
+                val codeHash = totpService.hashRecoveryCode(req.code.trim())
+                if (!recoveryCodeRepository.consumeCode(userId, codeHash)) {
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid recovery code"))
+                    return@post
+                }
+
+                val groups = userRepository.getUserGlobalGroups(userId)
+                    .map { it.groupName }
+                call.respond(
+                    call.issueSessionCookies(
+                        jwtManager = jwtManager,
+                        refreshTokenService = refreshTokenService,
+                        userId = userId,
+                        username = record.username,
+                        email = record.email,
+                        groupNames = groups,
+                        secureCookies = secureCookies,
+                        cookieDomainOrNull = cookieDomainOrNull
+                    )
+                )
+            }
+        } // rateLimit auth-totp-verify
 
         rateLimit(RateLimitName("auth-refresh")) {
             post("/refresh", {
@@ -149,20 +350,18 @@ fun Route.authRoutes(
                         return@post
                     }
 
-                val accessToken = jwtManager.generate(
-                    TokenClaims(userId = userId, name = name, email = email, groups = groupNames)
+                call.respond(
+                    call.issueSessionCookies(
+                        jwtManager = jwtManager,
+                        refreshTokenService = refreshTokenService,
+                        userId = userId,
+                        username = name,
+                        email = email,
+                        groupNames = groupNames,
+                        secureCookies = secureCookies,
+                        cookieDomainOrNull = cookieDomainOrNull
+                    )
                 )
-
-                call.response.cookies.append(
-                    name = "refresh_token",
-                    value = newToken.rawToken,
-                    httpOnly = true,
-                    secure = secureCookies,
-                    extensions = mapOf("SameSite" to "Strict"),
-                    path = "/api/auth",
-                    domain = cookieDomainOrNull
-                )
-                call.respond(LoginResponse(accessToken, jwtManager.expirySeconds))
             }
         } // rateLimit auth-refresh
 
@@ -273,6 +472,146 @@ fun Route.authRoutes(
                 call.respond(WsTicketResponse(ticket, expiresIn))
             }
 
+            // --- TOTP management (authenticated) ---
+
+            get("/totp/status", {
+                operationId = "authTotpStatus"
+                summary = "Get TOTP status for current user"
+                response {
+                    code(HttpStatusCode.OK) { body<TotpStatusResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                val userId = call.userId()
+                val user = userRepository.findById(userId)
+                    ?: run {
+                        call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found"))
+                        return@get
+                    }
+                call.respond(
+                    TotpStatusResponse(
+                        enabled = user.totpEnabled,
+                        recoveryCodesRemaining = recoveryCodeRepository.countRemaining(userId)
+                    )
+                )
+            }
+
+            post("/totp/setup", {
+                operationId = "authTotpSetup"
+                summary = "Generate a new TOTP secret, QR code, and recovery codes (enabled after verification)"
+                response {
+                    code(HttpStatusCode.OK) { body<TotpSetupResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                val userId = call.userId()
+                val user = userRepository.findById(userId)
+                    ?: run {
+                        call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found"))
+                        return@post
+                    }
+                if (user.totpEnabled) {
+                    call.respond(HttpStatusCode.Conflict, ErrorResponse("TOTP is already enabled"))
+                    return@post
+                }
+
+                val secret = totpService.generateSecret()
+                val recoveryCodes = totpService.generateRecoveryCodes()
+
+                userRepository.storeTotpSecret(userId, totpService.encryptSecret(secret))
+                recoveryCodeRepository.deleteAll(userId)
+                recoveryCodeRepository.insert(userId, recoveryCodes.map { totpService.hashRecoveryCode(it) })
+
+                call.respond(
+                    TotpSetupResponse(
+                        secret = secret,
+                        qrDataUri = totpService.createQrCodeDataUri(secret, user.email),
+                        recoveryCodes = recoveryCodes
+                    )
+                )
+            }
+
+            post("/totp/enable", {
+                operationId = "authTotpEnable"
+                summary = "Verify a TOTP code and enable TOTP for current user"
+                request { body<TotpEnableRequest>() }
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.BadRequest) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                val userId = call.userId()
+                val user = userRepository.findById(userId)
+                    ?: run {
+                        call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found"))
+                        return@post
+                    }
+                if (user.totpEnabled) {
+                    call.respond(HttpStatusCode.Conflict, ErrorResponse("TOTP is already enabled"))
+                    return@post
+                }
+
+                val storedSecret = userRepository.findTotpSecret(userId)
+                    ?: run {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("Run setup first"))
+                        return@post
+                    }
+                val secret = runCatching { totpService.decryptSecret(storedSecret) }.getOrNull()
+                    ?: run {
+                        call.respond(HttpStatusCode.InternalServerError, ErrorResponse("Could not read TOTP secret"))
+                        return@post
+                    }
+
+                val code = call.receive<TotpEnableRequest>().code.trim()
+                if (!totpService.validate(secret, code)) {
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid verification code"))
+                    return@post
+                }
+
+                userRepository.enableTotp(userId)
+                call.respond(HttpStatusCode.NoContent)
+            }
+
+            post("/totp/disable", {
+                operationId = "authTotpDisable"
+                summary = "Verify a TOTP code and disable TOTP for current user"
+                request { body<TotpDisableRequest>() }
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.BadRequest) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                val userId = call.userId()
+                if (userRepository.findById(userId) == null) {
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found"))
+                    return@post
+                }
+                val storedSecret = userRepository.findTotpSecret(userId)
+                    ?: run {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("TOTP is not enabled"))
+                        return@post
+                    }
+                val secret = runCatching { totpService.decryptSecret(storedSecret) }.getOrNull()
+                    ?: run {
+                        call.respond(HttpStatusCode.InternalServerError, ErrorResponse("Could not read TOTP secret"))
+                        return@post
+                    }
+
+                val code = call.receive<TotpDisableRequest>().code.trim()
+                if (!totpService.validate(secret, code)) {
+                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid verification code"))
+                    return@post
+                }
+
+                userRepository.disableTotp(userId)
+                recoveryCodeRepository.deleteAll(userId)
+                call.respond(HttpStatusCode.NoContent)
+            }
+
             get("/me", {
                 operationId = "authMe"
                 summary = "Get current user"
@@ -307,7 +646,8 @@ fun Route.authRoutes(
                         email = email,
                         groups = groupNames,
                         permissions = permissions,
-                        serverPermissions = serverPermissions
+                        serverPermissions = serverPermissions,
+                        totpEnabled = userRepository.findById(userId)?.totpEnabled ?: false
                     )
                 )
             }

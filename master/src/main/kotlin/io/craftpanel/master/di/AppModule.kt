@@ -3,7 +3,7 @@ package io.craftpanel.master.di
 import io.craftpanel.master.auth.*
 import io.craftpanel.master.config.AppConfig
 import io.craftpanel.master.config.ImagesConfig
-import io.craftpanel.master.crypto.ForwardingSecretCipher
+import io.craftpanel.master.crypto.SecretCipher
 import io.craftpanel.master.docker.MasterDockerClient
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.grpc.*
@@ -38,6 +38,7 @@ val appModule = module {
     single<NetworkRepository> { NetworkRepositoryImpl() }
     single<GroupRepository> { GroupRepositoryImpl() }
     single<UserRepository> { UserRepositoryImpl() }
+    single<RecoveryCodeRepository> { RecoveryCodeRepositoryImpl() }
     single<SettingsRepository> { SettingsRepositoryImpl() }
 
     // App-owned crash restart — parameters read from DB settings at startup (takes effect on restart)
@@ -117,6 +118,7 @@ val appModule = module {
     single { JwtManager(get<AppConfig>().jwt) }
     single { RefreshTokenService(userRepository = get()) }
     single { WsTicketService() }
+    single { TotpService(cipher = get()) }
 
     // Domain services
     single { UserService(userRepository = get()) }
@@ -201,7 +203,7 @@ val appModule = module {
     }
     single { BackupService(get<AgentGateway>(), get(), get(), get()) }
     single {
-        ForwardingSecretCipher(
+        SecretCipher(
             java.util.Base64.getDecoder()
                 .decode(get<AppConfig>().forwarding.key)
         )

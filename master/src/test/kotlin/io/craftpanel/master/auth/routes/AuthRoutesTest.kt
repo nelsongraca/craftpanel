@@ -3,7 +3,9 @@ package io.craftpanel.master.auth.routes
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.auth.*
 import io.craftpanel.master.config.JwtConfig
+import io.craftpanel.master.crypto.SecretCipher
 import io.craftpanel.master.database.schema.*
+import io.craftpanel.master.service.repo.impl.RecoveryCodeRepositoryImpl
 import io.craftpanel.master.service.repo.impl.UserRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -42,6 +44,13 @@ class AuthRoutesTest :
         val jwtManager = JwtManager(jwtConfig)
         val userRepository = UserRepositoryImpl()
         val refreshTokenService = RefreshTokenService(userRepository)
+        val recoveryCodeRepository = RecoveryCodeRepositoryImpl()
+        val totpService = TotpService(
+            SecretCipher(
+                java.util.Base64.getDecoder()
+                    .decode("Y2hhbmdlbWUtMzItYnl0ZXMtZGV2LWtleS1vbmx5ISE=")
+            )
+        )
 
         beforeTest {
             TestDatabase.initIfNeeded()
@@ -53,6 +62,7 @@ class AuthRoutesTest :
             install(RateLimit) {
                 register(RateLimitName("auth-login")) { rateLimiter(limit = 1000, refillPeriod = Duration.INFINITE) }
                 register(RateLimitName("auth-refresh")) { rateLimiter(limit = 1000, refillPeriod = Duration.INFINITE) }
+                register(RateLimitName("auth-totp-verify")) { rateLimiter(limit = 1000, refillPeriod = Duration.INFINITE) }
             }
             install(Authentication) {
                 jwt("auth-jwt") {
@@ -66,7 +76,7 @@ class AuthRoutesTest :
                     }
                 }
             }
-            routing { authRoutes(jwtManager, refreshTokenService, WsTicketService(), userRepository) }
+            routing { authRoutes(jwtManager, refreshTokenService, WsTicketService(), userRepository, totpService, recoveryCodeRepository) }
         }
 
         fun ApplicationTestBuilder.jsonClient() = createClient {
@@ -153,7 +163,9 @@ class AuthRoutesTest :
                 contentType(ContentType.Application.Json)
                 setBody(LoginRequest(email, password))
             }
-            return response.body<LoginResponse>().accessToken to response.refreshTokenCookie()!!
+            val body = response.body<LoginResponse>()
+            body.accessToken shouldNotBe null
+            return body.accessToken!! to response.refreshTokenCookie()!!
         }
 
         // -------------------------------------------------------------------------
@@ -173,7 +185,7 @@ class AuthRoutesTest :
 
                 response.status shouldBe HttpStatusCode.OK
                 val body = response.body<LoginResponse>()
-                body.accessToken.isNotBlank() shouldBe true
+                body.accessToken shouldNotBe null
                 body.expiresIn shouldBe 900L
                 response.refreshTokenCookie() shouldNotBe null
             }
@@ -241,7 +253,7 @@ class AuthRoutesTest :
 
                 refreshResponse.status shouldBe HttpStatusCode.OK
                 val body = refreshResponse.body<LoginResponse>()
-                body.accessToken.isNotBlank() shouldBe true
+                body.accessToken shouldNotBe null
                 body.expiresIn shouldBe 900L
                 val newRefreshToken = refreshResponse.refreshTokenCookie()
                 newRefreshToken shouldNotBe null
@@ -477,7 +489,7 @@ class AuthRoutesTest :
                 }
 
                 newLogin.status shouldBe HttpStatusCode.OK
-                newLogin.body<LoginResponse>().accessToken.isNotBlank() shouldBe true
+                newLogin.body<LoginResponse>().accessToken shouldNotBe null
             }
         }
 
@@ -581,6 +593,336 @@ class AuthRoutesTest :
                 }
 
                 client.get("/api/auth/me") { bearerAuth(accessToken) }.status shouldBe HttpStatusCode.Unauthorized
+            }
+        }
+
+        // -------------------------------------------------------------------------
+        // TOTP
+        // -------------------------------------------------------------------------
+
+        fun totpCode(secret: String): String {
+            val generator = dev.samstevens.totp.code.DefaultCodeGenerator()
+            val timeIndex = System.currentTimeMillis() / 1000L / 30L
+            return generator.generate(secret, timeIndex)
+        }
+
+        suspend fun io.ktor.client.HttpClient.setupTotp(accessToken: String): TotpSetupResponse {
+            val setup = post("/api/auth/totp/setup") { bearerAuth(accessToken) }
+                .body<TotpSetupResponse>()
+            setup.secret.isNotBlank() shouldBe true
+            setup.qrDataUri.startsWith("data:image/png;base64,") shouldBe true
+            setup.recoveryCodes.size shouldBe 10
+            setup.recoveryCodes.forEach { it.length shouldBe 8 }
+
+            val enable = post("/api/auth/totp/enable") {
+                bearerAuth(accessToken)
+                contentType(ContentType.Application.Json)
+                setBody(TotpEnableRequest(totpCode(setup.secret)))
+            }
+            enable.status shouldBe HttpStatusCode.NoContent
+            return setup
+        }
+
+        test("login returns requires_totp and temp_token when TOTP is enabled") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser()
+
+                val (accessToken, _) = login()
+                client.setupTotp(accessToken)
+
+                val response = client.post("/api/auth/login") {
+                    contentType(ContentType.Application.Json)
+                    setBody(LoginRequest("alice@example.com", "hunter2"))
+                }
+
+                response.status shouldBe HttpStatusCode.OK
+                val body = response.body<LoginResponse>()
+                body.requiresTotp shouldBe true
+                body.tempToken shouldNotBe null
+                body.accessToken shouldBe null
+                body.expiresIn shouldBe JwtManager.tempTokenTtlSeconds
+                response.refreshTokenCookie() shouldBe null
+            }
+        }
+
+        test("totp-verify with valid code issues access token and refresh cookie") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser()
+
+                val (accessToken, _) = login()
+                val setup = client.setupTotp(accessToken)
+
+                val challenge = client.post("/api/auth/login") {
+                    contentType(ContentType.Application.Json)
+                    setBody(LoginRequest("alice@example.com", "hunter2"))
+                }
+                    .body<LoginResponse>()
+
+                val verify = client.post("/api/auth/totp-verify") {
+                    contentType(ContentType.Application.Json)
+                    setBody(TotpVerifyRequest(challenge.tempToken!!, totpCode(setup.secret)))
+                }
+
+                verify.status shouldBe HttpStatusCode.OK
+                val verified = verify.body<LoginResponse>()
+                verified.accessToken shouldNotBe null
+                verified.requiresTotp shouldBe false
+                verify.refreshTokenCookie() shouldNotBe null
+            }
+        }
+
+        test("totp-verify with wrong code returns 401") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser()
+
+                val (accessToken, _) = login()
+                client.setupTotp(accessToken)
+
+                val challenge = client.post("/api/auth/login") {
+                    contentType(ContentType.Application.Json)
+                    setBody(LoginRequest("alice@example.com", "hunter2"))
+                }
+                    .body<LoginResponse>()
+
+                val wrongCode = totpCode("Z".repeat(16))
+                val verify = client.post("/api/auth/totp-verify") {
+                    contentType(ContentType.Application.Json)
+                    setBody(TotpVerifyRequest(challenge.tempToken!!, wrongCode))
+                }
+                verify.status shouldBe HttpStatusCode.Unauthorized
+            }
+        }
+
+        test("totp-verify with garbage temp token returns 401") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+
+                client.post("/api/auth/totp-verify") {
+                    contentType(ContentType.Application.Json)
+                    setBody(TotpVerifyRequest("not-a-token", "123456"))
+                }.status shouldBe HttpStatusCode.Unauthorized
+            }
+        }
+
+        test("totp-verify when TOTP is not enabled returns 400") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                val userId = createUser()
+
+                val tempToken = jwtManager.generateTotpTempToken(userId)
+                client.post("/api/auth/totp-verify") {
+                    contentType(ContentType.Application.Json)
+                    setBody(TotpVerifyRequest(tempToken, "123456"))
+                }.status shouldBe HttpStatusCode.BadRequest
+            }
+        }
+
+        test("recovery code logs in exactly once") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser()
+
+                val (accessToken, _) = login()
+                val setup = client.setupTotp(accessToken)
+                val recoveryCode = setup.recoveryCodes.first()
+
+                val challenge = client.post("/api/auth/login") {
+                    contentType(ContentType.Application.Json)
+                    setBody(LoginRequest("alice@example.com", "hunter2"))
+                }
+                    .body<LoginResponse>()
+
+                val first = client.post("/api/auth/totp-recovery") {
+                    contentType(ContentType.Application.Json)
+                    setBody(TotpRecoveryRequest(challenge.tempToken!!, recoveryCode))
+                }
+                first.status shouldBe HttpStatusCode.OK
+                first.body<LoginResponse>().accessToken shouldNotBe null
+
+                val status = client.get("/api/auth/totp/status") { bearerAuth(accessToken) }
+                    .body<TotpStatusResponse>()
+                status.recoveryCodesRemaining shouldBe 9
+
+                val replay = client.post("/api/auth/totp-recovery") {
+                    contentType(ContentType.Application.Json)
+                    setBody(TotpRecoveryRequest(challenge.tempToken!!, recoveryCode))
+                }
+                replay.status shouldBe HttpStatusCode.Unauthorized
+            }
+        }
+
+        test("recovery code with garbage temp token returns 401") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+
+                client.post("/api/auth/totp-recovery") {
+                    contentType(ContentType.Application.Json)
+                    setBody(TotpRecoveryRequest("not-a-token", "12345678"))
+                }.status shouldBe HttpStatusCode.Unauthorized
+            }
+        }
+
+        test("enable with wrong code returns 400 and does not enable TOTP") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser()
+
+                val (accessToken, _) = login()
+                client.post("/api/auth/totp/setup") { bearerAuth(accessToken) }
+                    .status shouldBe HttpStatusCode.OK
+
+                val enable = client.post("/api/auth/totp/enable") {
+                    bearerAuth(accessToken)
+                    contentType(ContentType.Application.Json)
+                    setBody(TotpEnableRequest("000000"))
+                }
+                enable.status shouldBe HttpStatusCode.BadRequest
+
+                client.get("/api/auth/totp/status") { bearerAuth(accessToken) }
+                    .body<TotpStatusResponse>().enabled shouldBe false
+            }
+        }
+
+        test("enable without setup returns 400") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser()
+
+                val (accessToken, _) = login()
+
+                client.post("/api/auth/totp/enable") {
+                    bearerAuth(accessToken)
+                    contentType(ContentType.Application.Json)
+                    setBody(TotpEnableRequest(totpCode("A".repeat(16))))
+                }.status shouldBe HttpStatusCode.BadRequest
+            }
+        }
+
+        test("setup when already enabled returns 409") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser()
+
+                val (accessToken, _) = login()
+                client.setupTotp(accessToken)
+
+                client.post("/api/auth/totp/setup") { bearerAuth(accessToken) }
+                    .status shouldBe HttpStatusCode.Conflict
+            }
+        }
+
+        test("enable when already enabled returns 409") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser()
+
+                val (accessToken, _) = login()
+                client.setupTotp(accessToken)
+
+                client.post("/api/auth/totp/enable") {
+                    bearerAuth(accessToken)
+                    contentType(ContentType.Application.Json)
+                    setBody(TotpEnableRequest("123456"))
+                }.status shouldBe HttpStatusCode.Conflict
+            }
+        }
+
+        test("disable disables TOTP and clears recovery codes") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser()
+
+                val (accessToken, _) = login()
+                val setup = client.setupTotp(accessToken)
+
+                val disable = client.post("/api/auth/totp/disable") {
+                    bearerAuth(accessToken)
+                    contentType(ContentType.Application.Json)
+                    setBody(TotpDisableRequest(totpCode(setup.secret)))
+                }
+                disable.status shouldBe HttpStatusCode.NoContent
+
+                val status = client.get("/api/auth/totp/status") { bearerAuth(accessToken) }
+                    .body<TotpStatusResponse>()
+                status.enabled shouldBe false
+                status.recoveryCodesRemaining shouldBe 0
+
+                // login reverts to the direct access-token flow
+                val loginResponse = client.post("/api/auth/login") {
+                    contentType(ContentType.Application.Json)
+                    setBody(LoginRequest("alice@example.com", "hunter2"))
+                }
+                loginResponse.status shouldBe HttpStatusCode.OK
+                loginResponse.body<LoginResponse>().accessToken shouldNotBe null
+            }
+        }
+
+        test("disable with wrong code returns 400 and keeps TOTP enabled") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser()
+
+                val (accessToken, _) = login()
+                client.setupTotp(accessToken)
+
+                client.post("/api/auth/totp/disable") {
+                    bearerAuth(accessToken)
+                    contentType(ContentType.Application.Json)
+                    setBody(TotpDisableRequest("000000"))
+                }.status shouldBe HttpStatusCode.BadRequest
+
+                client.get("/api/auth/totp/status") { bearerAuth(accessToken) }
+                    .body<TotpStatusResponse>().enabled shouldBe true
+            }
+        }
+
+        test("disable when TOTP is not enabled returns 400") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser()
+
+                val (accessToken, _) = login()
+
+                client.post("/api/auth/totp/disable") {
+                    bearerAuth(accessToken)
+                    contentType(ContentType.Application.Json)
+                    setBody(TotpDisableRequest("123456"))
+                }.status shouldBe HttpStatusCode.BadRequest
+            }
+        }
+
+        test("me reports totp_enabled") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser()
+
+                val (accessToken, _) = login()
+
+                client.get("/api/auth/me") { bearerAuth(accessToken) }
+                    .body<MeResponse>().totpEnabled shouldBe false
+
+                client.setupTotp(accessToken)
+
+                client.get("/api/auth/me") { bearerAuth(accessToken) }
+                    .body<MeResponse>().totpEnabled shouldBe true
             }
         }
     })
