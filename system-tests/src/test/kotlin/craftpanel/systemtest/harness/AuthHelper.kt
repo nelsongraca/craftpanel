@@ -10,7 +10,7 @@ class AuthHelper(private val api: DefaultApi) {
 
     suspend fun login(email: String = ADMIN_EMAIL, password: String = ADMIN_PASSWORD) {
         val response = api.authLogin(LoginRequest(email, password))
-        _token = response.accessToken
+        _token = response.accessToken ?: error("Login did not return an access token (TOTP challenge present?)")
         api.accessTokenProvider = { _token }
     }
 }
