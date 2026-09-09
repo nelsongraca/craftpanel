@@ -10,7 +10,7 @@ import {BTN_GHOST, BTN_PRIMARY, Field, TextField} from "@/components/ui/form-ele
 import {TotpSetupModal} from "@/components/auth/TotpSetupModal";
 
 export default function AccountPage() {
-    const {user} = useAuth();
+    const {user, changePassword} = useAuth();
     const [status, setStatus] = useState<TotpStatus | null>(null);
     const [statusError, setStatusError] = useState("");
     const [setupOpen, setSetupOpen] = useState(false);
@@ -18,6 +18,12 @@ export default function AccountPage() {
     const [code, setCode] = useState("");
     const [error, setError] = useState("");
     const [busy, setBusy] = useState(false);
+    const [pwOld, setPwOld] = useState("");
+    const [pwNew, setPwNew] = useState("");
+    const [pwConfirm, setPwConfirm] = useState("");
+    const [pwError, setPwError] = useState("");
+    const [pwChanged, setPwChanged] = useState(false);
+    const [pwSaving, setPwSaving] = useState(false);
 
     const loadStatus = useCallback(async () => {
         const {data, error} = await authTotpStatus();
@@ -44,6 +50,27 @@ export default function AccountPage() {
         void loadStatus();
     }
 
+    async function handlePasswordSubmit(e: React.FormEvent) {
+        e.preventDefault();
+        setPwError("");
+        if (pwNew !== pwConfirm) {
+            setPwError("Passwords do not match");
+            return;
+        }
+        setPwSaving(true);
+        try {
+            await changePassword(pwOld, pwNew);
+            setPwChanged(true);
+            setPwOld("");
+            setPwNew("");
+            setPwConfirm("");
+        } catch (err) {
+            setPwError(err instanceof Error ? err.message : "Failed to change password");
+        } finally {
+            setPwSaving(false);
+        }
+    }
+
     return (
         <div>
             <PageHeader title="Account" subtitle="Your profile and sign-in security"/>
@@ -64,6 +91,42 @@ export default function AccountPage() {
                             <p className="text-sm text-text-primary mt-1">{user?.email ?? "—"}</p>
                         </div>
                     </div>
+                </section>
+
+                {/* ── Password ────────────────────────────────────────────── */}
+                <section className="bg-surface border border-border rounded-md p-5 space-y-4">
+                    <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                        Password
+                    </h2>
+
+                    {pwChanged ? (
+                        <div className="space-y-4">
+                            <p className="text-sm text-text-dim">Your password has been changed. You can continue using the panel, or sign out to test your new password.</p>
+                            <div className="flex justify-end">
+                                <button className={BTN_PRIMARY} onClick={() => setPwChanged(false)}>
+                                    Change password again
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <form onSubmit={handlePasswordSubmit} className="space-y-4 max-w-md">
+                            <Field label="Current Password">
+                                <TextField type="password" value={pwOld} onChange={(e) => setPwOld(e.target.value)} required autoComplete="current-password"/>
+                            </Field>
+                            <Field label="New Password">
+                                <TextField type="password" value={pwNew} onChange={(e) => setPwNew(e.target.value)} required autoComplete="new-password"/>
+                            </Field>
+                            <Field label="Confirm New Password">
+                                <TextField type="password" value={pwConfirm} onChange={(e) => setPwConfirm(e.target.value)} required autoComplete="new-password"/>
+                            </Field>
+                            {pwError && <p className="text-xs text-error">{pwError}</p>}
+                            <div className="flex justify-end">
+                                <button type="submit" className={BTN_PRIMARY} disabled={pwSaving}>
+                                    {pwSaving ? "Saving…" : "Change Password"}
+                                </button>
+                            </div>
+                        </form>
+                    )}
                 </section>
 
                 {/* ── Two-factor authentication ───────────────────────────── */}
@@ -150,7 +213,7 @@ export default function AccountPage() {
             </div>
 
             {setupOpen && (
-                <TotpSetupModal onClose={() => setSetupOpen(false)} onEnabled={() => setStatus(null)}/>
+                <TotpSetupModal onClose={() => setSetupOpen(false)} onEnabled={() => void loadStatus()}/>
             )}
         </div>
     );

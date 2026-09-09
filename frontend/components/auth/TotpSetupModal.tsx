@@ -144,8 +144,8 @@ export function TotpSetupModal({onClose, onEnabled}: TotpSetupModalProps) {
                                 <code className="flex-1 font-mono text-xs text-text-primary bg-surface-high border border-border rounded px-3 py-1.5">
                                     {rc}
                                 </code>
-                                <button className={BTN_GHOST} onClick={() => copy("rc", setup.recovery_codes.join("\n"))}>
-                                    {copied?.key === "rc" ? "Copied!" : "Copy"}
+                                <button className={BTN_GHOST} onClick={() => copy(`rc-${rc}`, rc)}>
+                                    {copied?.key === `rc-${rc}` ? "Copied!" : "Copy"}
                                 </button>
                             </div>
                         ))}

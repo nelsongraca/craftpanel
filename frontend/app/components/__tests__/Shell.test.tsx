@@ -9,10 +9,6 @@ vi.mock("@/lib/auth-context", () => ({
     })),
 }));
 
-vi.mock("@/app/components/ChangePasswordModal", () => ({
-    ChangePasswordModal: () => null,
-}));
-
 import {useAuth} from "@/lib/auth-context";
 import Shell from "../Shell";
 
