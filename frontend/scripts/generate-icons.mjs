@@ -17,11 +17,16 @@ try {
     process.exit(1);
 }
 
-const raster = (size) => sharp(logo, {density: 300}).resize(size, size).png().toBuffer();
+const raster = (size) => sharp(logo, {density: 300})
+    .resize(size, size, {fit: "contain", background: BG})
+    .flatten({background: BG})
+    .png()
+    .toBuffer();
+const writeIcon = async (size, name) => sharp(await raster(size)).toFile(path.join(publicDir, name));
 
-await raster(192).then((buf) => sharp(buf).toFile(path.join(publicDir, "icon-192.png")));
-await raster(512).then((buf) => sharp(buf).toFile(path.join(publicDir, "icon-512.png")));
-await raster(180).then((buf) => sharp(buf).toFile(path.join(publicDir, "apple-touch-icon.png")));
+await writeIcon(192, "icon-192.png");
+await writeIcon(512, "icon-512.png");
+await writeIcon(180, "apple-touch-icon.png");
 
 const maskInner = Math.round(512 * SAFE_ZONE);
 const maskLogo = await raster(maskInner);
