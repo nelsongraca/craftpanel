@@ -86,7 +86,7 @@ export function AuthProvider({children}: { children: React.ReactNode }) {
         const {data: me} = await authMe();
         if (me) {
             setUser(toAuthUser(me));
-            router.push(me.mustChangePassword ? "/force-password-change" : "/");
+            router.push(me.must_change_password ? "/force-password-change" : "/");
         }
     }, [router]);
 
