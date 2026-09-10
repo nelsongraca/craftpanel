@@ -6,7 +6,7 @@ import sharp from "sharp";
 const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../public");
 const logoPath = path.join(publicDir, "logo.svg");
 
-const BG = "#0e0d0c";
+const BG = "#27241f";
 const SAFE_ZONE = 0.8;
 
 let logo;
