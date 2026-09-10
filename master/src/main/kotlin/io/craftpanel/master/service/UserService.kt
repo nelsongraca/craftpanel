@@ -20,7 +20,7 @@ data class CreateUserRequest(
     val username: String,
     val email: String,
     val password: String,
-    @SerialName("force_password_change") val forcePasswordChange: Boolean = false
+    @SerialName("force_password_change") val forcePasswordChange: Boolean? = false
 )
 
 @Serializable
@@ -33,7 +33,7 @@ data class PatchUserRequest(
 @Serializable
 data class ResetPasswordRequest(
     val password: String,
-    @SerialName("force_password_change") val forcePasswordChange: Boolean = true
+    @SerialName("force_password_change") val forcePasswordChange: Boolean? = true
 )
 
 @Serializable
@@ -66,7 +66,7 @@ class UserService(private val userRepository: UserRepository) {
                 this.username = req.username
                 this.email = req.email
                 this.passwordHash = hash
-                this.mustChangePassword = req.forcePasswordChange
+                this.mustChangePassword = req.forcePasswordChange ?: false
             }
             val row = Users.selectAll()
                 .where { Users.id eq e.id }
@@ -120,8 +120,8 @@ class UserService(private val userRepository: UserRepository) {
         userRepository.findById(targetId) ?: throw NotFoundException("User not found")
         val hash = Argon2Hasher.hash(req.password)
         userRepository.updatePassword(targetId, hash)
-        userRepository.setMustChangePassword(targetId, req.forcePasswordChange)
-        if (req.forcePasswordChange) {
+        userRepository.setMustChangePassword(targetId, req.forcePasswordChange ?: true)
+        if (req.forcePasswordChange ?: true) {
             transaction {
                 RefreshTokens.deleteWhere { RefreshTokens.userId eq targetId }
             }
