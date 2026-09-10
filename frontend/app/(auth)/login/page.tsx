@@ -33,7 +33,7 @@ export default function LoginPage() {
 
     useEffect(() => {
         if (!isLoading && user) {
-            router.replace("/");
+            router.replace(user.must_change_password ? "/force-password-change" : "/");
         }
     }, [isLoading, user, router]);
 

@@ -84,8 +84,10 @@ export function AuthProvider({children}: { children: React.ReactNode }) {
 
     const finishAuth = useCallback(async () => {
         const {data: me} = await authMe();
-        if (me) setUser(toAuthUser(me));
-        router.push("/");
+        if (me) {
+            setUser(toAuthUser(me));
+            router.push(me.mustChangePassword ? "/force-password-change" : "/");
+        }
     }, [router]);
 
     const login = useCallback(
@@ -146,8 +148,11 @@ export function AuthProvider({children}: { children: React.ReactNode }) {
         const {error} = await authChangePassword({body: {old_password: "", new_password: newPassword}});
         if (error) throw new Error(error.message ?? "Failed to change password");
         const {data: me} = await authMe();
-        if (me) setUser(toAuthUser(me));
-    }, []);
+        if (me) {
+            setUser(toAuthUser(me));
+            router.push("/");
+        }
+    }, [router]);
 
     return (
         <AuthContext.Provider value={{user, isLoading, login, verifyTotp, verifyRecovery, logout, logoutAll, changePassword, forceChangePassword}}>
