@@ -26,11 +26,18 @@ vi.mock("@/app/components/PageHeader", () => ({
     ),
 }));
 
+vi.mock("@/lib/config", () => ({
+    resetBrandingCache: vi.fn(),
+}));
+
 import {getSystemSettings, updateSystemSettings} from "@/lib/generated/sdk.gen";
+import {resetBrandingCache} from "@/lib/config";
 import SettingsPage from "../page";
 
 const defaultSettings = {
     settings: {
+        app_name: "My Panel",
+        app_logo: null,
         metric_retention_days: 30,
         default_backup_max_count: 5,
         default_port_range_start: 25565,
@@ -47,10 +54,27 @@ const defaultSettings = {
     },
 };
 
+const settingsWithLogo = {
+    settings: {
+        ...defaultSettings.settings,
+        app_logo: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
+    },
+};
+
 function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
     let resolve!: (v: T) => void;
-    const promise = new Promise<T>((r) => { resolve = r; });
+    const promise = new Promise<T>((r) => {
+        resolve = r;
+    });
     return {promise, resolve};
+}
+
+function numberInput(container: HTMLElement, value: number): HTMLInputElement {
+    const inputs = container.querySelectorAll<HTMLInputElement>('input[type="number"]');
+    for (const input of inputs) {
+        if (input.value === String(value)) return input;
+    }
+    throw new Error(`Number input with value ${value} not found`);
 }
 
 async function renderWith(mocks: { settings?: typeof defaultSettings; permissions?: string[] } = {}) {
@@ -85,20 +109,68 @@ describe("SettingsPage", () => {
         });
     });
 
-    it("renders form with loaded values", async () => {
-        await renderWith();
-        expect(screen.getByDisplayValue("30")).toBeTruthy();
-        expect(screen.getByDisplayValue("5")).toBeTruthy();
-        expect(screen.getByDisplayValue("25565")).toBeTruthy();
+    it("renders form with loaded values including app name", async () => {
+        const {container} = await renderWith();
+        expect(screen.getByDisplayValue("My Panel")).toBeTruthy();
+        expect(numberInput(container, 30)).toBeTruthy();
         expect(screen.getByDisplayValue("itzg/minecraft-server")).toBeTruthy();
+    });
+
+    it("saves app_name on submit", async () => {
+        vi.mocked(updateSystemSettings).mockResolvedValue({error: undefined} as never);
+        await renderWith();
+
+        const nameInput = screen.getByDisplayValue("My Panel");
+        await userEvent.setup().clear(nameInput);
+        await userEvent.setup().type(nameInput, "Custom Name");
+        await userEvent.setup().click(screen.getByText("Save Settings"));
+
+        await waitFor(() => {
+            expect(updateSystemSettings).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    body: expect.objectContaining({
+                        app_name: "Custom Name",
+                    }),
+                }),
+            );
+        });
+    });
+
+    it("shows reset to default button when app_logo is set", async () => {
+        vi.mocked(getSystemSettings).mockResolvedValue({data: settingsWithLogo} as never);
+        await renderWith({settings: settingsWithLogo});
+
+        await waitFor(() => {
+            expect(screen.getByText("Reset to Default")).toBeTruthy();
+        });
+    });
+
+    it("shows dash placeholder when no logo is set", async () => {
+        await renderWith();
+        expect(screen.getByText("—")).toBeTruthy();
+    });
+
+    it("shows upload logo button", async () => {
+        await renderWith();
+        expect(screen.getByText("Upload Logo")).toBeTruthy();
+    });
+
+    it("shows change logo button after file input is triggered", async () => {
+        const {container} = await renderWith();
+        const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
+        await userEvent.setup().upload(fileInput, new File(["fake-png"], "logo.png", {type: "image/png"}));
+        await waitFor(() => {
+            expect(screen.getByText("Change Logo")).toBeTruthy();
+        });
     });
 
     it("saves settings on submit", async () => {
         vi.mocked(updateSystemSettings).mockResolvedValue({error: undefined} as never);
-        await renderWith();
+        const {container} = await renderWith();
 
-        await userEvent.setup().clear(screen.getByDisplayValue("30"));
-        await userEvent.setup().type(screen.getByDisplayValue(""), "60");
+        const metricInput = numberInput(container, 30);
+        await userEvent.setup().clear(metricInput);
+        await userEvent.setup().type(metricInput, "60");
         await userEvent.setup().click(screen.getByText("Save Settings"));
 
         await waitFor(() => {
@@ -109,10 +181,11 @@ describe("SettingsPage", () => {
     it("shows success message after save", async () => {
         vi.mocked(updateSystemSettings).mockResolvedValue({error: undefined} as never);
         vi.mocked(getSystemSettings).mockResolvedValue({data: defaultSettings} as never);
-        await renderWith();
+        const {container} = await renderWith();
 
-        await userEvent.setup().clear(screen.getByDisplayValue("30"));
-        await userEvent.setup().type(screen.getByDisplayValue(""), "60");
+        const metricInput = numberInput(container, 30);
+        await userEvent.setup().clear(metricInput);
+        await userEvent.setup().type(metricInput, "60");
         await userEvent.setup().click(screen.getByText("Save Settings"));
 
         await waitFor(() => {
@@ -156,15 +229,15 @@ describe("SettingsPage", () => {
 
     it("modifying a field clears the success message", async () => {
         vi.mocked(updateSystemSettings).mockResolvedValue({error: undefined} as never);
-        await renderWith();
+        const {container} = await renderWith();
 
-        const metricInput = screen.getByDisplayValue("30");
+        const metricInput = numberInput(container, 30);
         await userEvent.setup().clear(metricInput);
         await userEvent.setup().type(metricInput, "60");
         await userEvent.setup().click(screen.getByText("Save Settings"));
         await waitFor(() => expect(screen.getByText("Settings saved.")).toBeTruthy());
 
-        const portStartInput = screen.getByDisplayValue("25565");
+        const portStartInput = numberInput(container, 25565);
         await userEvent.setup().clear(portStartInput);
         await userEvent.setup().type(portStartInput, "26000");
         expect(screen.queryByText("Settings saved.")).toBeNull();
@@ -172,10 +245,11 @@ describe("SettingsPage", () => {
 
     it("sends int via API call", async () => {
         vi.mocked(updateSystemSettings).mockResolvedValue({error: undefined} as never);
-        await renderWith();
+        const {container} = await renderWith();
 
-        await userEvent.setup().clear(screen.getByDisplayValue("3"));
-        await userEvent.setup().type(screen.getByDisplayValue(""), "5");
+        const restartInput = numberInput(container, 3);
+        await userEvent.setup().clear(restartInput);
+        await userEvent.setup().type(restartInput, "5");
         await userEvent.setup().click(screen.getByText("Save Settings"));
 
         await waitFor(() => {
@@ -186,6 +260,17 @@ describe("SettingsPage", () => {
                     }),
                 }),
             );
+        });
+    });
+
+    it("calls resetBrandingCache after save", async () => {
+        vi.mocked(updateSystemSettings).mockResolvedValue({error: undefined} as never);
+        await renderWith();
+
+        await userEvent.setup().click(screen.getByText("Save Settings"));
+
+        await waitFor(() => {
+            expect(resetBrandingCache).toHaveBeenCalled();
         });
     });
 });

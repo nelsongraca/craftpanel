@@ -1,14 +1,17 @@
 "use client";
 
-import {useCallback, useEffect, useState} from "react";
+import {useCallback, useEffect, useRef, useState} from "react";
+import Image from "next/image";
 import PageHeader from "@/app/components/PageHeader";
 import {getSystemSettings, updateSystemSettings} from "@/lib/generated/sdk.gen";
 import type {SettingsMap} from "@/lib/types";
-import {BTN_PRIMARY, Field, TextField} from "@/components/ui/form-elements";
+import {BTN_PRIMARY, BTN_GHOST, Field, TextField} from "@/components/ui/form-elements";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
+import {resetBrandingCache} from "@/lib/config";
 
 type FormState = {
+    app_name: string;
     metric_retention_days: string;
     default_backup_max_count: string;
     default_port_range_start: string;
@@ -26,6 +29,7 @@ type FormState = {
 
 function toForm(s: SettingsMap): FormState {
     return {
+        app_name: s.app_name,
         metric_retention_days: String(s.metric_retention_days),
         default_backup_max_count: String(s.default_backup_max_count),
         default_port_range_start: String(s.default_port_range_start),
@@ -48,14 +52,20 @@ export default function SettingsPage() {
     const canEdit = hasPermission(permissions, "system.settings");
 
     const [form, setForm] = useState<FormState | null>(null);
+    const [settingsData, setSettingsData] = useState<SettingsMap | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
     const [success, setSuccess] = useState(false);
+    const [logoData, setLogoData] = useState<string | undefined>(undefined);
+    const logoRef = useRef<HTMLInputElement>(null);
 
     const load = useCallback(async () => {
         const {data} = await getSystemSettings();
-        if (data) setForm(toForm(data.settings));
+        if (data) {
+            setForm(toForm(data.settings));
+            setSettingsData(data.settings);
+        }
         setLoading(false);
     }, []);
 
@@ -69,6 +79,30 @@ export default function SettingsPage() {
         setError("");
     }
 
+    function handleLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+            setLogoData(reader.result as string);
+            setSuccess(false);
+            setError("");
+        };
+        reader.readAsDataURL(file);
+    }
+
+    function handleResetLogo() {
+        setLogoData("");
+        setSuccess(false);
+        setError("");
+        if (logoRef.current) logoRef.current.value = "";
+    }
+
+    function logoPreview(): string | null {
+        if (logoData !== undefined) return logoData || null;
+        return settingsData?.app_logo ?? null;
+    }
+
     async function handleSubmit(e: React.FormEvent) {
         e.preventDefault();
         if (!form) return;
@@ -76,23 +110,28 @@ export default function SettingsPage() {
         setSuccess(false);
         setSaving(true);
 
-        const {error: apiError} = await updateSystemSettings({
-            body: {
-                metric_retention_days: parseInt(form.metric_retention_days, 10) || undefined,
-                default_backup_max_count: parseInt(form.default_backup_max_count, 10) || undefined,
-                default_port_range_start: parseInt(form.default_port_range_start, 10) || undefined,
-                default_port_range_end: parseInt(form.default_port_range_end, 10) || undefined,
-                restart_max_attempts: parseInt(form.restart_max_attempts, 10),
-                restart_window_seconds: parseInt(form.restart_window_seconds, 10) || undefined,
-                rate_limit_login_per_minute: parseInt(form.rate_limit_login_per_minute, 10) || undefined,
-                rate_limit_refresh_per_minute: parseInt(form.rate_limit_refresh_per_minute, 10) || undefined,
-                image_minecraft: form.image_minecraft || undefined,
-                image_proxy: form.image_proxy || undefined,
-                console_tail_lines: parseInt(form.console_tail_lines, 10) || undefined,
-                dns_domain_suffix: form.dns_domain_suffix,
-                dns_zone_id: form.dns_zone_id,
-            },
-        });
+        const body: Record<string, unknown> = {
+            app_name: form.app_name || undefined,
+            metric_retention_days: parseInt(form.metric_retention_days, 10) || undefined,
+            default_backup_max_count: parseInt(form.default_backup_max_count, 10) || undefined,
+            default_port_range_start: parseInt(form.default_port_range_start, 10) || undefined,
+            default_port_range_end: parseInt(form.default_port_range_end, 10) || undefined,
+            restart_max_attempts: parseInt(form.restart_max_attempts, 10),
+            restart_window_seconds: parseInt(form.restart_window_seconds, 10) || undefined,
+            rate_limit_login_per_minute: parseInt(form.rate_limit_login_per_minute, 10) || undefined,
+            rate_limit_refresh_per_minute: parseInt(form.rate_limit_refresh_per_minute, 10) || undefined,
+            image_minecraft: form.image_minecraft || undefined,
+            image_proxy: form.image_proxy || undefined,
+            console_tail_lines: parseInt(form.console_tail_lines, 10) || undefined,
+            dns_domain_suffix: form.dns_domain_suffix,
+            dns_zone_id: form.dns_zone_id,
+        };
+
+        if (logoData !== undefined) {
+            body.app_logo = logoData;
+        }
+
+        const {error: apiError} = await updateSystemSettings({body} as never);
 
         setSaving(false);
         if (apiError) {
@@ -100,6 +139,8 @@ export default function SettingsPage() {
             return;
         }
         setSuccess(true);
+        setLogoData(undefined);
+        resetBrandingCache();
         void load();
     }
 
@@ -121,6 +162,73 @@ export default function SettingsPage() {
                     <div className="text-xs text-text-muted">Loading…</div>
                 ) : form ? (
                     <form onSubmit={handleSubmit} className="max-w-4xl space-y-8">
+
+                        {/* ── Branding ───────────────────────────────────────── */}
+                        <section className="bg-surface border border-border rounded-md p-5 space-y-5">
+                            <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                                Branding
+                            </h2>
+                            <Field label="App Name">
+                                <TextField
+                                    type="text"
+                                    placeholder="CraftPanel"
+                                    value={form.app_name}
+                                    onChange={(e) => set("app_name", e.target.value)}
+                                />
+                                <p className="text-xs text-text-muted mt-1">Displayed in the top bar, browser tab, and PWA manifest.</p>
+                            </Field>
+                            <Field label="Logo">
+                                <div className="flex items-center gap-4">
+                                    {logoPreview() ? (
+                                        <Image
+                                            src={logoPreview()!}
+                                            alt="Logo preview"
+                                            width={40}
+                                            height={40}
+                                            unoptimized
+                                            className="rounded object-contain bg-surface-high border border-border"
+                                        />
+                                    ) : (
+                                        <div className="w-10 h-10 rounded bg-surface-high border border-border flex items-center justify-center text-xs text-text-muted">
+                                            —
+                                        </div>
+                                    )}
+                                    <button
+                                        type="button"
+                                        className={BTN_GHOST}
+                                        onClick={() => logoRef.current?.click()}
+                                    >
+                                        {logoData !== undefined ? "Change Logo" : "Upload Logo"}
+                                    </button>
+                                    {logoData !== undefined && (
+                                        <button
+                                            type="button"
+                                            className="text-xs text-text-muted hover:text-error transition-colors"
+                                            onClick={handleResetLogo}
+                                        >
+                                            Cancel
+                                        </button>
+                                    )}
+                                    {(logoData === undefined && settingsData?.app_logo) && (
+                                        <button
+                                            type="button"
+                                            className="text-xs text-text-muted hover:text-error transition-colors"
+                                            onClick={handleResetLogo}
+                                        >
+                                            Reset to Default
+                                        </button>
+                                    )}
+                                </div>
+                                <input
+                                    ref={logoRef}
+                                    type="file"
+                                    accept="image/*"
+                                    className="hidden"
+                                    onChange={handleLogoFile}
+                                />
+                                <p className="text-xs text-text-muted mt-1">Upload a logo image. Displayed in the top bar, login page, and PWA icon. Saved as a data URI.</p>
+                            </Field>
+                        </section>
 
                         {/* ── Metrics & Backups ────────────────────────────────── */}
                         <section className="bg-surface border border-border rounded-md p-5 space-y-5">
