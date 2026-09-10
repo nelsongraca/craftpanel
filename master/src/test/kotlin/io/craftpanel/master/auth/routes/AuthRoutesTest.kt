@@ -83,14 +83,16 @@ class AuthRoutesTest :
             install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
         }
 
-        fun createUser(username: String = "alice", email: String = "alice@example.com", password: String = "hunter2", isActive: Boolean = true): Uuid = transaction {
-            Users.insert {
-                it[Users.username] = username
-                it[Users.email] = email
-                it[Users.passwordHash] = Argon2Hasher.hash(password)
-                it[Users.isActive] = isActive
-            }[Users.id].value
-        }
+        fun createUser(username: String = "alice", email: String = "alice@example.com", password: String = "hunter2", isActive: Boolean = true, mustChangePassword: Boolean = false): Uuid =
+            transaction {
+                Users.insert {
+                    it[Users.username] = username
+                    it[Users.email] = email
+                    it[Users.passwordHash] = Argon2Hasher.hash(password)
+                    it[Users.isActive] = isActive
+                    it[Users.mustChangePassword] = mustChangePassword
+                }[Users.id].value
+            }
 
         fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
             val groupId = Groups.selectAll()
@@ -436,7 +438,8 @@ class AuthRoutesTest :
 
                 val (originalAccessToken, originalRefreshToken) = login()
 
-                val secondAccessToken = login().first
+                // second session, used to prove revocation of other sessions
+                login()
 
                 client.post("/api/auth/change-password") {
                     bearerAuth(originalAccessToken)
@@ -506,6 +509,85 @@ class AuthRoutesTest :
 
                 newLogin.status shouldBe HttpStatusCode.OK
                 newLogin.body<LoginResponse>().accessToken shouldNotBe null
+            }
+        }
+
+        test("login returns must_change_password only for users with the flag set") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser()
+                createUser(username = "bob", email = "bob@example.com", mustChangePassword = true)
+
+                val normalLogin = client.post("/api/auth/login") {
+                    contentType(ContentType.Application.Json)
+                    setBody(LoginRequest("alice@example.com", "hunter2"))
+                }
+                normalLogin.status shouldBe HttpStatusCode.OK
+                normalLogin.body<LoginResponse>().mustChangePassword shouldBe false
+
+                val forcedLogin = client.post("/api/auth/login") {
+                    contentType(ContentType.Application.Json)
+                    setBody(LoginRequest("bob@example.com", "hunter2"))
+                }
+                forcedLogin.status shouldBe HttpStatusCode.OK
+                forcedLogin.body<LoginResponse>().mustChangePassword shouldBe true
+            }
+        }
+
+        test("login with must_change_password set requires no old password to change it") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser(mustChangePassword = true)
+
+                val (accessToken, _) = login()
+
+                val response = client.post("/api/auth/change-password") {
+                    bearerAuth(accessToken)
+                    contentType(ContentType.Application.Json)
+                    setBody(ChangePasswordRequest("", "brandnewpw1"))
+                }
+
+                response.status shouldBe HttpStatusCode.NoContent
+            }
+        }
+
+        test("change-password clears must_change_password flag") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser(mustChangePassword = true)
+
+                val (accessToken, _) = login()
+
+                client.post("/api/auth/change-password") {
+                    bearerAuth(accessToken)
+                    contentType(ContentType.Application.Json)
+                    setBody(ChangePasswordRequest("", "brandnewpw1"))
+                }.status shouldBe HttpStatusCode.NoContent
+
+                val newLogin = client.post("/api/auth/login") {
+                    contentType(ContentType.Application.Json)
+                    setBody(LoginRequest("alice@example.com", "brandnewpw1"))
+                }
+                newLogin.status shouldBe HttpStatusCode.OK
+                newLogin.body<LoginResponse>().mustChangePassword shouldBe false
+            }
+        }
+
+        test("me returns must_change_password for users with the flag set") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser(mustChangePassword = true)
+
+                val (accessToken, _) = login()
+
+                val me = client.get("/api/auth/me") { bearerAuth(accessToken) }
+                    .body<MeResponse>()
+
+                me.mustChangePassword shouldBe true
             }
         }
 

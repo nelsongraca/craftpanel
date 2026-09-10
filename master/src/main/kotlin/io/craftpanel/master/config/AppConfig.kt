@@ -54,7 +54,7 @@ data class ImagesConfig(val minecraftImage: String, val proxyImage: String) {
     fun internalListenPort(serverType: ServerType): Int = if (serverType.isProxy) 25577 else 25565
 }
 
-data class AdminSeedConfig(val email: String, val password: String, val username: String) {
+data class AdminSeedConfig(val email: String, val password: String, val username: String, val resetPassword: Boolean = false) {
 
     val enabled: Boolean get() = email.isNotBlank() && password.isNotBlank()
 }
@@ -170,7 +170,10 @@ class AppConfig(config: ApplicationConfig) {
         password = config.propertyOrNull("adminSeed.password")
             ?.getString() ?: "",
         username = config.propertyOrNull("adminSeed.username")
-            ?.getString() ?: "admin"
+            ?.getString() ?: "admin",
+        resetPassword = config.propertyOrNull("adminSeed.resetPassword")
+            ?.getString()
+            ?.toBooleanStrictOrNull() ?: false
     )
     val images = ImagesConfig(
         minecraftImage = config.propertyOrNull("images.minecraftImage")
@@ -206,7 +209,10 @@ class AppConfig(config: ApplicationConfig) {
         check(forwarding.key != defaultForwardingKey) {
             "FORWARDING_KEY must be set to a non-default value"
         }
-        check(runCatching { java.util.Base64.getDecoder().decode(forwarding.key) }.getOrNull()?.size == 32) {
+        check(runCatching {
+            java.util.Base64.getDecoder()
+                .decode(forwarding.key)
+        }.getOrNull()?.size == 32) {
             "FORWARDING_KEY must be set to Base64 of 32 raw bytes (AES-256 key)"
         }
         // TLS is always enforced: either via explicit cert paths or auto-generated certs.

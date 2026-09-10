@@ -119,8 +119,12 @@ fun Route.usersRoutes(userService: UserService) {
                 }
             }) {
                 call.requirePermission(Permission.SYSTEM_USERS)
+                val callerId = call.userId()
                 val targetId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@put call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
+                if (callerId == targetId) {
+                    return@put call.respond(HttpStatusCode.Forbidden, ErrorResponse("Cannot reset your own password"))
+                }
                 val req = call.receive<ResetPasswordRequest>()
                 userService.resetPassword(targetId, req)
                 call.respond(HttpStatusCode.NoContent)

@@ -29,6 +29,10 @@ vi.mock("@/app/components/PageHeader", () => ({
     ),
 }));
 
+vi.mock("@/lib/auth-context", () => ({
+    useAuth: vi.fn(() => ({user: null})),
+}));
+
 import {
     listUsers, listGroups, createUser, updateUser, deleteUser, resetUserPassword,
     listUserAssignments, createAssignment, deleteAssignment,
@@ -36,6 +40,7 @@ import {
 } from "@/lib/generated/sdk.gen";
 import UsersPage from "../page";
 import {selectComboboxOption} from "@/lib/test-utils";
+import {useAuth} from "@/lib/auth-context";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────────
 
@@ -194,7 +199,7 @@ describe("UsersPage", () => {
 
             await waitFor(() => {
                 expect(createUser).toHaveBeenCalledWith({
-                    body: {username: "newuser", email: "new@test.com", password: "secret123"},
+                    body: {username: "newuser", email: "new@test.com", password: "secret123", forcePasswordChange: false},
                 });
             });
             expect(listUsers).toHaveBeenCalledTimes(2);
@@ -454,7 +459,7 @@ describe("UsersPage", () => {
             await waitFor(() => {
                 expect(resetUserPassword).toHaveBeenCalledWith({
                     path: {id: "u1"},
-                    body: {password: "newSecret1"},
+                    body: {password: "newSecret1", force_password_change: true},
                 });
             });
         });
@@ -505,6 +510,14 @@ describe("UsersPage", () => {
             await waitFor(() => {
                 expect(screen.getByText("Reset failed")).toBeInTheDocument();
             });
+        });
+
+        it("hides the reset button for the current user's own row", async () => {
+            const u = user({username: "alice"});
+            vi.mocked(useAuth).mockReturnValue({user: {id: "u1"}} as never);
+            await renderWith({users: [u]});
+
+            expect(screen.queryByTitle("Reset password")).not.toBeInTheDocument();
         });
     });
 

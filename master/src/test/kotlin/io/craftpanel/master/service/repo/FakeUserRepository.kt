@@ -16,7 +16,8 @@ class FakeUserRepository : UserRepository {
         var isActive: Boolean = true,
         val createdAt: String = "2025-01-01T00:00:00Z",
         var totpEnabled: Boolean = false,
-        var totpSecret: String? = null
+        var totpSecret: String? = null,
+        var mustChangePassword: Boolean = false
     )
 
     data class MutableAssignment(val id: Uuid, val userId: Uuid, val groupId: Uuid, val scopeType: String, val scopeId: Uuid?)
@@ -31,7 +32,17 @@ class FakeUserRepository : UserRepository {
         ?.toRow()
 
     override fun findCredentials(email: String): CredentialRow? = users.values.firstOrNull { it.email == email }
-        ?.let { CredentialRow(it.id, it.username, it.email, it.passwordHash, it.isActive, it.totpEnabled) }
+        ?.let {
+            CredentialRow(
+                userId = it.id,
+                username = it.username,
+                email = it.email,
+                passwordHash = it.passwordHash,
+                isActive = it.isActive,
+                totpEnabled = it.totpEnabled,
+                mustChangePassword = it.mustChangePassword
+            )
+        }
 
     override fun listAll(): List<UserRow> = users.values.map { it.toRow() }
 
@@ -64,6 +75,10 @@ class FakeUserRepository : UserRepository {
         users[userId]?.passwordHash = newHash
     }
 
+    override fun setMustChangePassword(userId: Uuid, value: Boolean) {
+        users[userId]?.mustChangePassword = value
+    }
+
     override fun findTotpSecret(userId: Uuid): String? = users[userId]?.totpSecret
 
     override fun storeTotpSecret(userId: Uuid, encryptedSecret: String) {
@@ -81,6 +96,6 @@ class FakeUserRepository : UserRepository {
         }
     }
 
-    private fun MutableUser.toRow() = UserRow(id, username, email, isActive, createdAt, totpEnabled)
+    private fun MutableUser.toRow() = UserRow(id, username, email, isActive, createdAt, totpEnabled, mustChangePassword)
     private fun MutableAssignment.toRow() = AssignmentRow(id, userId, groupId, scopeType, scopeId)
 }

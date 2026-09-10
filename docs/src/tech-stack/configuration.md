@@ -129,11 +129,22 @@ On a fresh database (empty users table), master will seed a Super Admin account 
 | `CRAFTPANEL_ADMIN_EMAIL`    | _(empty)_ | Email address for the initial admin |
 | `CRAFTPANEL_ADMIN_PASSWORD` | _(empty)_ | Password — stored as Argon2id hash  |
 | `CRAFTPANEL_ADMIN_USERNAME` | `admin`   | Username for the initial admin      |
+| `CRAFTPANEL_ADMIN_RESET_PASSWORD` | `false` | Force-reset the admin password (see below) |
 
 The seed runs **once only**: if any user already exists, these variables are ignored and master starts normally. It is safe to leave them set across container restarts.
 
 !!! tip
 Remove `CRAFTPANEL_ADMIN_EMAIL` and `CRAFTPANEL_ADMIN_PASSWORD` from your compose file after the first successful login.
+
+### Reset the admin password
+
+If the admin password is ever lost — or you want to force a change — set `CRAFTPANEL_ADMIN_RESET_PASSWORD=true` together with a new `CRAFTPANEL_ADMIN_PASSWORD` and restart master. On startup master:
+
+1. Updates the admin's password hash (the user is looked up by `CRAFTPANEL_ADMIN_EMAIL`, regardless of how many users exist).
+2. Sets `must_change_password=true` — the admin must pick a new password on next login and cannot use the app until they do.
+3. Revokes all of the admin's refresh tokens, so existing sessions are signed out. Only a JWT access token (max 15 minutes) can survive the restart.
+
+Remove `CRAFTPANEL_ADMIN_RESET_PASSWORD` from your compose file after the restart — the seed-only variables (`CRAFTPANEL_ADMIN_EMAIL`/`CRAFTPANEL_ADMIN_PASSWORD`) do not re-run, but leaving a one-shot reset flag set risks repeating the reset on every future restart. A warning is logged if no user matches `CRAFTPANEL_ADMIN_EMAIL`.
 
 ## Profile
 

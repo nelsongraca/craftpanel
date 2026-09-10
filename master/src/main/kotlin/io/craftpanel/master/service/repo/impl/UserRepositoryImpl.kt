@@ -42,7 +42,8 @@ class UserRepositoryImpl : UserRepository {
                     email = it[Users.email],
                     passwordHash = it[Users.passwordHash],
                     isActive = it[Users.isActive],
-                    totpEnabled = it[Users.totpEnabled]
+                    totpEnabled = it[Users.totpEnabled],
+                    mustChangePassword = it[Users.mustChangePassword]
                 )
             }
     }
@@ -116,6 +117,14 @@ class UserRepositoryImpl : UserRepository {
         }
     }
 
+    override fun setMustChangePassword(userId: Uuid, value: Boolean) {
+        transaction {
+            Users.update({ Users.id eq userId }) {
+                it[mustChangePassword] = value
+            }
+        }
+    }
+
     override fun findTotpSecret(userId: Uuid): String? = transaction {
         Users.selectAll()
             .where { Users.id eq userId }
@@ -155,7 +164,8 @@ private fun ResultRow.toUserRow() = UserRow(
     email = this[Users.email],
     isActive = this[Users.isActive],
     createdAt = this[Users.createdAt].toUtcString(),
-    totpEnabled = this[Users.totpEnabled]
+    totpEnabled = this[Users.totpEnabled],
+    mustChangePassword = this[Users.mustChangePassword]
 )
 
 private fun ResultRow.toAssignmentRow() = AssignmentRow(

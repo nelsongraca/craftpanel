@@ -16,7 +16,12 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
 @Serializable
-data class CreateUserRequest(val username: String, val email: String, val password: String)
+data class CreateUserRequest(
+    val username: String,
+    val email: String,
+    val password: String,
+    @SerialName("force_password_change") val forcePasswordChange: Boolean = false
+)
 
 @Serializable
 data class PatchUserRequest(
@@ -26,7 +31,10 @@ data class PatchUserRequest(
 )
 
 @Serializable
-data class ResetPasswordRequest(val password: String)
+data class ResetPasswordRequest(
+    val password: String,
+    @SerialName("force_password_change") val forcePasswordChange: Boolean = true
+)
 
 @Serializable
 data class UserResponse(
@@ -35,6 +43,7 @@ data class UserResponse(
     val email: String,
     @SerialName("is_active") val isActive: Boolean,
     @SerialName("created_at") val createdAt: String,
+    @SerialName("must_change_password") val mustChangePassword: Boolean = false,
 )
 
 @Serializable
@@ -53,7 +62,12 @@ class UserService(private val userRepository: UserRepository) {
         val byEmail = userRepository.findByEmail(req.email)
         if (byUsername != null || byEmail != null) throw ConflictException("Username or email already taken")
         return transaction {
-            val e = User.new { this.username = req.username; this.email = req.email; this.passwordHash = hash }
+            val e = User.new {
+                this.username = req.username
+                this.email = req.email
+                this.passwordHash = hash
+                this.mustChangePassword = req.forcePasswordChange
+            }
             val row = Users.selectAll()
                 .where { Users.id eq e.id }
                 .first()
@@ -62,7 +76,8 @@ class UserService(private val userRepository: UserRepository) {
                 username = row[Users.username],
                 email = row[Users.email],
                 isActive = row[Users.isActive],
-                createdAt = row[Users.createdAt].toUtcString()
+                createdAt = row[Users.createdAt].toUtcString(),
+                mustChangePassword = row[Users.mustChangePassword]
             )
         }.toResponse()
     }
@@ -105,6 +120,12 @@ class UserService(private val userRepository: UserRepository) {
         userRepository.findById(targetId) ?: throw NotFoundException("User not found")
         val hash = Argon2Hasher.hash(req.password)
         userRepository.updatePassword(targetId, hash)
+        userRepository.setMustChangePassword(targetId, req.forcePasswordChange)
+        if (req.forcePasswordChange) {
+            transaction {
+                RefreshTokens.deleteWhere { RefreshTokens.userId eq targetId }
+            }
+        }
     }
 }
 
@@ -114,4 +135,5 @@ private fun UserRow.toResponse() = UserResponse(
     email = email,
     isActive = isActive,
     createdAt = createdAt,
+    mustChangePassword = mustChangePassword,
 )

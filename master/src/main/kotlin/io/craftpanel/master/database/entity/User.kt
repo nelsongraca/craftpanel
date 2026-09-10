@@ -17,6 +17,7 @@ class User(id: EntityID<Uuid>) : UuidEntity(id) {
     var isActive by Users.isActive
     var createdAt by Users.createdAt
     var totpEnabled by Users.totpEnabled
+    var mustChangePassword by Users.mustChangePassword
 
     fun toUserRow() = UserRow(
         id = id.value,
@@ -24,6 +25,7 @@ class User(id: EntityID<Uuid>) : UuidEntity(id) {
         email = email,
         isActive = isActive,
         createdAt = createdAt.toUtcString(),
-        totpEnabled = totpEnabled
+        totpEnabled = totpEnabled,
+        mustChangePassword = mustChangePassword
     )
 }

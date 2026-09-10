@@ -5,6 +5,7 @@ import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.config.AppConfig
 import io.craftpanel.master.database.DatabaseFactory
 import io.craftpanel.master.database.entity.Server
+import io.craftpanel.master.database.migrations.resetSeedAdminPassword
 import io.craftpanel.master.database.migrations.seedAdminUser
 import io.craftpanel.master.di.DnsProviderHolder
 import io.craftpanel.master.di.appModule
@@ -70,7 +71,12 @@ fun Application.module() {
 
     DatabaseFactory.init(appConfig.database)
     if (appConfig.adminSeed.enabled) {
-        transaction { seedAdminUser(appConfig.adminSeed.email, appConfig.adminSeed.password, appConfig.adminSeed.username) }
+        transaction {
+            seedAdminUser(appConfig.adminSeed.email, appConfig.adminSeed.password, appConfig.adminSeed.username)
+            if (appConfig.adminSeed.resetPassword) {
+                resetSeedAdminPassword(appConfig.adminSeed.email, appConfig.adminSeed.password)
+            }
+        }
     }
 
     val startupSettings = SystemService(settingsRepository = SettingsRepositoryImpl()).getSettings().settings
@@ -152,7 +158,8 @@ fun Application.module() {
                 this@module.log.warn("CORS: no PUBLIC_URLS configured — allowing all origins (dev mode)")
                 anyHost()
             }
-        } else {
+        }
+        else {
             for (origin in appConfig.cors.origins) {
                 allowHost(origin.host, schemes = listOf(origin.scheme))
             }

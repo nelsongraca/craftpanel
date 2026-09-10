@@ -3,9 +3,8 @@ package io.craftpanel.master.database.migrations
 import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.database.schema.*
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.core.*
+import org.jetbrains.exposed.v1.jdbc.*
 import org.slf4j.LoggerFactory
 
 private val logger = LoggerFactory.getLogger("SeedAdminUser")
@@ -36,4 +35,27 @@ fun seedAdminUser(email: String, password: String, username: String = "admin") {
     }
 
     logger.info("Admin user seeded successfully")
+}
+
+fun resetSeedAdminPassword(email: String, newPassword: String): Boolean {
+    val admin = Users.selectAll()
+        .where { Users.email eq email }
+        .firstOrNull()
+
+    if (admin == null) {
+        logger.warn("ADMIN_SEED_RESET set but no user found with email: $email")
+        return false
+    }
+
+    val userId = admin[Users.id].value
+    val hash = Argon2Hasher.hash(newPassword)
+
+    Users.update({ Users.id eq userId }) {
+        it[passwordHash] = hash
+        it[mustChangePassword] = true
+    }
+    RefreshTokens.deleteWhere { RefreshTokens.userId eq userId }
+
+    logger.info("Admin password reset via adminSeed.resetPassword — user must change it on next login")
+    return true
 }

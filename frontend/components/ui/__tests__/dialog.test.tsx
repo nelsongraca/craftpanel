@@ -24,7 +24,6 @@ describe('Dialog', () => {
     })
 
     it('renders DialogFooter with children', async () => {
-        const user = userEvent.setup()
         render(
             <Dialog defaultOpen>
                 <DialogContent>

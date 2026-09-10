@@ -31,11 +31,6 @@ const STATUS_FILTER_OPTIONS = [
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function fmtShares(shares: number): string {
-    const cores = shares / 1024;
-    return cores >= 1 ? `${cores % 1 === 0 ? cores : cores.toFixed(1)}c` : `${shares}`;
-}
-
 function MiniBar({used, total, fmt = fmtMb}: { used: number; total: number; fmt?: (n: number) => string }) {
     const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0;
     return (

@@ -54,6 +54,11 @@ function TestChangePassword() {
     return <button onClick={() => changePassword('old', 'new')}>change pw</button>
 }
 
+function TestForceChangePassword() {
+    const {forceChangePassword} = useAuth()
+    return <button onClick={() => forceChangePassword('new')}>force change pw</button>
+}
+
 const mockUser = {
     id: '1',
     username: 'user1',
@@ -136,7 +141,7 @@ describe('AuthProvider', () => {
                 <button onClick={async () => {
                     try {
                         outcome = await login('u@test.com', 'pass')
-                    } catch (e) {
+                    } catch {
                         outcome = null
                     }
                 }}>login</button>
@@ -379,5 +384,56 @@ describe('AuthProvider', () => {
         })
 
         expect(caughtMessage).toBe('Current password is incorrect')
+    })
+
+    it('forceChangePassword calls API with empty old password and refreshes user', async () => {
+        vi.mocked(generated.authRefresh).mockResolvedValue({data: {access_token: 'tok'}} as never)
+        vi.mocked(generated.authMe).mockResolvedValue({data: mockUser} as never)
+        vi.mocked(generated.authChangePassword).mockResolvedValue({data: undefined, error: undefined} as never)
+
+        render(<AuthProvider><TestConsumer/><TestForceChangePassword/></AuthProvider>)
+        await waitFor(() => expect(screen.getByTestId('user')).toHaveTextContent('u@test.com'))
+
+        await act(async () => {
+            screen.getByText('force change pw').click()
+        })
+
+        await waitFor(() => {
+            expect(generated.authChangePassword).toHaveBeenCalledWith({body: {old_password: '', new_password: 'new'}})
+        })
+        await waitFor(() => {
+            expect(screen.getByTestId('user')).toHaveTextContent('u@test.com')
+        })
+    })
+
+    it('forceChangePassword throws when API returns error', async () => {
+        vi.mocked(generated.authRefresh).mockResolvedValue({data: {access_token: 'tok'}} as never)
+        vi.mocked(generated.authMe).mockResolvedValue({data: mockUser} as never)
+        vi.mocked(generated.authChangePassword).mockResolvedValue({data: undefined, error: {message: 'Failed to change password'}} as never)
+
+        let caughtMessage = ''
+
+        function TestForceChangePwError() {
+            const {forceChangePassword} = useAuth()
+            return (
+                <button onClick={async () => {
+                    try {
+                        await forceChangePassword('new')
+                    } catch (e) {
+                        caughtMessage = (e as Error).message
+                    }
+                }}>force change pw error</button>
+            )
+        }
+
+        render(<AuthProvider><TestForceChangePwError/></AuthProvider>)
+        await waitFor(() => {
+        })
+
+        await act(async () => {
+            screen.getByText('force change pw error').click()
+        })
+
+        expect(caughtMessage).toBe('Failed to change password')
     })
 })

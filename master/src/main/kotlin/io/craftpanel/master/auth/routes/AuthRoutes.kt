@@ -12,7 +12,6 @@ import io.github.smiley4.ktoropenapi.post
 import io.ktor.http.*
 import io.ktor.server.application.ApplicationCall
 import io.ktor.server.auth.*
-import io.ktor.server.auth.jwt.*
 import io.ktor.server.plugins.ratelimit.*
 import io.ktor.server.request.*
 import io.ktor.server.response.*
@@ -29,7 +28,8 @@ data class LoginResponse(
     @SerialName("access_token") val accessToken: String? = null,
     @SerialName("expires_in") val expiresIn: Long,
     @SerialName("requires_totp") val requiresTotp: Boolean = false,
-    @SerialName("temp_token") val tempToken: String? = null
+    @SerialName("temp_token") val tempToken: String? = null,
+    @SerialName("must_change_password") val mustChangePassword: Boolean = false
 )
 
 @Serializable
@@ -74,10 +74,20 @@ data class MeResponse(
     val groups: List<String>,
     val permissions: List<String>,
     @SerialName("server_permissions") val serverPermissions: Map<String, List<String>>,
-    @SerialName("totp_enabled") val totpEnabled: Boolean
+    @SerialName("totp_enabled") val totpEnabled: Boolean,
+    @SerialName("must_change_password") val mustChangePassword: Boolean = false
 )
 
-private data class UserRecord(val userId: Uuid, val username: String, val email: String, val passwordHash: String, val isActive: Boolean, val totpEnabled: Boolean, val groupNames: List<String>)
+private data class UserRecord(
+    val userId: Uuid,
+    val username: String,
+    val email: String,
+    val passwordHash: String,
+    val isActive: Boolean,
+    val totpEnabled: Boolean,
+    val mustChangePassword: Boolean,
+    val groupNames: List<String>
+)
 
 private fun lookupUser(userRepository: UserRepository, email: String): UserRecord? {
     val credentials = userRepository.findCredentials(email) ?: return null
@@ -91,11 +101,14 @@ private fun lookupUser(userRepository: UserRepository, email: String): UserRecor
         passwordHash = credentials.passwordHash,
         isActive = credentials.isActive,
         totpEnabled = credentials.totpEnabled,
+        mustChangePassword = credentials.mustChangePassword,
         groupNames = groups
     )
 }
 
-private fun lookupUserById(userRepository: UserRepository, userId: Uuid): Triple<String, String, List<String>>? {
+private data class UserBasicInfo(val username: String, val email: String, val mustChangePassword: Boolean, val groupNames: List<String>)
+
+private fun lookupUserById(userRepository: UserRepository, userId: Uuid): UserBasicInfo? {
     val user = userRepository.findById(userId)
         ?.takeIf { it.isActive }
         ?: return null
@@ -103,7 +116,12 @@ private fun lookupUserById(userRepository: UserRepository, userId: Uuid): Triple
     val groups = userRepository.getUserGlobalGroups(userId)
         .map { it.groupName }
 
-    return Triple(user.username, user.email, groups)
+    return UserBasicInfo(
+        username = user.username,
+        email = user.email,
+        mustChangePassword = user.mustChangePassword,
+        groupNames = groups
+    )
 }
 
 private fun verifyTotpTempToken(jwtManager: JwtManager, rawToken: String): Uuid? {
@@ -126,6 +144,7 @@ private fun ApplicationCall.issueSessionCookies(
     username: String,
     email: String,
     groupNames: List<String>,
+    mustChangePassword: Boolean,
     secureCookies: Boolean,
     cookieDomainOrNull: String?
 ): LoginResponse {
@@ -143,7 +162,11 @@ private fun ApplicationCall.issueSessionCookies(
         path = "/api/auth",
         domain = cookieDomainOrNull
     )
-    return LoginResponse(accessToken = accessToken, expiresIn = jwtManager.expirySeconds)
+    return LoginResponse(
+        accessToken = accessToken,
+        expiresIn = jwtManager.expirySeconds,
+        mustChangePassword = mustChangePassword
+    )
 }
 
 fun Route.authRoutes(
@@ -186,7 +209,8 @@ fun Route.authRoutes(
                         LoginResponse(
                             expiresIn = JwtManager.tempTokenTtlSeconds,
                             requiresTotp = true,
-                            tempToken = tempToken
+                            tempToken = tempToken,
+                            mustChangePassword = record.mustChangePassword
                         )
                     )
                     return@post
@@ -200,6 +224,7 @@ fun Route.authRoutes(
                         username = record.username,
                         email = record.email,
                         groupNames = record.groupNames,
+                        mustChangePassword = record.mustChangePassword,
                         secureCookies = secureCookies,
                         cookieDomainOrNull = cookieDomainOrNull
                     )
@@ -264,6 +289,7 @@ fun Route.authRoutes(
                         username = record.username,
                         email = record.email,
                         groupNames = groups,
+                        mustChangePassword = record.mustChangePassword,
                         secureCookies = secureCookies,
                         cookieDomainOrNull = cookieDomainOrNull
                     )
@@ -315,6 +341,7 @@ fun Route.authRoutes(
                         username = record.username,
                         email = record.email,
                         groupNames = groups,
+                        mustChangePassword = record.mustChangePassword,
                         secureCookies = secureCookies,
                         cookieDomainOrNull = cookieDomainOrNull
                     )
@@ -338,13 +365,13 @@ fun Route.authRoutes(
                         return@post
                     }
 
-                val (userId, newToken) = refreshTokenService.rotate(rawToken)
+                val (userId, _) = refreshTokenService.rotate(rawToken)
                     ?: run {
                         call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid or expired refresh token"))
                         return@post
                     }
 
-                val (name, email, groupNames) = lookupUserById(userRepository, userId)
+                val userInfo = lookupUserById(userRepository, userId)
                     ?: run {
                         call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found or inactive"))
                         return@post
@@ -355,9 +382,10 @@ fun Route.authRoutes(
                         jwtManager = jwtManager,
                         refreshTokenService = refreshTokenService,
                         userId = userId,
-                        username = name,
-                        email = email,
-                        groupNames = groupNames,
+                        username = userInfo.username,
+                        email = userInfo.email,
+                        groupNames = userInfo.groupNames,
+                        mustChangePassword = userInfo.mustChangePassword,
                         secureCookies = secureCookies,
                         cookieDomainOrNull = cookieDomainOrNull
                     )
@@ -397,7 +425,6 @@ fun Route.authRoutes(
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val principal = call.principal<JWTPrincipal>()!!
                 val userId = call.userId()
                 val currentRefreshToken = call.request.cookies["refresh_token"]
                 if (currentRefreshToken != null) {
@@ -422,23 +449,25 @@ fun Route.authRoutes(
                 val userId = call.userId()
                 val req = call.receive<ChangePasswordRequest>()
 
-                val userRecord = lookupUserById(userRepository, userId)
+                val userInfo = lookupUserById(userRepository, userId)
                     ?: run {
                         call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found"))
                         return@post
                     }
 
-                val user = userRepository.findById(userId)!!
-                val credentials = userRepository.findCredentials(user.email)!!
-                val passwordOk = Argon2Hasher.verify(req.oldPassword, credentials.passwordHash)
+                val credentials = userRepository.findCredentials(userInfo.email)!!
 
-                if (!passwordOk) {
-                    call.respond(HttpStatusCode.BadRequest, ErrorResponse("Current password is incorrect"))
-                    return@post
+                if (!userInfo.mustChangePassword) {
+                    val passwordOk = Argon2Hasher.verify(req.oldPassword, credentials.passwordHash)
+                    if (!passwordOk) {
+                        call.respond(HttpStatusCode.BadRequest, ErrorResponse("Current password is incorrect"))
+                        return@post
+                    }
                 }
 
                 val newHash = Argon2Hasher.hash(req.newPassword)
                 userRepository.updatePassword(userId, newHash)
+                userRepository.setMustChangePassword(userId, false)
 
                 refreshTokenService.revokeAll(userId)
 
@@ -618,7 +647,7 @@ fun Route.authRoutes(
             }) {
                 val userId = call.userId()
 
-                val (username, email, groupNames) = lookupUserById(userRepository, userId)
+                val userInfo = lookupUserById(userRepository, userId)
                     ?: run {
                         call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found or inactive"))
                         return@get
@@ -638,12 +667,13 @@ fun Route.authRoutes(
                 call.respond(
                     MeResponse(
                         id = userId.toString(),
-                        username = username,
-                        email = email,
-                        groups = groupNames,
+                        username = userInfo.username,
+                        email = userInfo.email,
+                        groups = userInfo.groupNames,
                         permissions = permissions,
                         serverPermissions = serverPermissions,
-                        totpEnabled = userRepository.findById(userId)?.totpEnabled ?: false
+                        totpEnabled = userRepository.findById(userId)?.totpEnabled ?: false,
+                        mustChangePassword = userInfo.mustChangePassword
                     )
                 )
             }

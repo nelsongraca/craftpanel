@@ -40,14 +40,16 @@ class UsersRoutesTest :
             usersRoutes(UserService(UserRepositoryImpl()))
         }
 
-        fun createUser(username: String = "admin", email: String = "admin@example.com", password: String = "hunter2", isActive: Boolean = true): Uuid = transaction {
-            Users.insert {
-                it[Users.username] = username
-                it[Users.email] = email
-                it[Users.passwordHash] = Argon2Hasher.hash(password)
-                it[Users.isActive] = isActive
-            }[Users.id].let { Uuid.parse(it.toString()) }
-        }
+        fun createUser(username: String = "admin", email: String = "admin@example.com", password: String = "hunter2", isActive: Boolean = true, mustChangePassword: Boolean = false): Uuid =
+            transaction {
+                Users.insert {
+                    it[Users.username] = username
+                    it[Users.email] = email
+                    it[Users.passwordHash] = Argon2Hasher.hash(password)
+                    it[Users.isActive] = isActive
+                    it[Users.mustChangePassword] = mustChangePassword
+                }[Users.id].let { Uuid.parse(it.toString()) }
+            }
 
         fun assignGlobalGroup(userId: Uuid, groupName: String) = transaction {
             val groupId = Groups.selectAll()
@@ -138,6 +140,44 @@ class UsersRoutesTest :
                     setBody("""{"username":"admin","email":"different@example.com","password":"p"}""")
                 }
                 response.status shouldBe HttpStatusCode.Conflict
+            }
+        }
+
+        test("createUser with force_password_change sets must_change_password") {
+            testApplication {
+                testApp { _ -> configureUsersTest() }
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+
+                val body = jsonClient().post("/api/users") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"username":"newuser","email":"newuser@example.com","password":"secret","force_password_change":true}""")
+                }
+                    .body<JsonObject>()
+
+                body["must_change_password"]!!.jsonPrimitive.content.toBoolean() shouldBe true
+            }
+        }
+
+        test("createUser without force_password_change leaves must_change_password false") {
+            testApplication {
+                testApp { _ -> configureUsersTest() }
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+
+                jsonClient().post("/api/users") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"username":"newuser","email":"newuser@example.com","password":"secret"}""")
+                }.status shouldBe HttpStatusCode.Created
+
+                val mustChange = transaction {
+                    Users.selectAll()
+                        .where { Users.username eq "newuser" }
+                        .first()[Users.mustChangePassword]
+                }
+                mustChange shouldBe false
             }
         }
 
@@ -326,6 +366,66 @@ class UsersRoutesTest :
                     setBody("""{"password":"newpass123"}""")
                 }
                 response.status shouldBe HttpStatusCode.NotFound
+            }
+        }
+
+        test("resetUserPassword cannot target the caller's own account") {
+            testApplication {
+                testApp { _ -> configureUsersTest() }
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+
+                val response = client.put("/api/users/$userId/password") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"password":"newpass123"}""")
+                }
+                response.status shouldBe HttpStatusCode.Forbidden
+            }
+        }
+
+        test("resetUserPassword sets must_change_password by default") {
+            testApplication {
+                testApp { _ -> configureUsersTest() }
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val targetId = createUser(username = "target", email = "target@example.com")
+
+                client.put("/api/users/$targetId/password") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"password":"newpass123"}""")
+                }.status shouldBe HttpStatusCode.NoContent
+
+                val mustChange = transaction {
+                    Users.selectAll()
+                        .where { Users.id eq targetId }
+                        .first()[Users.mustChangePassword]
+                }
+                mustChange shouldBe true
+            }
+        }
+
+        test("resetUserPassword with force_password_change false leaves must_change_password unset") {
+            testApplication {
+                testApp { _ -> configureUsersTest() }
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val targetId = createUser(username = "target", email = "target@example.com")
+
+                val response = client.put("/api/users/$targetId/password") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"password":"newpass123","force_password_change":false}""")
+                }
+                response.status shouldBe HttpStatusCode.NoContent
+
+                val mustChange = transaction {
+                    Users.selectAll()
+                        .where { Users.id eq targetId }
+                        .first()[Users.mustChangePassword]
+                }
+                mustChange shouldBe false
             }
         }
     })

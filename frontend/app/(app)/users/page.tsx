@@ -3,6 +3,7 @@
 import {useCallback, useEffect, useState} from "react";
 import {KeyRound, Pencil, Plus, Trash2, Users2} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
+import {useAuth} from "@/lib/auth-context";
 import {
     createAssignment,
     createUser,
@@ -31,7 +32,7 @@ async function loadUsers() {
 // ── Create User Modal ─────────────────────────────────────────────────────────
 
 function CreateUserModal({onClose, onDone}: { onClose: () => void; onDone: () => void }) {
-    const [form, setForm] = useState({username: "", email: "", password: ""});
+    const [form, setForm] = useState({username: "", email: "", password: "", forcePasswordChange: false});
     const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
 
@@ -60,6 +61,15 @@ function CreateUserModal({onClose, onDone}: { onClose: () => void; onDone: () =>
                 <Field label="Password">
                     <TextField type="password" value={form.password} onChange={(e) => setForm((f) => ({...f, password: e.target.value}))} required/>
                 </Field>
+                <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={form.forcePasswordChange}
+                        onChange={(e) => setForm((f) => ({...f, forcePasswordChange: e.target.checked}))}
+                        className="accent-amber-500"
+                    />
+                    <span className="text-sm text-text-dim">Require password change on next login</span>
+                </label>
                 {error && <p className="text-xs text-error">{error}</p>}
                 <div className="flex justify-end gap-2 pt-1">
                     <button type="button" className={BTN_GHOST} onClick={onClose}>Cancel</button>
@@ -132,6 +142,7 @@ function EditUserModal({user, onClose, onDone}: { user: User; onClose: () => voi
 function ResetPasswordModal({user, onClose, onDone}: { user: User; onClose: () => void; onDone: () => void }) {
     const [password, setPassword] = useState("");
     const [confirm, setConfirm] = useState("");
+    const [forcePasswordChange, setForcePasswordChange] = useState(true);
     const [error, setError] = useState("");
     const [saving, setSaving] = useState(false);
 
@@ -147,7 +158,7 @@ function ResetPasswordModal({user, onClose, onDone}: { user: User; onClose: () =
             return;
         }
         setSaving(true);
-        const {error} = await resetUserPassword({path: {id: user.id}, body: {password}});
+        const {error} = await resetUserPassword({path: {id: user.id}, body: {password, force_password_change: forcePasswordChange}});
         setSaving(false);
         if (error) {
             setError(error.message ?? "Failed to reset password");
@@ -159,13 +170,23 @@ function ResetPasswordModal({user, onClose, onDone}: { user: User; onClose: () =
     return (
         <Modal title={`Reset Password - ${user.username}`} onClose={onClose}>
             <form onSubmit={handleSubmit} className="space-y-4">
-                <p className="text-xs text-text-muted -mt-1">This will set a new password for {user.username}. Any active sessions for this user will remain signed in.</p>
+                <p className="text-xs text-text-muted -mt-1">This will set a new password
+                    for {user.username}. {forcePasswordChange ? "The user will be required to change it on next login and all existing sessions will be signed out." : "Any active sessions for this user will remain signed in."}</p>
                 <Field label="New Password">
                     <TextField type="password" value={password} onChange={(e) => setPassword(e.target.value)} required/>
                 </Field>
                 <Field label="Confirm New Password">
                     <TextField type="password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required/>
                 </Field>
+                <label className="flex items-center gap-2 cursor-pointer">
+                    <input
+                        type="checkbox"
+                        checked={forcePasswordChange}
+                        onChange={(e) => setForcePasswordChange(e.target.checked)}
+                        className="accent-amber-500"
+                    />
+                    <span className="text-sm text-text-dim">Require password change on next login</span>
+                </label>
                 {error && <p className="text-xs text-error">{error}</p>}
                 <div className="flex justify-end gap-2 pt-1">
                     <button type="button" className={BTN_GHOST} onClick={onClose}>Cancel</button>
@@ -326,6 +347,7 @@ function AssignmentsModal({
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export default function UsersPage() {
+    const {user: currentUser} = useAuth();
     const {data: users, initialLoad: loading, reload: load} = useResourceList(loadUsers, [], {pollMs: 0});
     const [groups, setGroups] = useState<Group[]>([]);
     const [showCreate, setShowCreate] = useState(false);
@@ -403,7 +425,9 @@ export default function UsersPage() {
                                         <ListActions>
                                             <IconActionButton icon={<Pencil size={13}/>} label="Edit" onClick={() => setEditing(u)}/>
                                             <IconActionButton icon={<Users2 size={13}/>} label="Manage groups" onClick={() => setManagingGroups(u)}/>
-                                            <IconActionButton icon={<KeyRound size={13}/>} label="Reset password" onClick={() => setResettingPassword(u)}/>
+                                            {u.id !== currentUser?.id && (
+                                                <IconActionButton icon={<KeyRound size={13}/>} label="Reset password" onClick={() => setResettingPassword(u)}/>
+                                            )}
                                             <IconActionButton
                                                 icon={<Trash2 size={13}/>}
                                                 label="Delete"
@@ -440,7 +464,9 @@ export default function UsersPage() {
                                     <div className="mt-2.5 flex items-center justify-end gap-1">
                                         <IconActionButton icon={<Pencil size={15}/>} label="Edit" onClick={() => setEditing(u)}/>
                                         <IconActionButton icon={<Users2 size={15}/>} label="Manage groups" onClick={() => setManagingGroups(u)}/>
-                                        <IconActionButton icon={<KeyRound size={15}/>} label="Reset password" onClick={() => setResettingPassword(u)}/>
+                                        {u.id !== currentUser?.id && (
+                                            <IconActionButton icon={<KeyRound size={15}/>} label="Reset password" onClick={() => setResettingPassword(u)}/>
+                                        )}
                                         <IconActionButton
                                             icon={<Trash2 size={15}/>}
                                             label="Delete"

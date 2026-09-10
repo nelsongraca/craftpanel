@@ -222,6 +222,11 @@ On first start the agent registers itself with master using the bootstrap token.
 | `CRAFTPANEL_ADMIN_EMAIL`     | _(empty)_                                     | Seed initial Super Admin email — only used when users table is empty              |
 | `CRAFTPANEL_ADMIN_PASSWORD`  | _(empty)_                                     | Seed initial Super Admin password (Argon2id-hashed at startup)                   |
 | `CRAFTPANEL_ADMIN_USERNAME`  | `admin`                                       | Seed initial Super Admin username                                                 |
+| `CRAFTPANEL_ADMIN_RESET_PASSWORD` | `false`                                   | Force-reset the admin password on startup (see below)                            |
+
+#### Resetting the admin password
+
+Set `CRAFTPANEL_ADMIN_RESET_PASSWORD=true` together with a new `CRAFTPANEL_ADMIN_PASSWORD`, then restart master. The admin's password is re-hashed, their sessions are revoked, and `must_change_password` is set so they must pick a new password on next login. Remove the reset flag after the restart.
 
 **Agent**
 

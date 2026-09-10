@@ -145,7 +145,6 @@ type Tab = (typeof TABS)[number];
 // ── Overview tab ──────────────────────────────────────────────────────────────
 
 function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
-    const ramPct = node.total_ram_mb > 0 ? Math.min(100, (node.allocated_ram_mb / node.total_ram_mb) * 100) : 0;
     const cpuPct = node.total_cpu_shares > 0 ? Math.min(100, (node.allocated_cpu_shares / node.total_cpu_shares) * 100) : 0;
     const ramUsedMb = Math.max(node.allocated_ram_mb, node.system_ram_used_mb ?? 0);
     const ramUsagePct = node.total_ram_mb > 0 ? Math.min(100, (ramUsedMb / node.total_ram_mb) * 100) : 0;
@@ -200,10 +199,10 @@ function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
                 <InfoRow label="Private IP" value={node.private_ip}/>
                 <InfoRow label="Port Range" value={`${node.port_range_start}–${node.port_range_end}`}/>
                 <InfoRow label="Agent" value={node.agent_version ?? "-"}/>
-<InfoRow label="RAM Total" value={fmtMb(node.total_ram_mb)}/>
-                                <InfoRow label="RAM Reserved" value={fmtMb(node.reserved_ram_mb)}/>
-                                <InfoRow label="CPU Total" value={fmtCores(node.total_cpu_shares)}/>
-                                <InfoRow label="CPU Reserved" value={fmtCores(node.reserved_cpu_shares)}/>
+                <InfoRow label="RAM Total" value={fmtMb(node.total_ram_mb)}/>
+                <InfoRow label="RAM Reserved" value={fmtMb(node.reserved_ram_mb)}/>
+                <InfoRow label="CPU Total" value={fmtCores(node.total_cpu_shares)}/>
+                <InfoRow label="CPU Reserved" value={fmtCores(node.reserved_cpu_shares)}/>
                 <InfoRow label="Last Seen" value={node.last_seen_at ? timeAgo(node.last_seen_at) : "-"}/>
                 <InfoRow label="Created" value={new Date(node.created_at).toLocaleDateString()}/>
             </div>
@@ -280,7 +279,7 @@ function ServersTab({servers}: { servers: Server[] }) {
                 </thead>
                 <tbody>
                 {servers.map((s) => {
-                    
+
                     return (
                         <tr key={s.id} className="border-b border-border hover:bg-surface transition-colors">
                             <td className="py-3 pr-4">
@@ -293,7 +292,7 @@ function ServersTab({servers}: { servers: Server[] }) {
                   </span>
                             </td>
                             <td className="py-3 pr-4">
-                  <Badge variant={serverStatusVariant(s.status)}>{serverStatusLabel(s.status)}</Badge>
+                                <Badge variant={serverStatusVariant(s.status)}>{serverStatusLabel(s.status)}</Badge>
                             </td>
                             <td className="py-3 pr-4">
                                 <span className="font-mono text-xs text-text-muted">{fmtMb(s.memory_mb)}</span>

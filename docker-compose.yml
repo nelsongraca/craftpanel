@@ -51,6 +51,7 @@ services:
       PUBLIC_URLS: https://${DOMAIN:?required}
       CRAFTPANEL_ADMIN_EMAIL: ${ADMIN_EMAIL:?required}
       CRAFTPANEL_ADMIN_PASSWORD: ${ADMIN_PASSWORD:?required}
+      CRAFTPANEL_ADMIN_RESET_PASSWORD: ${ADMIN_RESET_PASSWORD:-false}
       # Split-subdomain deploy only (e.g. frontend at craftpanel.example.com, master at
       # api.craftpanel.example.com): set to the shared parent domain so the refresh-token
       # cookie is sent cross-subdomain, and add the frontend origin to PUBLIC_URLS above.

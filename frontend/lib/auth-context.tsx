@@ -12,6 +12,7 @@ import {
     authTotpRecovery,
     authTotpVerify,
 } from "@/lib/generated";
+import type {MeResponse} from "@/lib/generated";
 import {useRouter} from "next/navigation";
 
 export interface AuthUser {
@@ -22,6 +23,20 @@ export interface AuthUser {
     permissions: string[];
     server_permissions: Record<string, string[]>;
     totp_enabled: boolean;
+    must_change_password: boolean;
+}
+
+function toAuthUser(me: MeResponse): AuthUser {
+    return {
+        id: me.id,
+        username: me.username,
+        email: me.email,
+        groups: me.groups,
+        permissions: me.permissions,
+        server_permissions: me.server_permissions,
+        totp_enabled: me.totp_enabled,
+        must_change_password: me.must_change_password ?? false,
+    };
 }
 
 export interface LoginOutcome {
@@ -38,6 +53,7 @@ interface AuthContextValue {
     logout: () => Promise<void>;
     logoutAll: () => Promise<boolean>;
     changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
+    forceChangePassword: (newPassword: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -55,7 +71,7 @@ export function AuthProvider({children}: { children: React.ReactNode }) {
                 setAccessToken(refreshData.access_token ?? null);
 
                 const {data: me} = await authMe();
-                if (me) setUser(me);
+                if (me) setUser(toAuthUser(me));
             } catch {
                 // no session
             } finally {
@@ -68,7 +84,7 @@ export function AuthProvider({children}: { children: React.ReactNode }) {
 
     const finishAuth = useCallback(async () => {
         const {data: me} = await authMe();
-        if (me) setUser(me);
+        if (me) setUser(toAuthUser(me));
         router.push("/");
     }, [router]);
 
@@ -123,11 +139,18 @@ export function AuthProvider({children}: { children: React.ReactNode }) {
         const {error} = await authChangePassword({body: {old_password: oldPassword, new_password: newPassword}});
         if (error) throw new Error(error.message ?? "Failed to change password");
         const {data: me} = await authMe();
-        if (me) setUser(me);
+        if (me) setUser(toAuthUser(me));
+    }, []);
+
+    const forceChangePassword = useCallback(async (newPassword: string) => {
+        const {error} = await authChangePassword({body: {old_password: "", new_password: newPassword}});
+        if (error) throw new Error(error.message ?? "Failed to change password");
+        const {data: me} = await authMe();
+        if (me) setUser(toAuthUser(me));
     }, []);
 
     return (
-        <AuthContext.Provider value={{user, isLoading, login, verifyTotp, verifyRecovery, logout, logoutAll, changePassword}}>
+        <AuthContext.Provider value={{user, isLoading, login, verifyTotp, verifyRecovery, logout, logoutAll, changePassword, forceChangePassword}}>
             {children}
         </AuthContext.Provider>
     );
