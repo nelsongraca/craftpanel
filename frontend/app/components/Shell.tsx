@@ -8,7 +8,7 @@ import {AlertTriangle, Bell, ChevronDown, KeyRound, LayoutDashboard, LogOut, typ
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import {DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger} from "@/components/ui/dropdown-menu";
-import {fetchAppName} from "@/lib/config";
+import {fetchBrandingConfig, logoUrl, type BrandingConfig} from "@/lib/config";
 
 interface HealthInfo {
     frontendVersion: string;
@@ -65,11 +65,15 @@ export default function Shell({children}: { children: React.ReactNode }) {
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [health, setHealth] = useState<HealthInfo | null>(null);
     const [appName, setAppName] = useState("CraftPanel");
+    const [branding, setBranding] = useState<BrandingConfig | null>(null);
 
     const permissions = user?.permissions ?? [];
 
     useEffect(() => {
-        fetchAppName().then(setAppName);
+        fetchBrandingConfig().then((cfg) => {
+            setBranding(cfg);
+            setAppName(cfg.appName);
+        });
     }, []);
 
     useEffect(() => {
@@ -97,7 +101,7 @@ export default function Shell({children}: { children: React.ReactNode }) {
                     >
                         <Menu size={20} strokeWidth={2}/>
                     </button>
-                    <Image src="/logo.svg" alt={`${appName} logo`} width={26} height={26} unoptimized className="shrink-0"/>
+                    <Image src={logoUrl(branding)} alt={`${appName} logo`} width={26} height={26} unoptimized className="shrink-0"/>
                     <span className="text-base font-bold font-heading tracking-widest uppercase text-accent">
                         {appName}
                     </span>

@@ -3,7 +3,7 @@ import type {Metadata, Viewport} from "next";
 import {Barlow, Barlow_Condensed, JetBrains_Mono} from "next/font/google";
 import "./globals.css";
 import {AuthProvider} from "@/lib/auth-context";
-import {fetchAppName} from "@/lib/config";
+import {fetchAppName, fetchBrandingConfig} from "@/lib/config";
 
 const barlow = Barlow({
     variable: "--font-sans",
@@ -25,14 +25,21 @@ const jetbrainsMono = JetBrains_Mono({
 
 export async function generateMetadata(): Promise<Metadata> {
     const appName = await fetchAppName()
+    const branding = await fetchBrandingConfig()
+    const icons: Metadata["icons"] = branding.hasLogo
+        ? {
+            icon: [{url: "/api/branding/logo", type: "image/svg+xml"}, {url: "/api/branding/icon-192.png", sizes: "192x192", type: "image/png"}],
+            apple: "/api/branding/icon-192.png",
+        }
+        : {
+            icon: [{url: "/logo.svg", type: "image/svg+xml"}, {url: "/icon-192.png", sizes: "192x192", type: "image/png"}],
+            apple: "/apple-touch-icon.png",
+        }
     return {
         title: appName,
         description: "Minecraft server management dashboard",
         manifest: "/manifest",
-        icons: {
-            icon: [{url: "/logo.svg", type: "image/svg+xml"}, {url: "/icon-192.png", sizes: "192x192", type: "image/png"}],
-            apple: "/apple-touch-icon.png",
-        },
+        icons,
         appleWebApp: {
             capable: true,
             title: appName,

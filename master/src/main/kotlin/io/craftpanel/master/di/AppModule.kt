@@ -125,6 +125,7 @@ val appModule = module {
     single { GroupService(groupRepository = get()) }
     single { AssignmentService(userRepository = get(), groupRepository = get(), serverRepository = get(), networkRepository = get()) }
     single { SystemService(settingsRepository = get()) }
+    single { BrandingService(settingsRepository = get()) }
     single { NodeService(gateway = get<AgentGateway>(), nodeRepository = get(), serverRepository = get()) }
     single {
         val endpoint = get<AppConfig>().docker.endpoint

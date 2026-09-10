@@ -10,7 +10,7 @@ import io.ktor.server.request.*
 import io.ktor.server.response.*
 import io.ktor.server.routing.*
 
-fun Route.systemRoutes(systemService: SystemService) {
+fun Route.systemRoutes(systemService: SystemService, brandingService: BrandingService) {
     authenticate(JWT_AUTH) {
         route("/api/system/settings") {
             get("", {
@@ -40,7 +40,11 @@ fun Route.systemRoutes(systemService: SystemService) {
                 call.requirePermission(Permission.SYSTEM_SETTINGS)
                 val userId = call.userId()
                 val req = call.receive<PatchSettingsRequest>()
-                call.respond(systemService.updateSettings(userId, req))
+                val result = systemService.updateSettings(userId, req)
+                if (req.appLogo != null) {
+                    brandingService.invalidateCache()
+                }
+                call.respond(result)
             }
         }
     }

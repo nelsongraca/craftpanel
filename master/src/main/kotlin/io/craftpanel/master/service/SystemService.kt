@@ -16,6 +16,7 @@ import kotlin.uuid.Uuid
 @Serializable
 data class SettingsMap(
     @SerialName("app_name") val appName: String,
+    @SerialName("app_logo") val appLogo: String?,
     @SerialName("metric_retention_days") val metricRetentionDays: Int,
     @SerialName("default_backup_max_count") val defaultBackupMaxCount: Int,
     @SerialName("default_port_range_start") val defaultPortRangeStart: Int,
@@ -38,6 +39,7 @@ data class SystemSettingsResponse(val settings: SettingsMap, @SerialName("update
 @Serializable
 data class PatchSettingsRequest(
     @SerialName("app_name") val appName: String? = null,
+    @SerialName("app_logo") val appLogo: String? = null,
     @SerialName("metric_retention_days") val metricRetentionDays: Int? = null,
     @SerialName("default_backup_max_count") val defaultBackupMaxCount: Int? = null,
     @SerialName("default_port_range_start") val defaultPortRangeStart: Int? = null,
@@ -101,6 +103,7 @@ class SystemService(private val settingsRepository: SettingsRepository) {
         val now = Clock.System.now()
         val updates = buildMap {
             if (req.appName != null) put("app_name", req.appName)
+            if (req.appLogo != null) put("app_logo", req.appLogo)
             if (req.metricRetentionDays != null) put("metric_retention_days", req.metricRetentionDays.toString())
             if (req.defaultBackupMaxCount != null) put("default_backup_max_count", req.defaultBackupMaxCount.toString())
             if (req.defaultPortRangeStart != null) put("default_port_range_start", req.defaultPortRangeStart.toString())
@@ -143,6 +146,7 @@ class SystemService(private val settingsRepository: SettingsRepository) {
         return SystemSettingsResponse(
             settings = SettingsMap(
                 appName = map["app_name"]?.takeIf { it.isNotBlank() } ?: "CraftPanel",
+                appLogo = map["app_logo"]?.takeIf { it.isNotBlank() },
                 metricRetentionDays = map["metric_retention_days"]?.toIntOrNull() ?: 30,
                 defaultBackupMaxCount = map["default_backup_max_count"]?.toIntOrNull() ?: 10,
                 defaultPortRangeStart = map["default_port_range_start"]?.toIntOrNull() ?: 25570,

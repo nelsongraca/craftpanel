@@ -4,7 +4,7 @@ import {useEffect, useState} from "react";
 import Image from "next/image";
 import {useRouter} from "next/navigation";
 import {useAuth} from "@/lib/auth-context";
-import {fetchAppName} from "@/lib/config";
+import {fetchBrandingConfig, logoUrl, type BrandingConfig} from "@/lib/config";
 import {TextField} from "@/components/ui/form-elements";
 
 interface Challenge {
@@ -22,9 +22,13 @@ export default function LoginPage() {
     const [challenge, setChallenge] = useState<Challenge | null>(null);
     const [code, setCode] = useState("");
     const [appName, setAppName] = useState("CraftPanel");
+    const [branding, setBranding] = useState<BrandingConfig | null>(null);
 
     useEffect(() => {
-        fetchAppName().then(setAppName);
+        fetchBrandingConfig().then((cfg) => {
+            setBranding(cfg);
+            setAppName(cfg.appName);
+        });
     }, []);
 
     useEffect(() => {
@@ -88,7 +92,7 @@ export default function LoginPage() {
                 <div className="w-full max-w-sm bg-surface border border-border rounded-lg p-8">
                     <div className="text-center mb-8">
                         <div className="flex items-center justify-center gap-3 mb-2">
-                            <Image src="/logo.svg" alt={`${appName} logo`} width={36} height={36} unoptimized/>
+                            <Image src={logoUrl(branding)} alt={`${appName} logo`} width={36} height={36} unoptimized/>
                             <h1 className="text-2xl font-bold font-heading tracking-wide text-accent">
                                 {appName}
                             </h1>
@@ -155,7 +159,7 @@ export default function LoginPage() {
             <div className="w-full max-w-sm bg-surface border border-border rounded-lg p-8">
                 <div className="text-center mb-8">
                     <div className="flex items-center justify-center gap-3 mb-2">
-                        <Image src="/logo.svg" alt={`${appName} logo`} width={36} height={36} unoptimized/>
+                        <Image src={logoUrl(branding)} alt={`${appName} logo`} width={36} height={36} unoptimized/>
                         <h1 className="text-2xl font-bold font-heading tracking-wide text-accent">
                             {appName}
                         </h1>
