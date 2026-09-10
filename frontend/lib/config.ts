@@ -17,7 +17,10 @@ function apiBase(): string {
 
 export async function fetchAppName(): Promise<string> {
     try {
-        const res = await fetch(`${apiBase()}/api/config`)
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 2000)
+        const res = await fetch(`${apiBase()}/api/config`, {signal: controller.signal})
+        clearTimeout(timeout)
         if (!res.ok) return APP_NAME_DEFAULT
         const data = await res.json() as { app_name?: string }
         return data.app_name?.trim() || APP_NAME_DEFAULT
@@ -38,7 +41,10 @@ export function resetAppNameCache() {
 
 export async function fetchBrandingConfig(): Promise<BrandingConfig> {
     try {
-        const res = await fetch(`${apiBase()}/api/config`)
+        const controller = new AbortController()
+        const timeout = setTimeout(() => controller.abort(), 2000)
+        const res = await fetch(`${apiBase()}/api/config`, {signal: controller.signal})
+        clearTimeout(timeout)
         if (!res.ok) {
             return {appName: APP_NAME_DEFAULT, hasLogo: false, logoHash: "", logoUrl: "/api/branding/logo"}
         }
