@@ -4,6 +4,7 @@ import {useEffect, useState} from "react";
 import Image from "next/image";
 import {useRouter} from "next/navigation";
 import {useAuth} from "@/lib/auth-context";
+import {fetchAppName} from "@/lib/config";
 import {TextField} from "@/components/ui/form-elements";
 
 interface Challenge {
@@ -20,6 +21,11 @@ export default function LoginPage() {
     const [submitting, setSubmitting] = useState(false);
     const [challenge, setChallenge] = useState<Challenge | null>(null);
     const [code, setCode] = useState("");
+    const [appName, setAppName] = useState("CraftPanel");
+
+    useEffect(() => {
+        fetchAppName().then(setAppName);
+    }, []);
 
     useEffect(() => {
         if (!isLoading && user) {
@@ -82,9 +88,9 @@ export default function LoginPage() {
                 <div className="w-full max-w-sm bg-surface border border-border rounded-lg p-8">
                     <div className="text-center mb-8">
                         <div className="flex items-center justify-center gap-3 mb-2">
-                            <Image src="/logo.svg" alt="CraftPanel logo" width={36} height={36} unoptimized/>
+                            <Image src="/logo.svg" alt={`${appName} logo`} width={36} height={36} unoptimized/>
                             <h1 className="text-2xl font-bold font-heading tracking-wide text-accent">
-                                CraftPanel
+                                {appName}
                             </h1>
                         </div>
                         <h2 className="text-sm font-heading font-bold uppercase tracking-widest text-text-primary pt-2">
@@ -149,9 +155,9 @@ export default function LoginPage() {
             <div className="w-full max-w-sm bg-surface border border-border rounded-lg p-8">
                 <div className="text-center mb-8">
                     <div className="flex items-center justify-center gap-3 mb-2">
-                        <Image src="/logo.svg" alt="CraftPanel logo" width={36} height={36} unoptimized/>
+                        <Image src="/logo.svg" alt={`${appName} logo`} width={36} height={36} unoptimized/>
                         <h1 className="text-2xl font-bold font-heading tracking-wide text-accent">
-                            CraftPanel
+                            {appName}
                         </h1>
                     </div>
                     <p className="text-text-muted text-xs mt-2">Sign in to your account</p>

@@ -8,6 +8,7 @@ import {AlertTriangle, Bell, ChevronDown, KeyRound, LayoutDashboard, LogOut, typ
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import {DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger} from "@/components/ui/dropdown-menu";
+import {fetchAppName} from "@/lib/config";
 
 interface HealthInfo {
     frontendVersion: string;
@@ -63,8 +64,13 @@ export default function Shell({children}: { children: React.ReactNode }) {
     const {user, logout} = useAuth();
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [health, setHealth] = useState<HealthInfo | null>(null);
+    const [appName, setAppName] = useState("CraftPanel");
 
     const permissions = user?.permissions ?? [];
+
+    useEffect(() => {
+        fetchAppName().then(setAppName);
+    }, []);
 
     useEffect(() => {
         fetch("/healthz")
@@ -91,9 +97,9 @@ export default function Shell({children}: { children: React.ReactNode }) {
                     >
                         <Menu size={20} strokeWidth={2}/>
                     </button>
-                    <Image src="/logo.svg" alt="CraftPanel logo" width={26} height={26} unoptimized className="shrink-0"/>
+                    <Image src="/logo.svg" alt={`${appName} logo`} width={26} height={26} unoptimized className="shrink-0"/>
                     <span className="text-base font-bold font-heading tracking-widest uppercase text-accent">
-                        CraftPanel
+                        {appName}
                     </span>
                 </div>
 
@@ -181,16 +187,21 @@ export default function Shell({children}: { children: React.ReactNode }) {
                 </main>
             </div>
 
-            <footer className="shrink-0 px-4 py-1.5 border-t border-border bg-surface flex items-center justify-center gap-3">
-                {health?.versionMismatch && (
-                    <span className="flex items-center gap-1 text-xs font-mono text-warning" title="Frontend and master are running different versions">
-                        <AlertTriangle size={12} strokeWidth={2}/>
-                        version mismatch
-                    </span>
-                )}
-                <span className="text-xs font-mono text-text-muted">
-                    frontend {health?.frontendVersion ?? "…"} · master {health?.masterVersion ?? "…"}
+            <footer className="shrink-0 px-4 py-1.5 border-t border-border bg-surface flex items-center justify-between gap-3">
+                <span className="text-[10px] font-mono text-text-muted">
+                    powered by CraftPanel
                 </span>
+                <div className="flex items-center gap-3">
+                    {health?.versionMismatch && (
+                        <span className="flex items-center gap-1 text-xs font-mono text-warning" title="Frontend and master are running different versions">
+                            <AlertTriangle size={12} strokeWidth={2}/>
+                            version mismatch
+                        </span>
+                    )}
+                    <span className="text-xs font-mono text-text-muted">
+                        frontend {health?.frontendVersion ?? "…"} · master {health?.masterVersion ?? "…"}
+                    </span>
+                </div>
             </footer>
         </div>
     );

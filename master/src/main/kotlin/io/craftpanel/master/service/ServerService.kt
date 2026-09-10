@@ -126,7 +126,7 @@ class ServerService(
             when (capacityChecker.check(node, excludeServerId = null, memoryMb = memoryMb, cpuShares = cpuShares)) {
                 CapacityResult.InsufficientRam -> throw ConflictException("Insufficient RAM capacity on node")
                 CapacityResult.InsufficientCpu -> throw ConflictException("Insufficient CPU capacity on node")
-                CapacityResult.Ok -> {}
+                CapacityResult.Ok              -> {}
             }
 
             val usedPorts = portRepository.findUsedPortsOnNode(nodeKotlinId)
@@ -160,14 +160,15 @@ class ServerService(
                 }
 
                 val platformName = settingsRepository.getAll()
-                    .firstOrNull { it.key == "CRAFTPANEL_PLATFORM_NAME" }
-                    ?.value ?: "CraftPanel"
+                    .firstOrNull { it.key == "app_name" }
+                    ?.value?.takeIf { it.isNotBlank() } ?: "CraftPanel"
                 val serverTypeDisplay = serverType.lowercase()
                     .replaceFirstChar { it.uppercase() }
 
                 if (!st.isProxy) {
                     val defaults = buildDefaultEnvVars(mcVersion, serverTypeDisplay, platformName)
-                    EnvVar.find { ServerEnvVars.serverId eq entity.id.value }.forEach { it.delete() }
+                    EnvVar.find { ServerEnvVars.serverId eq entity.id.value }
+                        .forEach { it.delete() }
                     defaults.forEach { (k, v) ->
                         EnvVar.new {
                             this.serverId = EntityID(entity.id.value, Servers)
@@ -175,7 +176,8 @@ class ServerService(
                             value = v
                         }
                     }
-                } else {
+                }
+                else {
                     entity.proxyMotd = "$serverTypeDisplay powered by $platformName"
                     entity.proxyMaxPlayers = null
                     entity.proxyForwardingMode = null
@@ -192,13 +194,15 @@ class ServerService(
             repeat(3) {
                 try {
                     return@run attemptCreate()
-                } catch (ex: Exception) {
+                }
+                catch (ex: Exception) {
                     val cause = generateSequence(ex as Throwable) { it.cause }
                         .filterIsInstance<java.sql.SQLException>()
                         .firstOrNull()
                     if (cause != null && cause.sqlState?.startsWith("23") == true) {
                         lastEx = cause
-                    } else {
+                    }
+                    else {
                         throw ex
                     }
                 }
@@ -229,14 +233,16 @@ class ServerService(
         )
 
         transaction {
-            EnvVar.find { ServerEnvVars.serverId eq created.id }.forEach { it.delete() }
-            envVarsRepository.getEnvVars(sourceId).forEach { ev ->
-                EnvVar.new {
-                    this.serverId = EntityID(created.id, Servers)
-                    key = ev.key
-                    value = ev.value
+            EnvVar.find { ServerEnvVars.serverId eq created.id }
+                .forEach { it.delete() }
+            envVarsRepository.getEnvVars(sourceId)
+                .forEach { ev ->
+                    EnvVar.new {
+                        this.serverId = EntityID(created.id, Servers)
+                        key = ev.key
+                        value = ev.value
+                    }
                 }
-            }
         }
 
         modRepository.listMods(sourceId)
@@ -299,7 +305,8 @@ class ServerService(
         if (recordId != null) {
             val provider = dnsProvider
                 ?: throw ConflictException("Cannot delete server with DNS record: DNS provider not configured")
-            val settings = settingsRepository.getAll().associate { it.key to it.value }
+            val settings = settingsRepository.getAll()
+                .associate { it.key to it.value }
             val zoneId = settings["dns_zone_id"]?.takeIf { it.isNotBlank() }
                 ?: throw ConflictException("Cannot delete server with DNS record: no DNS zone configured")
             runCatching { provider.deleteARecord(zoneId, recordId) }
@@ -330,7 +337,8 @@ class ServerService(
             ContainerMetrics.deleteWhere { ContainerMetrics.serverId eq id }
             ProxyBackends.deleteWhere { ProxyBackends.proxyServerId eq id }
             ProxyBackends.deleteWhere { ProxyBackends.backendServerId eq id }
-            Server.findById(id)?.delete()
+            Server.findById(id)
+                ?.delete()
         }
     }
 
@@ -343,7 +351,7 @@ class ServerService(
         when (capacityChecker.check(node, excludeServerId = id, memoryMb = memoryMb, cpuShares = cpuShares)) {
             CapacityResult.InsufficientRam -> throw ConflictException("Insufficient RAM capacity on node")
             CapacityResult.InsufficientCpu -> throw ConflictException("Insufficient CPU capacity on node")
-            CapacityResult.Ok -> {}
+            CapacityResult.Ok              -> {}
         }
         transaction {
             val e = Server.findById(id) ?: return@transaction

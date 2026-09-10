@@ -3,6 +3,7 @@ import type {Metadata, Viewport} from "next";
 import {Barlow, Barlow_Condensed, JetBrains_Mono} from "next/font/google";
 import "./globals.css";
 import {AuthProvider} from "@/lib/auth-context";
+import {fetchAppName} from "@/lib/config";
 
 const barlow = Barlow({
     variable: "--font-sans",
@@ -22,20 +23,23 @@ const jetbrainsMono = JetBrains_Mono({
     weight: ["400", "500", "600"],
 });
 
-export const metadata: Metadata = {
-    title: "CraftPanel",
-    description: "Minecraft server management dashboard",
-    manifest: "/manifest.json",
-    icons: {
-        icon: [{url: "/logo.svg", type: "image/svg+xml"}, {url: "/icon-192.png", sizes: "192x192", type: "image/png"}],
-        apple: "/apple-touch-icon.png",
-    },
-    appleWebApp: {
-        capable: true,
-        title: "CraftPanel",
-        statusBarStyle: "black-translucent",
-    },
-};
+export async function generateMetadata(): Promise<Metadata> {
+    const appName = await fetchAppName()
+    return {
+        title: appName,
+        description: "Minecraft server management dashboard",
+        manifest: "/manifest",
+        icons: {
+            icon: [{url: "/logo.svg", type: "image/svg+xml"}, {url: "/icon-192.png", sizes: "192x192", type: "image/png"}],
+            apple: "/apple-touch-icon.png",
+        },
+        appleWebApp: {
+            capable: true,
+            title: appName,
+            statusBarStyle: "black-translucent",
+        },
+    }
+}
 
 export const viewport: Viewport = {
     themeColor: "#d97706",

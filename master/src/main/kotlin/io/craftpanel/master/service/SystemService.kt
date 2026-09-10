@@ -15,6 +15,7 @@ import kotlin.uuid.Uuid
 
 @Serializable
 data class SettingsMap(
+    @SerialName("app_name") val appName: String,
     @SerialName("metric_retention_days") val metricRetentionDays: Int,
     @SerialName("default_backup_max_count") val defaultBackupMaxCount: Int,
     @SerialName("default_port_range_start") val defaultPortRangeStart: Int,
@@ -36,6 +37,7 @@ data class SystemSettingsResponse(val settings: SettingsMap, @SerialName("update
 
 @Serializable
 data class PatchSettingsRequest(
+    @SerialName("app_name") val appName: String? = null,
     @SerialName("metric_retention_days") val metricRetentionDays: Int? = null,
     @SerialName("default_backup_max_count") val defaultBackupMaxCount: Int? = null,
     @SerialName("default_port_range_start") val defaultPortRangeStart: Int? = null,
@@ -86,6 +88,9 @@ class SystemService(private val settingsRepository: SettingsRepository) {
         if (req.imageMinecraft != null && req.imageMinecraft.isBlank()) {
             throw UnprocessableException("image_minecraft must not be blank")
         }
+        if (req.appName != null && req.appName.isBlank()) {
+            throw UnprocessableException("app_name must not be blank")
+        }
         if (req.imageProxy != null && req.imageProxy.isBlank()) {
             throw UnprocessableException("image_proxy must not be blank")
         }
@@ -95,6 +100,7 @@ class SystemService(private val settingsRepository: SettingsRepository) {
 
         val now = Clock.System.now()
         val updates = buildMap {
+            if (req.appName != null) put("app_name", req.appName)
             if (req.metricRetentionDays != null) put("metric_retention_days", req.metricRetentionDays.toString())
             if (req.defaultBackupMaxCount != null) put("default_backup_max_count", req.defaultBackupMaxCount.toString())
             if (req.defaultPortRangeStart != null) put("default_port_range_start", req.defaultPortRangeStart.toString())
@@ -136,6 +142,7 @@ class SystemService(private val settingsRepository: SettingsRepository) {
         val latest = rows.maxByOrNull { it.updatedAt }
         return SystemSettingsResponse(
             settings = SettingsMap(
+                appName = map["app_name"]?.takeIf { it.isNotBlank() } ?: "CraftPanel",
                 metricRetentionDays = map["metric_retention_days"]?.toIntOrNull() ?: 30,
                 defaultBackupMaxCount = map["default_backup_max_count"]?.toIntOrNull() ?: 10,
                 defaultPortRangeStart = map["default_port_range_start"]?.toIntOrNull() ?: 25570,
