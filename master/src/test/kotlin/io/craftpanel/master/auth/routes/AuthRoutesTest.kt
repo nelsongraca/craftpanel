@@ -364,7 +364,7 @@ class AuthRoutesTest :
         // logout-all
         // -------------------------------------------------------------------------
 
-        test("logout-all revokes all refresh tokens") {
+        test("logout-all revokes all refresh tokens when no cookie present") {
             testApplication {
                 application { configureTest() }
                 val client = jsonClient()
@@ -377,6 +377,22 @@ class AuthRoutesTest :
 
                 client.post("/api/auth/refresh") { cookie("refresh_token", refreshToken) }
                     .status shouldBe HttpStatusCode.Unauthorized
+            }
+        }
+
+        test("logout-all keeps the current session active when cookie is present") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser()
+
+                val (accessToken, refreshToken) = login()
+
+                client.post("/api/auth/logout-all") { bearerAuth(accessToken); cookie("refresh_token", refreshToken) }
+                    .status shouldBe HttpStatusCode.NoContent
+
+                client.post("/api/auth/refresh") { cookie("refresh_token", refreshToken) }
+                    .status shouldBe HttpStatusCode.OK
             }
         }
 

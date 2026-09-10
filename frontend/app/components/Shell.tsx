@@ -48,12 +48,6 @@ const sidebarSections: SidebarSection[] = [
         ],
     },
     {
-        title: "Account",
-        items: [
-            {label: "Account", href: "/account", icon: UserCircle},
-        ],
-    },
-    {
         title: "System",
         items: [
             {label: "Alerts", href: "/alerts", icon: Bell},
@@ -66,7 +60,7 @@ const sidebarSections: SidebarSection[] = [
 
 export default function Shell({children}: { children: React.ReactNode }) {
     const pathname = usePathname();
-    const {user, logout, logoutAll} = useAuth();
+    const {user, logout} = useAuth();
     const [drawerOpen, setDrawerOpen] = useState(false);
     const [health, setHealth] = useState<HealthInfo | null>(null);
 
@@ -115,13 +109,13 @@ export default function Shell({children}: { children: React.ReactNode }) {
                                 <DropdownMenuLabel className="text-text-muted truncate">
                                     {user?.email}
                                 </DropdownMenuLabel>
+                                <DropdownMenuItem render={<Link href="/account"/>} className="text-text-primary">
+                                    <UserCircle size={13} strokeWidth={2}/>
+                                    Account
+                                </DropdownMenuItem>
                                 <DropdownMenuItem onClick={logout} className="text-text-primary">
                                     <LogOut size={13} strokeWidth={2}/>
                                     Sign out
-                                </DropdownMenuItem>
-                                <DropdownMenuItem onClick={logoutAll} className="text-text-dim">
-                                    <LogOut size={13} strokeWidth={2}/>
-                                    Sign out all sessions
                                 </DropdownMenuItem>
                             </DropdownMenuGroup>
                         </DropdownMenuContent>

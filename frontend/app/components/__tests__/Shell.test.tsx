@@ -5,7 +5,6 @@ vi.mock("@/lib/auth-context", () => ({
     useAuth: vi.fn(() => ({
         user: {username: "admin", email: "admin@test", permissions: []},
         logout: vi.fn(),
-        logoutAll: vi.fn(),
     })),
 }));
 
@@ -16,7 +15,6 @@ function useAuthAs(permissions: string[]) {
     (vi.mocked(useAuth) as ReturnType<typeof vi.fn>).mockReturnValue({
         user: {username: "admin", email: "admin@test", permissions},
         logout: vi.fn(),
-        logoutAll: vi.fn(),
     });
 }
 

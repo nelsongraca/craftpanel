@@ -294,10 +294,10 @@ describe('AuthProvider', () => {
         expect(() => render(<Bare/>)).toThrow('useAuth must be used within AuthProvider')
     })
 
-    it('logoutAll calls authLogoutAll, clears token/user, redirects to /login', async () => {
+    it('logoutAll calls authLogoutAll and returns true on success', async () => {
         vi.mocked(generated.authRefresh).mockResolvedValue({data: {access_token: 'tok'}} as never)
         vi.mocked(generated.authMe).mockResolvedValue({data: mockUser} as never)
-        vi.mocked(generated.authLogoutAll).mockResolvedValue({} as never)
+        vi.mocked(generated.authLogoutAll).mockResolvedValue({data: undefined, error: undefined} as never)
 
         render(<AuthProvider><TestConsumer/><TestLogoutAll/></AuthProvider>)
         await waitFor(() => expect(screen.getByTestId('user')).toHaveTextContent('u@test.com'))
@@ -307,16 +307,15 @@ describe('AuthProvider', () => {
         })
 
         await waitFor(() => {
-            expect(screen.getByTestId('user')).toHaveTextContent('none')
+            expect(screen.getByTestId('user')).toHaveTextContent('u@test.com')
         })
-        expect(clientModule.setAccessToken).toHaveBeenCalledWith(null)
         expect(generated.authLogoutAll).toHaveBeenCalled()
     })
 
-    it('authLogoutAll failure still clears token/user and redirects', async () => {
+    it('logoutAll returns false on failure without clearing state', async () => {
         vi.mocked(generated.authRefresh).mockResolvedValue({data: {access_token: 'tok'}} as never)
         vi.mocked(generated.authMe).mockResolvedValue({data: mockUser} as never)
-        vi.mocked(generated.authLogoutAll).mockRejectedValue(new Error('network'))
+        vi.mocked(generated.authLogoutAll).mockResolvedValue({data: undefined, error: {message: 'fail'}} as never)
 
         render(<AuthProvider><TestConsumer/><TestLogoutAll/></AuthProvider>)
         await waitFor(() => expect(screen.getByTestId('user')).toHaveTextContent('u@test.com'))
@@ -326,9 +325,9 @@ describe('AuthProvider', () => {
         })
 
         await waitFor(() => {
-            expect(screen.getByTestId('user')).toHaveTextContent('none')
+            expect(screen.getByTestId('user')).toHaveTextContent('u@test.com')
         })
-        expect(clientModule.setAccessToken).toHaveBeenCalledWith(null)
+        expect(clientModule.setAccessToken).not.toHaveBeenCalledWith(null)
     })
 
     it('changePassword calls API and refreshes user', async () => {

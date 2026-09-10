@@ -77,6 +77,17 @@ class RefreshTokenService(private val userRepository: UserRepository) {
         transaction { RefreshTokens.update({ RefreshTokens.userId eq userId }) { it[RefreshTokens.revoked] = true } }
     }
 
+    fun revokeAllExceptCurrent(userId: Uuid, currentRawToken: String) {
+        val currentHash = sha256Hex(currentRawToken)
+        transaction {
+            RefreshTokens.update({
+                (RefreshTokens.userId eq userId) and (RefreshTokens.tokenHash neq currentHash)
+            }) {
+                it[RefreshTokens.revoked] = true
+            }
+        }
+    }
+
     private fun generateRaw(): String = CryptoUtils.generateToken(48)
 
     private fun sha256Hex(input: String): String = // Result is used only as a DB lookup key (SQL WHERE) — never compared in Kotlin code.

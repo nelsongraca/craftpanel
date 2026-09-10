@@ -391,7 +391,7 @@ fun Route.authRoutes(
 
             post("/logout-all", {
                 operationId = "authLogoutAll"
-                summary = "Logout all sessions"
+                summary = "Logout all sessions except the current one"
                 response {
                     code(HttpStatusCode.NoContent) { }
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
@@ -399,17 +399,13 @@ fun Route.authRoutes(
             }) {
                 val principal = call.principal<JWTPrincipal>()!!
                 val userId = call.userId()
-                refreshTokenService.revokeAll(userId)
-                call.response.cookies.append(
-                    name = "refresh_token",
-                    value = "",
-                    httpOnly = true,
-                    secure = secureCookies,
-                    extensions = mapOf("SameSite" to "Strict"),
-                    path = "/api/auth",
-                    domain = cookieDomainOrNull,
-                    maxAge = 0
-                )
+                val currentRefreshToken = call.request.cookies["refresh_token"]
+                if (currentRefreshToken != null) {
+                    refreshTokenService.revokeAllExceptCurrent(userId, currentRefreshToken)
+                }
+                else {
+                    refreshTokenService.revokeAll(userId)
+                }
                 call.respond(HttpStatusCode.NoContent)
             }
 

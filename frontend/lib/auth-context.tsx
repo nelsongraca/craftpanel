@@ -36,7 +36,7 @@ interface AuthContextValue {
     verifyTotp: (tempToken: string, code: string) => Promise<void>;
     verifyRecovery: (tempToken: string, code: string) => Promise<void>;
     logout: () => Promise<void>;
-    logoutAll: () => Promise<void>;
+    logoutAll: () => Promise<boolean>;
     changePassword: (oldPassword: string, newPassword: string) => Promise<void>;
 }
 
@@ -115,12 +115,9 @@ export function AuthProvider({children}: { children: React.ReactNode }) {
     }, [router]);
 
     const logoutAll = useCallback(async () => {
-        await authLogoutAll().catch(() => {
-        });
-        setAccessToken(null);
-        setUser(null);
-        router.push("/login");
-    }, [router]);
+        const {error} = await authLogoutAll();
+        return !error;
+    }, []);
 
     const changePassword = useCallback(async (oldPassword: string, newPassword: string) => {
         const {error} = await authChangePassword({body: {old_password: oldPassword, new_password: newPassword}});

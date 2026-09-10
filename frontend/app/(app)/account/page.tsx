@@ -10,7 +10,7 @@ import {BTN_GHOST, BTN_PRIMARY, Field, TextField} from "@/components/ui/form-ele
 import {TotpSetupModal} from "@/components/auth/TotpSetupModal";
 
 export default function AccountPage() {
-    const {user, changePassword} = useAuth();
+    const {user, changePassword, logoutAll} = useAuth();
     const [status, setStatus] = useState<TotpStatus | null>(null);
     const [statusError, setStatusError] = useState("");
     const [setupOpen, setSetupOpen] = useState(false);
@@ -24,6 +24,8 @@ export default function AccountPage() {
     const [pwError, setPwError] = useState("");
     const [pwChanged, setPwChanged] = useState(false);
     const [pwSaving, setPwSaving] = useState(false);
+    const [sessionsBusy, setSessionsBusy] = useState(false);
+    const [sessionsMsg, setSessionsMsg] = useState("");
 
     const loadStatus = useCallback(async () => {
         const {data, error} = await authTotpStatus();
@@ -215,6 +217,32 @@ export default function AccountPage() {
             {setupOpen && (
                 <TotpSetupModal onClose={() => setSetupOpen(false)} onEnabled={() => void loadStatus()}/>
             )}
+
+            {/* ── Sessions ────────────────────────────────────────────── */}
+            <section className="bg-surface border border-border rounded-md p-5 space-y-4">
+                <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                    Sessions
+                </h2>
+                <p className="text-sm text-text-dim">
+                    Sign out all other sessions across devices. Your current session will remain active.
+                </p>
+                {sessionsMsg && <p className="text-xs text-healthy">{sessionsMsg}</p>}
+                <div className="flex justify-end">
+                    <button
+                        className={BTN_GHOST}
+                        disabled={sessionsBusy}
+                        onClick={async () => {
+                            setSessionsBusy(true);
+                            setSessionsMsg("");
+                            const ok = await logoutAll();
+                            setSessionsBusy(false);
+                            if (ok) setSessionsMsg("All other sessions have been signed out.");
+                        }}
+                    >
+                        {sessionsBusy ? "Signing out…" : "Sign out all other sessions"}
+                    </button>
+                </div>
+            </section>
         </div>
     );
 }
