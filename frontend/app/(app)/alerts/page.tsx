@@ -12,6 +12,7 @@ import {useWs} from "@/lib/ws-context";
 import {timeAgo} from "@/lib/utils/format";
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter} from "@/components/ui/dialog";
 import {SelectField} from "@/components/ui/form-elements";
+import {SmartList, type SmartListColumn} from "@/components/ui/smart-list";
 
 async function loadThresholds() {
     const {data} = await listAlertThresholds();
@@ -29,6 +30,44 @@ const METRICS = [
     "disk_used_percent",
 ];
 
+// ── Columns ───────────────────────────────────────────────────────────────────
+
+const THRESHOLD_COLUMNS: SmartListColumn<AlertThreshold>[] = [
+    {key: 'scope_type', header: 'Scope', title: true, render: (t) => (
+        <span className={`inline-block text-xs font-heading font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${
+            t.scope_type === "NODE"
+                ? "text-text-dim border-border bg-surface-high"
+                : "text-accent border-accent/30 bg-accent/5"
+        }`}>
+            {t.scope_type}
+        </span>
+    )},
+    {key: 'scope_id', header: 'Scope ID', render: (t) => <span className="text-text-muted">{t.scope_id.slice(0, 8)}…</span>},
+    {key: 'metric', header: 'Metric', render: (t) => <span className="text-text-primary">{t.metric}</span>},
+    {key: 'trigger', header: 'Trigger', render: (t) => (
+        t.threshold_value != null
+            ? <span className="text-warning">&gt; {t.threshold_value}</span>
+            : <span className="text-text-dim">= {t.threshold_state}</span>
+    )},
+    {key: 'created', header: 'Created', render: (t) => <span className="text-text-muted">{timeAgo(t.created_at)}</span>},
+]
+
+const EVENT_COLUMNS: SmartListColumn<AlertEvent>[] = [
+    {key: 'state', header: 'State', hiddenOnMobile: true, render: (e) => (
+        e.resolved_at
+            ? <CheckCircle size={14} strokeWidth={2} className="text-healthy"/>
+            : <AlertTriangle size={14} strokeWidth={2} className="text-error"/>
+    )},
+    {key: 'message', header: 'Message', title: true, render: (e) => <span className="text-text-primary max-w-xs truncate">{e.message}</span>},
+    {key: 'threshold', header: 'Threshold', render: (e) => <span className="text-text-muted">{e.threshold_id.slice(0, 8)}…</span>},
+    {key: 'fired', header: 'Fired', render: (e) => <span className="text-text-muted">{timeAgo(e.fired_at)}</span>},
+    {key: 'resolved', header: 'Resolved', render: (e) => (
+        e.resolved_at
+            ? <span className="text-text-muted">{timeAgo(e.resolved_at)}</span>
+            : <span className="text-error text-xs font-heading font-bold uppercase tracking-wider">Active</span>
+    )},
+]
+
 // ── Sub-components ────────────────────────────────────────────────────────────
 
 function SectionHeader({title, action}: { title: string; action?: React.ReactNode }) {
@@ -39,32 +78,6 @@ function SectionHeader({title, action}: { title: string; action?: React.ReactNod
             </h2>
             {action}
         </div>
-    );
-}
-
-function EmptyRow({message}: { message: string }) {
-    return (
-        <tr>
-            <td colSpan={99} className="py-8 text-center text-xs text-text-muted">
-                {message}
-            </td>
-        </tr>
-    );
-}
-
-function Th({children}: { children?: React.ReactNode }) {
-    return (
-        <th className="text-left px-4 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border">
-            {children}
-        </th>
-    );
-}
-
-function Td({children, className = ""}: { children: React.ReactNode; className?: string }) {
-    return (
-        <td className={`px-4 py-3 text-xs border-b border-border/50 ${className}`}>
-            {children}
-        </td>
     );
 }
 
@@ -341,8 +354,13 @@ export default function AlertsPage() {
             )}
 
             {/* ── Thresholds ── */}
-            <div className="bg-surface border border-border rounded-md overflow-hidden">
-                <div className="px-4 pt-4 pb-3 border-b border-border">
+            <SmartList
+                items={thresholds}
+                columns={THRESHOLD_COLUMNS}
+                keyFor={(t) => t.id}
+                loading={loading}
+                empty="No thresholds configured."
+                header={
                     <SectionHeader
                         title="Thresholds"
                         action={
@@ -357,116 +375,31 @@ export default function AlertsPage() {
                             )
                         }
                     />
-                </div>
-                <div className="overflow-x-auto hidden md:block">
-                    <table className="w-full">
-                        <thead>
-                        <tr>
-                            <Th>Scope</Th>
-                            <Th>Scope ID</Th>
-                            <Th>Metric</Th>
-                            <Th>Trigger</Th>
-                            <Th>Created</Th>
-                            {canManage && <Th></Th>}
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {loading ? (
-                            <EmptyRow message="Loading…"/>
-                        ) : thresholds.length === 0 ? (
-                            <EmptyRow message="No thresholds configured."/>
+                }
+                actions={(t) => canManage ? (
+                    <button
+                        onClick={() => void confirmDelete(t.id)}
+                        disabled={deleteId === t.id}
+                        className="text-text-muted hover:text-error transition-colors disabled:opacity-40"
+                        title="Delete threshold"
+                    >
+                        {deleteId === t.id ? (
+                            <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin inline-block"/>
                         ) : (
-                            thresholds.map((t) => (
-                                <tr key={t.id} className="border-b border-border/50 hover:bg-surface-high/40 transition-colors">
-                                    <Td>
-                      <span className={`inline-block text-xs font-heading font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${
-                          t.scope_type === "NODE"
-                              ? "text-text-dim border-border bg-surface-high"
-                              : "text-accent border-accent/30 bg-accent/5"
-                      }`}>
-                        {t.scope_type}
-                      </span>
-                                    </Td>
-                                    <Td className="text-text-muted">{t.scope_id.slice(0, 8)}…</Td>
-                                    <Td className="text-text-primary">{t.metric}</Td>
-                                    <Td>
-                                        {t.threshold_value != null ? (
-                                            <span className="text-warning">&gt; {t.threshold_value}</span>
-                                        ) : (
-                                            <span className="text-text-dim">= {t.threshold_state}</span>
-                                        )}
-                                    </Td>
-                                    <Td className="text-text-muted">{timeAgo(t.created_at)}</Td>
-                                    {canManage && (
-                                        <Td>
-                                            <button
-                                                onClick={() => void confirmDelete(t.id)}
-                                                disabled={deleteId === t.id}
-                                                className="text-text-muted hover:text-error transition-colors disabled:opacity-40"
-                                                title="Delete threshold"
-                                            >
-                                                {deleteId === t.id ? (
-                                                    <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin inline-block"/>
-                                                ) : (
-                                                    <Trash2 size={13} strokeWidth={2}/>
-                                                )}
-                                            </button>
-                                        </Td>
-                                    )}
-                                </tr>
-                            ))
+                            <Trash2 size={13} strokeWidth={2}/>
                         )}
-                        </tbody>
-                    </table>
-                </div>
-
-                {/* Mobile card list (mobile) */}
-                <div className="md:hidden divide-y divide-border">
-                    {loading ? (
-                        <p className="p-3 text-xs text-text-muted">Loading…</p>
-                    ) : thresholds.length === 0 ? (
-                        <p className="p-3 text-xs text-text-muted">No thresholds configured.</p>
-                    ) : (
-                        thresholds.map((t) => (
-                            <div key={t.id} className="p-3 flex items-center justify-between gap-2">
-                                <div className="min-w-0">
-                                    <div className="flex items-center gap-2">
-                                        <span className={`inline-block text-xs font-heading font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${
-                                            t.scope_type === "NODE"
-                                                ? "text-text-dim border-border bg-surface-high"
-                                                : "text-accent border-accent/30 bg-accent/5"
-                                        }`}>
-                                            {t.scope_type}
-                                        </span>
-                                        <span className="text-sm font-medium text-text-primary truncate">{t.metric}</span>
-                                    </div>
-                                    <p className="mt-1 font-mono text-xs text-text-muted truncate">
-                                        {t.scope_id.slice(0, 8)}… · {t.threshold_value != null ? `> ${t.threshold_value}` : `= ${t.threshold_state}`}
-                                    </p>
-                                </div>
-                                {canManage && (
-                                    <button
-                                        onClick={() => void confirmDelete(t.id)}
-                                        disabled={deleteId === t.id}
-                                        className="p-1.5 rounded hover:bg-surface-higher text-text-muted hover:text-error transition-colors disabled:opacity-40 shrink-0"
-                                        title="Delete threshold"
-                                    >
-                                        {deleteId === t.id ? (
-                                            <span className="w-3 h-3 border border-current border-t-transparent rounded-full animate-spin inline-block"/>
-                                        ) : (
-                                            <Trash2 size={13} strokeWidth={2}/>
-                                        )}
-                                    </button>
-                                )}
-                            </div>
-                        ))
-                    )}
-                </div>
-            </div>
+                    </button>
+                ) : null}
+            />
 
             {/* ── Events ── */}
-            <div className="bg-surface border border-border rounded-md overflow-hidden">
-                <div className="px-4 pt-4 pb-3 border-b border-border">
+            <SmartList
+                items={displayedEvents}
+                columns={EVENT_COLUMNS}
+                keyFor={(e) => e.id}
+                loading={loading}
+                empty={activeOnly ? "No active alerts." : "No alert events."}
+                header={
                     <SectionHeader
                         title="Alert Events"
                         action={
@@ -482,76 +415,8 @@ export default function AlertsPage() {
                             </button>
                         }
                     />
-                </div>
-                <div className="overflow-x-auto hidden md:block">
-                    <table className="w-full">
-                        <thead>
-                        <tr>
-                            <Th>State</Th>
-                            <Th>Message</Th>
-                            <Th>Threshold</Th>
-                            <Th>Fired</Th>
-                            <Th>Resolved</Th>
-                        </tr>
-                        </thead>
-                        <tbody>
-                        {loading ? (
-                            <EmptyRow message="Loading…"/>
-                        ) : displayedEvents.length === 0 ? (
-                            <EmptyRow message={activeOnly ? "No active alerts." : "No alert events."}/>
-                        ) : (
-                            displayedEvents.map((e) => (
-                                <tr key={e.id} className="border-b border-border/50 hover:bg-surface-high/40 transition-colors">
-                                    <Td>
-                                        {e.resolved_at ? (
-                                            <CheckCircle size={14} strokeWidth={2} className="text-healthy"/>
-                                        ) : (
-                                            <AlertTriangle size={14} strokeWidth={2} className="text-error"/>
-                                        )}
-                                    </Td>
-                                    <Td className="text-text-primary max-w-xs truncate">{e.message}</Td>
-                                    <Td className="text-text-muted">{e.threshold_id.slice(0, 8)}…</Td>
-                                    <Td className="text-text-muted">{timeAgo(e.fired_at)}</Td>
-                                    <Td className="text-text-muted">
-                                        {e.resolved_at ? timeAgo(e.resolved_at) : (
-                                            <span className="text-error text-xs font-heading font-bold uppercase tracking-wider">Active</span>
-                                        )}
-                                    </Td>
-                                </tr>
-                            ))
-                        )}
-                        </tbody>
-                    </table>
-                </div>
-
-                {/* Mobile card list (mobile) */}
-                <div className="md:hidden divide-y divide-border">
-                    {loading ? (
-                        <p className="p-3 text-xs text-text-muted">Loading…</p>
-                    ) : displayedEvents.length === 0 ? (
-                        <p className="p-3 text-xs text-text-muted">{activeOnly ? "No active alerts." : "No alert events."}</p>
-                    ) : (
-                        displayedEvents.map((e) => (
-                            <div key={e.id} className="p-3">
-                                <div className="flex items-start gap-2">
-                                    {e.resolved_at ? (
-                                        <CheckCircle size={14} strokeWidth={2} className="text-healthy mt-0.5 shrink-0"/>
-                                    ) : (
-                                        <AlertTriangle size={14} strokeWidth={2} className="text-error mt-0.5 shrink-0"/>
-                                    )}
-                                    <div className="min-w-0">
-                                        <p className="text-sm text-text-primary">{e.message}</p>
-                                        <p className="mt-1 font-mono text-xs text-text-muted">
-                                            {e.threshold_id.slice(0, 8)}… · fired {timeAgo(e.fired_at)}
-                                            {e.resolved_at ? ` · resolved ${timeAgo(e.resolved_at)}` : " · active"}
-                                        </p>
-                                    </div>
-                                </div>
-                            </div>
-                        ))
-                    )}
-                </div>
-            </div>
+                }
+            />
 
             {showCreate && (
                 <CreateThresholdModal

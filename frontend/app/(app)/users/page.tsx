@@ -20,14 +20,27 @@ import {
 import type {Assignment, Group, User} from "@/lib/types";
 import {useResourceList} from "@/lib/hooks/useResourceList";
 import {BTN_PRIMARY, BTN_GHOST, Modal, Field, TextField, SelectField} from "@/components/ui/form-elements";
-import {ListTh, ListTd, ListActions, IconActionButton} from "@/components/ui/list-table";
-import {Empty, EmptyDescription} from "@/components/ui/empty";
+import {IconActionButton} from "@/components/ui/list-table";
+import {SmartList, type SmartListColumn} from "@/components/ui/smart-list";
 
 async function loadUsers() {
     const {data} = await listUsers();
     return {data: data?.users};
 }
 
+
+// ── Columns ───────────────────────────────────────────────────────────────────
+
+const USER_COLUMNS: SmartListColumn<User>[] = [
+    {key: 'username', header: 'Username', render: (u) => <span className="font-medium text-text-primary">{u.username}</span>},
+    {key: 'email', header: 'Email', render: (u) => <span className="text-text-dim">{u.email}</span>},
+    {key: 'status', header: 'Status', render: (u) => (
+        <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-heading font-bold uppercase tracking-wider border ${u.is_active ? "text-healthy border-healthy/30 bg-healthy/10" : "text-text-muted border-border bg-surface-high"}`}>
+            {u.is_active ? "Active" : "Inactive"}
+        </span>
+    )},
+    {key: 'created', header: 'Created', render: (u) => <span className="text-text-muted font-mono text-xs">{new Date(u.created_at).toLocaleDateString()}</span>},
+]
 
 // ── Create User Modal ─────────────────────────────────────────────────────────
 
@@ -389,99 +402,31 @@ export default function UsersPage() {
             />
 
             <div className="p-6">
-                {loading ? (
-                    <div className="text-xs text-text-muted">Loading…</div>
-                ) : users.length === 0 ? (
-                    <Empty className="border-2 border-border rounded-md py-10">
-                        <EmptyDescription>No users yet.</EmptyDescription>
-                    </Empty>
-                ) : (
-                    <>
-                        <div className="bg-surface border border-border rounded-md overflow-hidden">
-                            <table className="hidden md:table w-full text-xs">
-                                <thead>
-                                <tr className="border-b border-border">
-                                    <ListTh>Username</ListTh>
-                                    <ListTh>Email</ListTh>
-                                    <ListTh>Status</ListTh>
-                                    <ListTh>Created</ListTh>
-                                    <ListTh/>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                {users.map((u) => (
-                                    <tr key={u.id} className="border-b border-border/50 hover:bg-surface-high/40">
-                                        <ListTd firstCol><span className="font-medium text-text-primary">{u.username}</span></ListTd>
-                                        <ListTd className="text-text-dim">{u.email}</ListTd>
-                                        <ListTd>
-                      <span
-                          className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-heading font-bold uppercase tracking-wider border ${u.is_active ? "text-healthy border-healthy/30 bg-healthy/10" : "text-text-muted border-border bg-surface-high"}`}>
-                        {u.is_active ? "Active" : "Inactive"}
-                      </span>
-                                        </ListTd>
-                                        <ListTd className="text-text-muted font-mono text-xs">
-                                            {new Date(u.created_at).toLocaleDateString()}
-                                        </ListTd>
-                                        <ListActions>
-                                            <IconActionButton icon={<Pencil size={13}/>} label="Edit" onClick={() => setEditing(u)}/>
-                                            <IconActionButton icon={<Users2 size={13}/>} label="Manage groups" onClick={() => setManagingGroups(u)}/>
-                                            {u.id !== currentUser?.id && (
-                                                <IconActionButton icon={<KeyRound size={13}/>} label="Reset password" onClick={() => setResettingPassword(u)}/>
-                                            )}
-                                            <IconActionButton
-                                                icon={<Trash2 size={13}/>}
-                                                label="Delete"
-                                                danger
-                                                onClick={() => {
-                                                    setDeleting(u);
-                                                    setDeleteError("");
-                                                }}
-                                            />
-                                        </ListActions>
-                                    </tr>
-                                ))}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* Mobile card list (mobile) */}
-                        <div className="md:hidden divide-y divide-border">
-                            {users.map((u) => (
-                                <div key={u.id} className="p-3">
-                                    <div className="flex items-start justify-between gap-2">
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-medium text-text-primary truncate">{u.username}</p>
-                                            <p className="mt-0.5 text-xs text-text-dim truncate">{u.email}</p>
-                                            <p className="mt-0.5 font-mono text-xs text-text-muted">
-                                                Created {new Date(u.created_at).toLocaleDateString()}
-                                            </p>
-                                        </div>
-                                        <span
-                                            className={`shrink-0 inline-flex items-center px-2 py-0.5 rounded text-xs font-heading font-bold uppercase tracking-wider border ${u.is_active ? "text-healthy border-healthy/30 bg-healthy/10" : "text-text-muted border-border bg-surface-high"}`}>
-                                        {u.is_active ? "Active" : "Inactive"}
-                                    </span>
-                                    </div>
-                                    <div className="mt-2.5 flex items-center justify-end gap-1">
-                                        <IconActionButton icon={<Pencil size={15}/>} label="Edit" onClick={() => setEditing(u)}/>
-                                        <IconActionButton icon={<Users2 size={15}/>} label="Manage groups" onClick={() => setManagingGroups(u)}/>
-                                        {u.id !== currentUser?.id && (
-                                            <IconActionButton icon={<KeyRound size={15}/>} label="Reset password" onClick={() => setResettingPassword(u)}/>
-                                        )}
-                                        <IconActionButton
-                                            icon={<Trash2 size={15}/>}
-                                            label="Delete"
-                                            danger
-                                            onClick={() => {
-                                                setDeleting(u);
-                                                setDeleteError("");
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </>
-                )}
+                <SmartList
+                    items={users}
+                    columns={USER_COLUMNS}
+                    keyFor={(u) => u.id}
+                    loading={loading}
+                    empty="No users yet."
+                    actions={(u) => (
+                        <>
+                            <IconActionButton icon={<Pencil size={13}/>} label="Edit" onClick={() => setEditing(u)}/>
+                            <IconActionButton icon={<Users2 size={13}/>} label="Manage groups" onClick={() => setManagingGroups(u)}/>
+                            {u.id !== currentUser?.id && (
+                                <IconActionButton icon={<KeyRound size={13}/>} label="Reset password" onClick={() => setResettingPassword(u)}/>
+                            )}
+                            <IconActionButton
+                                icon={<Trash2 size={13}/>}
+                                label="Delete"
+                                danger
+                                onClick={() => {
+                                    setDeleting(u);
+                                    setDeleteError("");
+                                }}
+                            />
+                        </>
+                    )}
+                />
             </div>
 
             {showCreate && (

@@ -15,10 +15,9 @@ import {useResourceList} from "@/lib/hooks/useResourceList";
 import {useWs} from "@/lib/ws-context";
 import {nodeDisplayStatus, nodeStatusLabel, nodeStatusVariant} from "@/lib/status";
 import {Badge} from "@/components/ui/badge";
-import {Skeleton} from "@/components/ui/skeleton";
-import {Empty, EmptyDescription} from "@/components/ui/empty";
 import {SelectField} from "@/components/ui/form-elements";
-import {ListTh, ListTd, IconActionButton} from "@/components/ui/list-table";
+import {IconActionButton} from "@/components/ui/list-table";
+import {SmartList, type SmartListColumn} from "@/components/ui/smart-list";
 
 const STATUS_FILTER_OPTIONS = [
     {label: "All Statuses", value: ""},
@@ -458,161 +457,143 @@ export default function NodesPage() {
                 </div>
             )}
 
-            {/* Table */}
+            {/* List */}
             <div className="px-6 py-4">
-                {initialLoad ? (
-                    <div className="space-y-2">
-                        {Array.from({length: 4}).map((_, i) => (
-                            <Skeleton key={i} className="h-12 bg-surface"/>
-                        ))}
-                    </div>
-                ) : filtered.length === 0 ? (
-                    <Empty className="border-2 border-border rounded-md py-10">
-                        <EmptyDescription>
-                            {nodes.length === 0
-                                ? "No nodes registered yet - start an agent with a bootstrap token"
-                                : "No nodes match the current filter"}
-                        </EmptyDescription>
-                    </Empty>
-                ) : (
-                    <div className="bg-surface border border-border rounded-md overflow-hidden hidden md:block">
-                        <table className="w-full text-xs">
-                            <thead>
-                            <tr className="border-b border-border">
-                                <ListTh>Node</ListTh>
-                                <ListTh>Status</ListTh>
-                                <ListTh>RAM</ListTh>
-                                <ListTh>CPU</ListTh>
-                                <ListTh>Servers</ListTh>
-                                <ListTh>Last Seen</ListTh>
-                                <ListTh/>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {filtered.map((node) => {
-                                const pending = pendingAction[node.id];
-                                const servers = serverCounts[node.id] ?? 0;
-                                const lastSeen = node.last_seen_at;
+                {(() => {
+                    const NODE_COLUMNS: SmartListColumn<Node>[] = [
+                        {
+                            key: "node",
+                            header: "Node",
+                            title: true,
+                            render: (n) => (
+                                <>
+                                    <p className="text-sm font-heading font-bold text-text-primary group-hover:text-accent transition-colors leading-none">
+                                        {n.display_name}
+                                    </p>
+                                    <p className="mt-0.5 font-mono text-xs text-text-muted leading-none">
+                                        {n.hostname}
+                                    </p>
+                                </>
+                            ),
+                        },
+                        {
+                            key: "status",
+                            header: "Status",
+                            label: "Status",
+                            render: (n) => (
+                                <Badge variant={nodeStatusVariant(n.status, n.health)}>
+                                    {nodeStatusLabel(n.status, n.health)}
+                                </Badge>
+                            ),
+                        },
+                        {
+                            key: "ram",
+                            header: "RAM",
+                            label: "RAM",
+                            render: (n) => (
+                                <MiniBar used={Math.max(n.allocated_ram_mb, n.system_ram_used_mb ?? 0)} total={n.total_ram_mb}/>
+                            ),
+                        },
+                        {
+                            key: "cpu",
+                            header: "CPU",
+                            label: "CPU",
+                            render: (n) => (
+                                <MiniBar used={n.system_cpu_percent ?? 0} total={100} fmt={fmtPct}/>
+                            ),
+                        },
+                        {
+                            key: "servers",
+                            header: "Servers",
+                            label: "Servers",
+                            render: (n) => <span className="font-mono text-xs text-text-dim">{serverCounts[n.id] ?? 0}</span>,
+                        },
+                        {
+                            key: "lastSeen",
+                            header: "Last Seen",
+                            label: "Last seen",
+                            render: (n) => {
+                                const lastSeen = n.last_seen_at;
                                 const stale = lastSeen
                                     ? (renderNow - new Date(lastSeen).getTime()) / 1000 > 300
                                     : true;
-
                                 return (
-                                    <tr
-                                        key={node.id}
-                                        onClick={() => router.push(`/nodes/${node.id}`)}
-                                        className="border-b border-border/50 hover:bg-surface-high/40 cursor-pointer group transition-colors"
-                                    >
-                                        {/* NODE */}
-                                        <ListTd firstCol>
-                                            <p className="text-sm font-heading font-bold text-text-primary group-hover:text-accent transition-colors leading-none">
-                                                {node.display_name}
-                                            </p>
-                                            <p className="mt-0.5 font-mono text-xs text-text-muted leading-none">
-                                                {node.hostname}
-                                            </p>
-                                        </ListTd>
-
-                                        {/* STATUS */}
-                                        <ListTd>
-                                            <Badge variant={nodeStatusVariant(node.status, node.health)}>{nodeStatusLabel(node.status, node.health)}</Badge>
-                                        </ListTd>
-
-                                        {/* RAM */}
-                                        <ListTd>
-                                            <MiniBar used={Math.max(node.allocated_ram_mb, node.system_ram_used_mb ?? 0)} total={node.total_ram_mb}/>
-                                        </ListTd>
-
-                                        {/* CPU */}
-                                        <ListTd>
-                                            <MiniBar used={node.system_cpu_percent ?? 0} total={100} fmt={fmtPct}/>
-                                        </ListTd>
-
-                                        {/* SERVERS */}
-                                        <ListTd>
-                                            <span className="font-mono text-xs text-text-dim">{servers}</span>
-                                        </ListTd>
-
-                                        {/* LAST SEEN */}
-                                        <ListTd>
-                        <span
-                            className={`font-mono text-xs ${stale ? "text-error" : "text-text-muted"}`}
-                        >
-                          {lastSeen ? timeAgo(lastSeen) : "never"}
-                        </span>
-                                        </ListTd>
-
-                                        {/* ACTIONS */}
-                                        <ListTd className="text-right">
-                                            <div onClick={(e) => e.stopPropagation()}>
-                                                <NodeActions
-                                                    node={node} pending={pending} servers={servers} canManage={canManage}
-                                                    doTrust={doTrust} doReject={doReject} doRotateToken={doRotateToken}
-                                                    doShutdown={doShutdown} doDecommission={doDecommission} setEditNode={setEditNode}
-                                                />
-                                            </div>
-                                        </ListTd>
-                                    </tr>
+                                    <span className={`font-mono text-xs ${stale ? "text-error" : "text-text-muted"}`}>
+                                        {lastSeen ? timeAgo(lastSeen) : "never"}
+                                    </span>
                                 );
-                            })}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
+                            },
+                        },
+                    ];
 
-                {/* Mobile card list (< md) */}
-                {!initialLoad && filtered.length > 0 && (
-                    <div className="md:hidden divide-y divide-border">
-                        {filtered.map((node) => {
-                            const pending = pendingAction[node.id];
-                            const servers = serverCounts[node.id] ?? 0;
-                            const lastSeen = node.last_seen_at;
-                            const stale = lastSeen
-                                ? (renderNow - new Date(lastSeen).getTime()) / 1000 > 300
-                                : true;
-                            return (
-                                <div
-                                    key={node.id}
-                                    onClick={() => router.push(`/nodes/${node.id}`)}
-                                    className="p-3 cursor-pointer active:bg-surface-high transition-colors"
-                                >
-                                    <div className="flex items-start justify-between gap-2">
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-heading font-bold text-text-primary truncate">{node.display_name}</p>
-                                            <p className="mt-0.5 font-mono text-xs text-text-muted truncate">{node.hostname}</p>
-                                        </div>
-                                        <Badge variant={nodeStatusVariant(node.status, node.health)}>{nodeStatusLabel(node.status, node.health)}</Badge>
+                    const renderActions = (node: Node) => (
+                        <NodeActions
+                            node={node} pending={pendingAction[node.id]} servers={serverCounts[node.id] ?? 0} canManage={canManage}
+                            doTrust={doTrust} doReject={doReject} doRotateToken={doRotateToken}
+                            doShutdown={doShutdown} doDecommission={doDecommission} setEditNode={setEditNode}
+                        />
+                    );
+
+                    const renderMobileCard = (node: Node) => {
+                        const servers = serverCounts[node.id] ?? 0;
+                        const lastSeen = node.last_seen_at;
+                        const stale = lastSeen
+                            ? (renderNow - new Date(lastSeen).getTime()) / 1000 > 300
+                            : true;
+                        return (
+                            <div
+                                onClick={() => router.push(`/nodes/${node.id}`)}
+                                className="p-3 cursor-pointer active:bg-surface-high transition-colors"
+                            >
+                                <div className="flex items-start justify-between gap-2">
+                                    <div className="min-w-0">
+                                        <p className="text-sm font-heading font-bold text-text-primary truncate">{node.display_name}</p>
+                                        <p className="mt-0.5 font-mono text-xs text-text-muted truncate">{node.hostname}</p>
                                     </div>
-                                    <div className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-1.5">
-                                        <div>
-                                            <p className="text-xs text-text-muted">RAM</p>
-                                            <MiniBar used={Math.max(node.allocated_ram_mb, node.system_ram_used_mb ?? 0)} total={node.total_ram_mb}/>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-text-muted">CPU</p>
-                                            <MiniBar used={node.system_cpu_percent ?? 0} total={100} fmt={fmtPct}/>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-text-muted">Servers</p>
-                                            <p className="font-mono text-xs text-text-dim">{servers}</p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-text-muted">Last seen</p>
-                                            <p className={`font-mono text-xs ${stale ? "text-error" : "text-text-muted"}`}>{lastSeen ? timeAgo(lastSeen) : "never"}</p>
-                                        </div>
+                                    <Badge variant={nodeStatusVariant(node.status, node.health)}>{nodeStatusLabel(node.status, node.health)}</Badge>
+                                </div>
+                                <div className="mt-2.5 grid grid-cols-2 gap-x-4 gap-y-1.5">
+                                    <div>
+                                        <p className="text-xs text-text-muted">RAM</p>
+                                        <MiniBar used={Math.max(node.allocated_ram_mb, node.system_ram_used_mb ?? 0)} total={node.total_ram_mb}/>
                                     </div>
-                                    <div className="mt-2.5 flex justify-end" onClick={(e) => e.stopPropagation()}>
-                                        <NodeActions
-                                            node={node} pending={pending} servers={servers} canManage={canManage}
-                                            doTrust={doTrust} doReject={doReject} doRotateToken={doRotateToken}
-                                            doShutdown={doShutdown} doDecommission={doDecommission} setEditNode={setEditNode}
-                                        />
+                                    <div>
+                                        <p className="text-xs text-text-muted">CPU</p>
+                                        <MiniBar used={node.system_cpu_percent ?? 0} total={100} fmt={fmtPct}/>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-text-muted">Servers</p>
+                                        <p className="font-mono text-xs text-text-dim">{servers}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-text-muted">Last seen</p>
+                                        <p className={`font-mono text-xs ${stale ? "text-error" : "text-text-muted"}`}>{lastSeen ? timeAgo(lastSeen) : "never"}</p>
                                     </div>
                                 </div>
-                            );
-                        })}
-                    </div>
-                )}
+                                <div className="mt-2.5 flex justify-end" onClick={(e) => e.stopPropagation()}>
+                                    {renderActions(node)}
+                                </div>
+                            </div>
+                        );
+                    };
+
+                    return (
+                        <SmartList
+                            items={filtered}
+                            columns={NODE_COLUMNS}
+                            keyFor={(n) => n.id}
+                            loading={initialLoad}
+                            skeletonRows={4}
+                            empty={nodes.length === 0
+                                ? "No nodes registered yet - start an agent with a bootstrap token"
+                                : "No nodes match the current filter"}
+                            actions={renderActions}
+                            actionsHeader=""
+                            onRowClick={(n) => router.push(`/nodes/${n.id}`)}
+                            mobileCard={renderMobileCard}
+                        />
+                    );
+                })()}
             </div>
 
             {/* Modals */}

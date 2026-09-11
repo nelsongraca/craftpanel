@@ -213,7 +213,8 @@ describe("NetworksPage", () => {
         });
         const mobileCards = container.querySelector(".md\\:hidden");
         expect(mobileCards?.textContent).toContain("MobileNet");
-        expect(mobileCards?.textContent).toContain("2 servers");
+        expect(mobileCards?.textContent).toContain("Servers");
+        expect(mobileCards?.textContent).toContain("2");
         expect(mobileCards?.textContent).toContain("Desc");
     });
 
@@ -222,6 +223,7 @@ describe("NetworksPage", () => {
             networks: [network({name: "Single", server_count: 1})],
         });
         const mobileCards = container.querySelector(".md\\:hidden");
-        expect(mobileCards?.textContent).toContain("1 server");
+        expect(mobileCards?.textContent).toContain("Servers");
+        expect(mobileCards?.textContent).toContain("1");
     });
 });

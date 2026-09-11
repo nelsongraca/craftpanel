@@ -11,12 +11,12 @@ import {hasPermission, serverPermissions} from "@/lib/permissions";
 import type {Network, Node, Server} from "@/lib/types";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {useResourceList} from "@/lib/hooks/useResourceList";
-import {ListTh, ListTd, IconActionButton} from "@/components/ui/list-table";
+import {IconActionButton} from "@/components/ui/list-table";
+import {SmartList} from "@/components/ui/smart-list";
+import type {SmartListColumn} from "@/components/ui/smart-list";
 import {fillColor} from "@/lib/utils/format";
 import {serverStatusLabel, serverStatusVariant} from "@/lib/status";
 import {Badge} from "@/components/ui/badge";
-import {Skeleton} from "@/components/ui/skeleton";
-import {Empty, EmptyDescription} from "@/components/ui/empty";
 import {SelectField} from "@/components/ui/form-elements";
 
 // Filter option → backend statuses that match
@@ -275,6 +275,124 @@ export default function ServersPage() {
 
     const canCreate = hasPermission(permissions, "server.create");
 
+    const SERVER_COLUMNS: SmartListColumn<Server>[] = [
+        {
+            key: "name",
+            header: <>Server<SortIndicator active={sortKey === "name"} dir={sortDir}/></>,
+            headerClassName: "cursor-pointer select-none hover:text-accent",
+            onHeaderClick: () => toggleSort("name"),
+            render: (server) => (
+                <>
+                    <p className="text-sm font-heading font-bold text-text-primary group-hover:text-accent transition-colors leading-none">
+                        {server.display_name}
+                    </p>
+                    {server.is_migrating && (
+                        <p className="mt-1 text-xs font-mono text-warning leading-none">
+                            ⟳ Migrating
+                        </p>
+                    )}
+                    {server.exposed_externally && server.public_subdomain && (
+                        <p className="mt-0.5 text-xs font-mono text-text-muted leading-none">
+                            {server.public_subdomain}
+                        </p>
+                    )}
+                </>
+            ),
+        },
+        {
+            key: "type",
+            header: <>Type<SortIndicator active={sortKey === "type"} dir={sortDir}/></>,
+            headerClassName: "cursor-pointer select-none hover:text-accent",
+            onHeaderClick: () => toggleSort("type"),
+            render: (server) => (
+                <span
+                    className="font-mono text-xs uppercase tracking-wider text-text-dim border border-border px-1.5 py-0.5 rounded"
+                    style={{background: "var(--text-dim-bg)"}}
+                >
+                    {server.server_type}
+                </span>
+            ),
+        },
+        {
+            key: "status",
+            header: <>Status<SortIndicator active={sortKey === "status"} dir={sortDir}/></>,
+            headerClassName: "cursor-pointer select-none hover:text-accent",
+            onHeaderClick: () => toggleSort("status"),
+            render: (server) => (
+                <Badge variant={serverStatusVariant(server.status)}>{serverStatusLabel(server.status)}</Badge>
+            ),
+        },
+        {
+            key: "players",
+            header: "Players",
+            render: () => <span className="font-mono text-xs text-text-muted">-/-</span>,
+        },
+        {
+            key: "ram",
+            header: <>RAM<SortIndicator active={sortKey === "ram"} dir={sortDir}/></>,
+            headerClassName: "cursor-pointer select-none hover:text-accent",
+            onHeaderClick: () => toggleSort("ram"),
+            render: (server) => <RamBar total={server.memory_mb}/>,
+        },
+        {
+            key: "node",
+            header: <>Node<SortIndicator active={sortKey === "node"} dir={sortDir}/></>,
+            headerClassName: "cursor-pointer select-none hover:text-accent",
+            onHeaderClick: () => toggleSort("node"),
+            render: (server) => {
+                const node = nodeMap[server.node_id];
+                return (
+                    <span className="font-mono text-xs text-text-dim">
+                        {node?.display_name ?? `${server.node_id.slice(0, 8)}…`}
+                    </span>
+                );
+            },
+        },
+    ];
+
+    function renderActions(server: Server) {
+        const status = server.status;
+        const pending = pendingAction[server.id];
+        const serverPerms = serverPermissions(permissions, user?.server_permissions ?? {}, server.id);
+        return (
+            <ServerActions
+                server={server} status={status} pending={pending}
+                permissions={serverPerms}
+                doAction={doAction} doDelete={doDelete} doDuplicate={doDuplicate}
+            />
+        );
+    }
+
+    function renderMobileCard(server: Server) {
+        const node = nodeMap[server.node_id];
+        const status = server.status;
+        return (
+            <div
+                onClick={() => router.push(`/servers/${server.id}`)}
+                className="p-3 cursor-pointer active:bg-surface-high transition-colors"
+            >
+                <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                        <p className="text-sm font-heading font-bold text-text-primary truncate">{server.display_name}</p>
+                        <p className="mt-0.5 font-mono text-xs text-text-dim truncate">
+                            {server.server_type} · {node?.display_name ?? `${server.node_id.slice(0, 8)}…`}
+                        </p>
+                        {server.exposed_externally && server.public_subdomain && (
+                            <p className="mt-0.5 font-mono text-xs text-text-muted truncate">{server.public_subdomain}</p>
+                        )}
+                    </div>
+                    <Badge variant={serverStatusVariant(status)}>{serverStatusLabel(status)}</Badge>
+                </div>
+                <div className="mt-2.5 flex items-center justify-between gap-2">
+                    <RamBar total={server.memory_mb}/>
+                    <div onClick={(e) => e.stopPropagation()}>
+                        {renderActions(server)}
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <>
             <div>
@@ -368,187 +486,24 @@ export default function ServersPage() {
                     </div>
                 )}
 
-                {/* Table */}
+                {/* Server list */}
                 <div className="px-6 py-4">
-                    {initialLoad ? (
-                        <div className="space-y-2">
-                            {Array.from({length: 5}).map((_, i) => (
-                                <Skeleton key={i} className="h-12 bg-surface"/>
-                            ))}
-                        </div>
-                    ) : sortedServers.length === 0 ? (
-                        <Empty className="border-2 border-border rounded-md py-10">
-                            <EmptyDescription>
-                                {servers.length === 0
-                                    ? "No servers yet - create one to get started"
-                                    : "No servers match the current filters"}
-                            </EmptyDescription>
-                        </Empty>
-                    ) : (
-                        <div className="bg-surface border border-border rounded-md overflow-hidden">
-                            <table className="hidden md:table w-full text-xs">
-                                <thead>
-                                <tr className="border-b border-border">
-                                    <ListTh
-                                        align="left"
-                                        className="cursor-pointer select-none hover:text-accent"
-                                        onClick={() => toggleSort("name")}
-                                    >
-                                        Server<SortIndicator active={sortKey === "name"} dir={sortDir}/>
-                                    </ListTh>
-                                    <ListTh
-                                        align="left"
-                                        className="cursor-pointer select-none hover:text-accent"
-                                        onClick={() => toggleSort("type")}
-                                    >
-                                        Type<SortIndicator active={sortKey === "type"} dir={sortDir}/>
-                                    </ListTh>
-                                    <ListTh
-                                        align="left"
-                                        className="cursor-pointer select-none hover:text-accent"
-                                        onClick={() => toggleSort("status")}
-                                    >
-                                        Status<SortIndicator active={sortKey === "status"} dir={sortDir}/>
-                                    </ListTh>
-                                    <ListTh align="left">Players</ListTh>
-                                    <ListTh
-                                        align="left"
-                                        className="cursor-pointer select-none hover:text-accent"
-                                        onClick={() => toggleSort("ram")}
-                                    >
-                                        RAM<SortIndicator active={sortKey === "ram"} dir={sortDir}/>
-                                    </ListTh>
-                                    <ListTh
-                                        align="left"
-                                        className="cursor-pointer select-none hover:text-accent"
-                                        onClick={() => toggleSort("node")}
-                                    >
-                                        Node<SortIndicator active={sortKey === "node"} dir={sortDir}/>
-                                    </ListTh>
-                                    <ListTh align="right">Actions</ListTh>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                {sortedServers.map((server) => {
-                                    const node = nodeMap[server.node_id];
-                                    const pending = pendingAction[server.id];
-                                    const status = server.status;
-                                    const serverPerms = serverPermissions(permissions, user?.server_permissions ?? {}, server.id);
-
-                                    return (
-                                        <tr
-                                            key={server.id}
-                                            onClick={() => router.push(`/servers/${server.id}`)}
-                                            className="border-b border-border/50 hover:bg-surface-high/40 cursor-pointer group transition-colors"
-                                        >
-                                            {/* SERVER */}
-                                            <ListTd firstCol>
-                                                <p className="text-sm font-heading font-bold text-text-primary group-hover:text-accent transition-colors leading-none">
-                                                    {server.display_name}
-                                                </p>
-                                                {server.is_migrating && (
-                                                    <p className="mt-1 text-xs font-mono text-warning leading-none">
-                                                        ⟳ Migrating
-                                                    </p>
-                                                )}
-                                                {server.exposed_externally && server.public_subdomain && (
-                                                    <p className="mt-0.5 text-xs font-mono text-text-muted leading-none">
-                                                        {server.public_subdomain}
-                                                    </p>
-                                                )}
-                                            </ListTd>
-
-                                            {/* TYPE */}
-                                            <ListTd>
-                      <span
-                          className="font-mono text-xs uppercase tracking-wider text-text-dim border border-border px-1.5 py-0.5 rounded"
-                          style={{background: "var(--text-dim-bg)"}}
-                      >
-                        {server.server_type}
-                      </span>
-                                            </ListTd>
-
-                                            {/* STATUS */}
-                                            <ListTd>
-                                                <Badge variant={serverStatusVariant(status)}>{serverStatusLabel(status)}</Badge>
-                                            </ListTd>
-
-                                            {/* PLAYERS */}
-                                            <ListTd>
-                                                <span className="font-mono text-xs text-text-muted">-/-</span>
-                                            </ListTd>
-
-                                            {/* RAM */}
-                                            <ListTd>
-                                                <RamBar total={server.memory_mb}/>
-                                            </ListTd>
-
-                                            {/* NODE */}
-                                            <ListTd>
-                      <span className="font-mono text-xs text-text-dim">
-                        {node?.display_name ?? `${server.node_id.slice(0, 8)}…`}
-                      </span>
-                                            </ListTd>
-
-                                            {/* ACTIONS */}
-                                            <ListTd className="text-right">
-                                                <div onClick={(e) => e.stopPropagation()}>
-                                                    <ServerActions
-                                                        server={server} status={status} pending={pending}
-                                                        permissions={serverPerms}
-                                                        doAction={doAction} doDelete={doDelete} doDuplicate={doDuplicate}
-                                                    />
-                                                </div>
-                                            </ListTd>
-                                        </tr>
-                                    );
-                                })}
-                                </tbody>
-                            </table>
-                        </div>
-                    )}
-
-                    {/* Mobile card list (mobile) */}
-                    {!initialLoad && sortedServers.length > 0 && (
-                        <div className="md:hidden divide-y divide-border">
-                            {sortedServers.map((server) => {
-                                const node = nodeMap[server.node_id];
-                                const pending = pendingAction[server.id];
-                                const status = server.status;
-                                const serverPerms = serverPermissions(permissions, user?.server_permissions ?? {}, server.id);
-                                return (
-                                    <div
-                                        key={server.id}
-                                        onClick={() => router.push(`/servers/${server.id}`)}
-                                        className="p-3 cursor-pointer active:bg-surface-high transition-colors"
-                                    >
-                                        <div className="flex items-start justify-between gap-2">
-                                            <div className="min-w-0">
-                                                <p className="text-sm font-heading font-bold text-text-primary truncate">{server.display_name}</p>
-                                                <p className="mt-0.5 font-mono text-xs text-text-dim truncate">
-                                                    {server.server_type} · {node?.display_name ?? `${server.node_id.slice(0, 8)}…`}
-                                                </p>
-                                                {server.exposed_externally && server.public_subdomain && (
-                                                    <p className="mt-0.5 font-mono text-xs text-text-muted truncate">{server.public_subdomain}</p>
-                                                )}
-                                            </div>
-                                            <Badge variant={serverStatusVariant(status)}>{serverStatusLabel(status)}</Badge>
-                                        </div>
-                                        <div className="mt-2.5 flex items-center justify-between gap-2">
-                                            <RamBar total={server.memory_mb}/>
-                                            <div onClick={(e) => e.stopPropagation()}>
-                                                <ServerActions
-                                                    server={server} status={status} pending={pending}
-                                                    permissions={serverPerms}
-                                                    doAction={doAction} doDelete={doDelete} doDuplicate={doDuplicate}
-                                                />
-                                            </div>
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    )}
+                    <SmartList
+                        items={sortedServers}
+                        columns={SERVER_COLUMNS}
+                        keyFor={(server) => server.id}
+                        loading={initialLoad}
+                        skeletonRows={5}
+                        empty={
+                            servers.length === 0
+                                ? "No servers yet - create one to get started"
+                                : "No servers match the current filters"
+                        }
+                        actions={renderActions}
+                        actionsHeader="Actions"
+                        onRowClick={(server) => router.push(`/servers/${server.id}`)}
+                        mobileCard={renderMobileCard}
+                    />
                 </div>
             </div>
             {dialog}

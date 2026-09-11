@@ -82,28 +82,29 @@ describe("GroupsPage", () => {
                 group({id: "g2", name: "Mods", is_system: false, permissions: ["server.view", "server.console"]}),
             ],
         });
-        expect(screen.getByText("Admins")).toBeTruthy();
-        expect(screen.getByText("Mods")).toBeTruthy();
+        expect(screen.getAllByText("Admins").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("Mods").length).toBeGreaterThanOrEqual(1);
     });
 
     it("shows lock icon for system groups", async () => {
         await renderWith();
-        expect(document.querySelector("span[title='System group']")).toBeTruthy();
+        const table = screen.getByRole("table");
+        expect(table.querySelector("svg.text-text-muted")).toBeTruthy();
     });
 
     it("shows permission chips", async () => {
         await renderWith({
             groups: [group({id: "g1", name: "Custom", is_system: false, permissions: ["server.view", "server.console"]})],
         });
-        expect(screen.getByText("server.view")).toBeTruthy();
-        expect(screen.getByText("server.console")).toBeTruthy();
+        expect(screen.getAllByText("server.view").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByText("server.console").length).toBeGreaterThanOrEqual(1);
     });
 
     it("shows -- when permissions are empty", async () => {
         await renderWith({
             groups: [group({id: "g1", name: "Empty", is_system: false, permissions: []})],
         });
-        expect(screen.getByText("-")).toBeTruthy();
+        expect(screen.getAllByText("-").length).toBeGreaterThanOrEqual(1);
     });
 
     it("shows +N more when >5 permissions", async () => {
@@ -111,15 +112,15 @@ describe("GroupsPage", () => {
         await renderWith({
             groups: [group({id: "g1", name: "Many", is_system: false, permissions: perms})],
         });
-        expect(screen.getByText("+2 more")).toBeTruthy();
+        expect(screen.getAllByText("+2 more").length).toBeGreaterThanOrEqual(1);
     });
 
     it("renders edit/delete buttons for non-system groups", async () => {
         await renderWith({
             groups: [group({id: "g1", name: "Custom", is_system: false, permissions: []})],
         });
-        expect(screen.getByTitle("Edit")).toBeTruthy();
-        expect(screen.getByTitle("Delete")).toBeTruthy();
+        expect(screen.getAllByTitle("Edit").length).toBeGreaterThanOrEqual(1);
+        expect(screen.getAllByTitle("Delete").length).toBeGreaterThanOrEqual(1);
     });
 
     it("hides edit/delete buttons for system groups", async () => {
@@ -203,7 +204,7 @@ describe("GroupsPage", () => {
         await renderWith({
             groups: [group({id: "g1", name: "Custom", is_system: false, permissions: []})],
         });
-        expect(screen.getByText("Custom")).toBeTruthy();
+        expect(screen.getAllByText("Custom").length).toBeGreaterThanOrEqual(1);
         const deleteBtns = screen.getAllByTitle("Delete");
         expect(deleteBtns.length).toBeGreaterThan(0);
         fireEvent.click(deleteBtns[0]);

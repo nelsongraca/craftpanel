@@ -110,11 +110,11 @@ describe("AlertsPage", () => {
 
             render(<AlertsPage/>);
 
-            expect(screen.getAllByText("Loading…").length).toBe(4);
+            expect(screen.getAllByText("Loading…").length).toBe(2);
 
             def.resolve({data: {thresholds: []}});
             await waitFor(() => {
-                expect(screen.getAllByText("No thresholds configured.").length).toBe(2);
+                expect(screen.getAllByText("No thresholds configured.").length).toBe(1);
             });
         });
     });
@@ -122,12 +122,12 @@ describe("AlertsPage", () => {
     describe("Empty states", () => {
         it('shows "No thresholds configured." when thresholds list is empty', async () => {
             await renderWith({thresholds: [], events: [], permissions: ["system.settings"]});
-            expect(screen.getAllByText("No thresholds configured.").length).toBe(2);
+            expect(screen.getAllByText("No thresholds configured.").length).toBe(1);
         });
 
         it('shows "No alert events." when events list is empty', async () => {
             await renderWith({thresholds: [], events: []});
-            expect(screen.getAllByText("No alert events.").length).toBe(2);
+            expect(screen.getAllByText("No alert events.").length).toBe(1);
         });
     });
 
@@ -320,7 +320,7 @@ describe("AlertsPage", () => {
                 events: [event({id: "ev-1", message: "Will resolve"})],
             });
 
-            expect(screen.getByText("Active")).toBeInTheDocument();
+            expect(screen.getAllByText("Active").length).toBeGreaterThanOrEqual(1);
 
             const resolvedHandler = subscribeMock.mock.calls.find(
                 (c: unknown[]) => c[0] === "alert.resolved",
@@ -387,7 +387,7 @@ describe("AlertsPage", () => {
             });
 
             expect(screen.queryByText("New Alert Threshold")).not.toBeInTheDocument();
-            expect(screen.getByText("> 95")).toBeInTheDocument();
+            expect(screen.getAllByText("> 95").length).toBeGreaterThanOrEqual(1);
         });
 
         it("switching to state trigger shows state input instead of value input", async () => {

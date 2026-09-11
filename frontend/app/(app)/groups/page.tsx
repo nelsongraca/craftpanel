@@ -7,7 +7,8 @@ import {createGroup, deleteGroup, listGroups, setGroupPermissions, updateGroup} 
 import type {Group} from "@/lib/types";
 import {useResourceList} from "@/lib/hooks/useResourceList";
 import {BTN_PRIMARY, BTN_GHOST, Modal, Field, TextField} from "@/components/ui/form-elements";
-import {Empty, EmptyDescription} from "@/components/ui/empty";
+import {IconActionButton} from "@/components/ui/list-table";
+import {SmartList, type SmartListColumn} from "@/components/ui/smart-list";
 
 
 // ── Permission nodes ───────────────────────────────────────────────────────────
@@ -28,6 +29,31 @@ const PERMISSION_GROUPS: { label: string; nodes: string[] }[] = [
         ],
     },
 ];
+
+// ── Columns ───────────────────────────────────────────────────────────────────
+
+const GROUP_COLUMNS: SmartListColumn<Group>[] = [
+    {key: 'name', header: 'Name', render: (g) => (
+        <div className="flex items-center gap-2">
+            {g.is_system && <Lock size={11} className="text-text-muted shrink-0"/>}
+            <span className="font-medium text-text-primary">{g.name}</span>
+        </div>
+    )},
+    {key: 'permissions', header: 'Permissions', render: (g) => (
+        <div className="flex flex-wrap gap-1">
+            {g.permissions.length === 0 ? (
+                <span className="text-text-muted">-</span>
+            ) : g.permissions.slice(0, 5).map((p) => (
+                <span key={p} className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono bg-surface-higher border border-border text-text-dim">
+                    {p === "*" ? "all" : p}
+                </span>
+            ))}
+            {g.permissions.length > 5 && (
+                <span className="text-xs text-text-muted">+{g.permissions.length - 5} more</span>
+            )}
+        </div>
+    )},
+]
 
 // ── Group form ────────────────────────────────────────────────────────────────
 
@@ -168,74 +194,27 @@ export default function GroupsPage() {
             />
 
             <div className="p-6">
-                {loading ? (
-                    <div className="text-xs text-text-muted">Loading…</div>
-                ) : groups.length === 0 ? (
-                    <Empty className="border-2 border-border rounded-md py-10">
-                        <EmptyDescription>No groups.</EmptyDescription>
-                    </Empty>
-                ) : (
-                    <div className="bg-surface border border-border rounded-md overflow-hidden">
-                        <table className="w-full text-xs">
-                            <thead>
-                            <tr className="border-b border-border">
-                                <th className="text-left px-5 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Name</th>
-                                <th className="text-left px-4 py-3 text-xs font-heading font-bold uppercase tracking-widest text-text-muted">Permissions</th>
-                                <th className="px-4 py-3"/>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {groups.map((g) => (
-                                <tr key={g.id} className="border-b border-border/50 hover:bg-surface-high/40">
-                                    <td className="px-5 py-3">
-                                        <div className="flex items-center gap-2">
-                                            {g.is_system && <span title="System group"><Lock size={11} className="text-text-muted shrink-0"/></span>}
-                                            <span className="font-medium text-text-primary">{g.name}</span>
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        <div className="flex flex-wrap gap-1">
-                                            {g.permissions.length === 0 ? (
-                                                <span className="text-text-muted">-</span>
-                                            ) : g.permissions.slice(0, 5).map((p) => (
-                                                <span key={p} className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono bg-surface-higher border border-border text-text-dim">
-                            {p === "*" ? "all" : p}
-                          </span>
-                                            ))}
-                                            {g.permissions.length > 5 && (
-                                                <span className="text-xs text-text-muted">+{g.permissions.length - 5} more</span>
-                                            )}
-                                        </div>
-                                    </td>
-                                    <td className="px-4 py-3">
-                                        {!g.is_system && (
-                                            <div className="flex items-center gap-1 justify-end">
-                                                <button
-                                                    onClick={() => setEditing(g)}
-                                                    className="p-1.5 rounded hover:bg-surface-higher text-text-muted hover:text-text-primary transition-colors"
-                                                    title="Edit"
-                                                >
-                                                    <Pencil size={13}/>
-                                                </button>
-                                                <button
-                                                    onClick={() => {
-                                                        setDeleting(g);
-                                                        setDeleteError("");
-                                                    }}
-                                                    className="p-1.5 rounded hover:bg-surface-higher text-text-muted hover:text-error transition-colors"
-                                                    title="Delete"
-                                                >
-                                                    <Trash2 size={13}/>
-                                                </button>
-                                            </div>
-                                        )}
-                                    </td>
-                                </tr>
-                            ))}
-                            </tbody>
-                        </table>
-                    </div>
-                )}
+                <SmartList
+                    items={groups}
+                    columns={GROUP_COLUMNS}
+                    keyFor={(g) => g.id}
+                    loading={loading}
+                    empty="No groups."
+                    actions={(g) => g.is_system ? null : (
+                        <>
+                            <IconActionButton icon={<Pencil size={13}/>} label="Edit" onClick={() => setEditing(g)}/>
+                            <IconActionButton
+                                icon={<Trash2 size={13}/>}
+                                label="Delete"
+                                danger
+                                onClick={() => {
+                                    setDeleting(g);
+                                    setDeleteError("");
+                                }}
+                            />
+                        </>
+                    )}
+                />
             </div>
 
             {showCreate && (

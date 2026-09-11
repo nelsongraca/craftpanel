@@ -10,8 +10,20 @@ import {hasPermission} from "@/lib/permissions";
 import {useResourceList} from "@/lib/hooks/useResourceList";
 
 import {BTN_PRIMARY, BTN_GHOST, Modal, Field, TextField} from "@/components/ui/form-elements";
-import {ListTh, ListTd, ListActions, IconActionButton} from "@/components/ui/list-table";
-import {Empty, EmptyDescription} from "@/components/ui/empty";
+import {IconActionButton} from "@/components/ui/list-table";
+import {SmartList, type SmartListColumn} from "@/components/ui/smart-list";
+
+// ── Columns ───────────────────────────────────────────────────────────────────
+
+const NETWORK_COLUMNS: SmartListColumn<Network>[] = [
+    {key: 'name', header: 'Name', render: (n) => <span className="font-medium text-text-primary">{n.name}</span>},
+    {key: 'servers', header: 'Servers', render: (n) => (
+        <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-heading font-bold bg-surface-higher border border-border text-text-dim">
+            {n.server_count}
+        </span>
+    )},
+    {key: 'description', header: 'Description', render: (n) => <span className="text-text-muted truncate max-w-[200px] block">{n.description ?? "-"}</span>},
+]
 
 // ── Network form ──────────────────────────────────────────────────────────────
 
@@ -134,86 +146,28 @@ export default function NetworksPage() {
             />
 
             <div className="p-6">
-                {loading ? (
-                    <div className="text-xs text-text-muted">Loading…</div>
-                ) : networks.length === 0 ? (
-                    <Empty className="border-2 border-border rounded-md py-10">
-                        <EmptyDescription>No networks yet. Create one to group servers.</EmptyDescription>
-                    </Empty>
-                ) : (
-                    <>
-                        <div className="bg-surface border border-border rounded-md overflow-hidden">
-                            <table className="hidden md:table w-full text-xs">
-                                <thead>
-                                <tr className="border-b border-border">
-                                    <ListTh>Name</ListTh>
-                                    <ListTh>Servers</ListTh>
-                                    <ListTh>Description</ListTh>
-                                    <ListTh></ListTh>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                {networks.map((n) => (
-                                    <tr key={n.id} className="border-b border-border/50 hover:bg-surface-high/40">
-                                        <ListTd firstCol><span className="font-medium text-text-primary">{n.name}</span></ListTd>
-                                        <ListTd>
-                      <span className="inline-flex items-center px-2 py-0.5 rounded text-xs font-heading font-bold bg-surface-higher border border-border text-text-dim">
-                        {n.server_count}
-                      </span>
-                                        </ListTd>
-                                        <ListTd className="text-text-muted truncate max-w-[200px]">{n.description ?? "-"}</ListTd>
-                                        <ListActions>
-                                            <IconActionButton icon={<Pencil size={13}/>} label="Edit" onClick={() => setEditing(n)}/>
-                                            <IconActionButton
-                                                icon={<Trash2 size={13}/>}
-                                                label={n.server_count > 0 ? "Cannot delete: has member servers" : "Delete"}
-                                                danger
-                                                disabled={n.server_count > 0}
-                                                onClick={() => {
-                                                    setDeleting(n);
-                                                    setDeleteError("");
-                                                }}
-                                            />
-                                        </ListActions>
-                                    </tr>
-                                ))}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {/* Mobile card list (mobile) */}
-                        <div className="md:hidden divide-y divide-border">
-                            {networks.map((n) => (
-                                <div key={n.id} className="p-3">
-                                    <div className="flex items-start justify-between gap-2">
-                                        <div className="min-w-0">
-                                            <p className="text-sm font-medium text-text-primary truncate">{n.name}</p>
-                                            <p className="mt-0.5 font-mono text-xs text-text-dim">
-                                                {n.server_count} server{n.server_count !== 1 ? "s" : ""}
-                                            </p>
-                                            {n.description && (
-                                                <p className="mt-0.5 text-xs text-text-muted truncate">{n.description}</p>
-                                            )}
-                                        </div>
-                                        <div className="flex items-center gap-1 shrink-0">
-                                            <IconActionButton icon={<Pencil size={15}/>} label="Edit" onClick={() => setEditing(n)}/>
-                                            <IconActionButton
-                                                icon={<Trash2 size={15}/>}
-                                                label={n.server_count > 0 ? "Cannot delete: has member servers" : "Delete"}
-                                                danger
-                                                disabled={n.server_count > 0}
-                                                onClick={() => {
-                                                    setDeleting(n);
-                                                    setDeleteError("");
-                                                }}
-                                            />
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </>
-                )}
+                <SmartList
+                    items={networks}
+                    columns={NETWORK_COLUMNS}
+                    keyFor={(n) => n.id}
+                    loading={loading}
+                    empty="No networks yet. Create one to group servers."
+                    actions={(n) => (
+                        <>
+                            <IconActionButton icon={<Pencil size={13}/>} label="Edit" onClick={() => setEditing(n)}/>
+                            <IconActionButton
+                                icon={<Trash2 size={13}/>}
+                                label={n.server_count > 0 ? "Cannot delete: has member servers" : "Delete"}
+                                danger
+                                disabled={n.server_count > 0}
+                                onClick={() => {
+                                    setDeleting(n);
+                                    setDeleteError("");
+                                }}
+                            />
+                        </>
+                    )}
+                />
             </div>
 
             {showCreate && (
