@@ -121,4 +121,22 @@ class ContainerHandler(private val containerManager: ContainerManager, private v
             }
         }
     }
+
+    /** Recreates the servers-by-name symlink tree from a master snapshot (reconnect self-heal). */
+    suspend fun rebuildServerSymlinks(servers: List<RebuildSymlinksCommand.ServerEntry>) {
+        withContext(Dispatchers.IO) {
+            servers.forEach { entry ->
+                runCatching {
+                    val canonicalPath = serverDataRoot(config.dataBasePath, entry.serverId)
+                    if (Files.exists(canonicalPath)) {
+                        SymlinkMaintainer.createServerNameSymlink(
+                            serversByNameRoot = config.serversByNameRoot,
+                            name = entry.serverName,
+                            canonicalPath = canonicalPath
+                        )
+                    }
+                }.onFailure { log.warn("Rebuild: failed servers-by-name symlink for ${entry.serverId}", it) }
+            }
+        }
+    }
 }

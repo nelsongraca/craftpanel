@@ -51,7 +51,6 @@ class ControlStreamHandlerTest :
         val backupHandler = BackupHandler(config)
         val routerSupervisor = RouterSupervisor(mockk<McRouterProvisioner>(relaxed = true))
         val eventWatcher = ContainerEventWatcher(mockk(relaxed = true))
-        val rsyncMigrator = RsyncMigrator(mockk(relaxed = true), config.craftpanelNetwork, config.containerNamePrefix)
         val consoleHandler = ConsoleHandler(mockk(relaxed = true), mockk(relaxed = true))
         val handler = ControlStreamHandler(
             identity,
@@ -59,11 +58,15 @@ class ControlStreamHandlerTest :
             containerManager,
             metricsCollector,
             routerSupervisor,
-            containerHandler,
             eventWatcher,
-            backupHandler,
-            rsyncMigrator,
-            console = consoleHandler,
+            CommandDispatcher(
+                container = containerHandler,
+                backup = backupHandler,
+                migration = mockk(relaxed = true),
+                file = mockk(relaxed = true),
+                console = consoleHandler,
+                bulkClient = mockk(relaxed = true)
+            ),
             gate = WatcherGate()
         )
 
@@ -615,12 +618,37 @@ class ControlStreamHandlerTest :
             }
         }
 
-        test("rebuildSymlinksFromSnapshot creates servers-by-name + backups-by-server symlinks") {
+        test("rebuildServerSymlinks recreates servers-by-name symlinks from snapshot") {
             runBlocking {
                 val serverId = "srv-rebuild"
                 val serverName = "rebuilt-world"
                 val byNameRoot = Files.createTempDirectory("by-name-rebuild")
                     .toFile()
+                val serverDir = File(tempDir, "servers/$serverId").apply { mkdirs() }
+
+                val b = io.craftpanel.proto.RebuildSymlinksCommand.newBuilder()
+                b.addServersBuilder()
+                    .setServerId(serverId)
+                    .setServerName(serverName)
+                val cmd = b.build()
+
+                val rebuildConfig = config.copy(
+                    dataBasePath = tempDir.absolutePath,
+                    serversByNameRoot = byNameRoot.absolutePath
+                )
+
+                ContainerHandler(containerManager, rebuildConfig, mockk<NetworkManager>(relaxed = true))
+                    .rebuildServerSymlinks(cmd.serversList)
+
+                java.nio.file.Files.exists(java.nio.file.Path.of(byNameRoot.absolutePath, serverName)) shouldBe true
+                byNameRoot.deleteRecursively()
+            }
+        }
+
+        test("rebuildBackupSymlinks recreates backups-by-server symlinks from snapshot") {
+            runBlocking {
+                val serverId = "srv-rebuild"
+                val serverName = "rebuilt-world"
                 val byServerRoot = Files.createTempDirectory("by-server-rebuild")
                     .toFile()
                 val serverDir = File(tempDir, "servers/$serverId").apply { mkdirs() }
@@ -631,9 +659,6 @@ class ControlStreamHandlerTest :
                 val timestamp = "2026-07-18_16-00-00"
 
                 val b = io.craftpanel.proto.RebuildSymlinksCommand.newBuilder()
-                b.addServersBuilder()
-                    .setServerId(serverId)
-                    .setServerName(serverName)
                 b.addBackupsBuilder()
                     .setBackupId("bk-rebuild")
                     .setServerId(serverId)
@@ -644,28 +669,13 @@ class ControlStreamHandlerTest :
 
                 val rebuildConfig = config.copy(
                     dataBasePath = tempDir.absolutePath,
-                    serversByNameRoot = byNameRoot.absolutePath,
+                    serversByNameRoot = byServerRoot.absolutePath,
                     backupsByServerRoot = byServerRoot.absolutePath
                 )
-                val rebuildHandler = ControlStreamHandler(
-                    identity,
-                    rebuildConfig,
-                    containerManager,
-                    metricsCollector,
-                    routerSupervisor,
-                    containerHandler,
-                    eventWatcher,
-                    backupHandler,
-                    rsyncMigrator,
-                    console = consoleHandler,
-                    gate = WatcherGate()
-                )
 
-                rebuildHandler.rebuildSymlinksFromSnapshot(cmd)
+                BackupHandler(rebuildConfig).rebuildBackupSymlinks(cmd.backupsList)
 
-                java.nio.file.Files.exists(java.nio.file.Path.of(byNameRoot.absolutePath, serverName)) shouldBe true
                 java.nio.file.Files.exists(java.nio.file.Path.of(byServerRoot.absolutePath, serverName, "$timestamp.tar.gz")) shouldBe true
-                byNameRoot.deleteRecursively()
                 byServerRoot.deleteRecursively()
             }
         }

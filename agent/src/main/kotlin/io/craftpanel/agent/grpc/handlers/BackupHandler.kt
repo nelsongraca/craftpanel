@@ -6,6 +6,8 @@ import io.craftpanel.proto.*
 import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import java.io.File
+import java.nio.file.Files
+import java.nio.file.Paths
 
 class BackupHandler(private val config: AgentConfig) {
 
@@ -128,6 +130,25 @@ class BackupHandler(private val config: AgentConfig) {
             runCatching {
                 SymlinkMaintainer.removeBackupSymlink(config.backupsByServerRoot, cmd.serverName, cmd.createdAtFormatted)
             }.onFailure { log.warn("Failed to remove backups-by-server symlink for ${cmd.backupId}", it) }
+        }
+    }
+
+    /** Recreates the backups-by-server symlink tree from a master snapshot (reconnect self-heal). */
+    suspend fun rebuildBackupSymlinks(backups: List<RebuildSymlinksCommand.BackupEntry>) {
+        withContext(Dispatchers.IO) {
+            backups.forEach { entry ->
+                runCatching {
+                    val canonicalFile = Paths.get(entry.filePath)
+                    if (Files.exists(canonicalFile)) {
+                        SymlinkMaintainer.createBackupSymlink(
+                            backupsByServerRoot = config.backupsByServerRoot,
+                            name = entry.serverName,
+                            timestamp = entry.createdAtFormatted,
+                            canonicalBackupFile = canonicalFile
+                        )
+                    }
+                }.onFailure { log.warn("Rebuild: failed backups-by-server symlink for ${entry.backupId}", it) }
+            }
         }
     }
 }

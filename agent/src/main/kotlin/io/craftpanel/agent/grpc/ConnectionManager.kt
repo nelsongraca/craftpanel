@@ -89,15 +89,20 @@ class ConnectionManager(
                     }
 
                     ControlStreamHandler(
-                        identity, config, containerManager, metricsCollector,
+                        identity = identity,
+                        config = config,
+                        containerManager = containerManager,
+                        metricsCollector = metricsCollector,
                         routerSupervisor = checkNotNull(routerSupervisor),
-                        container = scope.get { parametersOf(checkNotNull(networkManager)) },
                         eventWatcher = ContainerEventWatcher(docker),
-                        backup = scope.get(),
-                        rsyncMigrator = RsyncMigrator(docker, config.craftpanelNetwork, config.containerNamePrefix),
-                        migration = scope.get(),
-                        file = scope.get { parametersOf(identity.nodeKey) },
-                        console = scope.get(),
+                        dispatcher = CommandDispatcher(
+                            container = scope.get { parametersOf(checkNotNull(networkManager)) },
+                            backup = scope.get(),
+                            migration = scope.get(),
+                            file = scope.get { parametersOf(identity.nodeKey) },
+                            console = scope.get(),
+                            bulkClient = BulkDataClient(channel)
+                        ),
                         gate = gate
                     ).run(channel)
                 }
