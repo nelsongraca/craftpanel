@@ -62,7 +62,8 @@ class ControlStreamHandlerTest :
             eventWatcher,
             backupHandler,
             rsyncMigrator,
-            console = consoleHandler
+            console = consoleHandler,
+            gate = WatcherGate()
         )
 
         var tempDir: File = File("")
@@ -649,7 +650,8 @@ class ControlStreamHandlerTest :
                     eventWatcher,
                     backupHandler,
                     rsyncMigrator,
-                    console = consoleHandler
+                    console = consoleHandler,
+                    gate = WatcherGate()
                 )
 
                 rebuildHandler.rebuildSymlinksFromSnapshot(cmd)

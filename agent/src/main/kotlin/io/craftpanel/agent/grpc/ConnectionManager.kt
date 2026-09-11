@@ -24,6 +24,7 @@ class ConnectionManager(
     private val config: AgentConfig,
     private val containerManager: ContainerManager,
     private val metricsCollector: MetricsCollector,
+    private val gate: WatcherGate,
     private val docker: DockerClient
 ) {
 
@@ -95,7 +96,8 @@ class ConnectionManager(
                         rsyncMigrator = RsyncMigrator(docker, config.craftpanelNetwork, config.containerNamePrefix),
                         migration = scope.get(),
                         file = scope.get { parametersOf(identity.nodeKey) },
-                        console = scope.get()
+                        console = scope.get(),
+                        gate = gate
                     ).run(channel)
                 } finally {
                     scope.close()

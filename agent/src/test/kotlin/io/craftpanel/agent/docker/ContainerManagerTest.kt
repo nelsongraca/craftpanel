@@ -16,7 +16,7 @@ import io.mockk.*
 class ContainerManagerTest :
     FunSpec({
         val docker: DockerClient = mockk()
-        val manager = ContainerManager(docker, WatcherGate())
+        val manager = DockerContainerManager(docker, WatcherGate())
         val objectMapper = ObjectMapper()
 
         fun fakeContainer(name: String, state: String, status: String, id: String = "container-id", serverId: String? = "server-id", stopCommand: String? = null): Container {

@@ -4,6 +4,7 @@ import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.di.agentModule
 import io.craftpanel.agent.docker.ContainerManager
+import io.craftpanel.agent.docker.WatcherGate
 import io.craftpanel.agent.docker.MetricsCollector
 import io.craftpanel.agent.grpc.ConnectionManager
 import kotlinx.coroutines.runBlocking
@@ -51,6 +52,7 @@ fun main(): Unit = runBlocking {
 
     val containerManager = koin.get<ContainerManager>()
     val metricsCollector = koin.get<MetricsCollector>()
+    val gate = koin.get<WatcherGate>()
 
-    ConnectionManager(koin, config, containerManager, metricsCollector, docker).run(this)
+    ConnectionManager(koin, config, containerManager, metricsCollector, gate, docker).run(this)
 }

@@ -35,8 +35,8 @@ val agentModule = module {
     }
     single { createDockerClient(get<AgentConfig>().dockerSocketPath) }
     single { WatcherGate() }
-    single {
-        ContainerManager(
+    single<ContainerManager> {
+        DockerContainerManager(
             get<DockerClient>(),
             get<WatcherGate>(),
             get<AgentConfig>().craftpanelNetwork,

@@ -26,7 +26,8 @@ class ControlStreamHandler(
     private val console: ConsoleHandler = ConsoleHandler(
         DockerConsoleSession.Factory(containerManager),
         DockerLogFetcher(containerManager)
-    )
+    ),
+    private val gate: WatcherGate
 ) {
 
     private val log = LoggerFactory.getLogger(ControlStreamHandler::class.java)
@@ -77,7 +78,7 @@ class ControlStreamHandler(
         // Master decides whether to restart (bounded). Closed when this stream scope ends;
         // the periodic snapshot reconcile is the backstop if an event is missed.
         val eventStream = eventWatcher.watch(
-            shouldReport = { serverId -> containerManager.shouldReportDie(serverId) },
+            shouldReport = gate::shouldReportDie,
             onContainerCrash = { serverId -> out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.UNHEALTHY) },
             onContainerStopped = { serverId -> out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.STOPPED) }
         )
