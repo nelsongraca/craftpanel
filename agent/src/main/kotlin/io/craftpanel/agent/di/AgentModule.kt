@@ -34,9 +34,11 @@ val agentModule = module {
             .also { it.validate() }
     }
     single { createDockerClient(get<AgentConfig>().dockerSocketPath) }
+    single { WatcherGate() }
     single {
         ContainerManager(
             get<DockerClient>(),
+            get<WatcherGate>(),
             get<AgentConfig>().craftpanelNetwork,
             get<AgentConfig>().containerNamePrefix,
             get<AgentConfig>().pullMaxImageAgeHours
