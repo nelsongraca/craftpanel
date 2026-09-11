@@ -20,33 +20,13 @@ import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.removeContainerCommand
-import kotlinx.serialization.SerialName
-import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
-import kotlin.time.Instant
 import kotlin.uuid.Uuid
-
-@Serializable
-data class ContainerMetricsPoint(val t: String, val v: Double)
-
-@Serializable
-data class ContainerMetricsPointLong(val t: String, val v: Long)
-
-@Serializable
-data class ContainerMetricsSeriesResponse(@SerialName("server_id") val serverId: String, val series: ContainerMetricsSeries)
-
-@Serializable
-data class ContainerMetricsSeries(
-    @SerialName("cpu_percent") val cpuPercent: List<ContainerMetricsPoint>,
-    @SerialName("ram_used_mb") val ramUsedMb: List<ContainerMetricsPoint>,
-    @SerialName("net_in_bytes") val netInBytes: List<ContainerMetricsPointLong>,
-    @SerialName("net_out_bytes") val netOutBytes: List<ContainerMetricsPointLong>
-)
 
 class ServerService(
     private val gateway: AgentGateway,
@@ -56,36 +36,14 @@ class ServerService(
     private val serverRepository: ServerRepository,
     private val nodeRepository: NodeRepository,
     private val networkRepository: NetworkRepository,
-    private val userRepository: UserRepository,
-    private val groupRepository: GroupRepository,
     private val settingsRepository: SettingsRepository,
     private val portRepository: PortRepository,
     private val envVarsRepository: EnvVarsRepository,
-    private val modRepository: ModRepository,
-    private val containerMetricsRepository: ContainerMetricsRepository,
-    private val migrationRepository: MigrationRepository
+    private val modRepository: ModRepository
 ) {
 
     private val log = LoggerFactory.getLogger(ServerService::class.java)
-    private val visibilityResolver = ServerVisibilityResolver(userRepository, groupRepository)
     private val capacityChecker = ResourceCapacityChecker(serverRepository)
-
-    fun isMigrating(id: Uuid): Boolean = migrationRepository.findActiveMigration(id) != null
-
-    fun listServers(userId: Uuid): List<ServerRow> {
-        val visibility = visibilityResolver.resolve(userId)
-        val rows = when {
-            visibility.isGlobal -> serverRepository.listAll()
-
-            visibility.networkIds.isEmpty() && visibility.serverIds.isEmpty() -> return emptyList()
-
-            else -> serverRepository.listByVisibility(
-                visibility.networkIds.toList(),
-                visibility.serverIds.toList()
-            )
-        }
-        return rows
-    }
 
     fun createServer(
         name: String,
@@ -213,8 +171,6 @@ class ServerService(
         return result
     }
 
-    fun getServer(id: Uuid): ServerRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
-
     fun cloneServer(sourceId: Uuid, name: String, displayName: String?, description: String?): ServerRow {
         val source = serverRepository.findById(sourceId)
             ?: throw NotFoundException("Source server not found")
@@ -259,7 +215,7 @@ class ServerService(
                 }
             }
 
-        return getServer(created.id)
+        return serverRepository.findById(created.id) ?: throw NotFoundException("Server not found")
     }
 
     fun updateServer(id: Uuid, displayName: String?, description: String?, networkId: String?, mcVersion: String?, itzgImageTag: String?) {
@@ -362,22 +318,7 @@ class ServerService(
         }
     }
 
-    fun getMetrics(id: Uuid, from: Instant, to: Instant): ContainerMetricsSeriesResponse {
-        serverRepository.findById(id) ?: throw NotFoundException("Server not found")
-        val rows = containerMetricsRepository.getContainerMetricsByRange(id, from, to)
-        return ContainerMetricsSeriesResponse(
-            serverId = id.toString(),
-            series = ContainerMetricsSeries(
-                cpuPercent = rows.map { ContainerMetricsPoint(it.recordedAt, it.cpuPercent) },
-                ramUsedMb = rows.map { ContainerMetricsPoint(it.recordedAt, it.ramUsedMb.toDouble()) },
-                netInBytes = rows.map { ContainerMetricsPointLong(it.recordedAt, it.netInBytes) },
-                netOutBytes = rows.map { ContainerMetricsPointLong(it.recordedAt, it.netOutBytes) }
-            )
-        )
-    }
 }
-
-internal data class ServerVisibility(val isGlobal: Boolean, val networkIds: Set<Uuid>, val serverIds: Set<Uuid>)
 
 private fun parseUuid(raw: String): Uuid? = runCatching { Uuid.parse(raw) }.getOrNull()
 

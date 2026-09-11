@@ -192,12 +192,17 @@ val appModule = module {
             serverRepository = get(),
             nodeRepository = get(),
             networkRepository = get(),
-            userRepository = get(),
-            groupRepository = get(),
             settingsRepository = get(),
             portRepository = get(),
             envVarsRepository = get(),
-            modRepository = get(),
+            modRepository = get()
+        )
+    }
+    single {
+        ServerQueryService(
+            serverRepository = get(),
+            userRepository = get(),
+            groupRepository = get(),
             containerMetricsRepository = get(),
             migrationRepository = get()
         )

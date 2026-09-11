@@ -77,12 +77,15 @@ class ServersRoutesTest :
                     serverRepository = serverRepository,
                     nodeRepository = nodeRepository,
                     networkRepository = networkRepository,
-                    userRepository = UserRepositoryImpl(),
-                    groupRepository = GroupRepositoryImpl(),
                     settingsRepository = settingsRepository,
                     portRepository = repos.portRepository,
                     envVarsRepository = repos.envVarsRepository,
-                    modRepository = repos.modRepository,
+                    modRepository = repos.modRepository
+                ),
+                ServerQueryService(
+                    serverRepository = serverRepository,
+                    userRepository = UserRepositoryImpl(),
+                    groupRepository = GroupRepositoryImpl(),
                     containerMetricsRepository = repos.containerMetricsRepository,
                     migrationRepository = repos.migrationRepository
                 ),

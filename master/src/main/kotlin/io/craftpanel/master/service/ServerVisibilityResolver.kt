@@ -5,6 +5,8 @@ import io.craftpanel.master.service.repo.GroupRepository
 import io.craftpanel.master.service.repo.UserRepository
 import kotlin.uuid.Uuid
 
+internal data class ServerVisibility(val isGlobal: Boolean, val networkIds: Set<Uuid>, val serverIds: Set<Uuid>)
+
 class ServerVisibilityResolver(private val userRepository: UserRepository, private val groupRepository: GroupRepository) {
 
     internal fun resolve(userId: Uuid): ServerVisibility {
@@ -24,9 +26,9 @@ class ServerVisibilityResolver(private val userRepository: UserRepository, priva
         val serverIds = mutableSetOf<Uuid>()
         for (a in assignments.filter { it.groupId in viewGroups }) {
             when (a.scopeType) {
-                ScopeType.GLOBAL.name -> isGlobal = true
+                ScopeType.GLOBAL.name  -> isGlobal = true
                 ScopeType.NETWORK.name -> a.scopeId?.let { networkIds += it }
-                ScopeType.SERVER.name -> a.scopeId?.let { serverIds += it }
+                ScopeType.SERVER.name  -> a.scopeId?.let { serverIds += it }
             }
         }
         return ServerVisibility(isGlobal, networkIds, serverIds)

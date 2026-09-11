@@ -12,7 +12,13 @@ import io.ktor.server.routing.*
 import kotlin.time.Instant
 import kotlin.uuid.Uuid
 
-fun Route.serversRoutes(serverService: ServerService, lifecycleService: ServerLifecycleService, exposureService: ServerExposureService, serverExposure: ServerExposure) {
+fun Route.serversRoutes(
+    serverService: ServerService,
+    queryService: ServerQueryService,
+    lifecycleService: ServerLifecycleService,
+    exposureService: ServerExposureService,
+    serverExposure: ServerExposure
+) {
     authenticate(JWT_AUTH) {
         route("/api/servers") {
             get("", {
@@ -24,9 +30,9 @@ fun Route.serversRoutes(serverService: ServerService, lifecycleService: ServerLi
                 }
             }) {
                 val userId = call.userId()
-                val rows = serverService.listServers(userId)
+                val rows = queryService.listServers(userId)
                 val migratingIds = if (rows.isEmpty()) emptySet()
-                else rows.filter { serverService.isMigrating(it.id) }
+                else rows.filter { queryService.isMigrating(it.id) }
                     .map { it.id }
                     .toSet()
                 call.respond(rows.map { it.toResponse(serverExposure, it.id in migratingIds) })
@@ -99,8 +105,8 @@ fun Route.serversRoutes(serverService: ServerService, lifecycleService: ServerLi
                 }
             }) {
                 val auth = call.requireServerPermission(Permission.SERVER_VIEW)
-                val row = serverService.getServer(auth.serverId)
-                call.respond(row.toResponse(serverExposure, serverService.isMigrating(auth.serverId)))
+                val row = queryService.getServer(auth.serverId)
+                call.respond(row.toResponse(serverExposure, queryService.isMigrating(auth.serverId)))
             }
 
             patch("/{id}", {
@@ -257,7 +263,7 @@ fun Route.serversRoutes(serverService: ServerService, lifecycleService: ServerLi
                 val to = call.request.queryParameters["to"]?.let {
                     runCatching { Instant.parse(it) }.getOrNull()
                 } ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("to required (ISO8601)"))
-                call.respond(serverService.getMetrics(auth.serverId, from, to))
+                call.respond(queryService.getMetrics(auth.serverId, from, to))
             }
 
             patch("/{id}/exposure", {
