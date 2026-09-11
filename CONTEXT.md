@@ -499,6 +499,34 @@ FK `ON DELETE CASCADE` replaces manual cascade in repo `delete()` methods.
   `FooService` opens `transaction { mutate(entity) }`.
 - See architecture review 2026-07-30, candidate 3.
 
+### WatcherGate (agent)
+
+The one module that decides "is this container death a crash worth reporting?"
+Pure state machine over two server-id sets (`managed`, `stopping`); extracted
+from `ContainerManager`, which previously mixed Docker I/O with gating state.
+
+- `shouldReportDie(serverId)` — true iff the server is managed and not
+  stopping. Wired by `ControlStreamHandler` as the `ContainerEventWatcher`
+  `shouldReport` lambda.
+- **Gating lives inside the adapter**: `DockerContainerManager` (the
+  `ContainerManager` interface's Docker-backed adapter) marks internally —
+  stop/kill/remove mark stopping before the docker call, start marks started on
+  success, remove marks removed after. Handlers make zero mark\* calls; the
+  invariant "a death this agent caused is never reported as a crash" is
+  unbreakable from outside the module.
+- Server ids are derived from container names
+  (`$containerNamePrefix-$serverId`) inside the adapter — the same convention
+  `execRconCommand` already relied on; master builds every command's
+  containerName that way (verified across `ContainerLifecycle`/`ServerService`).
+- `ContainerManager` is now an interface (Docker ops, gating built in);
+  `DockerContainerManager` is the prod adapter; `FakeContainerManager` (test
+  source) is the behavioral fake — in-memory container state machine + real
+  `WatcherGate` + call log. Two adapters make the seam real.
+- `ContainerHandler` tests assert outcomes (die suppressed after stop, restored
+  after restart) through the fake instead of call shapes through relaxed
+  MockK — first coverage for the recreate flow.
+- See `improve-codebase-architecture` review 2026-09-11, candidate 1.
+
 ## Open / planned
 
 ### Server lifecycle orchestrator (master) — superseded by ContainerLifecycle
