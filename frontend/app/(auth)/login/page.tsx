@@ -21,13 +21,11 @@ export default function LoginPage() {
     const [submitting, setSubmitting] = useState(false);
     const [challenge, setChallenge] = useState<Challenge | null>(null);
     const [code, setCode] = useState("");
-    const [appName, setAppName] = useState("CraftPanel");
     const [branding, setBranding] = useState<BrandingConfig | null>(null);
 
     useEffect(() => {
         fetchBrandingConfig().then((cfg) => {
             setBranding(cfg);
-            setAppName(cfg.appName);
         });
     }, []);
 
@@ -92,9 +90,9 @@ export default function LoginPage() {
                 <div className="w-full max-w-sm bg-surface border border-border rounded-lg p-8">
                     <div className="text-center mb-8">
                         <div className="flex items-center justify-center gap-3 mb-2">
-                            <Image src={logoUrl(branding)} alt={`${appName} logo`} width={36} height={36} unoptimized/>
+                            <Image src={logoUrl(branding)} alt={`${branding?.appName ?? "CraftPanel"} logo`} width={36} height={36} unoptimized/>
                             <h1 className="text-2xl font-bold font-heading tracking-wide text-accent">
-                                {appName}
+                                {branding?.appName ?? "CraftPanel"}
                             </h1>
                         </div>
                         <h2 className="text-sm font-heading font-bold uppercase tracking-widest text-text-primary pt-2">
@@ -159,9 +157,9 @@ export default function LoginPage() {
             <div className="w-full max-w-sm bg-surface border border-border rounded-lg p-8">
                 <div className="text-center mb-8">
                     <div className="flex items-center justify-center gap-3 mb-2">
-                        <Image src={logoUrl(branding)} alt={`${appName} logo`} width={36} height={36} unoptimized/>
+                        <Image src={logoUrl(branding)} alt={`${branding?.appName ?? "CraftPanel"} logo`} width={36} height={36} unoptimized/>
                         <h1 className="text-2xl font-bold font-heading tracking-wide text-accent">
-                            {appName}
+                            {branding?.appName ?? "CraftPanel"}
                         </h1>
                     </div>
                     <p className="text-text-muted text-xs mt-2">Sign in to your account</p>

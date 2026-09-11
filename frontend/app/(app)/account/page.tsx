@@ -212,37 +212,38 @@ export default function AccountPage() {
                         </form>
                     )}
                 </section>
+
+
+                {setupOpen && (
+                    <TotpSetupModal onClose={() => setSetupOpen(false)} onEnabled={() => void loadStatus()}/>
+                )}
+
+                {/* ── Sessions ────────────────────────────────────────────── */}
+                <section className="bg-surface border border-border rounded-md p-5 space-y-4">
+                    <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
+                        Sessions
+                    </h2>
+                    <p className="text-sm text-text-dim">
+                        Sign out all other sessions across devices. Your current session will remain active.
+                    </p>
+                    {sessionsMsg && <p className="text-xs text-healthy">{sessionsMsg}</p>}
+                    <div className="flex justify-end">
+                        <button
+                            className={BTN_GHOST}
+                            disabled={sessionsBusy}
+                            onClick={async () => {
+                                setSessionsBusy(true);
+                                setSessionsMsg("");
+                                const ok = await logoutAll();
+                                setSessionsBusy(false);
+                                if (ok) setSessionsMsg("All other sessions have been signed out.");
+                            }}
+                        >
+                            {sessionsBusy ? "Signing out…" : "Sign out all other sessions"}
+                        </button>
+                    </div>
+                </section>
             </div>
-
-            {setupOpen && (
-                <TotpSetupModal onClose={() => setSetupOpen(false)} onEnabled={() => void loadStatus()}/>
-            )}
-
-            {/* ── Sessions ────────────────────────────────────────────── */}
-            <section className="bg-surface border border-border rounded-md p-5 space-y-4">
-                <h2 className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted border-b border-border pb-3">
-                    Sessions
-                </h2>
-                <p className="text-sm text-text-dim">
-                    Sign out all other sessions across devices. Your current session will remain active.
-                </p>
-                {sessionsMsg && <p className="text-xs text-healthy">{sessionsMsg}</p>}
-                <div className="flex justify-end">
-                    <button
-                        className={BTN_GHOST}
-                        disabled={sessionsBusy}
-                        onClick={async () => {
-                            setSessionsBusy(true);
-                            setSessionsMsg("");
-                            const ok = await logoutAll();
-                            setSessionsBusy(false);
-                            if (ok) setSessionsMsg("All other sessions have been signed out.");
-                        }}
-                    >
-                        {sessionsBusy ? "Signing out…" : "Sign out all other sessions"}
-                    </button>
-                </div>
-            </section>
         </div>
     );
 }

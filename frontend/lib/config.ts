@@ -48,10 +48,13 @@ export async function fetchBrandingConfig(): Promise<BrandingConfig> {
         if (!res.ok) {
             return {appName: APP_NAME_DEFAULT, hasLogo: false, logoHash: "", logoUrl: "/api/branding/logo"}
         }
-        const data = await res.json() as BrandingConfig
-        data.appName = data.appName?.trim() || APP_NAME_DEFAULT
-        data.logoUrl = data.logoUrl || "/api/branding/logo"
-        return data
+        const raw = await res.json() as Record<string, unknown>
+        return {
+            appName: (raw.app_name as string)?.trim() || APP_NAME_DEFAULT,
+            hasLogo: raw.has_logo === true,
+            logoHash: (raw.logo_hash as string) ?? "",
+            logoUrl: (raw.logo_url as string) || "/api/branding/logo",
+        }
     } catch {
         return {appName: APP_NAME_DEFAULT, hasLogo: false, logoHash: "", logoUrl: "/api/branding/logo"}
     }
