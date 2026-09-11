@@ -18,6 +18,7 @@ import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
+import io.craftpanel.master.util.parseUtcInstant
 import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.removeContainerCommand
 import org.jetbrains.exposed.v1.core.*
@@ -26,6 +27,8 @@ import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import kotlin.uuid.Uuid
 
 class ServerService(
@@ -55,10 +58,12 @@ class ServerService(
         mcVersion: String,
         itzgImageTag: String,
         memoryMb: Int,
-        cpuShares: Int
+        cpuShares: Int,
+        expiresAt: String? = null
     ): ServerRow {
         if (memoryMb <= 0) throw UnprocessableException("memory_mb must be positive")
         if (cpuShares < 0) throw UnprocessableException("cpu_shares must be non-negative")
+        val expiryLocal = parseExpiresAt(expiresAt)
 
         val st = runCatching { ServerType.valueOf(serverType) }.getOrNull()
             ?: throw UnprocessableException("Invalid server_type: $serverType")
@@ -106,6 +111,7 @@ class ServerService(
                     this.hostPort = port
                     this.memoryMb = memoryMb
                     this.cpuShares = cpuShares
+                    this.expiresAt = expiryLocal
                     this.configMode = "MANAGED"
                     this.stopCommand = stopCommand
                 }
@@ -318,6 +324,23 @@ class ServerService(
         }
     }
 
+    fun updateExpiration(id: Uuid, expiresAt: String?): ServerRow {
+        serverRepository.findById(id) ?: throw NotFoundException("Server not found")
+        val expiryLocal = parseExpiresAt(expiresAt)
+        transaction {
+            Server.findById(id)?.let { it.expiresAt = expiryLocal }
+        }
+        return serverRepository.findById(id) ?: throw NotFoundException("Server not found")
+    }
+
+}
+
+private fun parseExpiresAt(raw: String?): kotlinx.datetime.LocalDateTime? {
+    return raw?.let {
+        val parsed = parseUtcInstant(it)
+            ?: throw UnprocessableException("Invalid expires_at")
+        parsed.toLocalDateTime(TimeZone.UTC)
+    }
 }
 
 private fun parseUuid(raw: String): Uuid? = runCatching { Uuid.parse(raw) }.getOrNull()

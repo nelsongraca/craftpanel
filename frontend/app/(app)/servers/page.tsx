@@ -15,7 +15,7 @@ import {IconActionButton} from "@/components/ui/list-table";
 import {SmartList} from "@/components/ui/smart-list";
 import type {SmartListColumn} from "@/components/ui/smart-list";
 import {fillColor} from "@/lib/utils/format";
-import {serverStatusLabel, serverStatusVariant} from "@/lib/status";
+import {serverExpired, serverStatusLabel, serverStatusVariant} from "@/lib/status";
 import {Badge} from "@/components/ui/badge";
 import {SelectField} from "@/components/ui/form-elements";
 
@@ -67,9 +67,10 @@ function ServerActions({
     doDelete: (s: Server) => void;
     doDuplicate: (s: Server) => void;
 }) {
+    const expired = serverExpired(server.expires_at);
     return (
         <div className="flex items-center justify-end gap-1">
-            {status === "STOPPED" && hasPermission(permissions, "server.start") && (
+            {status === "STOPPED" && !expired && hasPermission(permissions, "server.start") && (
                 <IconActionButton
                     icon={<Play size={11} strokeWidth={2.5}/>}
                     label="Start"
@@ -95,7 +96,7 @@ function ServerActions({
                     danger
                 />
             )}
-            {status === "HEALTHY" && hasPermission(permissions, "server.restart") && (
+            {status === "HEALTHY" && !expired && hasPermission(permissions, "server.restart") && (
                 <IconActionButton
                     icon={<RotateCcw size={11} strokeWidth={2.5}/>}
                     label="Restart"
@@ -289,6 +290,11 @@ export default function ServersPage() {
                     {server.is_migrating && (
                         <p className="mt-1 text-xs font-mono text-warning leading-none">
                             ⟳ Migrating
+                        </p>
+                    )}
+                    {serverExpired(server.expires_at) && (
+                        <p className="mt-1 text-xs font-mono text-error leading-none">
+                            Expired
                         </p>
                     )}
                     {server.exposed_externally && server.public_subdomain && (

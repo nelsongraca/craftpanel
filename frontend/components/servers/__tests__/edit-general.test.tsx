@@ -5,10 +5,11 @@ import {EditGeneral} from '../edit-general'
 
 vi.mock('@/lib/generated/sdk.gen', () => ({
     updateServer: vi.fn(),
+    updateServerExpiration: vi.fn(),
     listNetworks: vi.fn(),
 }))
 
-import {updateServer, listNetworks} from '@/lib/generated/sdk.gen'
+import {updateServer, updateServerExpiration, listNetworks} from '@/lib/generated/sdk.gen'
 import type {Server} from '@/lib/types'
 
 const makeServer = (overrides?: Partial<Server>): Server => ({
@@ -44,14 +45,14 @@ describe('EditGeneral', () => {
     })
 
     it('renders display name and description', () => {
-        render(<EditGeneral server={makeServer()} onSaved={vi.fn()}/>)
+        render(<EditGeneral server={makeServer()} permissions={['*']} onSaved={vi.fn()}/>)
         expect(screen.getByText('My Server')).toBeInTheDocument()
         expect(screen.getByText('A cool server')).toBeInTheDocument()
     })
 
     it('opens edit form on Edit click', async () => {
         const user = userEvent.setup()
-        render(<EditGeneral server={makeServer()} onSaved={vi.fn()}/>)
+        render(<EditGeneral server={makeServer()} permissions={['*']} onSaved={vi.fn()}/>)
         await user.click(screen.getByText('Edit'))
         expect(screen.getByDisplayValue('My Server')).toBeInTheDocument()
         expect(screen.getByText('Save')).toBeInTheDocument()
@@ -61,7 +62,7 @@ describe('EditGeneral', () => {
         vi.mocked(updateServer).mockResolvedValue({data: {}, error: undefined, response: new Response()})
         const onSaved = vi.fn()
         const user = userEvent.setup()
-        render(<EditGeneral server={makeServer()} onSaved={onSaved}/>)
+        render(<EditGeneral server={makeServer()} permissions={['*']} onSaved={onSaved}/>)
         await user.click(screen.getByText('Edit'))
         const nameInput = screen.getByDisplayValue('My Server')
         await user.clear(nameInput)
@@ -74,12 +75,35 @@ describe('EditGeneral', () => {
     it('shows error on save failure', async () => {
         vi.mocked(updateServer).mockResolvedValue({error: {message: 'Save failed'}, response: new Response()})
         const user = userEvent.setup()
-        render(<EditGeneral server={makeServer()} onSaved={vi.fn()}/>)
+        render(<EditGeneral server={makeServer()} permissions={['*']} onSaved={vi.fn()}/>)
         await user.click(screen.getByText('Edit'))
         const nameInput = screen.getByDisplayValue('My Server')
         await user.clear(nameInput)
         await user.type(nameInput, 'New Name')
         await user.click(screen.getByText('Save'))
         expect(await screen.findByText('Save failed')).toBeInTheDocument()
+    })
+
+    it('hides the expiry field without server.expires permission', async () => {
+        const user = userEvent.setup()
+        render(<EditGeneral server={makeServer()} permissions={['server.view']} onSaved={vi.fn()}/>)
+        await user.click(screen.getByText('Edit'))
+        expect(screen.queryByPlaceholderText('Optional expiration date/time')).not.toBeInTheDocument()
+    })
+
+    it('calls updateServerExpiration when the expiry changes', async () => {
+        vi.mocked(updateServer).mockResolvedValue({data: {}, error: undefined, response: new Response()})
+        vi.mocked(updateServerExpiration).mockResolvedValue({data: {}, error: undefined, response: new Response()})
+        const user = userEvent.setup()
+        render(<EditGeneral server={makeServer()} permissions={['*']} onSaved={vi.fn()}/>)
+        await user.click(screen.getByText('Edit'))
+        const expiryInput = screen.getByPlaceholderText('Optional expiration date/time')
+        await user.clear(expiryInput)
+        await user.type(expiryInput, '2027-03-15T09:30')
+        await user.click(screen.getByText('Save'))
+        expect(updateServerExpiration).toHaveBeenCalled()
+        const call = vi.mocked(updateServerExpiration).mock.calls[0][0]
+        expect(call.path).toEqual({id: 's1'})
+        expect(call.body.expires_at).toMatch(/^2027-03-15T09:30/)
     })
 })

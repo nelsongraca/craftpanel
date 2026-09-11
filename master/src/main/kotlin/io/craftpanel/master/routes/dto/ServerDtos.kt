@@ -30,6 +30,7 @@ data class ServerResponse(
     @SerialName("needs_recreate") val needsRecreate: Boolean,
     @SerialName("config_mode") val configMode: ConfigMode,
     @SerialName("stop_command") val stopCommand: String,
+    @SerialName("expires_at") val expiresAt: String?,
     @SerialName("last_player_count") val lastPlayerCount: Int?,
     @SerialName("last_player_names") val lastPlayerNames: List<String>?,
     @SerialName("created_at") val createdAt: String,
@@ -47,7 +48,8 @@ data class CreateServerRequest(
     @SerialName("mc_version") val mcVersion: String = "LATEST",
     @SerialName("itzg_image_tag") val itzgImageTag: String = "latest",
     @SerialName("memory_mb") val memoryMb: Int,
-    @SerialName("cpu_shares") val cpuShares: Int = 0
+    @SerialName("cpu_shares") val cpuShares: Int = 0,
+    @SerialName("expires_at") val expiresAt: String? = null
 )
 
 @Serializable
@@ -64,6 +66,9 @@ data class UpdateServerRequest(
 
 @Serializable
 data class PatchResourcesRequest(@SerialName("memory_mb") val memoryMb: Int, @SerialName("cpu_shares") val cpuShares: Int, @SerialName("itzg_image_tag") val itzgImageTag: String? = null)
+
+@Serializable
+data class PatchExpirationRequest(@SerialName("expires_at") val expiresAt: String?)
 
 @Serializable
 data class PatchExposureRequest(
@@ -96,6 +101,7 @@ internal fun ServerRow.toResponse(serverExposure: ServerExposure, isMigrating: B
         needsRecreate = needsRecreate,
         configMode = ConfigMode.fromDb(configMode),
         stopCommand = stopCommand,
+        expiresAt = expiresAt,
         lastPlayerCount = lastPlayerCount,
         lastPlayerNames = lastPlayerNames?.split(",")
             ?.filter { it.isNotBlank() },

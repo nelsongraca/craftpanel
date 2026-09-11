@@ -578,4 +578,41 @@ describe("ServersPage", () => {
             expect(screen.getAllByText("mc.example.com").length).toBeGreaterThan(0);
         });
     });
+
+    describe("Expired servers", () => {
+        it("Start button NOT rendered for an expired stopped server even with server.start permission", async () => {
+            const s = server({status: "STOPPED", expires_at: "2024-01-01T00:00:00Z"});
+            await renderWith({servers: [s], permissions: ["server.start"]});
+
+            expect(screen.queryByTitle("Start")).not.toBeInTheDocument();
+        });
+
+        it("Start button still rendered for a stopped server with a future expiry", async () => {
+            const s = server({status: "STOPPED", expires_at: "2999-01-01T00:00:00Z"});
+            await renderWith({servers: [s], permissions: ["server.start"]});
+
+            expect(screen.getAllByTitle("Start").length).toBeGreaterThan(0);
+        });
+
+        it("Restart NOT rendered for an expired running server but Stop remains", async () => {
+            const s = server({status: "HEALTHY", expires_at: "2024-01-01T00:00:00Z"});
+            await renderWith({servers: [s], permissions: ["server.restart", "server.stop"]});
+
+            expect(screen.queryByTitle("Restart")).not.toBeInTheDocument();
+            expect(screen.getAllByTitle("Stop").length).toBeGreaterThan(0);
+        });
+
+        it("expired server shows Expired label", async () => {
+            const s = server({expires_at: "2024-01-01T00:00:00Z"});
+            await renderWith({servers: [s]});
+
+            expect(screen.getAllByText("Expired").length).toBeGreaterThan(0);
+        });
+
+        it("server without an expiry shows no Expired label", async () => {
+            await renderWith({servers: [server()]});
+
+            expect(screen.queryByText("Expired")).not.toBeInTheDocument();
+        });
+    });
 });

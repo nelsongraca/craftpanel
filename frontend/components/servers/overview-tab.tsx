@@ -80,6 +80,7 @@ export function OverviewTab({
             {canConfigure && (
                 <EditGeneral
                     server={server}
+                    permissions={permissions}
                     forceOpenSignal={forceOpenGeneralSignal}
                     onSaved={onSaved}
                 />

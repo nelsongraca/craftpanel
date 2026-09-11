@@ -110,6 +110,16 @@ class ServerRepositoryImpl :
             .map { it.toServerRow() }
     }
 
+    override fun listExpiredRunning(now: kotlinx.datetime.LocalDateTime): List<ServerRow> = transaction {
+        Servers.selectAll()
+            .where {
+                Servers.expiresAt.isNotNull() and
+                    (Servers.expiresAt lessEq now) and
+                    (Servers.status inList listOf("STARTING", "HEALTHY", "UNHEALTHY"))
+            }
+            .map { it.toServerRow() }
+    }
+
     override fun countByNetworkId(networkId: Uuid): Int = transaction {
         Servers.selectAll()
             .where { Servers.networkId eq networkId }
@@ -163,6 +173,7 @@ private fun ResultRow.toServerRow() = ServerRow(
     stopCommand = this[Servers.stopCommand],
     itzgImageTag = this[Servers.itzgImageTag],
     needsRecreate = this[Servers.needsRecreate],
+    expiresAt = this[Servers.expiresAt]?.toUtcString(),
     proxyMotd = this[Servers.proxyMotd],
     proxyMaxPlayers = this[Servers.proxyMaxPlayers],
     proxyForwardingMode = this[Servers.proxyForwardingMode],

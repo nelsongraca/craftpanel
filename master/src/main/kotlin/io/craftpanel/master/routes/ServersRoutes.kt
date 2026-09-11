@@ -1,8 +1,10 @@
 package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.*
+import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.routes.dto.*
 import io.craftpanel.master.service.*
+import io.craftpanel.master.service.repo.isExpired
 import io.github.smiley4.ktoropenapi.*
 import io.ktor.http.*
 import io.ktor.server.auth.*
@@ -52,6 +54,7 @@ fun Route.serversRoutes(
             }) {
                 call.requirePermission(Permission.SERVER_CREATE)
                 val req = call.receive<CreateServerRequest>()
+                if (req.expiresAt != null) call.requirePermission(Permission.SERVER_EXPIRES)
                 val row = serverService.createServer(
                     name = req.name,
                     displayName = req.displayName,
@@ -62,7 +65,8 @@ fun Route.serversRoutes(
                     mcVersion = req.mcVersion,
                     itzgImageTag = req.itzgImageTag,
                     memoryMb = req.memoryMb,
-                    cpuShares = req.cpuShares
+                    cpuShares = req.cpuShares,
+                    expiresAt = req.expiresAt
                 )
                 call.respond(HttpStatusCode.Created, row.toResponse(serverExposure, false))
             }
@@ -284,6 +288,30 @@ fun Route.serversRoutes(
                 val auth = call.requireServerPermission(Permission.SERVER_CONFIGURE)
                 val req = call.receive<PatchExposureRequest>()
                 exposureService.updateExposure(auth.serverId, req.exposedExternally, req.publicSubdomain, req.customHostname)
+                call.respond(HttpStatusCode.NoContent)
+            }
+
+            patch("/{id}/expiration", {
+                operationId = "updateServerExpiration"
+                summary = "Update server expiration date. Once the date is reached the server can no longer be started and any running instance is stopped."
+                request {
+                    pathParameter<String>("id")
+                    body<PatchExpirationRequest>()
+                }
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                val auth = call.requireServerPermission(Permission.SERVER_EXPIRES)
+                val req = call.receive<PatchExpirationRequest>()
+                val row = serverService.updateExpiration(auth.serverId, req.expiresAt)
+                if (row.isExpired() && ServerStatus.fromDb(row.status).isRunning) {
+                    lifecycleService.stopServer(auth.serverId)
+                }
                 call.respond(HttpStatusCode.NoContent)
             }
         }

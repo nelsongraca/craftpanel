@@ -4,10 +4,11 @@ import com.cronutils.model.CronType
 import com.cronutils.model.definition.CronDefinitionBuilder
 import com.cronutils.model.time.ExecutionTime
 import com.cronutils.parser.CronParser
-import io.craftpanel.master.database.entity.Server
+import io.craftpanel.master.service.ServerLifecycleService
 import io.craftpanel.master.service.repo.ServerJobRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.coroutines.*
+import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.entity.ServerJob
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -25,7 +26,8 @@ class ServerScheduler(
     private val handlers: Map<String, ScheduledJobHandler>,
     private val scope: CoroutineScope,
     private val serverRepository: ServerRepository,
-    private val serverJobRepository: ServerJobRepository
+    private val serverJobRepository: ServerJobRepository,
+    private val lifecycleService: ServerLifecycleService
 ) {
 
     private val log = LoggerFactory.getLogger(ServerScheduler::class.java)
@@ -83,6 +85,14 @@ class ServerScheduler(
                 scope.launch {
                     handler.execute(JobExecutionContext(serverId, jobId = null, scheduledAt = now))
                 }
+            }
+        }
+
+        val expiredRows = serverRepository.listExpiredRunning(now.toLocalDateTime(TimeZone.UTC))
+        for (row in expiredRows) {
+            scope.launch {
+                runCatching { lifecycleService.stopServer(row.id) }
+                    .onFailure { log.error("Failed to stop expired server ${row.id}", it) }
             }
         }
 

@@ -3,6 +3,7 @@ package io.craftpanel.master.routes
 import io.craftpanel.master.*
 import io.craftpanel.master.auth.*
 import io.craftpanel.master.config.JwtConfig
+import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.*
@@ -115,6 +116,20 @@ class ServersRoutesTest :
             }
         }
 
+        fun createGroupWithPermissions(name: String, vararg nodes: String): Uuid = transaction {
+            val groupId = Groups.insert {
+                it[Groups.name] = name
+                it[Groups.isSystem] = false
+            }[Groups.id].let { Uuid.parse(it.toString()) }
+            nodes.forEach { node ->
+                GroupPermissions.insert {
+                    it[GroupPermissions.groupId] = EntityID(groupId, Groups)
+                    it[GroupPermissions.permission] = node
+                }
+            }
+            groupId
+        }
+
         fun tokenFor(userId: Uuid, username: String = "admin"): String = jwtManager.generate(TokenClaims(userId = userId, name = username, email = "$username@example.com", groups = emptyList()))
 
         fun createNode(hostname: String = "node-1", status: String = "ACTIVE", totalRamMb: Int = 8192, totalCpuShares: Int = 0, portStart: Int = 25565, portEnd: Int = 25600): Uuid = transaction {
@@ -163,6 +178,10 @@ class ServersRoutesTest :
                 it[Servers.cpuShares] = 0
                 it[Servers.status] = status
             }[Servers.id].let { Uuid.parse(it.toString()) }
+        }
+
+        fun setExpiry(id: Uuid, value: kotlinx.datetime.LocalDateTime? = null) = transaction {
+            Server.findById(id)?.let { it.expiresAt = value }
         }
 
         // ── GET /servers ─────────────────────────────────────────────────────────
@@ -246,6 +265,71 @@ class ServersRoutesTest :
                     setBody("""{"name":"s","node_id":"$nodeId","server_type":"VANILLA","memory_mb":1024}""")
                 }
                 resp.status shouldBe HttpStatusCode.Forbidden
+            }
+        }
+
+        test("POST servers returns 403 when setting expires_at without server-expires permission") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                val groupId = createGroupWithPermissions("CreateOnly", "server.create")
+                transaction {
+                    UserGroupAssignments.insert {
+                        it[UserGroupAssignments.userId] = userId
+                        it[UserGroupAssignments.groupId] = EntityID(groupId, Groups)
+                        it[UserGroupAssignments.scopeType] = "GLOBAL"
+                    }
+                }
+                val nodeId = createNode()
+                val resp = client.post("/api/servers") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"s","node_id":"$nodeId","server_type":"VANILLA","memory_mb":1024,"expires_at":"2026-01-01T00:00:00Z"}""")
+                }
+                resp.status shouldBe HttpStatusCode.Forbidden
+            }
+        }
+
+        test("POST servers stores expires_at when user has server-expires") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val resp = client.post("/api/servers") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"expiring","node_id":"$nodeId","server_type":"VANILLA","memory_mb":1024,"expires_at":"2027-03-15T09:30:00Z"}""")
+                }
+                resp.status shouldBe HttpStatusCode.Created
+                val body = resp.body<JsonObject>()
+                kotlin.time.Instant.parse(body["expires_at"]!!.jsonPrimitive.content) shouldBe
+                    kotlin.time.Instant.parse("2027-03-15T09:30:00Z")
+
+                val stored = transaction {
+                    Servers.selectAll()
+                        .where { Servers.name eq "expiring" }
+                        .first()
+                }
+                stored[Servers.expiresAt] shouldBe kotlinx.datetime.LocalDateTime(2027, 3, 15, 9, 30, 0)
+            }
+        }
+
+        test("POST servers returns 422 for invalid expires_at") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val resp = client.post("/api/servers") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"srv","node_id":"$nodeId","server_type":"VANILLA","memory_mb":512,"expires_at":"not-a-date"}""")
+                }
+                resp.status shouldBe HttpStatusCode.UnprocessableEntity
             }
         }
 
@@ -884,6 +968,20 @@ class ServersRoutesTest :
             }
         }
 
+        test("POST start returns 409 if server is expired") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, status = "STOPPED")
+                setExpiry(serverId, kotlinx.datetime.LocalDateTime(2020, 1, 1, 0, 0, 0))
+                val resp = client.post("/api/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
+                resp.status shouldBe HttpStatusCode.Conflict
+            }
+        }
+
         test("POST start returns 502 when agent not connected") {
             testApplication {
                 testApp { jwtManager -> configureServersTest(TestAgentGateway(sendResult = false)) }
@@ -1086,6 +1184,20 @@ class ServersRoutesTest :
             }
         }
 
+        test("POST restart returns 409 if server is expired") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, status = "HEALTHY")
+                setExpiry(serverId, kotlinx.datetime.LocalDateTime(2020, 1, 1, 0, 0, 0))
+                val resp = client.post("/api/servers/$serverId/restart") { bearerAuth(tokenFor(userId)) }
+                resp.status shouldBe HttpStatusCode.Conflict
+            }
+        }
+
         test("POST restart returns 202 and sends RestartContainerCommand") {
             val gw = TestAgentGateway()
             testApplication {
@@ -1100,6 +1212,144 @@ class ServersRoutesTest :
                 gw.sent.size shouldBe 1
                 gw.sent[0].second.hasRestartContainer() shouldBe true
                 gw.sent[0].second.restartContainer.containerName shouldBe "craftpanel-$serverId"
+            }
+        }
+
+        // ── PATCH /servers/{id}/expiration ────────────────────────────────────────
+
+        test("PATCH expiration returns 403 without server-expires permission") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Viewer")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+                val resp = client.patch("/api/servers/$serverId/expiration") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"expires_at":"2026-01-01T00:00:00Z"}""")
+                }
+                resp.status shouldBe HttpStatusCode.Forbidden
+            }
+        }
+
+        test("PATCH expiration persists expires_at and returns 204") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+                val resp = client.patch("/api/servers/$serverId/expiration") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"expires_at":"2027-06-01T12:00:00Z"}""")
+                }
+                resp.status shouldBe HttpStatusCode.NoContent
+                val row = transaction {
+                    Servers.selectAll()
+                        .where { Servers.id eq serverId }
+                        .first()
+                }
+                row[Servers.expiresAt] shouldBe kotlinx.datetime.LocalDateTime(2027, 6, 1, 12, 0, 0)
+            }
+        }
+
+        test("PATCH expiration with null clears expires_at") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+                setExpiry(serverId, kotlinx.datetime.LocalDateTime(2027, 6, 1, 12, 0, 0))
+                val resp = client.patch("/api/servers/$serverId/expiration") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"expires_at":null}""")
+                }
+                resp.status shouldBe HttpStatusCode.NoContent
+                val row = transaction {
+                    Servers.selectAll()
+                        .where { Servers.id eq serverId }
+                        .first()
+                }
+                row[Servers.expiresAt] shouldBe null
+            }
+        }
+
+        test("PATCH expiration returns 422 for invalid date") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+                val resp = client.patch("/api/servers/$serverId/expiration") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"expires_at":"banana"}""")
+                }
+                resp.status shouldBe HttpStatusCode.UnprocessableEntity
+            }
+        }
+
+        test("PATCH expiration with past date stops a running server") {
+            val gw = TestAgentGateway()
+            testApplication {
+                testApp { jwtManager -> configureServersTest(gw) }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, status = "HEALTHY")
+                val resp = client.patch("/api/servers/$serverId/expiration") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"expires_at":"2020-01-01T00:00:00Z"}""")
+                }
+                resp.status shouldBe HttpStatusCode.NoContent
+                gw.sent.size shouldBe 1
+                gw.sent[0].second.hasStopContainer() shouldBe true
+                gw.sent[0].second.stopContainer.containerName shouldBe "craftpanel-$serverId"
+            }
+        }
+
+        test("PATCH expiration with past date does not stop a stopped server") {
+            val gw = TestAgentGateway()
+            testApplication {
+                testApp { jwtManager -> configureServersTest(gw) }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, status = "STOPPED")
+                val resp = client.patch("/api/servers/$serverId/expiration") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"expires_at":"2020-01-01T00:00:00Z"}""")
+                }
+                resp.status shouldBe HttpStatusCode.NoContent
+                gw.sent.size shouldBe 0
+            }
+        }
+
+        test("PATCH expiration returns 404 for unknown server") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val resp = client.patch("/api/servers/${Uuid.random()}/expiration") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"expires_at":"2027-06-01T12:00:00Z"}""")
+                }
+                resp.status shouldBe HttpStatusCode.NotFound
             }
         }
 

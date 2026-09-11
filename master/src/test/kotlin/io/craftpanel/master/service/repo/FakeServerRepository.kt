@@ -1,6 +1,8 @@
 package io.craftpanel.master.service.repo
 
 import io.craftpanel.master.domain.ServerType
+import io.craftpanel.master.util.parseUtcInstant
+import kotlinx.datetime.toLocalDateTime
 import kotlin.uuid.Uuid
 
 class FakeServerRepository(private val state: FakeRepositories) : ServerRepository {
@@ -27,6 +29,7 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         var stopCommand: String = "stop",
         var itzgImageTag: String = "latest",
         var needsRecreate: Boolean = false,
+        var expiresAt: String? = null,
         var proxyMotd: String? = null,
         var proxyMaxPlayers: Int? = null,
         var proxyForwardingMode: String? = null,
@@ -132,6 +135,15 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
     override fun listWithBackupSchedule(): List<ServerRow> = state.servers.values.filter { it.backupSchedule != null }
         .map { it.toRow() }
 
+    override fun listExpiredRunning(now: kotlinx.datetime.LocalDateTime): List<ServerRow> =
+        state.servers.values.filter {
+            it.expiresAt != null && it.status in setOf("STARTING", "HEALTHY", "UNHEALTHY") &&
+                runCatching {
+                    parseUtcInstant(it.expiresAt!!)!!.toLocalDateTime(kotlinx.datetime.TimeZone.UTC) <= now
+                }.getOrDefault(false)
+        }
+            .map { it.toRow() }
+
     override fun countByNetworkId(networkId: Uuid): Int = state.servers.values.count { it.networkId == networkId }
     override fun countByNodeId(nodeId: Uuid): Int = state.servers.values.count { it.nodeId == nodeId }
     override fun updateNeedsRecreate(id: Uuid, value: Boolean) {
@@ -167,6 +179,7 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         stopCommand,
         itzgImageTag,
         needsRecreate,
+        expiresAt,
         proxyMotd,
         proxyMaxPlayers,
         proxyForwardingMode,

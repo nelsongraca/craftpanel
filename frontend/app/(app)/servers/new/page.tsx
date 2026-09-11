@@ -76,11 +76,19 @@ export default function NewServerPage() {
     const [networkId, setNetworkId] = useState("");
     const [ramMb, setRamMb] = useState(2048);
     const [cpuShares, setCpuShares] = useState(0);
+    const [expiresAt, setExpiresAt] = useState("");
 
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const isProxy = (PROXY_TYPES as readonly string[]).includes(serverType);
+    const canSetExpiry = hasPermission(permissions, "server.expires");
+
+    function toExpiresAtIso(local: string): string | undefined {
+        if (!local) return undefined;
+        const d = new Date(local);
+        return Number.isNaN(d.getTime()) ? undefined : d.toISOString();
+    }
 
     useEffect(() => {
         const loadBase = [
@@ -145,6 +153,7 @@ export default function NewServerPage() {
                 network_id: networkId || undefined,
                 memory_mb: ramMb,
                 cpu_shares: cpuShares,
+                expires_at: canSetExpiry ? toExpiresAtIso(expiresAt) : undefined,
             });
 
             const {data, error: apiError} = cloneId
@@ -344,6 +353,26 @@ export default function NewServerPage() {
                         <p className="mt-1 text-xs text-text-muted">Docker CPU share value. 0 = unlimited.</p>
                     </div>
                 </div>
+
+                {canSetExpiry && (
+                    <>
+                        <SectionHeading>Expiration</SectionHeading>
+                        <div className="bg-surface border border-border rounded p-4 space-y-4">
+                            <div>
+                                <Label htmlFor="expires-at">Expires At</Label>
+                                <FieldInput
+                                    id="expires-at"
+                                    type="datetime-local"
+                                    value={expiresAt}
+                                    onChange={(e) => setExpiresAt(e.target.value)}
+                                />
+                                <p className="mt-1 text-xs text-text-muted">
+                                    After this date, the server can no longer be started and running instances will be stopped.
+                                </p>
+                            </div>
+                        </div>
+                    </>
+                )}
 
                 {/* Submit */}
                 <div className="flex items-center justify-end gap-3 pt-2">

@@ -43,6 +43,11 @@ export function serverStatusVariant(status: string): 'success' | 'warning' | 'se
     }
 }
 
+export function serverExpired(expiresAt: string | null | undefined): boolean {
+    if (!expiresAt) return false
+    return new Date(expiresAt).getTime() <= Date.now()
+}
+
 // ── Node status ───────────────────────────────────────────────────────────────
 
 // Combined display status derived from lifecycle + health axes

@@ -21,6 +21,7 @@ enum class Permission(val node: String) {
     SERVER_EXPORT("server.export"),
     SERVER_BACKUP("server.backup"),
     SERVER_MIGRATE("server.migrate"),
+    SERVER_EXPIRES("server.expires"),
     SERVER_VIEW("server.view");
 
     override fun toString(): String = node

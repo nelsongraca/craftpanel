@@ -58,3 +58,12 @@ test("node filter narrows list to servers on selected node", async ({
     await expect(table.getByText("Lobby")).toBeVisible();
     await expect(table.getByText("Survival World")).not.toBeVisible();
 });
+
+test("expired server shows Expired label and no Start action", async ({page}) => {
+    await page.goto("/servers");
+    const table = page.locator("table");
+    const row = table.locator("tbody tr").filter({hasText: "Retired World"});
+    await expect(row).toBeVisible();
+    await expect(row.getByText("Expired")).toBeVisible();
+    await expect(row.getByTitle("Start")).toHaveCount(0);
+});

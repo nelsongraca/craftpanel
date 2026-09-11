@@ -1,6 +1,7 @@
 package io.craftpanel.master.service.repo
 
 import io.craftpanel.master.domain.ServerType
+import io.craftpanel.master.util.parseUtcInstant
 import kotlin.uuid.Uuid
 
 data class ServerRow(
@@ -25,6 +26,7 @@ data class ServerRow(
     val stopCommand: String,
     val itzgImageTag: String,
     val needsRecreate: Boolean,
+    val expiresAt: String? = null,
     val proxyMotd: String? = null,
     val proxyMaxPlayers: Int? = null,
     val proxyForwardingMode: String? = null,
@@ -40,6 +42,12 @@ data class ServerRow(
     val updatedAt: String
 )
 
+fun ServerRow.isExpired(now: kotlin.time.Instant = kotlin.time.Clock.System.now()): Boolean {
+    val raw = expiresAt ?: return false
+    val expires = parseUtcInstant(raw) ?: return false
+    return expires < now
+}
+
 interface ServerRepository {
     fun findById(id: Uuid): ServerRow?
     fun findByName(name: String): ServerRow?
@@ -52,6 +60,7 @@ interface ServerRepository {
     fun listByNodeId(nodeId: Uuid): List<ServerRow>
     fun listIds(ids: List<Uuid>): List<ServerRow>
     fun listWithBackupSchedule(): List<ServerRow>
+    fun listExpiredRunning(now: kotlinx.datetime.LocalDateTime): List<ServerRow>
     fun countByNetworkId(networkId: Uuid): Int
     fun countByNodeId(nodeId: Uuid): Int
     fun findIdsNeedingRecreateByNode(nodeId: Uuid): List<Uuid>

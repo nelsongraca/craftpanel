@@ -31,6 +31,7 @@ object Servers : UuidTable("servers") {
     val stopCommand = varchar("stop_command", 64).default("stop")
     val itzgImageTag = varchar("itzg_image_tag", 100).default("latest")
     val needsRecreate = bool("needs_recreate").default(false)
+    val expiresAt = datetime("expires_at").nullable()
     val proxyMotd = varchar("proxy_motd", 500).nullable()
     val proxyMaxPlayers = integer("proxy_max_players").nullable()
     val proxyForwardingMode = varchar("proxy_forwarding_mode", 20).nullable()

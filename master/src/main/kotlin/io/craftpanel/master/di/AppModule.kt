@@ -251,5 +251,13 @@ val appModule = module {
         )
     }
     single { BackupJobHandler(get()) }
-    single { ServerScheduler(mapOf("BACKUP" to get<BackupJobHandler>()), get(named("appScope")), get(), get()) }
+    single {
+        ServerScheduler(
+            mapOf("BACKUP" to get<BackupJobHandler>()),
+            get(named("appScope")),
+            get(),
+            get(),
+            get<ServerLifecycleService>()
+        )
+    }
 }

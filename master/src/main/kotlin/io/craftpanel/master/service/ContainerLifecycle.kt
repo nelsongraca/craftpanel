@@ -33,6 +33,7 @@ class ContainerLifecycle(
     // ── Fire-and-forget (used by ServerService route handlers) ────────────────
 
     fun sendStart(server: ServerRow, needsRecreate: Boolean, publicHostname: String? = null, nodeId: String = server.nodeId.toString()) {
+        ensureStartable(server)
         sendOrThrow(nodeId, buildStartMessage(server, needsRecreate, publicHostname, nodeId))
     }
 
@@ -55,6 +56,7 @@ class ContainerLifecycle(
 
     fun sendRestart(server: ServerRow, nodeId: String) {
         val id = server.id
+        ensureStartable(server)
         sendOrThrow(
             nodeId,
             masterMessage {
@@ -185,6 +187,7 @@ class ContainerLifecycle(
         scope.launch {
             for (id in channel) {
                 val server = serverRepository.findById(id) ?: continue
+                if (server.isExpired()) continue
                 writeStatus(id, ServerStatus.STARTING)
                 sendStart(server, needsRecreate = false)
             }
@@ -235,6 +238,10 @@ class ContainerLifecycle(
     }
 
     // ── Helpers ───────────────────────────────────────────────────────────────
+
+    private fun ensureStartable(server: ServerRow) {
+        if (server.isExpired()) throw ConflictException("Server has expired and can no longer be started")
+    }
 
     private fun deriveImage(serverType: ServerType, tag: String) = images.deriveImage(serverType, tag)
 

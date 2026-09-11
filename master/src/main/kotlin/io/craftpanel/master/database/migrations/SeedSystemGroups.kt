@@ -13,6 +13,7 @@ private val systemGroups = mapOf(
         Permission.SERVER_CREATE, Permission.SERVER_DELETE, Permission.SERVER_START, Permission.SERVER_STOP,
         Permission.SERVER_RESTART, Permission.SERVER_FORCE_STOP, Permission.SERVER_CONFIGURE, Permission.SERVER_FILES, Permission.SERVER_MODS,
         Permission.SERVER_CONSOLE, Permission.SERVER_EXPORT, Permission.SERVER_BACKUP,
+        Permission.SERVER_EXPIRES,
         Permission.SERVER_VIEW,
     ).map { it.node },
     "Operator" to listOf(

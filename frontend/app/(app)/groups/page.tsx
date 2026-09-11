@@ -23,7 +23,7 @@ const PERMISSION_GROUPS: { label: string; nodes: string[] }[] = [
         nodes: [
             "server.create", "server.delete", "server.view",
             "server.start", "server.stop", "server.restart",
-            "server.configure", "server.resources", "server.files",
+            "server.configure", "server.resources", "server.expires", "server.files",
             "server.mods", "server.console", "server.export",
             "server.backup", "server.upgrade", "server.migrate",
         ],

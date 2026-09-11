@@ -9,7 +9,7 @@ import {useAuth} from "@/lib/auth-context";
 import {hasPermission, serverPermissions} from "@/lib/permissions";
 import type {Network, Node, Server} from "@/lib/types";
 import {useWs} from "@/lib/ws-context";
-import {serverStatusLabel, serverStatusVariant} from "@/lib/status";
+import {serverExpired, serverStatusLabel, serverStatusVariant} from "@/lib/status";
 import {Badge} from "@/components/ui/badge";
 import {Skeleton} from "@/components/ui/skeleton";
 import {ConsoleTab} from "./console-tab";
@@ -205,6 +205,7 @@ export default function ServerDetailPage() {
     const isProxy = ["VELOCITY", "BUNGEECORD", "WATERFALL"].includes(server.server_type);
     const isModServerType = ["FABRIC", "FORGE", "NEOFORGE", "QUILT"].includes(server.server_type);
     const serverPerms = serverPermissions(permissions, user?.server_permissions ?? {}, server.id);
+    const expired = serverExpired(server.expires_at);
 
     return (
         <div>
@@ -238,11 +239,14 @@ export default function ServerDetailPage() {
                             {server.display_name}
                         </h1>
                         <Badge variant={serverStatusVariant(sStatus)}>{serverStatusLabel(sStatus)}</Badge>
+                        {expired && (
+                            <Badge variant="destructive">Expired</Badge>
+                        )}
                     </div>
 
                     {/* Action buttons + menu */}
                     <div className="flex items-center gap-2 shrink-0">
-                        {sStatus === "STOPPED" && hasPermission(serverPerms, "server.start") && (
+                        {sStatus === "STOPPED" && !expired && hasPermission(serverPerms, "server.start") && (
                             <HeaderActionButton
                                 icon={<Play size={12} strokeWidth={2.5}/>}
                                 label="Start"
@@ -269,7 +273,7 @@ export default function ServerDetailPage() {
                                 variant="red"
                             />
                         )}
-                        {sStatus === "HEALTHY" && hasPermission(serverPerms, "server.restart") && (
+                        {sStatus === "HEALTHY" && !expired && hasPermission(serverPerms, "server.restart") && (
                             <HeaderActionButton
                                 icon={<RotateCcw size={12} strokeWidth={2.5}/>}
                                 label="Restart"
@@ -382,7 +386,7 @@ export default function ServerDetailPage() {
             {server.needs_recreate && (
                 <div className="mx-6 mt-4 flex items-center justify-between bg-warning/10 border border-warning/30 text-warning rounded px-3 py-2 text-xs">
                     <span>Settings saved. Restart the server for changes to take effect.</span>
-                    {(server.status === "HEALTHY") && hasPermission(serverPerms, "server.restart") && (
+                    {(server.status === "HEALTHY") && !expired && hasPermission(serverPerms, "server.restart") && (
                         <button
                             onClick={() => void doAction("restart")}
                             className="ml-4 shrink-0 text-xs font-heading font-bold uppercase tracking-wider underline hover:no-underline"

@@ -2,7 +2,32 @@ package io.craftpanel.master.util
 
 import kotlinx.datetime.LocalDateTime
 
-fun LocalDateTime.toUtcString(): String = "${this}Z"
+/**
+ * Renders a `LocalDateTime` (UTC) as `<ISO8601>Z`. `LocalDateTime.toString()`
+ * drops seconds (and trailing nanos) when they are zero (e.g. `2027-03-15T09:30`),
+ * which `kotlin.time.Instant.parse` rejects — so seconds are always padded in.
+ * Keep this parseable by both [parseUtcInstant] and kotlin.time.Instant.parse.
+ */
+fun LocalDateTime.toUtcString(): String {
+    val base = "${this}"
+    val withSeconds = if (base.length <= 16) "$base:00" else base
+    return "${withSeconds}Z"
+}
+
+/**
+ * Parses a UTC timestamp string produced by [toUtcString] (or a legacy un-padded
+ * variant such as `2027-03-15T09:30Z`) into a [kotlin.time.Instant]. Returns null
+ * for anything unparseable. Tolerates the short `HH:mm` form by padding to seconds.
+ */
+fun parseUtcInstant(raw: String): kotlin.time.Instant? {
+    val zIdx = raw.indexOf('Z')
+    val padded = if (zIdx > 0 && raw.substring(0, zIdx).length == 16) {
+        raw.replaceRange(zIdx, zIdx, ":00")
+    } else {
+        raw
+    }
+    return runCatching { kotlin.time.Instant.parse(padded) }.getOrNull()
+}
 
 /**
  * Formats a `Backups.created_at` value (a `LocalDateTime` rendered as a string
