@@ -18,7 +18,8 @@ class ControlStreamHandlerTest :
         val containerManager: ContainerManager = mockk(relaxed = true)
         val metricsCollector: MetricsCollector = mockk(relaxed = true)
         val identity = NodeIdentity(nodeId = "node-1", nodeKey = "test-key")
-        val symlinkTempRoot = Files.createTempDirectory("agent-symlinks").toFile()
+        val symlinkTempRoot = Files.createTempDirectory("agent-symlinks")
+            .toFile()
         val config = AgentConfig(
             profile = "dev",
             masterAddress = "localhost",
@@ -142,7 +143,8 @@ class ControlStreamHandlerTest :
             runBlocking {
                 every { containerManager.containerExists(any()) } returns true
                 every { containerManager.startContainer(any()) } just Runs
-                val byNameRoot = Files.createTempDirectory("by-name").toFile()
+                val byNameRoot = Files.createTempDirectory("by-name")
+                    .toFile()
                 val dataConfig = config.copy(
                     dataBasePath = tempDir.absolutePath,
                     serversByNameRoot = byNameRoot.absolutePath
@@ -375,7 +377,8 @@ class ControlStreamHandlerTest :
         test("handleRemove with deleteData=true removes the servers-by-name symlink") {
             runBlocking {
                 every { containerManager.removeContainer(any(), any()) } just Runs
-                val byNameRoot = Files.createTempDirectory("by-name-rm").toFile()
+                val byNameRoot = Files.createTempDirectory("by-name-rm")
+                    .toFile()
                 val dataConfig = config.copy(
                     dataBasePath = tempDir.absolutePath,
                     serversByNameRoot = byNameRoot.absolutePath
@@ -563,7 +566,8 @@ class ControlStreamHandlerTest :
                 val timestamp = "2026-07-18_14-30-00"
                 File(tempDir, "servers/$serverId").also { it.mkdirs() }
                     .let { File(it, "world").writeText("level data") }
-                val byServerRoot = Files.createTempDirectory("by-server").toFile()
+                val byServerRoot = Files.createTempDirectory("by-server")
+                    .toFile()
                 val outbound = newOutbound()
 
                 BackupHandler(config.copy(dataBasePath = tempDir.absolutePath, backupsByServerRoot = byServerRoot.absolutePath)).handleTriggerBackup(
@@ -588,7 +592,8 @@ class ControlStreamHandlerTest :
             runBlocking {
                 val backupName = "removable-server"
                 val timestamp = "2026-07-18_15-00-00"
-                val byServerRoot = Files.createTempDirectory("by-server-rm").toFile()
+                val byServerRoot = Files.createTempDirectory("by-server-rm")
+                    .toFile()
                 val realBackup = File(tempDir, "backups/bk-rm.tar.gz").apply {
                     parentFile.mkdirs()
                     writeText("backup data")
@@ -614,8 +619,10 @@ class ControlStreamHandlerTest :
             runBlocking {
                 val serverId = "srv-rebuild"
                 val serverName = "rebuilt-world"
-                val byNameRoot = Files.createTempDirectory("by-name-rebuild").toFile()
-                val byServerRoot = Files.createTempDirectory("by-server-rebuild").toFile()
+                val byNameRoot = Files.createTempDirectory("by-name-rebuild")
+                    .toFile()
+                val byServerRoot = Files.createTempDirectory("by-server-rebuild")
+                    .toFile()
                 val serverDir = File(tempDir, "servers/$serverId").apply { mkdirs() }
                 val backupFile = File(tempDir, "backups/bk-rebuild.tar.gz").apply {
                     parentFile.mkdirs()

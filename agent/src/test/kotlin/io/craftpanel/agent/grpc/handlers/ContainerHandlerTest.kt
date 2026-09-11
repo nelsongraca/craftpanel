@@ -14,7 +14,8 @@ import java.nio.file.Files
 class ContainerHandlerTest :
     FunSpec({
 
-        val symlinkTempRoot = Files.createTempDirectory("container-handler-test").toFile()
+        val symlinkTempRoot = Files.createTempDirectory("container-handler-test")
+            .toFile()
         val config = AgentConfig(
             profile = "dev",
             masterAddress = "localhost",
@@ -83,7 +84,8 @@ class ContainerHandlerTest :
                 if (r.isSuccess) {
                     val msg = r.getOrThrow()
                     if (msg.hasServerStatus()) add(msg.serverStatus)
-                } else break
+                }
+                else break
             }
         }
 
@@ -98,12 +100,17 @@ class ContainerHandlerTest :
                 listOf("pull:itzg/minecraft-server:latest", "create:craftpanel-srv-1", "start:craftpanel-srv-1")
             cm.containers["craftpanel-srv-1"]?.state shouldBe FakeContainerManager.State.RUNNING
             cm.gate.shouldReportDie("srv-1") shouldBe true
-            channel.statuses().single().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
+            channel.statuses()
+                .single().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
         }
 
         test("start with needsRecreate removes the old container first") {
             val cm = newFake()
-            cm.createContainer(startCmd().toBuilder().clearNeedsRecreate().build())
+            cm.createContainer(
+                startCmd().toBuilder()
+                    .clearNeedsRecreate()
+                    .build()
+            )
             cm.startContainer("craftpanel-srv-1")
             cm.calls.clear()
             val handler = newHandler(cm)
@@ -114,7 +121,8 @@ class ContainerHandlerTest :
             cm.calls.filter { it.startsWith("remove:") || it.startsWith("create:") || it.startsWith("start:") } shouldBe
                 listOf("remove:craftpanel-srv-1", "create:craftpanel-srv-1", "start:craftpanel-srv-1")
             cm.gate.shouldReportDie("srv-1") shouldBe true
-            channel.statuses().single().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
+            channel.statuses()
+                .single().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
         }
 
         test("start without needsRecreate on existing container skips the create path") {
@@ -143,7 +151,8 @@ class ContainerHandlerTest :
 
             cm.containers["craftpanel-srv-1"]?.state shouldBe FakeContainerManager.State.STOPPED
             cm.gate.shouldReportDie("srv-1") shouldBe false
-            channel.statuses().single().status shouldBe ServerStatusUpdate.ServerStatus.STOPPED
+            channel.statuses()
+                .single().status shouldBe ServerStatusUpdate.ServerStatus.STOPPED
         }
 
         test("forced stop (kill) also suppresses the die event") {
@@ -152,13 +161,16 @@ class ContainerHandlerTest :
             cm.startContainer("craftpanel-srv-1")
             val handler = newHandler(cm)
             val channel = Channel<AgentMessage>(Channel.UNLIMITED)
-            val cmd = stopCmd().toBuilder().setForce(true).build()
+            val cmd = stopCmd().toBuilder()
+                .setForce(true)
+                .build()
 
             handler.handleStop(cmd, AgentOutbound(channel, "node-1"))
 
             cm.calls.any { it.startsWith("kill:") } shouldBe true
             cm.gate.shouldReportDie("srv-1") shouldBe false
-            channel.statuses().single().status shouldBe ServerStatusUpdate.ServerStatus.STOPPED
+            channel.statuses()
+                .single().status shouldBe ServerStatusUpdate.ServerStatus.STOPPED
         }
 
         test("failed stop emits UNHEALTHY and stays suppressed for the crash report") {
@@ -171,7 +183,8 @@ class ContainerHandlerTest :
 
             handler.handleStop(stopCmd(), AgentOutbound(channel, "node-1"))
 
-            channel.statuses().single().status shouldBe ServerStatusUpdate.ServerStatus.UNHEALTHY
+            channel.statuses()
+                .single().status shouldBe ServerStatusUpdate.ServerStatus.UNHEALTHY
             cm.gate.shouldReportDie("srv-1") shouldBe false
         }
 
@@ -188,7 +201,8 @@ class ContainerHandlerTest :
             cm.calls.filter { it.startsWith("stop:") || it.startsWith("start:") } shouldBe
                 listOf("stop:craftpanel-srv-1", "start:craftpanel-srv-1")
             cm.gate.shouldReportDie("srv-1") shouldBe true
-            channel.statuses().single().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
+            channel.statuses()
+                .single().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
         }
 
         test("remove deletes the container and stops crash reporting") {
@@ -202,7 +216,8 @@ class ContainerHandlerTest :
 
             cm.containers.containsKey("craftpanel-srv-1") shouldBe false
             cm.gate.shouldReportDie("srv-1") shouldBe false
-            channel.statuses().single().status shouldBe ServerStatusUpdate.ServerStatus.STOPPED
+            channel.statuses()
+                .single().status shouldBe ServerStatusUpdate.ServerStatus.STOPPED
         }
 
         test("shutdown stops all managed containers and reports counts") {
