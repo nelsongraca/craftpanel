@@ -51,7 +51,8 @@ object DatabaseFactory {
                 ContainerMetrics,
                 SystemSettings,
                 ServerJobs,
-                ServerExtraPorts
+                ServerExtraPorts,
+                TrustedDevices
             )
             seedSystemGroups()
         }
