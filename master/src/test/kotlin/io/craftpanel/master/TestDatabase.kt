@@ -1,5 +1,6 @@
 package io.craftpanel.master
 
+import io.craftpanel.master.database.SchemaMigrator
 import io.craftpanel.master.database.migrations.seedSystemGroups
 import io.craftpanel.master.database.schema.*
 import org.jetbrains.exposed.v1.jdbc.*
@@ -13,7 +14,7 @@ object TestDatabase {
         if (initialized) return
         Database.connect("jdbc:h2:mem:craftpanel_test;DB_CLOSE_DELAY=-1", driver = "org.h2.Driver")
         transaction {
-            SchemaUtils.create(
+            SchemaMigrator.migrate(
                 Users, RefreshTokens, RecoveryCodes, Groups, GroupPermissions, UserGroupAssignments,
                 ServerNetworks, Nodes, Servers, ServerEnvVars, NodeMetrics, PortRegistry, ServerMigrations,
                 MigrationStepLog, Backups, AlertThresholds, AlertEvents, ContainerMetrics, ServerMods,

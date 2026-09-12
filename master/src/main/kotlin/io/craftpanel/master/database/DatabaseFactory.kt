@@ -6,7 +6,6 @@ import io.craftpanel.master.config.DatabaseConfig
 import io.craftpanel.master.database.migrations.seedSystemGroups
 import io.craftpanel.master.database.schema.*
 import org.jetbrains.exposed.v1.jdbc.Database
-import org.jetbrains.exposed.v1.jdbc.SchemaUtils
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 
 object DatabaseFactory {
@@ -28,7 +27,7 @@ object DatabaseFactory {
         Database.connect(dataSource)
 
         transaction {
-            SchemaUtils.createMissingTablesAndColumns(
+            SchemaMigrator.migrate(
                 Users,
                 RefreshTokens,
                 RecoveryCodes,
