@@ -42,6 +42,7 @@ interface UserRepository {
     fun storeTotpSecret(userId: Uuid, encryptedSecret: String)
     fun enableTotp(userId: Uuid)
     fun disableTotp(userId: Uuid)
+    fun findTrustedRefreshTokenByFingerprint(userId: Uuid, fingerprintHash: String): RefreshTokenRow?
 }
 
-data class RefreshTokenRow(val id: Uuid, val userId: Uuid, val tokenHash: String, val expiresAt: String, val revoked: Boolean)
+data class RefreshTokenRow(val id: Uuid, val userId: Uuid, val tokenHash: String, val expiresAt: String, val revoked: Boolean, val trusted: Boolean = false, val deviceFingerprint: String? = null)

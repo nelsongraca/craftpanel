@@ -21,7 +21,11 @@ import kotlinx.serialization.Serializable
 import kotlin.uuid.Uuid
 
 @Serializable
-data class LoginRequest(val email: String, val password: String)
+data class LoginRequest(
+    val email: String,
+    val password: String,
+    @SerialName("device_fingerprint") val deviceFingerprint: String? = null
+)
 
 @Serializable
 data class LoginResponse(
@@ -33,7 +37,12 @@ data class LoginResponse(
 )
 
 @Serializable
-data class TotpVerifyRequest(@SerialName("temp_token") val tempToken: String, val code: String)
+data class TotpVerifyRequest(
+    @SerialName("temp_token") val tempToken: String,
+    val code: String,
+    @SerialName("trust_device") val trustDevice: Boolean = false,
+    @SerialName("device_fingerprint") val deviceFingerprint: String? = null
+)
 
 @Serializable
 data class TotpRecoveryRequest(@SerialName("temp_token") val tempToken: String, val code: String)
@@ -146,12 +155,14 @@ private fun ApplicationCall.issueSessionCookies(
     groupNames: List<String>,
     mustChangePassword: Boolean,
     secureCookies: Boolean,
-    cookieDomainOrNull: String?
+    cookieDomainOrNull: String?,
+    trustDevice: Boolean = false,
+    deviceFingerprint: String? = null
 ): LoginResponse {
     val accessToken = jwtManager.generate(
         TokenClaims(userId = userId, name = username, email = email, groups = groupNames)
     )
-    val refreshResult = refreshTokenService.issue(userId)
+    val refreshResult = refreshTokenService.issue(userId, trusted = trustDevice, deviceFingerprint = deviceFingerprint.takeIf { trustDevice })
 
     response.cookies.append(
         name = "refresh_token",
@@ -204,6 +215,28 @@ fun Route.authRoutes(
                 }
 
                 if (record.totpEnabled) {
+                    val rawToken = call.request.cookies["refresh_token"]
+                    val fingerprint = req.deviceFingerprint
+                    val skipTotp = rawToken != null && fingerprint != null &&
+                        refreshTokenService.isTrustedAndFingerprintValid(rawToken, fingerprint)
+
+                    if (skipTotp) {
+                        call.respond(
+                            call.issueSessionCookies(
+                                jwtManager = jwtManager,
+                                refreshTokenService = refreshTokenService,
+                                userId = record.userId,
+                                username = record.username,
+                                email = record.email,
+                                groupNames = record.groupNames,
+                                mustChangePassword = record.mustChangePassword,
+                                secureCookies = secureCookies,
+                                cookieDomainOrNull = cookieDomainOrNull
+                            )
+                        )
+                        return@post
+                    }
+
                     val tempToken = jwtManager.generateTotpTempToken(record.userId)
                     call.respond(
                         LoginResponse(
@@ -291,7 +324,9 @@ fun Route.authRoutes(
                         groupNames = groups,
                         mustChangePassword = record.mustChangePassword,
                         secureCookies = secureCookies,
-                        cookieDomainOrNull = cookieDomainOrNull
+                        cookieDomainOrNull = cookieDomainOrNull,
+                        trustDevice = req.trustDevice,
+                        deviceFingerprint = req.deviceFingerprint
                     )
                 )
             }
@@ -365,7 +400,13 @@ fun Route.authRoutes(
                         return@post
                     }
 
-                val (userId, _) = refreshTokenService.rotate(rawToken)
+                val clientFingerprint = call.request.headers["X-Device-Fingerprint"]
+                if (!refreshTokenService.isTrustedAndFingerprintValid(rawToken, clientFingerprint ?: "")) {
+                    call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Device not recognized"))
+                    return@post
+                }
+
+                val (userId, _, _) = refreshTokenService.rotate(rawToken)
                     ?: run {
                         call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid or expired refresh token"))
                         return@post
@@ -634,6 +675,7 @@ fun Route.authRoutes(
 
                 userRepository.disableTotp(userId)
                 recoveryCodeRepository.deleteAll(userId)
+                refreshTokenService.revokeAllTrusted(userId)
                 call.respond(HttpStatusCode.NoContent)
             }
 

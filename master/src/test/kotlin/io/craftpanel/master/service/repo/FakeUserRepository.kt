@@ -22,7 +22,7 @@ class FakeUserRepository : UserRepository {
 
     data class MutableAssignment(val id: Uuid, val userId: Uuid, val groupId: Uuid, val scopeType: String, val scopeId: Uuid?)
 
-    data class MutableToken(val id: Uuid, val userId: Uuid, val tokenHash: String, val expiresAt: String, var revoked: Boolean = false)
+    data class MutableToken(val id: Uuid, val userId: Uuid, val tokenHash: String, val expiresAt: String, var revoked: Boolean = false, val trusted: Boolean = false, val deviceFingerprint: String? = null)
 
     override fun findById(id: Uuid): UserRow? = users[id]?.toRow()
     override fun findByEmail(email: String): UserRow? = users.values.firstOrNull { it.email == email }
@@ -67,7 +67,11 @@ class FakeUserRepository : UserRepository {
         return a.toRow()
     }
 
-    override fun findRefreshTokenByHash(tokenHash: String): RefreshTokenRow? = tokens[tokenHash]?.let { RefreshTokenRow(it.id, it.userId, it.tokenHash, it.expiresAt, it.revoked) }
+    override fun findRefreshTokenByHash(tokenHash: String): RefreshTokenRow? = tokens[tokenHash]?.let { RefreshTokenRow(it.id, it.userId, it.tokenHash, it.expiresAt, it.revoked, it.trusted, it.deviceFingerprint) }
+
+    override fun findTrustedRefreshTokenByFingerprint(userId: Uuid, fingerprintHash: String): RefreshTokenRow? = tokens.values.firstOrNull {
+        it.userId == userId && it.trusted && !it.revoked && it.deviceFingerprint == fingerprintHash
+    }?.let { RefreshTokenRow(it.id, it.userId, it.tokenHash, it.expiresAt, it.revoked, it.trusted, it.deviceFingerprint) }
 
     override fun getUserGlobalGroups(userId: Uuid): List<GroupAssignmentRow> = emptyList()
 

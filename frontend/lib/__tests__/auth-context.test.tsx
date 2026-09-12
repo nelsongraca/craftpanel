@@ -19,6 +19,11 @@ vi.mock('@/lib/client', () => ({
     client: {setConfig: vi.fn(), interceptors: {request: {use: vi.fn()}, response: {use: vi.fn()}}},
 }))
 
+vi.mock('@/lib/fingerprint', () => ({
+    initFingerprint: vi.fn(),
+    getCachedFingerprint: vi.fn(() => null),
+}))
+
 import * as generated from '@/lib/generated'
 import * as clientModule from '@/lib/client'
 
@@ -179,7 +184,9 @@ describe('AuthProvider', () => {
         })
 
         await waitFor(() => {
-            expect(generated.authTotpVerify).toHaveBeenCalledWith({body: {temp_token: 'temp123', code: '123456'}})
+            expect(generated.authTotpVerify).toHaveBeenCalledWith({
+                body: {temp_token: 'temp123', code: '123456', trust_device: false, device_fingerprint: undefined}
+            })
             expect(clientModule.setAccessToken).toHaveBeenCalledWith('tok3')
             expect(screen.getByTestId('user')).toHaveTextContent('u@test.com')
         })

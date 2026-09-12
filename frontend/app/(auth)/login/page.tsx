@@ -21,6 +21,7 @@ export default function LoginPage() {
     const [submitting, setSubmitting] = useState(false);
     const [challenge, setChallenge] = useState<Challenge | null>(null);
     const [code, setCode] = useState("");
+    const [trustDevice, setTrustDevice] = useState(false);
     const [branding, setBranding] = useState<BrandingConfig | null>(null);
 
     useEffect(() => {
@@ -61,7 +62,7 @@ export default function LoginPage() {
             if (challenge.recovery) {
                 await verifyRecovery(challenge.tempToken, code);
             } else {
-                await verifyTotp(challenge.tempToken, code);
+                await verifyTotp(challenge.tempToken, code, trustDevice);
             }
         } catch (err) {
             setError(err instanceof Error ? err.message : "Verification failed");
@@ -127,6 +128,16 @@ export default function LoginPage() {
                         {error && (
                             <p className="text-error text-xs py-1">{error}</p>
                         )}
+
+                        <label className="flex items-center gap-2 text-text-dim text-xs cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={trustDevice}
+                                onChange={(e) => setTrustDevice(e.target.checked)}
+                                className="accent-accent w-3.5 h-3.5 rounded border-border bg-surface-high"
+                            />
+                            Trust this device for 30 days
+                        </label>
 
                         <button
                             type="submit"

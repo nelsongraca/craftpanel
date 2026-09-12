@@ -23,7 +23,7 @@ class RefreshTokenService(private val userRepository: UserRepository) {
 
     private val tokenLifetime = 30.days
 
-    fun issue(userId: Uuid): RefreshTokenResult {
+    fun issue(userId: Uuid, trusted: Boolean = false, deviceFingerprint: String? = null): RefreshTokenResult {
         val rawToken = generateRaw()
         val hash = sha256Hex(rawToken)
         val expiresAt = Clock.System.now()
@@ -34,13 +34,15 @@ class RefreshTokenService(private val userRepository: UserRepository) {
                 it[RefreshTokens.userId] = EntityID(userId, Users)
                 it[RefreshTokens.tokenHash] = hash
                 it[RefreshTokens.expiresAt] = expiresAt.toLocalDateTime(TimeZone.UTC)
+                it[RefreshTokens.trusted] = trusted
+                it[RefreshTokens.deviceFingerprint] = deviceFingerprint
             }
         }
 
         return RefreshTokenResult(rawToken, expiresAt.toLocalDateTime(TimeZone.UTC))
     }
 
-    fun rotate(rawToken: String): Pair<Uuid, RefreshTokenResult>? {
+    fun rotate(rawToken: String): Triple<Uuid, RefreshTokenResult, Boolean>? {
         val hash = sha256Hex(rawToken)
         val now = Clock.System.now()
 
@@ -62,10 +64,12 @@ class RefreshTokenService(private val userRepository: UserRepository) {
                 it[RefreshTokens.userId] = EntityID(userId, Users)
                 it[RefreshTokens.tokenHash] = newHash
                 it[RefreshTokens.expiresAt] = newExpiresAt.toLocalDateTime(TimeZone.UTC)
+                it[RefreshTokens.trusted] = row.trusted
+                it[RefreshTokens.deviceFingerprint] = row.deviceFingerprint
             }
         }
 
-        return Pair(userId, RefreshTokenResult(rawNewToken, newExpiresAt.toLocalDateTime(TimeZone.UTC)))
+        return Triple(userId, RefreshTokenResult(rawNewToken, newExpiresAt.toLocalDateTime(TimeZone.UTC)), row.trusted)
     }
 
     fun revoke(rawToken: String) {
@@ -88,9 +92,27 @@ class RefreshTokenService(private val userRepository: UserRepository) {
         }
     }
 
+    fun revokeAllTrusted(userId: Uuid) {
+        transaction {
+            RefreshTokens.update({
+                (RefreshTokens.userId eq userId) and (RefreshTokens.trusted eq true)
+            }) {
+                it[RefreshTokens.revoked] = true
+            }
+        }
+    }
+
+    fun isTrustedAndFingerprintValid(rawToken: String, clientFingerprint: String): Boolean {
+        val hash = sha256Hex(rawToken)
+        val row = userRepository.findRefreshTokenByHash(hash) ?: return false
+        if (row.revoked) return false
+        if (!row.trusted) return true
+        return row.deviceFingerprint != null && row.deviceFingerprint == clientFingerprint
+    }
+
     private fun generateRaw(): String = CryptoUtils.generateToken(48)
 
-    private fun sha256Hex(input: String): String = // Result is used only as a DB lookup key (SQL WHERE) — never compared in Kotlin code.
+    private fun sha256Hex(input: String): String =
         HexFormat.of()
             .formatHex(
                 MessageDigest.getInstance("SHA-256")

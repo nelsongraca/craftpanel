@@ -114,7 +114,7 @@ describe('LoginPage', () => {
         await user.click(screen.getByRole('button', {name: 'Verify'}))
 
         await waitFor(() => {
-            expect(mockVerifyTotp).toHaveBeenCalledWith('temp123', '123456')
+            expect(mockVerifyTotp).toHaveBeenCalledWith('temp123', '123456', false)
         })
     })
 

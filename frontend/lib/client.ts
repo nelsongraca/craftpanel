@@ -1,4 +1,5 @@
 import {client} from "./generated/client.gen"
+import {getCachedFingerprint} from "./fingerprint"
 
 let _accessToken: string | null = null
 let _refreshPromise: Promise<string | null> | null = null
@@ -17,7 +18,10 @@ function apiBase(): string {
 }
 
 async function refreshToken(): Promise<string | null> {
-    const res = await fetch(`${apiBase()}/api/auth/refresh`, {method: "POST", credentials: "include"})
+    const headers: Record<string, string> = {}
+    const fp = getCachedFingerprint()
+    if (fp) headers["X-Device-Fingerprint"] = fp
+    const res = await fetch(`${apiBase()}/api/auth/refresh`, {method: "POST", credentials: "include", headers})
     if (!res.ok) {
         _accessToken = null;
         return null
@@ -31,6 +35,8 @@ client.setConfig({baseUrl: apiBase(), credentials: "include"})
 
 client.interceptors.request.use((request) => {
     if (_accessToken) request.headers.set("Authorization", `Bearer ${_accessToken}`)
+    const fp = getCachedFingerprint()
+    if (fp) request.headers.set("X-Device-Fingerprint", fp)
     return request
 })
 
@@ -43,6 +49,8 @@ client.interceptors.response.use(async (response, request) => {
     if (!newToken) return response
     const retried = request.clone()
     retried.headers.set("Authorization", `Bearer ${newToken}`)
+    const fp = getCachedFingerprint()
+    if (fp) retried.headers.set("X-Device-Fingerprint", fp)
     return fetch(retried)
 })
 

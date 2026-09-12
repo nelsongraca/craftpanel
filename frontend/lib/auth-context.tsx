@@ -2,6 +2,7 @@
 
 import {createContext, useCallback, useContext, useEffect, useState} from "react";
 import {setAccessToken} from "./client";
+import {initFingerprint, getCachedFingerprint} from "./fingerprint";
 import {
     authChangePassword,
     authLogin,
@@ -48,7 +49,7 @@ interface AuthContextValue {
     user: AuthUser | null;
     isLoading: boolean;
     login: (email: string, password: string) => Promise<LoginOutcome>;
-    verifyTotp: (tempToken: string, code: string) => Promise<void>;
+    verifyTotp: (tempToken: string, code: string, trustDevice?: boolean) => Promise<void>;
     verifyRecovery: (tempToken: string, code: string) => Promise<void>;
     logout: () => Promise<void>;
     logoutAll: () => Promise<boolean>;
@@ -64,6 +65,8 @@ export function AuthProvider({children}: { children: React.ReactNode }) {
     const router = useRouter();
 
     useEffect(() => {
+        void initFingerprint();
+
         async function restoreSession() {
             try {
                 const {data: refreshData} = await authRefresh();
@@ -92,7 +95,8 @@ export function AuthProvider({children}: { children: React.ReactNode }) {
 
     const login = useCallback(
         async (email: string, password: string): Promise<LoginOutcome> => {
-            const {data, error} = await authLogin({body: {email, password}});
+            const deviceFingerprint = getCachedFingerprint()
+            const {data, error} = await authLogin({body: {email, password, device_fingerprint: deviceFingerprint ?? undefined}});
             if (error) throw new Error(error.message ?? "Invalid credentials");
             if (data?.requires_totp) {
                 return {requiresTotp: true, tempToken: data.temp_token ?? null};
@@ -105,8 +109,16 @@ export function AuthProvider({children}: { children: React.ReactNode }) {
     );
 
     const verifyTotp = useCallback(
-        async (tempToken: string, code: string) => {
-            const {data, error} = await authTotpVerify({body: {temp_token: tempToken, code}});
+        async (tempToken: string, code: string, trustDevice: boolean = false) => {
+            const deviceFingerprint = getCachedFingerprint()
+            const {data, error} = await authTotpVerify({
+                body: {
+                    temp_token: tempToken,
+                    code,
+                    trust_device: trustDevice,
+                    device_fingerprint: deviceFingerprint ?? undefined
+                }
+            });
             if (error) throw new Error(error.message ?? "Invalid verification code");
             setAccessToken(data!.access_token ?? null);
             await finishAuth();

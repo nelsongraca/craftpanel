@@ -3,9 +3,12 @@ package io.craftpanel.master.service.repo.impl
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.util.toUtcString
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
 class UserRepositoryImpl : UserRepository {
@@ -89,7 +92,33 @@ class UserRepositoryImpl : UserRepository {
                     userId = it[RefreshTokens.userId].value,
                     tokenHash = it[RefreshTokens.tokenHash],
                     expiresAt = it[RefreshTokens.expiresAt].toUtcString(),
-                    revoked = it[RefreshTokens.revoked]
+                    revoked = it[RefreshTokens.revoked],
+                    trusted = it[RefreshTokens.trusted],
+                    deviceFingerprint = it[RefreshTokens.deviceFingerprint]
+                )
+            }
+    }
+
+    override fun findTrustedRefreshTokenByFingerprint(userId: Uuid, fingerprintHash: String): RefreshTokenRow? = transaction {
+        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        RefreshTokens.selectAll()
+            .where {
+                (RefreshTokens.userId eq userId) and
+                    (RefreshTokens.trusted eq true) and
+                    (RefreshTokens.revoked eq false) and
+                    (RefreshTokens.deviceFingerprint eq fingerprintHash) and
+                    (RefreshTokens.expiresAt greaterEq now)
+            }
+            .firstOrNull()
+            ?.let {
+                RefreshTokenRow(
+                    id = it[RefreshTokens.id],
+                    userId = it[RefreshTokens.userId].value,
+                    tokenHash = it[RefreshTokens.tokenHash],
+                    expiresAt = it[RefreshTokens.expiresAt].toUtcString(),
+                    revoked = it[RefreshTokens.revoked],
+                    trusted = it[RefreshTokens.trusted],
+                    deviceFingerprint = it[RefreshTokens.deviceFingerprint]
                 )
             }
     }

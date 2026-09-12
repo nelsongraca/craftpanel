@@ -10,9 +10,11 @@ object RefreshTokens : Table("refresh_tokens") {
 
     val id = uuid("id").autoGenerate()
     val userId = reference("user_id", Users, onDelete = ReferenceOption.CASCADE)
-    val tokenHash = varchar("token_hash", 64)  // SHA-256 hex, 64 chars
+    val tokenHash = varchar("token_hash", 64)
     val expiresAt = datetime("expires_at")
     val revoked = bool("revoked").default(false)
+    val trusted = bool("trusted").default(false)
+    val deviceFingerprint = varchar("device_fingerprint", 64).nullable()
     val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
 
     override val primaryKey = PrimaryKey(id)
