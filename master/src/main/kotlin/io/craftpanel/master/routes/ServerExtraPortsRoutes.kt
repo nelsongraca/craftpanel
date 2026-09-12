@@ -63,6 +63,10 @@ fun Route.serverExtraPortsRoutes(serverRepository: ServerRepository, extraPortRe
                 val req = call.receive<CreateServerExtraPortRequest>()
                 if (req.name.isBlank()) throw UnprocessableException("Port name cannot be blank")
                 if (req.containerPort <= 0 || req.containerPort > 65535) throw UnprocessableException("Invalid container port")
+                val protocol = (req.protocol ?: "TCP").uppercase()
+                if (protocol != "TCP" && protocol != "UDP") {
+                    throw UnprocessableException("Invalid protocol: ${req.protocol}")
+                }
 
                 val created = extraPortRepository.createExtraPort(
                     serverId = authorized.serverId,
@@ -70,7 +74,7 @@ fun Route.serverExtraPortsRoutes(serverRepository: ServerRepository, extraPortRe
                     name = req.name.trim(),
                     containerPort = req.containerPort,
                     hostPort = req.hostPort,
-                    protocol = req.protocol
+                    protocol = protocol
                 )
 
                 call.respond(HttpStatusCode.Created, created.toResponse())

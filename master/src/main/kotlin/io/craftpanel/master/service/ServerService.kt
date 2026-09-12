@@ -62,9 +62,9 @@ class ServerService(
         expiresAt: String? = null,
         customServerJar: String? = null,
         containerListenPort: Int? = null,
-        containerProtocol: String = "TCP",
-        disableHealthcheck: Boolean = false,
-        forceRedownload: Boolean = false
+        containerProtocol: String? = null,
+        disableHealthcheck: Boolean? = null,
+        forceRedownload: Boolean? = null
     ): ServerRow {
         if (memoryMb <= 0) throw UnprocessableException("memory_mb must be positive")
         if (cpuShares < 0) throw UnprocessableException("cpu_shares must be non-negative")
@@ -72,8 +72,8 @@ class ServerService(
 
         val st = runCatching { ServerType.valueOf(serverType) }.getOrNull()
             ?: throw UnprocessableException("Invalid server_type: $serverType")
-        val proto = runCatching { validateContainerProtocol(containerProtocol) }.getOrNull()
-            ?: throw UnprocessableException("Invalid container_protocol: $containerProtocol")
+        val proto = runCatching { validateContainerProtocol(containerProtocol ?: "TCP") }.getOrNull()
+            ?: throw UnprocessableException("Invalid container_protocol: ${containerProtocol ?: "TCP"}")
         if (st.isCustom && customServerJar.isNullOrBlank()) {
             throw UnprocessableException("custom_server_jar is required for CUSTOM server type")
         }
@@ -131,8 +131,8 @@ class ServerService(
                     this.customServerJar = customServerJar
                     this.containerListenPort = containerListenPort
                     this.containerProtocol = proto
-                    this.disableHealthcheck = disableHealthcheck
-                    this.forceRedownload = forceRedownload
+                    this.disableHealthcheck = disableHealthcheck ?: false
+                    this.forceRedownload = forceRedownload ?: false
                 }
 
                 PortRegistry.insert {

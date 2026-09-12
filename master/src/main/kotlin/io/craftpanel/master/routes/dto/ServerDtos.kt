@@ -58,9 +58,9 @@ data class CreateServerRequest(
     @SerialName("expires_at") val expiresAt: String? = null,
     @SerialName("custom_server_jar") val customServerJar: String? = null,
     @SerialName("container_listen_port") val containerListenPort: Int? = null,
-    @SerialName("container_protocol") val containerProtocol: String = "TCP",
-    @SerialName("disable_healthcheck") val disableHealthcheck: Boolean = false,
-    @SerialName("force_redownload") val forceRedownload: Boolean = false,
+    @SerialName("container_protocol") val containerProtocol: String? = null,
+    @SerialName("disable_healthcheck") val disableHealthcheck: Boolean? = null,
+    @SerialName("force_redownload") val forceRedownload: Boolean? = null,
 )
 
 @Serializable

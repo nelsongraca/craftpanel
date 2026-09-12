@@ -30,7 +30,7 @@ fun ServerExtraPortRow.toResponse(): ServerExtraPortResponse = ServerExtraPortRe
 )
 
 @Serializable
-data class CreateServerExtraPortRequest(val name: String, @SerialName("container_port") val containerPort: Int, @SerialName("host_port") val hostPort: Int? = null, val protocol: String = "TCP")
+data class CreateServerExtraPortRequest(val name: String, @SerialName("container_port") val containerPort: Int, @SerialName("host_port") val hostPort: Int? = null, val protocol: String? = null)
 
 @Serializable
 data class ServerPortsResponse(@SerialName("primary_port") val primaryPort: PrimaryPortInfo, @SerialName("extra_ports") val extraPorts: List<ServerExtraPortResponse>)

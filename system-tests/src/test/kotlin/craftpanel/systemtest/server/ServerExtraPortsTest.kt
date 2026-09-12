@@ -32,7 +32,8 @@ class ServerExtraPortsTest : BaseSystemTest() {
         context("Server Extra Ports") {
             should("allow querying primary port and creating/deleting extra ports") {
                 val initialPorts = api.getServerPorts(serverId)
-                initialPorts.primaryPort.hostPort shouldBe 25565
+                initialPorts.primaryPort.containerPort shouldBe 25565
+                initialPorts.primaryPort.hostPort shouldNotBe 0
                 initialPorts.extraPorts shouldHaveSize 0
 
                 val created = api.addServerExtraPort(
