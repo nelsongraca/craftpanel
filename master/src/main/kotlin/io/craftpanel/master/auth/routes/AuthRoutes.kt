@@ -155,14 +155,12 @@ private fun ApplicationCall.issueSessionCookies(
     groupNames: List<String>,
     mustChangePassword: Boolean,
     secureCookies: Boolean,
-    cookieDomainOrNull: String?,
-    trustDevice: Boolean = false,
-    deviceFingerprint: String? = null
+    cookieDomainOrNull: String?
 ): LoginResponse {
     val accessToken = jwtManager.generate(
         TokenClaims(userId = userId, name = username, email = email, groups = groupNames)
     )
-    val refreshResult = refreshTokenService.issue(userId, trusted = trustDevice, deviceFingerprint = deviceFingerprint.takeIf { trustDevice })
+    val refreshResult = refreshTokenService.issue(userId)
 
     response.cookies.append(
         name = "refresh_token",
@@ -183,6 +181,7 @@ private fun ApplicationCall.issueSessionCookies(
 fun Route.authRoutes(
     jwtManager: JwtManager,
     refreshTokenService: RefreshTokenService,
+    trustedDeviceService: TrustedDeviceService,
     wsTicketService: WsTicketService,
     userRepository: UserRepository,
     totpService: TotpService,
@@ -215,10 +214,11 @@ fun Route.authRoutes(
                 }
 
                 if (record.totpEnabled) {
-                    val rawToken = call.request.cookies["refresh_token"]
                     val fingerprint = req.deviceFingerprint
-                    val skipTotp = rawToken != null && fingerprint != null &&
-                        refreshTokenService.isTrustedAndFingerprintValid(rawToken, fingerprint)
+                    val cookieToken = call.request.cookies["device_trust"]
+                    val userAgent = call.request.headers["User-Agent"]
+                    val skipTotp = fingerprint != null && cookieToken != null && userAgent != null &&
+                        trustedDeviceService.isValid(record.userId, cookieToken, fingerprint, userAgent)
 
                     if (skipTotp) {
                         call.respond(
@@ -312,6 +312,21 @@ fun Route.authRoutes(
                     return@post
                 }
 
+                if (req.trustDevice && req.deviceFingerprint != null) {
+                    val userAgent = call.request.headers["User-Agent"] ?: ""
+                    val rawToken = trustedDeviceService.issue(userId, req.deviceFingerprint, userAgent)
+                    call.response.cookies.append(
+                        name = "device_trust",
+                        value = rawToken,
+                        httpOnly = true,
+                        secure = secureCookies,
+                        extensions = mapOf("SameSite" to "Lax"),
+                        path = "/api/auth",
+                        domain = cookieDomainOrNull,
+                        maxAge = 30 * 24 * 60 * 60
+                    )
+                }
+
                 val groups = userRepository.getUserGlobalGroups(userId)
                     .map { it.groupName }
                 call.respond(
@@ -324,9 +339,7 @@ fun Route.authRoutes(
                         groupNames = groups,
                         mustChangePassword = record.mustChangePassword,
                         secureCookies = secureCookies,
-                        cookieDomainOrNull = cookieDomainOrNull,
-                        trustDevice = req.trustDevice,
-                        deviceFingerprint = req.deviceFingerprint
+                        cookieDomainOrNull = cookieDomainOrNull
                     )
                 )
             }
@@ -675,7 +688,7 @@ fun Route.authRoutes(
 
                 userRepository.disableTotp(userId)
                 recoveryCodeRepository.deleteAll(userId)
-                refreshTokenService.revokeAllTrusted(userId)
+                trustedDeviceService.revokeAll(userId)
                 call.respond(HttpStatusCode.NoContent)
             }
 

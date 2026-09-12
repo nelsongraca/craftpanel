@@ -7,6 +7,7 @@ class FakeUserRepository : UserRepository {
     private val users = mutableMapOf<Uuid, MutableUser>()
     private val assignments = mutableMapOf<Uuid, MutableAssignment>()
     private val tokens = mutableMapOf<String, MutableToken>()
+    private val trustedDevices = mutableMapOf<String, MutableTrustedDevice>()
 
     data class MutableUser(
         val id: Uuid,
@@ -23,6 +24,8 @@ class FakeUserRepository : UserRepository {
     data class MutableAssignment(val id: Uuid, val userId: Uuid, val groupId: Uuid, val scopeType: String, val scopeId: Uuid?)
 
     data class MutableToken(val id: Uuid, val userId: Uuid, val tokenHash: String, val expiresAt: String, var revoked: Boolean = false, val trusted: Boolean = false, val deviceFingerprint: String? = null)
+
+    data class MutableTrustedDevice(val id: Uuid, val userId: Uuid, val tokenHash: String, val deviceFingerprint: String, val userAgent: String, val expiresAt: String, var revoked: Boolean = false)
 
     override fun findById(id: Uuid): UserRow? = users[id]?.toRow()
     override fun findByEmail(email: String): UserRow? = users.values.firstOrNull { it.email == email }
@@ -72,6 +75,11 @@ class FakeUserRepository : UserRepository {
     override fun findTrustedRefreshTokenByFingerprint(userId: Uuid, fingerprintHash: String): RefreshTokenRow? = tokens.values.firstOrNull {
         it.userId == userId && it.trusted && !it.revoked && it.deviceFingerprint == fingerprintHash
     }?.let { RefreshTokenRow(it.id, it.userId, it.tokenHash, it.expiresAt, it.revoked, it.trusted, it.deviceFingerprint) }
+
+    override fun findTrustedDevice(userId: Uuid, tokenHash: String, deviceFingerprint: String, userAgent: String): TrustedDeviceRow? =
+        trustedDevices[tokenHash]?.takeIf {
+            it.userId == userId && it.deviceFingerprint == deviceFingerprint && it.userAgent == userAgent && !it.revoked
+        }?.let { TrustedDeviceRow(it.id, it.userId, it.tokenHash, it.deviceFingerprint, it.userAgent, it.expiresAt, it.revoked) }
 
     override fun getUserGlobalGroups(userId: Uuid): List<GroupAssignmentRow> = emptyList()
 

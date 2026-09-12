@@ -123,6 +123,31 @@ class UserRepositoryImpl : UserRepository {
             }
     }
 
+    override fun findTrustedDevice(userId: Uuid, tokenHash: String, deviceFingerprint: String, userAgent: String): TrustedDeviceRow? = transaction {
+        val now = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        TrustedDevices.selectAll()
+            .where {
+                (TrustedDevices.userId eq userId) and
+                    (TrustedDevices.tokenHash eq tokenHash) and
+                    (TrustedDevices.deviceFingerprint eq deviceFingerprint) and
+                    (TrustedDevices.userAgent eq userAgent) and
+                    (TrustedDevices.revoked eq false) and
+                    (TrustedDevices.expiresAt greaterEq now)
+            }
+            .firstOrNull()
+            ?.let {
+                TrustedDeviceRow(
+                    id = it[TrustedDevices.id],
+                    userId = it[TrustedDevices.userId].value,
+                    tokenHash = it[TrustedDevices.tokenHash],
+                    deviceFingerprint = it[TrustedDevices.deviceFingerprint],
+                    userAgent = it[TrustedDevices.userAgent],
+                    expiresAt = it[TrustedDevices.expiresAt].toUtcString(),
+                    revoked = it[TrustedDevices.revoked]
+                )
+            }
+    }
+
     override fun getUserGlobalGroups(userId: Uuid): List<GroupAssignmentRow> = transaction {
         (UserGroupAssignments innerJoin Groups)
             .selectAll()

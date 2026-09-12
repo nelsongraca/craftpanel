@@ -118,6 +118,7 @@ val appModule = module {
     single { PermissionResolver }
     single { JwtManager(get<AppConfig>().jwt) }
     single { RefreshTokenService(userRepository = get()) }
+    single { TrustedDeviceService(userRepository = get()) }
     single { WsTicketService() }
     single { TotpService(cipher = get()) }
 

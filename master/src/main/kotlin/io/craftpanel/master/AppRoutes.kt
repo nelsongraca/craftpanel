@@ -11,7 +11,7 @@ import org.koin.ktor.ext.get
 fun Route.registerAppRoutes() {
     val cfg = get<AppConfig>()
     brandingRoutes(get(), get())
-    authRoutes(get(), get(), get(), get(), get(), get(), cfg.rateLimit, cfg.auth.secureCookies, cfg.auth.cookieDomain)
+    authRoutes(get(), get(), get(), get(), get(), get(), get(), cfg.rateLimit, cfg.auth.secureCookies, cfg.auth.cookieDomain)
     nodeIpRoutes()
     nodesRoutes(get())
     networksRoutes(get())

@@ -18,6 +18,10 @@ data class CredentialRow(
     val mustChangePassword: Boolean = false
 )
 
+data class RefreshTokenRow(val id: Uuid, val userId: Uuid, val tokenHash: String, val expiresAt: String, val revoked: Boolean, val trusted: Boolean = false, val deviceFingerprint: String? = null)
+
+data class TrustedDeviceRow(val id: Uuid, val userId: Uuid, val tokenHash: String, val deviceFingerprint: String, val userAgent: String, val expiresAt: String, val revoked: Boolean = false)
+
 interface UserRepository {
 
     fun findById(id: Uuid): UserRow?
@@ -32,6 +36,8 @@ interface UserRepository {
 
     fun findRefreshTokenByHash(tokenHash: String): RefreshTokenRow?
 
+    fun findTrustedDevice(userId: Uuid, tokenHash: String, deviceFingerprint: String, userAgent: String): TrustedDeviceRow?
+
     fun getUserGlobalGroups(userId: Uuid): List<GroupAssignmentRow>
 
     fun updatePassword(userId: Uuid, newHash: String)
@@ -44,5 +50,3 @@ interface UserRepository {
     fun disableTotp(userId: Uuid)
     fun findTrustedRefreshTokenByFingerprint(userId: Uuid, fingerprintHash: String): RefreshTokenRow?
 }
-
-data class RefreshTokenRow(val id: Uuid, val userId: Uuid, val tokenHash: String, val expiresAt: String, val revoked: Boolean, val trusted: Boolean = false, val deviceFingerprint: String? = null)

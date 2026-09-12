@@ -76,7 +76,7 @@ class AuthRoutesTest :
                     }
                 }
             }
-            routing { authRoutes(jwtManager, refreshTokenService, WsTicketService(), userRepository, totpService, recoveryCodeRepository) }
+            routing { authRoutes(jwtManager, refreshTokenService, TrustedDeviceService(userRepository), WsTicketService(), userRepository, totpService, recoveryCodeRepository) }
         }
 
         fun ApplicationTestBuilder.jsonClient() = createClient {
@@ -1021,6 +1021,64 @@ class AuthRoutesTest :
 
                 client.get("/api/auth/me") { bearerAuth(accessToken) }
                     .body<MeResponse>().totpEnabled shouldBe true
+            }
+        }
+
+        test("trusted device skips TOTP challenge, and survives logout") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser()
+                val (accessToken, _) = login()
+                val setup = client.setupTotp(accessToken)
+                val fp = "test-device-fingerprint"
+                val userAgent = "TestAgent/1.0"
+
+                // Step 1 — password login triggers TOTP challenge
+                val challenge = client.post("/api/auth/login") {
+                    contentType(ContentType.Application.Json)
+                    setBody(LoginRequest("alice@example.com", "hunter2", deviceFingerprint = fp))
+                }.body<LoginResponse>()
+                challenge.requiresTotp shouldBe true
+                challenge.tempToken shouldNotBe null
+
+                // Step 2 — verify TOTP with trust_device=true and fingerprint
+                val verify = client.post("/api/auth/totp-verify") {
+                    contentType(ContentType.Application.Json)
+                    header(HttpHeaders.UserAgent, userAgent)
+                    setBody(TotpVerifyRequest(challenge.tempToken!!, totpCode(setup.secret), trustDevice = true, deviceFingerprint = fp))
+                }
+                verify.status shouldBe HttpStatusCode.OK
+                val verifyBody = verify.body<LoginResponse>()
+                verifyBody.accessToken shouldNotBe null
+                val trustedToken = verify.refreshTokenCookie()!!
+                trustedToken shouldNotBe null
+                val deviceTrustCookie = verify.headers.getAll(HttpHeaders.SetCookie)
+                    ?.find { it.startsWith("device_trust=") }
+                    ?.split(";")
+                    ?.first()
+                    ?.removePrefix("device_trust=")
+                    ?.takeIf { it.isNotEmpty() }
+                deviceTrustCookie shouldNotBe null
+
+                // Step 3 — logout (device_trust cookie should NOT be cleared by logout)
+                client.post("/api/auth/logout") {
+                    bearerAuth(verifyBody.accessToken!!)
+                    cookie("refresh_token", trustedToken)
+                }.status shouldBe HttpStatusCode.NoContent
+
+                // Step 4 — login again from the same device, should skip TOTP
+                val relogin = client.post("/api/auth/login") {
+                    contentType(ContentType.Application.Json)
+                    header(HttpHeaders.UserAgent, userAgent)
+                    cookie("device_trust", deviceTrustCookie!!)
+                    setBody(LoginRequest("alice@example.com", "hunter2", deviceFingerprint = fp))
+                }
+                relogin.status shouldBe HttpStatusCode.OK
+                val reloginBody = relogin.body<LoginResponse>()
+                reloginBody.requiresTotp shouldBe false
+                reloginBody.accessToken shouldNotBe null
+                relogin.refreshTokenCookie() shouldNotBe null
             }
         }
     })
