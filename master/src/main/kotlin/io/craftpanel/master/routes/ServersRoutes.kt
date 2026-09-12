@@ -314,6 +314,30 @@ fun Route.serversRoutes(
                 }
                 call.respond(HttpStatusCode.NoContent)
             }
+
+            patch("/{id}/disabled", {
+                operationId = "setServerDisabled"
+                summary = "Enable or disable a server. Disabling stops a running server immediately and prevents it being started until re-enabled."
+                request {
+                    pathParameter<String>("id")
+                    body<PatchDisabledRequest>()
+                }
+                response {
+                    code(HttpStatusCode.NoContent) { }
+                    code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                val auth = call.requireServerPermission(Permission.SERVER_DISABLE)
+                val req = call.receive<PatchDisabledRequest>()
+                val row = serverService.updateDisabled(auth.serverId, req.disabled)
+                if (req.disabled && ServerStatus.fromDb(row.status).isRunning) {
+                    lifecycleService.stopServer(auth.serverId)
+                }
+                call.respond(HttpStatusCode.NoContent)
+            }
         }
     }
 }

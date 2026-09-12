@@ -333,6 +333,14 @@ class ServerService(
         return serverRepository.findById(id) ?: throw NotFoundException("Server not found")
     }
 
+    fun updateDisabled(id: Uuid, disabled: Boolean): ServerRow {
+        serverRepository.findById(id) ?: throw NotFoundException("Server not found")
+        transaction {
+            Server.findById(id)?.let { it.disabled = disabled }
+        }
+        return serverRepository.findById(id) ?: throw NotFoundException("Server not found")
+    }
+
 }
 
 private fun parseExpiresAt(raw: String?): kotlinx.datetime.LocalDateTime? {

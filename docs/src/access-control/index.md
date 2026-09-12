@@ -23,6 +23,8 @@ Access control is implemented as a **permission node** system. Permissions are c
 | `server.backup`    | Trigger manual backups and manage backup retention                         |
 | `server.migrate`   | Move a server between nodes                                                |
 | `server.view`      | Read-only access: status, config, logs, player count                       |
+| `server.expires`   | Set or remove a server's expiration date                                    |
+| `server.disable`   | Disable or re-enable a server (synchronous stop if running)                |
 
 ## Default Groups
 
@@ -31,7 +33,7 @@ The following groups are pre-configured on installation. Administrators may crea
 | Group            | Permissions                                                        |
 |------------------|--------------------------------------------------------------------|
 | **Super Admin**  | All permission nodes                                               |
-| **Server Admin** | Everything except `system.*`, `server.resources`, `server.migrate` |
+| **Server Admin** | Everything except `system.*`, `server.resources`, `server.migrate`         |
 | **Operator**     | `server.restart`, `server.console`, `server.view`, `server.backup` |
 | **Viewer**       | `server.view`                                                      |
 

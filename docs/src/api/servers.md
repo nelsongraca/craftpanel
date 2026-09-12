@@ -13,7 +13,9 @@ Base path: `/api/servers`
 | POST   | `/servers/{id}/stop`      | `server.stop`      | Stop the server                                                                 |
 | POST   | `/servers/{id}/restart`   | `server.restart`   | Restart the server                                                              |
 | PATCH  | `/servers/{id}/resources` | `server.resources` | Update RAM and CPU allocation (requires Super Admin)                            |
+| PATCH  | `/servers/{id}/expiration` | `server.expires`   | Set or clear the server's expiration date (stops immediately if now expired)  |
 | PATCH  | `/servers/{id}/exposure`  | `server.configure` | Toggle external exposure and subdomain                                          |
+| PATCH  | `/servers/{id}/disabled` | `server.disable`   | Disable or re-enable a server (stops immediately if running)                   |
 | GET    | `/servers/{id}/metrics`   | `server.view`      | Query historical container metrics                                              |
 
 ---
@@ -110,7 +112,10 @@ The `itzg_image_tag` field refers to the [itzg/minecraft-server](https://hub.doc
     "jeb_"
   ],
   "is_migrating": false,
+  "needs_recreate": false,
+  "disabled": false,
   "stop_command": "stop",
+  "expires_at": null,
   "last_seen_at": "2026-05-04T10:00:00Z",
   "created_at": "2026-05-04T08:00:00Z",
   "updated_at": "2026-05-04T10:00:00Z"
@@ -226,6 +231,27 @@ When `exposed_externally` is `false`, `public_subdomain` is ignored and the exis
 **Response `204`.**
 
 **Errors:** `422` if the subdomain is already in use by another server.
+
+---
+
+## `PATCH /servers/{id}/disabled`
+
+Disables or re-enables a server. When disabling a running server, the stop command is sent synchronously and the response confirms the container was stopped.
+
+**Request:**
+
+```json
+{
+  "disabled": true
+}
+```
+
+Set to `false` to re-enable. Idempotent — re-sending the current value returns `204` without action. Extending `expires_at` while a server is disabled (from expiry) automatically re-enables it without
+needing to call this endpoint.
+
+**Response `204`.**
+
+**Errors:** `422` invalid request body. `404` unknown server. `403` missing `server.disable` permission.
 
 ---
 

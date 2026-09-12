@@ -56,6 +56,7 @@ function server(overrides: Record<string, unknown> = {}): Record<string, unknown
         canonical_hostname: null,
         is_migrating: false,
         needs_recreate: false,
+        disabled: false,
         config_mode: "MANAGED",
         stop_command: "stop",
         last_player_count: null,
@@ -613,6 +614,30 @@ describe("ServersPage", () => {
             await renderWith({servers: [server()]});
 
             expect(screen.queryByText("Expired")).not.toBeInTheDocument();
+        });
+    });
+
+    describe("Disabled servers", () => {
+        it("Start button NOT rendered for a disabled stopped server even with server.start permission", async () => {
+            const s = server({status: "STOPPED", disabled: true});
+            await renderWith({servers: [s], permissions: ["server.start"]});
+
+            expect(screen.queryByTitle("Start")).not.toBeInTheDocument();
+        });
+
+        it("Restart NOT rendered for a disabled running server but Stop remains", async () => {
+            const s = server({status: "HEALTHY", disabled: true});
+            await renderWith({servers: [s], permissions: ["server.restart", "server.stop"]});
+
+            expect(screen.queryByTitle("Restart")).not.toBeInTheDocument();
+            expect(screen.getAllByTitle("Stop").length).toBeGreaterThan(0);
+        });
+
+        it("disabled server shows Disabled label", async () => {
+            const s = server({disabled: true});
+            await renderWith({servers: [s]});
+
+            expect(screen.getAllByText("Disabled").length).toBeGreaterThan(0);
         });
     });
 });

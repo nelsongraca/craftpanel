@@ -4,9 +4,10 @@ import {useEffect, useState} from "react";
 import {InfoRow} from "./server-info";
 import {EditFieldRow, EditInput, EditSelect, EditTextarea, SaveCancelRow} from "./edit-fields";
 import {McVersionSelect} from "@/components/ui/mc-version";
-import {updateServer, listNetworks, updateServerExpiration} from "@/lib/generated/sdk.gen";
+import {updateServer, listNetworks, updateServerExpiration, setServerDisabled} from "@/lib/generated/sdk.gen";
 import type {Network, Server} from "@/lib/types";
 import {hasPermission} from "@/lib/permissions";
+import {Switch} from "@/components/ui/switch";
 
 interface EditGeneralProps {
     server: Server;
@@ -19,6 +20,7 @@ interface EditGeneralProps {
 export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: EditGeneralProps) {
     const isProxy = ["VELOCITY", "BUNGEECORD", "WATERFALL"].includes(server.server_type);
     const canSetExpiry = hasPermission(permissions, "server.expires");
+    const canDisable = hasPermission(permissions, "server.disable");
 
     const [editing, setEditing] = useState(false);
     const [displayName, setDisplayName] = useState("");
@@ -26,6 +28,7 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
     const [networkId, setNetworkId] = useState("");
     const [mcVersion, setMcVersion] = useState("");
     const [expiresAt, setExpiresAt] = useState<string>(""); // datetime-local string
+    const [disabled, setDisabled] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [networks, setNetworks] = useState<Network[]>([]);
@@ -36,6 +39,7 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
         setNetworkId(server.network_id ?? "");
         setMcVersion(server.mc_version);
         setExpiresAt(server.expires_at ? server.expires_at.slice(0, 16) : "");
+        setDisabled(server.disabled ?? false);
         setError(null);
         setEditing(true);
         if (networks.length === 0) {
@@ -86,6 +90,18 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
                         setError(expireErr.message ?? "Failed to save expiration");
                         return;
                     }
+                }
+            }
+
+            // Update disabled state via dedicated endpoint if permission and changed
+            if (canDisable && disabled !== (server.disabled ?? false)) {
+                const {error: disableErr} = await setServerDisabled({
+                    path: {id: server.id},
+                    body: {disabled}
+                });
+                if (disableErr) {
+                    setError(disableErr.message ?? "Failed to update disabled state");
+                    return;
                 }
             }
 
@@ -164,6 +180,21 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
                                 onChange={(e) => setExpiresAt(e.target.value)}
                                 placeholder="Optional expiration date/time"
                             />
+                        </EditFieldRow>
+                    )}
+                    {canDisable && (
+                        <EditFieldRow label="Disabled">
+                            <div className="flex items-center gap-3">
+                                <Switch
+                                    checked={disabled}
+                                    onCheckedChange={setDisabled}
+                                />
+                                <span className="text-xs text-text-muted">
+                                    {disabled
+                                        ? "Server cannot be started until re-enabled. If running, it will be stopped."
+                                        : "Server can be started and stopped normally."}
+                                </span>
+                            </div>
                         </EditFieldRow>
                     )}
                     {!isProxy && (

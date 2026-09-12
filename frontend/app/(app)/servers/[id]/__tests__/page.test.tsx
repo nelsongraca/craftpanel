@@ -60,6 +60,7 @@ function detailServer(overrides: Record<string, unknown> = {}): Record<string, u
         canonical_hostname: null,
         is_migrating: false,
         needs_recreate: false,
+        disabled: false,
         config_mode: "MANAGED",
         stop_command: "stop",
         last_player_count: null,
@@ -146,6 +147,33 @@ describe("ServerDetailPage", () => {
 
             expect(screen.getByText(/Settings saved/)).toBeInTheDocument();
             expect(screen.queryByRole("button", {name: "Restart Now"})).not.toBeInTheDocument();
+        });
+    });
+
+    describe("Disabled server", () => {
+        it("shows the Disabled badge when disabled flag is set", async () => {
+            await renderDetail({status: "STOPPED", disabled: true});
+
+            expect(screen.getByText("Disabled")).toBeInTheDocument();
+        });
+
+        it("hides the Start button for a disabled stopped server even with server.start permission", async () => {
+            await renderDetail(
+                {status: "STOPPED", disabled: true},
+                ["server.start"],
+            );
+
+            expect(screen.queryByRole("button", {name: "Start"})).not.toBeInTheDocument();
+        });
+
+        it("hides Restart for a disabled running server but keeps Stop", async () => {
+            await renderDetail(
+                {status: "HEALTHY", disabled: true},
+                ["server.restart", "server.stop"],
+            );
+
+            expect(screen.queryByRole("button", {name: "Restart"})).not.toBeInTheDocument();
+            expect(screen.getByRole("button", {name: "Stop"})).toBeInTheDocument();
         });
     });
 

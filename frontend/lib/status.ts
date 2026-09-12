@@ -48,6 +48,15 @@ export function serverExpired(expiresAt: string | null | undefined): boolean {
     return new Date(expiresAt).getTime() <= Date.now()
 }
 
+interface ServerDisableInput {
+    disabled?: boolean
+    expires_at?: string | null | undefined
+}
+
+export function serverDisabled(server: ServerDisableInput): boolean {
+    return (server.disabled ?? false) || serverExpired(server.expires_at)
+}
+
 // ── Node status ───────────────────────────────────────────────────────────────
 
 // Combined display status derived from lifecycle + health axes

@@ -240,7 +240,7 @@ class ContainerLifecycle(
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private fun ensureStartable(server: ServerRow) {
-        if (server.isExpired()) throw ConflictException("Server has expired and can no longer be started")
+        if (server.isDisabled()) throw ConflictException(server.disabledReason())
     }
 
     private fun deriveImage(serverType: ServerType, tag: String) = images.deriveImage(serverType, tag)

@@ -26,6 +26,7 @@ data class ServerRow(
     val stopCommand: String,
     val itzgImageTag: String,
     val needsRecreate: Boolean,
+    val disabled: Boolean = false,
     val expiresAt: String? = null,
     val proxyMotd: String? = null,
     val proxyMaxPlayers: Int? = null,
@@ -46,6 +47,14 @@ fun ServerRow.isExpired(now: kotlin.time.Instant = kotlin.time.Clock.System.now(
     val raw = expiresAt ?: return false
     val expires = parseUtcInstant(raw) ?: return false
     return expires < now
+}
+
+fun ServerRow.isDisabled(now: kotlin.time.Instant = kotlin.time.Clock.System.now()): Boolean =
+    disabled || isExpired(now)
+
+fun ServerRow.disabledReason(): String = when {
+    disabled -> "Server is disabled and can no longer be started"
+    else -> "Server has expired and can no longer be started"
 }
 
 interface ServerRepository {

@@ -982,6 +982,34 @@ class ServersRoutesTest :
             }
         }
 
+        test("POST start returns 409 if server is disabled") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, status = "STOPPED")
+                transaction { Servers.update({ Servers.id eq serverId }) { it[Servers.disabled] = true } }
+                val resp = client.post("/api/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
+                resp.status shouldBe HttpStatusCode.Conflict
+            }
+        }
+
+        test("POST restart returns 409 if server is disabled") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, status = "HEALTHY")
+                transaction { Servers.update({ Servers.id eq serverId }) { it[Servers.disabled] = true } }
+                val resp = client.post("/api/servers/$serverId/restart") { bearerAuth(tokenFor(userId)) }
+                resp.status shouldBe HttpStatusCode.Conflict
+            }
+        }
+
         test("POST start returns 502 when agent not connected") {
             testApplication {
                 testApp { jwtManager -> configureServersTest(TestAgentGateway(sendResult = false)) }
@@ -1348,6 +1376,127 @@ class ServersRoutesTest :
                     bearerAuth(tokenFor(userId))
                     contentType(ContentType.Application.Json)
                     setBody("""{"expires_at":"2027-06-01T12:00:00Z"}""")
+                }
+                resp.status shouldBe HttpStatusCode.NotFound
+            }
+        }
+
+        // ── PATCH /servers/{id}/disabled ───────────────────────────────────────────
+
+        test("PATCH disabled returns 403 without server.disable permission") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Viewer")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+                val resp = client.patch("/api/servers/$serverId/disabled") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"disabled":true}""")
+                }
+                resp.status shouldBe HttpStatusCode.Forbidden
+            }
+        }
+
+        test("PATCH disabled true persists and returns 204") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+                val resp = client.patch("/api/servers/$serverId/disabled") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"disabled":true}""")
+                }
+                resp.status shouldBe HttpStatusCode.NoContent
+                val row = transaction {
+                    Servers.selectAll()
+                        .where { Servers.id eq serverId }
+                        .first()
+                }
+                row[Servers.disabled] shouldBe true
+            }
+        }
+
+        test("PATCH disabled false re-enables and returns 204") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+                transaction { Servers.update({ Servers.id eq serverId }) { it[Servers.disabled] = true } }
+                val resp = client.patch("/api/servers/$serverId/disabled") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"disabled":false}""")
+                }
+                resp.status shouldBe HttpStatusCode.NoContent
+                val row = transaction {
+                    Servers.selectAll()
+                        .where { Servers.id eq serverId }
+                        .first()
+                }
+                row[Servers.disabled] shouldBe false
+            }
+        }
+
+        test("PATCH disabled true stops a running server") {
+            val gw = TestAgentGateway()
+            testApplication {
+                testApp { jwtManager -> configureServersTest(gw) }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, status = "HEALTHY")
+                val resp = client.patch("/api/servers/$serverId/disabled") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"disabled":true}""")
+                }
+                resp.status shouldBe HttpStatusCode.NoContent
+                gw.sent.size shouldBe 1
+                gw.sent[0].second.hasStopContainer() shouldBe true
+                gw.sent[0].second.stopContainer.containerName shouldBe "craftpanel-$serverId"
+            }
+        }
+
+        test("PATCH disabled true does not stop a stopped server") {
+            val gw = TestAgentGateway()
+            testApplication {
+                testApp { jwtManager -> configureServersTest(gw) }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, status = "STOPPED")
+                val resp = client.patch("/api/servers/$serverId/disabled") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"disabled":true}""")
+                }
+                resp.status shouldBe HttpStatusCode.NoContent
+                gw.sent.size shouldBe 0
+            }
+        }
+
+        test("PATCH disabled returns 404 for unknown server") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val resp = client.patch("/api/servers/${Uuid.random()}/disabled") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"disabled":true}""")
                 }
                 resp.status shouldBe HttpStatusCode.NotFound
             }

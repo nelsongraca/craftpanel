@@ -173,6 +173,7 @@ private fun ResultRow.toServerRow() = ServerRow(
     stopCommand = this[Servers.stopCommand],
     itzgImageTag = this[Servers.itzgImageTag],
     needsRecreate = this[Servers.needsRecreate],
+    disabled = this[Servers.disabled],
     expiresAt = this[Servers.expiresAt]?.toUtcString(),
     proxyMotd = this[Servers.proxyMotd],
     proxyMaxPlayers = this[Servers.proxyMaxPlayers],

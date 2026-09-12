@@ -67,3 +67,12 @@ test("expired server shows Expired label and no Start action", async ({page}) =>
     await expect(row.getByText("Expired")).toBeVisible();
     await expect(row.getByTitle("Start")).toHaveCount(0);
 });
+
+test("disabled server shows Disabled label and no Start action", async ({page}) => {
+    await page.goto("/servers");
+    const table = page.locator("table");
+    const row = table.locator("tbody tr").filter({hasText: "Suspended World"});
+    await expect(row).toBeVisible();
+    await expect(row.getByText("Disabled")).toBeVisible();
+    await expect(row.getByTitle("Start")).toHaveCount(0);
+});

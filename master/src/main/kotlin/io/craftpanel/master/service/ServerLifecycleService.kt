@@ -4,7 +4,8 @@ import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.ServerRepository
 import io.craftpanel.master.service.repo.ServerRow
-import io.craftpanel.master.service.repo.isExpired
+import io.craftpanel.master.service.repo.disabledReason
+import io.craftpanel.master.service.repo.isDisabled
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
@@ -22,7 +23,7 @@ class ServerLifecycleService(
         if (status == ServerStatus.HEALTHY || status == ServerStatus.STARTING) {
             throw ConflictException("Server is already running")
         }
-        if (serverRow.isExpired()) throw ConflictException("Server has expired and can no longer be started")
+        if (serverRow.isDisabled()) throw ConflictException(serverRow.disabledReason())
         val publicHostname = serverExposure.mcRouterLabel(serverRow)
         // Write the proxy patch before flipping status to STARTING: a failure here must
         // surface loudly and leave the server's prior status untouched, not strand it at
@@ -51,7 +52,7 @@ class ServerLifecycleService(
     suspend fun restartServer(id: Uuid) {
         val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
         if (ServerStatus.fromDb(serverRow.status).isStopped) throw ConflictException("Server is not running")
-        if (serverRow.isExpired()) throw ConflictException("Server has expired and can no longer be started")
+        if (serverRow.isDisabled()) throw ConflictException(serverRow.disabledReason())
         val nodeId = serverRow.nodeId.toString()
         writeProxyPatch(serverRow)
         transaction { Server.findById(id)?.let { it.status = "STARTING" } }

@@ -32,6 +32,7 @@ class Server(id: EntityID<Uuid>) : UuidEntity(id) {
     var stopCommand by Servers.stopCommand
     var itzgImageTag by Servers.itzgImageTag
     var needsRecreate by Servers.needsRecreate
+    var disabled by Servers.disabled
     var expiresAt by Servers.expiresAt
     var proxyMotd by Servers.proxyMotd
     var proxyMaxPlayers by Servers.proxyMaxPlayers
@@ -69,6 +70,7 @@ class Server(id: EntityID<Uuid>) : UuidEntity(id) {
         stopCommand = stopCommand,
         itzgImageTag = itzgImageTag,
         needsRecreate = needsRecreate,
+        disabled = disabled,
         expiresAt = expiresAt?.toUtcString(),
         proxyMotd = proxyMotd,
         proxyMaxPlayers = proxyMaxPlayers,

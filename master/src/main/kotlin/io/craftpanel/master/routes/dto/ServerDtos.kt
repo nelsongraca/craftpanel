@@ -28,6 +28,7 @@ data class ServerResponse(
     @SerialName("canonical_hostname") val canonicalHostname: String?,
     @SerialName("is_migrating") val isMigrating: Boolean,
     @SerialName("needs_recreate") val needsRecreate: Boolean,
+    val disabled: Boolean,
     @SerialName("config_mode") val configMode: ConfigMode,
     @SerialName("stop_command") val stopCommand: String,
     @SerialName("expires_at") val expiresAt: String?,
@@ -71,6 +72,9 @@ data class PatchResourcesRequest(@SerialName("memory_mb") val memoryMb: Int, @Se
 data class PatchExpirationRequest(@SerialName("expires_at") val expiresAt: String?)
 
 @Serializable
+data class PatchDisabledRequest(@SerialName("disabled") val disabled: Boolean)
+
+@Serializable
 data class PatchExposureRequest(
     @SerialName("exposed_externally") val exposedExternally: Boolean,
     @SerialName("public_subdomain") val publicSubdomain: String? = null,
@@ -99,6 +103,7 @@ internal fun ServerRow.toResponse(serverExposure: ServerExposure, isMigrating: B
         canonicalHostname = canonicalHostname,
         isMigrating = isMigrating,
         needsRecreate = needsRecreate,
+        disabled = disabled,
         configMode = ConfigMode.fromDb(configMode),
         stopCommand = stopCommand,
         expiresAt = expiresAt,

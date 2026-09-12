@@ -6,10 +6,11 @@ import {EditGeneral} from '../edit-general'
 vi.mock('@/lib/generated/sdk.gen', () => ({
     updateServer: vi.fn(),
     updateServerExpiration: vi.fn(),
+    setServerDisabled: vi.fn(),
     listNetworks: vi.fn(),
 }))
 
-import {updateServer, updateServerExpiration, listNetworks} from '@/lib/generated/sdk.gen'
+import {updateServer, updateServerExpiration, setServerDisabled, listNetworks} from '@/lib/generated/sdk.gen'
 import type {Server} from '@/lib/types'
 
 const makeServer = (overrides?: Partial<Server>): Server => ({
@@ -31,6 +32,7 @@ const makeServer = (overrides?: Partial<Server>): Server => ({
     custom_hostname: null,
     canonical_hostname: null,
     itzg_image_tag: 'latest',
+    disabled: false,
     ...overrides,
 })
 
@@ -89,6 +91,27 @@ describe('EditGeneral', () => {
         render(<EditGeneral server={makeServer()} permissions={['server.view']} onSaved={vi.fn()}/>)
         await user.click(screen.getByText('Edit'))
         expect(screen.queryByPlaceholderText('Optional expiration date/time')).not.toBeInTheDocument()
+    })
+
+    it('hides the disabled toggle without server.disable permission', async () => {
+        const user = userEvent.setup()
+        render(<EditGeneral server={makeServer()} permissions={['server.view']} onSaved={vi.fn()}/>)
+        await user.click(screen.getByText('Edit'))
+        expect(screen.queryByText('Disabled', {exact: true})).not.toBeInTheDocument()
+    })
+
+    it('calls setServerDisabled when the disabled toggle changes', async () => {
+        vi.mocked(updateServer).mockResolvedValue({data: {}, error: undefined, response: new Response()})
+        vi.mocked(setServerDisabled).mockResolvedValue({data: {}, error: undefined, response: new Response()})
+        const user = userEvent.setup()
+        render(<EditGeneral server={makeServer()} permissions={['*']} onSaved={vi.fn()}/>)
+        await user.click(screen.getByText('Edit'))
+        await user.click(screen.getByRole('switch'))
+        await user.click(screen.getByText('Save'))
+        expect(setServerDisabled).toHaveBeenCalled()
+        const call = vi.mocked(setServerDisabled).mock.calls[0][0]
+        expect(call.path).toEqual({id: 's1'})
+        expect(call.body.disabled).toBe(true)
     })
 
     it('calls updateServerExpiration when the expiry changes', async () => {
