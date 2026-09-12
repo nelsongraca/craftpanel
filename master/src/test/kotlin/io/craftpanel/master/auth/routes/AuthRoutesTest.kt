@@ -1081,4 +1081,57 @@ class AuthRoutesTest :
                 relogin.refreshTokenCookie() shouldNotBe null
             }
         }
+
+        test("trusted device skips TOTP only when fingerprint matches") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser()
+                val (accessToken, _) = login()
+                val setup = client.setupTotp(accessToken)
+                val fp1 = "device-fingerprint-1"
+                val fp2 = "device-fingerprint-2"
+                val userAgent = "TestAgent/1.0"
+
+                // Login with TOTP + trust device (fp1)
+                val challenge = client.post("/api/auth/login") {
+                    contentType(ContentType.Application.Json)
+                    setBody(LoginRequest("alice@example.com", "hunter2", deviceFingerprint = fp1))
+                }.body<LoginResponse>()
+                challenge.requiresTotp shouldBe true
+
+                val verify = client.post("/api/auth/totp-verify") {
+                    contentType(ContentType.Application.Json)
+                    header(HttpHeaders.UserAgent, userAgent)
+                    setBody(TotpVerifyRequest(challenge.tempToken!!, totpCode(setup.secret), trustDevice = true, deviceFingerprint = fp1))
+                }
+                verify.status shouldBe HttpStatusCode.OK
+                val deviceTrustCookie = verify.headers.getAll(HttpHeaders.SetCookie)
+                    ?.find { it.startsWith("device_trust=") }
+                    ?.split(";")
+                    ?.first()
+                    ?.removePrefix("device_trust=")
+                    ?.takeIf { it.isNotEmpty() }
+                deviceTrustCookie shouldNotBe null
+
+                // Logout
+                client.post("/api/auth/logout") {
+                    bearerAuth(verify.body<LoginResponse>().accessToken!!)
+                    cookie("refresh_token", verify.refreshTokenCookie()!!)
+                }.status shouldBe HttpStatusCode.NoContent
+
+                // Login with same cookie but DIFFERENT fingerprint — should NOT skip
+                val relogin = client.post("/api/auth/login") {
+                    contentType(ContentType.Application.Json)
+                    header(HttpHeaders.UserAgent, userAgent)
+                    cookie("device_trust", deviceTrustCookie!!)
+                    setBody(LoginRequest("alice@example.com", "hunter2", deviceFingerprint = fp2))
+                }
+                relogin.status shouldBe HttpStatusCode.OK
+                val reloginBody = relogin.body<LoginResponse>()
+                reloginBody.requiresTotp shouldBe true
+                reloginBody.tempToken shouldNotBe null
+                reloginBody.accessToken shouldBe null
+            }
+        }
     })
