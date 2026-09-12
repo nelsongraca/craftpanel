@@ -100,6 +100,11 @@ class ContainerLifecycleTest :
                         backupSchedule = r[Servers.backupSchedule],
                         backupMaxCount = r[Servers.backupMaxCount],
                         backupScheduleLastFired = r[Servers.backupScheduleLastFired]?.toString(),
+                        customServerJar = r[Servers.customServerJar],
+                        containerListenPort = r[Servers.containerListenPort],
+                        containerProtocol = r[Servers.containerProtocol],
+                        disableHealthcheck = r[Servers.disableHealthcheck],
+                        forceRedownload = r[Servers.forceRedownload],
                         lastPlayerCount = r[Servers.lastPlayerCount],
                         lastPlayerNames = r[Servers.lastPlayerNames],
                         lastPlayerUpdate = r[Servers.lastPlayerUpdate]?.toString(),
@@ -161,6 +166,43 @@ class ContainerLifecycleTest :
             cmd.dataContainerPath shouldBe "/server"
             cmd.internalListenPort shouldBe 25577
             cmd.envVarsMap["SERVER_PORT"] shouldBe "25577"
+        }
+
+        test("start - CUSTOM server type - injects CUSTOM_SERVER and forces VERSION=LATEST") {
+            val customId = transaction {
+                Servers.insert {
+                    it[Servers.nodeId] = nodeId
+                    it[Servers.name] = "test-custom"
+                    it[Servers.displayName] = "test-custom"
+                    it[Servers.serverType] = "CUSTOM"
+                    it[Servers.mcVersion] = "1.21.4"
+                    it[Servers.itzgImageTag] = "latest"
+                    it[Servers.hostPort] = 25570
+                    it[Servers.memoryMb] = 1024
+                    it[Servers.cpuShares] = 0
+                    it[Servers.status] = "STOPPED"
+                    it[Servers.customServerJar] = "/data/my-server.jar"
+                    it[Servers.configMode] = "MANUAL"
+                }[Servers.id].let { Uuid.parse(it.toString()) }
+            }
+            val row = serverRow(customId).copy(
+                containerProtocol = "UDP",
+                containerListenPort = 25566,
+                disableHealthcheck = true,
+                forceRedownload = true
+            )
+            val cmd = lifecycle().buildStartMessage(row, needsRecreate = false).startContainer
+            cmd.image shouldBe "itzg/minecraft-server:latest"
+            cmd.dataContainerPath shouldBe "/data"
+            cmd.internalListenPort shouldBe 25566
+            cmd.containerProtocol shouldBe "UDP"
+            cmd.envVarsMap["TYPE"] shouldBe "CUSTOM"
+            cmd.envVarsMap["VERSION"] shouldBe "LATEST"
+            cmd.envVarsMap["SERVER_PORT"] shouldBe "25566"
+            cmd.envVarsMap["CUSTOM_SERVER"] shouldBe "/data/my-server.jar"
+            cmd.envVarsMap["DISABLE_HEALTHCHECK"] shouldBe "true"
+            cmd.envVarsMap["FORCE_REDOWNLOAD"] shouldBe "true"
+            cmd.envVarsMap["OVERRIDE_SERVER_PROPERTIES"] shouldBe "false"
         }
 
         test("start - needsRecreate true - sends StartContainerCommand with needsRecreate=true") {

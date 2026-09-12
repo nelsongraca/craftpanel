@@ -133,7 +133,8 @@ class ContainerLifecycle(
                     ?.let { "$containerNamePrefix-net-$it" }
                     ?: "$containerNamePrefix-server-$id"
                 dataContainerPath = images.dataContainerPath(server.serverType)
-                internalListenPort = images.internalListenPort(server.serverType)
+                internalListenPort = server.containerListenPort ?: images.internalListenPort(server.serverType)
+                containerProtocol = server.containerProtocol
                 serverName = server.name
             }
         }
@@ -151,20 +152,22 @@ class ContainerLifecycle(
             dbEnvVars = dbEnvVars - setOf("USE_AIKAR_FLAGS", "USE_MEOWICE_FLAGS", "JVM_OPTS", "JVM_XX_OPTS")
         }
         val isProxy = server.serverType.isProxy
+        val isCustom = server.serverType.isCustom
         val systemVars = buildMap {
             put("EULA", "TRUE")
             put("TYPE", server.serverType.toDb())
-            put("VERSION", server.mcVersion)
+            put("VERSION", if (isCustom) "LATEST" else server.mcVersion)
             // itzg/mc-proxy requires MINECRAFT_VERSION (not just VERSION) when MODRINTH_PROJECTS
             // is set, or its plugin-injection init aborts. Mirror VERSION for proxy types only.
             if (isProxy) put("MINECRAFT_VERSION", server.mcVersion)
             // Force the internal listen port so container port, mc-router label, and
             // healthcheck all agree across server types. Proxies (Velocity/BungeeCord/
-            // Waterfall) listen on 25577; game servers on 25565. Overridable via per-server
-            // env var (dbEnvVars wins on collision below).
+            // Waterfall) listen on 25577; game servers on 25565. CUSTOM servers can declare
+            // an override via container_listen_port. Overridable via per-server env var
+            // (dbEnvVars wins on collision below).
             put(
                 "SERVER_PORT",
-                images.internalListenPort(server.serverType)
+                (server.containerListenPort ?: images.internalListenPort(server.serverType))
                     .toString()
             )
             // ponytail: heap at 75% of the container's cgroup limit — Aikar's flags set
@@ -176,6 +179,12 @@ class ContainerLifecycle(
             put("MEMORY", "${heapMb}M")
             if (modrinthProjects.isNotEmpty()) put("MODRINTH_PROJECTS", modrinthProjects)
             if (isProxy) put("PATCH_DEFINITIONS", "/server/craftpanel-patch.json")
+            if (isCustom) {
+                val jar = server.customServerJar
+                if (!jar.isNullOrBlank()) put("CUSTOM_SERVER", jar)
+                if (server.disableHealthcheck) put("DISABLE_HEALTHCHECK", "true")
+                if (server.forceRedownload) put("FORCE_REDOWNLOAD", "true")
+            }
             // Manual mode is master-owned: never persisted to server_env_vars, always injected
             // fresh so itzg leaves server.properties alone.
             if (isManual) put("OVERRIDE_SERVER_PROPERTIES", "false")

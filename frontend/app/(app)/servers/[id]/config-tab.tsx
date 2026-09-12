@@ -40,6 +40,9 @@ export function ConfigTab({
             />
         );
     }
+    if (serverType === "CUSTOM") {
+        return <CustomServerConfigSection serverId={serverId} stopCommand={stopCommand}/>;
+    }
     return <GameServerConfigSection serverId={serverId} configMode={configMode} stopCommand={stopCommand}/>;
 }
 
@@ -241,6 +244,127 @@ function GameServerConfigSection({
                                 setForm(savedForm);
                                 setExtraVars(savedExtraVars);
                             }}
+                            className="px-3 py-1.5 rounded text-xs font-heading font-bold uppercase tracking-widest text-text-dim border border-border hover:border-text-muted transition-colors"
+                        >
+                            Discard
+                        </button>
+                        <button
+                            onClick={handleSave}
+                            disabled={saving}
+                            className="px-3 py-1.5 rounded text-xs font-heading font-bold uppercase tracking-widest bg-accent text-bg hover:bg-accent-bright transition-colors disabled:opacity-60"
+                        >
+                            {saving ? "Saving…" : "Save"}
+                        </button>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+}
+
+function CustomServerConfigSection({serverId, stopCommand: initialStopCommand}: {
+    serverId: string;
+    stopCommand: string;
+}) {
+    const [extraVars, setExtraVars] = useState<EnvVarItem[]>([]);
+    const [savedExtraVars, setSavedExtraVars] = useState<EnvVarItem[]>([]);
+
+    const [loading, setLoading] = useState(true);
+    const [saving, setSaving] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const load = useCallback(async () => {
+        setLoading(true);
+        setError(null);
+        const res = await getEnvVars({path: {id: serverId}});
+        if (res.error) {
+            setError((res.error as { message?: string }).message ?? "Failed to load env vars");
+            setLoading(false);
+            return;
+        }
+        const items = res.data?.env_vars ?? [];
+        const extra: EnvVarItem[] = [];
+        for (const item of items) {
+            if (!SCHEMA_KEYS.has(item.key)) extra.push(item);
+        }
+        setExtraVars(extra);
+        setSavedExtraVars(extra);
+        setLoading(false);
+    }, [serverId]);
+
+    useEffect(() => {
+        load();
+    }, [load]);
+
+    function removeExtra(i: number) {
+        setExtraVars((prev) => prev.filter((_, idx) => idx !== i));
+    }
+
+    function updateExtra(i: number, field: "key" | "value", val: string) {
+        setExtraVars((prev) => prev.map((r, idx) => (idx === i ? {...r, [field]: val} : r)));
+    }
+
+    function addExtra() {
+        setExtraVars((prev) => [...prev, {key: "", value: ""}]);
+    }
+
+    const isDirty = JSON.stringify(extraVars) !== JSON.stringify(savedExtraVars);
+
+    async function handleSave() {
+        const validExtra = extraVars.filter((r) => r.key.trim().length > 0);
+        const keys = validExtra.map((i) => i.key.trim());
+        if (keys.length !== new Set(keys).size) {
+            setError("Duplicate env var keys");
+            return;
+        }
+        setSaving(true);
+        setError(null);
+        const res = await replaceEnvVars({path: {id: serverId}, body: {env_vars: validExtra}});
+        if (res.error) {
+            setError((res.error as { message?: string }).message ?? "Save failed");
+        } else {
+            await load();
+        }
+        setSaving(false);
+    }
+
+    if (loading) {
+        return <div className="px-6 py-10 text-center text-text-muted text-sm">Loading{"…"}</div>;
+    }
+
+    return (
+        <div className="px-6 py-6 space-y-6">
+            <p className="text-xs text-text-dim">
+                CUSTOM servers run a user-supplied jar as-is. Configuration is manual — the jar is not
+                auto-configured, and environment variables below are passed straight to the container.
+            </p>
+
+            {error && (
+                <div className="text-xs text-error bg-error/10 border border-error/30 rounded px-3 py-2">
+                    {error}
+                </div>
+            )}
+
+            {/* Stop Command */}
+            <StopCommandSection serverId={serverId} stopCommand={initialStopCommand} placeholder="stop"/>
+
+            {/* Extra vars */}
+            {(extraVars.length > 0 || savedExtraVars.length > 0) && (
+                <ExtraVarsSection
+                    extraVars={extraVars}
+                    onUpdate={updateExtra}
+                    onRemove={removeExtra}
+                    onAdd={addExtra}
+                />
+            )}
+
+            {/* Unsaved changes bar */}
+            {isDirty && (
+                <div className="flex items-center justify-between pt-2 border-t border-border">
+                    <span className="text-xs text-text-muted">Unsaved changes</span>
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setExtraVars(savedExtraVars)}
                             className="px-3 py-1.5 rounded text-xs font-heading font-bold uppercase tracking-widest text-text-dim border border-border hover:border-text-muted transition-colors"
                         >
                             Discard

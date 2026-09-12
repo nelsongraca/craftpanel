@@ -31,6 +31,11 @@ class Server(id: EntityID<Uuid>) : UuidEntity(id) {
     var configMode by Servers.configMode
     var stopCommand by Servers.stopCommand
     var itzgImageTag by Servers.itzgImageTag
+    var customServerJar by Servers.customServerJar
+    var containerListenPort by Servers.containerListenPort
+    var containerProtocol by Servers.containerProtocol
+    var disableHealthcheck by Servers.disableHealthcheck
+    var forceRedownload by Servers.forceRedownload
     var needsRecreate by Servers.needsRecreate
     var disabled by Servers.disabled
     var expiresAt by Servers.expiresAt
@@ -72,6 +77,11 @@ class Server(id: EntityID<Uuid>) : UuidEntity(id) {
         needsRecreate = needsRecreate,
         disabled = disabled,
         expiresAt = expiresAt?.toUtcString(),
+        customServerJar = customServerJar,
+        containerListenPort = containerListenPort,
+        containerProtocol = containerProtocol,
+        disableHealthcheck = disableHealthcheck,
+        forceRedownload = forceRedownload,
         proxyMotd = proxyMotd,
         proxyMaxPlayers = proxyMaxPlayers,
         proxyForwardingMode = proxyForwardingMode,

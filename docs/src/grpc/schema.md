@@ -134,6 +134,10 @@ Game server and rsync containers are created with `restart_policy = no` — the 
 
 The agent uses this value directly — it does not re-derive the network name. If the network does not exist when the command arrives, the agent creates a local bridge with that name before starting the container.
 
+### `StartContainerCommand` — port protocol field
+
+`StartContainerCommand` also carries `container_protocol` (`TCP` or `UDP`), mirrored from the server's `container_protocol` column (default `TCP`). The agent uses it to bind the host-port mapping with `ExposedPort.udp()` / `.tcp()`. For `UDP` servers the mc-router labels (`mc-router.host` / `.port` / `.network`) are omitted — mc-router routes TCP traffic only. `TCP` servers are unaffected.
+
 ### Graceful stop
 
 Rather than RCON, CraftPanel uses container stdin for graceful shutdown. The `stop_command` field on `StopContainerCommand` and `RestartContainerCommand` carries the command string to write to stdin
@@ -143,7 +147,7 @@ Default stop commands by server type (configurable per server in the UI):
 
 | Server type                                                                            | Default stop command |
 |----------------------------------------------------------------------------------------|----------------------|
-| `VANILLA`, `PAPER`, `FABRIC`, `FOLIA`, `FORGE`, `NEOFORGE`, `QUILT`, `SPIGOT`, `LIMBO` | `stop`               |
+| `VANILLA`, `PAPER`, `FABRIC`, `FOLIA`, `FORGE`, `NEOFORGE`, `QUILT`, `SPIGOT`, `LIMBO`, `CUSTOM` | `stop`               |
 | `VELOCITY`, `BUNGEECORD`, `WATERFALL`                                                  | `end`                |
 
 Stop sequence:

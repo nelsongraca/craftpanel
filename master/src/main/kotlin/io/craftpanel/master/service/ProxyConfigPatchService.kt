@@ -5,6 +5,7 @@ import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.ProxyBackendRepository
 import io.craftpanel.master.service.repo.ProxyBackendRow
 import io.craftpanel.master.service.repo.ServerRepository
+import io.craftpanel.master.service.repo.ServerRow
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -60,7 +61,7 @@ class ProxyConfigPatchService(
 
         val backends = proxyBackendRepository.listProxyBackends(proxyServerId)
             .sortedBy { it.order }
-            .map { it to (serverRepository.findById(it.backendServerId)?.serverType ?: ServerType.VANILLA) }
+            .map { it to serverRepository.findById(it.backendServerId) }
 
         val ops = mutableListOf<JsonObject>()
 
@@ -96,19 +97,23 @@ class ProxyConfigPatchService(
         return Json.encodeToString(patchSet)
     }
 
-    private fun address(backendServerId: Uuid, backendServerType: ServerType): String = "$containerNamePrefix-$backendServerId:${images.internalListenPort(backendServerType)}"
+    private fun address(backendServerRow: ServerRow?): String {
+        val fallbackType = backendServerRow?.serverType ?: ServerType.VANILLA
+        val port = backendServerRow?.containerListenPort ?: images.internalListenPort(fallbackType)
+        return "$containerNamePrefix-${backendServerRow?.id ?: "unknown"}:$port"
+    }
 
-    private fun serversOp(dialect: ProxyDialect, backends: List<Pair<ProxyBackendRow, ServerType>>): JsonObject {
+    private fun serversOp(dialect: ProxyDialect, backends: List<Pair<ProxyBackendRow, ServerRow?>>): JsonObject {
         val servers = buildMap<String, JsonElement> {
-            backends.forEach { (b, backendType) ->
+            backends.forEach { (b, backendRow) ->
                 put(
                     b.backendName,
                     if (dialect.isVelocity) {
-                        JsonPrimitive(address(b.backendServerId, backendType))
+                        JsonPrimitive(address(backendRow))
                     } else {
                         JsonObject(
                             mapOf(
-                                "address" to JsonPrimitive(address(b.backendServerId, backendType)),
+                                "address" to JsonPrimitive(address(backendRow)),
                                 "restricted" to JsonPrimitive(false)
                             )
                         )

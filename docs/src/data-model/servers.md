@@ -17,6 +17,7 @@ Determines the server software and, implicitly, the itzg Docker image used.
 | `QUILT`      | `itzg/minecraft-server` |       |
 | `SPIGOT`     | `itzg/minecraft-server` |       |
 | `LIMBO`      | `itzg/minecraft-server` |       |
+| `CUSTOM`     | `itzg/minecraft-server` | Runs an arbitrary server jar (`TYPE=CUSTOM` + `CUSTOM_SERVER`) |
 | `VELOCITY`   | `itzg/mc-proxy`         |       |
 | `BUNGEECORD` | `itzg/mc-proxy`         |       |
 | `WATERFALL`  | `itzg/mc-proxy`         |       |
@@ -63,6 +64,9 @@ The UI combines both — showing the server's live status alongside a migration 
 | `MANAGED` | UI form fields drive itzg env vars; master generates the container spec         |
 | `MANUAL`  | Env var management disabled; user edits config files directly via file explorer |
 
+!!! note "CUSTOM servers"
+    `CUSTOM` servers are always `MANUAL` — the config mode toggle is rejected server-side. The managed-mode defaults are never generated for them; only extra env vars and the stop command are editable.
+
 ---
 
 ## `servers`
@@ -76,6 +80,11 @@ The UI combines both — showing the server's live status alongside a migration 
 | `server_type`        | VARCHAR(20)          | Determines software and Docker image; validated at application layer                                                                                             |
 | `mc_version`         | VARCHAR(16)          | Minecraft version string, e.g. `1.21.4`; maps to itzg `VERSION` env var                                                                                          |
 | `itzg_image_tag`     | VARCHAR(100)         | itzg image tag, e.g. `latest` or a pinned digest                                                                                                                 |
+| `custom_server_jar`  | VARCHAR(512)         | Required for `CUSTOM` servers. URL of the server jar to download and run; maps to itzg `CUSTOM_SERVER`. `NULL` for all other types                                 |
+| `container_listen_port` | INT               | Port the server listens on **inside** the container; maps to itzg `SERVER_PORT`. `NULL` = derived from type (`25565` game / `25577` proxy)                        |
+| `container_protocol` | VARCHAR(4)           | `TCP` or `UDP`. `UDP` produces UDP host-port bindings only and skips mc-router labels (mc-router is TCP-only)                                                    |
+| `disable_healthcheck` | BOOLEAN             | When `true`, itzg runs with `DISABLE_HEALTHCHECK=true`; default `false`                                                                                           |
+| `force_redownload`   | BOOLEAN              | When `true`, itzg re-downloads the server jar on each start (`FORCE_REDOWNLOAD=true`); default `false`                                                           |
 | `needs_recreate`     | BOOLEAN              | `true` when `mc_version` or `itzg_image_tag` changed via PATCH; container is recreated on next start; default `false`                                            |
 | `node_id`            | UUID                 | FK → `nodes`, RESTRICT — server must be migrated before node decommission                                                                                        |
 | `network_id`         | UUID                 | FK → `server_networks`, SET NULL — nullable                                                                                                                      |

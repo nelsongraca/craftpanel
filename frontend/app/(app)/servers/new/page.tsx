@@ -15,7 +15,7 @@ import type {Network, Node} from "@/lib/types";
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 const GAME_SERVER_TYPES = [
-    "VANILLA", "PAPER", "FABRIC", "FOLIA", "FORGE",
+    "CUSTOM", "VANILLA", "PAPER", "FABRIC", "FOLIA", "FORGE",
     "NEOFORGE", "QUILT", "SPIGOT", "LIMBO",
 ] as const;
 
@@ -72,6 +72,11 @@ export default function NewServerPage() {
     const [serverType, setServerType] = useState("PAPER");
     const [mcVersion, setMcVersion] = useState("");
     const [itzgImageTag, setItzgImageTag] = useState("latest");
+    const [customServerJar, setCustomServerJar] = useState("");
+    const [containerListenPort, setContainerListenPort] = useState("");
+    const [containerProtocol, setContainerProtocol] = useState("TCP");
+    const [disableHealthcheck, setDisableHealthcheck] = useState(false);
+    const [forceRedownload, setForceRedownload] = useState(false);
     const [nodeId, setNodeId] = useState("");
     const [networkId, setNetworkId] = useState("");
     const [ramMb, setRamMb] = useState(2048);
@@ -82,6 +87,7 @@ export default function NewServerPage() {
     const [error, setError] = useState<string | null>(null);
 
     const isProxy = (PROXY_TYPES as readonly string[]).includes(serverType);
+    const isCustom = serverType === "CUSTOM";
     const canSetExpiry = hasPermission(permissions, "server.expires");
 
     function toExpiresAtIso(local: string): string | undefined {
@@ -109,10 +115,15 @@ export default function NewServerPage() {
                 setDisplayName(data.display_name);
                 setDescription(data.description ?? "");
                 setServerType(data.server_type);
-                if (!data.server_type.startsWith("VELOCITY") && !data.server_type.startsWith("BUNGEE") && !data.server_type.startsWith("WATERFALL")) {
+                if (!data.server_type.startsWith("VELOCITY") && !data.server_type.startsWith("BUNGEE") && !data.server_type.startsWith("WATERFALL") && data.server_type !== "CUSTOM") {
                     setMcVersion(data.mc_version === "LATEST" ? latestVersionsRef.current[0] ?? "" : data.mc_version);
                 }
                 setItzgImageTag(data.itzg_image_tag || "latest");
+                setCustomServerJar(data.custom_server_jar ?? "");
+                setContainerListenPort(data.container_listen_port ? String(data.container_listen_port) : "");
+                setContainerProtocol(data.container_protocol ?? "TCP");
+                setDisableHealthcheck(data.disable_healthcheck ?? false);
+                setForceRedownload(data.force_redownload ?? false);
                 setNodeId(data.node_id);
                 setNetworkId(data.network_id ?? "");
                 setRamMb(data.memory_mb);
@@ -147,8 +158,13 @@ export default function NewServerPage() {
                 display_name: displayName || undefined,
                 description: description || undefined,
                 server_type: serverType,
-                mc_version: isProxy ? "LATEST" : mcVersion,
+                mc_version: isProxy || isCustom ? "LATEST" : mcVersion,
                 itzg_image_tag: itzgImageTag || "latest",
+                custom_server_jar: isCustom ? customServerJar || undefined : undefined,
+                container_listen_port: isCustom && containerListenPort ? Number(containerListenPort) : undefined,
+                container_protocol: isCustom ? containerProtocol : undefined,
+                disable_healthcheck: isCustom ? disableHealthcheck : undefined,
+                force_redownload: isCustom ? forceRedownload : undefined,
                 node_id: nodeId,
                 network_id: networkId || undefined,
                 memory_mb: ramMb,
@@ -253,7 +269,7 @@ export default function NewServerPage() {
                         </FieldSelect>
                     </div>
 
-                    {!isProxy && (
+                    {!isProxy && !isCustom && (
                         <div>
                             <Label required htmlFor="mc-version">Minecraft Version</Label>
                             <McVersionSelect
@@ -269,6 +285,67 @@ export default function NewServerPage() {
                             />
                             <p className="mt-1 text-xs text-text-muted">Release versions from Mojang. Passed to itzg as VERSION env var.</p>
                         </div>
+                    )}
+
+                    {isCustom && (
+                        <>
+                            <div>
+                                <Label required htmlFor="custom-server-jar">Custom Server Jar</Label>
+                                <FieldInput
+                                    id="custom-server-jar"
+                                    value={customServerJar}
+                                    onChange={(e) => setCustomServerJar(e.target.value)}
+                                    placeholder="/data/server.jar or https://example.com/server.jar"
+                                    required
+                                />
+                                <p className="mt-1 text-xs text-text-muted">
+                                    Absolute path in the data volume (e.g. /data/MyServer.jar) or download URL. Passed to itzg as CUSTOM_SERVER.
+                                </p>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <Label htmlFor="container-listen-port">Container Port</Label>
+                                    <FieldInput
+                                        id="container-listen-port"
+                                        type="number"
+                                        value={containerListenPort}
+                                        onChange={(e) => setContainerListenPort(e.target.value)}
+                                        placeholder="25565"
+                                        min={1}
+                                        max={65535}
+                                    />
+                                    <p className="mt-1 text-xs text-text-muted">Internal port your server listens on. Empty = 25565.</p>
+                                </div>
+                                <div>
+                                    <Label htmlFor="container-protocol">Protocol</Label>
+                                    <FieldSelect id="container-protocol" value={containerProtocol} onChange={(e) => setContainerProtocol(e.target.value)}>
+                                        <option value="TCP">TCP</option>
+                                        <option value="UDP">UDP</option>
+                                    </FieldSelect>
+                                    <p className="mt-1 text-xs text-text-muted">UDP servers cannot be routed by mc-router.</p>
+                                </div>
+                            </div>
+                            <div className="flex flex-wrap gap-4">
+                                <label className="flex items-center gap-2 text-xs text-text-primary">
+                                    <input
+                                        type="checkbox"
+                                        className="h-4 w-4"
+                                        checked={disableHealthcheck}
+                                        onChange={(e) => setDisableHealthcheck(e.target.checked)}
+                                    />
+                                    Disable healthcheck
+                                </label>
+                                <label className="flex items-center gap-2 text-xs text-text-primary">
+                                    <input
+                                        type="checkbox"
+                                        className="h-4 w-4"
+                                        checked={forceRedownload}
+                                        onChange={(e) => setForceRedownload(e.target.checked)}
+                                    />
+                                    Force redownload on start
+                                </label>
+                            </div>
+                        </>
                     )}
 
                     <div>

@@ -203,6 +203,7 @@ export default function ServerDetailPage() {
 
     const sStatus = server.status;
     const isProxy = ["VELOCITY", "BUNGEECORD", "WATERFALL"].includes(server.server_type);
+    const isCustom = server.server_type === "CUSTOM";
     const isModServerType = ["FABRIC", "FORGE", "NEOFORGE", "QUILT"].includes(server.server_type);
     const serverPerms = serverPermissions(permissions, user?.server_permissions ?? {}, server.id);
     const disabled = serverDisabled(server);
@@ -405,7 +406,7 @@ export default function ServerDetailPage() {
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as Tab)}>
                 <div className="scrollbar-none border-b border-border bg-surface overflow-x-auto pb-[7px]">
                     <TabsList variant="line" className="h-auto w-full justify-start rounded-none bg-transparent px-6 py-0">
-                        {TABS.filter((tab) => !(isProxy && tab === "Migration")).map((tab) => (
+                        {TABS.filter((tab) => !(isProxy && tab === "Migration") && !(isCustom && tab === "Mods")).map((tab) => (
                             <TabsTrigger
                                 key={tab}
                                 value={tab}
@@ -438,9 +439,11 @@ export default function ServerDetailPage() {
                 <TabsContent value="Backups">
                     <BackupsTab serverId={server.id}/>
                 </TabsContent>
-                <TabsContent value="Mods">
-                    <ModsTab serverId={server.id} serverType={server.server_type} mcVersion={server.mc_version} onModsChanged={() => void fetchServer()}/>
-                </TabsContent>
+                {!isCustom && (
+                    <TabsContent value="Mods">
+                        <ModsTab serverId={server.id} serverType={server.server_type} mcVersion={server.mc_version} onModsChanged={() => void fetchServer()}/>
+                    </TabsContent>
+                )}
                 <TabsContent value="Configuration">
                     <ConfigTab
                         serverId={server.id}

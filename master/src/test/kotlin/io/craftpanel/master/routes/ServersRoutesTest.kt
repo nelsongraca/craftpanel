@@ -383,6 +383,90 @@ class ServersRoutesTest :
             }
         }
 
+        test("POST servers creates a CUSTOM server with custom jar, port and UDP protocol") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode(totalRamMb = 8192)
+                val resp = client.post("/api/servers") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{
+                        "name":"custom-srv",
+                        "node_id":"$nodeId",
+                        "server_type":"CUSTOM",
+                        "mc_version":"1.21.4",
+                        "memory_mb":1024,
+                        "cpu_shares":0,
+                        "custom_server_jar":"/data/my-server.jar",
+                        "container_listen_port":25566,
+                        "container_protocol":"UDP",
+                        "disable_healthcheck":true,
+                        "force_redownload":true
+                    }""")
+                }
+                resp.status shouldBe HttpStatusCode.Created
+                val body = resp.body<JsonObject>()
+                body["server_type"]!!.jsonPrimitive.content shouldBe "CUSTOM"
+                body["custom_server_jar"]!!.jsonPrimitive.content shouldBe "/data/my-server.jar"
+                body["container_listen_port"]!!.jsonPrimitive.content.toInt() shouldBe 25566
+                body["container_protocol"]!!.jsonPrimitive.content shouldBe "UDP"
+                body["disable_healthcheck"]!!.jsonPrimitive.content shouldBe "true"
+                body["force_redownload"]!!.jsonPrimitive.content shouldBe "true"
+                body["config_mode"]!!.jsonPrimitive.content shouldBe "MANUAL"
+
+                val serverId = body["id"]!!.jsonPrimitive.content
+                val portProtocol = transaction {
+                    PortRegistry.selectAll()
+                        .where { PortRegistry.serverId eq Uuid.parse(serverId) }
+                        .firstOrNull()
+                        ?.get(PortRegistry.protocol)
+                }
+                portProtocol shouldBe "UDP"
+            }
+        }
+
+        test("POST servers returns 422 for CUSTOM without custom_server_jar") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode(totalRamMb = 8192)
+                val resp = client.post("/api/servers") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"custom-missing-jar","node_id":"$nodeId","server_type":"CUSTOM","memory_mb":1024}""")
+                }
+                resp.status shouldBe HttpStatusCode.UnprocessableEntity
+            }
+        }
+
+        test("POST servers returns 422 for invalid container_protocol") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode(totalRamMb = 8192)
+                val resp = client.post("/api/servers") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{
+                        "name":"custom-bad-proto",
+                        "node_id":"$nodeId",
+                        "server_type":"CUSTOM",
+                        "memory_mb":1024,
+                        "custom_server_jar":"/data/a.jar",
+                        "container_protocol":"SCTP"
+                    }""")
+                }
+                resp.status shouldBe HttpStatusCode.UnprocessableEntity
+            }
+        }
+
         test("POST servers returns 422 when node not ACTIVE") {
             testApplication {
                 testApp { jwtManager -> configureServersTest() }

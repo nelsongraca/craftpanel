@@ -64,7 +64,8 @@ class DockerContainerManager(
         }
 
     override fun createContainer(cmd: StartContainerCommand): String {
-        val minecraftPort = ExposedPort.tcp(cmd.internalListenPort)
+        val isUdp = cmd.containerProtocol.uppercase() == "UDP"
+        val minecraftPort = if (isUdp) ExposedPort.udp(cmd.internalListenPort) else ExposedPort.tcp(cmd.internalListenPort)
         val portBindings = Ports()
         if (cmd.hostPort > 0) {
             portBindings.bind(minecraftPort, Ports.Binding.bindPort(cmd.hostPort))
@@ -100,12 +101,13 @@ class DockerContainerManager(
                 buildMap {
                     put("craftpanel.managed", "true")
                     put("craftpanel.server.id", cmd.serverId)
-                    if (cmd.publicHostname.isNotEmpty()) {
+                    if (cmd.publicHostname.isNotEmpty() && !isUdp) {
                         // mc-router auto-discovery labels (https://github.com/itzg/mc-router).
                         // `mc-router.host` is the routing hostname; `mc-router.port` is the
                         // container-internal Minecraft port; `mc-router.network` tells mc-router
                         // which Docker network to dial the backend on (the shared craftpanel
-                        // network both mc-router and this container are attached to).
+                        // network both mc-router and this container are attached to). UDP
+                        // backends cannot be proxied by mc-router, so skip the labels.
                         put("mc-router.host", cmd.publicHostname)
                         put("mc-router.port", cmd.internalListenPort.toString())
                         if (craftpanelNetwork.isNotEmpty()) {

@@ -16,10 +16,14 @@ enum class ServerType {
     QUILT,
     VELOCITY,
     BUNGEECORD,
-    WATERFALL;
+    WATERFALL,
+    // Arbitrary server jar (itzg TYPE=CUSTOM + CUSTOM_SERVER). Not managed by
+    // CraftPanel — itzg runs the jar as-is, no server.properties auto-config.
+    CUSTOM;
 
     val isProxy get() = this in PROXY_TYPES
     val supportsPlugins get() = this in PLUGIN_TYPES
+    val isCustom get() = this == CUSTOM
 
     fun toDb() = name
 

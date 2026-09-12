@@ -205,6 +205,32 @@ class ContainerManagerTest :
             }
         }
 
+        test("createContainer uses a UDP exposed port and skips mc-router labels for UDP servers") {
+            val createCmd = stubCreate("c1")
+
+            manager.createContainer(
+                startContainerCommand {
+                    containerName = "craftpanel-custom"
+                    serverId = "srv-udp"
+                    image = "itzg/minecraft-server:latest"
+                    hostPort = 25570
+                    publicHostname = "custom.example.com"
+                    internalListenPort = 25566
+                    containerProtocol = "UDP"
+                }
+            )
+
+            verify { createCmd.withExposedPorts(ExposedPort.udp(25566)) }
+            verify {
+                createCmd.withLabels(
+                    mapOf(
+                        "craftpanel.managed" to "true",
+                        "craftpanel.server.id" to "srv-udp"
+                    )
+                )
+            }
+        }
+
         test("createContainer sets server id label") {
             val createCmd = stubCreate("c1")
 

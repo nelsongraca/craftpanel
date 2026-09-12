@@ -230,4 +230,21 @@ class ConfigRoutesTest :
                 resp.status shouldBe HttpStatusCode.UnprocessableEntity
             }
         }
+
+        test("updateConfigMode rejects MANAGED for a CUSTOM server with 422") {
+            testApplication {
+                application { configureTest() }
+                val userId = createUser()
+                assignAdmin(userId)
+                val nodeId = createNode()
+                val customId = createServer(nodeId, "CUSTOM")
+
+                val resp = jsonClient().put("/api/servers/$customId/config/mode") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"config_mode":"MANAGED"}""")
+                }
+                resp.status shouldBe HttpStatusCode.UnprocessableEntity
+            }
+        }
     })

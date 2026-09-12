@@ -59,7 +59,12 @@ class ServerService(
         itzgImageTag: String,
         memoryMb: Int,
         cpuShares: Int,
-        expiresAt: String? = null
+        expiresAt: String? = null,
+        customServerJar: String? = null,
+        containerListenPort: Int? = null,
+        containerProtocol: String = "TCP",
+        disableHealthcheck: Boolean = false,
+        forceRedownload: Boolean = false
     ): ServerRow {
         if (memoryMb <= 0) throw UnprocessableException("memory_mb must be positive")
         if (cpuShares < 0) throw UnprocessableException("cpu_shares must be non-negative")
@@ -67,6 +72,14 @@ class ServerService(
 
         val st = runCatching { ServerType.valueOf(serverType) }.getOrNull()
             ?: throw UnprocessableException("Invalid server_type: $serverType")
+        val proto = runCatching { validateContainerProtocol(containerProtocol) }.getOrNull()
+            ?: throw UnprocessableException("Invalid container_protocol: $containerProtocol")
+        if (st.isCustom && customServerJar.isNullOrBlank()) {
+            throw UnprocessableException("custom_server_jar is required for CUSTOM server type")
+        }
+        if (containerListenPort != null && (containerListenPort <= 0 || containerListenPort > 65535)) {
+            throw UnprocessableException("container_listen_port must be between 1 and 65535")
+        }
         val nodeKotlinId = parseUuid(nodeId) ?: throw UnprocessableException("Invalid node_id")
         val networkKotlinId = networkId?.let { parseUuid(it) ?: throw UnprocessableException("Invalid network_id") }
 
@@ -112,14 +125,20 @@ class ServerService(
                     this.memoryMb = memoryMb
                     this.cpuShares = cpuShares
                     this.expiresAt = expiryLocal
-                    this.configMode = "MANAGED"
+                    // CUSTOM servers are never managed (no server.properties auto-config).
+                    this.configMode = if (st.isCustom) "MANUAL" else "MANAGED"
                     this.stopCommand = stopCommand
+                    this.customServerJar = customServerJar
+                    this.containerListenPort = containerListenPort
+                    this.containerProtocol = proto
+                    this.disableHealthcheck = disableHealthcheck
+                    this.forceRedownload = forceRedownload
                 }
 
                 PortRegistry.insert {
                     it[PortRegistry.nodeId] = EntityID(nodeKotlinId, Nodes)
                     it[PortRegistry.port] = port
-                    it[PortRegistry.protocol] = "TCP"
+                    it[PortRegistry.protocol] = proto
                     it[PortRegistry.serverId] = EntityID(entity.id.value, Servers)
                 }
 
@@ -129,7 +148,7 @@ class ServerService(
                 val serverTypeDisplay = serverType.lowercase()
                     .replaceFirstChar { it.uppercase() }
 
-                if (!st.isProxy) {
+                if (!st.isProxy && !st.isCustom) {
                     val defaults = buildDefaultEnvVars(mcVersion, serverTypeDisplay, platformName)
                     EnvVar.find { ServerEnvVars.serverId eq entity.id.value }
                         .forEach { it.delete() }
@@ -141,7 +160,7 @@ class ServerService(
                         }
                     }
                 }
-                else {
+                else if (st.isProxy) {
                     entity.proxyMotd = "$serverTypeDisplay powered by $platformName"
                     entity.proxyMaxPlayers = null
                     entity.proxyForwardingMode = null
@@ -191,7 +210,12 @@ class ServerService(
             mcVersion = source.mcVersion,
             itzgImageTag = source.itzgImageTag,
             memoryMb = source.memoryMb,
-            cpuShares = source.cpuShares
+            cpuShares = source.cpuShares,
+            customServerJar = source.customServerJar,
+            containerListenPort = source.containerListenPort,
+            containerProtocol = source.containerProtocol,
+            disableHealthcheck = source.disableHealthcheck,
+            forceRedownload = source.forceRedownload
         )
 
         transaction {
@@ -224,11 +248,33 @@ class ServerService(
         return serverRepository.findById(created.id) ?: throw NotFoundException("Server not found")
     }
 
-    fun updateServer(id: Uuid, displayName: String?, description: String?, networkId: String?, mcVersion: String?, itzgImageTag: String?) {
+    fun updateServer(
+        id: Uuid,
+        displayName: String?,
+        description: String?,
+        networkId: String?,
+        mcVersion: String?,
+        itzgImageTag: String?,
+        customServerJar: String? = null,
+        containerListenPort: Int? = null,
+        containerProtocol: String? = null,
+        disableHealthcheck: Boolean? = null,
+        forceRedownload: Boolean? = null
+    ) {
         val newNetworkId: Uuid? = networkId?.ifEmpty { null }
             ?.let { parseUuid(it) ?: throw UnprocessableException("Invalid network_id") }
 
         val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
+        val serverType = serverRow.serverType
+        if (serverType.isCustom && customServerJar != null && customServerJar.isBlank()) {
+            throw UnprocessableException("custom_server_jar cannot be empty for CUSTOM server type")
+        }
+        if (containerPortProvidedOrInvalid(containerListenPort)) {
+            throw UnprocessableException("container_listen_port must be between 1 and 65535")
+        }
+        if (containerProtocol != null) {
+            validateContainerProtocol(containerProtocol)
+        }
 
         if (newNetworkId != null) {
             val existingNodeIds = serverRepository.listByNetworkId(newNetworkId)
@@ -242,7 +288,9 @@ class ServerService(
             }
         }
 
-        val needsRecreate = mcVersion != null || itzgImageTag != null
+        val needsRecreate = mcVersion != null || itzgImageTag != null ||
+            containerListenPort != null || containerProtocol != null ||
+            disableHealthcheck != null || forceRedownload != null || customServerJar != null
 
         transaction {
             val e = Server.findById(id) ?: return@transaction
@@ -255,9 +303,17 @@ class ServerService(
             if (newNetworkId != null) e.networkId = EntityID(newNetworkId, ServerNetworks)
             if (mcVersion != null) e.mcVersion = mcVersion
             if (itzgImageTag != null) e.itzgImageTag = itzgImageTag
+            if (customServerJar != null) e.customServerJar = customServerJar
+            if (containerListenPort != null) e.containerListenPort = containerListenPort
+            if (containerProtocol != null) e.containerProtocol = validateContainerProtocol(containerProtocol)
+            if (disableHealthcheck != null) e.disableHealthcheck = disableHealthcheck
+            if (forceRedownload != null) e.forceRedownload = forceRedownload
             if (needsRecreate) e.needsRecreate = true
         }
     }
+
+    private fun containerPortProvidedOrInvalid(containerListenPort: Int?): Boolean =
+        containerListenPort != null && (containerListenPort <= 0 || containerListenPort > 65535)
 
     fun deleteServer(id: Uuid) {
         val existing = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
@@ -352,6 +408,14 @@ private fun parseExpiresAt(raw: String?): kotlinx.datetime.LocalDateTime? {
 }
 
 private fun parseUuid(raw: String): Uuid? = runCatching { Uuid.parse(raw) }.getOrNull()
+
+private fun validateContainerProtocol(raw: String): String {
+    val normalized = raw.uppercase()
+    if (normalized != "TCP" && normalized != "UDP") {
+        throw UnprocessableException("Invalid container_protocol: $raw")
+    }
+    return normalized
+}
 
 private fun buildDefaultEnvVars(mcVersion: String, serverTypeDisplay: String, platformName: String) = mapOf(
     "MOTD" to "$mcVersion $serverTypeDisplay powered by $platformName",

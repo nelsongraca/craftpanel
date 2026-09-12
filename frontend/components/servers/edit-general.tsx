@@ -19,6 +19,7 @@ interface EditGeneralProps {
 
 export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: EditGeneralProps) {
     const isProxy = ["VELOCITY", "BUNGEECORD", "WATERFALL"].includes(server.server_type);
+    const isCustom = server.server_type === "CUSTOM";
     const canSetExpiry = hasPermission(permissions, "server.expires");
     const canDisable = hasPermission(permissions, "server.disable");
 
@@ -135,7 +136,7 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
                     <InfoRow label="Display Name" value={server.display_name}/>
                     <InfoRow label="Description" value={server.description ?? "-"}/>
                     <InfoRow label="Network" value={networks.find((n) => n.id === server.network_id)?.name ?? "-"}/>
-                    {!isProxy && <InfoRow label="MC Version" value={server.mc_version}/>}
+                    {!isProxy && !isCustom && <InfoRow label="MC Version" value={server.mc_version}/>}
                     <InfoRow
                         label="Expires"
                         value={

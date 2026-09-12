@@ -66,7 +66,11 @@ class EnvVarsService(private val serverRepository: ServerRepository, private val
     }
 
     fun updateConfigMode(serverId: Uuid, req: PatchConfigModeRequest): EnvVarsResponse {
-        serverRepository.findById(serverId) ?: throw NotFoundException("Server not found")
+        val server = serverRepository.findById(serverId) ?: throw NotFoundException("Server not found")
+        // CUSTOM servers are always unmanaged — itzg runs the jar as-is.
+        if (server.serverType.isCustom && req.configMode == ConfigMode.MANAGED) {
+            throw UnprocessableException("CUSTOM servers cannot use MANAGED configuration mode")
+        }
         transaction {
             val e = Server.findById(serverId) ?: return@transaction
             e.configMode = req.configMode.name

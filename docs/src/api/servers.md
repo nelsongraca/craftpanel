@@ -70,6 +70,21 @@ Returns only servers the caller has at least `server.view` permission on.
 
 `network_id` is optional. `itzg_image_tag` defaults to `"latest"`. `cpu_shares` defaults to `0` (unlimited).
 
+**CUSTOM servers:**
+
+```json
+{
+  "server_type": "CUSTOM",
+  "custom_server_jar": "https://download.example.com/paper-build.jar",
+  "container_listen_port": 25565,
+  "container_protocol": "TCP",
+  "disable_healthcheck": false,
+  "force_redownload": true
+}
+```
+
+For `CUSTOM` servers, `custom_server_jar` is **required** (a 422 is returned without it). `mc_version` is forced to `LATEST` (itzg `TYPE=CUSTOM` ignores it) and `config_mode` is always `MANUAL` — the config-mode toggle is rejected. `container_listen_port` accepts `1`–`65535`; `container_protocol` accepts `TCP` or `UDP` (default `TCP`, uppercased server-side). `container_protocol = UDP` exposes the container over UDP host port mappings only and skips mc-router routing.
+
 **Response `201`:** full server object (see `GET /servers/{id}`).
 
 **Errors:** `409` if the node has insufficient RAM or CPU capacity. `422` if `node_id` refers to a non-active node.
@@ -98,6 +113,11 @@ The `itzg_image_tag` field refers to the [itzg/minecraft-server](https://hub.doc
   "server_type": "PAPER",
   "mc_version": "1.21.4",
   "itzg_image_tag": "latest",
+  "custom_server_jar": null,
+  "container_listen_port": null,
+  "container_protocol": "TCP",
+  "disable_healthcheck": false,
+  "force_redownload": false,
   "node_id": "<uuid>",
   "network_id": "<uuid>",
   "status": "HEALTHY",
@@ -138,7 +158,12 @@ All fields optional. Requires `server.configure`.
   "description": "Updated description",
   "network_id": "<uuid>",
   "mc_version": "1.21.5",
-  "itzg_image_tag": "2024-11-01"
+  "itzg_image_tag": "2024-11-01",
+  "custom_server_jar": "https://download.example.com/paper-build.jar",
+  "container_listen_port": 25566,
+  "container_protocol": "UDP",
+  "disable_healthcheck": true,
+  "force_redownload": false
 }
 ```
 
@@ -146,6 +171,9 @@ Set `network_id` to `null` to remove the server from its network.
 
 `display_name`, `description`, and `network_id` take effect immediately. `mc_version` and `itzg_image_tag` are persisted but take effect on the **next container start** — master sets a
 `needs_recreate` flag and rebuilds the container spec on the next start or restart. The UI shows a "Restart required" banner after saving either field, with an option to restart immediately or defer.
+
+The CUSTOM fields follow the same create-time rules: `custom_server_jar` is validated against the server type, and `container_listen_port` / `container_protocol` changes are persisted and applied on the
+next start.
 
 **Response `204`.**
 

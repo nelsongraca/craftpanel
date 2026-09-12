@@ -55,7 +55,7 @@ export function OverviewTab({
                         Server Info
                     </p>
                     <InfoRow label="Type" value={server.server_type}/>
-                    <InfoRow label="Version" value={["VELOCITY", "BUNGEECORD", "WATERFALL"].includes(server.server_type) ? "-" : server.mc_version}/>
+                    <InfoRow label="Version" value={["VELOCITY", "BUNGEECORD", "WATERFALL", "CUSTOM"].includes(server.server_type) ? "-" : server.mc_version}/>
                     <InfoRow label="Config" value={server.config_mode}/>
                     <InfoRow label="Node" value={node?.display_name ?? server.node_id.slice(0, 8) + "\u2026"}/>
                     <InfoRow label="Network" value={network?.name ?? "-"}/>

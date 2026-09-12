@@ -66,7 +66,12 @@ fun Route.serversRoutes(
                     itzgImageTag = req.itzgImageTag,
                     memoryMb = req.memoryMb,
                     cpuShares = req.cpuShares,
-                    expiresAt = req.expiresAt
+                    expiresAt = req.expiresAt,
+                    customServerJar = req.customServerJar,
+                    containerListenPort = req.containerListenPort,
+                    containerProtocol = req.containerProtocol,
+                    disableHealthcheck = req.disableHealthcheck,
+                    forceRedownload = req.forceRedownload
                 )
                 call.respond(HttpStatusCode.Created, row.toResponse(serverExposure, false))
             }
@@ -130,7 +135,19 @@ fun Route.serversRoutes(
             }) {
                 val auth = call.requireServerPermission(Permission.SERVER_CONFIGURE)
                 val body = call.receive<UpdateServerRequest>()
-                serverService.updateServer(auth.serverId, body.displayName, body.description, body.networkId, body.mcVersion, body.itzgImageTag)
+                serverService.updateServer(
+                    auth.serverId,
+                    body.displayName,
+                    body.description,
+                    body.networkId,
+                    body.mcVersion,
+                    body.itzgImageTag,
+                    customServerJar = body.customServerJar,
+                    containerListenPort = body.containerListenPort,
+                    containerProtocol = body.containerProtocol,
+                    disableHealthcheck = body.disableHealthcheck,
+                    forceRedownload = body.forceRedownload
+                )
                 call.respond(HttpStatusCode.NoContent)
             }
 

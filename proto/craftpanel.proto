@@ -325,9 +325,14 @@ message StartContainerCommand {
   string data_container_path = 13;
   // Container-internal port the server process actually listens on. Varies by server
   // type: itzg/minecraft-server listens on 25565, itzg/mc-proxy (Velocity/BungeeCord/
-  // Waterfall) listens on 25577. Master resolves this from server_type and passes it
-  // through so the exposed port and mc-router label match the proxy's real listen port.
+  // Waterfall) listens on 25577. Master resolves this from server_type (and the
+  // per-server container_listen_port override for TYPE=CUSTOM) and passes it through
+  // so the exposed port and mc-router label match the server's real listen port.
   int32 internal_listen_port = 14;
+  // Transport protocol the container-internal port uses: "TCP" or "UDP". Used to
+  // pick ExposedPort.tcp()/udp() when binding host_port. Non-TCP servers are not
+  // registered with mc-router (mc-router is TCP-only).
+  string container_protocol = 16;
   // Human-readable server name, used by the agent to maintain the
   // `servers-by-name/<name>` symlink overlay. Immutable server field — safe to snapshot here.
   string server_name = 15;
