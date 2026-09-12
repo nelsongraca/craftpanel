@@ -8,9 +8,9 @@ import com.github.dockerjava.api.exception.NotFoundException
 import com.github.dockerjava.api.model.*
 import io.craftpanel.proto.ContainerState
 import io.craftpanel.proto.startContainerCommand
+import io.kotest.assertions.throwables.shouldNotThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
-import io.kotest.assertions.throwables.shouldNotThrow
 import io.mockk.*
 
 class ContainerManagerTest :
@@ -51,7 +51,7 @@ class ContainerManagerTest :
             every { docker.createContainerCmd(any()) } returns createCmd
             every { createCmd.withName(any()) } returns createCmd
             every { createCmd.withEnv(any<List<String>>()) } returns createCmd
-            every { createCmd.withExposedPorts(any<ExposedPort>()) } returns createCmd
+            every { createCmd.withExposedPorts(any<List<ExposedPort>>()) } returns createCmd
             every { createCmd.withHostConfig(any()) } returns createCmd
             every { createCmd.withLabels(any()) } returns createCmd
             every { createCmd.withStdinOpen(any()) } returns createCmd
@@ -165,7 +165,7 @@ class ContainerManagerTest :
                 }
             )
 
-            verify { createCmd.withExposedPorts(ExposedPort.tcp(25565)) }
+            verify { createCmd.withExposedPorts(listOf(ExposedPort.tcp(25565))) }
             verify {
                 createCmd.withLabels(
                     mapOf(
@@ -192,7 +192,7 @@ class ContainerManagerTest :
                 }
             )
 
-            verify { createCmd.withExposedPorts(ExposedPort.tcp(25577)) }
+            verify { createCmd.withExposedPorts(listOf(ExposedPort.tcp(25577))) }
             verify {
                 createCmd.withLabels(
                     mapOf(
@@ -220,7 +220,7 @@ class ContainerManagerTest :
                 }
             )
 
-            verify { createCmd.withExposedPorts(ExposedPort.udp(25566)) }
+            verify { createCmd.withExposedPorts(listOf(ExposedPort.udp(25566))) }
             verify {
                 createCmd.withLabels(
                     mapOf(

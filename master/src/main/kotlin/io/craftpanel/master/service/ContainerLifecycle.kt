@@ -22,6 +22,7 @@ class ContainerLifecycle(
     private val modService: ModService,
     private val serverRepository: ServerRepository,
     private val envVarsRepository: EnvVarsRepository,
+    private val extraPortRepository: ServerExtraPortRepository = ServerExtraPortRepositoryImpl(),
     private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
     private val containerNamePrefix: String = "craftpanel",
     private val clock: Clock = Clock.System,
@@ -117,6 +118,15 @@ class ContainerLifecycle(
         val image = deriveImage(server.serverType, server.itzgImageTag)
         val allVars = buildAllVars(server)
         val resolvedHostname = publicHostname ?: server.dnsRecordName ?: "$id.mc.internal"
+        val extraPortRows = extraPortRepository.findByServerId(id)
+        val extraPortPb = extraPortRows.map { extra ->
+            extraPortBinding {
+                hostPort = extra.hostPort
+                containerPort = extra.containerPort
+                protocol = extra.protocol
+                name = extra.name
+            }
+        }
         return masterMessage {
             startContainer = startContainerCommand {
                 serverId = id.toString()
@@ -136,6 +146,7 @@ class ContainerLifecycle(
                 internalListenPort = server.containerListenPort ?: images.internalListenPort(server.serverType)
                 containerProtocol = server.containerProtocol
                 serverName = server.name
+                extraPorts.addAll(extraPortPb)
             }
         }
     }

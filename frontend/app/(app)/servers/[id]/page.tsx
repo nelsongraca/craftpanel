@@ -17,6 +17,7 @@ import {FilesTab} from "./files-tab";
 import {BackupsTab} from "./backups-tab";
 import {ModsTab} from "./mods-tab";
 import {ConfigTab} from "./config-tab";
+import {PortsTab} from "./ports-tab";
 import {MigrationTab} from "./migration-tab";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {HeaderActionButton} from "@/components/servers/header-action-button";
@@ -26,7 +27,7 @@ import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
 type LiveMetrics = { cpuPercent: number; ramUsedMb: number; netInBytes: number; netOutBytes: number };
 type LivePlayers = { count: number; list: string[] };
 
-const TABS = ["Overview", "Console", "Files", "Mods", "Backups", "Configuration", "Migration"] as const;
+const TABS = ["Overview", "Console", "Files", "Mods", "Backups", "Configuration", "Ports", "Migration"] as const;
 type Tab = (typeof TABS)[number];
 
 export default function ServerDetailPage() {
@@ -456,6 +457,9 @@ export default function ServerDetailPage() {
                             setGeneralOpenSignal((n) => (n ?? 0) + 1);
                         }}
                     />
+                </TabsContent>
+                <TabsContent value="Ports">
+                    <PortsTab serverId={server.id} serverType={server.server_type} />
                 </TabsContent>
                 {!isProxy && (
                     <TabsContent value="Migration">

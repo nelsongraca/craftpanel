@@ -17,7 +17,7 @@ object TestDatabase {
                 Users, RefreshTokens, RecoveryCodes, Groups, GroupPermissions, UserGroupAssignments,
                 ServerNetworks, Nodes, Servers, ServerEnvVars, NodeMetrics, PortRegistry, ServerMigrations,
                 MigrationStepLog, Backups, AlertThresholds, AlertEvents, ContainerMetrics, ServerMods,
-                SystemSettings, ServerJobs, ProxyBackends
+                SystemSettings, ServerJobs, ProxyBackends, ServerExtraPorts
             )
             seedSystemGroups()
         }
@@ -30,7 +30,7 @@ object TestDatabase {
             listOf(
                 AlertEvents, AlertThresholds, Backups, ServerMods, ProxyBackends,
                 MigrationStepLog, ServerMigrations, PortRegistry, ContainerMetrics,
-                NodeMetrics, ServerEnvVars, ServerJobs, Servers, Nodes, ServerNetworks,
+                NodeMetrics, ServerEnvVars, ServerJobs, ServerExtraPorts, Servers, Nodes, ServerNetworks,
                 SystemSettings, RefreshTokens, RecoveryCodes, UserGroupAssignments, Groups, Users
             ).forEach { it.deleteAll() }
             exec("SET REFERENTIAL_INTEGRITY TRUE")

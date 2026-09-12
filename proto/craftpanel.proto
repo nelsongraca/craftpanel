@@ -336,6 +336,15 @@ message StartContainerCommand {
   // Human-readable server name, used by the agent to maintain the
   // `servers-by-name/<name>` symlink overlay. Immutable server field — safe to snapshot here.
   string server_name = 15;
+  // Additional ports to expose on the container (Dynmap, Geyser Bedrock, Votifier, etc.).
+  repeated ExtraPortBinding extra_ports = 17;
+}
+
+message ExtraPortBinding {
+  int32 host_port = 1;
+  int32 container_port = 2;
+  string protocol = 3; // "TCP" or "UDP"
+  string name = 4;
 }
 
 message StopContainerCommand {

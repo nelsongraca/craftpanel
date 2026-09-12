@@ -64,11 +64,23 @@ class DockerContainerManager(
         }
 
     override fun createContainer(cmd: StartContainerCommand): String {
+        val exposedPortsList = mutableListOf<ExposedPort>()
+        val portBindings = Ports()
+
         val isUdp = cmd.containerProtocol.uppercase() == "UDP"
         val minecraftPort = if (isUdp) ExposedPort.udp(cmd.internalListenPort) else ExposedPort.tcp(cmd.internalListenPort)
-        val portBindings = Ports()
+        exposedPortsList.add(minecraftPort)
         if (cmd.hostPort > 0) {
             portBindings.bind(minecraftPort, Ports.Binding.bindPort(cmd.hostPort))
+        }
+
+        cmd.extraPortsList.forEach { extra ->
+            val isExtraUdp = extra.protocol.uppercase() == "UDP"
+            val extraPort = if (isExtraUdp) ExposedPort.udp(extra.containerPort) else ExposedPort.tcp(extra.containerPort)
+            exposedPortsList.add(extraPort)
+            if (extra.hostPort > 0) {
+                portBindings.bind(extraPort, Ports.Binding.bindPort(extra.hostPort))
+            }
         }
 
         val binds = cmd.mountsList.map { mount ->
@@ -95,7 +107,7 @@ class DockerContainerManager(
         val response = docker.createContainerCmd(cmd.image)
             .withName(cmd.containerName)
             .withEnv(envList)
-            .withExposedPorts(minecraftPort)
+            .withExposedPorts(exposedPortsList)
             .withHostConfig(hostConfig)
             .withLabels(
                 buildMap {
@@ -195,8 +207,7 @@ class DockerContainerManager(
                 .withTimeout(if (stopCommand.isNotEmpty()) 5 else timeout)
                 .exec()
             log.info("Stopped container {}", containerName)
-        }
-        catch (_: NotFoundException) {
+        } catch (_: NotFoundException) {
             // Container already gone (e.g. server was never started) — stopping is
             // idempotent, the desired end state (not running) already holds.
             log.info("Container {} does not exist — treating stop as already-stopped", containerName)
@@ -228,8 +239,7 @@ class DockerContainerManager(
             docker.killContainerCmd(containerName)
                 .exec()
             log.info("Force-killed container {}", containerName)
-        }
-        catch (_: NotFoundException) {
+        } catch (_: NotFoundException) {
             // Container already gone — force-kill is idempotent.
             log.info("Container {} does not exist — treating force-kill as already-stopped", containerName)
         }
@@ -242,8 +252,7 @@ class DockerContainerManager(
                 .withForce(force)
                 .exec()
             log.info("Removed container $containerName")
-        }
-        catch (_: NotFoundException) {
+        } catch (_: NotFoundException) {
             // Container already gone — removal is idempotent.
             log.info("Container {} does not exist — treating remove as already-removed", containerName)
         }
@@ -280,11 +289,7 @@ class DockerContainerManager(
             .exec().swarm?.localNodeState?.name?.lowercase() == "active"
     }.getOrDefault(false)
 
-    override fun attachInteractive(
-        containerName: String,
-        inputStream: InputStream,
-        callback: ResultCallback<Frame>
-    ): ResultCallback<Frame> = docker.attachContainerCmd(containerName)
+    override fun attachInteractive(containerName: String, inputStream: InputStream, callback: ResultCallback<Frame>): ResultCallback<Frame> = docker.attachContainerCmd(containerName)
         .withStdIn(inputStream)
         .withStdOut(true)
         .withStdErr(true)

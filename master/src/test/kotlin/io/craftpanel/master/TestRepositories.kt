@@ -9,6 +9,7 @@ class TestRepositories {
     val modRepository = ModRepositoryImpl()
     val migrationRepository = MigrationRepositoryImpl()
     val portRepository = PortRepositoryImpl()
+    val extraPortRepository = ServerExtraPortRepositoryImpl()
     val backupRepository = BackupRepositoryImpl()
     val proxyBackendRepository = ProxyBackendRepositoryImpl()
     val containerMetricsRepository = ContainerMetricsRepositoryImpl()

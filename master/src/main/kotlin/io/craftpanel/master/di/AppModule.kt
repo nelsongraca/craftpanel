@@ -28,6 +28,7 @@ val appModule = module {
     single<ModRepository> { ModRepositoryImpl() }
     single<MigrationRepository> { MigrationRepositoryImpl() }
     single<PortRepository> { PortRepositoryImpl() }
+    single<ServerExtraPortRepository> { ServerExtraPortRepositoryImpl() }
     single<BackupRepository> { BackupRepositoryImpl() }
     single<ProxyBackendRepository> { ProxyBackendRepositoryImpl() }
     single<ContainerMetricsRepository> { ContainerMetricsRepositoryImpl() }
@@ -160,6 +161,7 @@ val appModule = module {
             modService = get(),
             serverRepository = get(),
             envVarsRepository = get(),
+            extraPortRepository = get(),
             images = get(),
             containerNamePrefix = get(named("containerPrefix"))
         )

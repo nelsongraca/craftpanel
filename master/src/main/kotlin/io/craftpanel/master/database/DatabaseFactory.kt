@@ -12,16 +12,18 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 object DatabaseFactory {
 
     fun init(config: DatabaseConfig) {
-        val dataSource = HikariDataSource(HikariConfig().apply {
-            jdbcUrl = config.url
-            username = config.username
-            password = config.password
-            maximumPoolSize = config.maximumPoolSize
-            driverClassName = "org.postgresql.Driver"
-            isAutoCommit = false
-            transactionIsolation = "TRANSACTION_REPEATABLE_READ"
-            validate()
-        })
+        val dataSource = HikariDataSource(
+            HikariConfig().apply {
+                jdbcUrl = config.url
+                username = config.username
+                password = config.password
+                maximumPoolSize = config.maximumPoolSize
+                driverClassName = "org.postgresql.Driver"
+                isAutoCommit = false
+                transactionIsolation = "TRANSACTION_REPEATABLE_READ"
+                validate()
+            }
+        )
 
         Database.connect(dataSource)
 
@@ -49,6 +51,7 @@ object DatabaseFactory {
                 ContainerMetrics,
                 SystemSettings,
                 ServerJobs,
+                ServerExtraPorts
             )
             seedSystemGroups()
         }
