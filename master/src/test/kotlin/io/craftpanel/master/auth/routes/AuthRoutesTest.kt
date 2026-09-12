@@ -1134,4 +1134,50 @@ class AuthRoutesTest :
                 reloginBody.accessToken shouldBe null
             }
         }
+
+        test("trusted device with correct fingerprint but wrong cookie asks TOTP") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                createUser()
+                val (accessToken, _) = login()
+                val setup = client.setupTotp(accessToken)
+                val fp = "device-fingerprint"
+                val userAgent = "TestAgent/1.0"
+
+                // Login with TOTP + trust device
+                val challenge = client.post("/api/auth/login") {
+                    contentType(ContentType.Application.Json)
+                    setBody(LoginRequest("alice@example.com", "hunter2", deviceFingerprint = fp))
+                }.body<LoginResponse>()
+                challenge.requiresTotp shouldBe true
+
+                val verify = client.post("/api/auth/totp-verify") {
+                    contentType(ContentType.Application.Json)
+                    header(HttpHeaders.UserAgent, userAgent)
+                    setBody(TotpVerifyRequest(challenge.tempToken!!, totpCode(setup.secret), trustDevice = true, deviceFingerprint = fp))
+                }
+                verify.status shouldBe HttpStatusCode.OK
+                val refreshToken = verify.refreshTokenCookie()!!
+
+                // Logout
+                client.post("/api/auth/logout") {
+                    bearerAuth(verify.body<LoginResponse>().accessToken!!)
+                    cookie("refresh_token", refreshToken)
+                }.status shouldBe HttpStatusCode.NoContent
+
+                // Login with correct fingerprint but WRONG device_trust cookie — should NOT skip
+                val relogin = client.post("/api/auth/login") {
+                    contentType(ContentType.Application.Json)
+                    header(HttpHeaders.UserAgent, userAgent)
+                    cookie("device_trust", "wrong-token-that-does-not-exist-in-db")
+                    setBody(LoginRequest("alice@example.com", "hunter2", deviceFingerprint = fp))
+                }
+                relogin.status shouldBe HttpStatusCode.OK
+                val reloginBody = relogin.body<LoginResponse>()
+                reloginBody.requiresTotp shouldBe true
+                reloginBody.tempToken shouldNotBe null
+                reloginBody.accessToken shouldBe null
+            }
+        }
     })
