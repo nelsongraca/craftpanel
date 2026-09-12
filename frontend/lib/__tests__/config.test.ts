@@ -1,5 +1,5 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest'
-import {fetchAppName, fetchBrandingConfig, BrandingConfig} from '@/lib/config'
+import {fetchAppName, fetchBrandingConfig, BrandingConfig} from "@/lib/config"
 
 function mockApiResponse(body: Record<string, unknown>, status = 200) {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
