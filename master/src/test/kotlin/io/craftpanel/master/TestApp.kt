@@ -15,6 +15,7 @@ import io.ktor.server.routing.*
 import io.ktor.server.testing.*
 import kotlinx.serialization.json.Json
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation as ClientContentNegotiation
+import io.ktor.client.plugins.websocket.WebSockets as ClientWebSockets
 
 fun ApplicationTestBuilder.testApp(extraPlugins: Application.() -> Unit = {}, routes: Route.(jwtManager: JwtManager) -> Unit) {
     application {
@@ -50,4 +51,5 @@ fun ApplicationTestBuilder.testApp(extraPlugins: Application.() -> Unit = {}, ro
 
 fun ApplicationTestBuilder.jsonClient() = createClient {
     install(ClientContentNegotiation) { json(Json { ignoreUnknownKeys = true }) }
+    install(ClientWebSockets)
 }

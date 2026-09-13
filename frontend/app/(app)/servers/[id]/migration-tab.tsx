@@ -2,7 +2,7 @@
 
 import {useCallback, useEffect, useRef, useState} from "react";
 import {ArrowRight, ChevronDown, ChevronRight, Loader2, Shuffle} from "lucide-react";
-import {listMigrations, listNodes, startMigration} from "@/lib/generated/sdk.gen";
+import {authWsTicket, listMigrations, listNodes, startMigration} from "@/lib/generated/sdk.gen";
 import type {MigrationResponse, MigrationStepData} from "@/lib/types";
 import type {Node} from "@/lib/types";
 import {useReconnectingSocket} from "@/lib/hooks/useReconnectingSocket";
@@ -96,8 +96,13 @@ function ActiveMigration({migrationId, onDone}: { migrationId: string; onDone: (
     const doneRef = useRef(false);
 
     const urlFactory = async () => {
+        const res = await authWsTicket();
+        if (!res) return null;
+        const ticketErr = res.error;
+        const data = res.data;
+        if (ticketErr || !data?.ticket) return null;
         const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-        return `${proto}//${window.location.host}/api/migrations/${migrationId}/events`;
+        return `${proto}//${window.location.host}/api/migrations/${migrationId}/events?ticket=${data.ticket}`;
     };
 
     const onMessage = (e: MessageEvent) => {

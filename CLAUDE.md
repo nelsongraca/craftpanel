@@ -262,14 +262,15 @@ Argon2id, never plaintext.
 ### Permission nodes
 
 ```
-system.settings  system.users     system.nodes
-server.create    server.delete    server.start      server.stop
-server.restart   server.configure server.resources  server.files
-server.mods      server.console   server.export     server.backup
-server.migrate   server.view
+system.settings   system.users    system.nodes
+server.create     server.delete   server.start    server.stop
+server.force_stop server.restart  server.configure server.resources
+server.files      server.mods     server.console  server.export
+server.backup     server.migrate  server.view     server.expires
+server.disable
 ```
 
-Wildcards supported at runtime (`*`, `server.*`, `system.*`). Only explicit nodes stored in DB. Permissions are **additive only** — no deny rules.
+Wildcards supported at runtime (`*`, `server.*`, `system.*`). Only explicit nodes stored in DB. The API accepts only explicit nodes; wildcards exist only in seeded system groups and are expanded at check time. Permissions are **additive only** — no deny rules.
 
 ### Assignment scopes
 

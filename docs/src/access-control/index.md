@@ -13,6 +13,7 @@ Access control is implemented as a **permission node** system. Permissions are c
 | `server.delete`    | Delete server instances and their data                                     |
 | `server.start`     | Start a stopped server                                                     |
 | `server.stop`      | Stop a running server                                                      |
+| `server.force_stop`| Force-stop a server that is stuck (SIGKILL)                                 |
 | `server.restart`   | Restart a running server                                                   |
 | `server.configure` | Edit server configuration (properties, env vars, type, version)            |
 | `server.resources` | Change RAM and CPU allocation for a server                                 |

@@ -33,10 +33,13 @@ fun Route.serversRoutes(
             }) {
                 val userId = call.userId()
                 val rows = queryService.listServers(userId)
-                val migratingIds = if (rows.isEmpty()) emptySet()
-                else rows.filter { queryService.isMigrating(it.id) }
-                    .map { it.id }
-                    .toSet()
+                val migratingIds = if (rows.isEmpty()) {
+                    emptySet()
+                } else {
+                    rows.filter { queryService.isMigrating(it.id) }
+                        .map { it.id }
+                        .toSet()
+                }
                 call.respond(rows.map { it.toResponse(serverExposure, it.id in migratingIds) })
             }
 
@@ -97,6 +100,11 @@ fun Route.serversRoutes(
                 call.requirePermission(Permission.SERVER_CREATE)
                 val sourceId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: throw UnprocessableException("Invalid server id")
+                val scope = ServerLookup.scope(sourceId)
+                    ?: throw NotFoundException("Server not found")
+                if (!PermissionResolver.hasPermission(call.userId(), Permission.SERVER_VIEW, serverId = sourceId, networkId = scope.networkId)) {
+                    throw ForbiddenException("Insufficient permissions")
+                }
                 val req = call.receive<CloneServerRequest>()
                 val row = serverService.cloneServer(sourceId, req.name, req.displayName, req.description)
                 call.respond(HttpStatusCode.Created, row.toResponse(serverExposure, false))

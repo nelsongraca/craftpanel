@@ -393,7 +393,8 @@ class ServersRoutesTest :
                 val resp = client.post("/api/servers") {
                     bearerAuth(tokenFor(userId))
                     contentType(ContentType.Application.Json)
-                    setBody("""{
+                    setBody(
+                        """{
                         "name":"custom-srv",
                         "node_id":"$nodeId",
                         "server_type":"CUSTOM",
@@ -405,7 +406,8 @@ class ServersRoutesTest :
                         "container_protocol":"UDP",
                         "disable_healthcheck":true,
                         "force_redownload":true
-                    }""")
+                    }"""
+                    )
                 }
                 resp.status shouldBe HttpStatusCode.Created
                 val body = resp.body<JsonObject>()
@@ -454,14 +456,16 @@ class ServersRoutesTest :
                 val resp = client.post("/api/servers") {
                     bearerAuth(tokenFor(userId))
                     contentType(ContentType.Application.Json)
-                    setBody("""{
+                    setBody(
+                        """{
                         "name":"custom-bad-proto",
                         "node_id":"$nodeId",
                         "server_type":"CUSTOM",
                         "memory_mb":1024,
                         "custom_server_jar":"/data/a.jar",
                         "container_protocol":"SCTP"
-                    }""")
+                    }"""
+                    )
                 }
                 resp.status shouldBe HttpStatusCode.UnprocessableEntity
             }
@@ -1594,6 +1598,24 @@ class ServersRoutesTest :
                 val client = jsonClient()
                 val userId = createUser()
                 assignGlobalGroup(userId, "Viewer")
+                val nodeId = createNode()
+                val sourceId = createServer(nodeId, "source")
+                val resp = client.post("/api/servers/$sourceId/clone") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"clone-1"}""")
+                }
+                resp.status shouldBe HttpStatusCode.Forbidden
+            }
+        }
+
+        test("POST clone returns 403 when caller cannot view source") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                createGroupWithPermissions("creator", Permission.SERVER_CREATE.node)
+                assignGlobalGroup(userId, "creator")
                 val nodeId = createNode()
                 val sourceId = createServer(nodeId, "source")
                 val resp = client.post("/api/servers/$sourceId/clone") {

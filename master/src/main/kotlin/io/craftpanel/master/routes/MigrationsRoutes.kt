@@ -14,10 +14,12 @@ import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import io.ktor.websocket.*
 import kotlinx.coroutines.channels.consumeEach
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNamingStrategy
+import kotlin.time.Duration.Companion.minutes
 import kotlin.uuid.Uuid
 
 @Serializable
@@ -28,7 +30,7 @@ private val migrationJson = Json {
     namingStrategy = JsonNamingStrategy.SnakeCase
 }
 
-fun Route.migrationsRoutes(migrationService: MigrationService) {
+fun Route.migrationsRoutes(wsTicketService: WsTicketService, migrationService: MigrationService) {
     authenticate(JWT_AUTH) {
         route("/api/servers/{id}/migrations") {
             get("", {
@@ -76,10 +78,10 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
                 response {
                     code(HttpStatusCode.OK) { body<MigrationResponse>() }
                     code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                call.userId()
                 val migrationId = call.parameters["migrationId"]
                     ?.let {
                         runCatching {
@@ -87,14 +89,41 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
                         }.getOrNull()
                     }
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid migration ID"))
-                call.respond(migrationService.getMigration(migrationId))
+                val migration = migrationService.getMigration(migrationId)
+                val serverId = Uuid.parse(migration.serverId)
+                val networkId = ServerLookup.scope(serverId)?.networkId
+                if (!PermissionResolver.hasPermission(call.userId(), Permission.SERVER_MIGRATE, serverId = serverId, networkId = networkId)) {
+                    throw ForbiddenException("Insufficient permissions")
+                }
+                call.respond(migration)
             }
         }
     }
 
     webSocket("/api/migrations/{migrationId}/events") {
+        val ticket = call.request.queryParameters["ticket"] ?: run {
+            close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Missing ticket"))
+            return@webSocket
+        }
+        val userId = wsTicketService.consume(ticket) ?: run {
+            close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Invalid or expired ticket"))
+            return@webSocket
+        }
         val migrationIdStr = call.parameters["migrationId"] ?: run {
             close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Missing migration ID"))
+            return@webSocket
+        }
+        val migrationId = runCatching { Uuid.parse(migrationIdStr) }.getOrNull() ?: run {
+            close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Invalid migration ID"))
+            return@webSocket
+        }
+        val serverId = migrationService.getMigrationServerId(migrationId) ?: run {
+            close(CloseReason(CloseReason.Codes.NORMAL, "Migration not found"))
+            return@webSocket
+        }
+        val networkId = ServerLookup.scope(serverId)?.networkId
+        if (!PermissionResolver.hasPermission(userId, Permission.SERVER_MIGRATE, serverId = serverId, networkId = networkId)) {
+            close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Insufficient permissions"))
             return@webSocket
         }
         val flow = migrationService.getEventFlow(migrationIdStr) ?: run {
@@ -110,10 +139,20 @@ fun Route.migrationsRoutes(migrationService: MigrationService) {
                 }
             }
         }
+        val revalidationJob = launch {
+            while (true) {
+                delay(5.minutes)
+                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_MIGRATE, serverId = serverId, networkId = networkId)) {
+                    close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Permission revoked"))
+                    break
+                }
+            }
+        }
         try {
             incoming.consumeEach { }
         } finally {
             job.cancel()
+            revalidationJob.cancel()
         }
     }
 }

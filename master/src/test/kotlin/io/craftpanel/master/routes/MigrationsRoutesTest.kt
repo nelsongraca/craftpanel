@@ -3,6 +3,7 @@ package io.craftpanel.master.routes
 import io.craftpanel.master.*
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.auth.TokenClaims
+import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.*
@@ -12,14 +13,17 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.ktor.client.call.*
+import io.ktor.client.plugins.websocket.*
 import io.ktor.client.request.*
 import io.ktor.http.*
 import io.ktor.server.application.*
 import io.ktor.server.routing.*
 import io.ktor.server.testing.*
-import io.ktor.server.websocket.*
+import io.ktor.server.websocket.WebSockets
+import io.ktor.websocket.CloseReason
 import kotlinx.coroutines.test.TestScope
 import kotlinx.serialization.json.*
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
@@ -67,21 +71,21 @@ class MigrationsRoutesTest :
         }
 
         fun Route.configureMigrationsTest(svc: MigrationService) {
-            migrationsRoutes(svc)
+            migrationsRoutes(WsTicketService(), svc)
         }
 
-        fun createSuperAdminJwt(): String {
+        fun createUserJwt(groupName: String): Pair<Uuid, String> {
             val userId = transaction {
                 Users.insert {
-                    it[Users.username] = "admin"
-                    it[Users.email] = "admin@test.com"
+                    it[Users.username] = "user-${Uuid.random()}"
+                    it[Users.email] = "user-${Uuid.random()}@test.com"
                     it[Users.passwordHash] = "hash"
                     it[Users.isActive] = true
                 }[Users.id].let { Uuid.parse(it.toString()) }
             }
             transaction {
                 val groupId = Groups.selectAll()
-                    .where { Groups.name eq "Super Admin" }
+                    .where { Groups.name eq groupName }
                     .first()[Groups.id]
                 UserGroupAssignments.insert {
                     it[UserGroupAssignments.userId] = userId
@@ -89,8 +93,11 @@ class MigrationsRoutesTest :
                     it[UserGroupAssignments.scopeType] = "GLOBAL"
                 }
             }
-            return jwtManager.generate(TokenClaims(userId = userId, name = "Admin", email = "admin@test.com", groups = listOf("Super Admin")))
+            val jwt = jwtManager.generate(TokenClaims(userId = userId, name = "Admin", email = "admin@test.com", groups = listOf(groupName)))
+            return userId to jwt
         }
+
+        fun createSuperAdminJwt(): String = createUserJwt("Super Admin").second
 
         fun insertNode(status: String = "ACTIVE"): Pair<Uuid, Uuid> {
             val nodeId = transaction {
@@ -119,6 +126,15 @@ class MigrationsRoutesTest :
                 }[Servers.id]
             }
             return Uuid.parse(serverId.toString()) to serverId.value
+        }
+
+        fun insertMigration(serverId: Uuid, sourceNodeId: Uuid, targetNodeId: Uuid, status: String = "PENDING"): Uuid = transaction {
+            ServerMigrations.insert {
+                it[ServerMigrations.serverId] = EntityID(serverId, Servers)
+                it[ServerMigrations.sourceNodeId] = EntityID(sourceNodeId, Nodes)
+                it[ServerMigrations.targetNodeId] = EntityID(targetNodeId, Nodes)
+                it[ServerMigrations.status] = status
+            }[ServerMigrations.id].let { Uuid.parse(it.toString()) }
         }
 
         test("list migrations returns empty for new server") {
@@ -245,6 +261,77 @@ class MigrationsRoutesTest :
                     bearerAuth(token)
                 }
                 response.status shouldBe HttpStatusCode.NotFound
+            }
+        }
+
+        test("get migration returns 403 for user without server.migrate") {
+            testApplication {
+                val (_, sourceKId) = insertNode()
+                val (_, targetKId) = insertNode()
+                val (serverJavaId, _) = insertServer(sourceKId)
+                val migrationId = insertMigration(serverJavaId, sourceKId, targetKId)
+                val (_, token) = createUserJwt("Viewer")
+                testApp(extraPlugins = { install(WebSockets) }) { _ -> configureMigrationsTest(buildMigrationService()) }
+                val client = jsonClient()
+
+                val response = client.get("/api/migrations/$migrationId") {
+                    bearerAuth(token)
+                }
+                response.status shouldBe HttpStatusCode.Forbidden
+            }
+        }
+
+        test("get migration returns 200 for super admin with existing migration") {
+            testApplication {
+                val (_, sourceKId) = insertNode()
+                val (_, targetKId) = insertNode()
+                val (serverJavaId, _) = insertServer(sourceKId)
+                val migrationId = insertMigration(serverJavaId, sourceKId, targetKId)
+                val token = createSuperAdminJwt()
+                testApp(extraPlugins = { install(WebSockets) }) { _ -> configureMigrationsTest(buildMigrationService()) }
+                val client = jsonClient()
+
+                val response = client.get("/api/migrations/$migrationId") {
+                    bearerAuth(token)
+                }
+                response.status shouldBe HttpStatusCode.OK
+                val body = response.body<JsonObject>()
+                body["id"]!!.jsonPrimitive.content shouldBe migrationId.toString()
+                body["server_id"]!!.jsonPrimitive.content shouldBe serverJavaId.toString()
+            }
+        }
+
+        test("migration events websocket closes with 1008 when ticket is missing") {
+            testApplication {
+                val (_, sourceKId) = insertNode()
+                val (_, targetKId) = insertNode()
+                val (serverJavaId, _) = insertServer(sourceKId)
+                val migrationId = insertMigration(serverJavaId, sourceKId, targetKId)
+                testApp(extraPlugins = { install(WebSockets) }) { _ -> configureMigrationsTest(buildMigrationService()) }
+                val client = jsonClient()
+
+                client.webSocket("/api/migrations/$migrationId/events") {
+                    val reason = closeReason
+                    reason.await()?.code shouldBe CloseReason.Codes.VIOLATED_POLICY.code
+                }
+            }
+        }
+
+        test("migration events websocket closes with 1008 for user without server.migrate") {
+            testApplication {
+                val (_, sourceKId) = insertNode()
+                val (_, targetKId) = insertNode()
+                val (serverJavaId, _) = insertServer(sourceKId)
+                val migrationId = insertMigration(serverJavaId, sourceKId, targetKId)
+                val (viewerId, _) = createUserJwt("Viewer")
+                val wsTicketService = WsTicketService()
+                val rawTicket = wsTicketService.issue(viewerId).first
+                testApp(extraPlugins = { install(WebSockets) }) { _ -> configureMigrationsTest(buildMigrationService()) }
+                val client = jsonClient()
+
+                client.webSocket("/api/migrations/$migrationId/events?ticket=$rawTicket") {
+                    closeReason.await()?.code shouldBe CloseReason.Codes.VIOLATED_POLICY.code
+                }
             }
         }
     })

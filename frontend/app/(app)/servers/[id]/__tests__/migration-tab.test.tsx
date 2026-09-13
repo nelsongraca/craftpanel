@@ -7,6 +7,7 @@ vi.mock("@/lib/generated/sdk.gen", () => ({
     listMigrations: vi.fn(),
     listNodes: vi.fn(),
     startMigration: vi.fn(),
+    authWsTicket: vi.fn().mockResolvedValue({data: {ticket: "test-ticket"}}),
 }))
 
 import { listMigrations, listNodes, startMigration } from "@/lib/generated/sdk.gen"

@@ -19,9 +19,9 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.exceptions.ExposedSQLException
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
@@ -177,6 +177,9 @@ class MigrationService(
         val steps = migrationRepository.listMigrationSteps(migrationId)
         return row.toResponse(steps)
     }
+
+    /** Server id a migration belongs to, or `null` if the migration does not exist. */
+    fun getMigrationServerId(migrationId: Uuid): Uuid? = migrationRepository.findMigrationById(migrationId)?.serverId
 
     fun listMigrations(serverId: Uuid): List<MigrationResponse> = migrationRepository.listMigrations(serverId)
         .map { row -> row.toResponse(migrationRepository.listMigrationSteps(row.id)) }

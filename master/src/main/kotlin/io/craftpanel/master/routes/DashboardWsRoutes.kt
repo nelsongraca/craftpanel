@@ -51,7 +51,7 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, dashboardService: 
             while (true) {
                 delay(5.minutes)
                 val stillVisible = runCatching {
-                    PermissionResolver.hasPermission(userId, Permission.SERVER_VIEW) ||
+                    PermissionResolver.serverPermissions(userId).isNotEmpty() ||
                         PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES)
                 }.getOrNull() ?: true // transient DB error: skip, retry next tick
                 if (!stillVisible) {

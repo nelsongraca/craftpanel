@@ -28,5 +28,5 @@ fun Route.registerAppRoutes() {
     modsRoutes(get())
     dashboardWsRoutes(get(), get())
     alertsRoutes(get())
-    migrationsRoutes(get())
+    migrationsRoutes(get(), get())
 }
