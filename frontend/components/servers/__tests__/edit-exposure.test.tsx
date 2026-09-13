@@ -57,7 +57,7 @@ describe('EditExposure', () => {
     it('opens edit form on Edit click', async () => {
         const user = userEvent.setup()
         render(<EditExposure server={makeServer()} onSaved={vi.fn()}/>)
-        await user.click(screen.getByText('Edit'))
+        await user.click(screen.getByTitle('Edit Public Access'))
         expect(screen.getByText('Expose Externally')).toBeInTheDocument()
     })
 
@@ -66,7 +66,7 @@ describe('EditExposure', () => {
         const onSaved = vi.fn()
         const user = userEvent.setup()
         render(<EditExposure server={makeServer()} onSaved={onSaved}/>)
-        await user.click(screen.getByText('Edit'))
+        await user.click(screen.getByTitle('Edit Public Access'))
         await user.click(screen.getByText('Save'))
         expect(updateServerExposure).toHaveBeenCalledWith({
             path: {id: 's1'},
@@ -79,7 +79,7 @@ describe('EditExposure', () => {
         vi.mocked(updateServerExposure).mockResolvedValue({data: {}, error: undefined, response: new Response()})
         const user = userEvent.setup()
         render(<EditExposure server={makeServer()} onSaved={vi.fn()}/>)
-        await user.click(screen.getByText('Edit'))
+        await user.click(screen.getByTitle('Edit Public Access'))
         await user.click(screen.getByLabelText('Expose via mc-router'))
         expect(screen.getByText('Public Subdomain')).toBeInTheDocument()
         expect(screen.getByText('Custom Hostname')).toBeInTheDocument()
