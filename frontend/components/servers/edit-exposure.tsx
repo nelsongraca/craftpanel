@@ -2,7 +2,7 @@
 
 import {useState} from "react";
 import {InfoRow} from "./server-info";
-import {EditFieldRow, EditInput, SaveCancelRow} from "./edit-fields";
+import {EditFieldRow, EditInput, EditSection} from "./edit-fields";
 import {updateServerExposure} from "@/lib/generated/sdk.gen";
 import type {Server} from "@/lib/types";
 
@@ -53,70 +53,57 @@ export function EditExposure({server, onSaved}: EditExposureProps) {
     }
 
     return (
-        <div className="bg-surface border border-border rounded p-4">
-            <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">
-                    Public Access
-                </p>
-                {!editing && (
-                    <button
-                        onClick={open}
-                        className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
-                    >
-                        Edit
-                    </button>
+        <EditSection
+            label="Public Access"
+            editing={editing}
+            saving={saving}
+            error={error}
+            onEdit={open}
+            onCancel={() => setEditing(false)}
+            onSave={() => void save()}
+        >
+            <div>
+                <InfoRow label="Exposed" value={server.exposed_externally ? "Yes" : "No"}/>
+                <InfoRow label="Public Subdomain" value={server.public_subdomain ?? "-"}/>
+                <InfoRow label="Custom Hostname" value={server.custom_hostname ?? "-"}/>
+                {server.canonical_hostname && <InfoRow label="Canonical" value={server.canonical_hostname}/>}
+            </div>
+            <div className="space-y-3">
+                <EditFieldRow label="Expose Externally">
+                    <div className="flex items-center gap-2 pt-1">
+                        <input
+                            type="checkbox"
+                            id="expose-externally"
+                            checked={exposedExternally}
+                            onChange={(e) => setExposedExternally(e.target.checked)}
+                            className="accent-[var(--accent)] w-4 h-4"
+                        />
+                        <label htmlFor="expose-externally" className="text-xs font-mono text-text-primary">
+                            Expose via mc-router
+                        </label>
+                    </div>
+                </EditFieldRow>
+                {exposedExternally && (
+                    <>
+                        <EditFieldRow label="Public Subdomain">
+                            <EditInput
+                                value={publicSubdomain}
+                                onChange={(e) => setPublicSubdomain(e.target.value)}
+                                placeholder="myserver"
+                            />
+                            <p className="text-xs text-text-muted mt-1">Subdomain under the platform domain (e.g. myserver.mc.example.com)</p>
+                        </EditFieldRow>
+                        <EditFieldRow label="Custom Hostname">
+                            <EditInput
+                                value={customHostname}
+                                onChange={(e) => setCustomHostname(e.target.value)}
+                                placeholder="play.example.com"
+                            />
+                            <p className="text-xs text-text-muted mt-1">Your own domain (bring-your-own-DNS)</p>
+                        </EditFieldRow>
+                    </>
                 )}
             </div>
-
-            {!editing ? (
-                <div>
-                    <InfoRow label="Exposed" value={server.exposed_externally ? "Yes" : "No"}/>
-                    <InfoRow label="Public Subdomain" value={server.public_subdomain ?? "-"}/>
-                    <InfoRow label="Custom Hostname" value={server.custom_hostname ?? "-"}/>
-                    {server.canonical_hostname && <InfoRow label="Canonical" value={server.canonical_hostname}/>}
-                </div>
-            ) : (
-                <div className="space-y-3">
-                    {error && (
-                        <p className="text-xs text-error">{error}</p>
-                    )}
-                    <EditFieldRow label="Expose Externally">
-                        <div className="flex items-center gap-2 pt-1">
-                            <input
-                                type="checkbox"
-                                id="expose-externally"
-                                checked={exposedExternally}
-                                onChange={(e) => setExposedExternally(e.target.checked)}
-                                className="accent-[var(--accent)] w-4 h-4"
-                            />
-                            <label htmlFor="expose-externally" className="text-xs font-mono text-text-primary">
-                                Expose via mc-router
-                            </label>
-                        </div>
-                    </EditFieldRow>
-                    {exposedExternally && (
-                        <>
-                            <EditFieldRow label="Public Subdomain">
-                                <EditInput
-                                    value={publicSubdomain}
-                                    onChange={(e) => setPublicSubdomain(e.target.value)}
-                                    placeholder="myserver"
-                                />
-                                <p className="text-xs text-text-muted mt-1">Subdomain under the platform domain (e.g. myserver.mc.example.com)</p>
-                            </EditFieldRow>
-                            <EditFieldRow label="Custom Hostname">
-                                <EditInput
-                                    value={customHostname}
-                                    onChange={(e) => setCustomHostname(e.target.value)}
-                                    placeholder="play.example.com"
-                                />
-                                <p className="text-xs text-text-muted mt-1">Your own domain (bring-your-own-DNS)</p>
-                            </EditFieldRow>
-                        </>
-                    )}
-                    <SaveCancelRow onSave={() => void save()} onCancel={() => setEditing(false)} saving={saving}/>
-                </div>
-            )}
-        </div>
+        </EditSection>
     );
 }

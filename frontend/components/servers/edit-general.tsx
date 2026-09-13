@@ -2,7 +2,7 @@
 
 import {useEffect, useState} from "react";
 import {InfoRow} from "./server-info";
-import {EditFieldRow, EditInput, EditSelect, EditTextarea, SaveCancelRow} from "./edit-fields";
+import {EditFieldRow, EditInput, EditSelect, EditTextarea, EditSection} from "./edit-fields";
 import {McVersionSelect} from "@/components/ui/mc-version";
 import {updateServer, listNetworks, updateServerExpiration, setServerDisabled} from "@/lib/generated/sdk.gen";
 import type {Network, Server} from "@/lib/types";
@@ -116,103 +116,90 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
     }
 
     return (
-        <div className="bg-surface border border-border rounded p-4">
-            <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">
-                    General Settings
-                </p>
-                {!editing && (
-                    <button
-                        onClick={open}
-                        className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
-                    >
-                        Edit
-                    </button>
-                )}
+        <EditSection
+            label="General Settings"
+            editing={editing}
+            saving={saving}
+            error={error}
+            onEdit={open}
+            onCancel={() => setEditing(false)}
+            onSave={() => void save()}
+        >
+            <div>
+                <InfoRow label="Display Name" value={server.display_name}/>
+                <InfoRow label="Description" value={server.description ?? "-"}/>
+                <InfoRow label="Network" value={networks.find((n) => n.id === server.network_id)?.name ?? "-"}/>
+                {!isProxy && !isCustom && <InfoRow label="MC Version" value={server.mc_version}/>}
+                <InfoRow
+                    label="Expires"
+                    value={
+                        server.expires_at
+                            ? new Date(server.expires_at).toLocaleString()
+                            : "Never"
+                    }
+                />
             </div>
-
-            {!editing ? (
-                <div>
-                    <InfoRow label="Display Name" value={server.display_name}/>
-                    <InfoRow label="Description" value={server.description ?? "-"}/>
-                    <InfoRow label="Network" value={networks.find((n) => n.id === server.network_id)?.name ?? "-"}/>
-                    {!isProxy && !isCustom && <InfoRow label="MC Version" value={server.mc_version}/>}
-                    <InfoRow
-                        label="Expires"
-                        value={
-                            server.expires_at
-                                ? new Date(server.expires_at).toLocaleString()
-                                : "Never"
-                        }
+            <div className="space-y-3">
+                <EditFieldRow label="Display Name">
+                    <EditInput
+                        value={displayName}
+                        onChange={(e) => setDisplayName(e.target.value)}
+                        placeholder={server.display_name}
                     />
-                </div>
-            ) : (
-                <div className="space-y-3">
-                    {error && (
-                        <p className="text-xs text-error">{error}</p>
-                    )}
-                    <EditFieldRow label="Display Name">
+                </EditFieldRow>
+                <EditFieldRow label="Description">
+                    <EditTextarea
+                        value={description}
+                        onChange={(e) => setDescription(e.target.value)}
+                        placeholder="Optional description"
+                    />
+                </EditFieldRow>
+                <EditFieldRow label="Network">
+                    <EditSelect value={networkId} onChange={(e) => setNetworkId(e.target.value)}>
+                        <option value="">None</option>
+                        {networks.map((n) => (
+                            <option key={n.id} value={n.id}>{n.name}</option>
+                        ))}
+                    </EditSelect>
+                </EditFieldRow>
+                {canSetExpiry && (
+                    <EditFieldRow label="Expires At">
                         <EditInput
-                            value={displayName}
-                            onChange={(e) => setDisplayName(e.target.value)}
-                            placeholder={server.display_name}
+                            type="datetime-local"
+                            value={expiresAt}
+                            onChange={(e) => setExpiresAt(e.target.value)}
+                            placeholder="Optional expiration date/time"
                         />
                     </EditFieldRow>
-                    <EditFieldRow label="Description">
-                        <EditTextarea
-                            value={description}
-                            onChange={(e) => setDescription(e.target.value)}
-                            placeholder="Optional description"
-                        />
-                    </EditFieldRow>
-                    <EditFieldRow label="Network">
-                        <EditSelect value={networkId} onChange={(e) => setNetworkId(e.target.value)}>
-                            <option value="">None</option>
-                            {networks.map((n) => (
-                                <option key={n.id} value={n.id}>{n.name}</option>
-                            ))}
-                        </EditSelect>
-                    </EditFieldRow>
-                    {canSetExpiry && (
-                        <EditFieldRow label="Expires At">
-                            <EditInput
-                                type="datetime-local"
-                                value={expiresAt}
-                                onChange={(e) => setExpiresAt(e.target.value)}
-                                placeholder="Optional expiration date/time"
+                )}
+                {canDisable && (
+                    <EditFieldRow label="Disabled">
+                        <div className="flex items-center gap-3">
+                            <Switch
+                                checked={disabled}
+                                onCheckedChange={setDisabled}
                             />
-                        </EditFieldRow>
-                    )}
-                    {canDisable && (
-                        <EditFieldRow label="Disabled">
-                            <div className="flex items-center gap-3">
-                                <Switch
-                                    checked={disabled}
-                                    onCheckedChange={setDisabled}
-                                />
-                                <span className="text-xs text-text-muted">
+                            <span className="text-xs text-text-muted">
                                     {disabled
                                         ? "Server cannot be started until re-enabled. If running, it will be stopped."
                                         : "Server can be started and stopped normally."}
                                 </span>
-                            </div>
-                        </EditFieldRow>
-                    )}
-                    {!isProxy && (
-                        <EditFieldRow label="Minecraft Version">
-                            <McVersionSelect
-                                value={mcVersion}
-                                onChange={setMcVersion}
-                                placeholder="1.21.4"
-                                fieldSize="sm"
-                                surface="bg"
-                            />
-                            <p className="text-xs text-text-muted mt-1">Requires restart to take effect.</p>
-                        </EditFieldRow>
-                    )}
-                    <SaveCancelRow onSave={() => void save()} onCancel={() => setEditing(false)} saving={saving}/>
-                </div>
-            )}
-        </div>
+                        </div>
+                    </EditFieldRow>
+                )}
+                {!isProxy && (
+                    <EditFieldRow label="Minecraft Version">
+                        <McVersionSelect
+                            value={mcVersion}
+                            onChange={setMcVersion}
+                            placeholder="1.21.4"
+                            fieldSize="sm"
+                            surface="bg"
+                        />
+                        <p className="text-xs text-text-muted mt-1">Requires restart to take effect.</p>
+                    </EditFieldRow>
+                )}
+            </div>
+        </EditSection>
     );
 }

@@ -2,7 +2,7 @@
 
 import {useState} from "react";
 import {InfoRow} from "./server-info";
-import {EditFieldRow, EditInput, SaveCancelRow} from "./edit-fields";
+import {EditFieldRow, EditInput, EditSection} from "./edit-fields";
 import {updateServerResources} from "@/lib/generated/sdk.gen";
 import type {Server} from "@/lib/types";
 
@@ -49,71 +49,58 @@ export function EditResources({server, onSaved}: EditResourcesProps) {
     }
 
     return (
-        <div className="bg-surface border border-border rounded p-4">
-            <div className="flex items-center justify-between mb-3">
-                <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">
-                    Resources
-                </p>
-                {!editing && (
-                    <button
-                        onClick={open}
-                        className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
-                    >
-                        Edit
-                    </button>
-                )}
+        <EditSection
+            label="Resources"
+            editing={editing}
+            saving={saving}
+            error={error}
+            onEdit={open}
+            onCancel={() => setEditing(false)}
+            onSave={() => void save()}
+        >
+            <div>
+                <InfoRow label="RAM" value={`${server.memory_mb} MB`}/>
+                <InfoRow label="CPU Shares" value={server.cpu_shares === 0 ? "Unlimited" : String(server.cpu_shares)}/>
+                <InfoRow label="Image Tag" value={server.itzg_image_tag}/>
             </div>
-
-            {!editing ? (
-                <div>
-                    <InfoRow label="RAM" value={`${server.memory_mb} MB`}/>
-                    <InfoRow label="CPU Shares" value={server.cpu_shares === 0 ? "Unlimited" : String(server.cpu_shares)}/>
-                    <InfoRow label="Image Tag" value={server.itzg_image_tag}/>
-                </div>
-            ) : (
-                <div className="space-y-3">
-                    {error && (
-                        <p className="text-xs text-error">{error}</p>
-                    )}
-                    <EditFieldRow label="RAM (MB)">
-                        <EditInput
-                            type="number"
-                            value={ramMb}
-                            onChange={(e) => setRamMb(Number(e.target.value))}
-                            min={512}
-                            step={256}
-                        />
-                    </EditFieldRow>
-                    <EditFieldRow label="CPU Shares">
-                        <EditInput
-                            type="number"
-                            value={cpuShares}
-                            onChange={(e) => setCpuShares(Number(e.target.value))}
-                            min={0}
-                        />
-                        <p className="text-xs text-text-muted mt-1">0 = unlimited</p>
-                    </EditFieldRow>
-                    <EditFieldRow label="itzg Image Tag">
-                        <EditInput
-                            value={itzgTag}
-                            onChange={(e) => setItzgTag(e.target.value)}
-                            placeholder="latest"
-                            list="itzg-tags-edit"
-                        />
-                        <datalist id="itzg-tags-edit">
-                            <option value="latest"/>
-                            <option value="java21"/>
-                            <option value="java21-jdk"/>
-                            <option value="java17"/>
-                            <option value="java17-jdk"/>
-                            <option value="java11"/>
-                            <option value="java8"/>
-                        </datalist>
-                    </EditFieldRow>
-                    <p className="text-xs text-text-muted">All changes require a restart to take effect.</p>
-                    <SaveCancelRow onSave={() => void save()} onCancel={() => setEditing(false)} saving={saving}/>
-                </div>
-            )}
-        </div>
+            <div className="space-y-3">
+                <EditFieldRow label="RAM (MB)">
+                    <EditInput
+                        type="number"
+                        value={ramMb}
+                        onChange={(e) => setRamMb(Number(e.target.value))}
+                        min={512}
+                        step={256}
+                    />
+                </EditFieldRow>
+                <EditFieldRow label="CPU Shares">
+                    <EditInput
+                        type="number"
+                        value={cpuShares}
+                        onChange={(e) => setCpuShares(Number(e.target.value))}
+                        min={0}
+                    />
+                    <p className="text-xs text-text-muted mt-1">0 = unlimited</p>
+                </EditFieldRow>
+                <EditFieldRow label="itzg Image Tag">
+                    <EditInput
+                        value={itzgTag}
+                        onChange={(e) => setItzgTag(e.target.value)}
+                        placeholder="latest"
+                        list="itzg-tags-edit"
+                    />
+                    <datalist id="itzg-tags-edit">
+                        <option value="latest"/>
+                        <option value="java21"/>
+                        <option value="java21-jdk"/>
+                        <option value="java17"/>
+                        <option value="java17-jdk"/>
+                        <option value="java11"/>
+                        <option value="java8"/>
+                    </datalist>
+                </EditFieldRow>
+                <p className="text-xs text-text-muted">All changes require a restart to take effect.</p>
+            </div>
+        </EditSection>
     );
 }

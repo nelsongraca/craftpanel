@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Plus, Trash2, Radio, Server, AlertTriangle } from "lucide-react";
-import { getServerPorts, addServerExtraPort, deleteServerExtraPort } from "@/lib/generated/sdk.gen";
+import { Plus, Trash2, Radio, Server, AlertTriangle, Pencil } from "lucide-react";
+import { getServerPorts, addServerExtraPort, deleteServerExtraPort, updateServer } from "@/lib/generated/sdk.gen";
 import type { ServerPortsResponse, ServerExtraPortResponse } from "@/lib/generated/types.gen";
 import { Badge } from "@/components/ui/badge";
 import { useConfirmDialog } from "@/lib/hooks/useConfirmDialog";
@@ -10,9 +10,13 @@ import { useConfirmDialog } from "@/lib/hooks/useConfirmDialog";
 export function PortsTab({
     serverId,
     serverType,
+    currentContainerPort,
+    currentProtocol,
 }: {
     serverId: string;
     serverType: string;
+    currentContainerPort?: number | null;
+    currentProtocol?: string | null;
 }) {
     const [portsData, setPortsData] = useState<ServerPortsResponse | null>(null);
     const [loading, setLoading] = useState(true);
@@ -23,6 +27,13 @@ export function PortsTab({
     const [formProtocol, setFormProtocol] = useState("TCP");
     const [submitting, setSubmitting] = useState(false);
     const [formError, setFormError] = useState<string | null>(null);
+
+    // Primary port editing state
+    const [editingPrimary, setEditingPrimary] = useState(false);
+    const [editContainerPort, setEditContainerPort] = useState("");
+    const [editProtocol, setEditProtocol] = useState("TCP");
+    const [savingPrimary, setSavingPrimary] = useState(false);
+    const [primaryError, setPrimaryError] = useState<string | null>(null);
 
     const { confirm, dialog } = useConfirmDialog();
 
@@ -87,6 +98,47 @@ export function PortsTab({
         }
     };
 
+    function openEditPrimary() {
+        setEditContainerPort(currentContainerPort != null ? String(currentContainerPort) : "");
+        setEditProtocol(currentProtocol || portsData?.primary_port?.protocol || "TCP");
+        setPrimaryError(null);
+        setEditingPrimary(true);
+    }
+
+    async function handleSavePrimary() {
+        setPrimaryError(null);
+        setSavingPrimary(true);
+        try {
+            const body: Record<string, unknown> = {};
+            const currentVal = currentContainerPort != null ? String(currentContainerPort) : "";
+            if (editContainerPort !== currentVal) {
+                body.container_listen_port = editContainerPort ? parseInt(editContainerPort, 10) : null;
+            }
+            if (editProtocol !== (currentProtocol || "TCP")) {
+                body.container_protocol = editProtocol;
+            }
+            if (Object.keys(body).length === 0) {
+                setEditingPrimary(false);
+                setSavingPrimary(false);
+                return;
+            }
+            const { error: saveErr } = await updateServer({
+                path: { id: serverId },
+                body: body as Parameters<typeof updateServer>[0]["body"],
+            });
+            if (saveErr) {
+                setPrimaryError(saveErr.message ?? "Failed to save primary port");
+            } else {
+                setEditingPrimary(false);
+                await fetchPorts();
+            }
+        } catch {
+            setPrimaryError("An unexpected error occurred.");
+        } finally {
+            setSavingPrimary(false);
+        }
+    }
+
     const handleDeletePort = (port: ServerExtraPortResponse) => {
         confirm({
             title: `Delete Port "${port.name}"`,
@@ -135,36 +187,104 @@ export function PortsTab({
                             Primary Server Port
                         </h2>
                     </div>
-                    <Badge variant="outline" className="font-mono text-xs">
-                        {serverType}
-                    </Badge>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono pt-2">
-                    <div className="bg-surface-high border border-border p-3 rounded">
-                        <span className="text-text-muted block font-heading uppercase text-[10px] tracking-wider mb-1">
-                            Host Port
-                        </span>
-                        <span className="text-text-primary font-bold text-base">
-                            {primaryPort?.host_port ?? "N/A"}
-                        </span>
-                    </div>
-                    <div className="bg-surface-high border border-border p-3 rounded">
-                        <span className="text-text-muted block font-heading uppercase text-[10px] tracking-wider mb-1">
-                            Container Internal Port
-                        </span>
-                        <span className="text-text-primary font-bold text-base">
-                            {primaryPort?.container_port ?? "N/A"}
-                        </span>
-                    </div>
-                    <div className="bg-surface-high border border-border p-3 rounded">
-                        <span className="text-text-muted block font-heading uppercase text-[10px] tracking-wider mb-1">
-                            Protocol
-                        </span>
-                        <span className="text-accent font-bold text-base">
-                            {primaryPort?.protocol ?? "TCP"}
-                        </span>
+                    <div className="flex items-center gap-2">
+                        <Badge variant="outline" className="font-mono text-xs">
+                            {serverType}
+                        </Badge>
+                        {!editingPrimary && (
+                            <button
+                                onClick={openEditPrimary}
+                                className="text-text-muted hover:text-accent transition-colors"
+                                title="Edit primary port"
+                            >
+                                <Pencil size={14} strokeWidth={2} />
+                            </button>
+                        )}
                     </div>
                 </div>
+
+                {!editingPrimary ? (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs font-mono pt-2">
+                        <div className="bg-surface-high border border-border p-3 rounded">
+                            <span className="text-text-muted block font-heading uppercase text-[10px] tracking-wider mb-1">
+                                Host Port
+                            </span>
+                            <span className="text-text-primary font-bold text-base">
+                                {primaryPort?.host_port ?? "N/A"}
+                            </span>
+                        </div>
+                        <div className="bg-surface-high border border-border p-3 rounded">
+                            <span className="text-text-muted block font-heading uppercase text-[10px] tracking-wider mb-1">
+                                Container Internal Port
+                            </span>
+                            <span className="text-text-primary font-bold text-base">
+                                {primaryPort?.container_port ?? "N/A"}
+                            </span>
+                        </div>
+                        <div className="bg-surface-high border border-border p-3 rounded">
+                            <span className="text-text-muted block font-heading uppercase text-[10px] tracking-wider mb-1">
+                                Protocol
+                            </span>
+                            <span className="text-accent font-bold text-base">
+                                {primaryPort?.protocol ?? "TCP"}
+                            </span>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="space-y-3 pt-1">
+                        {primaryError && (
+                            <div className="bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-xs flex items-center gap-2">
+                                <AlertTriangle size={14} className="shrink-0" />
+                                <span>{primaryError}</span>
+                            </div>
+                        )}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label className="block text-text-dim font-heading uppercase tracking-wider mb-1 text-xs">
+                                    Container Internal Port
+                                </label>
+                                <input
+                                    type="number"
+                                    value={editContainerPort}
+                                    onChange={(e) => setEditContainerPort(e.target.value)}
+                                    placeholder={serverType.startsWith("VELOCITY") || serverType.startsWith("BUNGEE") || serverType.startsWith("WATERFALL") ? "25577" : "25565"}
+                                    className="w-full bg-surface-high border border-border rounded px-3 py-2 text-text-primary font-mono text-xs focus:outline-none focus:border-accent"
+                                    min={1}
+                                    max={65535}
+                                />
+                                <p className="text-[11px] text-text-muted mt-1">Leave empty for default.</p>
+                            </div>
+                            <div>
+                                <label className="block text-text-dim font-heading uppercase tracking-wider mb-1 text-xs">
+                                    Protocol
+                                </label>
+                                <select
+                                    value={editProtocol}
+                                    onChange={(e) => setEditProtocol(e.target.value)}
+                                    className="w-full bg-surface-high border border-border rounded px-3 py-2 text-text-primary font-mono text-xs focus:outline-none focus:border-accent"
+                                >
+                                    <option value="TCP">TCP</option>
+                                    <option value="UDP">UDP</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="flex justify-end gap-2 pt-1">
+                            <button
+                                onClick={() => setEditingPrimary(false)}
+                                className="px-3 py-1.5 rounded border border-border text-text-dim hover:text-text-primary transition-colors font-heading text-xs font-bold uppercase tracking-wider"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={() => void handleSavePrimary()}
+                                disabled={savingPrimary}
+                                className="px-4 py-1.5 rounded bg-accent text-bg font-heading text-xs font-bold uppercase tracking-wider hover:bg-accent-bright transition-colors disabled:opacity-50"
+                            >
+                                {savingPrimary ? "Saving..." : "Save"}
+                            </button>
+                        </div>
+                    </div>
+                )}
             </div>
 
             {/* Extra Exposed Ports Section */}

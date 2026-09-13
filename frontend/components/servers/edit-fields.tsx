@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import {Pencil} from "lucide-react";
 import {SelectField, TextAreaField, TextField} from "@/components/ui/form-elements";
 
 export function EditInput(props: React.InputHTMLAttributes<HTMLInputElement>) {
@@ -25,10 +26,10 @@ export function EditFieldRow({label, children}: { label: string; children: React
 }
 
 export function SaveCancelRow({
-                                  onSave,
-                                  onCancel,
-                                  saving,
-                              }: {
+                                   onSave,
+                                   onCancel,
+                                   saving,
+                               }: {
     onSave: () => void;
     onCancel: () => void;
     saving: boolean;
@@ -48,6 +49,58 @@ export function SaveCancelRow({
             >
                 {saving ? "Saving\u2026" : "Save"}
             </button>
+        </div>
+    );
+}
+
+export function EditSection({
+                                label,
+                                editing,
+                                saving,
+                                error,
+                                onEdit,
+                                onCancel,
+                                onSave,
+                                children,
+                                className,
+                            }: {
+    label: string;
+    editing: boolean;
+    saving: boolean;
+    error: string | null;
+    onEdit: () => void;
+    onCancel: () => void;
+    onSave: () => void;
+    children: [React.ReactNode, React.ReactNode];
+    className?: string;
+}) {
+    return (
+        <div className={`bg-surface border border-border rounded p-4${className ? ` ${className}` : ""}`}>
+            <div className="flex items-center justify-between mb-3">
+                <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">
+                    {label}
+                </p>
+                {!editing && (
+                    <button
+                        onClick={onEdit}
+                        className="text-text-muted hover:text-accent transition-colors"
+                        title={`Edit ${label}`}
+                    >
+                        <Pencil size={14} strokeWidth={2}/>
+                    </button>
+                )}
+            </div>
+
+            {error && editing && (
+                <p className="text-xs text-error mb-3">{error}</p>
+            )}
+
+            {!editing ? children[0] : (
+                <>
+                    {children[1]}
+                    <SaveCancelRow onSave={onSave} onCancel={onCancel} saving={saving}/>
+                </>
+            )}
         </div>
     );
 }

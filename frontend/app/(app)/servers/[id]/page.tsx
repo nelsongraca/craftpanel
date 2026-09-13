@@ -459,7 +459,7 @@ export default function ServerDetailPage() {
                     />
                 </TabsContent>
                 <TabsContent value="Ports">
-                    <PortsTab serverId={server.id} serverType={server.server_type} />
+                    <PortsTab serverId={server.id} serverType={server.server_type} currentContainerPort={server.container_listen_port} currentProtocol={server.container_protocol} />
                 </TabsContent>
                 {!isProxy && (
                     <TabsContent value="Migration">
