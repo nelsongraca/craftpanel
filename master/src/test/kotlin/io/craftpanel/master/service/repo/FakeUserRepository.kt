@@ -18,7 +18,8 @@ class FakeUserRepository : UserRepository {
         val createdAt: String = "2025-01-01T00:00:00Z",
         var totpEnabled: Boolean = false,
         var totpSecret: String? = null,
-        var mustChangePassword: Boolean = false
+        var mustChangePassword: Boolean = false,
+        var lastLoginAt: String? = null
     )
 
     data class MutableAssignment(val id: Uuid, val userId: Uuid, val groupId: Uuid, val scopeType: String, val scopeId: Uuid?)
@@ -108,6 +109,10 @@ class FakeUserRepository : UserRepository {
         }
     }
 
-    private fun MutableUser.toRow() = UserRow(id, username, email, isActive, createdAt, totpEnabled, mustChangePassword)
+    override fun updateLastLogin(userId: Uuid) {
+        users[userId]?.lastLoginAt = "2026-04-10T08:30:00Z"
+    }
+
+    private fun MutableUser.toRow() = UserRow(id, username, email, isActive, createdAt, totpEnabled, mustChangePassword, lastLoginAt)
     private fun MutableAssignment.toRow() = AssignmentRow(id, userId, groupId, scopeType, scopeId)
 }

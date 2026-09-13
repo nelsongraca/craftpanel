@@ -210,6 +210,14 @@ class UserRepositoryImpl : UserRepository {
             }
         }
     }
+
+    override fun updateLastLogin(userId: Uuid) {
+        transaction {
+            Users.update({ Users.id eq userId }) {
+                it[lastLoginAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+            }
+        }
+    }
 }
 
 private fun ResultRow.toUserRow() = UserRow(
@@ -219,7 +227,8 @@ private fun ResultRow.toUserRow() = UserRow(
     isActive = this[Users.isActive],
     createdAt = this[Users.createdAt].toUtcString(),
     totpEnabled = this[Users.totpEnabled],
-    mustChangePassword = this[Users.mustChangePassword]
+    mustChangePassword = this[Users.mustChangePassword],
+    lastLoginAt = this[Users.lastLoginAt]?.toUtcString()
 )
 
 private fun ResultRow.toAssignmentRow() = AssignmentRow(

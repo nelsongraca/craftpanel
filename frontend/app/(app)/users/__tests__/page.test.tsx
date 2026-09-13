@@ -51,6 +51,8 @@ function user(overrides: Record<string, unknown> = {}): Record<string, unknown> 
         email: "alice@example.com",
         is_active: true,
         created_at: "2026-01-15T10:00:00Z",
+        groups: ["Server Admin"],
+        last_login_at: "2026-04-10T08:30:00Z",
         ...overrides,
     };
 }
@@ -154,13 +156,17 @@ describe("UsersPage", () => {
     });
 
     describe("User list", () => {
-        it("renders username, email, status, created date in table", async () => {
-            const u = user({username: "bob", email: "bob@test.com", created_at: "2026-03-01T00:00:00Z"});
+        it("renders username, email, status, groups, last login, created date in table", async () => {
+            const u = user({username: "bob", email: "bob@test.com", groups: ["Operator", "Viewer"], last_login_at: "2026-04-10T08:30:00Z", created_at: "2026-03-01T00:00:00Z"});
             await renderWith({users: [u]});
 
             expect(screen.getAllByText("bob").length).toBeGreaterThan(0);
             expect(screen.getAllByText("bob@test.com").length).toBeGreaterThan(0);
             expect(screen.getAllByText("Active").length).toBeGreaterThan(0);
+            expect(screen.getAllByText("Operator").length).toBeGreaterThan(0);
+            expect(screen.getAllByText("Viewer").length).toBeGreaterThan(0);
+            const loginDate = new Date("2026-04-10T08:30:00Z").toLocaleDateString();
+            expect(screen.getAllByText(loginDate).length).toBeGreaterThan(0);
             const dateStr = new Date("2026-03-01T00:00:00Z").toLocaleDateString();
             expect(screen.getAllByText(dateStr).length).toBeGreaterThan(0);
         });

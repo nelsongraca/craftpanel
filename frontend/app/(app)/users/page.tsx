@@ -39,6 +39,22 @@ const USER_COLUMNS: SmartListColumn<User>[] = [
             {u.is_active ? "Active" : "Inactive"}
         </span>
     )},
+    {key: 'groups', header: 'Groups', render: (u) => (
+        <div className="flex flex-wrap gap-1">
+            {u.groups.length === 0
+                ? <span className="text-text-muted text-xs">—</span>
+                : u.groups.map((g) => (
+                    <span key={g} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-heading font-bold uppercase tracking-wider bg-surface-higher text-text-dim border border-border">
+                        {g}
+                    </span>
+                ))}
+        </div>
+    )},
+    {key: 'last_login', header: 'Last Login', render: (u) => (
+        <span className="text-text-muted font-mono text-xs">
+            {u.last_login_at ? new Date(u.last_login_at).toLocaleDateString() : "—"}
+        </span>
+    )},
     {key: 'created', header: 'Created', render: (u) => <span className="text-text-muted font-mono text-xs">{new Date(u.created_at).toLocaleDateString()}</span>},
 ]
 

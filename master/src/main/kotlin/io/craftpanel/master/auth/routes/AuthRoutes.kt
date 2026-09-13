@@ -213,6 +213,8 @@ fun Route.authRoutes(
                     return@post
                 }
 
+                userRepository.updateLastLogin(record.userId)
+
                 if (record.totpEnabled) {
                     val fingerprint = req.deviceFingerprint
                     val cookieToken = call.request.cookies["device_trust"]
@@ -312,6 +314,8 @@ fun Route.authRoutes(
                     return@post
                 }
 
+                userRepository.updateLastLogin(userId)
+
                 if (req.trustDevice && req.deviceFingerprint != null) {
                     val userAgent = call.request.headers["User-Agent"] ?: ""
                     val rawToken = trustedDeviceService.issue(userId, req.deviceFingerprint, userAgent)
@@ -378,6 +382,8 @@ fun Route.authRoutes(
                     call.respond(HttpStatusCode.Unauthorized, ErrorResponse("Invalid recovery code"))
                     return@post
                 }
+
+                userRepository.updateLastLogin(userId)
 
                 val groups = userRepository.getUserGlobalGroups(userId)
                     .map { it.groupName }

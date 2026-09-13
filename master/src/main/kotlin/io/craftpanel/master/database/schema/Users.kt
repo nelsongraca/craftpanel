@@ -14,4 +14,5 @@ object Users : UuidTable("users") {
     val totpEnabled = bool("totp_enabled").default(false)
     val mustChangePassword = bool("must_change_password").default(false)
     val createdAt = datetime("created_at").defaultExpression(CurrentDateTime)
+    val lastLoginAt = datetime("last_login_at").nullable()
 }

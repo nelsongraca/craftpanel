@@ -44,6 +44,8 @@ data class UserResponse(
     @SerialName("is_active") val isActive: Boolean,
     @SerialName("created_at") val createdAt: String,
     @SerialName("must_change_password") val mustChangePassword: Boolean = false,
+    val groups: List<String> = emptyList(),
+    @SerialName("last_login_at") val lastLoginAt: String? = null,
 )
 
 @Serializable
@@ -54,7 +56,7 @@ class UserService(private val userRepository: UserRepository) {
     fun listUsers(): UsersListResponse =
         UsersListResponse(
             userRepository.listAll()
-                .map { it.toResponse() })
+                .map { it.toResponse(userRepository) })
 
     fun createUser(req: CreateUserRequest): UserResponse {
         val hash = Argon2Hasher.hash(req.password)
@@ -79,12 +81,12 @@ class UserService(private val userRepository: UserRepository) {
                 createdAt = row[Users.createdAt].toUtcString(),
                 mustChangePassword = row[Users.mustChangePassword]
             )
-        }.toResponse()
+        }.toResponse(userRepository)
     }
 
     fun getUser(targetId: Uuid): UserResponse =
         userRepository.findById(targetId)
-            ?.toResponse() ?: throw NotFoundException("User not found")
+            ?.toResponse(userRepository) ?: throw NotFoundException("User not found")
 
     fun updateUser(targetId: Uuid, req: PatchUserRequest): UserResponse {
         userRepository.findById(targetId) ?: throw NotFoundException("User not found")
@@ -103,7 +105,7 @@ class UserService(private val userRepository: UserRepository) {
                 }
         }
         return userRepository.findById(targetId)!!
-            .toResponse()
+            .toResponse(userRepository)
     }
 
     fun deleteUser(targetId: Uuid) {
@@ -129,11 +131,13 @@ class UserService(private val userRepository: UserRepository) {
     }
 }
 
-private fun UserRow.toResponse() = UserResponse(
+private fun UserRow.toResponse(repo: UserRepository) = UserResponse(
     id = id.toString(),
     username = username,
     email = email,
     isActive = isActive,
     createdAt = createdAt,
     mustChangePassword = mustChangePassword,
+    groups = repo.getUserGlobalGroups(id).map { it.groupName },
+    lastLoginAt = lastLoginAt,
 )
