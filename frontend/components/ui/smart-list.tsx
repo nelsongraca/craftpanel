@@ -2,6 +2,7 @@ import type {MouseEvent, ReactNode} from "react";
 import {Fragment} from "react";
 import {ListTh, ListTd, ListActions} from "./list-table";
 import {Skeleton} from "./skeleton";
+import {Empty, EmptyDescription} from "./empty";
 
 // Shared list module.
 //
@@ -191,7 +192,9 @@ export function SmartList<T>({
             )}
 
             {showEmpty && (
-                <p className="px-4 py-8 text-center text-xs text-text-muted">{empty}</p>
+                <Empty>
+                    <EmptyDescription>{empty}</EmptyDescription>
+                </Empty>
             )}
 
             {showList && (

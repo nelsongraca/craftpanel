@@ -4,6 +4,7 @@ import {useCallback, useEffect, useState} from "react";
 import {Clock, Download, Play, RefreshCw, Trash2} from "lucide-react";
 import {deleteBackup, downloadBackup, getBackupSchedule, listBackups, triggerBackup, updateBackupSchedule,} from "@/lib/generated/sdk.gen";
 import type {BackupResponse as Backup, BackupScheduleResponse as Schedule,} from "@/lib/generated/types.gen";
+import {Empty, EmptyDescription} from "@/components/ui/empty";
 import {fmtBytes} from "@/lib/utils/format";
 import {useWs} from "@/lib/ws-context";
 
@@ -244,9 +245,9 @@ export function BackupsTab({serverId}: { serverId: string }) {
 
             {/* Backup list */}
             {backups.length === 0 ? (
-                <div className="text-center text-text-muted text-sm py-8 border border-border rounded-lg bg-surface">
-                    No backups yet
-                </div>
+                <Empty>
+                    <EmptyDescription>No backups yet</EmptyDescription>
+                </Empty>
             ) : (
                 <div className="space-y-2">
                     {backups.map((backup) => (

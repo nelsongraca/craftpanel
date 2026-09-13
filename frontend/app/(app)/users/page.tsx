@@ -79,7 +79,7 @@ function CreateUserModal({onClose, onDone}: { onClose: () => void; onDone: () =>
                         type="checkbox"
                         checked={form.forcePasswordChange}
                         onChange={(e) => setForm((f) => ({...f, forcePasswordChange: e.target.checked}))}
-                        className="accent-amber-500"
+                        className="accent-accent"
                     />
                     <span className="text-sm text-text-dim">Require password change on next login</span>
                 </label>
@@ -135,7 +135,7 @@ function EditUserModal({user, onClose, onDone}: { user: User; onClose: () => voi
                             type="checkbox"
                             checked={form.isActive}
                             onChange={(e) => setForm((f) => ({...f, isActive: e.target.checked}))}
-                            className="accent-amber-500"
+                            className="accent-accent"
                         />
                         <span className="text-sm text-text-dim">User is active</span>
                     </label>
@@ -196,7 +196,7 @@ function ResetPasswordModal({user, onClose, onDone}: { user: User; onClose: () =
                         type="checkbox"
                         checked={forcePasswordChange}
                         onChange={(e) => setForcePasswordChange(e.target.checked)}
-                        className="accent-amber-500"
+                        className="accent-accent"
                     />
                     <span className="text-sm text-text-dim">Require password change on next login</span>
                 </label>

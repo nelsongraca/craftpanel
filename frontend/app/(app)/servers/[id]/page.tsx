@@ -12,6 +12,7 @@ import {useWs} from "@/lib/ws-context";
 import {serverDisabled, serverExpired, serverStatusLabel, serverStatusVariant} from "@/lib/status";
 import {Badge} from "@/components/ui/badge";
 import {Skeleton} from "@/components/ui/skeleton";
+import {Empty, EmptyDescription} from "@/components/ui/empty";
 import {ConsoleTab} from "./console-tab";
 import {FilesTab} from "./files-tab";
 import {BackupsTab} from "./backups-tab";
@@ -191,12 +192,12 @@ export default function ServerDetailPage() {
 
     if (notFound || !server) {
         return (
-            <div className="px-6 py-10 text-center text-text-muted text-sm">
-                Server not found.{" "}
-                <Link href="/servers" className="text-accent hover:underline">
-                    Back to servers
-                </Link>
-            </div>
+            <Empty className="min-h-[200px]">
+                        <EmptyDescription>
+                            Server not found.{" "}
+                            <Link href="/servers" className="text-accent hover:underline">Back to servers</Link>
+                        </EmptyDescription>
+                    </Empty>
         );
     }
 
@@ -463,7 +464,7 @@ export default function ServerDetailPage() {
                 </TabsContent>
                 {!isProxy && (
                     <TabsContent value="Migration">
-                        <div className="px-6 py-4">
+                        <div className="px-6 py-6">
                             <MigrationTab
                                 serverId={server.id}
                                 nodeId={server.node_id}

@@ -11,8 +11,9 @@ import {useResourceList} from "@/lib/hooks/useResourceList";
 import {useWs} from "@/lib/ws-context";
 import {timeAgo} from "@/lib/utils/format";
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter} from "@/components/ui/dialog";
-import {SelectField} from "@/components/ui/form-elements";
+import {SelectField, BTN_PRIMARY} from "@/components/ui/form-elements";
 import {SmartList, type SmartListColumn} from "@/components/ui/smart-list";
+import PageHeader from "@/app/components/PageHeader";
 
 async function loadThresholds() {
     const {data} = await listAlertThresholds();
@@ -333,17 +334,10 @@ export default function AlertsPage() {
     const displayedEvents = activeOnly ? events.filter((e) => !e.resolved_at) : events;
 
     return (
-        <div className="px-6 py-6 space-y-8">
-            {/* Header */}
-            <div>
-                <h1 className="text-[22px] font-heading font-bold uppercase tracking-wide text-text-primary leading-none mb-1">
-                    Alerts
-                </h1>
-                <p className="text-xs text-text-muted">
-                    Configure metric thresholds and view fired alert events.
-                </p>
-            </div>
+        <div>
+            <PageHeader title="Alerts" subtitle="Configure metric thresholds and view fired alert events." />
 
+            <div className="p-6 space-y-8">
             {deleteError && (
                 <div className="flex items-center justify-between bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-xs">
                     <span>{deleteError}</span>
@@ -367,7 +361,7 @@ export default function AlertsPage() {
                             canManage && (
                                 <button
                                     onClick={() => setShowCreate(true)}
-                                    className="flex items-center gap-1.5 px-3 py-1.5 rounded border border-accent/50 text-accent text-xs font-heading font-bold uppercase tracking-wider hover:bg-accent/10 transition-colors"
+                                    className={BTN_PRIMARY + " flex items-center gap-1.5"}
                                 >
                                     <Plus size={11} strokeWidth={2.5}/>
                                     New Threshold
@@ -417,6 +411,8 @@ export default function AlertsPage() {
                     />
                 }
             />
+
+            </div>
 
             {showCreate && (
                 <CreateThresholdModal

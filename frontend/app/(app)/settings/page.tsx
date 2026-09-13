@@ -6,6 +6,7 @@ import PageHeader from "@/app/components/PageHeader";
 import {getSystemSettings, updateSystemSettings} from "@/lib/generated/sdk.gen";
 import type {SettingsMap} from "@/lib/types";
 import {BTN_PRIMARY, BTN_GHOST, Field, TextField} from "@/components/ui/form-elements";
+import {Skeleton} from "@/components/ui/skeleton";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import {resetBrandingCache} from "@/lib/config";
@@ -159,7 +160,11 @@ export default function SettingsPage() {
 
             <div className="p-6">
                 {loading ? (
-                    <div className="text-xs text-text-muted">Loading…</div>
+                    <div className="space-y-3" data-testid="settings-loading">
+                        <Skeleton className="h-4 w-48 bg-surface" />
+                        <Skeleton className="h-32 w-full bg-surface rounded" />
+                        <Skeleton className="h-4 w-36 bg-surface" />
+                    </div>
                 ) : form ? (
                     <form onSubmit={handleSubmit} className="max-w-4xl space-y-8">
 

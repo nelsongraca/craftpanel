@@ -115,7 +115,7 @@ function GroupForm({
                                             type="checkbox"
                                             checked={permissions.has(node)}
                                             onChange={() => togglePerm(node)}
-                                            className="accent-amber-500 shrink-0"
+                                            className="accent-accent shrink-0"
                                         />
                                         <span className="text-xs font-mono text-text-dim group-hover:text-text-primary transition-colors truncate">
                       {node}

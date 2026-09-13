@@ -6,6 +6,7 @@ import {addMod, checkModCompatibility, deleteMod, listMods, searchMods, updateMo
 import type {ModResponse as Mod} from "@/lib/generated/types.gen";
 import {SelectField} from "@/components/ui/form-elements";
 import {McVersionSelect} from "@/components/ui/mc-version";
+import {Empty, EmptyDescription} from "@/components/ui/empty";
 
 type PinStrategy = "LATEST" | "PINNED" | "BETA" | "ALPHA";
 
@@ -485,9 +486,9 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
 
             {/* Mod list */}
             {mods.length === 0 ? (
-                <div className="text-center text-text-muted text-sm py-8 border border-border rounded-lg bg-surface">
-                    No {itemLabel}s installed
-                </div>
+                <Empty>
+                    <EmptyDescription>No {itemLabel}s installed</EmptyDescription>
+                </Empty>
             ) : (
                 <div className="space-y-2">
                     {mods.map((mod) => (

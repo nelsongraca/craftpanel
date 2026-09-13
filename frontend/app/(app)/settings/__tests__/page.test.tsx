@@ -82,7 +82,7 @@ async function renderWith(mocks: { settings?: typeof defaultSettings; permission
     mockAuth.useAuth.mockReturnValue({user: {permissions: p}});
     vi.mocked(getSystemSettings).mockResolvedValue({data: s} as never);
     const ui = render(<SettingsPage/>);
-    await waitFor(() => expect(screen.queryByText("Loading…")).toBeNull());
+    await waitFor(() => expect(screen.queryByTestId("settings-loading")).toBeNull());
     return ui;
 }
 
@@ -96,7 +96,7 @@ describe("SettingsPage", () => {
         const d = deferred<{ data: typeof defaultSettings }>();
         vi.mocked(getSystemSettings).mockReturnValue(d.promise as never);
         render(<SettingsPage/>);
-        expect(screen.getByText("Loading…")).toBeTruthy();
+        expect(screen.getByTestId("settings-loading")).toBeTruthy();
         d.resolve({data: defaultSettings});
     });
 

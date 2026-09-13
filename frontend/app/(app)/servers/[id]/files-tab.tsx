@@ -3,6 +3,7 @@
 import {useCallback, useEffect, useRef, useState} from "react";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {usePromptDialog} from "@/lib/hooks/usePromptDialog";
+import {Empty, EmptyDescription} from "@/components/ui/empty";
 import {deleteServerFile, downloadServerFile, listServerFiles, mkdirServerFile, moveServerFile, readServerFile, uploadServerFile, writeServerFile,} from "@/lib/generated/sdk.gen";
 import {ChevronDown, ChevronRight, Download, File, Folder, FolderPlus, Pencil, Save, Trash2, Upload, X} from "lucide-react";
 
@@ -398,9 +399,9 @@ export function FilesTab({serverId}: Props) {
                             </div>
                         </>
                     ) : (
-                        <div className="flex-1 flex items-center justify-center">
-                            <p className="text-text-muted text-xs">Select a file to edit</p>
-                        </div>
+                        <Empty className="flex-1">
+                            <EmptyDescription>Select a file to edit</EmptyDescription>
+                        </Empty>
                     )}
                 </div>
             </div>

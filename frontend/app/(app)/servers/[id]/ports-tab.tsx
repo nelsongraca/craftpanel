@@ -6,6 +6,8 @@ import { getServerPorts, addServerExtraPort, deleteServerExtraPort, updateServer
 import type { ServerPortsResponse, ServerExtraPortResponse } from "@/lib/generated/types.gen";
 import { Badge } from "@/components/ui/badge";
 import { useConfirmDialog } from "@/lib/hooks/useConfirmDialog";
+import { Modal } from "@/components/ui/form-elements";
+import {Empty, EmptyDescription, EmptyMedia} from "@/components/ui/empty";
 
 export function PortsTab({
     serverId,
@@ -308,10 +310,10 @@ export function PortsTab({
                 </div>
 
                 {extraPorts.length === 0 ? (
-                    <div className="text-center py-8 text-text-muted border border-dashed border-border rounded">
-                        <Radio size={24} className="mx-auto mb-2 opacity-50" />
-                        <p className="text-xs">No extra ports exposed for this server.</p>
-                    </div>
+                    <Empty>
+                            <EmptyMedia variant="icon"><Radio size={20} /></EmptyMedia>
+                            <EmptyDescription>No extra ports exposed for this server.</EmptyDescription>
+                        </Empty>
                 ) : (
                     <div className="overflow-x-auto border border-border rounded">
                         <table className="w-full text-left text-xs font-mono">
@@ -356,95 +358,81 @@ export function PortsTab({
 
             {/* Add Extra Port Modal */}
             {showAddModal && (
-                <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-                    <div className="bg-surface border border-border rounded-lg max-w-md w-full p-6 space-y-4 shadow-2xl">
-                        <div className="flex items-center justify-between border-b border-border pb-3">
-                            <h3 className="text-sm font-heading font-bold uppercase tracking-wider text-text-primary">
-                                Add Extra Port
-                            </h3>
-                            <button
-                                onClick={() => setShowAddModal(false)}
-                                className="text-text-muted hover:text-text-primary text-xs"
-                            >
-                                ✕
-                            </button>
+                <Modal title="Add Extra Port" onClose={() => setShowAddModal(false)}>
+                    {formError && (
+                        <div className="bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-xs flex items-center gap-2 mb-4">
+                            <AlertTriangle size={14} className="shrink-0" />
+                            <span>{formError}</span>
+                        </div>
+                    )}
+
+                    <form onSubmit={handleAddPort} className="space-y-4 text-xs">
+                        <div>
+                            <label className="block text-text-dim font-heading uppercase tracking-wider mb-1">
+                                Name / Purpose
+                            </label>
+                            <input
+                                type="text"
+                                placeholder="e.g. Dynmap, Geyser, Votifier"
+                                value={formName}
+                                onChange={(e) => setFormName(e.target.value)}
+                                className="w-full bg-surface-high border border-border rounded px-3 py-2 text-text-primary focus:outline-none focus:border-accent"
+                                required
+                            />
                         </div>
 
-                        {formError && (
-                            <div className="bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-xs flex items-center gap-2">
-                                <AlertTriangle size={14} className="shrink-0" />
-                                <span>{formError}</span>
-                            </div>
-                        )}
+                        <div>
+                            <label className="block text-text-dim font-heading uppercase tracking-wider mb-1">
+                                Container Internal Port
+                            </label>
+                            <input
+                                type="number"
+                                placeholder="e.g. 8123, 19132"
+                                value={formContainerPort}
+                                onChange={(e) => setFormContainerPort(e.target.value)}
+                                className="w-full bg-surface-high border border-border rounded px-3 py-2 text-text-primary font-mono focus:outline-none focus:border-accent"
+                                required
+                                min={1}
+                                max={65535}
+                            />
+                        </div>
 
-                        <form onSubmit={handleAddPort} className="space-y-4 text-xs">
-                            <div>
-                                <label className="block text-text-dim font-heading uppercase tracking-wider mb-1">
-                                    Name / Purpose
-                                </label>
-                                <input
-                                    type="text"
-                                    placeholder="e.g. Dynmap, Geyser, Votifier"
-                                    value={formName}
-                                    onChange={(e) => setFormName(e.target.value)}
-                                    className="w-full bg-surface-high border border-border rounded px-3 py-2 text-text-primary focus:outline-none focus:border-accent"
-                                    required
-                                />
-                            </div>
+                        <div>
+                            <label className="block text-text-dim font-heading uppercase tracking-wider mb-1">
+                                Protocol
+                            </label>
+                            <select
+                                value={formProtocol}
+                                onChange={(e) => setFormProtocol(e.target.value)}
+                                className="w-full bg-surface-high border border-border rounded px-3 py-2 text-text-primary font-mono focus:outline-none focus:border-accent"
+                            >
+                                <option value="TCP">TCP (Dynmap, BlueMap HTTP, Votifier)</option>
+                                <option value="UDP">UDP (Geyser Bedrock, Query)</option>
+                            </select>
+                        </div>
 
-                            <div>
-                                <label className="block text-text-dim font-heading uppercase tracking-wider mb-1">
-                                    Container Internal Port
-                                </label>
-                                <input
-                                    type="number"
-                                    placeholder="e.g. 8123, 19132"
-                                    value={formContainerPort}
-                                    onChange={(e) => setFormContainerPort(e.target.value)}
-                                    className="w-full bg-surface-high border border-border rounded px-3 py-2 text-text-primary font-mono focus:outline-none focus:border-accent"
-                                    required
-                                    min={1}
-                                    max={65535}
-                                />
-                            </div>
+                        <p className="text-[11px] text-text-muted">
+                            A free host port will be automatically allocated from node port range.
+                        </p>
 
-                            <div>
-                                <label className="block text-text-dim font-heading uppercase tracking-wider mb-1">
-                                    Protocol
-                                </label>
-                                <select
-                                    value={formProtocol}
-                                    onChange={(e) => setFormProtocol(e.target.value)}
-                                    className="w-full bg-surface-high border border-border rounded px-3 py-2 text-text-primary font-mono focus:outline-none focus:border-accent"
-                                >
-                                    <option value="TCP">TCP (Dynmap, BlueMap HTTP, Votifier)</option>
-                                    <option value="UDP">UDP (Geyser Bedrock, Query)</option>
-                                </select>
-                            </div>
-
-                            <p className="text-[11px] text-text-muted">
-                                A free host port will be automatically allocated from node port range.
-                            </p>
-
-                            <div className="flex justify-end gap-2 pt-2">
-                                <button
-                                    type="button"
-                                    onClick={() => setShowAddModal(false)}
-                                    className="px-3 py-1.5 rounded border border-border text-text-dim hover:text-text-primary transition-colors font-heading text-xs font-bold uppercase tracking-wider"
-                                >
-                                    Cancel
-                                </button>
-                                <button
-                                    type="submit"
-                                    disabled={submitting}
-                                    className="px-4 py-1.5 rounded bg-accent text-bg font-heading text-xs font-bold uppercase tracking-wider hover:bg-accent-bright transition-colors disabled:opacity-50"
-                                >
-                                    {submitting ? "Adding..." : "Add Port"}
-                                </button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
+                        <div className="flex justify-end gap-2 pt-2">
+                            <button
+                                type="button"
+                                onClick={() => setShowAddModal(false)}
+                                className="px-3 py-1.5 rounded border border-border text-text-dim hover:text-text-primary transition-colors font-heading text-xs font-bold uppercase tracking-wider"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={submitting}
+                                className="px-4 py-1.5 rounded bg-accent text-bg font-heading text-xs font-bold uppercase tracking-wider hover:bg-accent-bright transition-colors disabled:opacity-50"
+                            >
+                                {submitting ? "Adding..." : "Add Port"}
+                            </button>
+                        </div>
+                    </form>
+                </Modal>
             )}
         </div>
     );

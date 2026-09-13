@@ -8,6 +8,7 @@ import PageHeader from "@/app/components/PageHeader";
 import {listNodes, listServers} from "@/lib/generated/sdk.gen";
 import type {Node, Server} from "@/lib/types";
 import {timeAgo} from "@/lib/utils/format";
+import {Empty, EmptyDescription} from "@/components/ui/empty";
 import {nodeStatusLabel, nodeStatusVariant, serverStatusLabel, serverStatusVariant} from "@/lib/status";
 import {Badge} from "@/components/ui/badge";
 
@@ -104,7 +105,7 @@ export default function Dashboard() {
                         {loading ? (
                             <div className="p-6 text-xs text-text-muted">Loading…</div>
                         ) : nodes.length === 0 ? (
-                            <div className="p-6 text-xs text-text-muted">No nodes registered.</div>
+                            <Empty><EmptyDescription>No nodes registered.</EmptyDescription></Empty>
                         ) : (
                             <div className="overflow-x-auto">
                             <table className="w-full text-xs">
@@ -153,7 +154,7 @@ export default function Dashboard() {
                         {loading ? (
                             <div className="p-6 text-xs text-text-muted">Loading…</div>
                         ) : recentServers.length === 0 ? (
-                            <div className="p-6 text-xs text-text-muted">No servers found.</div>
+                            <Empty><EmptyDescription>No servers found.</EmptyDescription></Empty>
                         ) : (
                             <ul className="divide-y divide-border/50">
                                 {recentServers.map((s) => (
