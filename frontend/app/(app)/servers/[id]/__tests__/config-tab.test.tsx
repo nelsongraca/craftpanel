@@ -119,6 +119,8 @@ async function renderProxyServer(
     vi.mocked(updateStopCommand).mockResolvedValue({ data: {} } as never)
     vi.mocked(getProxySettings).mockResolvedValue({ data: { motd: null, max_players: null, forwarding_mode: null } } as never)
     vi.mocked(updateProxySettings).mockResolvedValue({ data: { motd: null, max_players: null, forwarding_mode: null } } as never)
+    vi.mocked(getEnvVars).mockResolvedValue({ data: { env_vars: [] } } as never)
+    vi.mocked(replaceEnvVars).mockResolvedValue({ data: {} } as never)
     render(
         <ConfigTab
             serverId="p1"
