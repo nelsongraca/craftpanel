@@ -195,7 +195,7 @@ class ContainerLifecycle(
             val heapMb = server.memoryMb * 75 / 100
             put("MEMORY", "${heapMb}M")
             if (modrinthProjects.isNotEmpty()) put("MODRINTH_PROJECTS", modrinthProjects)
-            if (isProxy) put("PATCH_DEFINITIONS", "/server/craftpanel-patch.json")
+            if (isProxy && !isManual) put("PATCH_DEFINITIONS", "/server/craftpanel-patch.json")
             if (isCustom) {
                 val jar = server.customServerJar
                 if (!jar.isNullOrBlank()) put("CUSTOM_SERVER", jar)
