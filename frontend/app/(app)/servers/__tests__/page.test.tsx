@@ -30,7 +30,7 @@ vi.mock("@/app/components/PageHeader", () => ({
 
 import {
     listServers, listNodes, listNetworks,
-    startServer, stopServer, restartServer, deleteServer, importServer,
+    startServer, stopServer, restartServer, deleteServer,
 } from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import ServersPage from "../page";

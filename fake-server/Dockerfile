@@ -4,8 +4,8 @@ FROM itzg/mc-monitor:latest AS mc-monitor
 # parser (see ProxySettingsTest). Fetched from its own GitHub release, not the full
 # itzg/mc-proxy image, and checksum-verified. Pin the version — do not use a moving tag.
 FROM alpine:3.22 AS mc-image-helper
-ARG MC_IMAGE_HELPER_VERSION=1.63.0
-ARG MC_IMAGE_HELPER_SHA256=e5c6f74e51630206324b2dbc58239eb1a8adca66d515a92d633a72f0972691ef
+ARG MC_IMAGE_HELPER_VERSION=1.69.0
+ARG MC_IMAGE_HELPER_SHA256=45a6ec1aeb5a4b1d5bb288298f1aea44de019153e0fd1e623d7a9410943bdba0
 RUN apk add --no-cache curl && \
     curl -fsSL -o /tmp/mc-image-helper.tgz \
         "https://github.com/itzg/mc-image-helper/releases/download/${MC_IMAGE_HELPER_VERSION}/mc-image-helper-${MC_IMAGE_HELPER_VERSION}.tgz" && \

@@ -28,7 +28,7 @@ vi.mock("@/lib/auth-context", () => ({
     useAuth: vi.fn(() => ({user: {permissions: ["*"]}})),
 }));
 
-import {listNetworks, createNetwork, updateNetwork, deleteNetwork, exportNetwork, importNetwork, listNodes} from "@/lib/generated/sdk.gen";
+import {listNetworks, createNetwork, updateNetwork, deleteNetwork, exportNetwork} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import type {ErrorResponse, NetworkResponse} from "@/lib/generated/types.gen";
 import NetworksPage from "../page";

@@ -1,6 +1,6 @@
 "use client";
 
-import {useEffect, useMemo, useRef, useState} from "react";
+import {useEffect, useMemo, useState} from "react";
 import {useRouter} from "next/navigation";
 import Link from "next/link";
 import {CopyPlus, Play, Plus, RotateCcw, Skull, Square, Trash2, Upload, X} from "lucide-react";
@@ -18,7 +18,7 @@ import {fillColor} from "@/lib/utils/format";
 import {serverDisabled, serverExpired, serverStatusLabel, serverStatusVariant} from "@/lib/status";
 import {Badge} from "@/components/ui/badge";
 import {SelectField} from "@/components/ui/form-elements";
-import {BTN_GHOST, BTN_PRIMARY, Modal, Field, TextField} from "@/components/ui/form-elements";
+import {BTN_GHOST, BTN_PRIMARY, Modal, Field} from "@/components/ui/form-elements";
 
 // Filter option → backend statuses that match
 const FILTER_MATCHES: Record<string, string[]> = {

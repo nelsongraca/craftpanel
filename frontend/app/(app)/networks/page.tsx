@@ -5,6 +5,7 @@ import {Download, Pencil, Plus, Trash2, Upload} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
 import {createNetwork, deleteNetwork, exportNetwork, importNetwork, listNetworks, listNodes, updateNetwork} from "@/lib/generated/sdk.gen";
 import type {Network, Node} from "@/lib/types";
+import type {ServerExportData, NetworkExportData} from "@/lib/generated/types.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission, networkPermissions} from "@/lib/permissions";
 import {useResourceList} from "@/lib/hooks/useResourceList";
@@ -95,7 +96,7 @@ export default function NetworksPage() {
     const [nodes, setNodes] = useState<Node[]>([]);
     const importFileRef = useRef<HTMLInputElement>(null);
     const [importData, setImportData] = useState<{ name: string; serverCount: number } | null>(null);
-    const [importRaw, setImportRaw] = useState<any>(null);
+    const [importRaw, setImportRaw] = useState<NetworkExportData | null>(null);
     const [importNodeAssignments, setImportNodeAssignments] = useState<Record<string, string>>({});
     const [importError, setImportError] = useState("");
     const [importing, setImporting] = useState(false);
@@ -315,10 +316,10 @@ export default function NetworksPage() {
                                     )}
                                 </p>
 
-                                {importRaw?.servers?.length > 0 && nodes.length > 0 && (
+                                {importRaw?.servers && importRaw.servers.length > 0 && nodes.length > 0 && (
                                     <div className="space-y-2">
                                         <p className="text-xs text-text-muted font-heading font-bold uppercase tracking-wider">Assign Nodes</p>
-                                        {importRaw.servers.map((s: any) => (
+                                        {importRaw.servers.map((s: ServerExportData) => (
                                             <div key={s.name} className="flex items-center gap-2">
                                                 <span className="text-xs text-text-primary w-32 truncate">{s.display_name ?? s.name}</span>
                                                 <SelectField
@@ -343,7 +344,7 @@ export default function NetworksPage() {
                                 {importError && <p className="text-xs text-error">{importError}</p>}
                                 <div className="flex justify-end gap-2 pt-1">
                                     <button className={BTN_GHOST} onClick={() => setShowImport(false)}>Cancel</button>
-                                    <button className={BTN_PRIMARY} disabled={importing || (importRaw?.servers?.length > 0 && Object.keys(importNodeAssignments).length < importRaw.servers.length)} onClick={doImport}>
+                                    <button className={BTN_PRIMARY} disabled={importing || (importRaw?.servers ? importRaw.servers.length > 0 && Object.keys(importNodeAssignments).length < importRaw.servers.length : false)} onClick={doImport}>
                                         {importing ? "Importing…" : "Import"}
                                     </button>
                                 </div>
