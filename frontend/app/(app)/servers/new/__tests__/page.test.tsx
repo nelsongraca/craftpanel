@@ -202,12 +202,12 @@ describe("NewServerPage", () => {
         });
     });
 
-    it("hides version selector for proxy types", async () => {
+    it("shows version selector for proxy types", async () => {
         await renderWith();
         const user = userEvent.setup();
         const serverTypeSelect = screen.getAllByRole("combobox")[0];
         await selectComboboxOption(user, serverTypeSelect, "VELOCITY");
-        expect(screen.queryByText("Minecraft Version")).toBeNull();
+        expect(screen.getByText("Minecraft Version")).toBeTruthy();
     });
 
     it("renders network options", async () => {
