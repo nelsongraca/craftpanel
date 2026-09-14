@@ -152,7 +152,7 @@ class NodeStateReconciler(
 
 fun mapContainerState(runState: ContainerState.RunState, dbStatus: ServerStatus): ServerStatus? = when {
     runState == ContainerState.RunState.RUNNING && dbStatus != ServerStatus.HEALTHY && dbStatus != ServerStatus.STOPPING -> ServerStatus.HEALTHY
-    runState == ContainerState.RunState.STOPPED && dbStatus.isRunning                                                    -> ServerStatus.STOPPED
+runState == ContainerState.RunState.STOPPED && (dbStatus.isRunning || dbStatus == ServerStatus.STOPPING) -> ServerStatus.STOPPED
     runState == ContainerState.RunState.EXITED && dbStatus == ServerStatus.STOPPING                                      -> ServerStatus.STOPPED
     runState == ContainerState.RunState.EXITED && dbStatus != ServerStatus.UNHEALTHY                                     -> ServerStatus.UNHEALTHY
     else                                                                                                                 -> null

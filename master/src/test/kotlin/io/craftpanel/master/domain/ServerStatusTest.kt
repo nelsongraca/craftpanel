@@ -54,15 +54,15 @@ class ServerStatusTest :
             mapContainerState(ContainerState.RunState.RUNNING, ServerStatus.HEALTHY) shouldBe null
         }
 
-        test("STOPPED container when isRunning → STOPPED") {
+        test("STOPPED container when isRunning or STOPPING → STOPPED") {
             listOf(ServerStatus.HEALTHY, ServerStatus.STARTING, ServerStatus.UNHEALTHY).forEach { db ->
                 mapContainerState(ContainerState.RunState.STOPPED, db) shouldBe ServerStatus.STOPPED
             }
+            mapContainerState(ContainerState.RunState.STOPPED, ServerStatus.STOPPING) shouldBe ServerStatus.STOPPED
         }
 
-        test("STOPPED container when already STOPPED or STOPPING → null") {
+        test("STOPPED container when already STOPPED → null") {
             mapContainerState(ContainerState.RunState.STOPPED, ServerStatus.STOPPED) shouldBe null
-            mapContainerState(ContainerState.RunState.STOPPED, ServerStatus.STOPPING) shouldBe null
         }
 
         test("EXITED container when STOPPING → STOPPED (stop completed)") {
