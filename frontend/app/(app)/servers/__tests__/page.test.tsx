@@ -11,6 +11,7 @@ vi.mock("@/lib/generated/sdk.gen", () => ({
     restartServer: vi.fn(),
     forceStopServer: vi.fn(),
     deleteServer: vi.fn(),
+    importServer: vi.fn(),
 }));
 
 vi.mock("@/lib/auth-context", () => ({
@@ -29,7 +30,7 @@ vi.mock("@/app/components/PageHeader", () => ({
 
 import {
     listServers, listNodes, listNetworks,
-    startServer, stopServer, restartServer, deleteServer,
+    startServer, stopServer, restartServer, deleteServer, importServer,
 } from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import ServersPage from "../page";
@@ -638,6 +639,52 @@ describe("ServersPage", () => {
             await renderWith({servers: [s]});
 
             expect(screen.getAllByText("Disabled").length).toBeGreaterThan(0);
+        });
+    });
+
+    describe("Import button", () => {
+        it("shows Import button with server.create permission", async () => {
+            await renderWith({servers: [], permissions: ["server.create"]});
+            expect(screen.getByText("Import")).toBeInTheDocument();
+        });
+
+        it("hides Import button without server.create permission", async () => {
+            await renderWith({servers: [], permissions: []});
+            expect(screen.queryByText("Import")).not.toBeInTheDocument();
+        });
+
+        it("Import button opens import modal", async () => {
+            await renderWith({servers: [], permissions: ["server.create"]});
+            const user = userEvent.setup();
+            await user.click(screen.getByText("Import"));
+
+            await waitFor(() => {
+                expect(screen.getByText("Import Server")).toBeInTheDocument();
+            });
+        });
+
+        it("import modal shows file input and node selector", async () => {
+            await renderWith({servers: [], permissions: ["server.create"], nodes: [node()]});
+            const user = userEvent.setup();
+
+            await user.click(screen.getByText("Import"));
+
+            await waitFor(() => {
+                expect(screen.getByText("Import Server")).toBeInTheDocument();
+            });
+
+            const fileInput = document.querySelector('input[type="file"]');
+            expect(fileInput).toBeInTheDocument();
+
+            const file = new File(['{"test": true}'], "server.json", {type: "application/json"});
+            await user.upload(fileInput!, file);
+
+            await waitFor(() => {
+                expect(screen.getByText("Destination Node")).toBeInTheDocument();
+            });
+
+            const nodeSelect = screen.getByRole("combobox", {name: "Destination Node"});
+            expect(nodeSelect).toBeInTheDocument();
         });
     });
 });

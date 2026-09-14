@@ -12,6 +12,7 @@ vi.mock("@/lib/generated/sdk.gen", () => ({
     restartServer: vi.fn(),
     forceStopServer: vi.fn(),
     deleteServer: vi.fn(),
+    exportServer: vi.fn(),
 }));
 
 vi.mock("@/lib/auth-context", () => ({
@@ -188,6 +189,32 @@ describe("ServerDetailPage", () => {
             await waitFor(() => {
                 expect(startServer).toHaveBeenCalledWith({path: {id: "s1"}});
             });
+        });
+    });
+
+    describe("Export button", () => {
+        it("shows Export button in overflow menu with server.export permission", async () => {
+            await renderDetail(
+                {status: "STOPPED"},
+                ["server.migrate", "server.export", "server.create"],
+            );
+
+            const user = userEvent.setup();
+            await user.click(screen.getByRole("button"));
+
+            expect(screen.getByText("Export")).toBeInTheDocument();
+        });
+
+        it("hides Export button without server.export permission", async () => {
+            await renderDetail(
+                {status: "STOPPED"},
+                ["server.migrate"],
+            );
+
+            const user = userEvent.setup();
+            await user.click(screen.getByRole("button"));
+
+            expect(screen.queryByText("Export")).not.toBeInTheDocument();
         });
     });
 });

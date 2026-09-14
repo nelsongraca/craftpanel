@@ -7,6 +7,9 @@ vi.mock("@/lib/generated/sdk.gen", () => ({
     createNetwork: vi.fn(),
     updateNetwork: vi.fn(),
     deleteNetwork: vi.fn(),
+    exportNetwork: vi.fn(),
+    importNetwork: vi.fn(),
+    listNodes: vi.fn(),
 }));
 
 vi.mock("@/app/components/PageHeader", () => ({
@@ -25,7 +28,7 @@ vi.mock("@/lib/auth-context", () => ({
     useAuth: vi.fn(() => ({user: {permissions: ["*"]}})),
 }));
 
-import {listNetworks, createNetwork, updateNetwork, deleteNetwork} from "@/lib/generated/sdk.gen";
+import {listNetworks, createNetwork, updateNetwork, deleteNetwork, exportNetwork, importNetwork, listNodes} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import type {ErrorResponse, NetworkResponse} from "@/lib/generated/types.gen";
 import NetworksPage from "../page";
@@ -260,5 +263,44 @@ describe("NetworksPage", () => {
         const mobileCards = container.querySelector(".md\\:hidden");
         expect(mobileCards?.textContent).toContain("Servers");
         expect(mobileCards?.textContent).toContain("1");
+    });
+
+    it("shows Export button for each network", async () => {
+        await renderWith({networks: [network({id: "n1", name: "Exportable"})]});
+        const exportBtns = screen.getAllByTitle("Export");
+        expect(exportBtns.length).toBeGreaterThan(0);
+    });
+
+    it("Export button calls exportNetwork and triggers download", async () => {
+        vi.mocked(exportNetwork).mockResolvedValue({data: {name: "Survival Network", servers: []}});
+        await renderWith({networks: [network({id: "n1", name: "Exportable"})]});
+        const exportBtns = screen.getAllByTitle("Export");
+        await userEvent.setup().click(exportBtns[0]);
+        await waitFor(() => {
+            expect(exportNetwork).toHaveBeenCalledWith({path: {id: "n1"}});
+        });
+    });
+
+    it("shows Import button with network.create permission", async () => {
+        await renderWith({networks: [network()]});
+        expect(screen.getByText("Import")).toBeTruthy();
+    });
+
+    it("hides Import button without network.create", async () => {
+        (vi.mocked(useAuth) as ReturnType<typeof vi.fn>).mockReturnValue({user: {permissions: ["network.view"]}});
+        await renderWith({networks: [network()]});
+        expect(screen.queryByText("Import")).toBeNull();
+    });
+
+    it("Import button opens import modal", async () => {
+        await renderWith({networks: [network()]});
+        await userEvent.setup().click(screen.getByText("Import"));
+        expect(screen.getByText("Import Network")).toBeTruthy();
+    });
+
+    it("import modal shows file picker", async () => {
+        const {container} = await renderWith({networks: [network()]});
+        await userEvent.setup().click(screen.getByText("Import"));
+        expect(container.querySelector('input[type="file"]')).not.toBeNull();
     });
 });
