@@ -104,9 +104,10 @@ describe('ConsoleTab', () => {
     })
 
     describe('status gating', () => {
-        it('shows not-running message when server status is not HEALTHY', () => {
+        it('shows log view when server is not HEALTHY (STOPPED)', () => {
+            vi.mocked(fetchServerConsoleLogs).mockResolvedValue({ data: { lines: ['last log line\n'] } } as never)
             render(<ConsoleTab serverId="s1" serverStatus="STOPPED" />)
-            expect(screen.getByText('Server is not running')).toBeInTheDocument()
+            expect(fetchServerConsoleLogs).toHaveBeenCalledWith({ path: { id: 's1' } })
         })
 
         it('does not connect WebSocket when server is not HEALTHY', () => {
@@ -123,8 +124,8 @@ describe('ConsoleTab', () => {
 
             expect(fetchServerConsoleLogs).toHaveBeenCalledWith({ path: { id: 's1' } })
             expect(MockWebSocket.instances).toHaveLength(0)
-            expect(screen.getByText(/Server crashed/)).toBeInTheDocument()
-            expect(screen.getByText((_, el) => el?.textContent === 'line1\nline2\n')).toBeInTheDocument()
+            const pre = screen.getByText(/line1/)
+            expect(pre).toBeInTheDocument()
         })
 
         it('shows empty state when no log lines are returned', async () => {
@@ -147,7 +148,7 @@ describe('ConsoleTab', () => {
     describe('connection lifecycle', () => {
         it('shows connecting status initially', () => {
             render(<ConsoleTab serverId="s1" serverStatus="HEALTHY" />)
-            expect(screen.getByText('Connecting…')).toBeInTheDocument()
+            expect(screen.getByText('Connecting\u2026')).toBeInTheDocument()
         })
 
         it('opens terminal in container div', async () => {
@@ -170,7 +171,7 @@ describe('ConsoleTab', () => {
         it('clears status on console.ready', async () => {
             await renderConsoleTab()
             act(() => { getWs().onmessage?.({ data: JSON.stringify({ type: 'console.ready' }) }) })
-            expect(screen.queryByText('Connecting…')).not.toBeInTheDocument()
+            expect(screen.queryByText('Connecting\u2026')).not.toBeInTheDocument()
         })
 
         it('disconnects WebSocket and disposes terminal on unmount', async () => {
@@ -222,20 +223,172 @@ describe('ConsoleTab', () => {
     })
 
     describe('stdin', () => {
-        it('sends console.input JSON on terminal data', async () => {
+        it('sends full command on Enter', async () => {
             await renderConsoleTab()
             const onDataCb = mockTerminal.onData.mock.calls[0][0]
-            act(() => { onDataCb('help\n') })
+            act(() => {
+                onDataCb('h')
+                onDataCb('e')
+                onDataCb('l')
+                onDataCb('p')
+                onDataCb('\r')
+            })
             expect(getWs().send).toHaveBeenCalledWith(
                 JSON.stringify({ type: 'console.input', data: 'help\n' })
             )
         })
 
-        it('echoes input to terminal', async () => {
+        it('echoes characters to terminal and writes \\r\\n on Enter', async () => {
             await renderConsoleTab()
             const onDataCb = mockTerminal.onData.mock.calls[0][0]
-            act(() => { onDataCb('help\n') })
-            expect(mockTerminal.write).toHaveBeenCalledWith('help\n')
+            act(() => {
+                onDataCb('h')
+                onDataCb('e')
+                onDataCb('l')
+                onDataCb('p')
+                onDataCb('\r')
+            })
+            expect(mockTerminal.write).toHaveBeenCalledWith('h')
+            expect(mockTerminal.write).toHaveBeenCalledWith('e')
+            expect(mockTerminal.write).toHaveBeenCalledWith('l')
+            expect(mockTerminal.write).toHaveBeenCalledWith('p')
+            expect(mockTerminal.write).toHaveBeenCalledWith('\r\n')
+        })
+
+        it('backspace removes last character and erases it on terminal', async () => {
+            await renderConsoleTab()
+            const onDataCb = mockTerminal.onData.mock.calls[0][0]
+            act(() => {
+                onDataCb('a')
+                onDataCb('b')
+                onDataCb('c')
+                onDataCb('\x7f')
+            })
+            const writes = vi.mocked(mockTerminal.write).mock.calls.map(c => c[0])
+            expect(writes).toContain('a')
+            expect(writes).toContain('b')
+            expect(writes).toContain('\b \b')
+        })
+
+        it('backspace on empty buffer is no-op', async () => {
+            await renderConsoleTab()
+            const onDataCb = mockTerminal.onData.mock.calls[0][0]
+            mockTerminal.write.mockClear()
+            act(() => { onDataCb('\x7f') })
+            expect(mockTerminal.write).not.toHaveBeenCalled()
+        })
+
+        it('Ctrl+C aborts line and writes ^C', async () => {
+            await renderConsoleTab()
+            const onDataCb = mockTerminal.onData.mock.calls[0][0]
+            act(() => {
+                onDataCb('t')
+                onDataCb('e')
+                onDataCb('s')
+                onDataCb('t')
+                onDataCb('\x03')
+            })
+            expect(mockTerminal.write).toHaveBeenCalledWith('^C\r\n')
+            expect(getWs().send).not.toHaveBeenCalled()
+        })
+
+        it('Tab is silently ignored', async () => {
+            await renderConsoleTab()
+            const onDataCb = mockTerminal.onData.mock.calls[0][0]
+            mockTerminal.write.mockClear()
+            act(() => { onDataCb('\t') })
+            expect(mockTerminal.write).not.toHaveBeenCalled()
+            expect(getWs().send).not.toHaveBeenCalled()
+        })
+
+        it('Arrow Up recalls previous command', async () => {
+            await renderConsoleTab()
+            const onDataCb = mockTerminal.onData.mock.calls[0][0]
+            act(() => {
+                onDataCb('h')
+                onDataCb('e')
+                onDataCb('l')
+                onDataCb('p')
+                onDataCb('\r')
+            })
+            vi.mocked(mockTerminal.write).mockClear()
+            vi.mocked(getWs().send).mockClear()
+
+            act(() => { onDataCb('\x1b[A') })
+            expect(mockTerminal.write).toHaveBeenCalledWith('\r\x1b[Khelp')
+        })
+
+        it('Arrow Down after Arrow Up restores draft line', async () => {
+            await renderConsoleTab()
+            const onDataCb = mockTerminal.onData.mock.calls[0][0]
+            act(() => {
+                onDataCb('h')
+                onDataCb('e')
+                onDataCb('l')
+                onDataCb('p')
+                onDataCb('\r')
+            })
+
+            act(() => {
+                onDataCb('n')
+                onDataCb('e')
+                onDataCb('x')
+                onDataCb('t')
+            })
+
+            vi.mocked(mockTerminal.write).mockClear()
+            act(() => { onDataCb('\x1b[A') })
+            act(() => { onDataCb('\x1b[B') })
+            expect(mockTerminal.write).toHaveBeenCalledWith('\r\x1b[Knext')
+        })
+
+        it('Arrow Down on fresh line is no-op', async () => {
+            await renderConsoleTab()
+            const onDataCb = mockTerminal.onData.mock.calls[0][0]
+            mockTerminal.write.mockClear()
+            act(() => { onDataCb('\x1b[B') })
+            expect(mockTerminal.write).not.toHaveBeenCalled()
+        })
+
+        it('Arrow Up on empty history is no-op', async () => {
+            await renderConsoleTab()
+            const onDataCb = mockTerminal.onData.mock.calls[0][0]
+            mockTerminal.write.mockClear()
+            act(() => { onDataCb('\x1b[A') })
+            expect(mockTerminal.write).not.toHaveBeenCalled()
+        })
+
+        it('duplicate consecutive commands are not pushed to history twice', async () => {
+            await renderConsoleTab()
+            const onDataCb = mockTerminal.onData.mock.calls[0][0]
+            act(() => {
+                onDataCb('o')
+                onDataCb('p')
+                onDataCb('\r')
+            })
+            vi.mocked(mockTerminal.write).mockClear()
+            act(() => {
+                onDataCb('o')
+                onDataCb('p')
+                onDataCb('\r')
+            })
+
+            // History should have 1 entry -> Arrow Up recalls once, second is same entry
+            act(() => { onDataCb('\x1b[A') })
+            expect(mockTerminal.write).toHaveBeenCalledWith('\r\x1b[Kop')
+
+            vi.mocked(mockTerminal.write).mockClear()
+            act(() => { onDataCb('\x1b[A') })
+            expect(mockTerminal.write).toHaveBeenCalledWith('\r\x1b[Kop')
+        })
+
+        it('empty Enter writes \\r\\n but does not send', async () => {
+            await renderConsoleTab()
+            const onDataCb = mockTerminal.onData.mock.calls[0][0]
+            vi.mocked(mockTerminal.write).mockClear()
+            act(() => { onDataCb('\r') })
+            expect(mockTerminal.write).toHaveBeenCalledWith('\r\n')
+            expect(getWs().send).not.toHaveBeenCalled()
         })
     })
 
@@ -253,10 +406,10 @@ describe('ConsoleTab', () => {
             expect(screen.getByText('WebSocket connection failed')).toBeInTheDocument()
         })
 
-        it('retains "Connecting…" status on close when no ready message was received', async () => {
+        it('retains "Connecting\u2026" status on close when no ready message was received', async () => {
             await renderConsoleTab()
             act(() => { getWs().onclose?.() })
-            expect(screen.getByText('Connecting…')).toBeInTheDocument()
+            expect(screen.getByText('Connecting\u2026')).toBeInTheDocument()
         })
 
         it('ignores malformed WS frames without throwing', async () => {

@@ -3,14 +3,15 @@
 import {useEffect, useRef, useState} from "react";
 import {authWsTicket, fetchServerConsoleLogs} from "@/lib/generated/sdk.gen";
 import {useReconnectingSocket} from "@/lib/hooks/useReconnectingSocket";
+import Anser from "anser";
 
 interface Props {
     serverId: string;
     serverStatus: string;
 }
 
-function CrashLogView({serverId}: { serverId: string }) {
-    const [lines, setLines] = useState<string[] | null>(null);
+function ServerLogView({serverId}: { serverId: string }) {
+    const [html, setHtml] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
@@ -21,25 +22,33 @@ function CrashLogView({serverId}: { serverId: string }) {
                 setError(err?.message ?? "Failed to fetch logs");
                 return;
             }
-            setLines(data.lines);
+            const raw = data.lines.join("");
+            if (raw.length === 0) {
+                setHtml("");
+                return;
+            }
+            setHtml(Anser.ansiToHtml(Anser.escapeForHtml(raw)));
         });
         return () => {
             cancelled = true;
         };
     }, [serverId]);
 
+    const fallback = (msg: string) => (
+        <p className="text-text-muted text-xs font-mono">{msg}</p>
+    );
+
     return (
         <div className="px-6 py-6 flex flex-col gap-2">
-            <p className="text-warning text-xs font-mono">Server crashed - showing last output before exit</p>
             {error && <p className="text-error text-xs font-mono">{error}</p>}
-            {!error && lines === null && <p className="text-text-muted text-xs font-mono">Loading…</p>}
-            {!error && lines !== null && lines.length === 0 && (
-                <p className="text-text-muted text-xs font-mono">No log output available</p>
-            )}
-            {!error && lines !== null && lines.length > 0 && (
-                <pre className="rounded border border-border bg-surface p-3 text-xs font-mono text-text-dim overflow-auto whitespace-pre-wrap" style={{height: "520px"}}>
-                    {lines.join("")}
-                </pre>
+            {!error && html === null && fallback("Loading\u2026")}
+            {!error && html !== null && html === "" && fallback("No log output available")}
+            {!error && html !== null && html !== "" && (
+                <pre
+                    className="rounded border border-border bg-surface p-3 text-xs font-mono overflow-auto whitespace-pre-wrap leading-relaxed"
+                    style={{height: "520px"}}
+                    dangerouslySetInnerHTML={{__html: html}}
+                />
             )}
         </div>
     );
@@ -48,10 +57,15 @@ function CrashLogView({serverId}: { serverId: string }) {
 export function ConsoleTab({serverId, serverStatus}: Props) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [error, setError] = useState<string | null>(null);
-    const [statusMsg, setStatusMsg] = useState<string>("Connecting…");
+    const [statusMsg, setStatusMsg] = useState<string>("Connecting\u2026");
     const termRef = useRef<import("@xterm/xterm").Terminal | null>(null);
     const roRef = useRef<ResizeObserver | null>(null);
     const disposedRef = useRef(false);
+
+    const lineBufRef = useRef("");
+    const historyRef = useRef<string[]>([]);
+    const histPosRef = useRef(-1);
+    const draftBufRef = useRef("");
 
     const urlFactory = async () => {
         if (serverStatus !== "HEALTHY") return null;
@@ -103,7 +117,7 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
     useEffect(() => {
         if (serverStatus !== "HEALTHY") return;
 
-        setStatusMsg("Connecting…");
+        setStatusMsg("Connecting\u2026");
         setError(null);
         disposedRef.current = false;
 
@@ -149,10 +163,70 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
             }
 
             term.onData((data) => {
-                if (socketRef.current?.readyState === WebSocket.OPEN) {
-                    socketRef.current.send(JSON.stringify({type: "console.input", data}));
+                const h = historyRef.current;
+                const send = (text: string) => {
+                    if (socketRef.current?.readyState === WebSocket.OPEN) {
+                        socketRef.current.send(JSON.stringify({type: "console.input", data: text}));
+                    }
+                };
+
+                if (data === "\r" || data === "\n") {
+                    const cmd = lineBufRef.current;
+                    if (cmd) {
+                        send(cmd + "\n");
+                        if (h.length === 0 || h[h.length - 1] !== cmd) {
+                            h.push(cmd);
+                            if (h.length > 100) h.shift();
+                        }
+                    }
+                    lineBufRef.current = "";
+                    histPosRef.current = -1;
+                    term.write("\r\n");
+                } else if (data === "\x7f" || data === "\x08") {
+                    if (lineBufRef.current) {
+                        lineBufRef.current = lineBufRef.current.slice(0, -1);
+                        term.write("\b \b");
+                    }
+                } else if (data === "\x1b[A") {
+                    if (h.length > 0) {
+                        if (histPosRef.current === -1) {
+                            draftBufRef.current = lineBufRef.current;
+                        }
+                        histPosRef.current = Math.min(histPosRef.current + 1, h.length - 1);
+                        lineBufRef.current = h[h.length - 1 - histPosRef.current];
+                        term.write("\r\x1b[K" + lineBufRef.current);
+                    }
+                } else if (data === "\x1b[B") {
+                    if (histPosRef.current === -1) return;
+                    histPosRef.current--;
+                    if (histPosRef.current < 0) {
+                        lineBufRef.current = draftBufRef.current;
+                        draftBufRef.current = "";
+                        histPosRef.current = -1;
+                    } else {
+                        lineBufRef.current = h[h.length - 1 - histPosRef.current];
+                    }
+                    term.write("\r\x1b[K" + lineBufRef.current);
+                } else if (data === "\x03") {
+                    lineBufRef.current = "";
+                    histPosRef.current = -1;
+                    term.write("^C\r\n");
+                } else if (data === "\x1b") {
+                    // Escape alone - ignore
+                } else if (data === "\t") {
+                } else if (data.startsWith("\x1b")) {
+                    term.write(data);
+                } else {
+                    for (let i = 0; i < data.length; i++) {
+                        const ch = data[i];
+                        if (ch >= " ") {
+                            lineBufRef.current += ch;
+                            term.write(ch);
+                        } else {
+                            term.write(ch);
+                        }
+                    }
                 }
-                term.write(data);
             });
         }
 
@@ -167,16 +241,8 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
         };
     }, [serverId, serverStatus, socketRef]);
 
-    if (serverStatus === "UNHEALTHY") {
-        return <CrashLogView serverId={serverId}/>;
-    }
-
     if (serverStatus !== "HEALTHY") {
-        return (
-            <div className="px-6 py-10 flex items-center justify-center">
-                <p className="text-text-muted text-sm">Server is not running</p>
-            </div>
-        );
+        return <ServerLogView serverId={serverId}/>;
     }
 
     return (
