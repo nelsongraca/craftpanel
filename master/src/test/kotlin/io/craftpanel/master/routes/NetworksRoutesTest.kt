@@ -4,7 +4,7 @@ import io.craftpanel.master.*
 import io.craftpanel.master.auth.*
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
-import io.craftpanel.master.service.NetworkService
+import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import io.kotest.core.spec.style.FunSpec
@@ -40,13 +40,34 @@ class NetworksRoutesTest :
         val repos = TestRepositories()
 
         fun Route.configureNetworksTest() {
+            val networkService = NetworkService(
+                networkRepository = NetworkRepositoryImpl(),
+                serverRepository = repos.serverRepository,
+                nodeRepository = NodeRepositoryImpl(),
+                userRepository = UserRepositoryImpl(),
+                groupRepository = GroupRepositoryImpl()
+            )
+            val serverService = ServerService(
+                gateway = TestAgentGateway(),
+                serverRepository = repos.serverRepository,
+                nodeRepository = NodeRepositoryImpl(),
+                networkRepository = NetworkRepositoryImpl(),
+                settingsRepository = SettingsRepositoryImpl(),
+                portRepository = repos.portRepository,
+                envVarsRepository = repos.envVarsRepository,
+                modRepository = repos.modRepository,
+            )
             networksRoutes(
-                NetworkService(
-                    networkRepository = NetworkRepositoryImpl(),
+                networkService,
+                ExportService(
                     serverRepository = repos.serverRepository,
-                    nodeRepository = NodeRepositoryImpl(),
-                    userRepository = UserRepositoryImpl(),
-                    groupRepository = GroupRepositoryImpl()
+                    networkRepository = NetworkRepositoryImpl(),
+                    envVarsRepository = repos.envVarsRepository,
+                    modRepository = repos.modRepository,
+                    extraPortRepository = ServerExtraPortRepositoryImpl(),
+                    proxyBackendRepository = ProxyBackendRepositoryImpl(),
+                    serverService = serverService,
+                    networkService = networkService,
                 )
             )
         }
@@ -400,7 +421,9 @@ class NetworksRoutesTest :
                 assignNetworkGroup(userId, "Scoped Viewer", netA)
                 val resp = client.get("/api/networks") { bearerAuth(tokenFor(userId)) }
                 resp.status shouldBe HttpStatusCode.OK
-                val names = resp.body<List<JsonObject>>().map { it["name"]!!.jsonPrimitive.content }.toSet()
+                val names = resp.body<List<JsonObject>>()
+                    .map { it["name"]!!.jsonPrimitive.content }
+                    .toSet()
                 names shouldBe setOf("net-a")
             }
         }

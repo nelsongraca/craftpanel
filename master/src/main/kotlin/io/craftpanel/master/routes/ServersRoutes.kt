@@ -19,7 +19,8 @@ fun Route.serversRoutes(
     queryService: ServerQueryService,
     lifecycleService: ServerLifecycleService,
     exposureService: ServerExposureService,
-    serverExposure: ServerExposure
+    serverExposure: ServerExposure,
+    exportService: ExportService,
 ) {
     authenticate(JWT_AUTH) {
         route("/api/servers") {
@@ -35,7 +36,8 @@ fun Route.serversRoutes(
                 val rows = queryService.listServers(userId)
                 val migratingIds = if (rows.isEmpty()) {
                     emptySet()
-                } else {
+                }
+                else {
                     rows.filter { queryService.isMigrating(it.id) }
                         .map { it.id }
                         .toSet()
@@ -350,6 +352,47 @@ fun Route.serversRoutes(
                     lifecycleService.stopServer(auth.serverId)
                 }
                 call.respond(HttpStatusCode.NoContent)
+            }
+
+            get("/{id}/export", {
+                operationId = "exportServer"
+                summary = "Export server configuration as JSON"
+                request { pathParameter<String>("id") }
+                response {
+                    code(HttpStatusCode.OK) { body<ServerExportData>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                val auth = call.requireServerPermission(Permission.SERVER_EXPORT)
+                val export = exportService.exportServer(auth.serverId)
+                call.response.header(HttpHeaders.ContentDisposition, "attachment; filename=\"${export.name}.craftpanel.json\"")
+                call.respond(export)
+            }
+
+            post("/import", {
+                operationId = "importServer"
+                summary = "Import a server from an exported JSON configuration"
+                request { body<ImportServerRequest>() }
+                response {
+                    code(HttpStatusCode.Created) { body<ServerResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                call.requirePermission(Permission.SERVER_CREATE)
+                val req = call.receive<ImportServerRequest>()
+                val nodeId = runCatching { Uuid.parse(req.nodeId) }.getOrNull()
+                    ?: throw UnprocessableException("Invalid node_id")
+                val networkId = req.networkId?.let { runCatching { Uuid.parse(it) }.getOrNull() }
+                if (req.networkId != null && networkId == null) {
+                    throw UnprocessableException("Invalid network_id")
+                }
+                val row = exportService.importServer(req.data, nodeId, networkId)
+                call.respond(HttpStatusCode.Created, row.toResponse(serverExposure, false))
             }
 
             patch("/{id}/disabled", {

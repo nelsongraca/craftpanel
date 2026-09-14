@@ -1,11 +1,11 @@
 "use client";
 
-import {useEffect, useMemo, useState} from "react";
+import {useEffect, useMemo, useRef, useState} from "react";
 import {useRouter} from "next/navigation";
 import Link from "next/link";
-import {CopyPlus, Play, Plus, RotateCcw, Skull, Square, Trash2, X} from "lucide-react";
+import {CopyPlus, Play, Plus, RotateCcw, Skull, Square, Trash2, Upload, X} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
-import {deleteServer, listNetworks, listNodes, listServers, restartServer, startServer, stopServer, forceStopServer} from "@/lib/generated/sdk.gen";
+import {deleteServer, importServer, listNetworks, listNodes, listServers, restartServer, startServer, stopServer, forceStopServer} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission, serverPermissions} from "@/lib/permissions";
 import type {Network, Node, Server} from "@/lib/types";
@@ -18,6 +18,7 @@ import {fillColor} from "@/lib/utils/format";
 import {serverDisabled, serverExpired, serverStatusLabel, serverStatusVariant} from "@/lib/status";
 import {Badge} from "@/components/ui/badge";
 import {SelectField} from "@/components/ui/form-elements";
+import {BTN_GHOST, BTN_PRIMARY, Modal, Field, TextField} from "@/components/ui/form-elements";
 
 // Filter option → backend statuses that match
 const FILTER_MATCHES: Record<string, string[]> = {
@@ -168,6 +169,11 @@ export default function ServersPage() {
     const [actionError, setActionError] = useState<string | null>(null);
     const [pendingAction, setPendingAction] = useState<Record<string, string>>({});
     const {confirm, dialog} = useConfirmDialog();
+    const [showImport, setShowImport] = useState(false);
+    const [importFile, setImportFile] = useState<File | null>(null);
+    const [importNode, setImportNode] = useState("");
+    const [importing, setImporting] = useState(false);
+    const [importError, setImportError] = useState("");
 
     const [search, setSearch] = useState("");
     const [filterStatus, setFilterStatus] = useState("");
@@ -272,6 +278,28 @@ export default function ServersPage() {
 
     function doDuplicate(server: Server) {
         router.push(`/servers/new?clone=${server.id}`);
+    }
+
+    async function doImportServer() {
+        if (!importFile) return;
+        setImportError("");
+        setImporting(true);
+        try {
+            const text = await importFile.text();
+            const data = JSON.parse(text);
+            const {error} = await importServer({body: {data, node_id: importNode}});
+            if (error) {
+                setImportError((error as { message?: string }).message ?? "Failed to import server");
+            } else {
+                setShowImport(false);
+                setImportFile(null);
+                setImportNode("");
+                reloadServers();
+            }
+        } catch {
+            setImportError("Invalid JSON file");
+        }
+        setImporting(false);
     }
 
     const canCreate = hasPermission(permissions, "server.create");
@@ -410,15 +438,23 @@ export default function ServersPage() {
                     title="Servers"
                     subtitle={subtitle}
                     action={
-                        canCreate ? (
-                            <Link
-                                href="/servers/new"
-                                className="flex items-center gap-1.5 bg-accent hover:bg-accent-bright text-bg font-heading font-bold text-xs uppercase tracking-widest px-3 py-1.5 rounded transition-colors hover:shadow-[0_0_16px_var(--accent-glow)]"
-                            >
-                                <Plus size={12} strokeWidth={3}/>
-                                New Server
-                            </Link>
-                        ) : undefined
+                        <div className="flex items-center gap-2">
+                            {hasPermission(permissions, "server.create") && (
+                                <button onClick={() => setShowImport(true)} className="flex items-center gap-1.5 bg-surface-higher hover:bg-surface-higher/80 text-text-primary font-heading font-bold text-xs uppercase tracking-widest px-3 py-1.5 rounded transition-colors border border-border">
+                                    <Upload size={12} strokeWidth={3}/>
+                                    Import
+                                </button>
+                            )}
+                            {canCreate ? (
+                                <Link
+                                    href="/servers/new"
+                                    className="flex items-center gap-1.5 bg-accent hover:bg-accent-bright text-bg font-heading font-bold text-xs uppercase tracking-widest px-3 py-1.5 rounded transition-colors hover:shadow-[0_0_16px_var(--accent-glow)]"
+                                >
+                                    <Plus size={12} strokeWidth={3}/>
+                                    New Server
+                                </Link>
+                            ) : undefined}
+                        </div>
                     }
                 />
 
@@ -516,6 +552,35 @@ export default function ServersPage() {
                     />
                 </div>
             </div>
+            {showImport && (
+                <Modal title="Import Server" onClose={() => { setShowImport(false); setImportError(""); setImportFile(null); }}>
+                    <div className="space-y-4">
+                        <input
+                            type="file"
+                            accept=".json"
+                            onChange={(e) => setImportFile(e.target.files?.[0] ?? null)}
+                            className="block w-full text-xs text-text-muted file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-heading file:font-bold file:uppercase file:tracking-wider file:bg-surface-high file:text-text-primary hover:file:bg-surface-higher"
+                        />
+                        {importFile && (
+                            <Field label="Destination Node" htmlFor="import-node">
+                                <SelectField id="import-node" value={importNode} onChange={(e) => setImportNode(e.target.value)}>
+                                    <option value="">Select a node…</option>
+                                    {nodes.map((n) => (
+                                        <option key={n.id} value={n.id}>{n.display_name}</option>
+                                    ))}
+                                </SelectField>
+                            </Field>
+                        )}
+                        {importError && <p className="text-xs text-error">{importError}</p>}
+                        <div className="flex justify-end gap-2 pt-1">
+                            <button className={BTN_GHOST} onClick={() => { setShowImport(false); setImportError(""); setImportFile(null); }}>Cancel</button>
+                            <button className={BTN_PRIMARY} disabled={!importFile || !importNode || importing} onClick={doImportServer}>
+                                {importing ? "Importing…" : "Import"}
+                            </button>
+                        </div>
+                    </div>
+                </Modal>
+            )}
             {dialog}
         </>
     );

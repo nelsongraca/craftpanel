@@ -1,6 +1,7 @@
 package io.craftpanel.master.routes
 
 import io.craftpanel.master.auth.*
+import io.craftpanel.master.routes.dto.*
 import io.craftpanel.master.service.*
 import io.github.smiley4.ktoropenapi.*
 import io.ktor.http.*
@@ -10,7 +11,7 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import kotlin.uuid.Uuid
 
-fun Route.networksRoutes(networkService: NetworkService) {
+fun Route.networksRoutes(networkService: NetworkService, exportService: ExportService) {
     authenticate(JWT_AUTH) {
         route("/api/networks") {
             get("", {
@@ -108,6 +109,45 @@ fun Route.networksRoutes(networkService: NetworkService) {
                 }
                 networkService.deleteNetwork(id)
                 call.respond(HttpStatusCode.NoContent)
+            }
+
+            get("/{id}/export", {
+                operationId = "exportNetwork"
+                summary = "Export network and all member servers as JSON"
+                request { pathParameter<String>("id") }
+                response {
+                    code(HttpStatusCode.OK) { body<NetworkExportData>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                val id = parseNetworkId(call.parameters["id"])
+                    ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid network ID"))
+                if (!PermissionResolver.hasPermission(call.userId(), Permission.NETWORK_VIEW, networkId = id)) {
+                    return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                }
+                val export = exportService.exportNetwork(id)
+                call.response.header(HttpHeaders.ContentDisposition, "attachment; filename=\"${export.name}.craftpanel.json\"")
+                call.respond(export)
+            }
+
+            post("/import", {
+                operationId = "importNetwork"
+                summary = "Import a network and its member servers from an exported JSON configuration"
+                request { body<ImportNetworkRequest>() }
+                response {
+                    code(HttpStatusCode.Created) { body<NetworkResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                call.requirePermission(Permission.NETWORK_CREATE)
+                val req = call.receive<ImportNetworkRequest>()
+                val response = exportService.importNetwork(req.data, req.nodeAssignments)
+                call.respond(HttpStatusCode.Created, response)
             }
         }
     }

@@ -92,7 +92,32 @@ class ServersRoutesTest :
                 ),
                 lifecycleService,
                 exposureService,
-                serverExposure
+                serverExposure,
+                ExportService(
+                    serverRepository = serverRepository,
+                    networkRepository = networkRepository,
+                    envVarsRepository = repos.envVarsRepository,
+                    modRepository = repos.modRepository,
+                    extraPortRepository = ServerExtraPortRepositoryImpl(),
+                    proxyBackendRepository = ProxyBackendRepositoryImpl(),
+                    serverService = ServerService(
+                        gateway = gateway,
+                        serverRepository = serverRepository,
+                        nodeRepository = nodeRepository,
+                        networkRepository = networkRepository,
+                        settingsRepository = settingsRepository,
+                        portRepository = repos.portRepository,
+                        envVarsRepository = repos.envVarsRepository,
+                        modRepository = repos.modRepository
+                    ),
+                    networkService = NetworkService(
+                        networkRepository = networkRepository,
+                        serverRepository = serverRepository,
+                        nodeRepository = nodeRepository,
+                        userRepository = UserRepositoryImpl(),
+                        groupRepository = GroupRepositoryImpl()
+                    )
+                )
             )
         }
 
@@ -193,7 +218,8 @@ class ServersRoutesTest :
         }
 
         fun setExpiry(id: Uuid, value: kotlinx.datetime.LocalDateTime? = null) = transaction {
-            Server.findById(id)?.let { it.expiresAt = value }
+            Server.findById(id)
+                ?.let { it.expiresAt = value }
         }
 
         // ── GET /servers ─────────────────────────────────────────────────────────
@@ -1730,7 +1756,7 @@ class ServersRoutesTest :
                 resp.status shouldBe HttpStatusCode.NotFound
             }
         }
-           context("server-network association requires scoped network.view on the target network") {
+        context("server-network association requires scoped network.view on the target network") {
             test("POST server with network_id requires network.view on that network (not just server.create)") {
                 testApplication {
                     testApp { _ -> configureServersTest() }

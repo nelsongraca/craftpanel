@@ -3,8 +3,8 @@
 import {useCallback, useEffect, useState} from "react";
 import {useParams, useRouter} from "next/navigation";
 import Link from "next/link";
-import {ChevronRight, Copy, MoreHorizontal, Play, RotateCcw, Shuffle, Skull, Square, Trash2, X,} from "lucide-react";
-import {deleteServer, forceStopServer, getNetwork, getNode, getServer, restartServer, startServer, stopServer} from "@/lib/generated/sdk.gen";
+import {ChevronRight, Copy, Download, MoreHorizontal, Play, RotateCcw, Shuffle, Skull, Square, Trash2, X,} from "lucide-react";
+import {deleteServer, exportServer, forceStopServer, getNetwork, getNode, getServer, restartServer, startServer, stopServer} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission, serverPermissions} from "@/lib/permissions";
 import type {Network, Node, Server} from "@/lib/types";
@@ -178,6 +178,23 @@ export default function ServerDetailPage() {
         });
     }
 
+    async function doExport() {
+        if (!server) return;
+        setActionError(null);
+        const {data, error} = await exportServer({path: {id}});
+        if (error || !data) {
+            setActionError(error?.message ?? "Failed to export server");
+            return;
+        }
+        const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${data.name}.craftpanel.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
     // Loading / not-found guards
 
     if (loading) {
@@ -299,7 +316,7 @@ export default function ServerDetailPage() {
                         )}
 
                         {/* Overflow menu */}
-                        {hasPermission(serverPerms, "server.migrate") && (
+                        {(hasPermission(serverPerms, "server.migrate") || hasPermission(serverPerms, "server.export") || hasPermission(serverPerms, "server.create")) && (
                             <div className="relative">
                                 <button
                                     onClick={(e) => {
@@ -316,16 +333,18 @@ export default function ServerDetailPage() {
                                         className="absolute right-0 top-full mt-1 z-50 bg-surface-higher border border-border rounded shadow-xl min-w-[160px] py-1"
                                         onClick={(e) => e.stopPropagation()}
                                     >
-                                        <button
-                                            onClick={() => {
-                                                setMenuOpen(false);
-                                                setActiveTab("Migration");
-                                            }}
-                                            className="flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
-                                        >
-                                            <Shuffle size={12} strokeWidth={2}/>
-                                            Migrate
-                                        </button>
+                                        {hasPermission(serverPerms, "server.migrate") && (
+                                            <button
+                                                onClick={() => {
+                                                    setMenuOpen(false);
+                                                    setActiveTab("Migration");
+                                                }}
+                                                className="flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
+                                            >
+                                                <Shuffle size={12} strokeWidth={2}/>
+                                                Migrate
+                                            </button>
+                                        )}
                                         {hasPermission(serverPerms, "server.create") && (
                                             <Link
                                                 href={`/servers/new?clone=${server.id}`}
@@ -335,6 +354,18 @@ export default function ServerDetailPage() {
                                                 <Copy size={12} strokeWidth={2}/>
                                                 Clone Server
                                             </Link>
+                                        )}
+                                        {hasPermission(serverPerms, "server.export") && (
+                                            <button
+                                                onClick={() => {
+                                                    setMenuOpen(false);
+                                                    void doExport();
+                                                }}
+                                                className="flex items-center gap-2 w-full text-left px-3 py-2 text-xs font-heading font-bold uppercase tracking-wider text-text-primary hover:bg-surface-high transition-colors"
+                                            >
+                                                <Download size={12} strokeWidth={2}/>
+                                                Export
+                                            </button>
                                         )}
                                     </div>
                                 )}

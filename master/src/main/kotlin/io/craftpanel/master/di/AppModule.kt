@@ -237,6 +237,18 @@ val appModule = module {
     }
     single { EnvVarsService(get(), get()) }
     single { DashboardService(get(), get(), get(), get(), get()) }
+    single {
+        ExportService(
+            serverRepository = get(),
+            networkRepository = get(),
+            envVarsRepository = get(),
+            modRepository = get(),
+            extraPortRepository = get(),
+            proxyBackendRepository = get(),
+            serverService = get(),
+            networkService = get(),
+        )
+    }
 
     single {
         MigrationService(

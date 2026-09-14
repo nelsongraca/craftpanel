@@ -2,21 +2,23 @@
 
 Base path: `/api/servers`
 
-| Method | Path                      | Permission         | Description                                                                     |
-|--------|---------------------------|--------------------|---------------------------------------------------------------------------------|
-| GET    | `/servers`                | authenticated      | List servers the caller has `server.view` on                                    |
-| POST   | `/servers`                | `server.create`    | Create a server                                                                 |
-| GET    | `/servers/{id}`           | `server.view`      | Get server details                                                              |
-| PATCH  | `/servers/{id}`           | `server.configure` | Update display name, description, network, Minecraft version, or itzg image tag |
-| DELETE | `/servers/{id}`           | `server.delete`    | Delete server and its data                                                      |
-| POST   | `/servers/{id}/start`     | `server.start`     | Start the server                                                                |
-| POST   | `/servers/{id}/stop`      | `server.stop`      | Stop the server                                                                 |
-| POST   | `/servers/{id}/restart`   | `server.restart`   | Restart the server                                                              |
-| PATCH  | `/servers/{id}/resources` | `server.resources` | Update RAM and CPU allocation (requires Super Admin)                            |
-| PATCH  | `/servers/{id}/expiration` | `server.expires`   | Set or clear the server's expiration date (stops immediately if now expired)  |
-| PATCH  | `/servers/{id}/exposure`  | `server.configure` | Toggle external exposure and subdomain                                          |
-| PATCH  | `/servers/{id}/disabled` | `server.disable`   | Disable or re-enable a server (stops immediately if running)                   |
-| GET    | `/servers/{id}/metrics`   | `server.view`      | Query historical container metrics                                              |
+| Method | Path                       | Permission         | Description                                                                     |
+|--------|----------------------------|--------------------|---------------------------------------------------------------------------------|
+| GET    | `/servers`                 | authenticated      | List servers the caller has `server.view` on                                    |
+| POST   | `/servers`                 | `server.create`    | Create a server                                                                 |
+| GET    | `/servers/{id}`            | `server.view`      | Get server details                                                              |
+| PATCH  | `/servers/{id}`            | `server.configure` | Update display name, description, network, Minecraft version, or itzg image tag |
+| DELETE | `/servers/{id}`            | `server.delete`    | Delete server and its data                                                      |
+| POST   | `/servers/{id}/start`      | `server.start`     | Start the server                                                                |
+| POST   | `/servers/{id}/stop`       | `server.stop`      | Stop the server                                                                 |
+| POST   | `/servers/{id}/restart`    | `server.restart`   | Restart the server                                                              |
+| PATCH  | `/servers/{id}/resources`  | `server.resources` | Update RAM and CPU allocation (requires Super Admin)                            |
+| PATCH  | `/servers/{id}/expiration` | `server.expires`   | Set or clear the server's expiration date (stops immediately if now expired)    |
+| PATCH  | `/servers/{id}/exposure`   | `server.configure` | Toggle external exposure and subdomain                                          |
+| PATCH  | `/servers/{id}/disabled`   | `server.disable`   | Disable or re-enable a server (stops immediately if running)                    |
+| GET    | `/servers/{id}/metrics`    | `server.view`      | Query historical container metrics                                              |
+| GET    | `/servers/{id}/export`     | `server.export`    | Export server configuration as JSON                                             |
+| POST   | `/servers/import`          | `server.create`    | Import a server from an exported JSON configuration                             |
 
 ---
 
@@ -83,7 +85,9 @@ Returns only servers the caller has at least `server.view` permission on.
 }
 ```
 
-For `CUSTOM` servers, `custom_server_jar` is **required** (a 422 is returned without it). `mc_version` is forced to `LATEST` (itzg `TYPE=CUSTOM` ignores it) and `config_mode` is always `MANUAL` — the config-mode toggle is rejected. `container_listen_port` accepts `1`–`65535`; `container_protocol` accepts `TCP` or `UDP` (default `TCP`, uppercased server-side). `container_protocol = UDP` exposes the container over UDP host port mappings only and skips mc-router routing.
+For `CUSTOM` servers, `custom_server_jar` is **required** (a 422 is returned without it). `mc_version` is forced to `LATEST` (itzg `TYPE=CUSTOM` ignores it) and `config_mode` is always `MANUAL` — the
+config-mode toggle is rejected. `container_listen_port` accepts `1`–`65535`; `container_protocol` accepts `TCP` or `UDP` (default `TCP`, uppercased server-side). `container_protocol = UDP` exposes the
+container over UDP host port mappings only and skips mc-router routing.
 
 **Response `201`:** full server object (see `GET /servers/{id}`).
 
@@ -172,8 +176,8 @@ Set `network_id` to `null` to remove the server from its network.
 `display_name`, `description`, and `network_id` take effect immediately. `mc_version` and `itzg_image_tag` are persisted but take effect on the **next container start** — master sets a
 `needs_recreate` flag and rebuilds the container spec on the next start or restart. The UI shows a "Restart required" banner after saving either field, with an option to restart immediately or defer.
 
-The CUSTOM fields follow the same create-time rules: `custom_server_jar` is validated against the server type, and `container_listen_port` / `container_protocol` changes are persisted and applied on the
-next start.
+The CUSTOM fields follow the same create-time rules: `custom_server_jar` is validated against the server type, and `container_listen_port` / `container_protocol` changes are persisted and applied on
+the next start.
 
 **Response `204`.**
 
@@ -339,3 +343,42 @@ Returns raw 1-minute container metric snapshots for the requested time range.
   }
 }
 ```
+
+---
+
+## Export
+
+### `GET /servers/{id}/export`
+
+Exports the server's full configuration as a downloadable JSON file. The export includes server identity, runtime type, resources, config mode, stop command, exposure settings, expiration, backup
+schedule, environment variables, extra ports, mods/plugins, and proxy backends (for proxy servers).
+
+**Permission:** `server.export`
+
+**Response `200`:** `ServerExportData` JSON body with `Content-Disposition: attachment` header.
+
+**Errors:** `404` unknown server.
+
+---
+
+## Import
+
+### `POST /servers/import`
+
+Creates a new server from an exported JSON configuration. The caller must specify which node to place the server on.
+
+**Permission:** `server.create`
+
+**Request body:**
+
+```json
+{
+  "data": { /* ServerExportData */ },
+  "node_id": "<target-node-uuid>",
+  "network_id": "<optional-network-uuid>"
+}
+```
+
+**Response `201`:** `ServerResponse` for the newly created server.
+
+**Errors:** `409` name conflict. `422` invalid node/network ID or insufficient node capacity. `403` missing `server.create` permission.

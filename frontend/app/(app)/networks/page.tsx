@@ -1,15 +1,15 @@
 "use client";
 
-import {useState} from "react";
-import {Pencil, Plus, Trash2} from "lucide-react";
+import {useRef, useState} from "react";
+import {Download, Pencil, Plus, Trash2, Upload} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
-import {createNetwork, deleteNetwork, listNetworks, updateNetwork} from "@/lib/generated/sdk.gen";
-import type {Network} from "@/lib/types";
+import {createNetwork, deleteNetwork, exportNetwork, importNetwork, listNetworks, listNodes, updateNetwork} from "@/lib/generated/sdk.gen";
+import type {Network, Node} from "@/lib/types";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission, networkPermissions} from "@/lib/permissions";
 import {useResourceList} from "@/lib/hooks/useResourceList";
 
-import {BTN_PRIMARY, BTN_GHOST, Modal, Field, TextField} from "@/components/ui/form-elements";
+import {BTN_PRIMARY, BTN_GHOST, Modal, Field, TextField, SelectField} from "@/components/ui/form-elements";
 import {IconActionButton} from "@/components/ui/list-table";
 import {SmartList, type SmartListColumn} from "@/components/ui/smart-list";
 
@@ -91,6 +91,73 @@ export default function NetworksPage() {
     const [editing, setEditing] = useState<Network | null>(null);
     const [deleting, setDeleting] = useState<Network | null>(null);
     const [deleteError, setDeleteError] = useState("");
+    const [showImport, setShowImport] = useState(false);
+    const [nodes, setNodes] = useState<Node[]>([]);
+    const importFileRef = useRef<HTMLInputElement>(null);
+    const [importData, setImportData] = useState<{ name: string; serverCount: number } | null>(null);
+    const [importRaw, setImportRaw] = useState<any>(null);
+    const [importNodeAssignments, setImportNodeAssignments] = useState<Record<string, string>>({});
+    const [importError, setImportError] = useState("");
+    const [importing, setImporting] = useState(false);
+
+    async function loadNodes() {
+        const {data} = await listNodes();
+        if (data) setNodes(data);
+    }
+
+    async function doExportNetwork(n: Network) {
+        const {data, error} = await exportNetwork({path: {id: n.id}});
+        if (error || !data) return;
+        const blob = new Blob([JSON.stringify(data, null, 2)], {type: "application/json"});
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${data.name}.craftpanel.json`;
+        a.click();
+        URL.revokeObjectURL(url);
+    }
+
+    function handleImportFile(e: React.ChangeEvent<HTMLInputElement>) {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setImportError("");
+        setImportData(null);
+        setImportRaw(null);
+        setImportNodeAssignments({});
+        const reader = new FileReader();
+        reader.onload = () => {
+            try {
+                const parsed = JSON.parse(reader.result as string);
+                if (!parsed || !parsed.name) {
+                    setImportError("Invalid export file: missing network name");
+                    return;
+                }
+                setImportData({name: parsed.name, serverCount: parsed.servers?.length ?? 0});
+                setImportRaw(parsed);
+                void loadNodes();
+            } catch {
+                setImportError("Invalid JSON file");
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    async function doImport() {
+        if (!importRaw) return;
+        setImportError("");
+        setImporting(true);
+        const {error} = await importNetwork({body: {data: importRaw, node_assignments: importNodeAssignments}});
+        if (error) {
+            setImportError((error as { message?: string }).message ?? "Failed to import network");
+            setImporting(false);
+            return;
+        }
+        setImporting(false);
+        setShowImport(false);
+        setImportData(null);
+        setImportRaw(null);
+        load();
+    }
 
     async function handleCreate(form: NetworkFormState) {
         const res = await createNetwork({
@@ -136,12 +203,20 @@ export default function NetworksPage() {
                 title="Networks"
                 subtitle="Manage server networks and proxies"
                 action={
-                    canCreate ? (
-                        <button onClick={() => setShowCreate(true)} className={BTN_PRIMARY + " flex items-center gap-1.5"}>
-                            <Plus size={13} strokeWidth={2.5}/>
-                            New Network
-                        </button>
-                    ) : undefined
+                    <div className="flex items-center gap-2">
+                        {hasPermission(user?.permissions ?? [], "network.create") && (
+                            <button onClick={() => setShowImport(true)} className={BTN_GHOST + " flex items-center gap-1.5"}>
+                                <Upload size={13} strokeWidth={2.5}/>
+                                Import
+                            </button>
+                        )}
+                        {canCreate ? (
+                            <button onClick={() => setShowCreate(true)} className={BTN_PRIMARY + " flex items-center gap-1.5"}>
+                                <Plus size={13} strokeWidth={2.5}/>
+                                New Network
+                            </button>
+                        ) : undefined}
+                    </div>
                 }
             />
 
@@ -156,6 +231,9 @@ export default function NetworksPage() {
                         const perms = networkPermissions(user?.permissions ?? [], user?.network_permissions ?? {}, n.id);
                         return (
                             <>
+                                {hasPermission(perms, "network.view") && (
+                                    <IconActionButton icon={<Download size={13}/>} label="Export" onClick={() => void doExportNetwork(n)}/>
+                                )}
                                 {hasPermission(perms, "network.configure") && (
                                     <IconActionButton icon={<Pencil size={13}/>} label="Edit" onClick={() => setEditing(n)}/>
                                 )}
@@ -211,6 +289,66 @@ export default function NetworksPage() {
                         >
                             Delete
                         </button>
+                    </div>
+                </Modal>
+            )}
+
+            {showImport && (
+                <Modal title="Import Network" onClose={() => setShowImport(false)}>
+                    <div className="space-y-4">
+                        <input
+                            ref={importFileRef}
+                            type="file"
+                            accept=".json"
+                            onChange={handleImportFile}
+                            className="block w-full text-xs text-text-muted file:mr-3 file:py-1.5 file:px-3 file:rounded file:border-0 file:text-xs file:font-heading file:font-bold file:uppercase file:tracking-wider file:bg-surface-high file:text-text-primary hover:file:bg-surface-higher"
+                        />
+
+                        {importError && <p className="text-xs text-error">{importError}</p>}
+
+                        {importData && (
+                            <div className="space-y-4">
+                                <p className="text-sm text-text-dim">
+                                    Network: <span className="text-text-primary font-medium">{importData.name}</span>
+                                    {importData.serverCount > 0 && (
+                                        <> — {importData.serverCount} server{importData.serverCount > 1 ? "s" : ""}</>
+                                    )}
+                                </p>
+
+                                {importRaw?.servers?.length > 0 && nodes.length > 0 && (
+                                    <div className="space-y-2">
+                                        <p className="text-xs text-text-muted font-heading font-bold uppercase tracking-wider">Assign Nodes</p>
+                                        {importRaw.servers.map((s: any) => (
+                                            <div key={s.name} className="flex items-center gap-2">
+                                                <span className="text-xs text-text-primary w-32 truncate">{s.display_name ?? s.name}</span>
+                                                <SelectField
+                                                    value={importNodeAssignments[s.name] ?? ""}
+                                                    onChange={(e) => setImportNodeAssignments((prev) => ({...prev, [s.name]: e.target.value}))}
+                                                    className="flex-1"
+                                                >
+                                                    <option value="">Select node…</option>
+                                                    {nodes.map((node) => (
+                                                        <option key={node.id} value={node.id}>{node.display_name}</option>
+                                                    ))}
+                                                </SelectField>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                {importData.serverCount > 0 && nodes.length === 0 && (
+                                    <p className="text-xs text-warning">Loading nodes…</p>
+                                )}
+
+                                {importError && <p className="text-xs text-error">{importError}</p>}
+                                <div className="flex justify-end gap-2 pt-1">
+                                    <button className={BTN_GHOST} onClick={() => setShowImport(false)}>Cancel</button>
+                                    <button className={BTN_PRIMARY} disabled={importing || (importRaw?.servers?.length > 0 && Object.keys(importNodeAssignments).length < importRaw.servers.length)} onClick={doImport}>
+                                        {importing ? "Importing…" : "Import"}
+                                    </button>
+                                </div>
+                            </div>
+                        )}
                     </div>
                 </Modal>
             )}
