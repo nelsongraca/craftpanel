@@ -268,6 +268,7 @@ server.force_stop server.restart  server.configure server.resources
 server.files      server.mods     server.console  server.export
 server.backup     server.migrate  server.view     server.expires
 server.disable
+network.create    network.delete  network.configure network.view
 ```
 
 Wildcards supported at runtime (`*`, `server.*`, `system.*`). Only explicit nodes stored in DB. The API accepts only explicit nodes; wildcards exist only in seeded system groups and are expanded at check time. Permissions are **additive only** — no deny rules.

@@ -11,6 +11,7 @@ server.force_stop server.restart  server.configure  server.resources
 server.files     server.mods      server.console    server.export
 server.backup    server.migrate   server.view
 server.expires   server.disable
+network.create   network.delete   network.configure network.view
 ```
 
 Wildcards are supported in permission checks using dot-separated prefix matching:

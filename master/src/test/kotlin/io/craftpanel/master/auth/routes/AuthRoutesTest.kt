@@ -120,9 +120,9 @@ class AuthRoutesTest :
             }[Nodes.id].let { Uuid.parse(it.toString()) }
         }
 
-        fun createNetwork(): Uuid = transaction {
+        fun createNetwork(name: String = "net-1"): Uuid = transaction {
             ServerNetworks.insert {
-                it[ServerNetworks.name] = "net-1"
+                it[ServerNetworks.name] = name
             }[ServerNetworks.id].let { Uuid.parse(it.toString()) }
         }
 
@@ -139,6 +139,20 @@ class AuthRoutesTest :
                 it[Servers.cpuShares] = 0
                 it[Servers.status] = "STOPPED"
             }[Servers.id].let { Uuid.parse(it.toString()) }
+        }
+
+        fun createGroupWithPermissions(name: String, permissions: List<String>): Uuid = transaction {
+            val groupId = Groups.insert {
+                it[Groups.name] = name
+                it[Groups.isSystem] = false
+            }[Groups.id]
+            permissions.forEach { permission ->
+                GroupPermissions.insert {
+                    it[GroupPermissions.groupId] = groupId
+                    it[GroupPermissions.permission] = permission
+                }
+            }
+            Uuid.parse(groupId.toString())
         }
 
         fun assignScopedGroup(userId: Uuid, groupName: String, scopeType: String, scopeId: Uuid) = transaction {
@@ -668,6 +682,46 @@ class AuthRoutesTest :
                 me.permissions shouldBe emptyList()
                 me.serverPermissions.getValue(serverId.toString()) shouldContain "server.restart"
                 me.serverPermissions.getValue(serverId.toString()) shouldContain "server.view"
+            }
+        }
+
+        test("me returns per-network permissions including only viewable networks") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                val networkA = createNetwork()
+                val networkB = createNetwork("net-2")
+                createGroupWithPermissions("Net-admin", listOf("network.view", "network.configure"))
+                assignScopedGroup(userId, "Net-admin", "NETWORK", networkA)
+
+                val (accessToken, _) = login()
+
+                val me = client.get("/api/auth/me") { bearerAuth(accessToken) }
+                    .body<MeResponse>()
+
+                me.permissions shouldBe emptyList()
+                me.networkPermissions.getValue(networkA.toString()) shouldContain "network.configure"
+                me.networkPermissions.getValue(networkA.toString()) shouldContain "network.view"
+                me.networkPermissions.containsKey(networkB.toString()) shouldBe false
+            }
+        }
+
+        test("me returns empty network permissions for network-scoped group without network.view") {
+            testApplication {
+                application { configureTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                val networkId = createNetwork()
+                createGroupWithPermissions("Net-ops", listOf("network.create", "network.configure"))
+                assignScopedGroup(userId, "Net-ops", "NETWORK", networkId)
+
+                val (accessToken, _) = login()
+
+                val me = client.get("/api/auth/me") { bearerAuth(accessToken) }
+                    .body<MeResponse>()
+
+                me.networkPermissions shouldBe emptyMap()
             }
         }
 

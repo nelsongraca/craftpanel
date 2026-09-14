@@ -57,6 +57,12 @@ fun Route.serversRoutes(
             }) {
                 call.requirePermission(Permission.SERVER_CREATE)
                 val req = call.receive<CreateServerRequest>()
+                if (req.networkId != null) {
+                    val targetNetworkId = runCatching { Uuid.parse(req.networkId) }.getOrNull()
+                    if (targetNetworkId != null && !PermissionResolver.hasPermission(call.userId(), Permission.NETWORK_VIEW, networkId = targetNetworkId)) {
+                        return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                    }
+                }
                 if (req.expiresAt != null) call.requirePermission(Permission.SERVER_EXPIRES)
                 val row = serverService.createServer(
                     name = req.name,
@@ -143,6 +149,12 @@ fun Route.serversRoutes(
             }) {
                 val auth = call.requireServerPermission(Permission.SERVER_CONFIGURE)
                 val body = call.receive<UpdateServerRequest>()
+                if (body.networkId != null) {
+                    val targetNetworkId = runCatching { Uuid.parse(body.networkId) }.getOrNull()
+                    if (targetNetworkId != null && !PermissionResolver.hasPermission(call.userId(), Permission.NETWORK_VIEW, networkId = targetNetworkId)) {
+                        return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                    }
+                }
                 serverService.updateServer(
                     auth.serverId,
                     body.displayName,

@@ -124,10 +124,45 @@ describe("NetworksPage", () => {
         expect(screen.getByText("Create")).toBeTruthy();
     });
 
-    it("hides 'New Network' button without server.create", async () => {
+    it("hides 'New Network' button without network.create", async () => {
         (vi.mocked(useAuth) as ReturnType<typeof vi.fn>).mockReturnValue({user: {permissions: ["server.view"]}});
         await renderWith({networks: []});
         expect(screen.queryByText("New Network")).toBeNull();
+    });
+
+    it("hides Edit and Delete buttons without network.configure or network.delete", async () => {
+        (vi.mocked(useAuth) as ReturnType<typeof vi.fn>).mockReturnValue({
+            user: {permissions: ["network.view"], network_permissions: {}},
+        });
+        await renderWith({networks: [network({server_count: 0})]});
+        expect(screen.queryAllByTitle("Edit")).toHaveLength(0);
+        expect(screen.queryAllByTitle("Delete")).toHaveLength(0);
+    });
+
+    it("shows Edit and Delete only for networks with scoped network.configure/delete", async () => {
+        (vi.mocked(useAuth) as ReturnType<typeof vi.fn>).mockReturnValue({
+            user: {
+                permissions: [],
+                network_permissions: {n1: ["network.view", "network.configure", "network.delete"]},
+            },
+        });
+        await renderWith({
+            networks: [
+                network({id: "n1", name: "Granted", server_count: 0}),
+                network({id: "n2", name: "Not Granted", server_count: 0}),
+            ],
+        });
+        expect(screen.queryAllByTitle("Edit").length).toBeGreaterThanOrEqual(1);
+        expect(screen.queryAllByTitle("Delete").length).toBeGreaterThanOrEqual(1);
+    });
+
+    it("shows Edit and Delete when wildcard permission is granted", async () => {
+        (vi.mocked(useAuth) as ReturnType<typeof vi.fn>).mockReturnValue({
+            user: {permissions: ["*"], network_permissions: {}},
+        });
+        await renderWith({networks: [network({server_count: 0})]});
+        expect(screen.queryAllByTitle("Edit").length).toBeGreaterThanOrEqual(1);
+        expect(screen.queryAllByTitle("Delete").length).toBeGreaterThanOrEqual(1);
     });
 
     it("create modal submits name and description", async () => {

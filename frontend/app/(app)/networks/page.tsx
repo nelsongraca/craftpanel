@@ -6,7 +6,7 @@ import PageHeader from "@/app/components/PageHeader";
 import {createNetwork, deleteNetwork, listNetworks, updateNetwork} from "@/lib/generated/sdk.gen";
 import type {Network} from "@/lib/types";
 import {useAuth} from "@/lib/auth-context";
-import {hasPermission} from "@/lib/permissions";
+import {hasPermission, networkPermissions} from "@/lib/permissions";
 import {useResourceList} from "@/lib/hooks/useResourceList";
 
 import {BTN_PRIMARY, BTN_GHOST, Modal, Field, TextField} from "@/components/ui/form-elements";
@@ -86,7 +86,7 @@ function NetworkForm({
 export default function NetworksPage() {
     const {user} = useAuth();
     const {data: networks, initialLoad: loading, reload: load} = useResourceList(listNetworks, [], {pollMs: 0});
-    const canCreate = hasPermission(user?.permissions ?? [], "server.create");
+    const canCreate = hasPermission(user?.permissions ?? [], "network.create");
     const [showCreate, setShowCreate] = useState(false);
     const [editing, setEditing] = useState<Network | null>(null);
     const [deleting, setDeleting] = useState<Network | null>(null);
@@ -152,21 +152,28 @@ export default function NetworksPage() {
                     keyFor={(n) => n.id}
                     loading={loading}
                     empty="No networks yet. Create one to group servers."
-                    actions={(n) => (
-                        <>
-                            <IconActionButton icon={<Pencil size={13}/>} label="Edit" onClick={() => setEditing(n)}/>
-                            <IconActionButton
-                                icon={<Trash2 size={13}/>}
-                                label={n.server_count > 0 ? "Cannot delete: has member servers" : "Delete"}
-                                danger
-                                disabled={n.server_count > 0}
-                                onClick={() => {
-                                    setDeleting(n);
-                                    setDeleteError("");
-                                }}
-                            />
-                        </>
-                    )}
+                    actions={(n) => {
+                        const perms = networkPermissions(user?.permissions ?? [], user?.network_permissions ?? {}, n.id);
+                        return (
+                            <>
+                                {hasPermission(perms, "network.configure") && (
+                                    <IconActionButton icon={<Pencil size={13}/>} label="Edit" onClick={() => setEditing(n)}/>
+                                )}
+                                {hasPermission(perms, "network.delete") && (
+                                    <IconActionButton
+                                        icon={<Trash2 size={13}/>}
+                                        label={n.server_count > 0 ? "Cannot delete: has member servers" : "Delete"}
+                                        danger
+                                        disabled={n.server_count > 0}
+                                        onClick={() => {
+                                            setDeleting(n);
+                                            setDeleteError("");
+                                        }}
+                                    />
+                                )}
+                            </>
+                        );
+                    }}
                 />
             </div>
 

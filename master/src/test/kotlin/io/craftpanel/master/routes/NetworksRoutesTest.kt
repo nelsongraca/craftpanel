@@ -71,6 +71,20 @@ class NetworksRoutesTest :
             }
         }
 
+        fun createGroupWithPermissions(name: String, vararg nodes: String): Uuid = transaction {
+            val groupId = Groups.insert {
+                it[Groups.name] = name
+                it[Groups.isSystem] = false
+            }[Groups.id]
+            nodes.forEach { node ->
+                GroupPermissions.insert {
+                    it[GroupPermissions.groupId] = groupId
+                    it[GroupPermissions.permission] = node
+                }
+            }
+            Uuid.parse(groupId.toString())
+        }
+
         fun assignNetworkGroup(userId: Uuid, groupName: String, networkId: Uuid) = transaction {
             val groupId = Groups.selectAll()
                 .where { Groups.name eq groupName }
@@ -102,7 +116,7 @@ class NetworksRoutesTest :
             }
         }
 
-        test("GET networks returns 403 without server-view permission") {
+        test("GET networks returns empty list without network.view") {
             testApplication {
                 testApp { _ -> configureNetworksTest() }
                 val client = jsonClient()
@@ -110,7 +124,8 @@ class NetworksRoutesTest :
                 val resp = client.get("/api/networks") {
                     bearerAuth(tokenFor(userId))
                 }
-                resp.status shouldBe HttpStatusCode.Forbidden
+                resp.status shouldBe HttpStatusCode.OK
+                resp.body<List<JsonObject>>().size shouldBe 0
             }
         }
 
@@ -131,7 +146,7 @@ class NetworksRoutesTest :
                 testApp { _ -> configureNetworksTest() }
                 val client = jsonClient()
                 val userId = createUser()
-                assignGlobalGroup(userId, "Viewer")
+                assignGlobalGroup(userId, "Super Admin")
                 createNetwork("net-a")
                 createNetwork("net-b")
                 val resp = client.get("/api/networks") { bearerAuth(tokenFor(userId)) }
@@ -147,7 +162,7 @@ class NetworksRoutesTest :
 
         // ── POST /networks ───────────────────────────────────────────────────────
 
-        test("POST networks returns 403 without server-create") {
+        test("POST networks returns 403 without network.create") {
             testApplication {
                 testApp { _ -> configureNetworksTest() }
                 val client = jsonClient()
@@ -207,7 +222,7 @@ class NetworksRoutesTest :
                 testApp { _ -> configureNetworksTest() }
                 val client = jsonClient()
                 val userId = createUser()
-                assignGlobalGroup(userId, "Viewer")
+                assignGlobalGroup(userId, "Super Admin")
                 val resp = client.get("/api/networks/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }
                 resp.status shouldBe HttpStatusCode.NotFound
             }
@@ -218,7 +233,7 @@ class NetworksRoutesTest :
                 testApp { _ -> configureNetworksTest() }
                 val client = jsonClient()
                 val userId = createUser()
-                assignGlobalGroup(userId, "Viewer")
+                assignGlobalGroup(userId, "Super Admin")
                 val netId = createNetwork("detail-net")
                 val resp = client.get("/api/networks/$netId") { bearerAuth(tokenFor(userId)) }
                 resp.status shouldBe HttpStatusCode.OK
@@ -242,7 +257,7 @@ class NetworksRoutesTest :
 
         // ── PATCH /networks/{id} ─────────────────────────────────────────────────
 
-        test("PATCH networks returns 403 without server-configure on network") {
+        test("PATCH networks returns 403 without network.configure on network") {
             testApplication {
                 testApp { _ -> configureNetworksTest() }
                 val client = jsonClient()
@@ -331,7 +346,7 @@ class NetworksRoutesTest :
 
         // ── DELETE /networks/{id} ────────────────────────────────────────────────
 
-        test("DELETE networks returns 403 without server-delete on network") {
+        test("DELETE networks returns 403 without network.delete on network") {
             testApplication {
                 testApp { _ -> configureNetworksTest() }
                 val client = jsonClient()
@@ -369,6 +384,125 @@ class NetworksRoutesTest :
                 assignGlobalGroup(userId, "Super Admin")
                 val resp = client.delete("/api/networks/${Uuid.random()}") { bearerAuth(tokenFor(userId)) }
                 resp.status shouldBe HttpStatusCode.NotFound
+            }
+        }
+
+        // ── network-scoped permission gates (Bug #5) ───────────────────────────
+
+        test("GET networks is scoped by network.view (returns only assigned, never 403)") {
+            testApplication {
+                testApp { _ -> configureNetworksTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                val netA = createNetwork("net-a")
+                createNetwork("net-b")
+                createGroupWithPermissions("Scoped Viewer", "network.view")
+                assignNetworkGroup(userId, "Scoped Viewer", netA)
+                val resp = client.get("/api/networks") { bearerAuth(tokenFor(userId)) }
+                resp.status shouldBe HttpStatusCode.OK
+                val names = resp.body<List<JsonObject>>().map { it["name"]!!.jsonPrimitive.content }.toSet()
+                names shouldBe setOf("net-a")
+            }
+        }
+
+        test("GET networks returns empty list for user with only server-view (no network.view)") {
+            testApplication {
+                testApp { _ -> configureNetworksTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                createNetwork("net-a")
+                assignGlobalGroup(userId, "Viewer")
+                val resp = client.get("/api/networks") { bearerAuth(tokenFor(userId)) }
+                resp.status shouldBe HttpStatusCode.OK
+                resp.body<List<JsonObject>>().size shouldBe 0
+            }
+        }
+
+        test("POST networks returns 403 without network.create") {
+            testApplication {
+                testApp { _ -> configureNetworksTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                createGroupWithPermissions("No Network Create", "server.create")
+                assignGlobalGroup(userId, "No Network Create")
+                val resp = client.post("/api/networks") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"net","description":null}""")
+                }
+                resp.status shouldBe HttpStatusCode.Forbidden
+            }
+        }
+
+        test("POST networks returns 201 with global network.create") {
+            testApplication {
+                testApp { _ -> configureNetworksTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                createGroupWithPermissions("Network Creator", "network.create")
+                assignGlobalGroup(userId, "Network Creator")
+                val resp = client.post("/api/networks") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"net","description":null}""")
+                }
+                resp.status shouldBe HttpStatusCode.Created
+            }
+        }
+
+        test("GET networks by id requires network.view on that network") {
+            testApplication {
+                testApp { _ -> configureNetworksTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                val netA = createNetwork("net-a")
+                val netB = createNetwork("net-b")
+                createGroupWithPermissions("Scoped Viewer", "network.view")
+                assignNetworkGroup(userId, "Scoped Viewer", netA)
+                val ok = client.get("/api/networks/${netA}") { bearerAuth(tokenFor(userId)) }
+                ok.status shouldBe HttpStatusCode.OK
+                val forbidden = client.get("/api/networks/${netB}") { bearerAuth(tokenFor(userId)) }
+                forbidden.status shouldBe HttpStatusCode.Forbidden
+            }
+        }
+
+        test("PATCH networks requires network.configure on that network") {
+            testApplication {
+                testApp { _ -> configureNetworksTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                val netA = createNetwork("net-a")
+                val netB = createNetwork("net-b")
+                createGroupWithPermissions("Scoped Configurer", "network.configure")
+                assignNetworkGroup(userId, "Scoped Configurer", netA)
+                val ok = client.patch("/api/networks/${netA}") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"net-a-renamed"}""")
+                }
+                ok.status shouldBe HttpStatusCode.NoContent
+                val forbidden = client.patch("/api/networks/${netB}") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"net-b"}""")
+                }
+                forbidden.status shouldBe HttpStatusCode.Forbidden
+            }
+        }
+
+        test("DELETE networks requires network.delete on that network") {
+            testApplication {
+                testApp { _ -> configureNetworksTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                val netA = createNetwork("net-a")
+                val netB = createNetwork("net-b")
+                createGroupWithPermissions("Scoped Deleter", "network.delete")
+                assignNetworkGroup(userId, "Scoped Deleter", netA)
+                val forbidden = client.delete("/api/networks/${netB}") { bearerAuth(tokenFor(userId)) }
+                forbidden.status shouldBe HttpStatusCode.Forbidden
+                val ok = client.delete("/api/networks/${netA}") { bearerAuth(tokenFor(userId)) }
+                ok.status shouldBe HttpStatusCode.NoContent
             }
         }
     })

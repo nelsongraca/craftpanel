@@ -23,6 +23,7 @@ export interface AuthUser {
     groups: string[];
     permissions: string[];
     server_permissions: Record<string, string[]>;
+    network_permissions: Record<string, string[]>;
     totp_enabled: boolean;
     must_change_password: boolean;
 }
@@ -35,6 +36,7 @@ function toAuthUser(me: MeResponse): AuthUser {
         groups: me.groups,
         permissions: me.permissions,
         server_permissions: me.server_permissions,
+        network_permissions: me.network_permissions,
         totp_enabled: me.totp_enabled,
         must_change_password: me.must_change_password ?? false,
     };

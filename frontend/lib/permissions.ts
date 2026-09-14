@@ -15,3 +15,13 @@ export function serverPermissions(
     const scoped = scopedPermissions[serverId] ?? [];
     return Array.from(new Set([...globalPermissions, ...scoped]));
 }
+
+export function networkPermissions(
+    globalPermissions: string[],
+    scopedPermissions: Record<string, string[]>,
+    networkId: string | undefined
+): string[] {
+    if (!networkId) return globalPermissions;
+    const scoped = scopedPermissions[networkId] ?? [];
+    return Array.from(new Set([...globalPermissions, ...scoped]));
+}

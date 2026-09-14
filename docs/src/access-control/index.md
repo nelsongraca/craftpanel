@@ -26,6 +26,12 @@ Access control is implemented as a **permission node** system. Permissions are c
 | `server.view`      | Read-only access: status, config, logs, player count                       |
 | `server.expires`   | Set or remove a server's expiration date                                    |
 | `server.disable`   | Disable or re-enable a server (synchronous stop if running)                |
+| `network.view`     | List/view server networks (GLOBAL or scoped to a specific network)         |
+| `network.create`   | Create new server networks                                                 |
+| `network.configure`| Update a network's name or description (scoped to a network)               |
+| `network.delete`   | Delete a network and detach its member servers (scoped to a network)       |
+
+Associating a server with a network additionally requires `network.view` on the target network.
 
 ## Default Groups
 

@@ -28,6 +28,10 @@ const PERMISSION_GROUPS: { label: string; nodes: string[] }[] = [
             "server.backup", "server.migrate",
         ],
     },
+    {
+        label: "Network",
+        nodes: ["network.view", "network.create", "network.configure", "network.delete"],
+    },
 ];
 
 // ── Columns ───────────────────────────────────────────────────────────────────

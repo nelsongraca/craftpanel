@@ -2,13 +2,15 @@
 
 Base path: `/api/networks`
 
-| Method | Path             | Permission                             | Description                    |
-|--------|------------------|----------------------------------------|--------------------------------|
-| GET    | `/networks`      | authenticated                          | List all networks              |
-| POST   | `/networks`      | `server.create`                        | Create a network               |
-| GET    | `/networks/{id}` | authenticated                          | Get network and member servers |
-| PATCH  | `/networks/{id}` | `server.configure` (scoped to network) | Update name or description     |
-| DELETE | `/networks/{id}` | `server.delete` (scoped to network)    | Delete network                 |
+| Method | Path             | Permission                            | Description                    |
+|--------|------------------|---------------------------------------|--------------------------------|
+| GET    | `/networks`      | authenticated (filtered by `network.view`) | List viewable networks         |
+| POST   | `/networks`      | `network.create`                      | Create a network               |
+| GET    | `/networks/{id}` | `network.view` (scoped to network)    | Get network and member servers |
+| PATCH  | `/networks/{id}` | `network.configure` (scoped to network) | Update name or description   |
+| DELETE | `/networks/{id}` | `network.delete` (scoped to network)  | Delete network                 |
+
+`GET /networks` returns only networks the caller can view: all of them with GLOBAL or `*` `network.view`, the matching subset with NETWORK-scoped `network.view`, and an empty list otherwise. `GET /networks/{id}` returns `403` unless the caller has `network.view` on that specific network.
 
 DNS configuration (zone ID, domain suffix) is global, not per-network — see [System Settings](system-settings.md) and [Enabling Public Hostnames](../usage/enabling-public-hostnames.md).
 

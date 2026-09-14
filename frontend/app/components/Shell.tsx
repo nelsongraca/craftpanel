@@ -39,7 +39,7 @@ const sidebarSections: SidebarSection[] = [
         title: "Servers",
         items: [
             {label: "All Servers", href: "/servers", icon: Server},
-            {label: "Networks", href: "/networks", icon: Network, permission: "server.view"},
+            {label: "Networks", href: "/networks", icon: Network, permission: "network.view"},
         ],
     },
     {

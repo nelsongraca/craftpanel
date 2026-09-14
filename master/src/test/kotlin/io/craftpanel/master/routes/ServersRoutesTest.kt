@@ -157,6 +157,18 @@ class ServersRoutesTest :
             }[ServerNetworks.id].let { Uuid.parse(it.toString()) }
         }
 
+        fun assignNetworkGroup(userId: Uuid, groupName: String, networkId: Uuid) = transaction {
+            val groupId = Groups.selectAll()
+                .where { Groups.name eq groupName }
+                .first()[Groups.id]
+            UserGroupAssignments.insert {
+                it[UserGroupAssignments.userId] = userId
+                it[UserGroupAssignments.groupId] = groupId
+                it[UserGroupAssignments.scopeType] = "NETWORK"
+                it[UserGroupAssignments.scopeId] = networkId
+            }
+        }
+
         fun createServer(
             nodeId: Uuid,
             name: String = "server-${Uuid.random()}",
@@ -1718,4 +1730,49 @@ class ServersRoutesTest :
                 resp.status shouldBe HttpStatusCode.NotFound
             }
         }
+           context("server-network association requires scoped network.view on the target network") {
+            test("POST server with network_id requires network.view on that network (not just server.create)") {
+                testApplication {
+                    testApp { _ -> configureServersTest() }
+                    val client = jsonClient()
+                    val userId = createUser()
+                    val nodeId = createNode()
+                    val netA = createNetwork("net-a")
+                    val netB = createNetwork("net-b")
+                    createGroupWithPermissions("Server Creator", "server.create")
+                    assignGlobalGroup(userId, "Server Creator")
+                    createGroupWithPermissions("Scoped Network Viewer", "network.view")
+                    assignNetworkGroup(userId, "Scoped Network Viewer", netA)
+                    val resp = client.post("/api/servers") {
+                        bearerAuth(tokenFor(userId))
+                        contentType(ContentType.Application.Json)
+                        setBody("""{"name":"srv","node_id":"$nodeId","network_id":"$netB","server_type":"VANILLA","memory_mb":512}""")
+                    }
+                    resp.status shouldBe HttpStatusCode.Forbidden
+                }
+            }
+
+            test("PATCH server network_id requires network.view on the target network") {
+                testApplication {
+                    testApp { _ -> configureServersTest() }
+                    val client = jsonClient()
+                    val userId = createUser()
+                    val nodeId = createNode()
+                    val serverId = createServer(nodeId)
+                    val netA = createNetwork("net-a")
+                    val netB = createNetwork("net-b")
+                    createGroupWithPermissions("Server Configurer", "server.configure")
+                    assignGlobalGroup(userId, "Server Configurer")
+                    createGroupWithPermissions("Scoped Network Viewer", "network.view")
+                    assignNetworkGroup(userId, "Scoped Network Viewer", netA)
+                    val resp = client.patch("/api/servers/$serverId") {
+                        bearerAuth(tokenFor(userId))
+                        contentType(ContentType.Application.Json)
+                        setBody("""{"network_id":"$netB"}""")
+                    }
+                    resp.status shouldBe HttpStatusCode.Forbidden
+                }
+            }
+        }
+
     })

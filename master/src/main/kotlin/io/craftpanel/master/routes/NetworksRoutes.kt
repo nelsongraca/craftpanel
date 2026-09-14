@@ -22,7 +22,6 @@ fun Route.networksRoutes(networkService: NetworkService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                call.requirePermission(Permission.SERVER_VIEW)
                 val userId = call.userId()
                 call.respond(networkService.listNetworks(userId))
             }
@@ -38,7 +37,7 @@ fun Route.networksRoutes(networkService: NetworkService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                call.requirePermission(Permission.SERVER_CREATE)
+                call.requirePermission(Permission.NETWORK_CREATE)
                 val req = call.receive<CreateNetworkRequest>()
                 call.respond(HttpStatusCode.Created, networkService.createNetwork(req))
             }
@@ -54,9 +53,11 @@ fun Route.networksRoutes(networkService: NetworkService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                call.requirePermission(Permission.SERVER_VIEW)
                 val id = parseNetworkId(call.parameters["id"])
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid network ID"))
+                if (!PermissionResolver.hasPermission(call.userId(), Permission.NETWORK_VIEW, networkId = id)) {
+                    return@get call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
+                }
                 call.respond(networkService.getNetwork(id))
             }
 
@@ -79,7 +80,7 @@ fun Route.networksRoutes(networkService: NetworkService) {
                 val id = parseNetworkId(call.parameters["id"])
                     ?: return@patch call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid network ID"))
                 val networkId = id
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_CONFIGURE, networkId = networkId)) {
+                if (!PermissionResolver.hasPermission(userId, Permission.NETWORK_CONFIGURE, networkId = networkId)) {
                     return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 }
                 val req = call.receive<PatchNetworkRequest>()
@@ -102,7 +103,7 @@ fun Route.networksRoutes(networkService: NetworkService) {
                 val id = parseNetworkId(call.parameters["id"])
                     ?: return@delete call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid network ID"))
                 val networkId = id
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_DELETE, networkId = networkId)) {
+                if (!PermissionResolver.hasPermission(userId, Permission.NETWORK_DELETE, networkId = networkId)) {
                     return@delete call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
                 }
                 networkService.deleteNetwork(id)

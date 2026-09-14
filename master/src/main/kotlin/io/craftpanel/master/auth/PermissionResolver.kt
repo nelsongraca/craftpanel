@@ -93,6 +93,57 @@ object PermissionResolver {
         result
     }
 
+    /**
+     * Resolves, for every network the user can see, the union of permissions granted by their
+     * GLOBAL and NETWORK-scoped group assignments. Keyed by network id.
+     *
+     * Only networks the user can actually view (has [Permission.NETWORK_VIEW] for) are included,
+     * mirroring the visibility logic so the frontend can render per-network action buttons.
+     */
+    fun networkPermissions(userId: Uuid): Map<Uuid, Set<String>> = transaction {
+        val user = Users.selectAll()
+            .where { Users.id eq userId }
+            .firstOrNull() ?: return@transaction emptyMap()
+
+        if (!user[Users.isActive]) return@transaction emptyMap()
+
+        val networks = ServerNetworks.selectAll()
+            .map { it[ServerNetworks.id].value }
+
+        val assignments = UserGroupAssignments.selectAll()
+            .where { UserGroupAssignments.userId eq userId }
+            .map { Assignment(it[UserGroupAssignments.groupId].value, it[UserGroupAssignments.scopeType], it[UserGroupAssignments.scopeId]) }
+
+        if (assignments.isEmpty()) return@transaction emptyMap()
+
+        // groupId -> permission nodes
+        val groupPermissions = GroupPermissions.selectAll()
+            .where {
+                GroupPermissions.groupId inList assignments.map { it.groupId }
+                    .toSet()
+            }
+            .groupBy({ it[GroupPermissions.groupId].value }, { it[GroupPermissions.permission] })
+
+        val globalGroupIds = assignments.filter { it.scopeType == ScopeType.GLOBAL.name }
+            .map { it.groupId }
+            .toSet()
+        val networkGroupIds = assignments.filter { it.scopeType == ScopeType.NETWORK.name }
+            .associate { it.scopeId to it.groupId }
+
+        val result = mutableMapOf<Uuid, Set<String>>()
+        for (networkId in networks) {
+            val granted = buildSet {
+                globalGroupIds.forEach { addAll(groupPermissions[it].orEmpty()) }
+                networkGroupIds[networkId]?.let { addAll(groupPermissions[it].orEmpty()) }
+            }
+            // Only surface networks the user can actually view.
+            if (granted.any { matches(it, Permission.NETWORK_VIEW.node) }) {
+                result[networkId] = granted
+            }
+        }
+        result
+    }
+
     private data class Assignment(val groupId: Uuid, val scopeType: String, val scopeId: Uuid?)
 
     private fun groupIdsForScope(userId: Uuid, scopeType: String, scopeId: Uuid?): List<Uuid> = UserGroupAssignments.selectAll()

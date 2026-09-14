@@ -23,7 +23,12 @@ enum class Permission(val node: String) {
     SERVER_MIGRATE("server.migrate"),
     SERVER_EXPIRES("server.expires"),
     SERVER_DISABLE("server.disable"),
-    SERVER_VIEW("server.view");
+    SERVER_VIEW("server.view"),
+
+    NETWORK_VIEW("network.view"),
+    NETWORK_CREATE("network.create"),
+    NETWORK_CONFIGURE("network.configure"),
+    NETWORK_DELETE("network.delete");
 
     override fun toString(): String = node
 }

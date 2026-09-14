@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import {hasPermission, serverPermissions} from './permissions'
+import {hasPermission, networkPermissions, serverPermissions} from './permissions'
 
 describe('hasPermission', () => {
     it('grants everything with wildcard *', () => {
@@ -61,5 +61,30 @@ describe('serverPermissions', () => {
     it('scoped permissions alone surface when no global permissions exist', () => {
         expect(serverPermissions([], {'s1': ['server.restart']}, 's1'))
             .toEqual(['server.restart'])
+    })
+})
+
+describe('networkPermissions', () => {
+    it('unions global and network-scoped permissions without duplicates', () => {
+        const perms = networkPermissions(
+            ['network.view'],
+            {'n1': ['network.configure', 'network.view']},
+            'n1',
+        )
+        expect(perms.sort()).toEqual(['network.configure', 'network.view'])
+    })
+
+    it('falls back to global only when no network id is given', () => {
+        expect(networkPermissions(['network.view'], {'n1': ['network.configure']}, undefined))
+            .toEqual(['network.view'])
+    })
+
+    it('returns global only when the network has no scoped permissions', () => {
+        expect(networkPermissions(['network.view'], {}, 'n1')).toEqual(['network.view'])
+    })
+
+    it('scoped permissions alone surface when no global permissions exist', () => {
+        expect(networkPermissions([], {'n1': ['network.configure']}, 'n1'))
+            .toEqual(['network.configure'])
     })
 })

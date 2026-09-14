@@ -29,14 +29,14 @@ describe("Shell sidebar", () => {
         vi.unstubAllGlobals();
     });
 
-    it("shows Networks menu item with server.view", () => {
-        useAuthAs(["server.view"]);
+    it("shows Networks menu item with network.view", () => {
+        useAuthAs(["network.view"]);
         render(<Shell>content</Shell>);
         expect(screen.getByText("Networks")).toBeTruthy();
     });
 
-    it("hides Networks menu item without server.view", () => {
-        useAuthAs(["server.view.other"]);
+    it("hides Networks menu item without network.view", () => {
+        useAuthAs(["server.view"]);
         render(<Shell>content</Shell>);
         expect(screen.queryByText("Networks")).toBeNull();
     });

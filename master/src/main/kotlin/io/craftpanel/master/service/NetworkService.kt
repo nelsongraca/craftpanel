@@ -59,7 +59,7 @@ class NetworkService(
 
     private val hasDockerEndpoint: Boolean = dockerClient != null
 
-    private val visibilityResolver = ServerVisibilityResolver(userRepository, groupRepository)
+    private val visibilityResolver = NetworkVisibilityResolver(userRepository, groupRepository)
 
     fun validateCrossNodeAssignment(nodeIds: List<Uuid>) {
         if (!hasDockerEndpoint) {

@@ -83,6 +83,7 @@ data class MeResponse(
     val groups: List<String>,
     val permissions: List<String>,
     @SerialName("server_permissions") val serverPermissions: Map<String, List<String>>,
+    @SerialName("network_permissions") val networkPermissions: Map<String, List<String>>,
     @SerialName("totp_enabled") val totpEnabled: Boolean,
     @SerialName("must_change_password") val mustChangePassword: Boolean = false
 )
@@ -725,6 +726,13 @@ fun Route.authRoutes(
                             .sorted()
                     }
 
+                val networkPermissions = PermissionResolver.networkPermissions(userId)
+                    .mapKeys { it.key.toString() }
+                    .mapValues { (_, perms) ->
+                        perms.toList()
+                            .sorted()
+                    }
+
                 call.respond(
                     MeResponse(
                         id = userId.toString(),
@@ -733,6 +741,7 @@ fun Route.authRoutes(
                         groups = userInfo.groupNames,
                         permissions = permissions,
                         serverPermissions = serverPermissions,
+                        networkPermissions = networkPermissions,
                         totpEnabled = userRepository.findById(userId)?.totpEnabled ?: false,
                         mustChangePassword = userInfo.mustChangePassword
                     )
