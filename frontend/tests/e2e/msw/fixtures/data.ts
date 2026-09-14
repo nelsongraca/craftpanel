@@ -29,6 +29,7 @@ export const fakeUser: MeResponse = {
     groups: ["Super Admin"],
     permissions: ["*"],
     server_permissions: {},
+    network_permissions: {},
     totp_enabled: false,
 };
 

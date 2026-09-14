@@ -41,9 +41,9 @@ const USER_COLUMNS: SmartListColumn<User>[] = [
     )},
     {key: 'groups', header: 'Groups', render: (u) => (
         <div className="flex flex-wrap gap-1">
-            {u.groups.length === 0
+            {u.groups?.length === 0
                 ? <span className="text-text-muted text-xs">—</span>
-                : u.groups.map((g) => (
+                : u.groups?.map((g) => (
                     <span key={g} className="inline-flex items-center px-2 py-0.5 rounded text-xs font-heading font-bold uppercase tracking-wider bg-surface-higher text-text-dim border border-border">
                         {g}
                     </span>
