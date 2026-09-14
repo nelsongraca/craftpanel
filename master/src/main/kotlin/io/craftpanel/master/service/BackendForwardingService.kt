@@ -1,21 +1,17 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.crypto.SecretCipher
 import io.craftpanel.master.database.entity.EnvVar
 import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.ServerEnvVars
 import io.craftpanel.master.database.schema.Servers
-import io.craftpanel.master.crypto.SecretCipher
-import io.craftpanel.master.service.repo.EnvVarsRepository
-import io.craftpanel.master.service.repo.ProxyBackendRepository
-import io.craftpanel.master.service.repo.ServerRepository
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
-import org.jetbrains.exposed.v1.core.*
+import io.craftpanel.master.service.repo.*
+import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
-import org.jetbrains.exposed.v1.jdbc.*
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import java.security.SecureRandom
-import java.util.Base64
+import java.util.*
 import kotlin.uuid.Uuid
 
 data class BackendWarning(val backendId: Uuid, val reason: String)
@@ -49,8 +45,7 @@ class BackendForwardingService(
                 continue
             }
 
-            val classification = BackendForwarding.classify(backendRow.serverType, mode)
-            when (classification) {
+            when (val classification = BackendForwarding.classify(backendRow.serverType, mode)) {
                 is Classification.WarnSkip -> {
                     warnings.add(BackendWarning(backend.backendServerId, classification.reason))
                 }

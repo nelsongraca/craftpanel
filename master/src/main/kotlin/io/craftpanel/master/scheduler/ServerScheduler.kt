@@ -4,12 +4,12 @@ import com.cronutils.model.CronType
 import com.cronutils.model.definition.CronDefinitionBuilder
 import com.cronutils.model.time.ExecutionTime
 import com.cronutils.parser.CronParser
+import io.craftpanel.master.database.entity.Server
+import io.craftpanel.master.database.entity.ServerJob
 import io.craftpanel.master.service.ServerLifecycleService
 import io.craftpanel.master.service.repo.ServerJobRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.coroutines.*
-import io.craftpanel.master.database.entity.Server
-import io.craftpanel.master.database.entity.ServerJob
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -63,7 +63,7 @@ class ServerScheduler(
         job?.cancel()
     }
 
-    internal fun tick(now: kotlin.time.Instant) {
+    internal fun tick(now: Instant) {
         val nowZdt = java.time.Instant.ofEpochMilli(now.toEpochMilliseconds())
             .atZone(ZoneOffset.UTC)
         val nowMinute = nowZdt.truncatedTo(ChronoUnit.MINUTES)

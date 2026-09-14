@@ -6,12 +6,13 @@ import io.craftpanel.master.service.repo.UserRepository
 import io.craftpanel.master.util.CryptoUtils
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
-import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
-import org.jetbrains.exposed.v1.jdbc.*
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.security.MessageDigest
-import java.util.HexFormat
+import java.util.*
 import kotlin.time.Clock
 import kotlin.time.Duration.Companion.days
 import kotlin.uuid.Uuid
@@ -46,8 +47,7 @@ class TrustedDeviceService(private val userRepository: UserRepository) {
     ): Boolean {
         val hash = sha256Hex(rawToken)
         val row = userRepository.findTrustedDevice(userId, hash, deviceFingerprint, userAgent) ?: return false
-        if (row.revoked) return false
-        return true
+        return !row.revoked
     }
 
     fun revokeAll(userId: Uuid) {

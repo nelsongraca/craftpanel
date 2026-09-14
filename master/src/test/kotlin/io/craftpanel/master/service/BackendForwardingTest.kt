@@ -13,7 +13,7 @@ class BackendForwardingTest :
             test("PAPER is eligible for modern") {
                 val result = BackendForwarding.classify(ServerType.PAPER, "MODERN")
                 result.shouldBeTypeOf<Classification.Eligible>()
-                (result as Classification.Eligible).file shouldBe "/data/config/paper-global.yml"
+                result.file shouldBe "/data/config/paper-global.yml"
             }
 
             test("PURPUR is eligible for modern") {
@@ -61,7 +61,7 @@ class BackendForwardingTest :
             test("SPIGOT is eligible for legacy") {
                 val result = BackendForwarding.classify(ServerType.SPIGOT, "LEGACY")
                 result.shouldBeTypeOf<Classification.Eligible>()
-                (result as Classification.Eligible).file shouldBe "/data/spigot.yml"
+                result.file shouldBe "/data/spigot.yml"
             }
 
             test("BUKKIT is eligible for legacy") {

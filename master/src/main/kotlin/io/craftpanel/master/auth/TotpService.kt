@@ -1,8 +1,6 @@
 package io.craftpanel.master.auth
 
-import dev.samstevens.totp.code.DefaultCodeGenerator
-import dev.samstevens.totp.code.DefaultCodeVerifier
-import dev.samstevens.totp.code.HashingAlgorithm
+import dev.samstevens.totp.code.*
 import dev.samstevens.totp.qr.QrDataFactory
 import dev.samstevens.totp.qr.ZxingPngQrGenerator
 import dev.samstevens.totp.secret.DefaultSecretGenerator
@@ -10,7 +8,7 @@ import dev.samstevens.totp.time.SystemTimeProvider
 import io.craftpanel.master.crypto.SecretCipher
 import io.craftpanel.master.util.CryptoUtils
 import java.security.SecureRandom
-import java.util.Base64
+import java.util.*
 
 class TotpService(private val cipher: SecretCipher) {
 
@@ -31,7 +29,7 @@ class TotpService(private val cipher: SecretCipher) {
             .issuer(ISSUER)
             .build()
         val generator = ZxingPngQrGenerator()
-        generator.setImageSize(QR_SIZE)
+        generator.imageSize = QR_SIZE
         val image = generator.generate(data)
         return "data:${generator.imageMimeType};base64," + Base64.getEncoder().encodeToString(image)
     }

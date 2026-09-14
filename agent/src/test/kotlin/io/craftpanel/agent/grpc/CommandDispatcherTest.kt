@@ -1,10 +1,6 @@
 package io.craftpanel.agent.grpc
 
-import io.craftpanel.agent.grpc.handlers.BackupHandler
-import io.craftpanel.agent.grpc.handlers.ContainerHandler
-import io.craftpanel.agent.grpc.handlers.ConsoleHandler
-import io.craftpanel.agent.grpc.handlers.FileHandler
-import io.craftpanel.agent.grpc.handlers.MigrationHandler
+import io.craftpanel.agent.grpc.handlers.*
 import io.craftpanel.proto.*
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
@@ -126,7 +122,7 @@ class CommandDispatcherTest :
         }
 
         test("routes rebuild_symlinks to both handler rebuild methods") {
-            val builder = io.craftpanel.proto.RebuildSymlinksCommand.newBuilder()
+            val builder = RebuildSymlinksCommand.newBuilder()
             builder.addServersBuilder()
                 .setServerId("s1")
                 .setServerName("world")

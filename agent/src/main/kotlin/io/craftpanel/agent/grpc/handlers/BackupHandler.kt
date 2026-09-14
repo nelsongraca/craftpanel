@@ -100,7 +100,7 @@ class BackupHandler(private val config: AgentConfig) {
                         backupsByServerRoot = config.backupsByServerRoot,
                         name = cmd.serverName,
                         timestamp = cmd.createdAtFormatted,
-                        canonicalBackupFile = java.nio.file.Paths.get(destPath)
+                        canonicalBackupFile = Paths.get(destPath)
                     )
                 }.onFailure { log.warn("Failed to create backups-by-server symlink for ${cmd.backupId}", it) }
             }

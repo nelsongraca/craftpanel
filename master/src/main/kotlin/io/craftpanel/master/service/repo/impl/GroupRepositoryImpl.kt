@@ -1,11 +1,12 @@
 package io.craftpanel.master.service.repo.impl
 
-import io.craftpanel.master.database.schema.*
-import io.craftpanel.master.service.repo.*
-import io.craftpanel.master.service.repo.impl.*
+import io.craftpanel.master.database.schema.GroupPermissions
+import io.craftpanel.master.database.schema.Groups
+import io.craftpanel.master.service.repo.GroupRepository
+import io.craftpanel.master.service.repo.GroupRow
 import io.craftpanel.master.util.toUtcString
 import org.jetbrains.exposed.v1.core.*
-import org.jetbrains.exposed.v1.jdbc.*
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
@@ -55,7 +56,7 @@ class GroupRepositoryImpl : GroupRepository {
     }
 }
 
-private fun org.jetbrains.exposed.v1.core.ResultRow.toGroupRow(permissions: List<String>) = GroupRow(
+private fun ResultRow.toGroupRow(permissions: List<String>) = GroupRow(
     id = this[Groups.id].value,
     name = this[Groups.name],
     isSystem = this[Groups.isSystem],

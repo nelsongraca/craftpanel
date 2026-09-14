@@ -168,8 +168,8 @@ class ControlStreamHandlerTest :
                 )
 
                 val link = java.nio.file.Path.of(byNameRoot.absolutePath, srvName)
-                java.nio.file.Files.exists(link) shouldBe true
-                java.nio.file.Files.isSymbolicLink(link) shouldBe true
+                Files.exists(link) shouldBe true
+                Files.isSymbolicLink(link) shouldBe true
                 byNameRoot.deleteRecursively()
             }
         }
@@ -392,7 +392,7 @@ class ControlStreamHandlerTest :
                 val serverDir = File(tempDir, "servers/$serverId").apply { mkdirs() }
                 File(serverDir, "server.properties").writeText("motd=hi")
                 SymlinkMaintainer.createServerNameSymlink(byNameRoot.absolutePath, srvName, java.nio.file.Path.of(serverDir.absolutePath))
-                java.nio.file.Files.exists(java.nio.file.Path.of(byNameRoot.absolutePath, srvName)) shouldBe true
+                Files.exists(java.nio.file.Path.of(byNameRoot.absolutePath, srvName)) shouldBe true
                 val outbound = newOutbound()
 
                 handlerWithData.handleRemove(
@@ -406,7 +406,7 @@ class ControlStreamHandlerTest :
                     outbound
                 )
 
-                java.nio.file.Files.exists(java.nio.file.Path.of(byNameRoot.absolutePath, srvName)) shouldBe false
+                Files.exists(java.nio.file.Path.of(byNameRoot.absolutePath, srvName)) shouldBe false
                 byNameRoot.deleteRecursively()
             }
         }
@@ -585,8 +585,8 @@ class ControlStreamHandlerTest :
                 )
 
                 val link = java.nio.file.Path.of(byServerRoot.absolutePath, backupName, "$timestamp.tar.gz")
-                java.nio.file.Files.exists(link) shouldBe true
-                java.nio.file.Files.isSymbolicLink(link) shouldBe true
+                Files.exists(link) shouldBe true
+                Files.isSymbolicLink(link) shouldBe true
                 byServerRoot.deleteRecursively()
             }
         }
@@ -602,7 +602,7 @@ class ControlStreamHandlerTest :
                     writeText("backup data")
                 }
                 SymlinkMaintainer.createBackupSymlink(byServerRoot.absolutePath, backupName, timestamp, java.nio.file.Path.of(realBackup.absolutePath))
-                java.nio.file.Files.exists(java.nio.file.Path.of(byServerRoot.absolutePath, backupName, "$timestamp.tar.gz")) shouldBe true
+                Files.exists(java.nio.file.Path.of(byServerRoot.absolutePath, backupName, "$timestamp.tar.gz")) shouldBe true
 
                 BackupHandler(config.copy(backupsByServerRoot = byServerRoot.absolutePath)).handleDeleteBackup(
                     deleteBackupCommand {
@@ -613,7 +613,7 @@ class ControlStreamHandlerTest :
                     }
                 )
 
-                java.nio.file.Files.exists(java.nio.file.Path.of(byServerRoot.absolutePath, backupName, "$timestamp.tar.gz")) shouldBe false
+                Files.exists(java.nio.file.Path.of(byServerRoot.absolutePath, backupName, "$timestamp.tar.gz")) shouldBe false
                 byServerRoot.deleteRecursively()
             }
         }
@@ -626,7 +626,7 @@ class ControlStreamHandlerTest :
                     .toFile()
                 val serverDir = File(tempDir, "servers/$serverId").apply { mkdirs() }
 
-                val b = io.craftpanel.proto.RebuildSymlinksCommand.newBuilder()
+                val b = RebuildSymlinksCommand.newBuilder()
                 b.addServersBuilder()
                     .setServerId(serverId)
                     .setServerName(serverName)
@@ -640,7 +640,7 @@ class ControlStreamHandlerTest :
                 ContainerHandler(containerManager, rebuildConfig, mockk<NetworkManager>(relaxed = true))
                     .rebuildServerSymlinks(cmd.serversList)
 
-                java.nio.file.Files.exists(java.nio.file.Path.of(byNameRoot.absolutePath, serverName)) shouldBe true
+                Files.exists(java.nio.file.Path.of(byNameRoot.absolutePath, serverName)) shouldBe true
                 byNameRoot.deleteRecursively()
             }
         }
@@ -658,7 +658,7 @@ class ControlStreamHandlerTest :
                 }
                 val timestamp = "2026-07-18_16-00-00"
 
-                val b = io.craftpanel.proto.RebuildSymlinksCommand.newBuilder()
+                val b = RebuildSymlinksCommand.newBuilder()
                 b.addBackupsBuilder()
                     .setBackupId("bk-rebuild")
                     .setServerId(serverId)
@@ -675,7 +675,7 @@ class ControlStreamHandlerTest :
 
                 BackupHandler(rebuildConfig).rebuildBackupSymlinks(cmd.backupsList)
 
-                java.nio.file.Files.exists(java.nio.file.Path.of(byServerRoot.absolutePath, serverName, "$timestamp.tar.gz")) shouldBe true
+                Files.exists(java.nio.file.Path.of(byServerRoot.absolutePath, serverName, "$timestamp.tar.gz")) shouldBe true
                 byServerRoot.deleteRecursively()
             }
         }
