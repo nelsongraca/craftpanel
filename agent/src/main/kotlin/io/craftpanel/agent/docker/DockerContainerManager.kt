@@ -132,6 +132,9 @@ class DockerContainerManager(
                 }
             )
             .withStdinOpen(true)
+            .let { createCmd ->
+                if (cmd.containerUser.isNotEmpty()) createCmd.withUser(cmd.containerUser) else createCmd
+            }
             .exec()
 
         if (craftpanelNetwork.isNotEmpty()) {

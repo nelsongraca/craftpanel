@@ -166,6 +166,29 @@ class ContainerLifecycleTest :
             cmd.dataContainerPath shouldBe "/server"
             cmd.internalListenPort shouldBe 25577
             cmd.envVarsMap["SERVER_PORT"] shouldBe "25577"
+            cmd.containerUser shouldBe ""
+        }
+
+        test("start - PICOLIMBO server type - sets containerUser to 1000:1000") {
+            val picolimboId = transaction {
+                Servers.insert {
+                    it[Servers.nodeId] = nodeId
+                    it[Servers.name] = "test-picolimbo"
+                    it[Servers.displayName] = "test-picolimbo"
+                    it[Servers.serverType] = "PICOLIMBO"
+                    it[Servers.mcVersion] = "1.21.4"
+                    it[Servers.itzgImageTag] = "latest"
+                    it[Servers.hostPort] = 25567
+                    it[Servers.memoryMb] = 512
+                    it[Servers.cpuShares] = 0
+                    it[Servers.status] = "STOPPED"
+                }[Servers.id].let { Uuid.parse(it.toString()) }
+            }
+            val server = serverRow(picolimboId)
+            val cmd = lifecycle().buildStartMessage(server, needsRecreate = false).startContainer
+            cmd.image shouldBe "ghcr.io/quozul/picolimbo:latest"
+            cmd.dataContainerPath shouldBe "/usr/src/app"
+            cmd.containerUser shouldBe "1000:1000"
         }
 
         test("start - CUSTOM server type - injects CUSTOM_SERVER and forces VERSION=LATEST") {

@@ -338,6 +338,11 @@ message StartContainerCommand {
   string server_name = 15;
   // Additional ports to expose on the container (Dynmap, Geyser Bedrock, Votifier, etc.).
   repeated ExtraPortBinding extra_ports = 17;
+  // UID:GID to run the container process as (Docker `--user`). Empty = inherit
+  // the image's baked-in USER directive. Used when the image's default user
+  // differs from the host data directory owner (e.g., PicoLimbo runs as 1001
+  // but the agent creates the data dir as UID 1000).
+  string container_user = 18;
 }
 
 message ExtraPortBinding {

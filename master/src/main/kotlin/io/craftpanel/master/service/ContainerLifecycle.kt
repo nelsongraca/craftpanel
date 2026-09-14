@@ -147,6 +147,7 @@ class ContainerLifecycle(
                 containerProtocol = server.containerProtocol
                 serverName = server.name
                 extraPorts.addAll(extraPortPb)
+                containerUser = if (server.serverType.isPicolimbo) "1000:1000" else ""
             }
         }
     }
