@@ -1,6 +1,7 @@
 package io.craftpanel.agent.docker
 
 import com.github.dockerjava.api.async.ResultCallback
+import com.github.dockerjava.api.exception.ConflictException
 import com.github.dockerjava.api.exception.NotFoundException
 import com.github.dockerjava.api.model.Frame
 import io.craftpanel.proto.*
@@ -79,8 +80,17 @@ class FakeContainerManager(
 
     override fun killContainer(containerName: String) {
         calls.add("kill:$containerName")
-        gate.markStopping(serverIdOf(containerName))
-        containers[containerName]?.let { it.state = State.STOPPED }
+        val entry = containers[containerName] ?: return
+        try {
+            if (entry.state == State.STOPPED) {
+                throw ConflictException("cannot kill container: $containerName: container is not running")
+            }
+            gate.markStopping(serverIdOf(containerName))
+            entry.state = State.STOPPED
+        } catch (_: ConflictException) {
+            // Container already stopped — matches DockerContainerManager behavior.
+            // ConflictException caught internally so withStatus in handleStop sees success.
+        }
     }
 
     override fun removeContainer(containerName: String, force: Boolean) {

@@ -173,6 +173,26 @@ class ContainerHandlerTest :
                 .single().status shouldBe ServerStatusUpdate.ServerStatus.STOPPED
         }
 
+        test("force stop on already stopped container reports STOPPED not UNHEALTHY") {
+            val cm = newFake()
+            cm.createContainer(startCmd())
+            cm.startContainer("craftpanel-srv-1")
+            val handler = newHandler(cm)
+            val channel = Channel<AgentMessage>(Channel.UNLIMITED)
+
+            handler.handleStop(stopCmd(), AgentOutbound(channel, "node-1"))
+            channel.statuses()
+                .single().status shouldBe ServerStatusUpdate.ServerStatus.STOPPED
+
+            val forceCmd = stopCmd().toBuilder()
+                .setForce(true)
+                .build()
+            handler.handleStop(forceCmd, AgentOutbound(channel, "node-1"))
+
+            val msgs = channel.statuses()
+            msgs.last().status shouldBe ServerStatusUpdate.ServerStatus.STOPPED
+        }
+
         test("failed stop emits UNHEALTHY and stays suppressed for the crash report") {
             val cm = newFake()
             cm.createContainer(startCmd())

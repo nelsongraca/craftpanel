@@ -3,6 +3,7 @@ package io.craftpanel.agent.docker
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.command.PullImageResultCallback
+import com.github.dockerjava.api.exception.ConflictException
 import com.github.dockerjava.api.exception.NotFoundException
 import com.github.dockerjava.api.model.*
 import io.craftpanel.proto.*
@@ -245,6 +246,9 @@ class DockerContainerManager(
         } catch (_: NotFoundException) {
             // Container already gone — force-kill is idempotent.
             log.info("Container {} does not exist — treating force-kill as already-stopped", containerName)
+        } catch (_: ConflictException) {
+            // Container exists but is not running — desired state already achieved.
+            log.info("Container {} is not running — treating force-kill as already-stopped", containerName)
         }
     }
 
