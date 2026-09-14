@@ -16,7 +16,7 @@ import type {Network, Node} from "@/lib/types";
 
 const GAME_SERVER_TYPES = [
     "CUSTOM", "VANILLA", "PAPER", "FABRIC", "FOLIA", "FORGE",
-    "NEOFORGE", "QUILT", "SPIGOT", "LIMBO",
+    "NEOFORGE", "QUILT", "SPIGOT", "LIMBO", "PICOLIMBO",
 ] as const;
 
 const PROXY_TYPES = ["VELOCITY", "BUNGEECORD", "WATERFALL"] as const;
@@ -88,6 +88,7 @@ export default function NewServerPage() {
 
     const isProxy = (PROXY_TYPES as readonly string[]).includes(serverType);
     const isCustom = serverType === "CUSTOM";
+    const isPicolimbo = serverType === "PICOLIMBO";
     const canSetExpiry = hasPermission(permissions, "server.expires");
 
     function toExpiresAtIso(local: string): string | undefined {
@@ -115,7 +116,7 @@ export default function NewServerPage() {
                 setDisplayName(data.display_name);
                 setDescription(data.description ?? "");
                 setServerType(data.server_type);
-                if (!data.server_type.startsWith("VELOCITY") && !data.server_type.startsWith("BUNGEE") && !data.server_type.startsWith("WATERFALL") && data.server_type !== "CUSTOM") {
+                if (!data.server_type.startsWith("VELOCITY") && !data.server_type.startsWith("BUNGEE") && !data.server_type.startsWith("WATERFALL") && data.server_type !== "CUSTOM" && data.server_type !== "PICOLIMBO") {
                     setMcVersion(data.mc_version === "LATEST" ? latestVersionsRef.current[0] ?? "" : data.mc_version);
                 }
                 setItzgImageTag(data.itzg_image_tag || "latest");
@@ -158,7 +159,7 @@ export default function NewServerPage() {
                 display_name: displayName || undefined,
                 description: description || undefined,
                 server_type: serverType,
-                mc_version: isProxy || isCustom ? "LATEST" : mcVersion,
+                mc_version: isProxy || isCustom || isPicolimbo ? "LATEST" : mcVersion,
                 itzg_image_tag: itzgImageTag || "latest",
                 custom_server_jar: isCustom ? customServerJar || undefined : undefined,
                 container_listen_port: isCustom && containerListenPort ? Number(containerListenPort) : undefined,
@@ -269,7 +270,7 @@ export default function NewServerPage() {
                         </FieldSelect>
                     </div>
 
-                    {!isProxy && !isCustom && (
+                    {!isProxy && !isCustom && !isPicolimbo && (
                         <div>
                             <Label required htmlFor="mc-version">Minecraft Version</Label>
                             <McVersionSelect

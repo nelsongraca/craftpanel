@@ -153,7 +153,7 @@ class ContainerLifecycle(
 
     private fun buildAllVars(server: ServerRow): Map<String, String> {
         val id = server.id
-        val modrinthProjects = modService.buildModrinthEnvVar(id)
+        val isPicolimbo = server.serverType.isPicolimbo
         val isManual = server.configMode == "MANUAL"
         var dbEnvVars = envVarsRepository.getEnvVars(id)
             .associate { it.key to it.value }
@@ -162,6 +162,12 @@ class ContainerLifecycle(
             // still apply on top of a hand-edited startup script, so strip them too.
             dbEnvVars = dbEnvVars - setOf("USE_AIKAR_FLAGS", "USE_MEOWICE_FLAGS", "JVM_OPTS", "JVM_XX_OPTS")
         }
+        if (isPicolimbo) {
+            // PicoLimbo is a native Rust binary — no itzg env vars apply.
+            // Only user-defined env vars are passed through.
+            return dbEnvVars
+        }
+        val modrinthProjects = modService.buildModrinthEnvVar(id)
         val isProxy = server.serverType.isProxy
         val isCustom = server.serverType.isCustom
         val systemVars = buildMap {

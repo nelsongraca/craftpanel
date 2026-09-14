@@ -77,6 +77,9 @@ class ServerService(
         if (st.isCustom && customServerJar.isNullOrBlank()) {
             throw UnprocessableException("custom_server_jar is required for CUSTOM server type")
         }
+        if (st.isPicolimbo && !customServerJar.isNullOrBlank()) {
+            throw UnprocessableException("custom_server_jar is not supported for PICOLIMBO server type")
+        }
         if (containerListenPort != null && (containerListenPort <= 0 || containerListenPort > 65535)) {
             throw UnprocessableException("container_listen_port must be between 1 and 65535")
         }
@@ -125,8 +128,8 @@ class ServerService(
                     this.memoryMb = memoryMb
                     this.cpuShares = cpuShares
                     this.expiresAt = expiryLocal
-                    // CUSTOM servers are never managed (no server.properties auto-config).
-                    this.configMode = if (st.isCustom) "MANUAL" else "MANAGED"
+                    // CUSTOM and PICOLIMBO servers are never managed (no server.properties auto-config).
+                    this.configMode = if (st.isCustom || st.isPicolimbo) "MANUAL" else "MANAGED"
                     this.stopCommand = stopCommand
                     this.customServerJar = customServerJar
                     this.containerListenPort = containerListenPort
@@ -148,7 +151,7 @@ class ServerService(
                 val serverTypeDisplay = serverType.lowercase()
                     .replaceFirstChar { it.uppercase() }
 
-                if (!st.isProxy && !st.isCustom) {
+                if (!st.isProxy && !st.isCustom && !st.isPicolimbo) {
                     val defaults = buildDefaultEnvVars(mcVersion, serverTypeDisplay, platformName)
                     EnvVar.find { ServerEnvVars.serverId eq entity.id.value }
                         .forEach { it.delete() }

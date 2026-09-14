@@ -19,11 +19,16 @@ enum class ServerType {
     WATERFALL,
     // Arbitrary server jar (itzg TYPE=CUSTOM + CUSTOM_SERVER). Not managed by
     // CraftPanel — itzg runs the jar as-is, no server.properties auto-config.
-    CUSTOM;
+    CUSTOM,
+    // Native Rust binary — PicoLimbo runs as a standalone container (ghcr.io/quozul/picolimbo).
+    // No itzg wrapper, no JVM, no server.properties auto-config. Config lives in server.toml
+    // mounted at the container working directory (/usr/src/app).
+    PICOLIMBO;
 
     val isProxy get() = this in PROXY_TYPES
     val supportsPlugins get() = this in PLUGIN_TYPES
     val isCustom get() = this == CUSTOM
+    val isPicolimbo get() = this == PICOLIMBO
 
     fun toDb() = name
 
