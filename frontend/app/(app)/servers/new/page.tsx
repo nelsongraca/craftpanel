@@ -116,7 +116,7 @@ export default function NewServerPage() {
                 setDisplayName(data.display_name);
                 setDescription(data.description ?? "");
                 setServerType(data.server_type);
-                if (!data.server_type.startsWith("VELOCITY") && !data.server_type.startsWith("BUNGEE") && !data.server_type.startsWith("WATERFALL") && data.server_type !== "CUSTOM" && data.server_type !== "PICOLIMBO") {
+                if (data.server_type !== "CUSTOM" && data.server_type !== "PICOLIMBO") {
                     setMcVersion(data.mc_version === "LATEST" ? latestVersionsRef.current[0] ?? "" : data.mc_version);
                 }
                 setItzgImageTag(data.itzg_image_tag || "latest");
@@ -159,7 +159,7 @@ export default function NewServerPage() {
                 display_name: displayName || undefined,
                 description: description || undefined,
                 server_type: serverType,
-                mc_version: isProxy || isCustom || isPicolimbo ? "LATEST" : mcVersion,
+                mc_version: isCustom || isPicolimbo ? "LATEST" : mcVersion,
                 itzg_image_tag: itzgImageTag || "latest",
                 custom_server_jar: isCustom ? customServerJar || undefined : undefined,
                 container_listen_port: isCustom && containerListenPort ? Number(containerListenPort) : undefined,
@@ -270,7 +270,7 @@ export default function NewServerPage() {
                         </FieldSelect>
                     </div>
 
-                    {!isProxy && !isCustom && !isPicolimbo && (
+                    {!isCustom && !isPicolimbo && (
                         <div>
                             <Label required htmlFor="mc-version">Minecraft Version</Label>
                             <McVersionSelect

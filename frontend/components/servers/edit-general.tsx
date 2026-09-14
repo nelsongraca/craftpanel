@@ -130,7 +130,7 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
                 <InfoRow label="Display Name" value={server.display_name}/>
                 <InfoRow label="Description" value={server.description ?? "-"}/>
                 <InfoRow label="Network" value={networks.find((n) => n.id === server.network_id)?.name ?? "-"}/>
-                {!isProxy && !isCustom && !isPicolimbo && <InfoRow label="MC Version" value={server.mc_version}/>}
+                {!isCustom && !isPicolimbo && <InfoRow label="MC Version" value={server.mc_version}/>}
                 <InfoRow
                     label="Expires"
                     value={
@@ -188,7 +188,7 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
                         </div>
                     </EditFieldRow>
                 )}
-                {!isProxy && !isPicolimbo && (
+                {!isPicolimbo && (
                     <EditFieldRow label="Minecraft Version">
                         <McVersionSelect
                             value={mcVersion}
