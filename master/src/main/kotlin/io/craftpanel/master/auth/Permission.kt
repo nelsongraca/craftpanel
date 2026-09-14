@@ -6,6 +6,8 @@ enum class Permission(val node: String) {
     SYSTEM_SETTINGS("system.settings"),
     SYSTEM_USERS("system.users"),
     SYSTEM_NODES("system.nodes"),
+    SYSTEM_GROUPS("system.groups"),
+    SYSTEM_ALERTS("system.alerts"),
 
     SERVER_CREATE("server.create"),
     SERVER_DELETE("server.delete"),

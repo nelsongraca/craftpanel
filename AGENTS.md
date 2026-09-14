@@ -231,7 +231,7 @@ Argon2id, never plaintext.
 ### Permission nodes
 
 ```
-system.settings   system.users    system.nodes
+system.settings   system.users    system.nodes    system.groups   system.alerts
 server.create     server.delete   server.start    server.stop
 server.force_stop server.restart  server.configure server.resources
 server.files      server.mods     server.console  server.export

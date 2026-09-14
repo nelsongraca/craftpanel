@@ -59,4 +59,28 @@ describe("Shell sidebar", () => {
         render(<Shell>content</Shell>);
         expect(screen.getByText("Nodes")).toBeTruthy();
     });
+
+    it("shows Groups menu item with system.groups", () => {
+        useAuthAs(["system.groups"]);
+        render(<Shell>content</Shell>);
+        expect(screen.getByText("Groups")).toBeTruthy();
+    });
+
+    it("hides Groups menu item without system.groups", () => {
+        useAuthAs(["system.users"]);
+        render(<Shell>content</Shell>);
+        expect(screen.queryByText("Groups")).toBeNull();
+    });
+
+    it("shows Alerts menu item with system.alerts", () => {
+        useAuthAs(["system.alerts"]);
+        render(<Shell>content</Shell>);
+        expect(screen.getByText("Alerts")).toBeTruthy();
+    });
+
+    it("hides Alerts menu item without system.alerts", () => {
+        useAuthAs(["system.nodes"]);
+        render(<Shell>content</Shell>);
+        expect(screen.queryByText("Alerts")).toBeNull();
+    });
 });

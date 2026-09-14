@@ -28,7 +28,7 @@ fun Route.alertsRoutes(alertService: AlertService) {
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
                 }
             }) {
-                call.requirePermission(Permission.SYSTEM_SETTINGS)
+                call.requirePermission(Permission.SYSTEM_ALERTS)
                 val scopeType = call.request.queryParameters["scope_type"]
                 val scopeId = call.request.queryParameters["scope_id"]
                     ?.let {
@@ -49,7 +49,7 @@ fun Route.alertsRoutes(alertService: AlertService) {
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
                 }
             }) {
-                call.requirePermission(Permission.SYSTEM_SETTINGS)
+                call.requirePermission(Permission.SYSTEM_ALERTS)
                 val req = call.receive<CreateAlertThresholdRequest>()
                 call.respond(HttpStatusCode.Created, alertService.createThreshold(req))
             }
@@ -64,7 +64,7 @@ fun Route.alertsRoutes(alertService: AlertService) {
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
                 }
             }) {
-                call.requirePermission(Permission.SYSTEM_SETTINGS)
+                call.requirePermission(Permission.SYSTEM_ALERTS)
                 val id = call.parameters["id"]
                     ?.let {
                         runCatching {
@@ -84,7 +84,7 @@ fun Route.alertsRoutes(alertService: AlertService) {
                     code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
                 }
             }) {
-                call.requirePermission(Permission.SYSTEM_SETTINGS)
+                call.requirePermission(Permission.SYSTEM_ALERTS)
                 val scopeType = call.request.queryParameters["scope_type"]
                 val scopeId = call.request.queryParameters["scope_id"]
                     ?.let {

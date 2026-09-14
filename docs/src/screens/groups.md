@@ -153,6 +153,14 @@ Group list and permission editor.
           <div class="cp-checkbox"></div>
           <span>system.nodes</span>
         </div>
+        <div class="cp-perm-item">
+          <div class="cp-checkbox"></div>
+          <span>system.groups</span>
+        </div>
+        <div class="cp-perm-item">
+          <div class="cp-checkbox"></div>
+          <span>system.alerts</span>
+        </div>
       </div>
     </div>
 

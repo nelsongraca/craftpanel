@@ -16,7 +16,7 @@ import {SmartList, type SmartListColumn} from "@/components/ui/smart-list";
 const PERMISSION_GROUPS: { label: string; nodes: string[] }[] = [
     {
         label: "System",
-        nodes: ["system.settings", "system.users", "system.nodes"],
+        nodes: ["system.settings", "system.users", "system.nodes", "system.groups", "system.alerts"],
     },
     {
         label: "Server",

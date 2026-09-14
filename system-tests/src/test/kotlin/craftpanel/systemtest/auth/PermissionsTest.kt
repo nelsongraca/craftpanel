@@ -355,6 +355,68 @@ class PermissionsTest : BaseSystemTest() {
                     cleanupUser(email)
                 }
             }
+
+            should("user without system.groups gets 403 from listGroups") {
+                val email = "perm-no-groups-${System.currentTimeMillis()}@test.com"
+                val group = api.createGroup(
+                    CreateGroupRequest(name = "no-groups-group-${System.currentTimeMillis()}")
+                )
+                api.setGroupPermissions(
+                    group.id,
+                    PutGroupPermissionsRequest(permissions = listOf("server.view"))
+                )
+                val user = api.createUser(
+                    CreateUserRequest(
+                        username = "no-groups-${System.currentTimeMillis()}",
+                        email = email,
+                        password = "pw"
+                    )
+                )
+                api.createAssignment(
+                    user.id,
+                    CreateAssignmentRequest(groupId = group.id, scopeType = "GLOBAL")
+                )
+                try {
+                    withViewerApi(email, "pw") { vApi ->
+                        val ex = shouldThrow<ClientException> { vApi.listGroups() }
+                        ex.statusCode shouldBe 403
+                    }
+                } finally {
+                    api.deleteGroup(group.id)
+                    cleanupUser(email)
+                }
+            }
+
+            should("user without system.alerts gets 403 from listAlertThresholds") {
+                val email = "perm-no-alerts-${System.currentTimeMillis()}@test.com"
+                val group = api.createGroup(
+                    CreateGroupRequest(name = "no-alerts-group-${System.currentTimeMillis()}")
+                )
+                api.setGroupPermissions(
+                    group.id,
+                    PutGroupPermissionsRequest(permissions = listOf("server.view"))
+                )
+                val user = api.createUser(
+                    CreateUserRequest(
+                        username = "no-alerts-${System.currentTimeMillis()}",
+                        email = email,
+                        password = "pw"
+                    )
+                )
+                api.createAssignment(
+                    user.id,
+                    CreateAssignmentRequest(groupId = group.id, scopeType = "GLOBAL")
+                )
+                try {
+                    withViewerApi(email, "pw") { vApi ->
+                        val ex = shouldThrow<ClientException> { vApi.listAlertThresholds() }
+                        ex.statusCode shouldBe 403
+                    }
+                } finally {
+                    api.deleteGroup(group.id)
+                    cleanupUser(email)
+                }
+            }
         }
     }
 

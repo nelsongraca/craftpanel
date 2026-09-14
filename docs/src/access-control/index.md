@@ -7,8 +7,10 @@ Access control is implemented as a **permission node** system. Permissions are c
 | Permission Node    | Description                                                                |
 |--------------------|----------------------------------------------------------------------------|
 | `system.settings`  | Global application configuration, resource limits, and system settings. DNS integration is configured at deployment time via env vars — see [Enabling Public Hostnames](../usage/enabling-public-hostnames.md). |
-| `system.users`     | Create, edit, and delete users and groups                                  |
+| `system.users`     | Create, edit, and delete users and manage their group assignments                  |
+| `system.groups`    | Create, edit, and delete user groups and assign their permissions                  |
 | `system.nodes`     | Register, configure, and decommission nodes                                |
+| `system.alerts`    | Manage alert thresholds and view alert events                                      |
 | `server.create`    | Create new server instances                                                |
 | `server.delete`    | Delete server instances and their data                                     |
 | `server.start`     | Start a stopped server                                                     |
@@ -40,7 +42,7 @@ The following groups are pre-configured on installation. Administrators may crea
 | Group            | Permissions                                                        |
 |------------------|--------------------------------------------------------------------|
 | **Super Admin**  | All permission nodes                                               |
-| **Server Admin** | Everything except `system.*`, `server.resources`, `server.migrate`         |
+| **Server Admin** | All except `system.settings`, `system.users`, `system.nodes`, `server.resources`, `server.migrate` |
 | **Operator**     | `server.restart`, `server.console`, `server.view`, `server.backup` |
 | **Viewer**       | `server.view`                                                      |
 

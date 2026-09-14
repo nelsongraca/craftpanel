@@ -81,7 +81,7 @@ class AlertsRoutesTest :
 
         // ── List thresholds ───────────────────────────────────────────────────────
 
-        test("list thresholds requires system-settings") {
+        test("list thresholds requires system-alerts") {
             testApplication {
                 testApp { _ -> configureAlertsTest() }
                 val client = jsonClient()

@@ -121,7 +121,7 @@ describe("AlertsPage", () => {
 
     describe("Empty states", () => {
         it('shows "No thresholds configured." when thresholds list is empty', async () => {
-            await renderWith({thresholds: [], events: [], permissions: ["system.settings"]});
+            await renderWith({thresholds: [], events: [], permissions: ["system.alerts"]});
             expect(screen.getAllByText("No thresholds configured.").length).toBe(1);
         });
 
@@ -173,7 +173,7 @@ describe("AlertsPage", () => {
             await renderWith({
                 thresholds: [th],
                 events: [ev1, ev2],
-                permissions: ["system.settings"],
+                permissions: ["system.alerts"],
             });
 
             await userEvent.setup().click(screen.getAllByTitle("Delete threshold")[0]);
@@ -196,7 +196,7 @@ describe("AlertsPage", () => {
             await renderWith({
                 thresholds: [th],
                 events: [],
-                permissions: ["system.settings"],
+                permissions: ["system.alerts"],
             });
 
             const user = userEvent.setup();
@@ -355,7 +355,7 @@ describe("AlertsPage", () => {
             await renderWith({
                 thresholds: [],
                 events: [],
-                permissions: ["system.settings"],
+                permissions: ["system.alerts"],
                 nodes: [{id: "n1", display_name: "Node 1"}],
             });
 
@@ -394,7 +394,7 @@ describe("AlertsPage", () => {
             await renderWith({
                 thresholds: [],
                 events: [],
-                permissions: ["system.settings"],
+                permissions: ["system.alerts"],
                 nodes: [{id: "n1", display_name: "Node 1"}],
             });
 
@@ -416,14 +416,14 @@ describe("AlertsPage", () => {
     });
 
     describe("Permission gating", () => {
-        it("shows New Threshold button with system.settings permission", async () => {
-            await renderWith({thresholds: [], events: [], permissions: ["system.settings"]});
+        it("shows New Threshold button with system.alerts permission", async () => {
+            await renderWith({thresholds: [], events: [], permissions: ["system.alerts"]});
             expect(
                 screen.getByRole("button", {name: /New Threshold/i}),
             ).toBeInTheDocument();
         });
 
-        it("hides New Threshold button without system.settings permission", async () => {
+        it("hides New Threshold button without system.alerts permission", async () => {
             await renderWith({thresholds: [], events: [], permissions: []});
             expect(
                 screen.queryByRole("button", {name: /New Threshold/i}),

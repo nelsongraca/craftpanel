@@ -180,14 +180,14 @@ Resets another user's password. Does not require the current password.
 
 ## Groups
 
-| Method | Path                       | Permission     | Description                           |
-|--------|----------------------------|----------------|---------------------------------------|
-| GET    | `/groups`                  | `system.users` | List all groups                       |
-| POST   | `/groups`                  | `system.users` | Create a group                        |
-| GET    | `/groups/{id}`             | `system.users` | Get group and its permissions         |
-| PATCH  | `/groups/{id}`             | `system.users` | Update group name                     |
-| DELETE | `/groups/{id}`             | `system.users` | Delete group (non-system groups only) |
-| PUT    | `/groups/{id}/permissions` | `system.users` | Replace full permission set           |
+| Method | Path                       | Permission      | Description                           |
+|--------|----------------------------|-----------------|---------------------------------------|
+| GET    | `/groups`                  | `system.groups` | List all groups                       |
+| POST   | `/groups`                  | `system.groups` | Create a group                        |
+| GET    | `/groups/{id}`             | `system.groups` | Get group and its permissions         |
+| PATCH  | `/groups/{id}`             | `system.groups` | Update group name                     |
+| DELETE | `/groups/{id}`             | `system.groups` | Delete group (non-system groups only) |
+| PUT    | `/groups/{id}/permissions` | `system.groups` | Replace full permission set           |
 
 ---
 

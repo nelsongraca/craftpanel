@@ -67,7 +67,7 @@ class GroupsRoutesTest :
 
         // ── GET /api/groups ───────────────────────────────────────────────────────
 
-        test("listGroups returns 403 without system_users permission") {
+        test("listGroups returns 403 without system_groups permission") {
             testApplication {
                 testApp { _ -> configureGroupsTest() }
                 val userId = createUser()

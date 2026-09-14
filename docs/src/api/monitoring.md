@@ -4,10 +4,10 @@ Base path: `/api/alerts`
 
 | Method | Path                      | Permission        | Description               |
 |--------|---------------------------|-------------------|---------------------------|
-| GET    | `/alerts/thresholds`      | `system.settings` | List all alert thresholds |
-| POST   | `/alerts/thresholds`      | `system.settings` | Create an alert threshold |
-| DELETE | `/alerts/thresholds/{id}` | `system.settings` | Delete a threshold        |
-| GET    | `/alerts/events`          | `system.settings` | List alert events         |
+| GET    | `/alerts/thresholds`      | `system.alerts` | List all alert thresholds |
+| POST   | `/alerts/thresholds`      | `system.alerts` | Create an alert threshold |
+| DELETE | `/alerts/thresholds/{id}` | `system.alerts` | Delete a threshold        |
+| GET    | `/alerts/events`          | `system.alerts` | List alert events         |
 
 Node and server metrics are available via their respective endpoints — see [Nodes](nodes.md#get-nodesidmetrics) and [Servers](servers.md#get-serversidmetrics).
 

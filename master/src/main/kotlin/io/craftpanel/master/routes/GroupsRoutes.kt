@@ -22,7 +22,7 @@ fun Route.groupsRoutes(groupService: GroupService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                call.requirePermission(Permission.SYSTEM_USERS)
+                call.requirePermission(Permission.SYSTEM_GROUPS)
                 call.respond(groupService.listGroups())
             }
 
@@ -37,7 +37,7 @@ fun Route.groupsRoutes(groupService: GroupService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                call.requirePermission(Permission.SYSTEM_USERS)
+                call.requirePermission(Permission.SYSTEM_GROUPS)
                 val req = call.receive<CreateGroupRequest>()
                 call.respond(HttpStatusCode.Created, groupService.createGroup(req))
             }
@@ -53,7 +53,7 @@ fun Route.groupsRoutes(groupService: GroupService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                call.requirePermission(Permission.SYSTEM_USERS)
+                call.requirePermission(Permission.SYSTEM_GROUPS)
                 val targetId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@get call.respond(HttpStatusCode.NotFound, ErrorResponse("Group not found"))
                 call.respond(groupService.getGroup(targetId))
@@ -74,7 +74,7 @@ fun Route.groupsRoutes(groupService: GroupService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                call.requirePermission(Permission.SYSTEM_USERS)
+                call.requirePermission(Permission.SYSTEM_GROUPS)
                 val targetId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@patch call.respond(HttpStatusCode.NotFound, ErrorResponse("Group not found"))
                 val req = call.receive<PatchGroupRequest>()
@@ -93,7 +93,7 @@ fun Route.groupsRoutes(groupService: GroupService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                call.requirePermission(Permission.SYSTEM_USERS)
+                call.requirePermission(Permission.SYSTEM_GROUPS)
                 val targetId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@delete call.respond(HttpStatusCode.NotFound, ErrorResponse("Group not found"))
                 groupService.deleteGroup(targetId)
@@ -116,7 +116,7 @@ fun Route.groupsRoutes(groupService: GroupService) {
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                call.requirePermission(Permission.SYSTEM_USERS)
+                call.requirePermission(Permission.SYSTEM_GROUPS)
                 val targetId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@put call.respond(HttpStatusCode.NotFound, ErrorResponse("Group not found"))
                 val req = call.receive<PutGroupPermissionsRequest>()

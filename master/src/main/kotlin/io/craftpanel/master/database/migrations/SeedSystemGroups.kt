@@ -3,8 +3,8 @@ package io.craftpanel.master.database.migrations
 import io.craftpanel.master.auth.Permission
 import io.craftpanel.master.database.schema.GroupPermissions
 import io.craftpanel.master.database.schema.Groups
-import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.and
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 
@@ -17,11 +17,15 @@ private val systemGroups = mapOf(
         Permission.SERVER_EXPIRES, Permission.SERVER_DISABLE,
         Permission.SERVER_VIEW,
         Permission.NETWORK_VIEW, Permission.NETWORK_CREATE, Permission.NETWORK_CONFIGURE, Permission.NETWORK_DELETE,
+        Permission.SYSTEM_ALERTS, Permission.SYSTEM_GROUPS
     ).map { it.node },
     "Operator" to listOf(
-        Permission.SERVER_RESTART, Permission.SERVER_CONSOLE, Permission.SERVER_VIEW, Permission.SERVER_BACKUP,
+        Permission.SERVER_RESTART,
+        Permission.SERVER_CONSOLE,
+        Permission.SERVER_VIEW,
+        Permission.SERVER_BACKUP
     ).map { it.node },
-    "Viewer" to listOf(Permission.SERVER_VIEW.node),
+    "Viewer" to listOf(Permission.SERVER_VIEW.node)
 )
 
 fun seedSystemGroups() {
@@ -52,6 +56,8 @@ fun seedSystemGroups() {
             Permission.NETWORK_CREATE.node,
             Permission.NETWORK_CONFIGURE.node,
             Permission.NETWORK_DELETE.node,
+            Permission.SYSTEM_ALERTS.node,
+            Permission.SYSTEM_GROUPS.node
         )
     )
 }

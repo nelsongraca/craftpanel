@@ -276,7 +276,7 @@ function CreateThresholdModal({
 export default function AlertsPage() {
     const {user} = useAuth();
     const permissions = user?.permissions ?? [];
-    const canManage = hasPermission(permissions, "system.settings");
+    const canManage = hasPermission(permissions, "system.alerts");
     const {subscribe} = useWs();
 
     const {data: thresholds, initialLoad: loading, setData: setThresholds} = useResourceList(loadThresholds, [], {pollMs: 0});

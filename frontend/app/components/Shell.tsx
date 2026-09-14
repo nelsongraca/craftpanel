@@ -51,9 +51,9 @@ const sidebarSections: SidebarSection[] = [
     {
         title: "System",
         items: [
-            {label: "Alerts", href: "/alerts", icon: Bell},
+            {label: "Alerts", href: "/alerts", icon: Bell, permission: "system.alerts"},
             {label: "Users", href: "/users", icon: Users, permission: "system.users"},
-            {label: "Groups", href: "/groups", icon: KeyRound, permission: "system.users"},
+            {label: "Groups", href: "/groups", icon: KeyRound, permission: "system.groups"},
             {label: "Settings", href: "/settings", icon: Settings, permission: "system.settings"},
         ],
     },
