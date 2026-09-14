@@ -19,7 +19,7 @@ class ProxyLifecycleTest : BaseSystemTest() {
 
             lateinit var proxyId: String
 
-            beforeSpec {
+            beforeContainer {
                 proxyId = api.createServer(
                     CreateServerRequest(
                         name = "test-proxy-${System.currentTimeMillis()}",
@@ -33,7 +33,7 @@ class ProxyLifecycleTest : BaseSystemTest() {
                 ).id
             }
 
-            afterSpec {
+            afterContainer {
                 runCatching {
                     api.stopServer(proxyId)
                     helper.awaitStoppedOrGone(proxyId)
