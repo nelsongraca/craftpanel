@@ -100,12 +100,13 @@ class ServerMigrationTest : BaseSystemTest() {
                 )
 
                 val wsUrl = masterApiUrl.replace("http://", "ws://")
+                val ticket = api.authWsTicket()
                 val events = mutableListOf<String>()
                 val latch = CountDownLatch(1)
 
                 wsClient.newWebSocket(
                     Request.Builder()
-                        .url("$wsUrl/api/migrations/${migration.id}/events")
+                        .url("$wsUrl/api/migrations/${migration.id}/events?ticket=${ticket.ticket}")
                         .build(),
                     object : WebSocketListener() {
                         override fun onMessage(webSocket: WebSocket, text: String) {

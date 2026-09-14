@@ -83,57 +83,44 @@ class MigrationSecurityTest : BaseSystemTest() {
 
         context("Migration WebSocket auth") {
 
-            should("connects to non-existent migration events without auth") {
+            should("rejects connection without a ticket") {
                 val url = "${wsBaseUrl}/api/migrations/00000000-0000-0000-0000-000000000000/events"
-                val latch = CountDownLatch(1)
-                var closeCode = -1
-
-                wsClient.newWebSocket(request(url), object : WebSocketListener() {
-                    override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                        closeCode = code; latch.countDown()
-                    }
-
-                    override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                        if (closeCode == -1) closeCode = code; latch.countDown()
-                    }
-
-                    override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                        closeCode = response?.code ?: -1; latch.countDown()
-                    }
-                })
-
-                latch.await(5, TimeUnit.SECONDS)
-                // No auth required - endpoint just checks migration exists
-                // Non-existent migration should close normally (1000)
-                closeCode shouldBe 1000
+                wsCloseCode(url) shouldBe 1008
             }
 
-            should("migration WS does not require JWT or ticket") {
-                // Connect without any auth headers or tickets
-                val url = "${wsBaseUrl}/api/migrations/00000000-0000-0000-0000-000000000000/events"
-                val latch = CountDownLatch(1)
-                var closeCode = -1
+            should("rejects connection with invalid ticket") {
+                val url = "${wsBaseUrl}/api/migrations/00000000-0000-0000-0000-000000000000/events?ticket=invalid-fake-ticket"
+                wsCloseCode(url) shouldBe 1008
+            }
 
-                wsClient.newWebSocket(request(url), object : WebSocketListener() {
-                    override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                        closeCode = code; latch.countDown()
-                    }
-
-                    override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                        if (closeCode == -1) closeCode = code; latch.countDown()
-                    }
-
-                    override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                        closeCode = response?.code ?: -1; latch.countDown()
-                    }
-                })
-
-                latch.await(5, TimeUnit.SECONDS)
-                // The WS endpoint accepts connections from unauthenticated clients
-                // and only checks if the migration exists - this is a known security gap
-                closeCode shouldBe 1000
+            should("non-existent migration with valid ticket closes normally") {
+                val ticket = api.authWsTicket()
+                val url = "${wsBaseUrl}/api/migrations/00000000-0000-0000-0000-000000000000/events?ticket=${ticket.ticket}"
+                wsCloseCode(url) shouldBe 1000
             }
         }
+    }
+
+    private fun wsCloseCode(url: String): Int {
+        val latch = CountDownLatch(1)
+        var closeCode = -1
+
+        wsClient.newWebSocket(request(url), object : WebSocketListener() {
+            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                closeCode = code; latch.countDown()
+            }
+
+            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                if (closeCode == -1) closeCode = code; latch.countDown()
+            }
+
+            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                closeCode = response?.code ?: -1; latch.countDown()
+            }
+        })
+
+        latch.await(5, TimeUnit.SECONDS)
+        return closeCode
     }
 
     private val wsBaseUrl: String
