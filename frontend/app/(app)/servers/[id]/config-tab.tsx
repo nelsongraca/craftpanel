@@ -447,14 +447,12 @@ function CustomServerConfigSection({serverId, stopCommand: initialStopCommand}: 
             <StopCommandSection serverId={serverId} stopCommand={initialStopCommand} placeholder="stop"/>
 
             {/* Extra vars */}
-            {(extraVars.length > 0 || savedExtraVars.length > 0) && (
-                <ExtraVarsSection
-                    extraVars={extraVars}
-                    onUpdate={updateExtra}
-                    onRemove={removeExtra}
-                    onAdd={addExtra}
-                />
-            )}
+            <ExtraVarsSection
+                extraVars={extraVars}
+                onUpdate={updateExtra}
+                onRemove={removeExtra}
+                onAdd={addExtra}
+            />
 
             {/* Unsaved changes bar */}
             {isDirty && (
