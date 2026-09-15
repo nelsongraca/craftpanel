@@ -66,3 +66,19 @@ Rejected alternatives:
   path.
 - Migration sets `no_restart` on the source for the sync window and clears it on completion or
   failure.
+
+## Resolved questions
+
+Two questions left open when this ADR was accepted are now decided:
+
+- **`desired_status` is not exposed via the API.** It stays an internal reconciliation input; the
+  API surfaces only the synthesized `status`. Rationale: the raw intent is an implementation
+  detail of the convergence loop, and exposing it would widen the client contract and leak the
+  state machine. If the "stuck STARTING because the node is down" case needs surfacing, expose a
+  *derived* admin-only condition grounded in node health rather than the raw enum.
+- **`no_restart` stays a transient, per-envelope flag.** It remains migration-only (set for the
+  live-sync window, cleared on completion/failure) and is not a server column. A user-facing
+  "disable auto-restart"/maintenance toggle, if ever added, should be a **separate durable server
+  attribute** that master folds into the `no_restart` field of the envelopes it emits — it must not
+  turn this transient migration flag into a column (the clear-on-next-push semantics are wrong for
+  durable user intent).
