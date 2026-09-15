@@ -37,8 +37,14 @@ class FakeContainerManager(
     val calls = CopyOnWriteArrayList<String>()
     val containers = ConcurrentHashMap<String, Entry>()
 
+    /** Every command passed to [createContainer], in order (for asserting mounts/spec passthrough). */
+    val createdCommands = CopyOnWriteArrayList<StartContainerCommand>()
+
     /** When true, [stopContainer] throws after marking stopping (graceful-stop failure injection). */
     var failStop = false
+
+    /** When true, [startContainer] throws before starting (start failure injection). */
+    var failStart = false
 
     /** When > 0, [stopContainer] blocks this many millis first (simulates a hanging graceful stop). */
     var stopBlockMs: Long = 0
@@ -54,6 +60,7 @@ class FakeContainerManager(
 
     override fun createContainer(cmd: StartContainerCommand): String {
         calls.add("create:${cmd.containerName}")
+        createdCommands.add(cmd)
         containers[cmd.containerName] = Entry(cmd.serverId, State.CREATED).also {
             if (cmd.dockerNetwork.isNotEmpty()) it.networks.add(cmd.dockerNetwork)
         }
@@ -76,6 +83,7 @@ class FakeContainerManager(
 
     override fun startContainer(containerName: String) {
         calls.add("start:$containerName")
+        if (failStart) throw RuntimeException("injected start failure")
         require(containerName).state = State.RUNNING
         gate.markStarted(serverIdOf(containerName))
     }

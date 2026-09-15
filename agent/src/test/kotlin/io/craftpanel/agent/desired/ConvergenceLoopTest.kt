@@ -267,6 +267,119 @@ class ConvergenceLoopTest :
             cm.stopBlockMs = 0
         }
 
+        // ── failure reporting + authored-death suppression + spec passthrough ──
+
+        test("a failed start reports UNHEALTHY") {
+            val cm = FakeContainerManager()
+            cm.failStart = true
+            val (channel, out) = newOutbound()
+            val loop = newLoop(cm, out)
+
+            runBlocking { loop.applyDesired(desiredRunning(spec = startCmd())).join() }
+
+            channel.statuses().last().status shouldBe ServerStatusUpdate.ServerStatus.UNHEALTHY
+        }
+
+        test("a failed graceful stop reports UNHEALTHY") {
+            val cm = FakeContainerManager()
+            cm.createContainer(startCmd())
+            cm.startContainer("craftpanel-srv-1")
+            cm.failStop = true
+            val (channel, out) = newOutbound()
+            val loop = newLoop(cm, out)
+
+            runBlocking {
+                loop.applyDesired(
+                    serverDesiredState {
+                        serverId = "srv-1"
+                        desired = ServerDesiredState.Desired.STOPPED
+                    }
+                ).join()
+            }
+
+            channel.statuses().last().status shouldBe ServerStatusUpdate.ServerStatus.UNHEALTHY
+        }
+
+        test("an authored graceful stop suppresses the die event for that death") {
+            val cm = FakeContainerManager()
+            cm.createContainer(startCmd())
+            cm.startContainer("craftpanel-srv-1")
+            val (_, out) = newOutbound()
+            val loop = newLoop(cm, out)
+            cm.gate.shouldReportDie("srv-1") shouldBe true // managed, healthy
+
+            runBlocking {
+                loop.applyDesired(
+                    serverDesiredState {
+                        serverId = "srv-1"
+                        desired = ServerDesiredState.Desired.STOPPED
+                    }
+                ).join()
+            }
+
+            cm.gate.shouldReportDie("srv-1") shouldBe false
+        }
+
+        test("an authored force stop suppresses the die event for that death") {
+            val cm = FakeContainerManager()
+            cm.createContainer(startCmd())
+            cm.startContainer("craftpanel-srv-1")
+            val (_, out) = newOutbound()
+            val loop = newLoop(cm, out)
+            cm.gate.shouldReportDie("srv-1") shouldBe true
+
+            runBlocking {
+                loop.applyDesired(
+                    serverDesiredState {
+                        serverId = "srv-1"
+                        desired = ServerDesiredState.Desired.STOPPED
+                        force = true
+                    }
+                ).join()
+            }
+
+            cm.gate.shouldReportDie("srv-1") shouldBe false
+        }
+
+        test("a proxy spec's volume mounts the data container path /server") {
+            val cm = FakeContainerManager()
+            val (_, out) = newOutbound()
+            val loop = newLoop(cm, out)
+            val spec = startCmd().toBuilder()
+                .setContainerName("craftpanel-srv-1")
+                .setDataContainerPath("/server")
+                .build()
+
+            runBlocking { loop.applyDesired(desiredRunning(spec = spec)).join() }
+
+            cm.createdCommands.single()
+                .mountsList.single().containerPath shouldBe "/server"
+        }
+
+        test("a spec with no data container path mounts /data by default") {
+            val cm = FakeContainerManager()
+            val (_, out) = newOutbound()
+            val loop = newLoop(cm, out)
+
+            runBlocking { loop.applyDesired(desiredRunning(spec = startCmd())).join() }
+
+            cm.createdCommands.single()
+                .mountsList.single().containerPath shouldBe "/data"
+        }
+
+        test("a successful start creates the servers-by-name symlink to the canonical data dir") {
+            val cm = FakeContainerManager()
+            val (_, out) = newOutbound()
+            val loop = newLoop(cm, out)
+            val serverName = "world-alpha"
+
+            runBlocking { loop.applyDesired(desiredRunning(spec = startCmd(serverName = serverName))).join() }
+
+            val link = java.nio.file.Path.of(symlinkTempRoot.absolutePath, serverName)
+            Files.exists(link) shouldBe true
+            Files.isSymbolicLink(link) shouldBe true
+        }
+
         // ── crash-restart convergence ─────────────────────────────────────────
 
         fun runningFake(): FakeContainerManager {
