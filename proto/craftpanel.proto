@@ -189,6 +189,11 @@ message MasterMessage {
     // Reconnect self-heal — master pushes the full symlink overlay mapping so the
     // agent can rebuild servers-by-name / backups-by-server trees from scratch.
     RebuildSymlinksCommand rebuild_symlinks = 28;
+
+    // Declarative desired state — master states intent ("run/stop this server") plus the
+    // full runtime spec and restart budget; the agent converges to it and owns crash-restart
+    // autonomously. Re-pushed by master on every agent reconnect and on master boot.
+    ServerDesiredState server_desired_state = 29;
   }
 }
 
@@ -424,6 +429,60 @@ message RebuildSymlinksCommand {
   }
   repeated ServerEntry servers = 1;
   repeated BackupEntry backups = 2;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DESIRED STATE — MASTER → AGENT CONVERGENCE MODEL
+// ─────────────────────────────────────────────────────────────────────────────
+
+// Restart budget the agent may spend autonomously restarting a crashed server
+// while its desired state is RUNNING. Mirrors master's `restart_max_attempts` and
+// `restart_window_seconds` system settings; shipped inside every ServerDesiredState
+// so the agent always converges with the latest budget (re-read on each envelope).
+message RestartBudget {
+  // Allowed crash-restarts within one window.
+  int32 max_attempts = 1;
+  // Window length in seconds; the attempt counter resets once the window lapses.
+  int64 window_seconds = 2;
+}
+
+// Master's intent for a single server. The agent stores this spec and converges the
+// container to it without waiting for per-crash commands. Idempotent — re-sending the
+// same envelope is a no-op when already converged.
+message ServerDesiredState {
+  string server_id = 1;
+
+  enum Desired {
+    DESIRED_UNSPECIFIED = 0;
+    RUNNING = 1;
+    STOPPED = 2;
+  }
+
+  // Desired run state: the container should be running (and stay running, crashing
+  // restarts within budget) or stopped.
+  Desired desired = 2;
+
+  // Full runtime spec the agent converges to. The agent stores it (in-memory) and
+  // compares it to the last-applied spec to decide the recreate-if-diff at start/restart.
+  // Also carries the container_name and server_name for symlink upkeep.
+  StartContainerCommand spec = 3;
+
+  // Run-once flag: stop-if-running then start (recreate if spec differs). Cleared by
+  // the agent after applying. User-initiated restart is never budget-capped.
+  bool force_restart = 4;
+
+  // Run-once flag: immediate SIGKILL (no graceful step). Only meaningful with desired=STOPPED.
+  // Cleared by the agent after applying.
+  bool force = 5;
+
+  // Sticky flag: suppress autonomous crash-restart even while desired=RUNNING
+  // (migration in progress, maintenance). Crash leaves the container stopped and the agent
+  // reports the crash to master instead of restarting.
+  bool no_restart = 6;
+
+  // Budget for autonomous crash-restarts (see RestartBudget). Read by the agent on every
+  // envelope; a changed budget takes effect immediately.
+  RestartBudget restart_budget = 7;
 }
 
 message PrepareRsyncReceiveCommand {
@@ -719,6 +778,9 @@ message ServerStatusUpdate {
     STARTING = 2;
     HEALTHY = 3;
     UNHEALTHY = 4;
+    // Agent gave up restarting a crashed server — desired=RUNNING but the restart
+    // budget is exhausted. Container is left stopped until an admin intervenes.
+    CRASH_LOOPED = 5;
   }
 }
 

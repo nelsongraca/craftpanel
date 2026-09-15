@@ -21,6 +21,9 @@ interface ContainerManager {
 
     fun containerExists(containerName: String): Boolean
 
+    /** True iff the container exists AND its state is running. */
+    fun isRunning(containerName: String): Boolean
+
     fun pullImage(image: String)
 
     fun startContainer(containerName: String)

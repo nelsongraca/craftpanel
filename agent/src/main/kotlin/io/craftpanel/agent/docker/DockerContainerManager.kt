@@ -156,6 +156,11 @@ class DockerContainerManager(
         true
     }.getOrDefault(false)
 
+    override fun isRunning(containerName: String): Boolean = runCatching {
+        docker.inspectContainerCmd(containerName)
+            .exec().state?.running ?: false
+    }.getOrDefault(false)
+
     override fun pullImage(image: String) = pullImage(image, pullMaxImageAgeHours)
 
     private fun pullImage(image: String, maxAgeHours: Long) {

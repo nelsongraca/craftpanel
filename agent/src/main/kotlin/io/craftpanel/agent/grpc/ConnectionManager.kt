@@ -3,12 +3,18 @@ package io.craftpanel.agent.grpc
 import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.auth.NodeKeyStore
 import io.craftpanel.agent.config.AgentConfig
+import io.craftpanel.agent.desired.ContainerOperator
+import io.craftpanel.agent.desired.ConvergenceLoop
+import io.craftpanel.agent.desired.DesiredStateStore
 import io.craftpanel.agent.di.ConnectionScope
 import io.craftpanel.agent.docker.*
+import io.craftpanel.agent.grpc.handlers.DesiredStateHandler
+import io.craftpanel.proto.*
 import io.grpc.ManagedChannel
 import io.grpc.netty.GrpcSslContexts
 import io.grpc.netty.NettyChannelBuilder
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
 import org.koin.core.Koin
 import org.koin.core.parameter.parametersOf
 import org.koin.core.qualifier.named
@@ -88,6 +94,20 @@ class ConnectionManager(
                         coroutineScope.launch { supervisor.run() }
                     }
 
+                    val outboundChannel = Channel<AgentMessage>(capacity = 64)
+                    val out = AgentOutbound(outboundChannel, identity.nodeId)
+                    // Per-connection convergence: owns the crash-restart + status reporting for the
+                    // lifetime of this stream. Cancelled when the stream dies; the store (process-
+                    // scoped singleton) outlives it so reconnect re-pushes converge from saved intent.
+                    val convergenceScope = CoroutineScope(SupervisorJob())
+                    val loop = ConvergenceLoop(
+                        store = koin.get<DesiredStateStore>(),
+                        operator = ContainerOperator(containerManager, checkNotNull(networkManager), config),
+                        containerNamePrefix = config.containerNamePrefix,
+                        out = out,
+                        scope = convergenceScope,
+                    )
+
                     ControlStreamHandler(
                         identity = identity,
                         config = config,
@@ -97,14 +117,18 @@ class ConnectionManager(
                         eventWatcher = ContainerEventWatcher(docker),
                         dispatcher = CommandDispatcher(
                             container = scope.get { parametersOf(checkNotNull(networkManager)) },
+                            desired = DesiredStateHandler(loop),
                             backup = scope.get(),
                             migration = scope.get(),
                             file = scope.get { parametersOf(identity.nodeKey) },
                             console = scope.get(),
                             bulkClient = BulkDataClient(channel)
                         ),
-                        gate = gate
-                    ).run(channel)
+                        gate = gate,
+                        out = out,
+                        loop = loop,
+                        convergenceScope = convergenceScope,
+                    ).run(channel, outboundChannel)
                 }
                 finally {
                     scope.close()

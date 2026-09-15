@@ -5,6 +5,7 @@ import com.github.dockerjava.core.DefaultDockerClientConfig
 import com.github.dockerjava.core.DockerClientImpl
 import com.github.dockerjava.httpclient5.ApacheDockerHttpClient
 import io.craftpanel.agent.config.AgentConfig
+import io.craftpanel.agent.desired.DesiredStateStore
 import io.craftpanel.agent.docker.*
 import io.craftpanel.agent.grpc.handlers.*
 import org.koin.dsl.module
@@ -35,6 +36,9 @@ val agentModule = module {
     }
     single { createDockerClient(get<AgentConfig>().dockerSocketPath) }
     single { WatcherGate() }
+    // Process-scoped: survives agent reconnects. Master re-pushes all envelopes on reconnect and
+    // on boot, so no disk persistence is required to re-converge.
+    single { DesiredStateStore() }
     single<ContainerManager> {
         DockerContainerManager(
             get<DockerClient>(),

@@ -1,6 +1,7 @@
 package io.craftpanel.agent.grpc
 
 import io.craftpanel.agent.config.AgentConfig
+import io.craftpanel.agent.desired.ConvergenceLoop
 import io.craftpanel.agent.docker.*
 import io.craftpanel.agent.grpc.handlers.nowTimestamp
 import io.craftpanel.proto.*
@@ -20,25 +21,27 @@ class ControlStreamHandler(
     private val eventWatcher: ContainerEventWatcher,
     private val dispatcher: CommandDispatcher,
     private val gate: WatcherGate,
+    private val out: AgentOutbound,
+    private val loop: ConvergenceLoop,
+    private val convergenceScope: CoroutineScope,
 ) {
 
     private val log = LoggerFactory.getLogger(ControlStreamHandler::class.java)
 
-    suspend fun run(channel: ManagedChannel): Unit = coroutineScope {
+    suspend fun run(channel: ManagedChannel, outboundChannel: Channel<AgentMessage>): Unit = coroutineScope {
         val stub = ControlServiceGrpcKt.ControlServiceCoroutineStub(channel)
-        val outboundChannel = Channel<AgentMessage>(capacity = 64)
-        val out = AgentOutbound(outboundChannel, identity.nodeId)
 
         val stream = stub.control(outboundChannel.receiveAsFlow())
 
+        // The desired-state convergence loop runs as long as this connection; cancel its jobs
+        // (crash-restart, pending converge) when the stream/scope dies.
+        coroutineContext.job.invokeOnCompletion { convergenceScope.cancel() }
+
         // Send NodeStateSnapshot as the first message
         val snapshot = buildStateSnapshot()
-        outboundChannel.send(
-            agentMessage {
-                nodeId = identity.nodeId
-                nodeState = snapshot
-            }
-        )
+        out.send {
+            nodeState = snapshot
+        }
         log.info("Sent NodeStateSnapshot with ${snapshot.containersCount} containers")
 
         // Periodic metrics loop
@@ -65,13 +68,13 @@ class ControlStreamHandler(
             }
         }
 
-        // Near-instant crash signal: report managed-container deaths to master immediately.
-        // Master decides whether to restart (bounded). Closed when this stream scope ends;
+        // Near-instant crash signal: unexpected deaths feed the convergence loop, which decides
+        // restart (within budget) vs report. Authored deaths are suppressed by the WatcherGate;
         // the periodic snapshot reconcile is the backstop if an event is missed.
         val eventStream = eventWatcher.watch(
             shouldReport = gate::shouldReportDie,
-            onContainerCrash = { serverId -> out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.UNHEALTHY) },
-            onContainerStopped = { serverId -> out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.STOPPED) }
+            onContainerCrash = { serverId -> loop.onContainerDie(serverId, exitCode = 1) },
+            onContainerStopped = { serverId -> loop.onContainerDie(serverId, exitCode = 0) }
         )
         coroutineContext.job.invokeOnCompletion { runCatching { eventStream.close() } }
 

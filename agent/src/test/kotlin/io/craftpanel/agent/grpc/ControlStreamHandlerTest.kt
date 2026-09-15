@@ -8,6 +8,8 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import io.mockk.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
 import java.io.File
@@ -52,6 +54,9 @@ class ControlStreamHandlerTest :
         val routerSupervisor = RouterSupervisor(mockk<McRouterProvisioner>(relaxed = true))
         val eventWatcher = ContainerEventWatcher(mockk(relaxed = true))
         val consoleHandler = ConsoleHandler(mockk(relaxed = true), mockk(relaxed = true))
+        // Shared test view: the convergence loop is a mock here because these tests exercise the
+        // handler's snapshot/remove/shutdown/symlink paths only; convergence behaviour is covered in
+        // ConvergenceLoopTest.
         val handler = ControlStreamHandler(
             identity,
             config,
@@ -61,13 +66,17 @@ class ControlStreamHandlerTest :
             eventWatcher,
             CommandDispatcher(
                 container = containerHandler,
+                desired = mockk(relaxed = true),
                 backup = backupHandler,
                 migration = mockk(relaxed = true),
                 file = mockk(relaxed = true),
                 console = consoleHandler,
                 bulkClient = mockk(relaxed = true)
             ),
-            gate = WatcherGate()
+            gate = WatcherGate(),
+            out = mockk(relaxed = true),
+            loop = mockk(relaxed = true),
+            convergenceScope = CoroutineScope(Job())
         )
 
         var tempDir: File = File("")
@@ -117,242 +126,6 @@ class ControlStreamHandlerTest :
             every { containerManager.listContainers() } returns emptyList()
 
             handler.buildStateSnapshot().containersCount shouldBe 0
-        }
-
-        // handleStart
-        test("handleStart emits HEALTHY on success") {
-            runBlocking {
-                every { containerManager.containerExists(any()) } returns true
-                every { containerManager.startContainer(any()) } just Runs
-                val outbound = newOutbound()
-
-                containerHandler.handleStart(
-                    startContainerCommand {
-                        serverId = "srv-start"
-                        containerName = "craftpanel-start"
-                        needsRecreate = false
-                    },
-                    outbound
-                )
-
-                val msg = outboundChannel.messages()
-                    .single()
-                msg.serverStatus.status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
-                msg.serverStatus.serverId shouldBe "srv-start"
-            }
-        }
-
-        test("handleStart creates a servers-by-name symlink pointing at the server's canonical data dir") {
-            runBlocking {
-                every { containerManager.containerExists(any()) } returns true
-                every { containerManager.startContainer(any()) } just Runs
-                val byNameRoot = Files.createTempDirectory("by-name")
-                    .toFile()
-                val dataConfig = config.copy(
-                    dataBasePath = tempDir.absolutePath,
-                    serversByNameRoot = byNameRoot.absolutePath
-                )
-                val handlerWithData = ContainerHandler(containerManager, dataConfig, mockk<NetworkManager>(relaxed = true))
-                val outbound = newOutbound()
-                val serverId = "srv-symlink"
-                val srvName = "survival-world"
-
-                handlerWithData.handleStart(
-                    startContainerCommand {
-                        this.serverId = serverId
-                        containerName = "craftpanel-$serverId"
-                        needsRecreate = false
-                        serverName = srvName
-                    },
-                    outbound
-                )
-
-                val link = java.nio.file.Path.of(byNameRoot.absolutePath, srvName)
-                Files.exists(link) shouldBe true
-                Files.isSymbolicLink(link) shouldBe true
-                byNameRoot.deleteRecursively()
-            }
-        }
-
-        test("handleStart emits UNHEALTHY on failure") {
-            runBlocking {
-                every { containerManager.containerExists(any()) } returns true
-                every { containerManager.startContainer(any()) } throws RuntimeException("start failed")
-                val outbound = newOutbound()
-
-                containerHandler.handleStart(
-                    startContainerCommand {
-                        serverId = "srv-start-fail"
-                        containerName = "craftpanel-start-fail"
-                        needsRecreate = false
-                    },
-                    outbound
-                )
-
-                outboundChannel.messages()
-                    .single().serverStatus.status shouldBe
-                    ServerStatusUpdate.ServerStatus.UNHEALTHY
-            }
-        }
-
-        test("handleStart with needsRecreate pulls image and recreates container") {
-            runBlocking {
-                every { containerManager.containerExists(any()) } returns true
-                every { containerManager.removeContainer(any(), any()) } just Runs
-                every { containerManager.pullImage(any()) } just Runs
-                every { containerManager.createContainer(any()) } returns "new-id"
-                every { containerManager.startContainer(any()) } just Runs
-                val outbound = newOutbound()
-
-                containerHandler.handleStart(
-                    startContainerCommand {
-                        serverId = "srv-recreate"
-                        containerName = "craftpanel-recreate"
-                        image = "itzg/minecraft-server:latest"
-                        needsRecreate = true
-                    },
-                    outbound
-                )
-
-                verify { containerManager.pullImage("itzg/minecraft-server:latest") }
-                verify { containerManager.removeContainer("craftpanel-recreate", force = true) }
-                outboundChannel.messages()
-                    .single().serverStatus.status shouldBe
-                    ServerStatusUpdate.ServerStatus.HEALTHY
-            }
-        }
-
-        test("handleStart mount uses /server for proxy data_container_path") {
-            runBlocking {
-                every { containerManager.containerExists(any()) } returns true
-                every { containerManager.removeContainer(any(), any()) } just Runs
-                every { containerManager.pullImage(any()) } just Runs
-                val captured = slot<StartContainerCommand>()
-                every { containerManager.createContainer(capture(captured)) } returns "new-id"
-                every { containerManager.startContainer(any()) } just Runs
-                val outbound = newOutbound()
-
-                containerHandler.handleStart(
-                    startContainerCommand {
-                        serverId = "srv-proxy"
-                        containerName = "craftpanel-proxy"
-                        image = "itzg/mc-proxy:latest"
-                        needsRecreate = true
-                        dataContainerPath = "/server"
-                    },
-                    outbound
-                )
-
-                captured.captured.mountsList.single().containerPath shouldBe "/server"
-            }
-        }
-
-        test("handleStart mount defaults to /data when data_container_path is empty") {
-            runBlocking {
-                every { containerManager.containerExists(any()) } returns true
-                every { containerManager.removeContainer(any(), any()) } just Runs
-                every { containerManager.pullImage(any()) } just Runs
-                val captured = slot<StartContainerCommand>()
-                every { containerManager.createContainer(capture(captured)) } returns "new-id"
-                every { containerManager.startContainer(any()) } just Runs
-                val outbound = newOutbound()
-
-                containerHandler.handleStart(
-                    startContainerCommand {
-                        serverId = "srv-default"
-                        containerName = "craftpanel-default"
-                        image = "itzg/minecraft-server:latest"
-                        needsRecreate = true
-                    },
-                    outbound
-                )
-
-                captured.captured.mountsList.single().containerPath shouldBe "/data"
-            }
-        }
-
-        // handleStop
-        test("handleStop emits STOPPED on success") {
-            runBlocking {
-                every { containerManager.stopContainer(any(), any(), any()) } just Runs
-                val outbound = newOutbound()
-
-                containerHandler.handleStop(
-                    stopContainerCommand {
-                        serverId = "srv-stop"
-                        containerName = "craftpanel-stop"
-                        timeoutSeconds = 10
-                    },
-                    outbound
-                )
-
-                val msg = outboundChannel.messages()
-                    .single()
-                msg.serverStatus.status shouldBe ServerStatusUpdate.ServerStatus.STOPPED
-                msg.serverStatus.serverId shouldBe "srv-stop"
-            }
-        }
-
-        test("handleStop emits UNHEALTHY on failure") {
-            runBlocking {
-                every { containerManager.stopContainer(any(), any(), any()) } throws RuntimeException("stop failed")
-                val outbound = newOutbound()
-
-                containerHandler.handleStop(
-                    stopContainerCommand {
-                        serverId = "srv-stop-fail"
-                        containerName = "craftpanel-stop-fail"
-                    },
-                    outbound
-                )
-
-                outboundChannel.messages()
-                    .single().serverStatus.status shouldBe
-                    ServerStatusUpdate.ServerStatus.UNHEALTHY
-            }
-        }
-
-        // handleRestart
-        test("handleRestart emits HEALTHY after stop then start") {
-            runBlocking {
-                every { containerManager.stopContainer(any(), any(), any()) } just Runs
-                every { containerManager.startContainer(any()) } just Runs
-                val outbound = newOutbound()
-
-                containerHandler.handleRestart(
-                    restartContainerCommand {
-                        serverId = "srv-restart"
-                        containerName = "craftpanel-restart"
-                        timeoutSeconds = 10
-                    },
-                    outbound
-                )
-
-                outboundChannel.messages()
-                    .single().serverStatus.status shouldBe
-                    ServerStatusUpdate.ServerStatus.HEALTHY
-                verify { containerManager.stopContainer("craftpanel-restart", 10, "") }
-                verify { containerManager.startContainer("craftpanel-restart") }
-            }
-        }
-
-        test("handleRestart emits UNHEALTHY when stop fails") {
-            runBlocking {
-                every { containerManager.stopContainer(any(), any(), any()) } throws RuntimeException("stop failed")
-                val outbound = newOutbound()
-
-                containerHandler.handleRestart(
-                    restartContainerCommand {
-                        serverId = "srv-restart-fail"
-                        containerName = "craftpanel-restart-fail"
-                    },
-                    outbound
-                )
-
-                outboundChannel.messages()
-                    .single().serverStatus.status shouldBe
-                    ServerStatusUpdate.ServerStatus.UNHEALTHY
-            }
         }
 
         // handleRemove

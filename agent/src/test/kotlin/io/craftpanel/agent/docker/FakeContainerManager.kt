@@ -61,6 +61,11 @@ class FakeContainerManager(
         return containers.containsKey(containerName)
     }
 
+    override fun isRunning(containerName: String): Boolean {
+        calls.add("isRunning:$containerName")
+        return containers[containerName]?.state == State.RUNNING
+    }
+
     override fun pullImage(image: String) {
         calls.add("pull:$image")
     }

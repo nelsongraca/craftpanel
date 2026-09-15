@@ -3,6 +3,7 @@ package io.craftpanel.agent.grpc
 import io.craftpanel.agent.grpc.handlers.BackupHandler
 import io.craftpanel.agent.grpc.handlers.ContainerHandler
 import io.craftpanel.agent.grpc.handlers.ConsoleHandler
+import io.craftpanel.agent.grpc.handlers.DesiredStateHandler
 import io.craftpanel.agent.grpc.handlers.FileHandler
 import io.craftpanel.agent.grpc.handlers.MigrationHandler
 import io.craftpanel.proto.MasterMessage
@@ -44,6 +45,7 @@ class CommandDispatcher private constructor(
     companion object {
         operator fun invoke(
             container: ContainerHandler,
+            desired: DesiredStateHandler,
             backup: BackupHandler,
             migration: MigrationHandler,
             file: FileHandler,
@@ -53,11 +55,17 @@ class CommandDispatcher private constructor(
             buildMap {
                 fun entry(mode: Mode, handle: suspend (msg: MasterMessage, out: AgentOutbound) -> Unit) = Entry(mode, handle)
 
-                put(PayloadCase.START_CONTAINER, entry(Mode.CONCURRENT) { msg, out -> container.handleStart(msg.startContainer, out) })
-                put(PayloadCase.STOP_CONTAINER, entry(Mode.CONCURRENT) { msg, out -> container.handleStop(msg.stopContainer, out) })
-                put(PayloadCase.RESTART_CONTAINER, entry(Mode.CONCURRENT) { msg, out -> container.handleRestart(msg.restartContainer, out) })
-                put(PayloadCase.REMOVE_CONTAINER, entry(Mode.SYNC) { msg, out -> container.handleRemove(msg.removeContainer, out) })
+                // Container lifecycle → desired-state convergence. start/stop/restart translate to
+                // desired-state mutations; remove is a permanent (non-convergent) delete.
+                put(PayloadCase.START_CONTAINER, entry(Mode.CONCURRENT) { msg, _ -> desired.handleStartCommand(msg.startContainer) })
+                put(PayloadCase.STOP_CONTAINER, entry(Mode.CONCURRENT) { msg, _ -> desired.handleStopCommand(msg.stopContainer.serverId, msg.stopContainer.containerName, msg.stopContainer) })
+                put(PayloadCase.RESTART_CONTAINER, entry(Mode.CONCURRENT) { msg, _ -> desired.handleRestartCommand(msg.restartContainer.serverId, msg.restartContainer.containerName, msg.restartContainer) })
+                put(PayloadCase.REMOVE_CONTAINER, entry(Mode.SYNC) { msg, out ->
+                    container.handleRemove(msg.removeContainer, out)
+                    desired.handleServerRemoved(msg.removeContainer.serverId)
+                })
                 put(PayloadCase.SHUTDOWN, entry(Mode.SYNC) { msg, out -> container.handleShutdown(msg.shutdown, out) })
+                put(PayloadCase.SERVER_DESIRED_STATE, entry(Mode.CONCURRENT) { msg, _ -> desired.handleDesiredState(msg.serverDesiredState) })
 
                 put(PayloadCase.TRIGGER_BACKUP, entry(Mode.CONCURRENT) { msg, out -> backup.handleTriggerBackup(msg.triggerBackup, out) })
                 put(PayloadCase.DELETE_BACKUP, entry(Mode.CONCURRENT) { msg, out -> backup.handleDeleteBackup(msg.deleteBackup) })

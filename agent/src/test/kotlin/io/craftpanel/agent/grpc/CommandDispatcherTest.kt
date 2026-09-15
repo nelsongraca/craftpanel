@@ -16,6 +16,7 @@ class CommandDispatcherTest :
         val out = mockk<AgentOutbound>(relaxed = true)
 
         val container = mockk<ContainerHandler>(relaxed = true)
+        val desired = mockk<DesiredStateHandler>(relaxed = true)
         val backup = mockk<BackupHandler>(relaxed = true)
         val migration = mockk<MigrationHandler>(relaxed = true)
         val file = mockk<FileHandler>(relaxed = true)
@@ -24,6 +25,7 @@ class CommandDispatcherTest :
 
         val dispatcher = CommandDispatcher(
             container = container,
+            desired = desired,
             backup = backup,
             migration = migration,
             file = file,
@@ -31,19 +33,24 @@ class CommandDispatcherTest :
             bulkClient = bulkClient,
         )
 
-        test("routes container lifecycle commands to ContainerHandler") {
+        test("routes container lifecycle commands to DesiredStateHandler (start/stop/restart) and ContainerHandler (remove/shutdown)") {
             runTest {
                 dispatcher.dispatch(masterMessage { startContainer = startContainerCommand {} }, out, this)
                 dispatcher.dispatch(masterMessage { stopContainer = stopContainerCommand {} }, out, this)
                 dispatcher.dispatch(masterMessage { restartContainer = restartContainerCommand {} }, out, this)
+                dispatcher.dispatch(masterMessage {
+                    serverDesiredState = serverDesiredState {}
+                }, out, this)
                 dispatcher.dispatch(masterMessage { removeContainer = removeContainerCommand {} }, out, this)
                 dispatcher.dispatch(masterMessage { shutdown = shutdownCommand {} }, out, this)
                 advanceUntilIdle()
 
-                coVerify { container.handleStart(any(), out) }
-                coVerify { container.handleStop(any(), out) }
-                coVerify { container.handleRestart(any(), out) }
+                coVerify { desired.handleStartCommand(any()) }
+                coVerify { desired.handleStopCommand(any(), any(), any()) }
+                coVerify { desired.handleRestartCommand(any(), any(), any()) }
+                coVerify { desired.handleDesiredState(any()) }
                 coVerify { container.handleRemove(any(), out) }
+                coVerify { desired.handleServerRemoved(any()) }
                 coVerify { container.handleShutdown(any(), out) }
             }
         }
@@ -152,13 +159,13 @@ class CommandDispatcherTest :
             every { console.handleConsoleInput(any()) } answers { syncRan = true }
 
             var concurrentRan = false
-            coEvery { container.handleStart(any(), any()) } answers { concurrentRan = true }
+            coEvery { desired.handleDesiredState(any()) } answers { concurrentRan = true }
 
             runTest {
                 dispatcher.dispatch(masterMessage { consoleInput = consoleInput {} }, out, this)
                 syncRan shouldBe true
 
-                dispatcher.dispatch(masterMessage { startContainer = startContainerCommand {} }, out, this)
+                dispatcher.dispatch(masterMessage { serverDesiredState = serverDesiredState {} }, out, this)
                 concurrentRan shouldBe false
                 advanceUntilIdle()
                 concurrentRan shouldBe true
@@ -182,12 +189,12 @@ class CommandDispatcherTest :
         }
 
         test("handler exception in CONCURRENT entry does not escape dispatch") {
-            coEvery { container.handleStart(any(), any()) } throws RuntimeException("boom")
+            coEvery { desired.handleDesiredState(any()) } throws RuntimeException("boom")
             runTest {
-                dispatcher.dispatch(masterMessage { startContainer = startContainerCommand {} }, out, this)
+                dispatcher.dispatch(masterMessage { serverDesiredState = serverDesiredState {} }, out, this)
                 advanceUntilIdle()
 
-                dispatcher.dispatch(masterMessage { stopContainer = stopContainerCommand {} }, out, this)
+                dispatcher.dispatch(masterMessage { serverDesiredState = serverDesiredState { serverId = "srv-2" } }, out, this)
                 advanceUntilIdle()
             }
         }
