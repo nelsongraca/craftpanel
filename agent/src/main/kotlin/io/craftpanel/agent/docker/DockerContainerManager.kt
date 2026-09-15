@@ -197,13 +197,25 @@ class DockerContainerManager(
         gate.markStopping(serverIdOf(containerName))
         val timeout = timeoutSeconds.takeIf { it > 0 } ?: 30
 
-        if (stopCommand.isNotEmpty()) {
-            val exited = sendStopCommandToStdin(containerName, stopCommand, timeout)
-            if (exited) {
-                log.info("Container {} exited cleanly after stop command", containerName)
-                return
+        when (val action = parseStopAction(stopCommand)) {
+            is StopAction.Signal -> {
+                val exited = sendSignalToContainer(containerName, action.signal, timeout)
+                if (exited) {
+                    log.info("Container {} exited cleanly after signal {}", containerName, action.signal)
+                    return
+                }
+                log.warn("Container {} did not exit within {}s after signal {} — force stopping", containerName, timeout, action.signal)
             }
-            log.warn("Container {} did not exit within {}s after stop command — force stopping", containerName, timeout)
+            StopAction.WriteText -> {
+                val exited = sendStopCommandToStdin(containerName, stopCommand, timeout)
+                if (exited) {
+                    log.info("Container {} exited cleanly after stop command", containerName)
+                    return
+                }
+                log.warn("Container {} did not exit within {}s after stop command — force stopping", containerName, timeout)
+            }
+            // Empty stop command — proceed directly to Docker stop.
+            StopAction.Skip -> {}
         }
 
         try {
@@ -235,6 +247,37 @@ class DockerContainerManager(
     }.getOrElse { e ->
         log.warn("Failed to send stop command to container {}: {}", containerName, e.message)
         false
+    }
+
+    /**
+     * Sends a Unix signal to the container's main process (PID 1) — the same signal a
+     * terminal Ctrl+C (SIGINT) would deliver. Best-effort: whether the image's entrypoint
+     * forwards the signal to the server process is the same contract `docker stop`
+     * (SIGTERM) already relies on.
+     */
+    private fun sendSignalToContainer(containerName: String, signal: String, timeoutSeconds: Int): Boolean = runCatching {
+        docker.killContainerCmd(containerName)
+            .withSignal(signal)
+            .exec()
+        waitForExit(containerName, timeoutSeconds)
+    }.getOrElse { e ->
+        log.warn("Failed to send signal {} to container {}: {}", signal, containerName, e.message)
+        false
+    }
+
+    /** Polls container state until it exits (or inspect fails), up to [timeoutSeconds]. */
+    private fun waitForExit(containerName: String, timeoutSeconds: Int): Boolean {
+        val timeoutNanos = TimeUnit.SECONDS.toNanos(timeoutSeconds.toLong())
+        val deadline = System.nanoTime() + timeoutNanos
+        while (System.nanoTime() < deadline) {
+            val running = runCatching {
+                docker.inspectContainerCmd(containerName)
+                    .exec().state?.running ?: false
+            }.getOrDefault(false)
+            if (!running) return true
+            Thread.sleep(500)
+        }
+        return false
     }
 
     override fun killContainer(containerName: String) {
@@ -347,3 +390,36 @@ class DockerContainerManager(
         return Pair(graceful, forced)
     }
 }
+
+/** How to interpret a configured stop command when stopping a container. */
+private sealed interface StopAction {
+    /** Empty stop command — skip any stdin/signal step, Docker stop directly. */
+    data object Skip : StopAction
+
+    /** The container's main process receives this Unix signal (e.g. SIGINT). */
+    data class Signal(val signal: String) : StopAction
+
+    /** The command is written verbatim to container stdin. */
+    data object WriteText : StopAction
+}
+
+/**
+ * Sentinel stop commands that deliver a Unix signal instead of text to stdin:
+ *
+ * | value     | signal    | meaning                                        |
+ * |-----------|-----------|------------------------------------------------|
+ * | `^C`      | SIGINT    | terminal Ctrl+C                                |
+ * | `^\`      | SIGQUIT   | terminal Ctrl+\ (thread dump / core dump)      |
+ * | `SIG*`    | as-named  | any explicit signal name (SIGTERM, SIGHUP, …)  |
+ *
+ * Anything else is treated as a text stop command; empty skips stdin entirely.
+ */
+private fun parseStopAction(command: String): StopAction = when {
+    command.isEmpty() -> StopAction.Skip
+    command == "^C" -> StopAction.Signal("SIGINT")
+    command == "^\\" -> StopAction.Signal("SIGQUIT")
+    command.matches(SIGNAL_NAME_REGEX) -> StopAction.Signal(command)
+    else -> StopAction.WriteText
+}
+
+private val SIGNAL_NAME_REGEX = Regex("SIG[A-Z0-9]+")

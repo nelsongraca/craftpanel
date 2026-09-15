@@ -357,8 +357,9 @@ message StopContainerCommand {
   string container_name = 2;
   // Seconds to wait for graceful exit via stdin before Docker stop (SIGTERM → SIGKILL).
   int32  timeout_seconds = 3;
-  // Command written to container stdin to initiate graceful shutdown.
-  // Empty = skip stdin command and proceed directly to Docker stop.
+  // Stop action, written to container stdin by default. Special sentinels are delivered as
+  // real Unix signals to the container's main process instead: "^C" = SIGINT, "^\" = SIGQUIT,
+  // and any "SIG<NAME>" = that signal. Empty = skip the stdin/signal step and Docker stop directly.
   string stop_command = 4;
   // If true, immediately SIGKILL the container instead of graceful stop.
   bool   force = 5;

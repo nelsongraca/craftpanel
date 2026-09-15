@@ -115,7 +115,21 @@ Updates the command written to container stdin on graceful stop or restart.
 }
 ```
 
-Set to an empty string to skip the stdin command and go straight to Docker stop.
+Special signal values are delivered to the container's main process (PID 1) via `docker kill --signal`
+instead of stdin:
+
+| Value  | Effect                                   |
+|--------|------------------------------------------|
+| `^C`   | SIGINT (terminal Ctrl+C)                 |
+| `^\`   | SIGQUIT (thread dump / diagnostic)       |
+| `SIG*` | any explicit signal name, e.g. `SIGTERM` |
+
+Any other value is written verbatim + newline to container stdin. Set to an empty string to skip the
+stdin/signal step and go straight to Docker stop.
+
+!!! note "Best-effort"
+    A signal targets the container's PID 1. It works when the image forwards/handles the signal
+    (the same contract `docker stop` — SIGTERM — already relies on).
 
 **Response `200`:** updated config object.
 

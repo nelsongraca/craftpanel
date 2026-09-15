@@ -41,10 +41,10 @@ test("console.disconnected shows reason in status", async ({page}) => {
     ).toBeVisible({timeout: 5000});
 });
 
-test("non-HEALTHY server shows not-running message", async ({
-                                                                page,
-                                                                network,
-                                                            }) => {
+test("non-HEALTHY server shows crash log view instead of live console", async ({
+                                                                            page,
+                                                                            network,
+                                                                        }) => {
     network.use(
         http.get("/api/servers/srv-2", () =>
             HttpResponse.json({
@@ -77,5 +77,6 @@ test("non-HEALTHY server shows not-running message", async ({
     await page.goto("/servers/srv-2");
     await page.getByRole("tab", {name: "Console"}).click();
 
-    await expect(page.getByText("Server is not running")).toBeVisible();
+    await expect(page.getByText("Server crashed")).toBeVisible();
+    await expect(page.getByText("Connecting…")).not.toBeVisible();
 });

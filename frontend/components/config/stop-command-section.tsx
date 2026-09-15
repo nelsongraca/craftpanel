@@ -45,7 +45,8 @@ export function StopCommandSection({
                         className="bg-surface-higher border border-border rounded px-2 py-1.5 text-xs font-mono text-text-primary w-full focus:border-accent/50 focus:outline-none"
                     />
                     <p className="text-xs text-text-muted mt-1">
-                        Command sent to stdin on stop / restart. Leave empty to skip.
+                        Command sent to stdin on stop / restart. ^C = SIGINT, ^\ = SIGQUIT, or any SIG*
+                        name. Leave empty for Docker stop.
                     </p>
                 </div>
                 {stopCmd !== savedStopCmd && (

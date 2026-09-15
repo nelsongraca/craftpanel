@@ -15,32 +15,32 @@ class ProxyLifecycleTest : BaseSystemTest() {
 
     init {
 
-        context("Proxy lifecycle with force stop") {
+        lateinit var proxyId: String
 
-            lateinit var proxyId: String
+        beforeSpec {
+            proxyId = api.createServer(
+                CreateServerRequest(
+                    name = "test-proxy-${System.currentTimeMillis()}",
+                    nodeId = nodeId,
+                    serverType = "VELOCITY",
+                    mcVersion = "latest",
+                    itzgImageTag = "latest",
+                    memoryMb = 256,
+                    cpuShares = 64
+                )
+            ).id
+        }
 
-            beforeContainer {
-                proxyId = api.createServer(
-                    CreateServerRequest(
-                        name = "test-proxy-${System.currentTimeMillis()}",
-                        nodeId = nodeId,
-                        serverType = "VELOCITY",
-                        mcVersion = "latest",
-                        itzgImageTag = "latest",
-                        memoryMb = 256,
-                        cpuShares = 64
-                    )
-                ).id
-            }
-
-            afterContainer {
-                runCatching {
-                    api.stopServer(proxyId)
-                    helper.awaitStoppedOrGone(proxyId)
-                    api.deleteServer(proxyId)
-                }
+        afterSpec {
+            runCatching {
+                api.stopServer(proxyId)
                 helper.awaitStoppedOrGone(proxyId)
+                api.deleteServer(proxyId)
             }
+            helper.awaitStoppedOrGone(proxyId)
+        }
+
+        context("Proxy lifecycle with force stop") {
 
             should("start proxy transitions it to HEALTHY") {
                 api.startServer(proxyId)

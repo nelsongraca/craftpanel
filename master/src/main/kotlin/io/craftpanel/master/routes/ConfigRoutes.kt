@@ -87,6 +87,10 @@ fun Route.configRoutes(proxyBackendService: ProxyBackendService, envVarsService:
             patch("/stop-command", {
                 operationId = "updateStopCommand"
                 summary = "Update server stop command"
+                description = "Command written to container stdin on stop/restart. " +
+                    "Special signal values are delivered to the container's main process instead of stdin: " +
+                    "^C = SIGINT, ^\\ = SIGQUIT, or any SIG* signal name (e.g. SIGTERM). " +
+                    "Empty clears the command (Docker stop only)."
                 request {
                     pathParameter<String>("id")
                     body<PatchStopCommandRequest>()

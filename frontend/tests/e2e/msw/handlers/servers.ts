@@ -18,6 +18,15 @@ export const serverHandlers = [
 
     http.get("/api/servers/:id/mods", () => HttpResponse.json(fakeMods)),
 
+    http.get("/api/servers/:id/console/logs", () =>
+        HttpResponse.json({
+            lines: [
+                "[12:00:00] [main/INFO]: Starting minecraft server",
+                "[12:00:03] [main/FATAL]: Server crashed",
+            ],
+        })
+    ),
+
     http.post("/api/servers/:id/mods", async ({request}) => {
         const body = (await request.json()) as {
             modrinth_project_id: string;

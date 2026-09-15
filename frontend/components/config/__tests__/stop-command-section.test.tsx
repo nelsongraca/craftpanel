@@ -50,6 +50,17 @@ describe('StopCommandSection', () => {
         expect(updateStopCommand).toHaveBeenCalledWith({path: {id: 's1'}, body: {stop_command: 'save-all'}})
     })
 
+    it('round-trips a ^C signal sentinel through updateStopCommand', async () => {
+        vi.mocked(updateStopCommand).mockResolvedValue({data: {}, error: undefined, response: new Response()})
+        const user = userEvent.setup()
+        render(<StopCommandSection serverId="s1" stopCommand="stop"/>)
+        const input = screen.getByDisplayValue('stop')
+        await user.clear(input)
+        await user.type(input, '^C')
+        await user.click(screen.getByText('Save'))
+        expect(updateStopCommand).toHaveBeenCalledWith({path: {id: 's1'}, body: {stop_command: '^C'}})
+    })
+
     it('shows error when save fails', async () => {
         vi.mocked(updateStopCommand).mockResolvedValue({error: {message: 'Save failed'}, response: new Response()})
         const user = userEvent.setup()

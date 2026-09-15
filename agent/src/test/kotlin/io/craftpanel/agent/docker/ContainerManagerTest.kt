@@ -19,6 +19,10 @@ class ContainerManagerTest :
         val manager = DockerContainerManager(docker, WatcherGate())
         val objectMapper = ObjectMapper()
 
+        // The shared `docker` mock records calls across tests; clear between runs so
+        // count/absence verifications (exactly 0, exactly N) stay order-independent.
+        beforeTest { clearMocks(docker) }
+
         fun fakeContainer(name: String, state: String, status: String, id: String = "container-id", serverId: String? = "server-id", stopCommand: String? = null): Container {
             val labelsJson = buildString {
                 append("{")
@@ -65,6 +69,23 @@ class ContainerManagerTest :
             val stopCmd = mockk<StopContainerCmd>(relaxed = true)
             every { docker.stopContainerCmd(containerId) } returns stopCmd
             every { stopCmd.withTimeout(any()) } returns stopCmd
+        }
+
+        fun stubKillWithSignal(): KillContainerCmd {
+            val killCmd = mockk<KillContainerCmd>(relaxed = true)
+            every { docker.killContainerCmd("craftpanel-mc") } returns killCmd
+            every { killCmd.withSignal(any()) } returns killCmd
+            return killCmd
+        }
+
+        fun stubInspect(running: Boolean) {
+            val inspectCmd = mockk<InspectContainerCmd>(relaxed = true)
+            every { docker.inspectContainerCmd("craftpanel-mc") } returns inspectCmd
+            val inspectResponse = mockk<InspectContainerResponse>(relaxed = true)
+            every { inspectCmd.exec() } returns inspectResponse
+            val state = mockk<InspectContainerResponse.ContainerState>(relaxed = true)
+            every { inspectResponse.state } returns state
+            every { state.running } returns running
         }
 
         // listContainers
@@ -327,6 +348,69 @@ class ContainerManagerTest :
             manager.stopContainer("craftpanel-mc", timeoutSeconds = 0, stopCommand = "")
 
             verify { stopCmd.withTimeout(30) }
+        }
+
+        // stopContainer — signal stop commands (^C and similar)
+        test("stopContainer delivers SIGINT for ^C stop command") {
+            val killCmd = stubKillWithSignal()
+            stubInspect(running = false)
+
+            manager.stopContainer("craftpanel-mc", timeoutSeconds = 30, stopCommand = "^C")
+
+            verify { killCmd.withSignal("SIGINT") }
+            verify { killCmd.exec() }
+            verify(exactly = 0) { docker.attachContainerCmd(any()) }
+            verify(exactly = 0) { docker.stopContainerCmd(any()) }
+        }
+
+        test("stopContainer delivers SIGQUIT for Ctrl-Backslash stop command") {
+            val killCmd = stubKillWithSignal()
+            stubInspect(running = false)
+
+            manager.stopContainer("craftpanel-mc", timeoutSeconds = 30, stopCommand = "^\\")
+
+            verify { killCmd.withSignal("SIGQUIT") }
+        }
+
+        test("stopContainer passes explicit SIGTERM signal through") {
+            val killCmd = stubKillWithSignal()
+            stubInspect(running = false)
+
+            manager.stopContainer("craftpanel-mc", timeoutSeconds = 30, stopCommand = "SIGTERM")
+
+            verify { killCmd.withSignal("SIGTERM") }
+        }
+
+        test("stopContainer falls back to docker stop when container still running after signal") {
+            stubKillWithSignal()
+            stubInspect(running = true)
+            stubStop("craftpanel-mc")
+
+            manager.stopContainer("craftpanel-mc", timeoutSeconds = 1, stopCommand = "^C")
+
+            verify { docker.killContainerCmd("craftpanel-mc") }
+            verify { docker.stopContainerCmd("craftpanel-mc") }
+        }
+
+        test("stopContainer writes text stop commands to stdin, never as signals") {
+            val attachCmd = mockk<AttachContainerCmd>(relaxed = true)
+            every { docker.attachContainerCmd("craftpanel-mc") } returns attachCmd
+            every { attachCmd.withStdIn(any()) } returns attachCmd
+            every { attachCmd.withStdOut(any()) } returns attachCmd
+            every { attachCmd.withStdErr(any()) } returns attachCmd
+            every { attachCmd.withFollowStream(any()) } returns attachCmd
+            every { attachCmd.withLogs(any()) } returns attachCmd
+            val adapter = ResultCallback.Adapter<Frame>()
+            adapter.onComplete() // pre-complete so awaitCompletion returns immediately
+            every { attachCmd.exec(any()) } returns adapter
+            stubInspect(running = true)
+            stubStop("craftpanel-mc")
+
+            manager.stopContainer("craftpanel-mc", timeoutSeconds = 1, stopCommand = "stop")
+
+            verify(exactly = 0) { docker.killContainerCmd(any()) }
+            verify { docker.attachContainerCmd("craftpanel-mc") }
+            verify { docker.stopContainerCmd("craftpanel-mc") }
         }
 
         // killContainer

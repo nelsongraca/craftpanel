@@ -140,8 +140,14 @@ The agent uses this value directly — it does not re-derive the network name. I
 
 ### Graceful stop
 
-Rather than RCON, CraftPanel uses container stdin for graceful shutdown. The `stop_command` field on `StopContainerCommand` and `RestartContainerCommand` carries the command string to write to stdin
-before Docker stop.
+Rather than RCON, CraftPanel uses container stdin for graceful shutdown. The `stop_command` field on `StopContainerCommand` and `RestartContainerCommand` carries the stop action. By default it is a
+command string written to stdin; special sentinels are delivered as real Unix signals to the container's main process (PID 1) instead:
+
+| Value  | Effect                             |
+|--------|------------------------------------|
+| `^C`   | SIGINT (terminal Ctrl+C)           |
+| `^\`   | SIGQUIT (thread dump / diagnostic) |
+| `SIG*` | any explicit signal name           |
 
 Default stop commands by server type (configurable per server in the UI):
 
@@ -152,10 +158,12 @@ Default stop commands by server type (configurable per server in the UI):
 
 Stop sequence:
 
-1. Write `stop_command` + newline to container stdin via Docker attach
+1. Text action: write `stop_command` + newline to container stdin via Docker attach. Signal action: `docker kill --signal=<sig>` to the container's main process. Empty action: skip to step 3.
 2. Wait up to `timeout_seconds` for the container to exit
 3. If still running — Docker stop (SIGTERM → SIGKILL)
 4. Report final state via `ServerStatusUpdate`
+
+Signal delivery is best-effort: it targets PID 1 and requires the image to forward/handle the signal — the same contract Docker stop (SIGTERM) already relies on. See [Server configuration](../servers/configuration.md).
 
 Restart follows the same stop sequence then starts the container again. Docker restart is not used.
 

@@ -274,6 +274,16 @@ The `stop_command` field on the `servers` table stores the command written to co
 | `VANILLA`, `PAPER`, `FABRIC`, `FOLIA`, `FORGE`, `NEOFORGE`, `QUILT`, `SPIGOT`, `LIMBO`, `CUSTOM` | `stop`  |
 | `VELOCITY`, `BUNGEECORD`, `WATERFALL`                                                  | `end`   |
 
+Special signal values are delivered to the container's main process (PID 1) via `docker kill --signal` instead of stdin:
+
+| Value  | Effect                             |
+|--------|------------------------------------|
+| `^C`   | SIGINT (terminal Ctrl+C)           |
+| `^\`   | SIGQUIT (thread dump / diagnostic) |
+| `SIG*` | any explicit signal name           |
+
+Any other value is written verbatim + newline to stdin. Empty skips the stdin/signal step and goes straight to Docker stop. Delivery is best-effort and targets PID 1 — it requires the container image to forward/handle the signal, the same contract `docker stop` already relies on.
+
 Set to an empty string to skip the stdin command and go straight to Docker stop.
 
 ---
