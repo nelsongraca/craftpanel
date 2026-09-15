@@ -324,5 +324,5 @@ effect on the next restart.
 
 ## itzg Image Version
 
-The itzg image tag used for the container is set at creation and can be changed via `PATCH /servers/{id}` with the `server.configure` permission. The change is deferred — master sets a
-`needs_recreate` flag and pulls the new image tag when the server is next started or restarted.
+The itzg image tag used for the container is set at creation and can be changed via `PATCH /servers/{id}` with the `server.configure` permission. The change is deferred — master rebuilds
+the spec and pushes it; the agent recreates the container with the new image tag when the server is next started or restarted (spec-diff recreate).

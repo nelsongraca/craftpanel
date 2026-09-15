@@ -55,11 +55,8 @@ class CommandDispatcher private constructor(
             buildMap {
                 fun entry(mode: Mode, handle: suspend (msg: MasterMessage, out: AgentOutbound) -> Unit) = Entry(mode, handle)
 
-                // Container lifecycle → desired-state convergence. start/stop/restart translate to
-                // desired-state mutations; remove is a permanent (non-convergent) delete.
-                put(PayloadCase.START_CONTAINER, entry(Mode.CONCURRENT) { msg, _ -> desired.handleStartCommand(msg.startContainer) })
-                put(PayloadCase.STOP_CONTAINER, entry(Mode.CONCURRENT) { msg, _ -> desired.handleStopCommand(msg.stopContainer.serverId, msg.stopContainer.containerName, msg.stopContainer) })
-                put(PayloadCase.RESTART_CONTAINER, entry(Mode.CONCURRENT) { msg, _ -> desired.handleRestartCommand(msg.restartContainer.serverId, msg.restartContainer.containerName, msg.restartContainer) })
+                // Container lifecycle → desired-state convergence. remove is a permanent
+                // (non-convergent) delete.
                 put(PayloadCase.REMOVE_CONTAINER, entry(Mode.SYNC) { msg, out ->
                     container.handleRemove(msg.removeContainer, out)
                     desired.handleServerRemoved(msg.removeContainer.serverId)

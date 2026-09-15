@@ -47,8 +47,9 @@ any backend can be configured, which races migration and recreate flows.
   backends must be reachable only via the proxy (they already are — same-node
   internal docker DNS, not exposed). Never expose a forwarding backend directly.
 - Enabling forwarding on a backend sets two create-time env vars
-  (`ONLINE_MODE=false`, `PATCH_DEFINITIONS`) plus a patch file → `needs_recreate`
-  on the backend. Not force-restarted; applies on next start (matches #36).
+  (`ONLINE_MODE=false`, `PATCH_DEFINITIONS`) plus a patch file; applied at the
+  backend's next start/restart (spec-diff recreate). Not force-restarted
+  (matches #36).
 - The proxy's `forwarding.secret` is now master-written (patch), not
   image-generated. ADR-0002's other decisions (patch mechanism, master renders,
   agent writes, same-node) stand unchanged.

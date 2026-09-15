@@ -37,6 +37,10 @@ class ConvergenceLoop(
     private val log = LoggerFactory.getLogger(ConvergenceLoop::class.java)
     private val locks = ConcurrentHashMap<String, Mutex>()
 
+    // In-flight converge per server. Lets a force-stop preempt a graceful stop that is holding
+    // the per-server mutex (the mutex alone would serialize the SIGKILL behind the wait).
+    private val inFlight = ConcurrentHashMap<String, Job>()
+
     // ── Entry points ────────────────────────────────────────────────────────
 
     /** Applies a `ServerDesiredState` envelope: store the intent, then converge. */
@@ -51,66 +55,32 @@ class ConvergenceLoop(
                 noRestart = env.noRestart,
             )
         }
+        if (env.desired == ServerDesiredState.Desired.STOPPED && env.force) {
+            preemptWithKill(env.serverId)
+        }
         return trigger(env.serverId)
+    }
+
+    /**
+     * A force-stop must take effect immediately even while a graceful stop is running. The
+     * graceful converge holds the per-server mutex for up to the stop timeout, so waiting behind
+     * it defeats the point of `force`. SIGKILL the container out-of-band; the in-flight graceful
+     * stop then completes and the mutated converge reconciles to STOPPED.
+     */
+    private fun preemptWithKill(serverId: String) {
+        if (inFlight[serverId]?.isActive != true) return
+        val containerName = store.get(serverId).spec?.containerName ?: "$containerNamePrefix-$serverId"
+        log.info("Force stop for $serverId — preempting in-flight convergence with SIGKILL")
+        scope.launch {
+            runCatching { operator.forceKill(containerName) }
+                .onFailure { log.warn("Preemptive force kill for $serverId failed", it) }
+        }
     }
 
     /** Called by the ContainerEventWatcher on an unexpected death (gate already suppressed authored ones). */
     fun onContainerDie(serverId: String, exitCode: Int): Job {
         log.info("Unexpected container die event for server {} (exit {})", serverId, exitCode)
         return trigger(serverId)
-    }
-
-    /**
-     * Legacy start command (master pre-desired-state): store RUNNING intent + spec, execute the
-     * provisioning start directly (explicit params honored), report the outcome.
-     */
-    fun applyLegacyStart(cmd: StartContainerCommand): Job {
-        store.upsert(cmd.serverId) { state ->
-            state.copy(
-                desired = ServerDesiredState.Desired.RUNNING,
-                spec = cmd,
-                forceRestart = false,
-                force = false,
-            )
-        }
-        return launchConverge(cmd.serverId) {
-            val state = store.get(cmd.serverId)
-            executeEnsureRunning(cmd.serverId, recreate = state.appliedSpec != null && state.spec != state.appliedSpec)
-        }
-    }
-
-    /** Legacy stop command: store STOPPED intent (+ force), execute the stop directly. */
-    fun applyLegacyStop(serverId: String, containerName: String, timeoutSeconds: Int, stopCommand: String, force: Boolean): Job {
-        store.upsert(serverId) { state ->
-            state.copy(
-                desired = ServerDesiredState.Desired.STOPPED,
-                force = force,
-                forceRestart = false,
-            )
-        }
-        return launchConverge(serverId) {
-            if (force) {
-                executeForceKill(serverId, containerName)
-            } else {
-                executeEnsureStopped(serverId, containerName, timeoutSeconds, stopCommand)
-            }
-        }
-    }
-
-    /** Legacy restart command: store RUNNING intent + force_restart, stop then start directly. */
-    fun applyLegacyRestart(serverId: String, containerName: String, timeoutSeconds: Int, stopCommand: String): Job {
-        store.upsert(serverId) { state ->
-            state.copy(
-                desired = ServerDesiredState.Desired.RUNNING,
-                forceRestart = true,
-                force = false,
-            )
-        }
-        return launchConverge(serverId) {
-            val state = store.get(serverId)
-            val recreate = state.appliedSpec != null && state.spec != state.appliedSpec
-            executeConditionalRestart(serverId, recreate, timeoutSeconds, stopCommand)
-        }
     }
 
     /**
@@ -128,13 +98,16 @@ class ConvergenceLoop(
     }
 
     private fun launchConverge(serverId: String, block: suspend () -> Unit): Job {
-        return scope.launch {
+        val job = scope.launch {
             val lock = locks.computeIfAbsent(serverId) { Mutex() }
             lock.withLock {
                 runCatching { block() }
                     .onFailure { log.error("Convergence failed for server $serverId", it) }
             }
         }
+        inFlight[serverId] = job
+        job.invokeOnCompletion { inFlight.remove(serverId, job) }
+        return job
     }
 
     private suspend fun converge(serverId: String) {
@@ -202,14 +175,7 @@ class ConvergenceLoop(
         out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.STARTING)
         try {
             operator.ensureStopped(containerName, timeoutSeconds, stopCommand)
-            if (state.spec != null) {
-                executeEnsureRunning(serverId, recreate)
-            } else {
-                // Legacy restart carries no spec — the container already exists, start by name.
-                operator.ensureRunningByName(containerName)
-                markHealthy(serverId, appliedSpec = io.craftpanel.proto.StartContainerCommand.getDefaultInstance())
-                out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.HEALTHY)
-            }
+            executeEnsureRunning(serverId, recreate)
         } catch (e: Exception) {
             log.error("Failed to restart server $serverId", e)
             out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.UNHEALTHY)

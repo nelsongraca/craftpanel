@@ -33,11 +33,8 @@ class CommandDispatcherTest :
             bulkClient = bulkClient,
         )
 
-        test("routes container lifecycle commands to DesiredStateHandler (start/stop/restart) and ContainerHandler (remove/shutdown)") {
+        test("routes desired-state envelope to DesiredStateHandler and remove/shutdown to ContainerHandler") {
             runTest {
-                dispatcher.dispatch(masterMessage { startContainer = startContainerCommand {} }, out, this)
-                dispatcher.dispatch(masterMessage { stopContainer = stopContainerCommand {} }, out, this)
-                dispatcher.dispatch(masterMessage { restartContainer = restartContainerCommand {} }, out, this)
                 dispatcher.dispatch(masterMessage {
                     serverDesiredState = serverDesiredState {}
                 }, out, this)
@@ -45,9 +42,6 @@ class CommandDispatcherTest :
                 dispatcher.dispatch(masterMessage { shutdown = shutdownCommand {} }, out, this)
                 advanceUntilIdle()
 
-                coVerify { desired.handleStartCommand(any()) }
-                coVerify { desired.handleStopCommand(any(), any(), any()) }
-                coVerify { desired.handleRestartCommand(any(), any(), any()) }
                 coVerify { desired.handleDesiredState(any()) }
                 coVerify { container.handleRemove(any(), out) }
                 coVerify { desired.handleServerRemoved(any()) }

@@ -195,14 +195,25 @@ Any uncaught exception inside `requests.collect { }` in `ControlServiceImpl.cont
 
 `ControlStreamHandler` is a **pure dispatcher** — constructor + `run()` + `dispatch()` + `buildStateSnapshot()` only. All logic lives in `handlers/` subpackage, one class per domain:
 
-| Class              | Handles                                                                          |
-|--------------------|----------------------------------------------------------------------------------|
-| `ContainerHandler` | create/start/stop/restart/remove/pullImage/shutdown                              |
-| `BackupHandler`    | triggerBackup/deleteBackup                                                       |
-| `MigrationHandler` | prepareRsyncReceive/startRsync/sendRcon                                          |
-| `FileHandler`      | all file ops + bulk transfers (download/upload)                                  |
-| `ConsoleHandler`   | stateful console session lifecycle (owns `consoleSessions` map + `DockerClient`) |
-| `AgentUtils`       | shared `nowTimestamp()` and `generateRsyncPassword()` helpers (package-internal) |
+| Class                | Handles                                                                          |
+|----------------------|----------------------------------------------------------------------------------|
+| `DesiredStateHandler`| `ServerDesiredState` envelope → `ConvergenceLoop`; server-removed store cleanup   |
+| `ContainerHandler`   | remove/shutdown/rebuildSymlinks (start/stop/restart moved to desired-state)       |
+| `BackupHandler`      | triggerBackup/deleteBackup                                                       |
+| `MigrationHandler`   | prepareRsyncReceive/startRsync/sendRcon                                          |
+| `FileHandler`        | all file ops + bulk transfers (download/upload)                                  |
+| `ConsoleHandler`     | stateful console session lifecycle (owns `consoleSessions` map + `DockerClient`) |
+| `AgentUtils`         | shared `nowTimestamp()` and `generateRsyncPassword()` helpers (package-internal) |
+
+**Desired-state layer (`agent/src/main/kotlin/io/craftpanel/agent/desired/`)** — master states intent; the agent converges and owns crash restart:
+
+- `DesiredStateStore` — in-memory per-server `DesiredState` (desired, spec, appliedSpec, budget, restart counters, one-shot flags). Master re-pushes on reconnect/boot, so nothing is persisted.
+- `ConvergenceMachine` — pure next-state function (no I/O, explicit `nowMillis`); table-tested. Decides `NoOp`/`EnsureRunning(recreate)`/`EnsureStopped`/`ForceKill`/`ConditionalRestart(recreate)`/`CrashLooped`. Recreate = `spec != appliedSpec` (or container absent/unknown applied spec ⇒ start existing, never destroy).
+- `ConvergenceLoop` — per-connection orchestrator; per-server `Mutex`, all entry points return a `Job`. Entry points: `applyDesired(env)`, `onContainerDie(serverId, exit)`, `onServerRemoved(serverId)`. A force-stop preempts an in-flight graceful stop with an out-of-band SIGKILL.
+- `ContainerOperator` — all Docker mechanics (create/recreate/pull/mount/symlink/start/stop/kill). `ensureRunning(spec, recreate)`.
+- `no_restart=true` (in the envelope) suppresses autonomous crash-restart while desired stays `RUNNING` (used by live migration). `force_restart` = user restart (never budget-capped). `force` = SIGKILL.
+
+**StartContainerCommand is the spec carrier** inside `ServerDesiredState.spec`; it is no longer a top-level `MasterMessage` payload (legacy start/stop/restart oneof fields are `reserved`).
 
 **`AgentOutbound`** wraps `SendChannel<AgentMessage>` + `nodeId`. Use:
 
@@ -428,7 +439,7 @@ Singleton H2 in-memory DB shared across all tests. Call `initIfNeeded()` once an
 - BouncyCastle IP SANs are stored as `DEROctetString` bytes — `.name.toString()` returns `#7f000001`, not `"127.0.0.1"`; decode with
   `(gn.name as DEROctetString).octets.joinToString(".") { (it.toInt() and 0xFF).toString() }`
 - Inject lambdas for dependencies that require external state (e.g. `sendToNode: (String, MasterMessage) -> Boolean`)
-- `startServer()` sends **1** gRPC message: a single `StartContainerCommand` with `needsRecreate: bool`. The agent owns create/pull logic — master never sends `CreateContainerCommand` (deleted in C5).
+- `startServer()` sends **1** gRPC message: a single `ServerDesiredState` envelope whose `spec` is a `StartContainerCommand`. The agent owns create/pull/converge — master never sends `CreateContainerCommand` (deleted in C5).
   Tests asserting `sentCommands.size` expect 1.
 
 ### System tests (`system-tests/`)

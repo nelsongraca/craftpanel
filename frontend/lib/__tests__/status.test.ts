@@ -16,6 +16,10 @@ describe('serverStatusLabel', () => {
         expect(serverStatusLabel('UNHEALTHY')).toBe('Unhealthy')
     })
 
+    it('returns Crash Looped for CRASH_LOOPED', () => {
+        expect(serverStatusLabel('CRASH_LOOPED')).toBe('Crash Looped')
+    })
+
     it('returns Starting for STARTING', () => {
         expect(serverStatusLabel('STARTING')).toBe('Starting')
     })
@@ -40,6 +44,10 @@ describe('serverStatusClass', () => {
 
     it('returns error CSS for UNHEALTHY', () => {
         expect(serverStatusClass('UNHEALTHY')).toBe('text-error    border border-error/30    bg-error/10')
+    })
+
+    it('returns error CSS for CRASH_LOOPED', () => {
+        expect(serverStatusClass('CRASH_LOOPED')).toBe('text-error    border border-error/30    bg-error/10')
     })
 
     it('returns warning CSS for STARTING', () => {

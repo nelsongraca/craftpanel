@@ -13,6 +13,7 @@ import io.mockk.*
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import java.nio.file.Files
 
@@ -113,162 +114,6 @@ class ConvergenceLoopTest :
                 }
             }
             error("Timed out waiting for server status $status")
-        }
-
-        // ── legacy start/stop/restart ─────────────────────────────────────────
-
-        test("legacy start on missing container pulls, creates, starts and reports HEALTHY") {
-            val cm = FakeContainerManager()
-            val (channel, out) = newOutbound()
-            val loop = newLoop(cm, out)
-
-            runBlocking { loop.applyLegacyStart(startCmd()).join() }
-
-            cm.calls.filter { it.startsWith("pull:") || it.startsWith("create:") || it.startsWith("start:") } shouldBe
-                listOf("pull:itzg/minecraft-server:latest", "create:craftpanel-srv-1", "start:craftpanel-srv-1")
-            cm.containers["craftpanel-srv-1"]?.state shouldBe FakeContainerManager.State.RUNNING
-            cm.gate.shouldReportDie("srv-1") shouldBe true
-            channel.statuses()
-                .last().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
-        }
-
-        test("legacy start creates a servers-by-name symlink pointing at the server's canonical data dir") {
-            val cm = FakeContainerManager()
-            val byNameRoot = Files.createTempDirectory("by-name")
-                .toFile()
-            val dataConfig = config.copy(serversByNameRoot = byNameRoot.absolutePath)
-            val serverId = "srv-symlink"
-            val srvName = "survival-world"
-            val (_, out) = newOutbound()
-
-            val loop = ConvergenceLoop(
-                store = DesiredStateStore(),
-                operator = ContainerOperator(cm, mockk<NetworkManager>(relaxed = true), dataConfig),
-                containerNamePrefix = config.containerNamePrefix,
-                out = out,
-                scope = newScope(),
-            )
-            runBlocking {
-                loop.applyLegacyStart(
-                    startCmd(serverId = serverId, serverName = srvName)
-                ).join()
-            }
-
-            val link = java.nio.file.Path.of(byNameRoot.absolutePath, srvName)
-            Files.exists(link) shouldBe true
-            Files.isSymbolicLink(link) shouldBe true
-            byNameRoot.deleteRecursively()
-        }
-
-        test("legacy start recreates the old container when the stored spec differs from the applied spec") {
-            val cm = FakeContainerManager()
-            cm.createContainer(startCmd())
-            cm.startContainer("craftpanel-srv-1")
-            cm.calls.clear()
-            val store = DesiredStateStore()
-            val oldSpec = startCmd(image = "old-image")
-            store.upsert("srv-1") { it.copy(spec = oldSpec, appliedSpec = oldSpec) }
-            val (channel, out) = newOutbound()
-            val loop = newLoop(cm, out, store = store)
-
-            runBlocking { loop.applyLegacyStart(startCmd(image = "new-image")).join() }
-
-            cm.calls.filter { it.startsWith("remove:") || it.startsWith("create:") || it.startsWith("start:") } shouldBe
-                listOf("remove:craftpanel-srv-1", "create:craftpanel-srv-1", "start:craftpanel-srv-1")
-            cm.gate.shouldReportDie("srv-1") shouldBe true
-            channel.statuses()
-                .last().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
-        }
-
-        test("legacy start on an existing container with an unknown applied spec skips the create path") {
-            val cm = FakeContainerManager()
-            cm.createContainer(startCmd())
-            cm.calls.clear()
-            val (channel, out) = newOutbound()
-            val loop = newLoop(cm, out)
-
-            runBlocking { loop.applyLegacyStart(startCmd()).join() }
-
-            cm.calls.any { it.startsWith("remove:") } shouldBe false
-            cm.calls.any { it.startsWith("create:") } shouldBe false
-            cm.calls.filter { it.startsWith("start:") } shouldBe listOf("start:craftpanel-srv-1")
-            cm.gate.shouldReportDie("srv-1") shouldBe true
-        }
-
-        test("legacy graceful stop suppresses the die event it causes and reports STOPPED") {
-            val cm = FakeContainerManager()
-            cm.createContainer(startCmd())
-            cm.startContainer("craftpanel-srv-1")
-            val (channel, out) = newOutbound()
-            val loop = newLoop(cm, out)
-
-            runBlocking { loop.applyLegacyStop("srv-1", "craftpanel-srv-1", 10, "", force = false).join() }
-
-            cm.containers["craftpanel-srv-1"]?.state shouldBe FakeContainerManager.State.STOPPED
-            cm.gate.shouldReportDie("srv-1") shouldBe false
-            channel.statuses()
-                .last().status shouldBe ServerStatusUpdate.ServerStatus.STOPPED
-        }
-
-        test("legacy forced stop (kill) still suppresses the die event") {
-            val cm = FakeContainerManager()
-            cm.createContainer(startCmd())
-            cm.startContainer("craftpanel-srv-1")
-            val (channel, out) = newOutbound()
-            val loop = newLoop(cm, out)
-
-            runBlocking { loop.applyLegacyStop("srv-1", "craftpanel-srv-1", 10, "", force = true).join() }
-
-            cm.calls.any { it.startsWith("kill:") } shouldBe true
-            cm.gate.shouldReportDie("srv-1") shouldBe false
-            channel.statuses()
-                .last().status shouldBe ServerStatusUpdate.ServerStatus.STOPPED
-        }
-
-        test("legacy force stop on already stopped container reports STOPPED not UNHEALTHY") {
-            val cm = FakeContainerManager()
-            cm.createContainer(startCmd())
-            cm.startContainer("craftpanel-srv-1")
-            val (channel, out) = newOutbound()
-            val loop = newLoop(cm, out)
-
-            runBlocking { loop.applyLegacyStop("srv-1", "craftpanel-srv-1", 10, "", force = false).join() }
-            runBlocking { loop.applyLegacyStop("srv-1", "craftpanel-srv-1", 10, "", force = true).join() }
-
-            channel.statuses()
-                .last().status shouldBe ServerStatusUpdate.ServerStatus.STOPPED
-        }
-
-        test("legacy failed stop emits UNHEALTHY and stays suppressed for the crash report") {
-            val cm = FakeContainerManager()
-            cm.createContainer(startCmd())
-            cm.startContainer("craftpanel-srv-1")
-            cm.failStop = true
-            val (channel, out) = newOutbound()
-            val loop = newLoop(cm, out)
-
-            runBlocking { loop.applyLegacyStop("srv-1", "craftpanel-srv-1", 10, "", force = false).join() }
-
-            channel.statuses()
-                .last().status shouldBe ServerStatusUpdate.ServerStatus.UNHEALTHY
-            cm.gate.shouldReportDie("srv-1") shouldBe false
-        }
-
-        test("legacy restart stops then starts and re-enables crash reporting") {
-            val cm = FakeContainerManager()
-            cm.createContainer(startCmd())
-            cm.startContainer("craftpanel-srv-1")
-            cm.calls.clear()
-            val (channel, out) = newOutbound()
-            val loop = newLoop(cm, out)
-
-            runBlocking { loop.applyLegacyRestart("srv-1", "craftpanel-srv-1", 10, "").join() }
-
-            cm.calls.filter { it.startsWith("stop:") || it.startsWith("start:") } shouldBe
-                listOf("stop:craftpanel-srv-1", "start:craftpanel-srv-1")
-            cm.gate.shouldReportDie("srv-1") shouldBe true
-            channel.statuses()
-                .last().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
         }
 
         // ── desired-state envelope convergence ────────────────────────────────
@@ -383,6 +228,43 @@ class ConvergenceLoopTest :
 
             cm.calls.any { it.startsWith("remove:") || it.startsWith("create:") } shouldBe false
             cm.calls.filter { it.startsWith("start:") } shouldBe listOf("start:craftpanel-srv-1")
+        }
+
+        test("force stop preempts an in-flight graceful stop with SIGKILL") {
+            val cm = FakeContainerManager()
+            cm.createContainer(startCmd())
+            cm.startContainer("craftpanel-srv-1")
+            val (_, out) = newOutbound()
+            val loop = newLoop(cm, out)
+
+            runBlocking {
+                loop.applyDesired(desiredRunning(spec = startCmd())).join()
+                cm.calls.clear()
+                cm.stopBlockMs = 3_000
+
+                // Graceful stop enters stopContainer and blocks, holding the per-server mutex.
+                val graceful = loop.applyDesired(
+                    serverDesiredState {
+                        serverId = "srv-1"
+                        desired = ServerDesiredState.Desired.STOPPED
+                    }
+                )
+                delay(300)
+                cm.calls.count { it.startsWith("kill:") } shouldBe 0
+
+                loop.applyDesired(
+                    serverDesiredState {
+                        serverId = "srv-1"
+                        desired = ServerDesiredState.Desired.STOPPED
+                        force = true
+                    }
+                )
+                delay(300)
+                cm.calls.count { it.startsWith("kill:") } shouldBe 1
+
+                graceful.join()
+            }
+            cm.stopBlockMs = 0
         }
 
         // ── crash-restart convergence ─────────────────────────────────────────

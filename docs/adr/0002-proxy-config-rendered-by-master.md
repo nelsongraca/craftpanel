@@ -50,9 +50,10 @@ Rejected alternatives:
   `player-info-forwarding-mode` in the patch. The backend side of modern
   forwarding (pushing that secret + `velocity.enabled` into each backend) is
   deferred to **#44**.
-- After a backend/config change, master persists, re-renders the patch, writes
-  it, and sets `needs_recreate = true` (matching env-var and mod edits). The
-  proxy is not force-restarted; the patch re-applies on next start.
+- After a backend/config change, master persists, re-renders the patch, and writes it. The
+  proxy is not force-restarted; the patch re-applies on next start (the file lives in the
+  mounted data dir). The old `needs_recreate` flag is retired — the agent now recreates a
+  container on spec-diff at the next start/restart.
 - Backend addresses use internal docker DNS — same-node only. Cross-node routing
   and the migration backend-address push are deferred to **#43**.
 - Patch is idempotent (`$put`), so re-applying every start is safe.

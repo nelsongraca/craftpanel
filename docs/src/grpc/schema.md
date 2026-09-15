@@ -140,7 +140,7 @@ The agent uses this value directly — it does not re-derive the network name. I
 
 ### Graceful stop
 
-Rather than RCON, CraftPanel uses container stdin for graceful shutdown. The `stop_command` field on `StopContainerCommand` and `RestartContainerCommand` carries the stop action. By default it is a
+Rather than RCON, CraftPanel uses container stdin for graceful shutdown. The `stop_command` field on `StartContainerCommand` (carried inside `ServerDesiredState.spec`) supplies the stop action. By default it is a
 command string written to stdin; special sentinels are delivered as real Unix signals to the container's main process (PID 1) instead:
 
 | Value  | Effect                             |

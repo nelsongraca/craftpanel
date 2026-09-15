@@ -28,19 +28,46 @@ Kotlin. If the itzg project restructures its images, the change requires a code 
 
 ### `server_status`
 
-| Value       | Meaning                                                         |
-|-------------|-----------------------------------------------------------------|
-| `STOPPED`   | Container is not running                                        |
-| `STARTING`  | Container is running; itzg is still initialising or downloading |
-| `HEALTHY`   | Server is accepting connections (itzg health check passing)     |
-| `UNHEALTHY` | Container is running but health check is failing                |
-| `STOPPING`  | Stop command sent; container is shutting down                   |
+`servers.status` stores only what the **agent reports**. `STARTING` and `STOPPING` are
+**synthesized at read time** (see `synthesizeStatus`) from the stored intent
+(`servers.desired_status`) plus the reported status — they are never persisted.
+
+| Value          | Stored? | Meaning                                                                            |
+|----------------|---------|------------------------------------------------------------------------------------|
+| `STOPPED`      | yes     | Container is not running                                                           |
+| `HEALTHY`      | yes     | Server is accepting connections (itzg health check passing)                        |
+| `UNHEALTHY`    | yes     | Container is running but health check is failing                                   |
+| `CRASH_LOOPED` | yes     | Crash-restart budget exhausted; agent left the container stopped for manual action |
+| `STARTING`     | no      | Synthesized: desired `RUNNING` but not yet reported `HEALTHY`                      |
+| `STOPPING`     | no      | Synthesized: desired `STOPPED` but the container has not stopped yet               |
 
 ### Container restart ownership
 
-Managed containers run with Docker restart policy **`no`** — Docker never auto-restarts them. Restart-on-crash is **owned by master**, not Docker. This keeps a graceful stop (the server self-exits in response to its stop command) from being seen by Docker as a crash and immediately restarted.
+Managed containers run with Docker restart policy **`no`** — Docker never auto-restarts them. Restart-on-crash is **owned by the agent**, not master and not Docker. Master states
+intent (`desired_status`) + the full runtime spec + a restart budget; the agent converges and restarts crashed servers within that budget, so a graceful stop (the server self-exits in response to its stop command) is never mistaken for a crash.
 
-When a managed container dies, the agent reports it to master near-instantly (via Docker `die` events, not just the periodic state snapshot). Master treats a transition into `UNHEALTHY` from a running desired-state (`HEALTHY`/`STARTING`) as an unexpected crash and restarts the server, bounded by a consecutive-attempt cap (`CONTAINER_RESTART_MAX_ATTEMPTS`, default 5, within `CONTAINER_RESTART_WINDOW_SECONDS`). The counter resets when the server next reaches `HEALTHY`. An intentional stop sets the server to `STOPPING`/`STOPPED` first, so it is never mistaken for a crash. Exceeding the cap leaves the server `UNHEALTHY` for manual intervention.
+When a managed container dies, the agent's Docker `die` watcher fires. Authored deaths (stop/remove/recreate) are suppressed by the watcher gate; a genuine unexpected death
+triggers a converge. If desired state is `RUNNING` and the crash count is within budget (`restart_max_attempts`, default 5, within `restart_window_seconds`, default 600, both from
+system settings and shipped in every `ServerDesiredState` envelope), the agent restarts the container. Exhausting the budget leaves the container stopped and the agent reports
+`CRASH_LOOPED`; a manual start re-converges. A successful start resets the counter. A `no_restart` flag (used during live migration) suppresses autonomous restart while desired
+stays `RUNNING`.
+
+### Desired state vs reported state
+
+`servers.desired_status` (`RUNNING`/`STOPPED`, nullable) is master's intent. `servers.status` is the agent's report. The status surfaced by the API is
+`synthesizeStatus(desired, reported)`:
+
+| desired | reported                | shown        |
+|---------|-------------------------|--------------|
+| RUNNING | HEALTHY                 | HEALTHY      |
+| RUNNING | STARTING                | STARTING     |
+| RUNNING | STOPPED                 | STARTING     |
+| RUNNING | UNHEALTHY               | UNHEALTHY    |
+| RUNNING | CRASH_LOOPED            | CRASH_LOOPED |
+| STOPPED | STOPPED                 | STOPPED      |
+| STOPPED | STARTING / HEALTHY / UNHEALTHY | STOPPING |
+| STOPPED | CRASH_LOOPED            | STOPPED      |
+| unset   | (any)                   | reported     |
 
 ### Migration state
 
@@ -85,10 +112,10 @@ The UI combines both — showing the server's live status alongside a migration 
 | `container_protocol` | VARCHAR(4)           | `TCP` or `UDP`. `UDP` produces UDP host-port bindings only and skips mc-router labels (mc-router is TCP-only)                                                    |
 | `disable_healthcheck` | BOOLEAN             | When `true`, itzg runs with `DISABLE_HEALTHCHECK=true`; default `false`                                                                                           |
 | `force_redownload`   | BOOLEAN              | When `true`, itzg re-downloads the server jar on each start (`FORCE_REDOWNLOAD=true`); default `false`                                                           |
-| `needs_recreate`     | BOOLEAN              | `true` when `mc_version` or `itzg_image_tag` changed via PATCH; container is recreated on next start; default `false`                                            |
 | `node_id`            | UUID                 | FK → `nodes`, RESTRICT — server must be migrated before node decommission                                                                                        |
 | `network_id`         | UUID                 | FK → `server_networks`, SET NULL — nullable                                                                                                                      |
-| `status`             | VARCHAR(10)          | Current runtime state: `STOPPED`, `STARTING`, `HEALTHY`, `STOPPING`, `UNHEALTHY`                                                                                 |
+| `desired_status`     | VARCHAR(10)          | Master's intent: `RUNNING` or `STOPPED`; `NULL` = unset. Drives the read-time status synthesis                                                                   |
+| `status`             | VARCHAR(10)          | Agent-reported runtime state: `STOPPED`, `HEALTHY`, `UNHEALTHY`, `CRASH_LOOPED` (`STARTING`/`STOPPING` are synthesized, never stored)                             |
 | `config_mode`        | VARCHAR(10)          | `MANAGED` or `MANUAL`                                                                                                                                            |
 | `memory_mb`          | INT                  | RAM allocated to this container                                                                                                                                  |
 | `cpu_shares`         | INT                  | Docker CPU share value; `0` = unlimited                                                                                                                          |

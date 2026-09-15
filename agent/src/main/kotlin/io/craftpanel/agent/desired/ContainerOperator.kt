@@ -85,14 +85,6 @@ class ContainerOperator(
         withContext(Dispatchers.IO) { containerManager.stopContainer(containerName, timeoutSeconds, stopCommand) }
     }
 
-    /**
-     * Starts an already-provisioned container by name (used by legacy restart, whose command
-     * carries no spec — the container is known to exist, so no create/pull/mount step applies).
-     */
-    suspend fun ensureRunningByName(containerName: String) {
-        withContext(Dispatchers.IO) { containerManager.startContainer(containerName) }
-    }
-
     /** Immediate SIGKILL. */
     suspend fun forceKill(containerName: String) {
         withContext(Dispatchers.IO) { containerManager.killContainer(containerName) }

@@ -10,7 +10,6 @@ import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.proto.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.filterIsInstance
-import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
@@ -24,7 +23,6 @@ class ContainerLifecycle(
     private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
     private val containerNamePrefix: String = "craftpanel",
     private val restartBudgetProvider: () -> Pair<Int, Long> = { 5 to 600L },
-    private val clock: Clock = Clock.System,
     private val stopTimeout: Duration = 45.seconds,
     private val startTimeout: Duration = 30.seconds,
     private val removeTimeout: Duration = 10.seconds

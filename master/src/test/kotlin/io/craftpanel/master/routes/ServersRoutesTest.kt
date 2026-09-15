@@ -824,6 +824,23 @@ class ServersRoutesTest :
             }
         }
 
+        test("DELETE server returns 409 when a start is pending (desired RUNNING, reported STOPPED)") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, status = "STOPPED")
+                transaction {
+                    Servers.update({ Servers.id eq serverId }) { it[Servers.desiredStatus] = "RUNNING" }
+                }
+                // Synthesized status is STARTING, so deletion must be rejected.
+                val resp = client.delete("/api/servers/$serverId") { bearerAuth(tokenFor(userId)) }
+                resp.status shouldBe HttpStatusCode.Conflict
+            }
+        }
+
         test("DELETE server removes server and port registry entry") {
             testApplication {
                 testApp { jwtManager -> configureServersTest() }

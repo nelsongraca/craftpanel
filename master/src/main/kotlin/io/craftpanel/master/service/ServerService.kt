@@ -15,7 +15,10 @@ import io.craftpanel.master.database.schema.ServerMods
 import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.dns.DnsProvider
+import io.craftpanel.master.domain.DesiredStatus
+import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.domain.ServerType
+import io.craftpanel.master.domain.synthesizeStatus
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.master.util.parseUtcInstant
@@ -315,7 +318,11 @@ class ServerService(
 
     fun deleteServer(id: Uuid) {
         val existing = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
-        if (existing.status != "STOPPED") throw ConflictException("Server must be STOPPED before deletion")
+        // Guard on the synthesized status, not the reported one: a start request sets desired=RUNNING
+        // before the agent has reported anything, so a "STARTING" server (reported STOPPED) must not
+        // be deletable.
+        val displayed = synthesizeStatus(DesiredStatus.fromDb(existing.desiredStatus), ServerStatus.fromDb(existing.status))
+        if (displayed != ServerStatus.STOPPED) throw ConflictException("Server must be STOPPED before deletion")
 
         val recordId = existing.dnsRecordId
         if (recordId != null) {

@@ -143,11 +143,12 @@ message MasterMessage {
   // so the agent can reference it (e.g. migration ID on rsync commands).
   string correlation_id = 1;
 
+  // Lifecycle oneof fields 3-5 (start_container/stop_container/restart_container) are retired:
+  // lifecycle is now expressed declaratively via `server_desired_state`.
+  reserved 3, 4, 5;
+  reserved "start_container", "stop_container", "restart_container";
+
   oneof payload {
-    // Container lifecycle
-    StartContainerCommand   start_container = 3;
-    StopContainerCommand    stop_container = 4;
-    RestartContainerCommand restart_container = 5;
     RemoveContainerCommand  remove_container = 6;
 
     // Backups
@@ -356,27 +357,6 @@ message ExtraPortBinding {
   int32 container_port = 2;
   string protocol = 3; // "TCP" or "UDP"
   string name = 4;
-}
-
-message StopContainerCommand {
-  string server_id = 1;
-  string container_name = 2;
-  // Seconds to wait for graceful exit via stdin before Docker stop (SIGTERM → SIGKILL).
-  int32  timeout_seconds = 3;
-  // Stop action, written to container stdin by default. Special sentinels are delivered as
-  // real Unix signals to the container's main process instead: "^C" = SIGINT, "^\" = SIGQUIT,
-  // and any "SIG<NAME>" = that signal. Empty = skip the stdin/signal step and Docker stop directly.
-  string stop_command = 4;
-  // If true, immediately SIGKILL the container instead of graceful stop.
-  bool   force = 5;
-}
-
-message RestartContainerCommand {
-  string server_id = 1;
-  string container_name = 2;
-  int32  timeout_seconds = 3;
-  // Same stdin stop command used during the stop phase of the restart.
-  string stop_command = 4;
 }
 
 message RemoveContainerCommand {

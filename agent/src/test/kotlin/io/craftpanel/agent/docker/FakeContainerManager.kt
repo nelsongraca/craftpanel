@@ -39,6 +39,10 @@ class FakeContainerManager(
 
     /** When true, [stopContainer] throws after marking stopping (graceful-stop failure injection). */
     var failStop = false
+
+    /** When > 0, [stopContainer] blocks this many millis first (simulates a hanging graceful stop). */
+    var stopBlockMs: Long = 0
+
     var swarmActive = false
 
     private fun serverIdOf(containerName: String): String = containerName.removePrefix("$containerNamePrefix-")
@@ -79,6 +83,7 @@ class FakeContainerManager(
     override fun stopContainer(containerName: String, timeoutSeconds: Int, stopCommand: String) {
         calls.add("stop:$containerName")
         gate.markStopping(serverIdOf(containerName))
+        if (stopBlockMs > 0) Thread.sleep(stopBlockMs)
         containers[containerName]?.let { it.state = State.STOPPED }
         if (failStop) throw RuntimeException("injected stop failure")
     }

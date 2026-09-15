@@ -136,7 +136,6 @@ The `itzg_image_tag` field refers to the [itzg/minecraft-server](https://hub.doc
     "jeb_"
   ],
   "is_migrating": false,
-  "needs_recreate": false,
   "disabled": false,
   "stop_command": "stop",
   "expires_at": null,
@@ -173,8 +172,10 @@ All fields optional. Requires `server.configure`.
 
 Set `network_id` to `null` to remove the server from its network.
 
-`display_name`, `description`, and `network_id` take effect immediately. `mc_version` and `itzg_image_tag` are persisted but take effect on the **next container start** — master sets a
-`needs_recreate` flag and rebuilds the container spec on the next start or restart. The UI shows a "Restart required" banner after saving either field, with an option to restart immediately or defer.
+`display_name`, `description`, and `network_id` take effect immediately. Spec-level fields (`mc_version`, `itzg_image_tag`, `custom_server_jar`,
+`container_listen_port`, `container_protocol`, `disable_healthcheck`, `force_redownload`) are persisted and applied on the **next container start or restart**: master rebuilds the
+spec and pushes it, and the agent recreates the container when the new spec differs from the one it last applied. There is no `needs_recreate` flag — the recreate decision is the
+agent's (spec-diff). The UI shows a static "changes take effect on the next start or restart" note.
 
 The CUSTOM fields follow the same create-time rules: `custom_server_jar` is validated against the server type, and `container_listen_port` / `container_protocol` changes are persisted and applied on
 the next start.
@@ -195,9 +196,9 @@ Removes the container, deletes server data from the node, and removes the DNS re
 
 ## `POST /servers/{id}/start`
 
-No request body.
+No request body. Master records desired state `RUNNING` and pushes a `ServerDesiredState` envelope; the agent creates/starts the container and converges.
 
-**Response `202`.** Server transitions to `STARTING`; status updates arrive via WebSocket.
+**Response `202`.** The synthesized status becomes `STARTING` until the agent reports `HEALTHY`; updates arrive via WebSocket.
 
 **Errors:** `409` if the server is already running. `502` if the agent is unreachable.
 
@@ -205,9 +206,10 @@ No request body.
 
 ## `POST /servers/{id}/stop`
 
-No request body. Master sends the server's configured `stop_command` to container stdin, then waits before issuing Docker stop.
+No request body. Master records desired state `STOPPED` and pushes a `ServerDesiredState` envelope. The agent performs a graceful stop using the server's configured `stop_command`
+(sentinel values like `^C`/`SIGTERM` are delivered as real signals), falling back to Docker stop after the timeout.
 
-**Response `202`.** Server transitions through `STOPPING` to `STOPPED` via WebSocket.
+**Response `202`.** The synthesized status is `STOPPING` until the agent reports `STOPPED` via WebSocket.
 
 **Errors:** `409` if the server is already stopped. `502` if the agent is unreachable.
 
@@ -215,8 +217,8 @@ No request body. Master sends the server's configured `stop_command` to containe
 
 ## `POST /servers/{id}/restart`
 
-No request body. Equivalent to stop then start, using the configured `stop_command`. If `needs_recreate` is set (due to a pending `mc_version` or `itzg_image_tag` change), the container is removed and
-recreated before starting.
+No request body. Master pushes a `ServerDesiredState` envelope with `force_restart`, using the configured `stop_command`. The agent stops the container then starts it; if the
+pushed spec differs from the one the container was last applied with, the container is removed and recreated.
 
 **Response `202`.**
 
@@ -237,7 +239,7 @@ Updates RAM and CPU allocation. Requires `server.resources`, which is held only 
 }
 ```
 
-Both fields are required. Changes take effect on the **next container start** — master sets `needs_recreate` and rebuilds the container spec when starting or restarting.
+Both fields are required. Changes take effect on the **next container start or restart** — master rebuilds the spec and the agent recreates the container when the new spec differs.
 
 **Response `204`.**
 
