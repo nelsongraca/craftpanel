@@ -16,7 +16,11 @@ object Servers : UuidTable("servers") {
         .nullable()
     val serverType = varchar("server_type", 20).default("VANILLA")
     val mcVersion = varchar("mc_version", 16).default("LATEST")
-    val status = varchar("status", 10).default("STOPPED") // STOPPED|STARTING|HEALTHY|STOPPING|UNHEALTHY
+    val status = varchar("status", 10).default("STOPPED") // agent-reported; never STARTING/STOPPING (synthesizeStatus owns those)
+    // Master's intent for this server: NULL=unset, "RUNNING", "STOPPED". Mirrors the desired-state
+    // envelope; the agent converges to it and owns crash-restart. Read-time synthesis combines this
+    // with the reported `status` to produce the status surfaced via the API.
+    val desiredStatus = varchar("desired_status", 10).nullable()
     val hostPort = integer("host_port")
     val memoryMb = integer("memory_mb")
     val cpuShares = integer("cpu_shares").default(0) // 0 = unlimited

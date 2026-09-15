@@ -1,6 +1,7 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.database.entity.Server
+import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.NodeRepository
@@ -115,8 +116,9 @@ class ServerExposureService(
         val currentStatus = ServerStatus.fromDb(serverRow.status)
         if (currentStatus.isRunning && exposureNeedsRecreate) {
             val freshRow = serverRepository.findById(id)!!
-            transaction { Server.findById(id)?.let { it.status = "STARTING" } }
-            lifecycle.sendStart(freshRow, needsRecreate = true, publicHostname = serverExposure.mcRouterLabel(freshRow))
+            // In desired-state model, send a restart-envelope so the agent recreates the container
+            // with the updated bindings. No DB status write — convergence loop owns the transition.
+            lifecycle.sendDesiredState(freshRow, DesiredStatus.RUNNING, forceRestart = true, publicHostname = serverExposure.mcRouterLabel(freshRow))
         }
     }
 }

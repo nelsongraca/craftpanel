@@ -10,7 +10,8 @@ enum class ServerStatus {
     STARTING,
     HEALTHY,
     STOPPING,
-    UNHEALTHY;
+    UNHEALTHY,
+    CRASH_LOOPED;
 
     val isRunning get() = this in setOf(HEALTHY, STARTING, UNHEALTHY)
     val isStopped get() = this == STOPPED
@@ -26,6 +27,7 @@ enum class ServerStatus {
             ServerStatusUpdate.ServerStatus.STARTING -> STARTING
             ServerStatusUpdate.ServerStatus.HEALTHY -> HEALTHY
             ServerStatusUpdate.ServerStatus.UNHEALTHY -> UNHEALTHY
+            ServerStatusUpdate.ServerStatus.CRASH_LOOPED -> CRASH_LOOPED
             else -> error("Unspecified or unrecognized proto ServerStatus: $p")
         }
     }

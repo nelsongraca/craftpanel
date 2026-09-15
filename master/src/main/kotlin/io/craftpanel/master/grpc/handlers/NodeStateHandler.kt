@@ -6,7 +6,14 @@ import io.craftpanel.proto.AgentMessage
 import kotlinx.coroutines.flow.MutableSharedFlow
 import org.slf4j.LoggerFactory
 
-class NodeStateHandler(private val agentEvents: MutableSharedFlow<AgentEvent>, private val nodeStateReconciler: NodeStateReconciler) {
+class NodeStateHandler(
+    private val agentEvents: MutableSharedFlow<AgentEvent>,
+    private val nodeStateReconciler: NodeStateReconciler,
+    // Function seam (not a direct DesiredStateSyncService dependency) deliberately: the sync
+    // service reaches ContainerLifecycle → AgentGateway → ControlServiceImpl, and ControlServiceImpl
+    // owns this handler — a direct dependency would be a construction cycle.
+    private val pushDesiredStates: suspend (String) -> Unit,
+) {
 
     private val log = LoggerFactory.getLogger(NodeStateHandler::class.java)
 
@@ -25,6 +32,9 @@ class NodeStateHandler(private val agentEvents: MutableSharedFlow<AgentEvent>, p
                 } else {
                     log.debug("Node $nodeId: reconcileNodeState ok but node is PENDING — skipping health emit")
                 }
+                // After reconciliation, re-push desired-state envelopes so the agent re-acquires
+                // master's intent (handles reboot / reconnect).
+                pushDesiredStates(nodeId)
             }
             .onFailure { e -> log.error("Node $nodeId: reconcileNodeState failed — ${e.message}", e) }
     }

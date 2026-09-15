@@ -97,7 +97,7 @@ open class MigrationCoordinator(
     open fun restartSource(plan: MigrationPlan) {
         if (plan.sourceStopped) {
             scope.launch {
-                runCatching { lifecycle.start(plan.serverRow, needsRecreate = false, nodeId = plan.sourceNodeIdStr) }
+                runCatching { lifecycle.start(plan.serverRow, nodeId = plan.sourceNodeIdStr) }
             }
         }
     }

@@ -13,7 +13,6 @@ import io.craftpanel.master.scheduler.ServerScheduler
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
-import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableSharedFlow
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
@@ -42,16 +41,8 @@ val appModule = module {
     single<RecoveryCodeRepository> { RecoveryCodeRepositoryImpl() }
     single<SettingsRepository> { SettingsRepositoryImpl() }
 
-    // App-owned crash restart — parameters read from DB settings at startup (takes effect on restart)
-    single {
-        val s = get<SystemService>().getSettings().settings
-        ServerRestartManager(s.restartMaxAttempts, s.restartWindowSeconds)
-    }
-
-    single(named("crashRestarts")) { Channel<Uuid>(Channel.BUFFERED) }
-
     // gRPC core
-    single { NodeStateReconciler(serverRepository = get(), nodeRepository = get(), migrationRepository = get(), backupRepository = get()) }
+    single { NodeStateReconciler(nodeRepository = get()) }
     single<AgentGateway> { get<ControlServiceImpl>() }
 
     // Shared agent events flow
@@ -64,7 +55,15 @@ val appModule = module {
     single { AgentDataOps(dataOpContext = get(), sendToNode = { nodeId, msg -> get<ControlServiceImpl>().sendToNode(nodeId, msg) }) }
 
     // Handlers
-    single { NodeStateHandler(get(), get()) }
+    single {
+        NodeStateHandler(
+            agentEvents = get(),
+            nodeStateReconciler = get(),
+            // Lazy lookup: resolving DesiredStateSyncService here would cycle through
+            // ContainerLifecycle → AgentGateway → ControlServiceImpl → this handler.
+            pushDesiredStates = { nodeId -> get<DesiredStateSyncService>().pushAllForNode(nodeId) },
+        )
+    }
     single { NodeMetricsHandler(get(), get()) }
     single { ContainerMetricsHandler(get()) }
     single { ServerStatusHandler(get()) }
@@ -99,12 +98,8 @@ val appModule = module {
     single { AlertEvaluator(alertRepository = get()) }
     single(createdAtStart = true) {
         val csi = get<ControlServiceImpl>()
-        val lifecycle = get<ContainerLifecycle>()
-        lifecycle.startCrashRestartLoop(get(named("appScope")), get<Channel<Uuid>>(named("crashRestarts")))
         NodeObserver(
             agentEvents = csi.agentEvents,
-            restartManager = get(),
-            crashRestarts = get<Channel<Uuid>>(named("crashRestarts")),
             emitAgentEvent = { event -> csi.emitToAgentEvents(event) },
             serverRepository = get(),
             nodeRepository = get(),
@@ -157,6 +152,10 @@ val appModule = module {
         ImagesConfig(s.imageMinecraft, s.imageProxy)
     }
     single {
+        val budgetProvider: () -> Pair<Int, Long> = {
+            val s = get<SystemService>().getSettings().settings
+            s.restartMaxAttempts to s.restartWindowSeconds
+        }
         ContainerLifecycle(
             gateway = get<AgentGateway>(),
             modService = get(),
@@ -164,7 +163,8 @@ val appModule = module {
             envVarsRepository = get(),
             extraPortRepository = get(),
             images = get(),
-            containerNamePrefix = get(named("containerPrefix"))
+            containerNamePrefix = get(named("containerPrefix")),
+            restartBudgetProvider = budgetProvider,
         )
     }
     single {
@@ -211,6 +211,7 @@ val appModule = module {
         )
     }
     single { BackupService(get<AgentGateway>(), get(), get(), get()) }
+    single { DesiredStateSyncService(lifecycle = get(), serverRepository = get()) }
     single {
         SecretCipher(
             java.util.Base64.getDecoder()

@@ -1,7 +1,6 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.TestDatabase
-import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
 import io.craftpanel.proto.*
@@ -17,8 +16,7 @@ import kotlin.uuid.Uuid
 
 class NodeStateReconcilerTest :
     FunSpec({
-        val repos = TestRepositories()
-        val reconciler = NodeStateReconciler(repos.serverRepository, NodeRepositoryImpl(), repos.migrationRepository, repos.backupRepository)
+        val reconciler = NodeStateReconciler(NodeRepositoryImpl())
 
         beforeTest {
             TestDatabase.initIfNeeded()
@@ -115,208 +113,8 @@ class NodeStateReconcilerTest :
         }
 
         // -------------------------------------------------------------------------
-        // reconcileNodeState — status transitions
+        // reconcileNodeState — node health only (per-server status comes from the agent)
         // -------------------------------------------------------------------------
-
-        test("reconcile RUNNING in snapshot against STOPPED in DB updates to HEALTHY") {
-            val nodeId = createNode()
-            val serverId = createServer(nodeId, status = "STOPPED")
-
-            val snapshot = nodeStateSnapshot {
-                containers.add(
-                    containerState {
-                        this.serverId = serverId.toString()
-                        containerId = "abc123"
-                        runState = ContainerState.RunState.RUNNING
-                    }
-                )
-            }
-            reconciler.reconcileNodeState(nodeId.toString(), snapshot)
-
-            serverStatus(serverId) shouldBe "HEALTHY"
-        }
-
-        test("reconcile STOPPED in snapshot against HEALTHY in DB updates to STOPPED") {
-            val nodeId = createNode()
-            val serverId = createServer(nodeId, status = "HEALTHY")
-
-            val snapshot = nodeStateSnapshot {
-                containers.add(
-                    containerState {
-                        this.serverId = serverId.toString()
-                        containerId = "abc123"
-                        runState = ContainerState.RunState.STOPPED
-                    }
-                )
-            }
-            reconciler.reconcileNodeState(nodeId.toString(), snapshot)
-
-            serverStatus(serverId) shouldBe "STOPPED"
-        }
-
-        test("reconcile STOPPED in snapshot against STARTING in DB updates to STOPPED") {
-            val nodeId = createNode()
-            val serverId = createServer(nodeId, status = "STARTING")
-
-            val snapshot = nodeStateSnapshot {
-                containers.add(
-                    containerState {
-                        this.serverId = serverId.toString()
-                        runState = ContainerState.RunState.STOPPED
-                    }
-                )
-            }
-            reconciler.reconcileNodeState(nodeId.toString(), snapshot)
-
-            serverStatus(serverId) shouldBe "STOPPED"
-        }
-
-        test("reconcile STOPPED in snapshot against UNHEALTHY in DB updates to STOPPED") {
-            val nodeId = createNode()
-            val serverId = createServer(nodeId, status = "UNHEALTHY")
-
-            val snapshot = nodeStateSnapshot {
-                containers.add(
-                    containerState {
-                        this.serverId = serverId.toString()
-                        runState = ContainerState.RunState.STOPPED
-                    }
-                )
-            }
-            reconciler.reconcileNodeState(nodeId.toString(), snapshot)
-
-            serverStatus(serverId) shouldBe "STOPPED"
-        }
-
-        test("reconcile STOPPED in snapshot against STOPPING in DB updates to STOPPED") {
-            val nodeId = createNode()
-            val serverId = createServer(nodeId, status = "STOPPING")
-
-            val snapshot = nodeStateSnapshot {
-                containers.add(
-                    containerState {
-                        this.serverId = serverId.toString()
-                        containerId = "abc123"
-                        runState = ContainerState.RunState.STOPPED
-                    }
-                )
-            }
-            reconciler.reconcileNodeState(nodeId.toString(), snapshot)
-
-            serverStatus(serverId) shouldBe "STOPPED"
-        }
-
-        test("reconcile EXITED in snapshot updates to UNHEALTHY") {
-            val nodeId = createNode()
-            val serverId = createServer(nodeId, status = "HEALTHY")
-
-            val snapshot = nodeStateSnapshot {
-                containers.add(
-                    containerState {
-                        this.serverId = serverId.toString()
-                        runState = ContainerState.RunState.EXITED
-                    }
-                )
-            }
-            reconciler.reconcileNodeState(nodeId.toString(), snapshot)
-
-            serverStatus(serverId) shouldBe "UNHEALTHY"
-        }
-
-        test("reconcile RUNNING in snapshot against STOPPING in DB leaves unchanged") {
-            val nodeId = createNode()
-            val serverId = createServer(nodeId, status = "STOPPING")
-
-            val snapshot = nodeStateSnapshot {
-                containers.add(
-                    containerState {
-                        this.serverId = serverId.toString()
-                        runState = ContainerState.RunState.RUNNING
-                    }
-                )
-            }
-            reconciler.reconcileNodeState(nodeId.toString(), snapshot)
-
-            serverStatus(serverId) shouldBe "STOPPING"
-        }
-
-        test("reconcile EXITED in snapshot against STOPPING in DB updates to STOPPED") {
-            val nodeId = createNode()
-            val serverId = createServer(nodeId, status = "STOPPING")
-
-            val snapshot = nodeStateSnapshot {
-                containers.add(
-                    containerState {
-                        this.serverId = serverId.toString()
-                        runState = ContainerState.RunState.EXITED
-                    }
-                )
-            }
-            reconciler.reconcileNodeState(nodeId.toString(), snapshot)
-
-            serverStatus(serverId) shouldBe "STOPPED"
-        }
-
-        test("reconcile server absent from snapshot with DB HEALTHY updates to STOPPED") {
-            val nodeId = createNode()
-            val serverId = createServer(nodeId, status = "HEALTHY")
-
-            reconciler.reconcileNodeState(nodeId.toString(), nodeStateSnapshot { })
-
-            serverStatus(serverId) shouldBe "STOPPED"
-        }
-
-        test("reconcile server absent from snapshot with DB STARTING updates to STOPPED") {
-            val nodeId = createNode()
-            val serverId = createServer(nodeId, status = "STARTING")
-
-            reconciler.reconcileNodeState(nodeId.toString(), nodeStateSnapshot { })
-
-            serverStatus(serverId) shouldBe "STOPPED"
-        }
-
-        test("reconcile server absent from snapshot with DB STOPPED leaves unchanged") {
-            val nodeId = createNode()
-            val serverId = createServer(nodeId, status = "STOPPED")
-
-            reconciler.reconcileNodeState(nodeId.toString(), nodeStateSnapshot { })
-
-            serverStatus(serverId) shouldBe "STOPPED"
-        }
-
-        test("reconcile RUNNING in snapshot against already HEALTHY in DB leaves unchanged") {
-            val nodeId = createNode()
-            val serverId = createServer(nodeId, status = "HEALTHY")
-
-            val snapshot = nodeStateSnapshot {
-                containers.add(
-                    containerState {
-                        this.serverId = serverId.toString()
-                        runState = ContainerState.RunState.RUNNING
-                    }
-                )
-            }
-            reconciler.reconcileNodeState(nodeId.toString(), snapshot)
-
-            serverStatus(serverId) shouldBe "HEALTHY"
-        }
-
-        test("reconcile STOPPED in snapshot against already STOPPED in DB leaves unchanged") {
-            val nodeId = createNode()
-            val serverId = createServer(nodeId, status = "STOPPED")
-
-            val snapshot = nodeStateSnapshot {
-                containers.add(
-                    containerState {
-                        this.serverId = serverId.toString()
-                        runState = ContainerState.RunState.STOPPED
-                    }
-                )
-            }
-            reconciler.reconcileNodeState(nodeId.toString(), snapshot)
-
-            serverStatus(serverId) shouldBe "STOPPED"
-        }
 
         test("reconcile does not promote PENDING node to ACTIVE - admin trust required") {
             val nodeId = createNode(status = "PENDING")
@@ -324,6 +122,24 @@ class NodeStateReconcilerTest :
             reconciler.reconcileNodeState(nodeId.toString(), nodeStateSnapshot { })
 
             nodeStatus(nodeId) shouldBe "PENDING"
+        }
+
+        test("reconcile leaves server status untouched") {
+            val nodeId = createNode()
+            val serverId = createServer(nodeId, status = "UNHEALTHY")
+
+            val snapshot = nodeStateSnapshot {
+                containers.add(
+                    containerState {
+                        this.serverId = serverId.toString()
+                        containerId = "abc123"
+                        runState = ContainerState.RunState.RUNNING
+                    }
+                )
+            }
+            reconciler.reconcileNodeState(nodeId.toString(), snapshot)
+
+            serverStatus(serverId) shouldBe "UNHEALTHY"
         }
 
         test("reconcile clears UNREACHABLE health to HEALTHY on reconnect when router is running") {
@@ -376,15 +192,6 @@ class NodeStateReconcilerTest :
             reconciler.markNodeUnreachable(nodeId.toString())
 
             serverStatus(serverId) shouldBe "HEALTHY"
-        }
-
-        test("markNodeUnreachable leaves STARTING servers unchanged") {
-            val nodeId = createNode()
-            val serverId = createServer(nodeId, status = "STARTING")
-
-            reconciler.markNodeUnreachable(nodeId.toString())
-
-            serverStatus(serverId) shouldBe "STARTING"
         }
 
         test("markNodeUnreachable leaves STOPPED servers unchanged") {

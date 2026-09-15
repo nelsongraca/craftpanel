@@ -5,10 +5,12 @@ import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.ServerEnvVars
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.AgentEvent
+import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.ServerRow
 import io.craftpanel.master.util.toUtcString
+import io.craftpanel.proto.ServerDesiredState
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
@@ -97,6 +99,7 @@ class ContainerLifecycleTest :
                         stopCommand = r[Servers.stopCommand],
                         itzgImageTag = r[Servers.itzgImageTag],
                         needsRecreate = r[Servers.needsRecreate],
+                        desiredStatus = r[Servers.desiredStatus],
                         backupSchedule = r[Servers.backupSchedule],
                         backupMaxCount = r[Servers.backupMaxCount],
                         backupScheduleLastFired = r[Servers.backupScheduleLastFired]?.toString(),
@@ -115,7 +118,11 @@ class ContainerLifecycleTest :
                 }
         }
 
-        fun lifecycle(startTimeout: kotlin.time.Duration = 2.seconds, stopTimeout: kotlin.time.Duration = 2.seconds, removeTimeout: kotlin.time.Duration = 2.seconds) = ContainerLifecycle(
+        fun lifecycle(
+            startTimeout: kotlin.time.Duration = 2.seconds,
+            stopTimeout: kotlin.time.Duration = 2.seconds,
+            removeTimeout: kotlin.time.Duration = 2.seconds,
+        ) = ContainerLifecycle(
             gateway = gateway,
             modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
             serverRepository = repos.serverRepository,
@@ -125,27 +132,55 @@ class ContainerLifecycleTest :
             removeTimeout = removeTimeout
         )
 
-        test("start - needsRecreate false - sends single StartContainerCommand") {
+        // ── sendDesiredState ───────────────────────────────────────────────────
+
+        test("sendDesiredState - sends ServerDesiredState envelope") {
             val server = serverRow()
-            val lc = lifecycle()
-            launch {
-                delay(50.milliseconds)
-                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY))
-            }
-            lc.start(server, needsRecreate = false)
+            val ok = lifecycle().sendDesiredState(server, DesiredStatus.RUNNING)
+            ok shouldBe true
             gateway.sent.size shouldBe 1
-            gateway.sent[0].second.hasStartContainer() shouldBe true
-            val cmd = gateway.sent[0].second.startContainer
-            cmd.needsRecreate shouldBe false
-            cmd.containerName shouldBe "craftpanel-$serverId"
-            cmd.image shouldBe "itzg/minecraft-server:latest"
-            cmd.envVarsMap["EULA"] shouldBe "TRUE"
-            cmd.dataContainerPath shouldBe "/data"
-            cmd.internalListenPort shouldBe 25565
-            cmd.envVarsMap["SERVER_PORT"] shouldBe "25565"
+            val msg = gateway.sent[0].second
+            msg.hasServerDesiredState() shouldBe true
+            msg.serverDesiredState.desired shouldBe ServerDesiredState.Desired.RUNNING
+            msg.serverDesiredState.serverId shouldBe serverId.toString()
         }
 
-        test("start - proxy server type - data container path is /server") {
+        test("sendDesiredState - agent not connected - returns false") {
+            val server = serverRow()
+            val lc = ContainerLifecycle(
+                gateway = TestAgentGateway(agentEvents = events, sendResult = false),
+                modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
+                serverRepository = repos.serverRepository,
+                envVarsRepository = repos.envVarsRepository
+            )
+            val ok = lc.sendDesiredState(server, DesiredStatus.RUNNING)
+            ok shouldBe false
+        }
+
+        test("sendRemove - sends RemoveContainerCommand") {
+            val server = serverRow()
+            val ok = lifecycle().sendRemove(server, nodeId.toString())
+            ok shouldBe true
+            gateway.sent.size shouldBe 1
+            gateway.sent[0].second.hasRemoveContainer() shouldBe true
+        }
+
+        // ── buildStartSpec ─────────────────────────────────────────────────────
+
+        test("buildStartSpec - vanilla server - correct fields") {
+            val server = serverRow()
+            val cmd = lifecycle().buildStartSpec(server)
+            cmd.serverId shouldBe serverId.toString()
+            cmd.containerName shouldBe "craftpanel-$serverId"
+            cmd.image shouldBe "itzg/minecraft-server:latest"
+            cmd.needsRecreate shouldBe false
+            cmd.envVarsMap["EULA"] shouldBe "TRUE"
+            cmd.envVarsMap["SERVER_PORT"] shouldBe "25565"
+            cmd.internalListenPort shouldBe 25565
+            cmd.dataContainerPath shouldBe "/data"
+        }
+
+        test("buildStartSpec - proxy server type - data container path is /server") {
             val proxyId = transaction {
                 Servers.insert {
                     it[Servers.nodeId] = nodeId
@@ -161,7 +196,7 @@ class ContainerLifecycleTest :
                 }[Servers.id].let { Uuid.parse(it.toString()) }
             }
             val server = serverRow(proxyId)
-            val cmd = lifecycle().buildStartMessage(server, needsRecreate = false).startContainer
+            val cmd = lifecycle().buildStartSpec(server)
             cmd.image shouldBe "itzg/mc-proxy:latest"
             cmd.dataContainerPath shouldBe "/server"
             cmd.internalListenPort shouldBe 25577
@@ -169,7 +204,7 @@ class ContainerLifecycleTest :
             cmd.containerUser shouldBe ""
         }
 
-        test("start - PICOLIMBO server type - sets containerUser to 1000:1000") {
+        test("buildStartSpec - PICOLIMBO server type - sets containerUser to 1000:1000") {
             val picolimboId = transaction {
                 Servers.insert {
                     it[Servers.nodeId] = nodeId
@@ -185,13 +220,13 @@ class ContainerLifecycleTest :
                 }[Servers.id].let { Uuid.parse(it.toString()) }
             }
             val server = serverRow(picolimboId)
-            val cmd = lifecycle().buildStartMessage(server, needsRecreate = false).startContainer
+            val cmd = lifecycle().buildStartSpec(server)
             cmd.image shouldBe "ghcr.io/quozul/picolimbo:latest"
             cmd.dataContainerPath shouldBe "/usr/src/app"
             cmd.containerUser shouldBe "1000:1000"
         }
 
-        test("start - CUSTOM server type - injects CUSTOM_SERVER and forces VERSION=LATEST") {
+        test("buildStartSpec - CUSTOM server type - injects CUSTOM_SERVER and forces VERSION=LATEST") {
             val customId = transaction {
                 Servers.insert {
                     it[Servers.nodeId] = nodeId
@@ -214,7 +249,7 @@ class ContainerLifecycleTest :
                 disableHealthcheck = true,
                 forceRedownload = true
             )
-            val cmd = lifecycle().buildStartMessage(row, needsRecreate = false).startContainer
+            val cmd = lifecycle().buildStartSpec(row)
             cmd.image shouldBe "itzg/minecraft-server:latest"
             cmd.dataContainerPath shouldBe "/data"
             cmd.internalListenPort shouldBe 25566
@@ -228,41 +263,7 @@ class ContainerLifecycleTest :
             cmd.envVarsMap["OVERRIDE_SERVER_PROPERTIES"] shouldBe "false"
         }
 
-        test("start - needsRecreate true - sends StartContainerCommand with needsRecreate=true") {
-            val server = serverRow()
-            val lc = lifecycle()
-            launch {
-                delay(50.milliseconds)
-                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY))
-            }
-            lc.start(server, needsRecreate = true)
-            gateway.sent.size shouldBe 1
-            gateway.sent[0].second.hasStartContainer() shouldBe true
-            val cmd = gateway.sent[0].second.startContainer
-            cmd.needsRecreate shouldBe true
-        }
-
-        test("start - UNHEALTHY response - throws ContainerLifecycleException") {
-            val server = serverRow()
-            val lc = lifecycle()
-            launch {
-                delay(50.milliseconds)
-                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.UNHEALTHY))
-            }
-            shouldThrow<ContainerLifecycleException> {
-                lc.start(server, needsRecreate = false)
-            }
-        }
-
-        test("start - timeout - throws ContainerLifecycleException") {
-            val server = serverRow()
-            val lc = lifecycle(startTimeout = 100.milliseconds)
-            shouldThrow<ContainerLifecycleException> {
-                lc.start(server, needsRecreate = false)
-            }
-        }
-
-        test("start - MANUAL config mode - injects OVERRIDE_SERVER_PROPERTIES=false and strips JVM flag vars") {
+        test("buildStartSpec - MANUAL config mode - injects OVERRIDE_SERVER_PROPERTIES=false and strips JVM vars") {
             transaction {
                 Servers.update({ Servers.id eq serverId }) {
                     it[Servers.configMode] = "MANUAL"
@@ -294,7 +295,7 @@ class ContainerLifecycleTest :
                 }
             }
             val server = serverRow()
-            val cmd = lifecycle().buildStartMessage(server, needsRecreate = false).startContainer
+            val cmd = lifecycle().buildStartSpec(server)
             cmd.envVarsMap["OVERRIDE_SERVER_PROPERTIES"] shouldBe "false"
             cmd.envVarsMap.containsKey("USE_AIKAR_FLAGS") shouldBe false
             cmd.envVarsMap.containsKey("USE_MEOWICE_FLAGS") shouldBe false
@@ -304,7 +305,7 @@ class ContainerLifecycleTest :
             cmd.envVarsMap["MEMORY"] shouldNotBe null
         }
 
-        test("start - MANAGED config mode - no OVERRIDE_SERVER_PROPERTIES, JVM flag vars preserved") {
+        test("buildStartSpec - MANAGED config mode - no OVERRIDE_SERVER_PROPERTIES") {
             transaction {
                 ServerEnvVars.insert {
                     it[ServerEnvVars.serverId] = EntityID(serverId, Servers)
@@ -313,9 +314,46 @@ class ContainerLifecycleTest :
                 }
             }
             val server = serverRow()
-            val cmd = lifecycle().buildStartMessage(server, needsRecreate = false).startContainer
+            val cmd = lifecycle().buildStartSpec(server)
             cmd.envVarsMap.containsKey("OVERRIDE_SERVER_PROPERTIES") shouldBe false
             cmd.envVarsMap["USE_AIKAR_FLAGS"] shouldBe "true"
+        }
+
+        // ── await-based start/stop/remove ──────────────────────────────────────
+
+        test("start - waits for HEALTHY and sets desired_status") {
+            val server = serverRow()
+            val lc = lifecycle()
+            launch {
+                delay(50.milliseconds)
+                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY))
+            }
+            lc.start(server)
+            val updated = repos.serverRepository.findById(serverId)!!
+            DesiredStatus.fromDb(updated.desiredStatus) shouldBe DesiredStatus.RUNNING
+        }
+
+        test("start - timeout - throws ContainerLifecycleException") {
+            val server = serverRow()
+            val lc = lifecycle(startTimeout = 100.milliseconds)
+            shouldThrow<ContainerLifecycleException> {
+                lc.start(server)
+            }
+            // desired_status reverted on failure
+            val updated = repos.serverRepository.findById(serverId)!!
+            updated.desiredStatus shouldBe null
+        }
+
+        test("stop - waits for STOPPED and sets desired_status") {
+            val server = serverRow()
+            val lc = lifecycle()
+            launch {
+                delay(50.milliseconds)
+                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STOPPED))
+            }
+            lc.stop(server, nodeId.toString())
+            val updated = repos.serverRepository.findById(serverId)!!
+            DesiredStatus.fromDb(updated.desiredStatus) shouldBe DesiredStatus.STOPPED
         }
 
         test("stop - agent not connected - throws BadGatewayException") {
@@ -329,5 +367,20 @@ class ContainerLifecycleTest :
             shouldThrow<BadGatewayException> {
                 lc.stop(server, nodeId.toString())
             }
+            // desired_status reverted on failure
+            val updated = repos.serverRepository.findById(serverId)!!
+            updated.desiredStatus shouldBe null
+        }
+
+        test("remove - waits for STOPPED before sending remove command") {
+            val server = serverRow()
+            val lc = lifecycle()
+            launch {
+                delay(50.milliseconds)
+                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STOPPED))
+            }
+            lc.remove(server, nodeId.toString())
+            gateway.sent.size shouldBe 1
+            gateway.sent[0].second.hasRemoveContainer() shouldBe true
         }
     })

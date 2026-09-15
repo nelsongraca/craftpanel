@@ -10,7 +10,7 @@ class StartTargetContainerStep : MigrationStep {
     override suspend fun execute(plan: MigrationPlan, coord: MigrationCoordinator): StepResult {
         val server = plan.freshServerRow ?: return StepResult.Failure("Server row not available")
         return runCatching {
-            coord.lifecycle.start(server, needsRecreate = true, nodeId = plan.targetNodeIdStr)
+            coord.lifecycle.start(server, nodeId = plan.targetNodeIdStr)
             StepResult.Success
         }.getOrElse { e ->
             runCatching { coord.lifecycle.remove(server, plan.targetNodeIdStr, force = true) }

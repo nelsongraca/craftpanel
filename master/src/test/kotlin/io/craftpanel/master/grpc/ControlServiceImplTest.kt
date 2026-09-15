@@ -29,10 +29,10 @@ class ControlServiceImplTest :
     FunSpec({
         val repos = TestRepositories()
         val nodeRepository = NodeRepositoryImpl()
-        val reconciler = NodeStateReconciler(repos.serverRepository, nodeRepository, repos.migrationRepository, repos.backupRepository)
+        val reconciler = NodeStateReconciler(nodeRepository)
         val agentEvents = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 1024)
         val dataOpContext = DataOpContext(ConcurrentHashMap(), ConcurrentHashMap())
-        val nodeStateHandler = NodeStateHandler(agentEvents, reconciler)
+        val nodeStateHandler = NodeStateHandler(agentEvents, reconciler, pushDesiredStates = {})
         val nodeMetricsHandler = NodeMetricsHandler(agentEvents, reconciler)
         val containerMetricsHandler = ContainerMetricsHandler(agentEvents)
         val serverStatusHandler = ServerStatusHandler(agentEvents)

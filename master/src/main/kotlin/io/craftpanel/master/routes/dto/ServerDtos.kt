@@ -1,7 +1,9 @@
 package io.craftpanel.master.routes.dto
 
 import io.craftpanel.master.domain.ConfigMode
+import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.domain.ServerStatus
+import io.craftpanel.master.domain.synthesizeStatus
 import io.craftpanel.master.service.ServerExposure
 import io.craftpanel.master.service.repo.ServerRow
 import kotlinx.serialization.SerialName
@@ -106,7 +108,10 @@ internal fun ServerRow.toResponse(serverExposure: ServerExposure, isMigrating: B
         serverType = serverType.toDb(),
         mcVersion = mcVersion,
         itzgImageTag = itzgImageTag,
-        status = ServerStatus.fromDb(status),
+        status = synthesizeStatus(
+            desired = DesiredStatus.fromDb(desiredStatus),
+            reported = ServerStatus.fromDb(status),
+        ),
         nodeId = nodeId.toString(),
         networkId = networkId?.toString(),
         hostPort = hostPort,

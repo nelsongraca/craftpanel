@@ -38,7 +38,7 @@ data class ConvergenceResult(
 /**
  * Pure next-state function for desired-state convergence. No Docker, no I/O, no clock —
  * [nowMillis] is an explicit input so every output follows deterministically from inputs
- * (trivially table-testable). Mirrors the master `ServerRestartManager` budget semantics:
+ * (trivially table-testable). Uses the master-supplied restart budget semantics:
  *
  * - A crash-restart is allowed while `count <= max_attempts`; the count resets when the
  *   window lapses or when the server reaches HEALTHY.
@@ -132,7 +132,7 @@ object ConvergenceMachine {
         val windowStart = state.windowStartEpochMillis
         val windowSeconds = state.budget?.windowSeconds ?: Long.MAX_VALUE
         return if (windowStart != null && nowMillis - windowStart > windowSeconds * 1000) {
-            // Window lapsed — reset to a fresh single attempt (matches ServerRestartManager).
+            // Window lapsed — reset to a fresh single attempt.
             1
         } else {
             state.restartCount + 1

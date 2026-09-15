@@ -140,11 +140,15 @@ class ConvergenceLoop(
         )
         val result = ConvergenceMachine.decide(state, actual)
         store.upsert(serverId) { result.next }
+        // Graceful stop must use the stop command carried in the stored spec (text stdin or a
+        // signal sentinel like "^C"/"SIGTERM"). Dropping it degrades every envelope-driven stop
+        // to a bare Docker SIGTERM.
+        val stopCommand = state.spec?.stopCommand ?: ""
         when (val decision = result.decision) {
             is ConvergenceDecision.EnsureRunning -> executeEnsureRunning(serverId)
-            is ConvergenceDecision.ConditionalRestart -> executeConditionalRestart(serverId)
+            is ConvergenceDecision.ConditionalRestart -> executeConditionalRestart(serverId, stopCommand = stopCommand)
             is ConvergenceDecision.EnsureStopped -> {
-                if (actual.running) executeEnsureStopped(serverId, containerName)
+                if (actual.running) executeEnsureStopped(serverId, containerName, stopCommand = stopCommand)
             }
             is ConvergenceDecision.ForceKill -> executeForceKill(serverId, containerName)
             is ConvergenceDecision.CrashLooped -> {
@@ -220,7 +224,7 @@ class ConvergenceLoop(
         }
     }
 
-    /** A successful start means the crash-restart budget resets (mirrors ServerRestartManager.reset). */
+    /** A successful start means the crash-restart budget resets. */
     private fun markHealthy(serverId: String, appliedSpec: StartContainerCommand) {
         store.upsert(serverId) { state ->
             state.copy(

@@ -3,14 +3,11 @@ package io.craftpanel.master.service
 import io.craftpanel.master.database.entity.*
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.domain.NodeHealth
-import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.*
-import io.craftpanel.proto.ContainerState
 import io.craftpanel.proto.NodeStateSnapshot
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.*
-import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
@@ -18,10 +15,7 @@ import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
 class NodeStateReconciler(
-    private val serverRepository: ServerRepository,
     private val nodeRepository: NodeRepository,
-    private val migrationRepository: MigrationRepository,
-    private val backupRepository: BackupRepository
 ) {
 
     private val log = LoggerFactory.getLogger(NodeStateReconciler::class.java)
@@ -34,32 +28,6 @@ class NodeStateReconciler(
         val currentStatus = nodeRepository.findById(kotlinNodeId)?.status
 
         log.debug("Node $nodeId: reconcileNodeState — currentStatus=$currentStatus, containers=${snapshot.containersCount}")
-        val byServerId = snapshot.containersList.associateBy { it.serverId }
-
-        serverRepository.listByNodeId(kotlinNodeId)
-            .forEach { server ->
-                val serverId = server.id
-                val dbStatus = ServerStatus.fromDb(server.status)
-                val container = byServerId[serverId.toString()]
-
-                val newStatus: ServerStatus? = if (container == null) {
-                    mapMissingContainer(dbStatus)
-                }
-                else {
-                    mapContainerState(container.runState, dbStatus)
-                }
-
-                if (newStatus != null) {
-                    log.info("Node $nodeId reconcile: server $serverId $dbStatus → $newStatus")
-                    transaction {
-                        Server.findById(serverId)
-                            ?.let {
-                                it.status = newStatus.toDb()
-                                it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
-                            }
-                    }
-                }
-            }
 
         if (currentStatus == "ACTIVE") {
             val newHealth = if (snapshot.routerRunning) NodeHealth.HEALTHY else NodeHealth.DEGRADED
@@ -149,13 +117,3 @@ class NodeStateReconciler(
         }
     }
 }
-
-fun mapContainerState(runState: ContainerState.RunState, dbStatus: ServerStatus): ServerStatus? = when {
-    runState == ContainerState.RunState.RUNNING && dbStatus != ServerStatus.HEALTHY && dbStatus != ServerStatus.STOPPING -> ServerStatus.HEALTHY
-runState == ContainerState.RunState.STOPPED && (dbStatus.isRunning || dbStatus == ServerStatus.STOPPING) -> ServerStatus.STOPPED
-    runState == ContainerState.RunState.EXITED && dbStatus == ServerStatus.STOPPING                                      -> ServerStatus.STOPPED
-    runState == ContainerState.RunState.EXITED && dbStatus != ServerStatus.UNHEALTHY                                     -> ServerStatus.UNHEALTHY
-    else                                                                                                                 -> null
-}
-
-fun mapMissingContainer(dbStatus: ServerStatus): ServerStatus? = if (dbStatus != ServerStatus.STOPPED) ServerStatus.STOPPED else null

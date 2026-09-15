@@ -1,17 +1,15 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.config.ImagesConfig
-import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.domain.AgentEvent
+import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.proto.*
 import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.ReceiveChannel
 import kotlinx.coroutines.flow.filterIsInstance
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.time.Clock
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -25,55 +23,32 @@ class ContainerLifecycle(
     private val extraPortRepository: ServerExtraPortRepository = ServerExtraPortRepositoryImpl(),
     private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
     private val containerNamePrefix: String = "craftpanel",
+    private val restartBudgetProvider: () -> Pair<Int, Long> = { 5 to 600L },
     private val clock: Clock = Clock.System,
     private val stopTimeout: Duration = 45.seconds,
     private val startTimeout: Duration = 30.seconds,
     private val removeTimeout: Duration = 10.seconds
 ) {
 
-    // ── Fire-and-forget (used by ServerService route handlers) ────────────────
+    // ── Declarative desired-state (master intent setter) ──────────────────────
 
-    fun sendStart(server: ServerRow, needsRecreate: Boolean, publicHostname: String? = null, nodeId: String = server.nodeId.toString()) {
-        ensureStartable(server)
-        sendOrThrow(nodeId, buildStartMessage(server, needsRecreate, publicHostname, nodeId))
-    }
+    /**
+     * Sends a `ServerDesiredState` envelope carrying master's intent, the full runtime spec, and the
+     * current restart budget. The agent stores it and converges (owning crash-restart within budget).
+     * Returns false when the agent is not connected so the caller can map it to a 503.
+     */
+    fun sendDesiredState(
+        server: ServerRow,
+        desired: DesiredStatus,
+        nodeId: String = server.nodeId.toString(),
+        force: Boolean = false,
+        forceRestart: Boolean = false,
+        publicHostname: String? = null,
+    ): Boolean = send(nodeId, buildDesiredStateMessage(server, desired, force, forceRestart, publicHostname))
 
-    fun sendStop(server: ServerRow, nodeId: String, force: Boolean = false) {
+    fun sendRemove(server: ServerRow, nodeId: String, force: Boolean = false): Boolean {
         val id = server.id
-        writeStatus(id, ServerStatus.STOPPING)
-        sendOrThrow(
-            nodeId,
-            masterMessage {
-                stopContainer = stopContainerCommand {
-                    serverId = id.toString()
-                    containerName = "$containerNamePrefix-$id"
-                    timeoutSeconds = 30
-                    stopCommand = server.stopCommand
-                    this.force = force
-                }
-            }
-        )
-    }
-
-    fun sendRestart(server: ServerRow, nodeId: String) {
-        val id = server.id
-        ensureStartable(server)
-        sendOrThrow(
-            nodeId,
-            masterMessage {
-                restartContainer = restartContainerCommand {
-                    serverId = id.toString()
-                    containerName = "$containerNamePrefix-$id"
-                    timeoutSeconds = 30
-                    stopCommand = server.stopCommand
-                }
-            }
-        )
-    }
-
-    fun sendRemove(server: ServerRow, nodeId: String, force: Boolean = false) {
-        val id = server.id
-        sendOrThrow(
+        return send(
             nodeId,
             masterMessage {
                 removeContainer = removeContainerCommand {
@@ -85,35 +60,56 @@ class ContainerLifecycle(
         )
     }
 
-    // ── Public compound operations (with await, used by MigrationService) ─────
+    // ── Await-based primitives (used by MigrationService for cross-node relocation) ─
 
-    suspend fun start(server: ServerRow, needsRecreate: Boolean, publicHostname: String? = null, nodeId: String = server.nodeId.toString()) {
+    /**
+     * Sets desired RUNNING and waits for the agent to report HEALTHY. Reverts the desired status on
+     * failure so a failed migration step does not strand the server in an unstartable intent.
+     */
+    suspend fun start(server: ServerRow, publicHostname: String? = null, nodeId: String = server.nodeId.toString()) {
+        ensureStartable(server)
         val id = server.id
-        awaitStatus(id.toString(), ServerStatus.HEALTHY, startTimeout) {
-            sendStart(server, needsRecreate, publicHostname, nodeId)
+        val previous = serverRepository.findById(id)?.desiredStatus
+        serverRepository.updateDesiredStatus(id, DesiredStatus.RUNNING.toDb())
+        try {
+            awaitStatus(id.toString(), ServerStatus.HEALTHY, startTimeout) {
+                if (!sendDesiredState(server, DesiredStatus.RUNNING, nodeId, publicHostname = publicHostname)) {
+                    throw BadGatewayException("Agent not connected")
+                }
+            }
+        } catch (e: Exception) {
+            serverRepository.updateDesiredStatus(id, previous)
+            throw e
         }
-        writeStatus(id, ServerStatus.HEALTHY, clearNeedsRecreate = true)
     }
 
-    // ── Public primitives (used by MigrationService for cross-node relocation) ─
-
+    /** Sets desired STOPPED and waits for the agent to report STOPPED. Reverts the intent on failure. */
     suspend fun stop(server: ServerRow, nodeId: String) {
         val id = server.id
-        awaitStatus(id.toString(), ServerStatus.STOPPED, stopTimeout) {
-            sendStop(server, nodeId)
+        val previous = serverRepository.findById(id)?.desiredStatus
+        serverRepository.updateDesiredStatus(id, DesiredStatus.STOPPED.toDb())
+        try {
+            awaitStatus(id.toString(), ServerStatus.STOPPED, stopTimeout) {
+                if (!sendDesiredState(server, DesiredStatus.STOPPED, nodeId)) {
+                    throw BadGatewayException("Agent not connected")
+                }
+            }
+        } catch (e: Exception) {
+            serverRepository.updateDesiredStatus(id, previous)
+            throw e
         }
     }
 
     suspend fun remove(server: ServerRow, nodeId: String, force: Boolean = false) {
         val id = server.id
         awaitStatus(id.toString(), ServerStatus.STOPPED, removeTimeout) {
-            sendRemove(server, nodeId, force)
+            if (!sendRemove(server, nodeId, force)) throw BadGatewayException("Agent not connected")
         }
     }
 
     // ── Build helpers ─────────────────────────────────────────────────────────
 
-    fun buildStartMessage(server: ServerRow, needsRecreate: Boolean, publicHostname: String? = null, nodeId: String = server.nodeId.toString()): MasterMessage {
+    fun buildStartSpec(server: ServerRow, publicHostname: String? = null): StartContainerCommand {
         val id = server.id
         val image = deriveImage(server.serverType, server.itzgImageTag)
         val allVars = buildAllVars(server)
@@ -127,27 +123,52 @@ class ContainerLifecycle(
                 name = extra.name
             }
         }
+        return startContainerCommand {
+            serverId = id.toString()
+            containerName = "$containerNamePrefix-$id"
+            stopCommand = server.stopCommand
+            // Recreate-on-start contract, honored until Phase 3's spec-diff decision lands (D6).
+            needsRecreate = server.needsRecreate
+            this.image = image
+            envVars.putAll(allVars)
+            this.publicHostname = resolvedHostname
+            hostPort = server.hostPort
+            memoryMb = server.memoryMb
+            cpuShares = server.cpuShares
+            dockerNetwork = server.networkId
+                ?.let { "$containerNamePrefix-net-$it" }
+                ?: "$containerNamePrefix-server-$id"
+            dataContainerPath = images.dataContainerPath(server.serverType)
+            internalListenPort = server.containerListenPort ?: images.internalListenPort(server.serverType)
+            containerProtocol = server.containerProtocol
+            serverName = server.name
+            extraPorts.addAll(extraPortPb)
+            containerUser = if (server.serverType.isPicolimbo) "1000:1000" else ""
+        }
+    }
+
+    private fun buildDesiredStateMessage(
+        server: ServerRow,
+        desired: DesiredStatus,
+        force: Boolean,
+        forceRestart: Boolean,
+        publicHostname: String?,
+    ): MasterMessage {
+        val (maxAttempts, windowSeconds) = restartBudgetProvider()
         return masterMessage {
-            startContainer = startContainerCommand {
-                serverId = id.toString()
-                containerName = "$containerNamePrefix-$id"
-                stopCommand = server.stopCommand
-                this.needsRecreate = needsRecreate
-                this.image = image
-                envVars.putAll(allVars)
-                this.publicHostname = resolvedHostname
-                hostPort = server.hostPort
-                memoryMb = server.memoryMb
-                cpuShares = server.cpuShares
-                dockerNetwork = server.networkId
-                    ?.let { "$containerNamePrefix-net-$it" }
-                    ?: "$containerNamePrefix-server-$id"
-                dataContainerPath = images.dataContainerPath(server.serverType)
-                internalListenPort = server.containerListenPort ?: images.internalListenPort(server.serverType)
-                containerProtocol = server.containerProtocol
-                serverName = server.name
-                extraPorts.addAll(extraPortPb)
-                containerUser = if (server.serverType.isPicolimbo) "1000:1000" else ""
+            serverDesiredState = serverDesiredState {
+                serverId = server.id.toString()
+                this.desired = when (desired) {
+                    DesiredStatus.RUNNING -> ServerDesiredState.Desired.RUNNING
+                    DesiredStatus.STOPPED -> ServerDesiredState.Desired.STOPPED
+                }
+                this.spec = buildStartSpec(server, publicHostname)
+                this.force = force
+                this.forceRestart = forceRestart
+                this.restartBudget = restartBudget {
+                    this.maxAttempts = maxAttempts
+                    this.windowSeconds = windowSeconds
+                }
             }
         }
     }
@@ -210,25 +231,6 @@ class ContainerLifecycle(
         return systemVars + dbEnvVars
     }
 
-    fun startCrashRestartLoop(scope: CoroutineScope, channel: ReceiveChannel<Uuid>) {
-        scope.launch {
-            for (id in channel) {
-                val server = serverRepository.findById(id) ?: continue
-                if (server.isExpired()) continue
-                writeStatus(id, ServerStatus.STARTING)
-                sendStart(server, needsRecreate = false)
-            }
-        }
-    }
-
-    fun writeStatus(id: Uuid, status: ServerStatus, clearNeedsRecreate: Boolean = false) {
-        transaction {
-            val e = Server.findById(id) ?: return@transaction
-            e.status = status.toDb()
-            if (clearNeedsRecreate) e.needsRecreate = false
-        }
-    }
-
     // ── Core await primitive ──────────────────────────────────────────────────
 
     private suspend fun awaitStatus(serverId: String, expected: ServerStatus, timeout: Duration, sendCommand: () -> Unit): Unit = coroutineScope {
@@ -272,9 +274,7 @@ class ContainerLifecycle(
 
     private fun deriveImage(serverType: ServerType, tag: String) = images.deriveImage(serverType, tag)
 
-    private fun sendOrThrow(nodeId: String, msg: MasterMessage) {
-        if (!gateway.sendToNode(nodeId, msg)) throw BadGatewayException("Agent not connected")
-    }
+    private fun send(nodeId: String, msg: MasterMessage): Boolean = gateway.sendToNode(nodeId, msg)
 }
 
 class ContainerLifecycleException(message: String) : Exception(message)

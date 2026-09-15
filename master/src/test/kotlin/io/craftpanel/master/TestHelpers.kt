@@ -34,7 +34,8 @@ fun createTestControlServiceImpl(
     val dataOpContext = DataOpContext(ConcurrentHashMap(), ConcurrentHashMap())
     val nodeStateHandler = NodeStateHandler(
         agentEvents,
-        nodeStateReconciler
+        nodeStateReconciler,
+        pushDesiredStates = {}
     )
     val nodeMetricsHandler = NodeMetricsHandler(agentEvents, nodeStateReconciler)
     val containerMetricsHandler = ContainerMetricsHandler(agentEvents)

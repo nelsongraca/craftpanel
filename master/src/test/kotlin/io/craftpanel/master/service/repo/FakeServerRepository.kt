@@ -17,6 +17,7 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         var serverType: ServerType,
         var mcVersion: String,
         var status: String = "STOPPED",
+        var desiredStatus: String? = null,
         var hostPort: Int,
         var memoryMb: Int,
         var cpuShares: Int,
@@ -156,6 +157,10 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         state.servers[id]?.needsRecreate = value
     }
 
+    override fun updateDesiredStatus(id: Uuid, value: String?) {
+        state.servers[id]?.desiredStatus = value
+    }
+
     override fun updateForwardingSecret(id: Uuid, enc: String) {
         state.servers[id]?.forwardingSecretEnc = enc
     }
@@ -173,6 +178,7 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         serverType,
         mcVersion,
         status,
+        desiredStatus,
         hostPort,
         memoryMb,
         cpuShares,

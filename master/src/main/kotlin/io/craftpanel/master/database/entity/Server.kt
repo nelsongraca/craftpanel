@@ -20,6 +20,7 @@ class Server(id: EntityID<Uuid>) : UuidEntity(id) {
     var serverType by Servers.serverType
     var mcVersion by Servers.mcVersion
     var status by Servers.status
+    var desiredStatus by Servers.desiredStatus
     var hostPort by Servers.hostPort
     var memoryMb by Servers.memoryMb
     var cpuShares by Servers.cpuShares
@@ -63,6 +64,7 @@ class Server(id: EntityID<Uuid>) : UuidEntity(id) {
         serverType = ServerType.fromDb(serverType),
         mcVersion = mcVersion,
         status = status,
+        desiredStatus = desiredStatus,
         hostPort = hostPort,
         memoryMb = memoryMb,
         cpuShares = cpuShares,

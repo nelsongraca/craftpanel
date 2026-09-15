@@ -4,16 +4,12 @@ import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.config.AppConfig
 import io.craftpanel.master.database.DatabaseFactory
-import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.migrations.resetSeedAdminPassword
 import io.craftpanel.master.database.migrations.seedAdminUser
 import io.craftpanel.master.di.DnsProviderHolder
 import io.craftpanel.master.di.appModule
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.dns.DnsProviderFactory
-import io.craftpanel.master.domain.AgentEvent
-import io.craftpanel.master.domain.ServerStatus
-import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.GrpcServer
 import io.craftpanel.master.routes.*
 import io.craftpanel.master.scheduler.ServerScheduler
@@ -41,7 +37,6 @@ import io.ktor.server.response.*
 import io.ktor.server.routing.*
 import io.ktor.server.websocket.*
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.flow.filterIsInstance
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -53,7 +48,6 @@ import org.koin.logger.slf4jLogger
 import org.slf4j.LoggerFactory
 import org.slf4j.event.Level
 import kotlin.time.Duration.Companion.minutes
-import kotlin.uuid.Uuid
 
 private object SecurityHeaderNames {
 
@@ -107,24 +101,9 @@ fun Application.module() {
     get<ServerScheduler>().start()
     monitor.subscribe(ApplicationStopped) { get<ServerScheduler>().stop() }
 
-    launch {
-        val control = get<ControlServiceImpl>()
-        control.agentEvents
-            .filterIsInstance<AgentEvent.ServerStatusEvent>()
-            .collect { event ->
-                if (event.serverId.isEmpty()) return@collect
-                runCatching {
-                    val clearRecreate = event.status == ServerStatus.HEALTHY
-                    transaction {
-                        val entity = Server.findById(Uuid.parse(event.serverId)) ?: return@transaction
-                        entity.status = event.status.toDb()
-                        if (clearRecreate) entity.needsRecreate = false
-                    }
-                }.onFailure {
-                    log.error("Failed to update status for server {}", event.serverId, it)
-                }
-            }
-    }
+    // Re-push desired-state envelopes for all connected nodes (handles reboot scenarios where
+    // agents reconnected while master starts up).
+    launch { get<DesiredStateSyncService>().pushAllOnBoot() }
 
     install(ContentNegotiation) {
         json(Json { ignoreUnknownKeys = true })

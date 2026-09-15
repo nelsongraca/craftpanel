@@ -26,12 +26,7 @@ class NodeStateHandlerTest :
         val repos = TestRepositories()
         val gateway = TestAgentGateway()
         val agentEvents: MutableSharedFlow<AgentEvent> = MutableSharedFlow(extraBufferCapacity = 1024)
-        val reconciler = NodeStateReconciler(
-            serverRepository = repos.serverRepository,
-            nodeRepository = NodeRepositoryImpl(),
-            migrationRepository = repos.migrationRepository,
-            backupRepository = repos.backupRepository
-        )
+        val reconciler = NodeStateReconciler(nodeRepository = NodeRepositoryImpl())
         val service = createTestControlServiceImpl(
             nodeStateReconciler = reconciler,
             agentGateway = gateway,

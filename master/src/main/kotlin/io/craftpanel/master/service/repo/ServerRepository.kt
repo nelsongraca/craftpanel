@@ -14,6 +14,7 @@ data class ServerRow(
     val serverType: ServerType,
     val mcVersion: String,
     val status: String,
+    val desiredStatus: String? = null,
     val hostPort: Int,
     val memoryMb: Int,
     val cpuShares: Int,
@@ -79,5 +80,6 @@ interface ServerRepository {
     fun countByNodeId(nodeId: Uuid): Int
     fun findIdsNeedingRecreateByNode(nodeId: Uuid): List<Uuid>
     fun updateNeedsRecreate(id: Uuid, value: Boolean)
+    fun updateDesiredStatus(id: Uuid, value: String?)
     fun updateForwardingSecret(id: Uuid, enc: String)
 }

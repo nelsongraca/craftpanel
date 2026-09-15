@@ -139,6 +139,11 @@ class ServerRepositoryImpl :
         Unit
     }
 
+    override fun updateDesiredStatus(id: Uuid, value: String?) = transaction {
+        Server.findById(id)?.let { it.desiredStatus = value }
+        Unit
+    }
+
     override fun updateForwardingSecret(id: Uuid, enc: String) = transaction {
         Server.findById(id)?.let { it.forwardingSecretEnc = enc }
         Unit
@@ -161,6 +166,7 @@ private fun ResultRow.toServerRow() = ServerRow(
     serverType = ServerType.fromDb(this[Servers.serverType]),
     mcVersion = this[Servers.mcVersion],
     status = this[Servers.status],
+    desiredStatus = this[Servers.desiredStatus],
     hostPort = this[Servers.hostPort],
     memoryMb = this[Servers.memoryMb],
     cpuShares = this[Servers.cpuShares],

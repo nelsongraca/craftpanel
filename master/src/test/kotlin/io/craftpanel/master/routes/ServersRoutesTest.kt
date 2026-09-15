@@ -8,6 +8,7 @@ import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
+import io.craftpanel.proto.ServerDesiredState
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
@@ -1149,7 +1150,7 @@ class ServersRoutesTest :
             }
         }
 
-        test("POST start returns 202 and updates status to STARTING") {
+        test("POST start returns 202 and records desired_status RUNNING") {
             testApplication {
                 testApp { jwtManager -> configureServersTest() }
                 val client = jsonClient()
@@ -1164,11 +1165,12 @@ class ServersRoutesTest :
                         .where { Servers.id eq serverId }
                         .first()
                 }
-                row[Servers.status] shouldBe "STARTING"
+                row[Servers.desiredStatus] shouldBe "RUNNING"
+                row[Servers.status] shouldBe "STOPPED"
             }
         }
 
-        test("POST start sends single StartContainerCommand with needsRecreate=false") {
+        test("POST start sends ServerDesiredState envelope with needsRecreate=false") {
             val gw = TestAgentGateway()
             testApplication {
                 testApp { jwtManager -> configureServersTest(gw) }
@@ -1180,8 +1182,10 @@ class ServersRoutesTest :
                 val resp = client.post("/api/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
                 resp.status shouldBe HttpStatusCode.Accepted
                 gw.sent.size shouldBe 1
-                gw.sent[0].second.hasStartContainer() shouldBe true
-                val cmd = gw.sent[0].second.startContainer
+                val msg = gw.sent[0].second
+                msg.hasServerDesiredState() shouldBe true
+                msg.serverDesiredState.desired shouldBe ServerDesiredState.Desired.RUNNING
+                val cmd = msg.serverDesiredState.spec
                 cmd.containerName shouldBe "craftpanel-$serverId"
                 cmd.image shouldBe "itzg/minecraft-server:latest"
                 cmd.envVarsMap["EULA"] shouldBe "TRUE"
@@ -1189,7 +1193,7 @@ class ServersRoutesTest :
             }
         }
 
-        test("POST start sends StartContainerCommand with needsRecreate=true when server needs recreate") {
+        test("POST start sends ServerDesiredState with needsRecreate=true when server needs recreate") {
             val gw = TestAgentGateway()
             testApplication {
                 testApp { jwtManager -> configureServersTest(gw) }
@@ -1202,8 +1206,9 @@ class ServersRoutesTest :
                 val resp = client.post("/api/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
                 resp.status shouldBe HttpStatusCode.Accepted
                 gw.sent.size shouldBe 1
-                gw.sent[0].second.hasStartContainer() shouldBe true
-                gw.sent[0].second.startContainer.needsRecreate shouldBe true
+                val msg = gw.sent[0].second
+                msg.hasServerDesiredState() shouldBe true
+                msg.serverDesiredState.spec.needsRecreate shouldBe true
             }
         }
 
@@ -1248,7 +1253,7 @@ class ServersRoutesTest :
             }
         }
 
-        test("POST stop returns 202 and sends StopContainerCommand") {
+        test("POST stop returns 202 and sends ServerDesiredState STOPPED") {
             val gw = TestAgentGateway()
             testApplication {
                 testApp { jwtManager -> configureServersTest(gw) }
@@ -1260,8 +1265,10 @@ class ServersRoutesTest :
                 val resp = client.post("/api/servers/$serverId/stop") { bearerAuth(tokenFor(userId)) }
                 resp.status shouldBe HttpStatusCode.Accepted
                 gw.sent.size shouldBe 1
-                gw.sent[0].second.hasStopContainer() shouldBe true
-                gw.sent[0].second.stopContainer.containerName shouldBe "craftpanel-$serverId"
+                val msg = gw.sent[0].second
+                msg.hasServerDesiredState() shouldBe true
+                msg.serverDesiredState.desired shouldBe ServerDesiredState.Desired.STOPPED
+                msg.serverDesiredState.spec.containerName shouldBe "craftpanel-$serverId"
             }
         }
 
@@ -1293,7 +1300,7 @@ class ServersRoutesTest :
             }
         }
 
-        test("POST force-stop returns 202 and sends StopContainerCommand with force=true") {
+        test("POST force-stop returns 202 and sends ServerDesiredState STOPPED force=true") {
             val gw = TestAgentGateway()
             testApplication {
                 testApp { jwtManager -> configureServersTest(gw) }
@@ -1305,8 +1312,10 @@ class ServersRoutesTest :
                 val resp = client.post("/api/servers/$serverId/force-stop") { bearerAuth(tokenFor(userId)) }
                 resp.status shouldBe HttpStatusCode.Accepted
                 gw.sent.size shouldBe 1
-                gw.sent[0].second.hasStopContainer() shouldBe true
-                gw.sent[0].second.stopContainer.force shouldBe true
+                val msg = gw.sent[0].second
+                msg.hasServerDesiredState() shouldBe true
+                msg.serverDesiredState.desired shouldBe ServerDesiredState.Desired.STOPPED
+                msg.serverDesiredState.force shouldBe true
             }
         }
 
@@ -1352,7 +1361,7 @@ class ServersRoutesTest :
             }
         }
 
-        test("POST restart returns 202 and sends RestartContainerCommand") {
+        test("POST restart returns 202 and sends ServerDesiredState RUNNING force_restart=true") {
             val gw = TestAgentGateway()
             testApplication {
                 testApp { jwtManager -> configureServersTest(gw) }
@@ -1364,8 +1373,11 @@ class ServersRoutesTest :
                 val resp = client.post("/api/servers/$serverId/restart") { bearerAuth(tokenFor(userId)) }
                 resp.status shouldBe HttpStatusCode.Accepted
                 gw.sent.size shouldBe 1
-                gw.sent[0].second.hasRestartContainer() shouldBe true
-                gw.sent[0].second.restartContainer.containerName shouldBe "craftpanel-$serverId"
+                val msg = gw.sent[0].second
+                msg.hasServerDesiredState() shouldBe true
+                msg.serverDesiredState.desired shouldBe ServerDesiredState.Desired.RUNNING
+                msg.serverDesiredState.forceRestart shouldBe true
+                msg.serverDesiredState.spec.containerName shouldBe "craftpanel-$serverId"
             }
         }
 
@@ -1468,8 +1480,9 @@ class ServersRoutesTest :
                 }
                 resp.status shouldBe HttpStatusCode.NoContent
                 gw.sent.size shouldBe 1
-                gw.sent[0].second.hasStopContainer() shouldBe true
-                gw.sent[0].second.stopContainer.containerName shouldBe "craftpanel-$serverId"
+                gw.sent[0].second.hasServerDesiredState() shouldBe true
+                gw.sent[0].second.serverDesiredState.desired shouldBe ServerDesiredState.Desired.STOPPED
+                gw.sent[0].second.serverDesiredState.spec.containerName shouldBe "craftpanel-$serverId"
             }
         }
 
@@ -1589,8 +1602,9 @@ class ServersRoutesTest :
                 }
                 resp.status shouldBe HttpStatusCode.NoContent
                 gw.sent.size shouldBe 1
-                gw.sent[0].second.hasStopContainer() shouldBe true
-                gw.sent[0].second.stopContainer.containerName shouldBe "craftpanel-$serverId"
+                gw.sent[0].second.hasServerDesiredState() shouldBe true
+                gw.sent[0].second.serverDesiredState.desired shouldBe ServerDesiredState.Desired.STOPPED
+                gw.sent[0].second.serverDesiredState.spec.containerName shouldBe "craftpanel-$serverId"
             }
         }
 
