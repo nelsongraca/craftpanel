@@ -291,10 +291,6 @@ class ServerService(
             }
         }
 
-        val needsRecreate = mcVersion != null || itzgImageTag != null ||
-            containerListenPort != null || containerProtocol != null ||
-            disableHealthcheck != null || forceRedownload != null || customServerJar != null
-
         transaction {
             val e = Server.findById(id) ?: return@transaction
             if (networkId != null && newNetworkId == null) {
@@ -311,7 +307,6 @@ class ServerService(
             if (containerProtocol != null) e.containerProtocol = validateContainerProtocol(containerProtocol)
             if (disableHealthcheck != null) e.disableHealthcheck = disableHealthcheck
             if (forceRedownload != null) e.forceRedownload = forceRedownload
-            if (needsRecreate) e.needsRecreate = true
         }
     }
 
@@ -379,7 +374,6 @@ class ServerService(
             e.memoryMb = memoryMb
             e.cpuShares = cpuShares
             if (itzgImageTag != null) e.itzgImageTag = itzgImageTag
-            e.needsRecreate = true
         }
     }
 

@@ -38,7 +38,6 @@ private fun testServerRow(
     configMode = "MANAGED",
     stopCommand = "stop",
     itzgImageTag = "latest",
-    needsRecreate = false,
     backupSchedule = null,
     backupMaxCount = 0,
     backupScheduleLastFired = null,

@@ -120,8 +120,6 @@ class ModService(
                 this.pinnedVersionId = req.pinnedVersionId
                 this.installedVersionId = null
             }
-            Server.findById(serverId)
-                ?.let { it.needsRecreate = true }
             val row = ServerMods.selectAll()
                 .where { ServerMods.id eq m.id }
                 .first()
@@ -159,8 +157,6 @@ class ModService(
                     it.pinnedVersionId = pinnedVersionId?.ifEmpty { null }
                     it.installedVersionId = null
                 }
-            Server.findById(serverId)
-                ?.let { it.needsRecreate = true }
         }
         return modRepository.findModById(modId)!!
             .toResponse()
@@ -173,8 +169,6 @@ class ModService(
         transaction {
             Mod.findById(modId)
                 ?.delete()
-            Server.findById(serverId)
-                ?.let { it.needsRecreate = true }
         }
     }
 

@@ -13,8 +13,8 @@ sealed interface ConvergenceDecision {
     /** Already converged — nothing to do. Loop re-affirms the status that reflects reality. */
     data object NoOp : ConvergenceDecision
 
-    /** Create the container if absent (or remove + recreate if spec differs), then start it. */
-    data object EnsureRunning : ConvergenceDecision
+    /** Create the container if absent (or remove + recreate if the spec differs), then start it. */
+    data class EnsureRunning(val recreate: Boolean) : ConvergenceDecision
 
     /** Graceful stop (`docker stop` with the stop command), then STARTING→no-op. */
     data object EnsureStopped : ConvergenceDecision
@@ -23,7 +23,7 @@ sealed interface ConvergenceDecision {
     data object ForceKill : ConvergenceDecision
 
     /** User-initiated restart (force_restart): stop-if-running, then start. Never budget-capped. */
-    data object ConditionalRestart : ConvergenceDecision
+    data class ConditionalRestart(val recreate: Boolean) : ConvergenceDecision
 
     /** Desired=RUNNING, container is not running, and the crash-restart budget is exhausted. */
     data class CrashLooped(val reason: String) : ConvergenceDecision
@@ -72,11 +72,12 @@ object ConvergenceMachine {
     }
 
     private fun decideRunning(state: DesiredState, actual: ActualState, nowMillis: Long): ConvergenceResult {
+        val recreate = shouldRecreate(state)
         // Already running. A user-initiated restart (force_restart) still fires; everything else
         // is a no-op — a spec change while running is reconfigure-only, applied at next start.
         if (actual.running) {
             return if (state.forceRestart) {
-                ConvergenceResult(ConvergenceDecision.ConditionalRestart, state.clearOneShots())
+                ConvergenceResult(ConvergenceDecision.ConditionalRestart(recreate), state.clearOneShots())
             } else {
                 ConvergenceResult(ConvergenceDecision.NoOp, state)
             }
@@ -85,13 +86,13 @@ object ConvergenceMachine {
         // Not running.
         if (state.forceRestart) {
             // force_restart is only meaningful when we actually run; a stopped server with the
-            // flag pending will consume the flag as an ordinary start.
-            return ConvergenceResult(ConvergenceDecision.EnsureRunning, state.clearOneShots())
+            // flag pending will consume the flag as an ordinary start (recreating if spec differs).
+            return ConvergenceResult(ConvergenceDecision.EnsureRunning(recreate), state.clearOneShots())
         }
 
         // Provisioning: container was never created — first start, never budget-capped.
         if (!actual.containerPresent) {
-            return ConvergenceResult(ConvergenceDecision.EnsureRunning, state)
+            return ConvergenceResult(ConvergenceDecision.EnsureRunning(recreate), state)
         }
 
         // Crash-restart path: the container exists but is not running.
@@ -103,7 +104,7 @@ object ConvergenceMachine {
         val allowed = budget?.let { b -> b.maxAttempts > 0 } ?: true
         if (!allowed) {
             return ConvergenceResult(
-                ConvergenceDecision.CrashLooped("restart budget max_attempts=${budget?.maxAttempts} prohibits auto-restart"),
+                ConvergenceDecision.CrashLooped("restart budget max_attempts=${budget.maxAttempts} prohibits auto-restart"),
                 state
             )
         }
@@ -125,8 +126,16 @@ object ConvergenceMachine {
             forceRestart = false,
             force = false,
         )
-        return ConvergenceResult(ConvergenceDecision.EnsureRunning, next)
+        return ConvergenceResult(ConvergenceDecision.EnsureRunning(recreate), next)
     }
+
+    /**
+     * Recreate is required only when we know the container was last applied with a *different*
+     * spec. A null [DesiredState.appliedSpec] means unknown (fresh agent process, never started
+     * here) — start the existing container rather than destroy-and-recreate it.
+     */
+    private fun shouldRecreate(state: DesiredState): Boolean =
+        state.appliedSpec != null && state.spec != state.appliedSpec
 
     private fun restartCandidateCount(state: DesiredState, nowMillis: Long): Int {
         val windowStart = state.windowStartEpochMillis

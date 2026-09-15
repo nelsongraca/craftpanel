@@ -74,7 +74,7 @@ class ProxySettingsServiceTest :
             }
         }
 
-        test("persists settings and sets needs_recreate") {
+        test("persists settings") {
             val nodeId = createNode()
             val proxyId = createServer(nodeId, ServerType.VELOCITY)
 
@@ -84,7 +84,6 @@ class ProxySettingsServiceTest :
             row.proxyMotd shouldBe "Welcome"
             row.proxyMaxPlayers shouldBe 40
             row.proxyForwardingMode shouldBe "LEGACY"
-            row.needsRecreate shouldBe true
 
             service.getSettings(proxyId) shouldBe ProxySettingsResponse("Welcome", 40, "LEGACY")
         }

@@ -206,14 +206,14 @@ class ServerRepositoryImplTest :
             serverRepository.findById(id)!!.name shouldBe "srv-a"
         }
 
-        test("updateNeedsRecreate and updateForwardingSecret invalidate via the hook") {
+        test("updateDesiredStatus and updateForwardingSecret invalidate via the hook") {
             val nodeId = createNode()
             val id = createServer(nodeId, name = "srv")
 
-            serverRepository.findById(id)!!.needsRecreate shouldBe false
+            serverRepository.findById(id)!!.desiredStatus shouldBe null
 
-            serverRepository.updateNeedsRecreate(id, true)
-            serverRepository.findById(id)!!.needsRecreate shouldBe true
+            serverRepository.updateDesiredStatus(id, "RUNNING")
+            serverRepository.findById(id)!!.desiredStatus shouldBe "RUNNING"
 
             serverRepository.updateForwardingSecret(id, "secret-enc")
             serverRepository.findById(id)!!.forwardingSecretEnc shouldBe "secret-enc"

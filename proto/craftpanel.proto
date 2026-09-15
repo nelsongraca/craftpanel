@@ -310,10 +310,11 @@ message StartContainerCommand {
   string server_id = 1;
   string container_name = 2;
   string stop_command = 3;
-  // If true: agent removes existing container (if any), pulls image, creates, then starts.
-  // If false: agent starts existing container; if missing, auto-heals via pull+create+start.
-  bool needs_recreate = 4;
-  // Fields required when agent must create the container (needs_recreate=true or auto-heal).
+  // Field 4 (needs_recreate) retired — recreate is now decided by the agent as
+  // (container missing) OR (this spec != the spec the container was last applied with).
+  reserved 4;
+  reserved "needs_recreate";
+  // Fields required when agent must create the container (container absent or recreate-if-diff).
   string image = 5;
   repeated VolumeMount mounts = 6;
   map<string, string> env_vars = 7;

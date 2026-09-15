@@ -64,7 +64,6 @@ test("non-HEALTHY server shows crash log view instead of live console", async ({
                 exposed_externally: false,
                 public_subdomain: null,
                 is_migrating: false,
-                needs_recreate: false,
                 config_mode: "MANUAL",
                 stop_command: "stop",
                 last_player_count: null,

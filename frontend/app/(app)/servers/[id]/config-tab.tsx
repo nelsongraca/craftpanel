@@ -130,6 +130,7 @@ function ProxyServerConfigSection({
 
     return (
         <div className="px-6 py-6 space-y-6">
+            <p className="text-xs text-text-muted">Configuration changes take effect on the next server start or restart.</p>
             <ConfigModeToggle
                 serverId={serverId}
                 configMode={configMode}

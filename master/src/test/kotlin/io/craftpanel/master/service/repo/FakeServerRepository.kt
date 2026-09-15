@@ -29,7 +29,6 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         var configMode: String = "MANAGED",
         var stopCommand: String = "stop",
         var itzgImageTag: String = "latest",
-        var needsRecreate: Boolean = false,
         var disabled: Boolean = false,
         var expiresAt: String? = null,
         var customServerJar: String? = null,
@@ -153,10 +152,6 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
 
     override fun countByNetworkId(networkId: Uuid): Int = state.servers.values.count { it.networkId == networkId }
     override fun countByNodeId(nodeId: Uuid): Int = state.servers.values.count { it.nodeId == nodeId }
-    override fun updateNeedsRecreate(id: Uuid, value: Boolean) {
-        state.servers[id]?.needsRecreate = value
-    }
-
     override fun updateDesiredStatus(id: Uuid, value: String?) {
         state.servers[id]?.desiredStatus = value
     }
@@ -164,9 +159,6 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
     override fun updateForwardingSecret(id: Uuid, enc: String) {
         state.servers[id]?.forwardingSecretEnc = enc
     }
-
-    override fun findIdsNeedingRecreateByNode(nodeId: Uuid): List<Uuid> = state.servers.values.filter { it.nodeId == nodeId && it.needsRecreate }
-        .map { it.id }
 
     private fun MutableServer.toRow() = ServerRow(
         id,
@@ -190,7 +182,6 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         configMode,
         stopCommand,
         itzgImageTag,
-        needsRecreate,
         disabled,
         expiresAt,
         customServerJar,

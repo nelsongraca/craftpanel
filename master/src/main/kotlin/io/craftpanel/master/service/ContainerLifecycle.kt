@@ -127,8 +127,6 @@ class ContainerLifecycle(
             serverId = id.toString()
             containerName = "$containerNamePrefix-$id"
             stopCommand = server.stopCommand
-            // Recreate-on-start contract, honored until Phase 3's spec-diff decision lands (D6).
-            needsRecreate = server.needsRecreate
             this.image = image
             envVars.putAll(allVars)
             this.publicHostname = resolvedHostname

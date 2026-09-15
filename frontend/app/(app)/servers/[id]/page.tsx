@@ -421,21 +421,6 @@ export default function ServerDetailPage() {
                 </div>
             )}
 
-            {/* Restart required banner */}
-            {server.needs_recreate && (
-                <div className="mx-6 mt-4 flex items-center justify-between bg-warning/10 border border-warning/30 text-warning rounded px-3 py-2 text-xs">
-                    <span>Settings saved. Restart the server for changes to take effect.</span>
-                    {(server.status === "HEALTHY") && !disabled && hasPermission(serverPerms, "server.restart") && (
-                        <button
-                            onClick={() => void doAction("restart")}
-                            className="ml-4 shrink-0 text-xs font-heading font-bold uppercase tracking-wider underline hover:no-underline"
-                        >
-                            Restart Now
-                        </button>
-                    )}
-                </div>
-            )}
-
             {/* Tab bar */}
             <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as Tab)}>
                 <div className="scrollbar-none border-b border-border bg-surface overflow-x-auto pb-[7px]">

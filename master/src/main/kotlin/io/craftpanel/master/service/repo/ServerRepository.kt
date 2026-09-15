@@ -26,7 +26,6 @@ data class ServerRow(
     val configMode: String,
     val stopCommand: String,
     val itzgImageTag: String,
-    val needsRecreate: Boolean,
     val disabled: Boolean = false,
     val expiresAt: String? = null,
     val customServerJar: String? = null,
@@ -78,8 +77,6 @@ interface ServerRepository {
     fun listExpiredRunning(now: kotlinx.datetime.LocalDateTime): List<ServerRow>
     fun countByNetworkId(networkId: Uuid): Int
     fun countByNodeId(nodeId: Uuid): Int
-    fun findIdsNeedingRecreateByNode(nodeId: Uuid): List<Uuid>
-    fun updateNeedsRecreate(id: Uuid, value: Boolean)
     fun updateDesiredStatus(id: Uuid, value: String?)
     fun updateForwardingSecret(id: Uuid, enc: String)
 }

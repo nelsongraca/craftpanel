@@ -43,7 +43,6 @@ object Servers : UuidTable("servers") {
     // Passed through to itzg as DISABLE_HEALTHCHECK=true / FORCE_REDOWNLOAD=true.
     val disableHealthcheck = bool("disable_healthcheck").default(false)
     val forceRedownload = bool("force_redownload").default(false)
-    val needsRecreate = bool("needs_recreate").default(false)
     val disabled = bool("disabled").default(false)
     val expiresAt = datetime("expires_at").nullable()
     val proxyMotd = varchar("proxy_motd", 500).nullable()

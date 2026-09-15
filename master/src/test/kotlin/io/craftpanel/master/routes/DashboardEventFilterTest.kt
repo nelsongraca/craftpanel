@@ -29,7 +29,7 @@ private fun serverRow(id: Uuid, networkId: Uuid? = null, nodeId: Uuid = Uuid.ran
     exposedExternally = false, publicSubdomain = null,
     dnsRecordId = null, dnsRecordName = null, customHostname = null,
     configMode = "MANAGED", stopCommand = "stop", itzgImageTag = "latest",
-    needsRecreate = false, backupSchedule = null, backupMaxCount = 0,
+    backupSchedule = null, backupMaxCount = 0,
     backupScheduleLastFired = null, lastPlayerCount = null,
     lastPlayerNames = null, lastPlayerUpdate = null, lastSeenAt = null,
     createdAt = "", updatedAt = ""

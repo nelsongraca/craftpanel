@@ -88,7 +88,7 @@ class UpdateDnsStepTest :
                     exposedExternally = false, publicSubdomain = null,
                     dnsRecordId = "rec-1", dnsRecordName = "test.example.com", customHostname = null,
                     configMode = "MANAGED", stopCommand = "stop", itzgImageTag = "latest",
-                    needsRecreate = false, backupSchedule = null, backupMaxCount = 0,
+                    backupSchedule = null, backupMaxCount = 0,
                     backupScheduleLastFired = null, lastPlayerCount = null,
                     lastPlayerNames = null, lastPlayerUpdate = null, lastSeenAt = null,
                     createdAt = "", updatedAt = ""

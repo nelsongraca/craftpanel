@@ -121,7 +121,6 @@ class NodeObserver(
                 ?.let {
                     it.status = event.status.toDb()
                     it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
-                    if (event.status == ServerStatus.HEALTHY) it.needsRecreate = false
                 }
         }
     }

@@ -89,7 +89,7 @@ class ServerExposureService(
 
         val prevCustomHostname = serverRow.customHostname
         val customHostnameChanged = resolvedCustomHostname != prevCustomHostname
-        val exposureNeedsRecreate = publicSubdomain != null || customHostnameChanged
+        val exposureChanged = publicSubdomain != null || customHostnameChanged
 
         transaction {
             val e = Server.findById(id) ?: return@transaction
@@ -110,11 +110,10 @@ class ServerExposureService(
             } else {
                 serverRow.dnsRecordName
             }
-            if (exposureNeedsRecreate) e.needsRecreate = true
         }
 
         val currentStatus = ServerStatus.fromDb(serverRow.status)
-        if (currentStatus.isRunning && exposureNeedsRecreate) {
+        if (currentStatus.isRunning && exposureChanged) {
             val freshRow = serverRepository.findById(id)!!
             // In desired-state model, send a restart-envelope so the agent recreates the container
             // with the updated bindings. No DB status write — convergence loop owns the transition.

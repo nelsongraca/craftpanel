@@ -59,7 +59,6 @@ class BackendForwardingService(
                         if (existingOnline != null) existingOnline.value = "false" else EnvVar.new { this.serverId = EntityID(backend.backendServerId, Servers); key = "ONLINE_MODE"; value = "false" }
                         val existingPatch = EnvVar.find { (ServerEnvVars.serverId eq backend.backendServerId) and (ServerEnvVars.key eq "PATCH_DEFINITIONS") }.firstOrNull()
                         if (existingPatch != null) existingPatch.value = patchFileEnvValue(classification.file) else EnvVar.new { this.serverId = EntityID(backend.backendServerId, Servers); key = "PATCH_DEFINITIONS"; value = patchFileEnvValue(classification.file) }
-                        Server.findById(backend.backendServerId)?.let { it.needsRecreate = true }
                     }
                 }
             }

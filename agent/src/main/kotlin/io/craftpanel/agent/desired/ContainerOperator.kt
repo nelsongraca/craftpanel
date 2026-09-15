@@ -35,16 +35,18 @@ class ContainerOperator(
     fun isRunning(containerName: String): Boolean = containerManager.isRunning(containerName)
 
     /**
-     * Brings the container to running against [spec]. Container is (re)created when the spec
-     * requests it (needs_recreate — the current start-time recreate contract) or when it does not
-     * exist. Throws on failure so the caller reports UNHEALTHY / retries.
+     * Brings the container to running against [spec]. When [recreate] is true (the agent detected
+     * the stored spec differs from the one the container was last applied with) the existing
+     * container is removed first; otherwise an existing container is simply started, and a missing
+     * one is created. Throws on failure so the caller reports UNHEALTHY / retries.
      */
-    suspend fun ensureRunning(spec: StartContainerCommand) {
+    suspend fun ensureRunning(spec: StartContainerCommand, recreate: Boolean) {
         val containerName = spec.containerName
-        val needsCreate = spec.needsRecreate || !withContext(Dispatchers.IO) { containerManager.containerExists(containerName) }
-        log.info("Converge: start container $containerName (needsRecreate=${spec.needsRecreate}, needsCreate=$needsCreate)")
+        val exists = withContext(Dispatchers.IO) { containerManager.containerExists(containerName) }
+        val needsCreate = recreate || !exists
+        log.info("Converge: start container $containerName (recreate=$recreate, needsCreate=$needsCreate)")
         if (needsCreate) {
-            if (withContext(Dispatchers.IO) { containerManager.containerExists(containerName) }) {
+            if (exists) {
                 withContext(Dispatchers.IO) { containerManager.removeContainer(containerName, force = true) }
             }
             withContext(Dispatchers.IO) { containerManager.pullImage(spec.image) }

@@ -98,7 +98,6 @@ class ContainerLifecycleTest :
                         configMode = r[Servers.configMode],
                         stopCommand = r[Servers.stopCommand],
                         itzgImageTag = r[Servers.itzgImageTag],
-                        needsRecreate = r[Servers.needsRecreate],
                         desiredStatus = r[Servers.desiredStatus],
                         backupSchedule = r[Servers.backupSchedule],
                         backupMaxCount = r[Servers.backupMaxCount],
@@ -173,7 +172,6 @@ class ContainerLifecycleTest :
             cmd.serverId shouldBe serverId.toString()
             cmd.containerName shouldBe "craftpanel-$serverId"
             cmd.image shouldBe "itzg/minecraft-server:latest"
-            cmd.needsRecreate shouldBe false
             cmd.envVarsMap["EULA"] shouldBe "TRUE"
             cmd.envVarsMap["SERVER_PORT"] shouldBe "25565"
             cmd.internalListenPort shouldBe 25565

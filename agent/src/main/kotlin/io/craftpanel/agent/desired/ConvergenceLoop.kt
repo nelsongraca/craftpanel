@@ -73,7 +73,10 @@ class ConvergenceLoop(
                 force = false,
             )
         }
-        return launchConverge(cmd.serverId) { executeEnsureRunning(cmd.serverId) }
+        return launchConverge(cmd.serverId) {
+            val state = store.get(cmd.serverId)
+            executeEnsureRunning(cmd.serverId, recreate = state.appliedSpec != null && state.spec != state.appliedSpec)
+        }
     }
 
     /** Legacy stop command: store STOPPED intent (+ force), execute the stop directly. */
@@ -103,7 +106,11 @@ class ConvergenceLoop(
                 force = false,
             )
         }
-        return launchConverge(serverId) { executeConditionalRestart(serverId, timeoutSeconds, stopCommand) }
+        return launchConverge(serverId) {
+            val state = store.get(serverId)
+            val recreate = state.appliedSpec != null && state.spec != state.appliedSpec
+            executeConditionalRestart(serverId, recreate, timeoutSeconds, stopCommand)
+        }
     }
 
     /**
@@ -145,8 +152,8 @@ class ConvergenceLoop(
         // to a bare Docker SIGTERM.
         val stopCommand = state.spec?.stopCommand ?: ""
         when (val decision = result.decision) {
-            is ConvergenceDecision.EnsureRunning -> executeEnsureRunning(serverId)
-            is ConvergenceDecision.ConditionalRestart -> executeConditionalRestart(serverId, stopCommand = stopCommand)
+            is ConvergenceDecision.EnsureRunning -> executeEnsureRunning(serverId, decision.recreate)
+            is ConvergenceDecision.ConditionalRestart -> executeConditionalRestart(serverId, decision.recreate, stopCommand = stopCommand)
             is ConvergenceDecision.EnsureStopped -> {
                 if (actual.running) executeEnsureStopped(serverId, containerName, stopCommand = stopCommand)
             }
@@ -166,7 +173,7 @@ class ConvergenceLoop(
         }
     }
 
-    private suspend fun executeEnsureRunning(serverId: String) {
+    private suspend fun executeEnsureRunning(serverId: String, recreate: Boolean) {
         val state = store.get(serverId)
         val spec = state.spec
         if (spec == null) {
@@ -175,7 +182,7 @@ class ConvergenceLoop(
         }
         out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.STARTING)
         try {
-            operator.ensureRunning(spec)
+            operator.ensureRunning(spec, recreate)
             markHealthy(serverId, spec)
             out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.HEALTHY)
         } catch (e: Exception) {
@@ -184,14 +191,19 @@ class ConvergenceLoop(
         }
     }
 
-    private suspend fun executeConditionalRestart(serverId: String, timeoutSeconds: Int = DEFAULT_STOP_TIMEOUT, stopCommand: String = "") {
+    private suspend fun executeConditionalRestart(
+        serverId: String,
+        recreate: Boolean,
+        timeoutSeconds: Int = DEFAULT_STOP_TIMEOUT,
+        stopCommand: String = "",
+    ) {
         val state = store.get(serverId)
         val containerName = state.spec?.containerName ?: "$containerNamePrefix-$serverId"
         out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.STARTING)
         try {
             operator.ensureStopped(containerName, timeoutSeconds, stopCommand)
             if (state.spec != null) {
-                executeEnsureRunning(serverId)
+                executeEnsureRunning(serverId, recreate)
             } else {
                 // Legacy restart carries no spec — the container already exists, start by name.
                 operator.ensureRunningByName(containerName)

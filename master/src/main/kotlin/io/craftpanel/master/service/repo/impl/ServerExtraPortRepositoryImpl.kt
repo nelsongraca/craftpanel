@@ -67,17 +67,11 @@ class ServerExtraPortRepositoryImpl : ServerExtraPortRepository {
             it[PortRegistry.serverId] = EntityID(serverId, Servers)
         }
 
-        // Mark server as needing recreate when ports change
-        Servers.update({ Servers.id eq serverId }) {
-            it[needsRecreate] = true
-        }
-
         entity.toRow()
     }
 
     override fun deleteExtraPort(portId: Uuid): Boolean = transaction {
         val entity = ServerExtraPort.findById(portId) ?: return@transaction false
-        val sId = entity.serverId.value
         val nId = entity.nodeId.value
         val hPort = entity.hostPort
         val proto = entity.protocol
@@ -87,11 +81,6 @@ class ServerExtraPortRepositoryImpl : ServerExtraPortRepository {
         }
 
         entity.delete()
-
-        // Mark server as needing recreate when ports change
-        Servers.update({ Servers.id eq sId }) {
-            it[needsRecreate] = true
-        }
 
         true
     }

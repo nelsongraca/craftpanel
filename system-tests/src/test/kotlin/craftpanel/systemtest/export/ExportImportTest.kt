@@ -132,7 +132,6 @@ class ExportImportTest : BaseSystemTest() {
                     imported.disableHealthcheck shouldBe true
                     imported.forceRedownload shouldBe true
                     imported.expiresAt shouldBe "2027-12-31T23:59:59Z"
-                    imported.needsRecreate shouldBe false
                     imported.disabled shouldBe false
 
                     val envVars = api.getEnvVars(imported.id)

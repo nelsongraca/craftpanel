@@ -77,7 +77,6 @@ class ProxyBackendService(
                     this.order = b.order
                 }
             }
-            Server.findById(proxyServerId)?.let { it.needsRecreate = true }
         }
         writePatchIfRunning(serverRow.id, serverRow.status)
 

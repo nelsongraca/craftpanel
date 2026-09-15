@@ -17,7 +17,7 @@ class ConvergenceMachineTest :
                 .setWindowSeconds(windowSeconds)
                 .build()
 
-        val spec = StartContainerCommand.getDefaultInstance()
+        val baseSpec = StartContainerCommand.getDefaultInstance()
 
         fun state(
             desired: ServerDesiredState.Desired = ServerDesiredState.Desired.RUNNING,
@@ -27,12 +27,14 @@ class ConvergenceMachineTest :
             forceRestart: Boolean = false,
             force: Boolean = false,
             noRestart: Boolean = false,
+            spec: StartContainerCommand? = baseSpec,
+            appliedSpec: StartContainerCommand? = null,
         ) = DesiredState(
             serverId = "srv-1",
             desired = desired,
             spec = spec,
             budget = budget,
-            appliedSpec = null,
+            appliedSpec = appliedSpec,
             restartCount = restartCount,
             windowStartEpochMillis = windowStartEpochMillis,
             forceRestart = forceRestart,
@@ -77,25 +79,25 @@ class ConvergenceMachineTest :
 
         test("desired=RUNNING and running with force_restart issues ConditionalRestart") {
             val result = ConvergenceMachine.decide(state(forceRestart = true), running, now)
-            result.decision shouldBe ConvergenceDecision.ConditionalRestart
+            result.decision shouldBe ConvergenceDecision.ConditionalRestart(false)
             result.next.forceRestart shouldBe false
         }
 
         test("desired=RUNNING, stopped, force_restart pending consumes as an ordinary start") {
             val result = ConvergenceMachine.decide(state(forceRestart = true), stopped, now)
-            result.decision shouldBe ConvergenceDecision.EnsureRunning
+            result.decision shouldBe ConvergenceDecision.EnsureRunning(false)
             result.next.forceRestart shouldBe false
         }
 
         test("desired=RUNNING with container absent is provisioning — never budget-capped") {
             val exhausted = state(restartCount = 10, windowStartEpochMillis = now - 1)
             val result = ConvergenceMachine.decide(exhausted, absent, now)
-            result.decision shouldBe ConvergenceDecision.EnsureRunning
+            result.decision shouldBe ConvergenceDecision.EnsureRunning(false)
         }
 
         test("first crash within budget issues EnsureRunning and advances the counter") {
             val result = ConvergenceMachine.decide(state(), stopped, now)
-            result.decision shouldBe ConvergenceDecision.EnsureRunning
+            result.decision shouldBe ConvergenceDecision.EnsureRunning(false)
             result.next.restartCount shouldBe 1
             result.next.windowStartEpochMillis shouldBe now
         }
@@ -130,11 +132,44 @@ class ConvergenceMachineTest :
                 stopped,
                 now
             )
-            result.decision shouldBe ConvergenceDecision.EnsureRunning
+            result.decision shouldBe ConvergenceDecision.EnsureRunning(false)
         }
 
         test("no_restart suppresses the crash-restart while desired stays RUNNING") {
             val result = ConvergenceMachine.decide(state(noRestart = true), stopped, now)
+            result.decision shouldBe ConvergenceDecision.NoOp
+        }
+
+        // ── recreate-if-diff (retirement of needs_recreate) ────────────────────
+
+        val specA = baseSpec.toBuilder().setImage("img-a").build()
+        val specB = baseSpec.toBuilder().setImage("img-b").build()
+
+        test("stopped with a spec that differs from the applied spec recreates") {
+            val result = ConvergenceMachine.decide(state(spec = specB, appliedSpec = specA), stopped, now)
+            result.decision shouldBe ConvergenceDecision.EnsureRunning(recreate = true)
+        }
+
+        test("stopped with a spec equal to the applied spec does not recreate") {
+            val result = ConvergenceMachine.decide(state(spec = specA, appliedSpec = specA), stopped, now)
+            result.decision shouldBe ConvergenceDecision.EnsureRunning(recreate = false)
+        }
+
+        test("unknown applied spec (fresh agent process) does not recreate") {
+            val result = ConvergenceMachine.decide(state(spec = specA, appliedSpec = null), stopped, now)
+            result.decision shouldBe ConvergenceDecision.EnsureRunning(recreate = false)
+        }
+
+        test("running + force_restart with a spec diff recreates; without a diff it does not") {
+            val diff = ConvergenceMachine.decide(state(spec = specB, appliedSpec = specA, forceRestart = true), running, now)
+            diff.decision shouldBe ConvergenceDecision.ConditionalRestart(recreate = true)
+
+            val same = ConvergenceMachine.decide(state(spec = specA, appliedSpec = specA, forceRestart = true), running, now)
+            same.decision shouldBe ConvergenceDecision.ConditionalRestart(recreate = false)
+        }
+
+        test("running without force_restart and a spec diff is a NoOp (reconfigure at next start)") {
+            val result = ConvergenceMachine.decide(state(spec = specB, appliedSpec = specA), running, now)
             result.decision shouldBe ConvergenceDecision.NoOp
         }
     })

@@ -1170,7 +1170,7 @@ class ServersRoutesTest :
             }
         }
 
-        test("POST start sends ServerDesiredState envelope with needsRecreate=false") {
+        test("POST start sends ServerDesiredState envelope with the full runtime spec") {
             val gw = TestAgentGateway()
             testApplication {
                 testApp { jwtManager -> configureServersTest(gw) }
@@ -1189,26 +1189,6 @@ class ServersRoutesTest :
                 cmd.containerName shouldBe "craftpanel-$serverId"
                 cmd.image shouldBe "itzg/minecraft-server:latest"
                 cmd.envVarsMap["EULA"] shouldBe "TRUE"
-                cmd.needsRecreate shouldBe false
-            }
-        }
-
-        test("POST start sends ServerDesiredState with needsRecreate=true when server needs recreate") {
-            val gw = TestAgentGateway()
-            testApplication {
-                testApp { jwtManager -> configureServersTest(gw) }
-                val client = jsonClient()
-                val userId = createUser()
-                assignGlobalGroup(userId, "Super Admin")
-                val nodeId = createNode()
-                val serverId = createServer(nodeId, status = "STOPPED")
-                transaction { Servers.update({ Servers.id eq serverId }) { it[Servers.needsRecreate] = true } }
-                val resp = client.post("/api/servers/$serverId/start") { bearerAuth(tokenFor(userId)) }
-                resp.status shouldBe HttpStatusCode.Accepted
-                gw.sent.size shouldBe 1
-                val msg = gw.sent[0].second
-                msg.hasServerDesiredState() shouldBe true
-                msg.serverDesiredState.spec.needsRecreate shouldBe true
             }
         }
 

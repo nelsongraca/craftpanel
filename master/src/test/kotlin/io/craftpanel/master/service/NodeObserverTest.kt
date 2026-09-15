@@ -17,7 +17,6 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.uuid.Uuid
 
@@ -57,7 +56,6 @@ class NodeObserverTest :
                     it[Servers.memoryMb] = 1024
                     it[Servers.cpuShares] = 0
                     it[Servers.status] = "HEALTHY"
-                    it[Servers.needsRecreate] = true
                 }[Servers.id].value
             }
         }
@@ -66,12 +64,6 @@ class NodeObserverTest :
             Servers.selectAll()
                 .where { Servers.id eq serverId }
                 .first()[Servers.status]
-        }
-
-        fun dbNeedsRecreate(): Boolean = transaction {
-            Servers.selectAll()
-                .where { Servers.id eq serverId }
-                .first()[Servers.needsRecreate]
         }
 
         fun observer(events: MutableSharedFlow<AgentEvent>) = NodeObserver(
@@ -98,21 +90,7 @@ class NodeObserverTest :
             }
         }
 
-        test("clears needsRecreate on HEALTHY") {
-            runTest {
-                val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
-                val job = observer(events).start(this)
-                delay(50.milliseconds)
-
-                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY))
-                delay(50.milliseconds)
-
-                dbNeedsRecreate() shouldBe false
-                job.cancel()
-            }
-        }
-
-        test("does not clear needsRecreate on non-HEALTHY status") {
+        test("persists STOPPED from ServerStatusEvent") {
             runTest {
                 val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
                 val job = observer(events).start(this)
@@ -121,7 +99,7 @@ class NodeObserverTest :
                 events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STOPPED))
                 delay(50.milliseconds)
 
-                dbNeedsRecreate() shouldBe true
+                dbStatus() shouldBe "STOPPED"
                 job.cancel()
             }
         }

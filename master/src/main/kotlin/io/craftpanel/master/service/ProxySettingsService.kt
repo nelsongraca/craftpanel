@@ -60,7 +60,6 @@ class ProxySettingsService(
             e.proxyMotd = req.motd
             e.proxyMaxPlayers = req.maxPlayers
             e.proxyForwardingMode = mode
-            e.needsRecreate = true
         }
         writePatchIfRunning(proxyServerId, row.status)
 

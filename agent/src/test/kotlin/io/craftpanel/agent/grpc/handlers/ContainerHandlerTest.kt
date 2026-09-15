@@ -49,14 +49,13 @@ class ContainerHandlerTest :
         fun newHandler(cm: FakeContainerManager) =
             ContainerHandler(cm, config, mockk<NetworkManager>(relaxed = true))
 
-        fun startCmd(needsRecreate: Boolean = false, serverId: String = "srv-1") = startContainerCommand {
+        fun startCmd(serverId: String = "srv-1") = startContainerCommand {
             containerName = "craftpanel-$serverId"
             this.serverId = serverId
             serverName = "myserver"
             image = "itzg/minecraft-server:latest"
             hostPort = 25565
             internalListenPort = 25565
-            this.needsRecreate = needsRecreate
         }
 
         fun removeCmd(serverId: String = "srv-1") = removeContainerCommand {

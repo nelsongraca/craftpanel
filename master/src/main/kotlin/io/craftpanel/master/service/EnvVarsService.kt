@@ -51,7 +51,6 @@ class EnvVarsService(private val serverRepository: ServerRepository, private val
                     value = ev.value
                 }
             }
-            Server.findById(serverId)?.let { it.needsRecreate = true }
         }
         return getEnvVars(serverId)
     }
@@ -61,7 +60,6 @@ class EnvVarsService(private val serverRepository: ServerRepository, private val
         transaction {
             val e = Server.findById(serverId) ?: return@transaction
             e.stopCommand = req.stopCommand
-            e.needsRecreate = true
         }
     }
 
@@ -74,7 +72,6 @@ class EnvVarsService(private val serverRepository: ServerRepository, private val
         transaction {
             val e = Server.findById(serverId) ?: return@transaction
             e.configMode = req.configMode.name
-            e.needsRecreate = true
         }
         return getEnvVars(serverId)
     }

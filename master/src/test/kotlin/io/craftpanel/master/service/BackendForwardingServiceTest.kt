@@ -97,7 +97,7 @@ class BackendForwardingServiceTest :
             writeCalls.clear()
         }
 
-        test("writes patch + env + needs_recreate for each eligible Paper backend (modern)") {
+        test("writes patch + env for each eligible Paper backend (modern)") {
             val nodeId = createNode()
             val proxyId = createProxy(nodeId)
             val paperId = createBackend(nodeId, "paper-1", ServerType.PAPER)
@@ -141,9 +141,6 @@ class BackendForwardingServiceTest :
             }
             purpurEnv["ONLINE_MODE"] shouldBe "false"
             purpurEnv["PATCH_DEFINITIONS"] shouldBe "/data/craftpanel-paper-global.yml"
-
-            transaction { Server.findById(paperId)!!.needsRecreate shouldBe true }
-            transaction { Server.findById(purpurId)!!.needsRecreate shouldBe true }
         }
 
         test("warns for Vanilla backend (modern)") {

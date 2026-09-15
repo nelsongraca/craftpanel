@@ -134,11 +134,6 @@ class ServerRepositoryImpl :
             .size
     }
 
-    override fun updateNeedsRecreate(id: Uuid, value: Boolean) = transaction {
-        Server.findById(id)?.let { it.needsRecreate = value }
-        Unit
-    }
-
     override fun updateDesiredStatus(id: Uuid, value: String?) = transaction {
         Server.findById(id)?.let { it.desiredStatus = value }
         Unit
@@ -147,12 +142,6 @@ class ServerRepositoryImpl :
     override fun updateForwardingSecret(id: Uuid, enc: String) = transaction {
         Server.findById(id)?.let { it.forwardingSecretEnc = enc }
         Unit
-    }
-
-    override fun findIdsNeedingRecreateByNode(nodeId: Uuid): List<Uuid> = transaction {
-        Servers.selectAll()
-            .where { (Servers.nodeId eq nodeId) and (Servers.needsRecreate eq true) }
-            .map { it[Servers.id].value }
     }
 }
 
@@ -178,7 +167,6 @@ private fun ResultRow.toServerRow() = ServerRow(
     configMode = this[Servers.configMode],
     stopCommand = this[Servers.stopCommand],
     itzgImageTag = this[Servers.itzgImageTag],
-    needsRecreate = this[Servers.needsRecreate],
     disabled = this[Servers.disabled],
     expiresAt = this[Servers.expiresAt]?.toUtcString(),
     customServerJar = this[Servers.customServerJar],

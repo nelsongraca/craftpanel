@@ -56,7 +56,6 @@ function server(overrides: Record<string, unknown> = {}): Record<string, unknown
         custom_hostname: null,
         canonical_hostname: null,
         is_migrating: false,
-        needs_recreate: false,
         disabled: false,
         config_mode: "MANAGED",
         stop_command: "stop",

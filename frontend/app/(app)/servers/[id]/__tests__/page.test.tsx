@@ -60,7 +60,6 @@ function detailServer(overrides: Record<string, unknown> = {}): Record<string, u
         custom_hostname: null,
         canonical_hostname: null,
         is_migrating: false,
-        needs_recreate: false,
         disabled: false,
         config_mode: "MANAGED",
         stop_command: "stop",
@@ -138,16 +137,6 @@ describe("ServerDetailPage", () => {
 
             expect(screen.queryByRole("button", {name: "Restart"})).not.toBeInTheDocument();
             expect(screen.getByRole("button", {name: "Stop"})).toBeInTheDocument();
-        });
-
-        it("hides the Restart Now link in the needs_recreate banner when expired", async () => {
-            await renderDetail(
-                {status: "HEALTHY", expires_at: "2024-01-01T00:00:00Z", needs_recreate: true},
-                ["server.restart"],
-            );
-
-            expect(screen.getByText(/Settings saved/)).toBeInTheDocument();
-            expect(screen.queryByRole("button", {name: "Restart Now"})).not.toBeInTheDocument();
         });
     });
 

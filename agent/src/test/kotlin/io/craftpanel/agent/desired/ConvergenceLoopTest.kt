@@ -64,15 +64,14 @@ class ConvergenceLoopTest :
             scope = scope,
         )
 
-        fun startCmd(needsRecreate: Boolean = false, serverId: String = "srv-1", serverName: String = "myserver") =
+        fun startCmd(serverId: String = "srv-1", serverName: String = "myserver", image: String = "itzg/minecraft-server:latest") =
             startContainerCommand {
                 containerName = "craftpanel-$serverId"
                 this.serverId = serverId
                 this.serverName = serverName
-                image = "itzg/minecraft-server:latest"
+                this.image = image
                 hostPort = 25565
                 internalListenPort = 25565
-                this.needsRecreate = needsRecreate
             }
 
         fun desiredRunning(serverId: String = "srv-1", spec: StartContainerCommand? = null) =
@@ -151,9 +150,7 @@ class ConvergenceLoopTest :
             )
             runBlocking {
                 loop.applyLegacyStart(
-                    startCmd(serverId = serverId, serverName = srvName).toBuilder()
-                        .clearNeedsRecreate()
-                        .build()
+                    startCmd(serverId = serverId, serverName = srvName)
                 ).join()
             }
 
@@ -163,15 +160,18 @@ class ConvergenceLoopTest :
             byNameRoot.deleteRecursively()
         }
 
-        test("legacy start with needsRecreate removes the old container first, then recreates") {
+        test("legacy start recreates the old container when the stored spec differs from the applied spec") {
             val cm = FakeContainerManager()
-            cm.createContainer(startCmd().toBuilder().clearNeedsRecreate().build())
+            cm.createContainer(startCmd())
             cm.startContainer("craftpanel-srv-1")
             cm.calls.clear()
+            val store = DesiredStateStore()
+            val oldSpec = startCmd(image = "old-image")
+            store.upsert("srv-1") { it.copy(spec = oldSpec, appliedSpec = oldSpec) }
             val (channel, out) = newOutbound()
-            val loop = newLoop(cm, out)
+            val loop = newLoop(cm, out, store = store)
 
-            runBlocking { loop.applyLegacyStart(startCmd(needsRecreate = true)).join() }
+            runBlocking { loop.applyLegacyStart(startCmd(image = "new-image")).join() }
 
             cm.calls.filter { it.startsWith("remove:") || it.startsWith("create:") || it.startsWith("start:") } shouldBe
                 listOf("remove:craftpanel-srv-1", "create:craftpanel-srv-1", "start:craftpanel-srv-1")
@@ -180,7 +180,7 @@ class ConvergenceLoopTest :
                 .last().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
         }
 
-        test("legacy start without needsRecreate on existing container skips the create path") {
+        test("legacy start on an existing container with an unknown applied spec skips the create path") {
             val cm = FakeContainerManager()
             cm.createContainer(startCmd())
             cm.calls.clear()
@@ -339,6 +339,50 @@ class ConvergenceLoopTest :
             cm.calls.any { it.startsWith("start:") } shouldBe false
             channel.statuses()
                 .last().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
+        }
+
+        test("applyDesired RUNNING recreates a stopped container when the pushed spec differs") {
+            val cm = FakeContainerManager()
+            val (channel, out) = newOutbound()
+            val loop = newLoop(cm, out)
+
+            runBlocking {
+                loop.applyDesired(desiredRunning(spec = startCmd(image = "img-a"))).join()
+                loop.applyDesired(
+                    serverDesiredState {
+                        serverId = "srv-1"
+                        desired = ServerDesiredState.Desired.STOPPED
+                    }
+                ).join()
+                cm.calls.clear()
+                loop.applyDesired(desiredRunning(spec = startCmd(image = "img-b"))).join()
+            }
+
+            cm.calls.filter { it.startsWith("remove:") || it.startsWith("create:") || it.startsWith("start:") } shouldBe
+                listOf("remove:craftpanel-srv-1", "create:craftpanel-srv-1", "start:craftpanel-srv-1")
+            channel.statuses()
+                .last().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
+        }
+
+        test("applyDesired RUNNING re-push of the same spec does not recreate") {
+            val cm = FakeContainerManager()
+            val (channel, out) = newOutbound()
+            val loop = newLoop(cm, out)
+
+            runBlocking {
+                loop.applyDesired(desiredRunning(spec = startCmd(image = "img-a"))).join()
+                loop.applyDesired(
+                    serverDesiredState {
+                        serverId = "srv-1"
+                        desired = ServerDesiredState.Desired.STOPPED
+                    }
+                ).join()
+                cm.calls.clear()
+                loop.applyDesired(desiredRunning(spec = startCmd(image = "img-a"))).join()
+            }
+
+            cm.calls.any { it.startsWith("remove:") || it.startsWith("create:") } shouldBe false
+            cm.calls.filter { it.startsWith("start:") } shouldBe listOf("start:craftpanel-srv-1")
         }
 
         // ── crash-restart convergence ─────────────────────────────────────────
