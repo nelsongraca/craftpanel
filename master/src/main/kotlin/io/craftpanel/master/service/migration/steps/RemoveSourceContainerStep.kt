@@ -10,6 +10,8 @@ class RemoveSourceContainerStep : MigrationStep {
     override suspend fun execute(plan: MigrationPlan, coord: MigrationCoordinator): StepResult = runCatching {
         coord.lifecycle.remove(plan.serverRow, plan.sourceNodeIdStr)
         plan.sourceStopped = false
+        // Container (and its agent-side desired state) is gone — the sync guard is moot.
+        plan.sourceGuarded = false
         StepResult.Success
     }.getOrElse { e ->
         coord.restartSource(plan)

@@ -7,6 +7,7 @@ import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
+import io.craftpanel.proto.ServerDesiredState
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -110,16 +111,17 @@ class MigrationCoordinatorTest :
                 targetPrivateIp = "10.0.0.2"
             )
             val repos = TestRepositories()
+            val gateway = TestAgentGateway()
             coord = MigrationCoordinator(
                 migrationRepository = repos.migrationRepository,
                 serverRepository = repos.serverRepository,
                 portRepository = repos.portRepository,
                 proxyBackendRepository = repos.proxyBackendRepository,
                 nodeRepository = NodeRepositoryImpl(),
-                gateway = TestAgentGateway(),
+                gateway = gateway,
                 dnsProvider = null,
                 lifecycle = ContainerLifecycle(
-                    gateway = TestAgentGateway(),
+                    gateway = gateway,
                     modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
                     serverRepository = repos.serverRepository,
                     envVarsRepository = repos.envVarsRepository
@@ -290,7 +292,10 @@ class MigrationCoordinatorTest :
 
                 gateway.sent.size shouldBe 1
                 gateway.sent[0].first shouldBe nodeId.toString()
-                gateway.sent[0].second.restartContainer.serverId shouldBe proxyServerId.toString()
+                gateway.sent[0].second.hasServerDesiredState() shouldBe true
+                gateway.sent[0].second.serverDesiredState.desired shouldBe ServerDesiredState.Desired.RUNNING
+                gateway.sent[0].second.serverDesiredState.forceRestart shouldBe true
+                gateway.sent[0].second.serverDesiredState.serverId shouldBe proxyServerId.toString()
             }
         }
 
@@ -298,5 +303,58 @@ class MigrationCoordinatorTest :
             runTest {
                 coord.resolveTargetDns(plan) shouldBe null
             }
+        }
+
+        // ── source crash-restart guard during live sync ────────────────────────
+
+        test("guardSource sends a no_restart RUNNING envelope to the source node") {
+            val gateway = coord.gateway as TestAgentGateway
+            val runningPlan = plan.copy(serverRow = plan.serverRow.copy(status = "HEALTHY"))
+            coord.guardSource(runningPlan)
+
+            gateway.sent.size shouldBe 1
+            gateway.sent[0].first shouldBe runningPlan.sourceNodeIdStr
+            gateway.sent[0].second.hasServerDesiredState() shouldBe true
+            gateway.sent[0].second.serverDesiredState.desired shouldBe ServerDesiredState.Desired.RUNNING
+            gateway.sent[0].second.serverDesiredState.noRestart shouldBe true
+            runningPlan.sourceGuarded shouldBe true
+        }
+
+        test("guardSource is skipped for a stopped source (no envelope, no guard)") {
+            val gateway = coord.gateway as TestAgentGateway
+            coord.guardSource(plan) // plan.serverRow.status == STOPPED
+
+            gateway.sent.size shouldBe 0
+            plan.sourceGuarded shouldBe false
+        }
+
+        test("unfreezeSource clears the guard without restarting when the source is still running") {
+            val gateway = coord.gateway as TestAgentGateway
+            val runningPlan = plan.copy(serverRow = plan.serverRow.copy(status = "HEALTHY"))
+            coord.guardSource(runningPlan)
+            gateway.sent.clear()
+
+            coord.unfreezeSource(runningPlan)
+
+            gateway.sent.size shouldBe 1
+            gateway.sent[0].second.serverDesiredState.desired shouldBe ServerDesiredState.Desired.RUNNING
+            gateway.sent[0].second.serverDesiredState.noRestart shouldBe false
+            runningPlan.sourceGuarded shouldBe false
+        }
+
+        test("unfreezeSource is a no-op when no guard was set") {
+            val gateway = coord.gateway as TestAgentGateway
+            coord.unfreezeSource(plan)
+            gateway.sent.size shouldBe 0
+        }
+
+        test("unfreezeSource restarts the source (clears the guard) when it was stopped") {
+            val runningPlan = plan.copy(serverRow = plan.serverRow.copy(status = "HEALTHY"))
+            coord.guardSource(runningPlan)
+            runningPlan.sourceStopped = true
+
+            coord.unfreezeSource(runningPlan)
+
+            runningPlan.sourceGuarded shouldBe false
         }
     })

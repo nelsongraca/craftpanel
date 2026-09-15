@@ -44,7 +44,8 @@ class ContainerLifecycle(
         force: Boolean = false,
         forceRestart: Boolean = false,
         publicHostname: String? = null,
-    ): Boolean = send(nodeId, buildDesiredStateMessage(server, desired, force, forceRestart, publicHostname))
+        noRestart: Boolean = false,
+    ): Boolean = send(nodeId, buildDesiredStateMessage(server, desired, force, forceRestart, publicHostname, noRestart))
 
     fun sendRemove(server: ServerRow, nodeId: String, force: Boolean = false): Boolean {
         val id = server.id
@@ -151,6 +152,7 @@ class ContainerLifecycle(
         force: Boolean,
         forceRestart: Boolean,
         publicHostname: String?,
+        noRestart: Boolean,
     ): MasterMessage {
         val (maxAttempts, windowSeconds) = restartBudgetProvider()
         return masterMessage {
@@ -163,6 +165,7 @@ class ContainerLifecycle(
                 this.spec = buildStartSpec(server, publicHostname)
                 this.force = force
                 this.forceRestart = forceRestart
+                this.noRestart = noRestart
                 this.restartBudget = restartBudget {
                     this.maxAttempts = maxAttempts
                     this.windowSeconds = windowSeconds

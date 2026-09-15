@@ -17,6 +17,9 @@ class InitialRsyncStep : MigrationStep {
     override val description = "Initial rsync pass (live data sync)"
 
     override suspend fun execute(plan: MigrationPlan, coord: MigrationCoordinator): StepResult {
+        // Guard the source from autonomous crash-restart for the whole sync window before the
+        // first transfer command reaches the source agent (ordering on the control stream).
+        coord.guardSource(plan)
         val completeChannel = Channel<AgentEvent.RsyncCompleteEvent>(1)
         val progressJob = coord.scope.launch {
             coord.gateway.agentEvents.filterIsInstance<AgentEvent.RsyncProgressEvent>()

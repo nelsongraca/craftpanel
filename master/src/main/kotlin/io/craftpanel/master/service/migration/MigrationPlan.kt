@@ -24,6 +24,8 @@ data class MigrationPlan(
     var rsyncPort: Int = 0
     var rsyncPassword: String = ""
     var sourceStopped: Boolean = false
+    /** True while the source is under a `no_restart` guard for the duration of the live sync. */
+    var sourceGuarded: Boolean = false
     var assignedPort: Int = 0
     var freshServerRow: ServerRow? = null
 }

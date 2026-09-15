@@ -14,6 +14,7 @@ import kotlin.time.Duration.Companion.seconds
 class MigrationRunner(private val steps: List<MigrationStep>, private val plan: MigrationPlan, private val coord: MigrationCoordinator) {
 
     suspend fun run() {
+        var completed = false
         try {
             for (step in steps) {
                 val stepId = coord.startStep(plan, step.stepNumber, step.description)
@@ -30,7 +31,11 @@ class MigrationRunner(private val steps: List<MigrationStep>, private val plan: 
             }
             coord.updateStatus(plan, MigrationStatus.COMPLETED)
             coord.emit(MigrationEvent.Completed)
+            completed = true
         } finally {
+            // A failed migration must not leave the source under the no_restart sync guard —
+            // otherwise a future crash would never auto-restart it.
+            if (!completed) runCatching { coord.unfreezeSource(plan) }
             runCatching {
                 coord.gateway.sendToNode(
                     plan.targetNodeIdStr,

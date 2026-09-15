@@ -65,6 +65,29 @@ class ServerMigrationTest : BaseSystemTest() {
                 server.nodeId shouldBe targetNodeId
             }
 
+            should("migrates a RUNNING server (source guarded) to target node and reaches terminal state") {
+                val serverId = helper.createTestServer(sourceNodeId)
+                    .also { serverIds.add(it) }
+
+                api.startServer(serverId)
+                helper.awaitStatus(serverId, ServerStatus.HEALTHY, timeoutMs = 120_000)
+
+                val response = api.startMigration(
+                    serverId,
+                    MigrateRequest(
+                        targetNodeId = targetNodeId,
+                        rsyncImage = "alpine:latest",
+                        playerWarningMessage = "test migration"
+                    )
+                )
+
+                val migration = pollMigrationStatus(api, response.id, 180_000)
+                migration.status shouldBe MigrationStatus.COMPLETED
+
+                val server = api.getServer(serverId)
+                server.nodeId shouldBe targetNodeId
+            }
+
             should("server can start on target node after migration") {
                 val serverId = helper.createTestServer(sourceNodeId)
                     .also { serverIds.add(it) }

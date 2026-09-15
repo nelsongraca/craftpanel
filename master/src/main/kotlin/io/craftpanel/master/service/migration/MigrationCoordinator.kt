@@ -4,12 +4,12 @@ import io.craftpanel.master.database.entity.MigrationStep
 import io.craftpanel.master.database.entity.ServerMigration
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.dns.DnsProvider
+import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.domain.MigrationStatus
 import io.craftpanel.master.domain.MigrationStepStatus
+import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.*
 import io.craftpanel.master.service.repo.*
-import io.craftpanel.proto.masterMessage
-import io.craftpanel.proto.restartContainerCommand
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.launch
@@ -100,6 +100,50 @@ open class MigrationCoordinator(
                 runCatching { lifecycle.start(plan.serverRow, nodeId = plan.sourceNodeIdStr) }
             }
         }
+        // A clean start/no-restart envelope supersedes the guard.
+        plan.sourceGuarded = false
+    }
+
+    /**
+     * Guards the source from autonomous crash-restart for the duration of the live sync: a crash
+     * mid-rsync must not bring the (fingerprinted) source container back and mutate the data set.
+     */
+    open fun guardSource(plan: MigrationPlan) {
+        // A stopped source has no process to crash-restart — and pushing desired=RUNNING would make
+        // the agent create/start it, so the guard is only meaningful for a running source.
+        if (!ServerStatus.fromDb(plan.serverRow.status).isRunning) {
+            plan.sourceGuarded = false
+            log.info("Migration ${plan.migrationIdStr}: source ${plan.serverIdStr} is not running — skipping no_restart guard")
+            return
+        }
+        val sent = lifecycle.sendDesiredState(
+            plan.serverRow,
+            DesiredStatus.RUNNING,
+            nodeId = plan.sourceNodeIdStr,
+            noRestart = true,
+        )
+        if (sent) {
+            plan.sourceGuarded = true
+            log.info("Migration ${plan.migrationIdStr}: source ${plan.serverIdStr} guarded (no_restart) for live sync")
+        } else {
+            log.warn("Migration ${plan.migrationIdStr}: could not guard source ${plan.serverIdStr} — agent not connected")
+        }
+    }
+
+    /** Clears the source `no_restart` guard after a failed migration (restarts it if it was stopped). */
+    open fun unfreezeSource(plan: MigrationPlan) {
+        if (!plan.sourceGuarded) return
+        if (plan.sourceStopped) {
+            restartSource(plan)
+        } else {
+            val sent = lifecycle.sendDesiredState(plan.serverRow, DesiredStatus.RUNNING, nodeId = plan.sourceNodeIdStr)
+            if (sent) {
+                log.info("Migration ${plan.migrationIdStr}: source ${plan.serverIdStr} no_restart guard cleared")
+            } else {
+                log.warn("Migration ${plan.migrationIdStr}: could not clear source guard — agent not connected")
+            }
+        }
+        plan.sourceGuarded = false
     }
 
     open fun allocateRsyncPort(plan: MigrationPlan): Int {
@@ -125,17 +169,11 @@ open class MigrationCoordinator(
         if (proxyServerIds.isEmpty()) return
         for (proxyServerId in proxyServerIds) {
             val proxyServer = serverRepository.findById(proxyServerId) ?: continue
-            val nodeIdStr = proxyServer.nodeId.toString()
-            val sent = gateway.sendToNode(
-                nodeIdStr,
-                masterMessage {
-                    restartContainer = restartContainerCommand { this.serverId = proxyServerId.toString() }
-                }
-            )
+            val sent = lifecycle.sendDesiredState(proxyServer, DesiredStatus.RUNNING, forceRestart = true)
             if (sent) {
-                log.info("Triggered proxy restart for server $proxyServerId on node $nodeIdStr after migration of $serverId to $targetIp:$port")
+                log.info("Triggered proxy restart for server $proxyServerId after migration of $serverId to $targetIp:$port")
             } else {
-                log.warn("Could not reach node $nodeIdStr to restart proxy $proxyServerId after migration of $serverId — manual restart may be required")
+                log.warn("Could not reach node ${proxyServer.nodeId} to restart proxy $proxyServerId after migration of $serverId — manual restart may be required")
             }
         }
     }

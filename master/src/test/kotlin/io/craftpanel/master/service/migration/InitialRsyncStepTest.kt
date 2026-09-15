@@ -43,7 +43,7 @@ class InitialRsyncStepTest :
             serverRow = ServerRow(
                 id = Uuid.random(), name = "test", displayName = "test",
                 description = null, nodeId = Uuid.random(), networkId = null,
-                serverType = ServerType.VANILLA, mcVersion = "1.21.4", status = "RUNNING",
+                serverType = ServerType.VANILLA, mcVersion = "1.21.4", status = "HEALTHY",
                 hostPort = 25565, memoryMb = 1024, cpuShares = 0,
                 exposedExternally = false, publicSubdomain = null,
                 dnsRecordId = null, dnsRecordName = null, customHostname = null,
