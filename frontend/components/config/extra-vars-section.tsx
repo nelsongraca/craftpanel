@@ -55,11 +55,12 @@ export function ExtraVarsSection({
                                 />
                             </td>
                             <td className="px-4 py-2">
-                                <input
+                                <textarea
                                     value={r.value}
                                     onChange={(e) => onUpdate(i, "value", e.target.value)}
                                     placeholder="value"
-                                    className="bg-surface-higher border border-border rounded px-2 py-1 text-xs font-mono text-text-primary w-full focus:border-accent/50 focus:outline-none"
+                                    rows={2}
+                                    className="bg-surface-higher border border-border rounded px-2 py-1 text-xs font-mono text-text-primary w-full resize-y focus:border-accent/50 focus:outline-none"
                                 />
                             </td>
                             <td className="px-4 py-2">

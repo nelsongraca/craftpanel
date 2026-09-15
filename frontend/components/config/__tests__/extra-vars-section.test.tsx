@@ -52,4 +52,27 @@ describe('ExtraVarsSection', () => {
         fireEvent.change(valueInput, {target: {value: 'baz'}})
         expect(onUpdate).toHaveBeenCalledWith(0, 'value', 'baz')
     })
+
+    it('renders multi-line value in textarea', () => {
+        const vars: EnvVarItem[] = [{key: 'CERT', value: 'line1\nline2\nline3'}]
+        render(<ExtraVarsSection extraVars={vars} onUpdate={vi.fn()} onRemove={vi.fn()} onAdd={vi.fn()}/>)
+        const textarea = screen.getByDisplayValue('line1\nline2\nline3', {collapseWhitespace: false, trim: false})
+        expect(textarea.tagName).toBe('TEXTAREA')
+    })
+
+    it('calls onUpdate with multi-line value on textarea change', () => {
+        const onUpdate = vi.fn()
+        const vars: EnvVarItem[] = [{key: 'CERT', value: 'old'}]
+        render(<ExtraVarsSection extraVars={vars} onUpdate={onUpdate} onRemove={vi.fn()} onAdd={vi.fn()}/>)
+        const textarea = screen.getByDisplayValue('old')
+        fireEvent.change(textarea, {target: {value: 'new\nline2'}})
+        expect(onUpdate).toHaveBeenCalledWith(0, 'value', 'new\nline2')
+    })
+
+    it('key field remains a single-line input', () => {
+        const vars: EnvVarItem[] = [{key: 'FOO', value: 'bar'}]
+        render(<ExtraVarsSection extraVars={vars} onUpdate={vi.fn()} onRemove={vi.fn()} onAdd={vi.fn()}/>)
+        const keyInput = screen.getByDisplayValue('FOO')
+        expect(keyInput.tagName).toBe('INPUT')
+    })
 })
