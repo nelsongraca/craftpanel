@@ -18,21 +18,21 @@ import io.kotest.matchers.shouldBe
 class ServerSignalStopTest : BaseSystemTest() {
 
     init {
+        lateinit var serverId: String
+
+        beforeSpec {
+            serverId = helper.createTestServer(nodeId)
+        }
+        afterSpec {
+            runCatching {
+                api.stopServer(serverId)
+                helper.awaitStatus(serverId, ServerStatus.STOPPED)
+                api.deleteServer(serverId)
+            }
+            helper.awaitStoppedOrGone(serverId)
+        }
+
         context("Signal stop commands") {
-
-            lateinit var serverId: String
-
-            beforeContainer {
-                serverId = helper.createTestServer(nodeId)
-            }
-            afterContainer {
-                runCatching {
-                    api.stopServer(serverId)
-                    helper.awaitStatus(serverId, ServerStatus.STOPPED)
-                    api.deleteServer(serverId)
-                }
-                helper.awaitStoppedOrGone(serverId)
-            }
 
             should("^C stop command delivers SIGINT for a graceful exit") {
                 api.updateStopCommand(serverId, PatchStopCommandRequest(stopCommand = "^C"))
