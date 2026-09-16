@@ -1,5 +1,5 @@
 import {describe, it, expect} from 'vitest'
-import type {FieldDef, Section, EditableBackend} from '../field-types'
+import type {FieldDef, Section} from '../field-types'
 
 describe('field-types', () => {
     it('FieldDef type accepts all valid shapes', () => {
@@ -50,17 +50,5 @@ describe('field-types', () => {
         }
         expect(section.collapsible).toBe(true)
         expect(section.defaultOpen).toBe(false)
-    })
-
-    it('EditableBackend type accepts all fields', () => {
-        const backend: EditableBackend = {
-            backendServerId: 'abc',
-            backendName: 'survival',
-            order: 1,
-            displayName: 'Survival',
-            serverType: 'PAPER',
-            status: 'RUNNING',
-        }
-        expect(backend.backendName).toBe('survival')
     })
 })

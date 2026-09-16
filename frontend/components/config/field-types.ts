@@ -17,13 +17,3 @@ export interface Section {
     collapsible?: boolean;
     defaultOpen?: boolean;
 }
-
-export type EditableBackend = {
-    id?: string;
-    backendServerId: string;
-    backendName: string;
-    order: number;
-    displayName: string;
-    serverType: string;
-    status: string;
-};

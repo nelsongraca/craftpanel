@@ -87,17 +87,3 @@ export function IconActionButton({
         </button>
     );
 }
-
-export function ListBody({children}: { children: ReactNode }) {
-    return <tbody>{children}</tbody>;
-}
-
-export function ListEmpty({message}: { message: string }) {
-    return (
-        <tr>
-            <td colSpan={99} className="py-8 text-center text-xs text-text-muted">
-                {message}
-            </td>
-        </tr>
-    );
-}

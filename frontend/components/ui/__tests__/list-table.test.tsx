@@ -1,7 +1,7 @@
 import {describe, it, expect, vi} from 'vitest'
 import {render, screen} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import {ListTh, ListTd, ListActions, IconActionButton, ListBody, ListEmpty} from '../list-table'
+import {ListTh, ListTd, ListActions, IconActionButton} from '../list-table'
 
 describe('ListTh', () => {
     it('renders children', () => {
@@ -75,25 +75,5 @@ describe('IconActionButton', () => {
     it('applies danger tone classes', () => {
         render(<IconActionButton icon={<span>X</span>} label="Delete" onClick={vi.fn()} danger/>)
         expect(screen.getByRole('button').className).toContain('hover:text-error')
-    })
-})
-
-describe('ListBody', () => {
-    it('renders children', () => {
-        render(<table><ListBody><tr><td>row</td></tr></ListBody></table>)
-        expect(screen.getByText('row')).toBeInTheDocument()
-    })
-})
-
-describe('ListEmpty', () => {
-    it('renders message', () => {
-        render(<table><tbody><ListEmpty message="No items found"/></tbody></table>)
-        expect(screen.getByText('No items found')).toBeInTheDocument()
-    })
-
-    it('sets colSpan', () => {
-        render(<table><tbody><ListEmpty message="Empty"/></tbody></table>)
-        const td = screen.getByText('Empty').closest('td')
-        expect(td).toHaveAttribute('colspan', '99')
     })
 })
