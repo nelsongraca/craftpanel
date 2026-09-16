@@ -2,7 +2,7 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.service.repo.ServerRepository
-import io.craftpanel.master.service.repo.ServerRow
+import io.craftpanel.master.service.repo.ServerView
 import org.slf4j.LoggerFactory
 import kotlin.uuid.Uuid
 
@@ -11,10 +11,7 @@ import kotlin.uuid.Uuid
  * Used at boot time (first-time push to already-connected agents) and after every node reconnect
  * (so the agent re-acquires master's intent without waiting for a user action).
  */
-class DesiredStateSyncService(
-    private val lifecycle: ContainerLifecycle,
-    private val serverRepository: ServerRepository,
-) {
+class DesiredStateSyncService(private val lifecycle: ContainerLifecycle, private val serverRepository: ServerRepository) {
     private val log = LoggerFactory.getLogger(DesiredStateSyncService::class.java)
 
     /** Push desired-state envelopes for every server on [nodeId] that has a non-null [DesiredStatus]. */
@@ -28,7 +25,7 @@ class DesiredStateSyncService(
         pushAll(serverRepository.listAll())
     }
 
-    private suspend fun pushAll(servers: List<ServerRow>) {
+    private suspend fun pushAll(servers: List<ServerView>) {
         var pushed = 0
         for (server in servers) {
             val desired = DesiredStatus.fromDb(server.desiredStatus) ?: continue

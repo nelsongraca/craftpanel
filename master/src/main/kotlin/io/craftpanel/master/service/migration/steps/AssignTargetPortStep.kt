@@ -31,14 +31,22 @@ class AssignTargetPortStep : MigrationStep {
             }
 
             transaction { PortRegistry.deleteWhere { PortRegistry.serverId eq plan.serverId } }
-            transaction { PortRegistry.insert { it[PortRegistry.nodeId] = EntityID(plan.targetNodeId, Nodes); it[PortRegistry.port] = plan.assignedPort; it[PortRegistry.protocol] = "TCP"; it[PortRegistry.serverId] = EntityID(plan.serverId, Servers) } }
+            transaction {
+                PortRegistry.insert {
+                    it[PortRegistry.nodeId] = EntityID(plan.targetNodeId, Nodes)
+                    it[PortRegistry.port] = plan.assignedPort
+                    it[PortRegistry.protocol] = "TCP"
+                    it[PortRegistry.serverId] =
+                        EntityID(plan.serverId, Servers)
+                }
+            }
 
             if (plan.assignedPort != existingPort) {
                 transaction { Server.findById(plan.serverId)?.let { it.hostPort = plan.assignedPort } }
             }
 
-            plan.freshServerRow = coord.serverRepository.findById(plan.serverId)
-            if (plan.freshServerRow == null) {
+            plan.freshServerView = coord.serverRepository.findById(plan.serverId)
+            if (plan.freshServerView == null) {
                 coord.restartSource(plan)
                 return StepResult.Failure("Server row not found after port assignment")
             }

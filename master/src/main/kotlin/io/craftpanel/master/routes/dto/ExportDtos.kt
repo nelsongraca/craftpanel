@@ -34,35 +34,29 @@ data class ServerExportData(
     @SerialName("env_vars") val envVars: List<EnvVarExportItem>? = null,
     @SerialName("extra_ports") val extraPorts: List<ExtraPortExportItem>? = null,
     @SerialName("mods") val mods: List<ModExportItem>? = null,
-    @SerialName("proxy_backends") val proxyBackends: List<ProxyBackendExportItem>? = null,
+    @SerialName("proxy_backends") val proxyBackends: List<ProxyBackendExportItem>? = null
 )
 
 @Serializable
-data class EnvVarExportItem(
-    val key: String,
-    val value: String,
-)
+data class EnvVarExportItem(val key: String, val value: String)
 
 @Serializable
-data class ExtraPortExportItem(
-    val name: String,
-    @SerialName("container_port") val containerPort: Int,
-    val protocol: String = "TCP",
-)
+data class ExtraPortExportItem(val name: String, @SerialName("container_port") val containerPort: Int, val protocol: String = "TCP")
 
 @Serializable
 data class ModExportItem(
     @SerialName("modrinth_project_id") val modrinthProjectId: String,
     @SerialName("display_name") val displayName: String,
     @SerialName("pin_strategy") val pinStrategy: String,
-    @SerialName("pinned_version_id") val pinnedVersionId: String? = null,
+    @SerialName("pinned_version_id") val pinnedVersionId: String? = null
 )
 
 @Serializable
 data class ProxyBackendExportItem(
     @SerialName("backend_server_id") val backendServerId: String? = null,
+    @SerialName("backend_server_name") val backendServerName: String? = null,
     @SerialName("backend_name") val backendName: String,
-    val order: Int,
+    val order: Int
 )
 
 @Serializable
@@ -72,18 +66,11 @@ data class NetworkExportData(
     val name: String,
     val description: String? = null,
     @SerialName("proxy_port") val proxyPort: Int? = null,
-    val servers: List<ServerExportData>? = null,
+    val servers: List<ServerExportData>? = null
 )
 
 @Serializable
-data class ImportServerRequest(
-    val data: ServerExportData,
-    @SerialName("node_id") val nodeId: String,
-    @SerialName("network_id") val networkId: String? = null,
-)
+data class ImportServerRequest(val data: ServerExportData, @SerialName("node_id") val nodeId: String, @SerialName("network_id") val networkId: String? = null)
 
 @Serializable
-data class ImportNetworkRequest(
-    val data: NetworkExportData,
-    @SerialName("node_assignments") val nodeAssignments: Map<String, String>,
-)
+data class ImportNetworkRequest(val data: NetworkExportData, @SerialName("node_assignments") val nodeAssignments: Map<String, String>)

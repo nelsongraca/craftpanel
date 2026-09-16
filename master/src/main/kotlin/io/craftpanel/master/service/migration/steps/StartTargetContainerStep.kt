@@ -8,7 +8,7 @@ class StartTargetContainerStep : MigrationStep {
     override val description = "Create and start server container on target node"
 
     override suspend fun execute(plan: MigrationPlan, coord: MigrationCoordinator): StepResult {
-        val server = plan.freshServerRow ?: return StepResult.Failure("Server row not available")
+        val server = plan.freshServerView ?: return StepResult.Failure("Server row not available")
         return runCatching {
             coord.lifecycle.start(server, nodeId = plan.targetNodeIdStr)
             StepResult.Success

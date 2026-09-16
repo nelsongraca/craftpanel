@@ -3,7 +3,7 @@ import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.domain.*
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.NodeRow
-import io.craftpanel.master.service.repo.ServerRow
+import io.craftpanel.master.service.repo.ServerView
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
@@ -21,7 +21,7 @@ private class FixedClock(private val instant: Instant) : Clock {
 
 private val FIXED_INSTANT = Instant.parse("2026-01-01T00:00:00Z")
 
-private fun serverRow(id: Uuid, networkId: Uuid? = null, nodeId: Uuid = Uuid.random()) = ServerRow(
+private fun serverRow(id: Uuid, networkId: Uuid? = null, nodeId: Uuid = Uuid.random()) = ServerView(
     id = id, name = "test-server", displayName = "test-server",
     description = null, nodeId = nodeId, networkId = networkId,
     serverType = ServerType.VANILLA, mcVersion = "1.21.4", status = "HEALTHY",

@@ -16,11 +16,12 @@ import kotlin.uuid.Uuid
 
 fun Route.serversRoutes(
     serverService: ServerService,
+    provisioning: ServerProvisioning,
     queryService: ServerQueryService,
     lifecycleService: ServerLifecycleService,
     exposureService: ServerExposureService,
     serverExposure: ServerExposure,
-    exportService: ExportService,
+    exportService: ExportService
 ) {
     authenticate(JWT_AUTH) {
         route("/api/servers") {
@@ -36,8 +37,7 @@ fun Route.serversRoutes(
                 val rows = queryService.listServers(userId)
                 val migratingIds = if (rows.isEmpty()) {
                     emptySet()
-                }
-                else {
+                } else {
                     rows.filter { queryService.isMigrating(it.id) }
                         .map { it.id }
                         .toSet()
@@ -66,23 +66,25 @@ fun Route.serversRoutes(
                     }
                 }
                 if (req.expiresAt != null) call.requirePermission(Permission.SERVER_EXPIRES)
-                val row = serverService.createServer(
-                    name = req.name,
-                    displayName = req.displayName,
-                    description = req.description,
-                    nodeId = req.nodeId,
-                    networkId = req.networkId,
-                    serverType = req.serverType,
-                    mcVersion = req.mcVersion,
-                    itzgImageTag = req.itzgImageTag,
-                    memoryMb = req.memoryMb,
-                    cpuShares = req.cpuShares,
-                    expiresAt = req.expiresAt,
-                    customServerJar = req.customServerJar,
-                    containerListenPort = req.containerListenPort,
-                    containerProtocol = req.containerProtocol,
-                    disableHealthcheck = req.disableHealthcheck,
-                    forceRedownload = req.forceRedownload
+                val row = provisioning.provision(
+                    ServerProvisionSpec(
+                        name = req.name,
+                        displayName = req.displayName,
+                        description = req.description,
+                        nodeId = req.nodeId,
+                        networkId = req.networkId,
+                        serverType = req.serverType,
+                        mcVersion = req.mcVersion,
+                        itzgImageTag = req.itzgImageTag,
+                        memoryMb = req.memoryMb,
+                        cpuShares = req.cpuShares,
+                        expiresAt = req.expiresAt,
+                        customServerJar = req.customServerJar,
+                        containerListenPort = req.containerListenPort,
+                        containerProtocol = req.containerProtocol,
+                        disableHealthcheck = req.disableHealthcheck,
+                        forceRedownload = req.forceRedownload
+                    )
                 )
                 call.respond(HttpStatusCode.Created, row.toResponse(serverExposure, false))
             }
@@ -114,7 +116,7 @@ fun Route.serversRoutes(
                     throw ForbiddenException("Insufficient permissions")
                 }
                 val req = call.receive<CloneServerRequest>()
-                val row = serverService.cloneServer(sourceId, req.name, req.displayName, req.description)
+                val row = provisioning.clone(sourceId, req.name, req.displayName, req.description)
                 call.respond(HttpStatusCode.Created, row.toResponse(serverExposure, false))
             }
 

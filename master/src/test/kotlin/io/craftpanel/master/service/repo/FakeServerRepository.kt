@@ -114,41 +114,40 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
 
     data class MutableServerJob(val id: Uuid, val serverId: Uuid, val type: String, val cronExpression: String, var enabled: Boolean = true, var lastFiredAt: String? = null)
 
-    override fun findById(id: Uuid): ServerRow? = state.servers[id]?.toRow()
-    override fun findByName(name: String): ServerRow? = state.servers.values.firstOrNull { it.name == name }
+    override fun findById(id: Uuid): ServerView? = state.servers[id]?.toRow()
+    override fun findByName(name: String): ServerView? = state.servers.values.firstOrNull { it.name == name }
         ?.toRow()
 
-    override fun findBySubdomain(subdomain: String): ServerRow? = state.servers.values.firstOrNull { it.publicSubdomain == subdomain }
+    override fun findBySubdomain(subdomain: String): ServerView? = state.servers.values.firstOrNull { it.publicSubdomain == subdomain }
         ?.toRow()
 
-    override fun findByCustomHostname(hostname: String): ServerRow? = state.servers.values.firstOrNull { it.customHostname == hostname }
+    override fun findByCustomHostname(hostname: String): ServerView? = state.servers.values.firstOrNull { it.customHostname == hostname }
         ?.toRow()
 
-    override fun findByDnsRecordName(hostname: String): ServerRow? = state.servers.values.firstOrNull { it.dnsRecordName == hostname }
+    override fun findByDnsRecordName(hostname: String): ServerView? = state.servers.values.firstOrNull { it.dnsRecordName == hostname }
         ?.toRow()
 
-    override fun listAll(): List<ServerRow> = state.servers.values.map { it.toRow() }
-    override fun listByVisibility(networkIds: List<Uuid>, serverIds: List<Uuid>): List<ServerRow> = state.servers.values.filter { it.networkId in networkIds || it.id in serverIds }
+    override fun listAll(): List<ServerView> = state.servers.values.map { it.toRow() }
+    override fun listByVisibility(networkIds: List<Uuid>, serverIds: List<Uuid>): List<ServerView> = state.servers.values.filter { it.networkId in networkIds || it.id in serverIds }
         .map { it.toRow() }
 
-    override fun listByNetworkId(networkId: Uuid): List<ServerRow> = state.servers.values.filter { it.networkId == networkId }
+    override fun listByNetworkId(networkId: Uuid): List<ServerView> = state.servers.values.filter { it.networkId == networkId }
         .map { it.toRow() }
 
-    override fun listByNodeId(nodeId: Uuid): List<ServerRow> = state.servers.values.filter { it.nodeId == nodeId }
+    override fun listByNodeId(nodeId: Uuid): List<ServerView> = state.servers.values.filter { it.nodeId == nodeId }
         .map { it.toRow() }
 
-    override fun listIds(ids: List<Uuid>): List<ServerRow> = ids.mapNotNull { state.servers[it]?.toRow() }
-    override fun listWithBackupSchedule(): List<ServerRow> = state.servers.values.filter { it.backupSchedule != null }
+    override fun listIds(ids: List<Uuid>): List<ServerView> = ids.mapNotNull { state.servers[it]?.toRow() }
+    override fun listWithBackupSchedule(): List<ServerView> = state.servers.values.filter { it.backupSchedule != null }
         .map { it.toRow() }
 
-    override fun listExpiredRunning(now: kotlinx.datetime.LocalDateTime): List<ServerRow> =
-        state.servers.values.filter {
-            it.expiresAt != null && it.status in setOf("STARTING", "HEALTHY", "UNHEALTHY") &&
-                runCatching {
-                    parseUtcInstant(it.expiresAt!!)!!.toLocalDateTime(kotlinx.datetime.TimeZone.UTC) <= now
-                }.getOrDefault(false)
-        }
-            .map { it.toRow() }
+    override fun listExpiredRunning(now: kotlinx.datetime.LocalDateTime): List<ServerView> = state.servers.values.filter {
+        it.expiresAt != null && it.status in setOf("STARTING", "HEALTHY", "UNHEALTHY") &&
+            runCatching {
+                parseUtcInstant(it.expiresAt!!)!!.toLocalDateTime(kotlinx.datetime.TimeZone.UTC) <= now
+            }.getOrDefault(false)
+    }
+        .map { it.toRow() }
 
     override fun countByNetworkId(networkId: Uuid): Int = state.servers.values.count { it.networkId == networkId }
     override fun countByNodeId(nodeId: Uuid): Int = state.servers.values.count { it.nodeId == nodeId }
@@ -160,7 +159,7 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
         state.servers[id]?.forwardingSecretEnc = enc
     }
 
-    private fun MutableServer.toRow() = ServerRow(
+    private fun MutableServer.toRow() = ServerView(
         id,
         name,
         displayName,

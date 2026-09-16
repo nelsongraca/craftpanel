@@ -1,7 +1,7 @@
 package io.craftpanel.master.service.migration
 
 import io.craftpanel.master.service.repo.NodeRow
-import io.craftpanel.master.service.repo.ServerRow
+import io.craftpanel.master.service.repo.ServerView
 import kotlin.uuid.Uuid
 
 data class MigrationPlan(
@@ -16,7 +16,7 @@ data class MigrationPlan(
     val rsyncImage: String,
     val playerWarningMessage: String,
     val containerNamePrefix: String,
-    val serverRow: ServerRow,
+    val serverRow: ServerView,
     val targetNodeRow: NodeRow,
     val targetPrivateIp: String
 ) {
@@ -24,8 +24,9 @@ data class MigrationPlan(
     var rsyncPort: Int = 0
     var rsyncPassword: String = ""
     var sourceStopped: Boolean = false
+
     /** True while the source is under a `no_restart` guard for the duration of the live sync. */
     var sourceGuarded: Boolean = false
     var assignedPort: Int = 0
-    var freshServerRow: ServerRow? = null
+    var freshServerView: ServerView? = null
 }

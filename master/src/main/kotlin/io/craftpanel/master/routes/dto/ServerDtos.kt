@@ -5,7 +5,7 @@ import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.domain.synthesizeStatus
 import io.craftpanel.master.service.ServerExposure
-import io.craftpanel.master.service.repo.ServerRow
+import io.craftpanel.master.service.repo.ServerView
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 
@@ -41,7 +41,7 @@ data class ServerResponse(
     @SerialName("container_listen_port") val containerListenPort: Int? = null,
     @SerialName("container_protocol") val containerProtocol: String = "TCP",
     @SerialName("disable_healthcheck") val disableHealthcheck: Boolean = false,
-    @SerialName("force_redownload") val forceRedownload: Boolean = false,
+    @SerialName("force_redownload") val forceRedownload: Boolean = false
 )
 
 @Serializable
@@ -61,7 +61,7 @@ data class CreateServerRequest(
     @SerialName("container_listen_port") val containerListenPort: Int? = null,
     @SerialName("container_protocol") val containerProtocol: String? = null,
     @SerialName("disable_healthcheck") val disableHealthcheck: Boolean? = null,
-    @SerialName("force_redownload") val forceRedownload: Boolean? = null,
+    @SerialName("force_redownload") val forceRedownload: Boolean? = null
 )
 
 @Serializable
@@ -97,7 +97,7 @@ data class PatchExposureRequest(
     @SerialName("custom_hostname") val customHostname: String? = null
 )
 
-internal fun ServerRow.toResponse(serverExposure: ServerExposure, isMigrating: Boolean): ServerResponse {
+internal fun ServerView.toResponse(serverExposure: ServerExposure, isMigrating: Boolean): ServerResponse {
     val canonicalHostname = serverExposure.canonicalHostname(this)
     return ServerResponse(
         id = id.toString(),
@@ -109,7 +109,7 @@ internal fun ServerRow.toResponse(serverExposure: ServerExposure, isMigrating: B
         itzgImageTag = itzgImageTag,
         status = synthesizeStatus(
             desired = DesiredStatus.fromDb(desiredStatus),
-            reported = ServerStatus.fromDb(status),
+            reported = ServerStatus.fromDb(status)
         ),
         nodeId = nodeId.toString(),
         networkId = networkId?.toString(),
@@ -134,6 +134,6 @@ internal fun ServerRow.toResponse(serverExposure: ServerExposure, isMigrating: B
         containerListenPort = containerListenPort,
         containerProtocol = containerProtocol,
         disableHealthcheck = disableHealthcheck,
-        forceRedownload = forceRedownload,
+        forceRedownload = forceRedownload
     )
 }

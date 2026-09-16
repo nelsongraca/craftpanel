@@ -73,17 +73,33 @@ class ServersRoutesTest :
                 nodeRepository = nodeRepository,
                 serverExposure = serverExposure
             )
+            val networkService = NetworkService(
+                networkRepository = networkRepository,
+                serverRepository = serverRepository,
+                nodeRepository = nodeRepository,
+                userRepository = UserRepositoryImpl(),
+                groupRepository = GroupRepositoryImpl()
+            )
+            val provisioning = ServerProvisioning(
+                serverRepository = serverRepository,
+                nodeRepository = nodeRepository,
+                networkRepository = networkRepository,
+                settingsRepository = settingsRepository,
+                portRepository = repos.portRepository,
+                extraPortRepository = repos.extraPortRepository,
+                envVarsRepository = repos.envVarsRepository,
+                modRepository = repos.modRepository,
+                networkService = networkService
+            )
             serversRoutes(
                 ServerService(
                     gateway = gateway,
                     serverRepository = serverRepository,
                     nodeRepository = nodeRepository,
                     networkRepository = networkRepository,
-                    settingsRepository = settingsRepository,
-                    portRepository = repos.portRepository,
-                    envVarsRepository = repos.envVarsRepository,
-                    modRepository = repos.modRepository
+                    settingsRepository = settingsRepository
                 ),
+                provisioning,
                 ServerQueryService(
                     serverRepository = serverRepository,
                     userRepository = UserRepositoryImpl(),
@@ -99,25 +115,10 @@ class ServersRoutesTest :
                     networkRepository = networkRepository,
                     envVarsRepository = repos.envVarsRepository,
                     modRepository = repos.modRepository,
-                    extraPortRepository = ServerExtraPortRepositoryImpl(),
-                    proxyBackendRepository = ProxyBackendRepositoryImpl(),
-                    serverService = ServerService(
-                        gateway = gateway,
-                        serverRepository = serverRepository,
-                        nodeRepository = nodeRepository,
-                        networkRepository = networkRepository,
-                        settingsRepository = settingsRepository,
-                        portRepository = repos.portRepository,
-                        envVarsRepository = repos.envVarsRepository,
-                        modRepository = repos.modRepository
-                    ),
-                    networkService = NetworkService(
-                        networkRepository = networkRepository,
-                        serverRepository = serverRepository,
-                        nodeRepository = nodeRepository,
-                        userRepository = UserRepositoryImpl(),
-                        groupRepository = GroupRepositoryImpl()
-                    )
+                    extraPortRepository = repos.extraPortRepository,
+                    proxyBackendRepository = repos.proxyBackendRepository,
+                    provisioning = provisioning,
+                    networkService = networkService
                 )
             )
         }
@@ -1811,5 +1812,4 @@ class ServersRoutesTest :
                 }
             }
         }
-
     })

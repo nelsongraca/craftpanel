@@ -3,7 +3,7 @@ package io.craftpanel.master.service
 import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.ServerRepository
-import io.craftpanel.master.service.repo.ServerRow
+import io.craftpanel.master.service.repo.ServerView
 import io.craftpanel.master.service.repo.disabledReason
 import io.craftpanel.master.service.repo.isDisabled
 import kotlin.uuid.Uuid
@@ -77,7 +77,7 @@ class ServerLifecycleService(
         }
     }
 
-    private suspend fun writeProxyPatch(server: ServerRow) {
+    private suspend fun writeProxyPatch(server: ServerView) {
         if (!server.serverType.isProxy) return
         val patch = proxyConfigPatchService.generatePatch(server.id) ?: return
         // writeFile's path is resolved relative to the server's data root (bind-mounted to

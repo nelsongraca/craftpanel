@@ -47,16 +47,6 @@ class NetworksRoutesTest :
                 userRepository = UserRepositoryImpl(),
                 groupRepository = GroupRepositoryImpl()
             )
-            val serverService = ServerService(
-                gateway = TestAgentGateway(),
-                serverRepository = repos.serverRepository,
-                nodeRepository = NodeRepositoryImpl(),
-                networkRepository = NetworkRepositoryImpl(),
-                settingsRepository = SettingsRepositoryImpl(),
-                portRepository = repos.portRepository,
-                envVarsRepository = repos.envVarsRepository,
-                modRepository = repos.modRepository,
-            )
             networksRoutes(
                 networkService,
                 ExportService(
@@ -64,10 +54,20 @@ class NetworksRoutesTest :
                     networkRepository = NetworkRepositoryImpl(),
                     envVarsRepository = repos.envVarsRepository,
                     modRepository = repos.modRepository,
-                    extraPortRepository = ServerExtraPortRepositoryImpl(),
-                    proxyBackendRepository = ProxyBackendRepositoryImpl(),
-                    serverService = serverService,
-                    networkService = networkService,
+                    extraPortRepository = repos.extraPortRepository,
+                    proxyBackendRepository = repos.proxyBackendRepository,
+                    provisioning = ServerProvisioning(
+                        serverRepository = repos.serverRepository,
+                        nodeRepository = NodeRepositoryImpl(),
+                        networkRepository = NetworkRepositoryImpl(),
+                        settingsRepository = SettingsRepositoryImpl(),
+                        portRepository = repos.portRepository,
+                        extraPortRepository = repos.extraPortRepository,
+                        envVarsRepository = repos.envVarsRepository,
+                        modRepository = repos.modRepository,
+                        networkService = networkService
+                    ),
+                    networkService = networkService
                 )
             )
         }
@@ -482,9 +482,9 @@ class NetworksRoutesTest :
                 val netB = createNetwork("net-b")
                 createGroupWithPermissions("Scoped Viewer", "network.view")
                 assignNetworkGroup(userId, "Scoped Viewer", netA)
-                val ok = client.get("/api/networks/${netA}") { bearerAuth(tokenFor(userId)) }
+                val ok = client.get("/api/networks/$netA") { bearerAuth(tokenFor(userId)) }
                 ok.status shouldBe HttpStatusCode.OK
-                val forbidden = client.get("/api/networks/${netB}") { bearerAuth(tokenFor(userId)) }
+                val forbidden = client.get("/api/networks/$netB") { bearerAuth(tokenFor(userId)) }
                 forbidden.status shouldBe HttpStatusCode.Forbidden
             }
         }
@@ -498,13 +498,13 @@ class NetworksRoutesTest :
                 val netB = createNetwork("net-b")
                 createGroupWithPermissions("Scoped Configurer", "network.configure")
                 assignNetworkGroup(userId, "Scoped Configurer", netA)
-                val ok = client.patch("/api/networks/${netA}") {
+                val ok = client.patch("/api/networks/$netA") {
                     bearerAuth(tokenFor(userId))
                     contentType(ContentType.Application.Json)
                     setBody("""{"name":"net-a-renamed"}""")
                 }
                 ok.status shouldBe HttpStatusCode.NoContent
-                val forbidden = client.patch("/api/networks/${netB}") {
+                val forbidden = client.patch("/api/networks/$netB") {
                     bearerAuth(tokenFor(userId))
                     contentType(ContentType.Application.Json)
                     setBody("""{"name":"net-b"}""")
@@ -522,9 +522,9 @@ class NetworksRoutesTest :
                 val netB = createNetwork("net-b")
                 createGroupWithPermissions("Scoped Deleter", "network.delete")
                 assignNetworkGroup(userId, "Scoped Deleter", netA)
-                val forbidden = client.delete("/api/networks/${netB}") { bearerAuth(tokenFor(userId)) }
+                val forbidden = client.delete("/api/networks/$netB") { bearerAuth(tokenFor(userId)) }
                 forbidden.status shouldBe HttpStatusCode.Forbidden
-                val ok = client.delete("/api/networks/${netA}") { bearerAuth(tokenFor(userId)) }
+                val ok = client.delete("/api/networks/$netA") { bearerAuth(tokenFor(userId)) }
                 ok.status shouldBe HttpStatusCode.NoContent
             }
         }

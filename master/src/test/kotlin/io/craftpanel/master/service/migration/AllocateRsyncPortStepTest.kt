@@ -56,7 +56,7 @@ class AllocateRsyncPortStepTest :
                 rsyncImage = "alpine",
                 playerWarningMessage = "Server restarting",
                 containerNamePrefix = "craftpanel",
-                serverRow = ServerRow(
+                serverRow = ServerView(
                     id = Uuid.random(), name = "test", displayName = "test",
                     description = null, nodeId = Uuid.random(), networkId = null,
                     serverType = ServerType.VANILLA, mcVersion = "1.21.4", status = "RUNNING",

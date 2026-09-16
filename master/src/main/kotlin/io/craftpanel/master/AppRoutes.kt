@@ -15,7 +15,7 @@ fun Route.registerAppRoutes() {
     nodeIpRoutes()
     nodesRoutes(get())
     networksRoutes(get(), get())
-    serversRoutes(get(), get(), get(), get<ServerExposureService>(), get(), get())
+    serversRoutes(get(), get(), get(), get(), get<ServerExposureService>(), get(), get())
     serverExtraPortsRoutes(get(), get())
     usersRoutes(get())
     groupsRoutes(get())

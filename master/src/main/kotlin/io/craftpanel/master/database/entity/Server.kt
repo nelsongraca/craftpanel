@@ -2,7 +2,7 @@ package io.craftpanel.master.database.entity
 
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ServerType
-import io.craftpanel.master.service.repo.ServerRow
+import io.craftpanel.master.service.repo.ServerView
 import io.craftpanel.master.util.toUtcString
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.dao.UuidEntity
@@ -53,7 +53,7 @@ class Server(id: EntityID<Uuid>) : UuidEntity(id) {
     var createdAt by Servers.createdAt
     var updatedAt by Servers.updatedAt
 
-    fun toServerRow() = ServerRow(
+    fun toServerView() = ServerView(
         id = id.value,
         name = name,
         displayName = displayName,

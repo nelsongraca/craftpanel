@@ -80,7 +80,7 @@ class AssignTargetPortStepTest :
                 rsyncImage = "alpine",
                 playerWarningMessage = "Server restarting",
                 containerNamePrefix = "craftpanel",
-                serverRow = ServerRow(
+                serverRow = ServerView(
                     id = serverId, name = "test-server", displayName = "test-server",
                     description = null, nodeId = nodeId, networkId = null,
                     serverType = ServerType.VANILLA, mcVersion = "1.21.4", status = "STOPPED",
@@ -129,7 +129,7 @@ class AssignTargetPortStepTest :
                 val result = AssignTargetPortStep().execute(plan, coord)
                 result.shouldBeInstanceOf<StepResult.Success>()
                 plan.assignedPort shouldBe 25565
-                plan.freshServerRow?.hostPort shouldBe 25565
+                plan.freshServerView?.hostPort shouldBe 25565
             }
         }
 

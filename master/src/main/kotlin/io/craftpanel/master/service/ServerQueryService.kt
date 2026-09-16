@@ -35,7 +35,7 @@ class ServerQueryService(
 
     fun isMigrating(id: Uuid): Boolean = migrationRepository.findActiveMigration(id) != null
 
-    fun listServers(userId: Uuid): List<ServerRow> {
+    fun listServers(userId: Uuid): List<ServerView> {
         val visibility = visibilityResolver.resolve(userId)
         val rows = when {
             visibility.isGlobal -> serverRepository.listAll()
@@ -50,7 +50,7 @@ class ServerQueryService(
         return rows
     }
 
-    fun getServer(id: Uuid): ServerRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
+    fun getServer(id: Uuid): ServerView = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
 
     fun getMetrics(id: Uuid, from: Instant, to: Instant): ContainerMetricsSeriesResponse {
         serverRepository.findById(id) ?: throw NotFoundException("Server not found")

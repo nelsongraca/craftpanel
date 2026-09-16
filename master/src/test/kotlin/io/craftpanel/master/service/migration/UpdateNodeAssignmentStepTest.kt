@@ -91,7 +91,7 @@ class UpdateNodeAssignmentStepTest :
                 rsyncImage = "alpine",
                 playerWarningMessage = "Server restarting",
                 containerNamePrefix = "craftpanel",
-                serverRow = ServerRow(
+                serverRow = ServerView(
                     id = serverId, name = "test-server", displayName = "test-server",
                     description = null, nodeId = nodeId, networkId = null,
                     serverType = ServerType.VANILLA, mcVersion = "1.21.4", status = "STOPPED",

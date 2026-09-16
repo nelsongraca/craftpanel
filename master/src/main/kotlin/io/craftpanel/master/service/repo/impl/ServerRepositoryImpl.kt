@@ -14,7 +14,7 @@ import org.slf4j.LoggerFactory
 import kotlin.uuid.Uuid
 
 class ServerRepositoryImpl :
-    AbstractCachedRepository<ServerRow>(),
+    AbstractCachedRepository<ServerView>(),
     ServerRepository {
 
     private val log = LoggerFactory.getLogger(ServerRepositoryImpl::class.java)
@@ -32,49 +32,49 @@ class ServerRepositoryImpl :
         }
     }
 
-    override fun findById(id: Uuid): ServerRow? = cachedFindById(id) {
+    override fun findById(id: Uuid): ServerView? = cachedFindById(id) {
         transaction {
             Servers.selectAll()
                 .where { Servers.id eq id }
                 .firstOrNull()
-                ?.toServerRow()
+                ?.toServerView()
         }
     }
 
-    override fun findByName(name: String): ServerRow? = transaction {
+    override fun findByName(name: String): ServerView? = transaction {
         Servers.selectAll()
             .where { Servers.name eq name }
             .firstOrNull()
-            ?.toServerRow()
+            ?.toServerView()
     }
 
-    override fun findBySubdomain(subdomain: String): ServerRow? = transaction {
+    override fun findBySubdomain(subdomain: String): ServerView? = transaction {
         Servers.selectAll()
             .where { Servers.publicSubdomain eq subdomain }
             .firstOrNull()
-            ?.toServerRow()
+            ?.toServerView()
     }
 
-    override fun findByCustomHostname(hostname: String): ServerRow? = transaction {
+    override fun findByCustomHostname(hostname: String): ServerView? = transaction {
         Servers.selectAll()
             .where { Servers.customHostname eq hostname }
             .firstOrNull()
-            ?.toServerRow()
+            ?.toServerView()
     }
 
-    override fun findByDnsRecordName(hostname: String): ServerRow? = transaction {
+    override fun findByDnsRecordName(hostname: String): ServerView? = transaction {
         Servers.selectAll()
             .where { Servers.dnsRecordName eq hostname }
             .firstOrNull()
-            ?.toServerRow()
+            ?.toServerView()
     }
 
-    override fun listAll(): List<ServerRow> = transaction {
+    override fun listAll(): List<ServerView> = transaction {
         Servers.selectAll()
-            .map { it.toServerRow() }
+            .map { it.toServerView() }
     }
 
-    override fun listByVisibility(networkIds: List<Uuid>, serverIds: List<Uuid>): List<ServerRow> = transaction {
+    override fun listByVisibility(networkIds: List<Uuid>, serverIds: List<Uuid>): List<ServerView> = transaction {
         if (networkIds.isEmpty() && serverIds.isEmpty()) return@transaction emptyList()
         Servers.selectAll()
             .where {
@@ -83,41 +83,41 @@ class ServerRepositoryImpl :
                     if (serverIds.isNotEmpty()) add(Servers.id inList serverIds.map { EntityID(it, Servers) })
                 }.reduce { a, b -> a or b }
             }
-            .map { it.toServerRow() }
+            .map { it.toServerView() }
     }
 
-    override fun listByNetworkId(networkId: Uuid): List<ServerRow> = transaction {
+    override fun listByNetworkId(networkId: Uuid): List<ServerView> = transaction {
         Servers.selectAll()
             .where { Servers.networkId eq networkId }
-            .map { it.toServerRow() }
+            .map { it.toServerView() }
     }
 
-    override fun listByNodeId(nodeId: Uuid): List<ServerRow> = transaction {
+    override fun listByNodeId(nodeId: Uuid): List<ServerView> = transaction {
         Servers.selectAll()
             .where { Servers.nodeId eq nodeId }
-            .map { it.toServerRow() }
+            .map { it.toServerView() }
     }
 
-    override fun listIds(ids: List<Uuid>): List<ServerRow> = transaction {
+    override fun listIds(ids: List<Uuid>): List<ServerView> = transaction {
         Servers.selectAll()
             .where { Servers.id inList ids.map { EntityID(it, Servers) } }
-            .map { it.toServerRow() }
+            .map { it.toServerView() }
     }
 
-    override fun listWithBackupSchedule(): List<ServerRow> = transaction {
+    override fun listWithBackupSchedule(): List<ServerView> = transaction {
         Servers.selectAll()
             .where { Servers.backupSchedule.isNotNull() }
-            .map { it.toServerRow() }
+            .map { it.toServerView() }
     }
 
-    override fun listExpiredRunning(now: kotlinx.datetime.LocalDateTime): List<ServerRow> = transaction {
+    override fun listExpiredRunning(now: kotlinx.datetime.LocalDateTime): List<ServerView> = transaction {
         Servers.selectAll()
             .where {
                 Servers.expiresAt.isNotNull() and
                     (Servers.expiresAt lessEq now) and
                     (Servers.status inList listOf("STARTING", "HEALTHY", "UNHEALTHY"))
             }
-            .map { it.toServerRow() }
+            .map { it.toServerView() }
     }
 
     override fun countByNetworkId(networkId: Uuid): Int = transaction {
@@ -145,7 +145,7 @@ class ServerRepositoryImpl :
     }
 }
 
-private fun ResultRow.toServerRow() = ServerRow(
+private fun ResultRow.toServerView() = ServerView(
     id = this[Servers.id].value,
     name = this[Servers.name],
     displayName = this[Servers.displayName],

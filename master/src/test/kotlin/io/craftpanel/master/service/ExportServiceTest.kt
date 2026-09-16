@@ -12,12 +12,12 @@ import io.craftpanel.master.service.repo.impl.*
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.collections.shouldContain
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
-import org.jetbrains.exposed.v1.core.eq
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
@@ -29,25 +29,63 @@ class ExportServiceTest :
         val networkRepository = NetworkRepositoryImpl()
         val nodeRepository = NodeRepositoryImpl()
         val settingsRepository = SettingsRepositoryImpl()
-        val gateway = TestAgentGateway()
-
-        val serverService = ServerService(
-            gateway = gateway,
-            serverRepository = serverRepository,
-            nodeRepository = nodeRepository,
-            networkRepository = networkRepository,
-            settingsRepository = settingsRepository,
-            portRepository = repos.portRepository,
-            envVarsRepository = repos.envVarsRepository,
-            modRepository = repos.modRepository,
-        )
 
         val networkService = NetworkService(
             networkRepository = networkRepository,
             serverRepository = serverRepository,
             nodeRepository = nodeRepository,
             userRepository = UserRepositoryImpl(),
-            groupRepository = GroupRepositoryImpl(),
+            groupRepository = GroupRepositoryImpl()
+        )
+
+        val provisioning = ServerProvisioning(
+            serverRepository = serverRepository,
+            nodeRepository = nodeRepository,
+            networkRepository = networkRepository,
+            settingsRepository = settingsRepository,
+            portRepository = repos.portRepository,
+            extraPortRepository = repos.extraPortRepository,
+            envVarsRepository = repos.envVarsRepository,
+            modRepository = repos.modRepository,
+            networkService = networkService
+        )
+
+        fun createServer(
+            name: String,
+            displayName: String? = null,
+            description: String? = null,
+            nodeId: String,
+            networkId: String? = null,
+            serverType: String,
+            mcVersion: String = "LATEST",
+            itzgImageTag: String = "latest",
+            memoryMb: Int,
+            cpuShares: Int = 0,
+            expiresAt: String? = null,
+            customServerJar: String? = null,
+            containerListenPort: Int? = null,
+            containerProtocol: String? = null,
+            disableHealthcheck: Boolean? = null,
+            forceRedownload: Boolean? = null
+        ): ServerView = provisioning.provision(
+            ServerProvisionSpec(
+                name = name,
+                displayName = displayName,
+                description = description,
+                nodeId = nodeId,
+                networkId = networkId,
+                serverType = serverType,
+                mcVersion = mcVersion,
+                itzgImageTag = itzgImageTag,
+                memoryMb = memoryMb,
+                cpuShares = cpuShares,
+                expiresAt = expiresAt,
+                customServerJar = customServerJar,
+                containerListenPort = containerListenPort,
+                containerProtocol = containerProtocol,
+                disableHealthcheck = disableHealthcheck,
+                forceRedownload = forceRedownload
+            )
         )
 
         val exportService = ExportService(
@@ -57,8 +95,8 @@ class ExportServiceTest :
             modRepository = repos.modRepository,
             extraPortRepository = repos.extraPortRepository,
             proxyBackendRepository = repos.proxyBackendRepository,
-            serverService = serverService,
-            networkService = networkService,
+            provisioning = provisioning,
+            networkService = networkService
         )
 
         beforeTest {
@@ -88,7 +126,7 @@ class ExportServiceTest :
 
             beforeTest {
                 nodeId = createNode()
-                val row = serverService.createServer(
+                val row = createServer(
                     name = "export-me",
                     displayName = "Export Me",
                     description = "A server to export",
@@ -102,7 +140,7 @@ class ExportServiceTest :
                     containerListenPort = 25565,
                     containerProtocol = "UDP",
                     disableHealthcheck = true,
-                    forceRedownload = true,
+                    forceRedownload = true
                 )
                 serverId = row.id
 
@@ -174,7 +212,7 @@ class ExportServiceTest :
 
             beforeTest {
                 nodeId = createNode()
-                val row = serverService.createServer(
+                val row = createServer(
                     name = "import-source",
                     displayName = "Import Source",
                     description = null,
@@ -184,7 +222,7 @@ class ExportServiceTest :
                     mcVersion = "1.21.4",
                     itzgImageTag = "latest",
                     memoryMb = 1024,
-                    cpuShares = 0,
+                    cpuShares = 0
                 )
                 val sid = row.id
 
@@ -204,7 +242,7 @@ class ExportServiceTest :
                 val imported = exportService.importServer(
                     exported.copy(name = "import-target"),
                     nodeId,
-                    networkId = null,
+                    networkId = null
                 )
 
                 imported.name shouldBe "import-target"
@@ -248,7 +286,7 @@ class ExportServiceTest :
                 )
                 netId = Uuid.parse(net.id)
 
-                serverService.createServer(
+                createServer(
                     name = "net-srv-1",
                     displayName = "Net Server 1",
                     description = null,
@@ -258,10 +296,10 @@ class ExportServiceTest :
                     mcVersion = "1.21.4",
                     itzgImageTag = "latest",
                     memoryMb = 512,
-                    cpuShares = 0,
+                    cpuShares = 0
                 )
 
-                serverService.createServer(
+                createServer(
                     name = "net-srv-2",
                     displayName = "Net Server 2",
                     description = null,
@@ -271,7 +309,7 @@ class ExportServiceTest :
                     mcVersion = "latest",
                     itzgImageTag = "latest",
                     memoryMb = 384,
-                    cpuShares = 0,
+                    cpuShares = 0
                 )
             }
 

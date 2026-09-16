@@ -3,21 +3,21 @@ import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.FakeRepositories
 import io.craftpanel.master.service.repo.FakeServerRepository
 import io.craftpanel.master.service.repo.FakeSettingsRepository
-import io.craftpanel.master.service.repo.ServerRow
+import io.craftpanel.master.service.repo.ServerView
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
 import kotlin.uuid.Uuid
 
-private fun testServerRow(
+private fun testServerView(
     id: Uuid = Uuid.random(),
     networkId: Uuid? = null,
     exposedExternally: Boolean = false,
     publicSubdomain: String? = null,
     dnsRecordName: String? = null,
     customHostname: String? = null
-) = ServerRow(
+) = ServerView(
     id = id,
     name = "test-server",
     displayName = "test-server",
@@ -91,48 +91,48 @@ class ServerExposureTest :
 
         context("managedHostname") {
             test("null when not exposed externally") {
-                val row = testServerRow(exposedExternally = false, publicSubdomain = "play")
+                val row = testServerView(exposedExternally = false, publicSubdomain = "play")
                 serverExposure.managedHostname(row)
                     .shouldBeNull()
             }
 
             test("null when exposed but no subdomain") {
-                val row = testServerRow(exposedExternally = true, publicSubdomain = null)
+                val row = testServerView(exposedExternally = true, publicSubdomain = null)
                 serverExposure.managedHostname(row)
                     .shouldBeNull()
             }
 
             test("uses dnsRecordName when present") {
-                val row = testServerRow(exposedExternally = true, publicSubdomain = "play", dnsRecordName = "play.example.com")
+                val row = testServerView(exposedExternally = true, publicSubdomain = "play", dnsRecordName = "play.example.com")
                 serverExposure.managedHostname(row) shouldBe "play.example.com"
             }
 
             test("falls back to subdomain + resolved suffix when dnsRecordName absent") {
                 settingsRepository.addSetting("dns_domain_suffix", "example.com")
-                val row = testServerRow(exposedExternally = true, publicSubdomain = "play", dnsRecordName = null)
+                val row = testServerView(exposedExternally = true, publicSubdomain = "play", dnsRecordName = null)
                 serverExposure.managedHostname(row) shouldBe "play.example.com"
             }
         }
 
         context("mcRouterLabel") {
             test("null when neither managed nor custom hostname present") {
-                val row = testServerRow()
+                val row = testServerView()
                 serverExposure.mcRouterLabel(row)
                     .shouldBeNull()
             }
 
             test("managed only") {
-                val row = testServerRow(exposedExternally = true, publicSubdomain = "play", dnsRecordName = "play.example.com")
+                val row = testServerView(exposedExternally = true, publicSubdomain = "play", dnsRecordName = "play.example.com")
                 serverExposure.mcRouterLabel(row) shouldBe "play.example.com"
             }
 
             test("custom only") {
-                val row = testServerRow(customHostname = "custom.example.com")
+                val row = testServerView(customHostname = "custom.example.com")
                 serverExposure.mcRouterLabel(row) shouldBe "custom.example.com"
             }
 
             test("both managed and custom, comma-joined") {
-                val row = testServerRow(
+                val row = testServerView(
                     exposedExternally = true,
                     publicSubdomain = "play",
                     dnsRecordName = "play.example.com",
@@ -144,7 +144,7 @@ class ServerExposureTest :
 
         context("canonicalHostname") {
             test("custom takes precedence over managed") {
-                val row = testServerRow(
+                val row = testServerView(
                     exposedExternally = true,
                     publicSubdomain = "play",
                     dnsRecordName = "play.example.com",
@@ -154,7 +154,7 @@ class ServerExposureTest :
             }
 
             test("falls back to managed when no custom hostname") {
-                val row = testServerRow(exposedExternally = true, publicSubdomain = "play", dnsRecordName = "play.example.com")
+                val row = testServerView(exposedExternally = true, publicSubdomain = "play", dnsRecordName = "play.example.com")
                 serverExposure.canonicalHostname(row) shouldBe "play.example.com"
             }
         }

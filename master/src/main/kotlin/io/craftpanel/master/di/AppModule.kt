@@ -61,7 +61,7 @@ val appModule = module {
             nodeStateReconciler = get(),
             // Lazy lookup: resolving DesiredStateSyncService here would cycle through
             // ContainerLifecycle → AgentGateway → ControlServiceImpl → this handler.
-            pushDesiredStates = { nodeId -> get<DesiredStateSyncService>().pushAllForNode(nodeId) },
+            pushDesiredStates = { nodeId -> get<DesiredStateSyncService>().pushAllForNode(nodeId) }
         )
     }
     single { NodeMetricsHandler(get(), get()) }
@@ -164,7 +164,7 @@ val appModule = module {
             extraPortRepository = get(),
             images = get(),
             containerNamePrefix = get(named("containerPrefix")),
-            restartBudgetProvider = budgetProvider,
+            restartBudgetProvider = budgetProvider
         )
     }
     single {
@@ -195,10 +195,20 @@ val appModule = module {
             serverRepository = get(),
             nodeRepository = get(),
             networkRepository = get(),
+            settingsRepository = get()
+        )
+    }
+    single {
+        ServerProvisioning(
+            serverRepository = get(),
+            nodeRepository = get(),
+            networkRepository = get(),
             settingsRepository = get(),
             portRepository = get(),
+            extraPortRepository = get(),
             envVarsRepository = get(),
-            modRepository = get()
+            modRepository = get(),
+            networkService = get()
         )
     }
     single {
@@ -246,8 +256,8 @@ val appModule = module {
             modRepository = get(),
             extraPortRepository = get(),
             proxyBackendRepository = get(),
-            serverService = get(),
-            networkService = get(),
+            provisioning = get(),
+            networkService = get()
         )
     }
 

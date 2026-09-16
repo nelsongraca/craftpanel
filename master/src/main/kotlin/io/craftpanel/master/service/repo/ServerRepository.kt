@@ -4,7 +4,7 @@ import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.util.parseUtcInstant
 import kotlin.uuid.Uuid
 
-data class ServerRow(
+data class ServerView(
     val id: Uuid,
     val name: String,
     val displayName: String,
@@ -48,33 +48,32 @@ data class ServerRow(
     val updatedAt: String
 )
 
-fun ServerRow.isExpired(now: kotlin.time.Instant = kotlin.time.Clock.System.now()): Boolean {
+fun ServerView.isExpired(now: kotlin.time.Instant = kotlin.time.Clock.System.now()): Boolean {
     val raw = expiresAt ?: return false
     val expires = parseUtcInstant(raw) ?: return false
     return expires < now
 }
 
-fun ServerRow.isDisabled(now: kotlin.time.Instant = kotlin.time.Clock.System.now()): Boolean =
-    disabled || isExpired(now)
+fun ServerView.isDisabled(now: kotlin.time.Instant = kotlin.time.Clock.System.now()): Boolean = disabled || isExpired(now)
 
-fun ServerRow.disabledReason(): String = when {
+fun ServerView.disabledReason(): String = when {
     disabled -> "Server is disabled and can no longer be started"
     else -> "Server has expired and can no longer be started"
 }
 
 interface ServerRepository {
-    fun findById(id: Uuid): ServerRow?
-    fun findByName(name: String): ServerRow?
-    fun findBySubdomain(subdomain: String): ServerRow?
-    fun findByCustomHostname(hostname: String): ServerRow?
-    fun findByDnsRecordName(hostname: String): ServerRow?
-    fun listAll(): List<ServerRow>
-    fun listByVisibility(networkIds: List<Uuid>, serverIds: List<Uuid>): List<ServerRow>
-    fun listByNetworkId(networkId: Uuid): List<ServerRow>
-    fun listByNodeId(nodeId: Uuid): List<ServerRow>
-    fun listIds(ids: List<Uuid>): List<ServerRow>
-    fun listWithBackupSchedule(): List<ServerRow>
-    fun listExpiredRunning(now: kotlinx.datetime.LocalDateTime): List<ServerRow>
+    fun findById(id: Uuid): ServerView?
+    fun findByName(name: String): ServerView?
+    fun findBySubdomain(subdomain: String): ServerView?
+    fun findByCustomHostname(hostname: String): ServerView?
+    fun findByDnsRecordName(hostname: String): ServerView?
+    fun listAll(): List<ServerView>
+    fun listByVisibility(networkIds: List<Uuid>, serverIds: List<Uuid>): List<ServerView>
+    fun listByNetworkId(networkId: Uuid): List<ServerView>
+    fun listByNodeId(nodeId: Uuid): List<ServerView>
+    fun listIds(ids: List<Uuid>): List<ServerView>
+    fun listWithBackupSchedule(): List<ServerView>
+    fun listExpiredRunning(now: kotlinx.datetime.LocalDateTime): List<ServerView>
     fun countByNetworkId(networkId: Uuid): Int
     fun countByNodeId(nodeId: Uuid): Int
     fun updateDesiredStatus(id: Uuid, value: String?)

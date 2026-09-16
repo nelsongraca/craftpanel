@@ -23,19 +23,19 @@ class ServerExposure(private val settingsRepository: SettingsRepository, private
         .firstOrNull { it.key == "dns_domain_suffix" }?.value?.takeIf { it.isNotBlank() }
 
     /** managed hostname for an exposed server (subdomain.suffix), or null. */
-    fun managedHostname(row: ServerRow): String? {
+    fun managedHostname(row: ServerView): String? {
         if (!row.exposedExternally || row.publicSubdomain == null) return null
         return row.dnsRecordName ?: resolveSuffix()?.let { "${row.publicSubdomain}.$it" }
     }
 
     /** the mc-router label: managed + custom hostnames comma-joined, or null. */
-    fun mcRouterLabel(row: ServerRow): String? {
+    fun mcRouterLabel(row: ServerView): String? {
         val parts = listOfNotNull(managedHostname(row), row.customHostname)
         return if (parts.isEmpty()) null else parts.joinToString(",")
     }
 
     /** the canonical hostname shown in the API (custom takes precedence). */
-    fun canonicalHostname(row: ServerRow): String? = row.customHostname ?: managedHostname(row)
+    fun canonicalHostname(row: ServerView): String? = row.customHostname ?: managedHostname(row)
 
     /** RFC-1123 validation + collision checks against managed/custom names + suffixes. */
     fun validateCustomHostname(hostname: String, excludeServerId: Uuid) {

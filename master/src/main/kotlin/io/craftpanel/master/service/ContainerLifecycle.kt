@@ -36,16 +36,16 @@ class ContainerLifecycle(
      * Returns false when the agent is not connected so the caller can map it to a 503.
      */
     fun sendDesiredState(
-        server: ServerRow,
+        server: ServerView,
         desired: DesiredStatus,
         nodeId: String = server.nodeId.toString(),
         force: Boolean = false,
         forceRestart: Boolean = false,
         publicHostname: String? = null,
-        noRestart: Boolean = false,
+        noRestart: Boolean = false
     ): Boolean = send(nodeId, buildDesiredStateMessage(server, desired, force, forceRestart, publicHostname, noRestart))
 
-    fun sendRemove(server: ServerRow, nodeId: String, force: Boolean = false): Boolean {
+    fun sendRemove(server: ServerView, nodeId: String, force: Boolean = false): Boolean {
         val id = server.id
         return send(
             nodeId,
@@ -65,7 +65,7 @@ class ContainerLifecycle(
      * Sets desired RUNNING and waits for the agent to report HEALTHY. Reverts the desired status on
      * failure so a failed migration step does not strand the server in an unstartable intent.
      */
-    suspend fun start(server: ServerRow, publicHostname: String? = null, nodeId: String = server.nodeId.toString()) {
+    suspend fun start(server: ServerView, publicHostname: String? = null, nodeId: String = server.nodeId.toString()) {
         ensureStartable(server)
         val id = server.id
         val previous = serverRepository.findById(id)?.desiredStatus
@@ -83,7 +83,7 @@ class ContainerLifecycle(
     }
 
     /** Sets desired STOPPED and waits for the agent to report STOPPED. Reverts the intent on failure. */
-    suspend fun stop(server: ServerRow, nodeId: String) {
+    suspend fun stop(server: ServerView, nodeId: String) {
         val id = server.id
         val previous = serverRepository.findById(id)?.desiredStatus
         serverRepository.updateDesiredStatus(id, DesiredStatus.STOPPED.toDb())
@@ -99,7 +99,7 @@ class ContainerLifecycle(
         }
     }
 
-    suspend fun remove(server: ServerRow, nodeId: String, force: Boolean = false) {
+    suspend fun remove(server: ServerView, nodeId: String, force: Boolean = false) {
         val id = server.id
         awaitStatus(id.toString(), ServerStatus.STOPPED, removeTimeout) {
             if (!sendRemove(server, nodeId, force)) throw BadGatewayException("Agent not connected")
@@ -108,7 +108,7 @@ class ContainerLifecycle(
 
     // ── Build helpers ─────────────────────────────────────────────────────────
 
-    fun buildStartSpec(server: ServerRow, publicHostname: String? = null): StartContainerCommand {
+    fun buildStartSpec(server: ServerView, publicHostname: String? = null): StartContainerCommand {
         val id = server.id
         val image = deriveImage(server.serverType, server.itzgImageTag)
         val allVars = buildAllVars(server)
@@ -144,14 +144,7 @@ class ContainerLifecycle(
         }
     }
 
-    private fun buildDesiredStateMessage(
-        server: ServerRow,
-        desired: DesiredStatus,
-        force: Boolean,
-        forceRestart: Boolean,
-        publicHostname: String?,
-        noRestart: Boolean,
-    ): MasterMessage {
+    private fun buildDesiredStateMessage(server: ServerView, desired: DesiredStatus, force: Boolean, forceRestart: Boolean, publicHostname: String?, noRestart: Boolean): MasterMessage {
         val (maxAttempts, windowSeconds) = restartBudgetProvider()
         return masterMessage {
             serverDesiredState = serverDesiredState {
@@ -172,7 +165,7 @@ class ContainerLifecycle(
         }
     }
 
-    private fun buildAllVars(server: ServerRow): Map<String, String> {
+    private fun buildAllVars(server: ServerView): Map<String, String> {
         val id = server.id
         val isPicolimbo = server.serverType.isPicolimbo
         val isManual = server.configMode == "MANUAL"
@@ -267,7 +260,7 @@ class ContainerLifecycle(
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
-    private fun ensureStartable(server: ServerRow) {
+    private fun ensureStartable(server: ServerView) {
         if (server.isDisabled()) throw ConflictException(server.disabledReason())
     }
 

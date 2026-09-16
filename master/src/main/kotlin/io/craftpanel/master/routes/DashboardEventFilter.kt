@@ -170,7 +170,7 @@ class DashboardEventFilter(
         is AgentEvent.RsyncReadyEvent, is AgentEvent.RsyncProgressEvent, is AgentEvent.RsyncCompleteEvent -> null
     }
 
-    fun snapshot(serverRows: List<ServerRow>, latestMetrics: Map<Uuid, ContainerMetricsRow?>, nodeRows: List<NodeRow>): WsEnvelope {
+    fun snapshot(serverRows: List<ServerView>, latestMetrics: Map<Uuid, ContainerMetricsRow?>, nodeRows: List<NodeRow>): WsEnvelope {
         val servers = serverRows.mapNotNull { row ->
             if (!canViewServer(row.id, row.networkId)) return@mapNotNull null
             val status = ServerStatus.fromDb(row.status)

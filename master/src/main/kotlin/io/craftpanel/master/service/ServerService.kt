@@ -24,14 +24,14 @@ import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.master.util.parseUtcInstant
 import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.removeContainerCommand
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
 import kotlin.uuid.Uuid
 
 class ServerService(
@@ -42,217 +42,11 @@ class ServerService(
     private val serverRepository: ServerRepository,
     private val nodeRepository: NodeRepository,
     private val networkRepository: NetworkRepository,
-    private val settingsRepository: SettingsRepository,
-    private val portRepository: PortRepository,
-    private val envVarsRepository: EnvVarsRepository,
-    private val modRepository: ModRepository
+    private val settingsRepository: SettingsRepository
 ) {
 
     private val log = LoggerFactory.getLogger(ServerService::class.java)
     private val capacityChecker = ResourceCapacityChecker(serverRepository)
-
-    fun createServer(
-        name: String,
-        displayName: String?,
-        description: String?,
-        nodeId: String,
-        networkId: String?,
-        serverType: String,
-        mcVersion: String,
-        itzgImageTag: String,
-        memoryMb: Int,
-        cpuShares: Int,
-        expiresAt: String? = null,
-        customServerJar: String? = null,
-        containerListenPort: Int? = null,
-        containerProtocol: String? = null,
-        disableHealthcheck: Boolean? = null,
-        forceRedownload: Boolean? = null
-    ): ServerRow {
-        if (memoryMb <= 0) throw UnprocessableException("memory_mb must be positive")
-        if (cpuShares < 0) throw UnprocessableException("cpu_shares must be non-negative")
-        val expiryLocal = parseExpiresAt(expiresAt)
-
-        val st = runCatching { ServerType.valueOf(serverType) }.getOrNull()
-            ?: throw UnprocessableException("Invalid server_type: $serverType")
-        val proto = runCatching { validateContainerProtocol(containerProtocol ?: "TCP") }.getOrNull()
-            ?: throw UnprocessableException("Invalid container_protocol: ${containerProtocol ?: "TCP"}")
-        if (st.isCustom && customServerJar.isNullOrBlank()) {
-            throw UnprocessableException("custom_server_jar is required for CUSTOM server type")
-        }
-        if (st.isPicolimbo && !customServerJar.isNullOrBlank()) {
-            throw UnprocessableException("custom_server_jar is not supported for PICOLIMBO server type")
-        }
-        if (containerListenPort != null && (containerListenPort <= 0 || containerListenPort > 65535)) {
-            throw UnprocessableException("container_listen_port must be between 1 and 65535")
-        }
-        val nodeKotlinId = parseUuid(nodeId) ?: throw UnprocessableException("Invalid node_id")
-        val networkKotlinId = networkId?.let { parseUuid(it) ?: throw UnprocessableException("Invalid network_id") }
-
-        if (networkKotlinId != null) {
-            val existingNodeIds = serverRepository.listByNetworkId(networkKotlinId)
-                .map { it.nodeId }
-                .distinct()
-            val allNodeIds = (existingNodeIds + nodeKotlinId).distinct()
-            if (allNodeIds.size > 1) networkService?.validateCrossNodeAssignment(allNodeIds)
-        }
-
-        fun attemptCreate(): ServerRow {
-            val node = nodeRepository.findById(nodeKotlinId) ?: throw UnprocessableException("Node not found")
-            if (node.status != "ACTIVE") throw UnprocessableException("Node is not active")
-            if (networkKotlinId != null && networkRepository.findById(networkKotlinId) == null) {
-                throw UnprocessableException("Network not found")
-            }
-            if (serverRepository.findByName(name) != null) throw ConflictException("Server name already taken")
-
-            when (capacityChecker.check(node, excludeServerId = null, memoryMb = memoryMb, cpuShares = cpuShares)) {
-                CapacityResult.InsufficientRam -> throw ConflictException("Insufficient RAM capacity on node")
-                CapacityResult.InsufficientCpu -> throw ConflictException("Insufficient CPU capacity on node")
-                CapacityResult.Ok              -> {}
-            }
-
-            val usedPorts = portRepository.findUsedPortsOnNode(nodeKotlinId)
-                .toSet()
-            val port = PortAllocator.pickFreePort(node.portRangeStart, node.portRangeEnd, usedPorts)
-                ?: throw ConflictException("No free ports available on node")
-
-            val stopCommand = if (st.isProxy) "end" else "stop"
-            val newServer = transaction {
-                val entity = Server.new {
-                    this.name = name
-                    this.displayName = displayName ?: name
-                    this.description = description
-                    this.nodeId = EntityID(nodeKotlinId, Nodes)
-                    this.networkId = networkKotlinId?.let { EntityID(it, ServerNetworks) }
-                    this.serverType = st.toDb()
-                    this.mcVersion = mcVersion
-                    this.itzgImageTag = itzgImageTag
-                    this.hostPort = port
-                    this.memoryMb = memoryMb
-                    this.cpuShares = cpuShares
-                    this.expiresAt = expiryLocal
-                    // CUSTOM and PICOLIMBO servers are never managed (no server.properties auto-config).
-                    this.configMode = if (st.isCustom || st.isPicolimbo) "MANUAL" else "MANAGED"
-                    this.stopCommand = stopCommand
-                    this.customServerJar = customServerJar
-                    this.containerListenPort = containerListenPort
-                    this.containerProtocol = proto
-                    this.disableHealthcheck = disableHealthcheck ?: false
-                    this.forceRedownload = forceRedownload ?: false
-                }
-
-                PortRegistry.insert {
-                    it[PortRegistry.nodeId] = EntityID(nodeKotlinId, Nodes)
-                    it[PortRegistry.port] = port
-                    it[PortRegistry.protocol] = proto
-                    it[PortRegistry.serverId] = EntityID(entity.id.value, Servers)
-                }
-
-                val platformName = settingsRepository.getAll()
-                    .firstOrNull { it.key == "app_name" }
-                    ?.value?.takeIf { it.isNotBlank() } ?: "CraftPanel"
-                val serverTypeDisplay = serverType.lowercase()
-                    .replaceFirstChar { it.uppercase() }
-
-                if (!st.isProxy && !st.isCustom && !st.isPicolimbo) {
-                    val defaults = buildDefaultEnvVars(mcVersion, serverTypeDisplay, platformName)
-                    EnvVar.find { ServerEnvVars.serverId eq entity.id.value }
-                        .forEach { it.delete() }
-                    defaults.forEach { (k, v) ->
-                        EnvVar.new {
-                            this.serverId = EntityID(entity.id.value, Servers)
-                            key = k
-                            value = v
-                        }
-                    }
-                }
-                else if (st.isProxy) {
-                    entity.proxyMotd = "$serverTypeDisplay powered by $platformName"
-                    entity.proxyMaxPlayers = null
-                    entity.proxyForwardingMode = null
-                }
-
-                entity.toServerRow()
-            }
-
-            return newServer
-        }
-
-        val result = run {
-            var lastEx: java.sql.SQLException? = null
-            repeat(3) {
-                try {
-                    return@run attemptCreate()
-                }
-                catch (ex: Exception) {
-                    val cause = generateSequence(ex as Throwable) { it.cause }
-                        .filterIsInstance<java.sql.SQLException>()
-                        .firstOrNull()
-                    if (cause != null && cause.sqlState?.startsWith("23") == true) {
-                        lastEx = cause
-                    }
-                    else {
-                        throw ex
-                    }
-                }
-            }
-            throw lastEx ?: RuntimeException("port allocation failed after retries")
-        }
-
-        return result
-    }
-
-    fun cloneServer(sourceId: Uuid, name: String, displayName: String?, description: String?): ServerRow {
-        val source = serverRepository.findById(sourceId)
-            ?: throw NotFoundException("Source server not found")
-
-        val created = createServer(
-            name = name,
-            displayName = displayName ?: source.displayName,
-            description = description ?: source.description,
-            nodeId = source.nodeId.toString(),
-            networkId = source.networkId?.toString(),
-            serverType = source.serverType.toDb(),
-            mcVersion = source.mcVersion,
-            itzgImageTag = source.itzgImageTag,
-            memoryMb = source.memoryMb,
-            cpuShares = source.cpuShares,
-            customServerJar = source.customServerJar,
-            containerListenPort = source.containerListenPort,
-            containerProtocol = source.containerProtocol,
-            disableHealthcheck = source.disableHealthcheck,
-            forceRedownload = source.forceRedownload
-        )
-
-        transaction {
-            EnvVar.find { ServerEnvVars.serverId eq created.id }
-                .forEach { it.delete() }
-            envVarsRepository.getEnvVars(sourceId)
-                .forEach { ev ->
-                    EnvVar.new {
-                        this.serverId = EntityID(created.id, Servers)
-                        key = ev.key
-                        value = ev.value
-                    }
-                }
-        }
-
-        modRepository.listMods(sourceId)
-            .forEach { mod ->
-                transaction {
-                    Mod.new {
-                        this.serverId = EntityID(created.id, Servers)
-                        this.modrinthProjectId = mod.modrinthProjectId
-                        this.displayName = mod.displayName
-                        this.pinStrategy = mod.pinStrategy
-                        this.pinnedVersionId = mod.pinnedVersionId
-                        this.installedVersionId = mod.installedVersionId
-                    }
-                }
-            }
-
-        return serverRepository.findById(created.id) ?: throw NotFoundException("Server not found")
-    }
 
     fun updateServer(
         id: Uuid,
@@ -313,8 +107,7 @@ class ServerService(
         }
     }
 
-    private fun containerPortProvidedOrInvalid(containerListenPort: Int?): Boolean =
-        containerListenPort != null && (containerListenPort <= 0 || containerListenPort > 65535)
+    private fun containerPortProvidedOrInvalid(containerListenPort: Int?): Boolean = containerListenPort != null && (containerListenPort <= 0 || containerListenPort > 65535)
 
     fun deleteServer(id: Uuid) {
         val existing = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
@@ -374,7 +167,7 @@ class ServerService(
         when (capacityChecker.check(node, excludeServerId = id, memoryMb = memoryMb, cpuShares = cpuShares)) {
             CapacityResult.InsufficientRam -> throw ConflictException("Insufficient RAM capacity on node")
             CapacityResult.InsufficientCpu -> throw ConflictException("Insufficient CPU capacity on node")
-            CapacityResult.Ok              -> {}
+            CapacityResult.Ok -> {}
         }
         transaction {
             val e = Server.findById(id) ?: return@transaction
@@ -384,7 +177,7 @@ class ServerService(
         }
     }
 
-    fun updateExpiration(id: Uuid, expiresAt: String?): ServerRow {
+    fun updateExpiration(id: Uuid, expiresAt: String?): ServerView {
         serverRepository.findById(id) ?: throw NotFoundException("Server not found")
         val expiryLocal = parseExpiresAt(expiresAt)
         transaction {
@@ -393,68 +186,11 @@ class ServerService(
         return serverRepository.findById(id) ?: throw NotFoundException("Server not found")
     }
 
-    fun updateDisabled(id: Uuid, disabled: Boolean): ServerRow {
+    fun updateDisabled(id: Uuid, disabled: Boolean): ServerView {
         serverRepository.findById(id) ?: throw NotFoundException("Server not found")
         transaction {
             Server.findById(id)?.let { it.disabled = disabled }
         }
         return serverRepository.findById(id) ?: throw NotFoundException("Server not found")
     }
-
 }
-
-private fun parseExpiresAt(raw: String?): kotlinx.datetime.LocalDateTime? {
-    return raw?.let {
-        val parsed = parseUtcInstant(it)
-            ?: throw UnprocessableException("Invalid expires_at")
-        parsed.toLocalDateTime(TimeZone.UTC)
-    }
-}
-
-private fun parseUuid(raw: String): Uuid? = runCatching { Uuid.parse(raw) }.getOrNull()
-
-private fun validateContainerProtocol(raw: String): String {
-    val normalized = raw.uppercase()
-    if (normalized != "TCP" && normalized != "UDP") {
-        throw UnprocessableException("Invalid container_protocol: $raw")
-    }
-    return normalized
-}
-
-private fun buildDefaultEnvVars(mcVersion: String, serverTypeDisplay: String, platformName: String) = mapOf(
-    "MOTD" to "$mcVersion $serverTypeDisplay powered by $platformName",
-    "DIFFICULTY" to "easy",
-    "MODE" to "survival",
-    "HARDCORE" to "false",
-    "PVP" to "true",
-    "ALLOW_NETHER" to "true",
-    "FORCE_GAMEMODE" to "false",
-    "SPAWN_ANIMALS" to "true",
-    "SPAWN_MONSTERS" to "true",
-    "SPAWN_NPCS" to "true",
-    "SPAWN_PROTECTION" to "16",
-    "ALLOW_FLIGHT" to "false",
-    "LEVEL" to "world",
-    "LEVEL_TYPE" to "DEFAULT",
-    "GENERATE_STRUCTURES" to "true",
-    "MAX_WORLD_SIZE" to "29999984",
-    "MAX_PLAYERS" to "20",
-    "ONLINE_MODE" to "true",
-    "ENABLE_WHITELIST" to "false",
-    "EXISTING_WHITELIST_FILE" to "SYNCHRONIZE",
-    "EXISTING_OPS_FILE" to "SYNCHRONIZE",
-    "PLAYER_IDLE_TIMEOUT" to "0",
-    "ENFORCE_SECURE_PROFILE" to "true",
-    "PREVENT_PROXY_CONNECTIONS" to "false",
-    "VIEW_DISTANCE" to "10",
-    "SIMULATION_DISTANCE" to "10",
-    "MAX_TICK_TIME" to "60000",
-    "NETWORK_COMPRESSION_THRESHOLD" to "256",
-    "SYNC_CHUNK_WRITES" to "true",
-    "ENABLE_COMMAND_BLOCK" to "false",
-    "OP_PERMISSION_LEVEL" to "4",
-    "FUNCTION_PERMISSION_LEVEL" to "2",
-    "BROADCAST_CONSOLE_TO_OPS" to "true",
-    "TZ" to "UTC",
-    "USE_AIKAR_FLAGS" to "true"
-)

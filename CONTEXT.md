@@ -479,7 +479,7 @@ FK `ON DELETE CASCADE` replaces manual cascade in repo `delete()` methods.
 - **Entity** — `ServerEntity(id: EntityID<Uuid>) : UUIDEntity(id)`, one `var`
   per column. Exposed generates `UPDATE only_changed_columns …` at flush time.
 - **Repository interface** — query methods only (`findById`, `listAll`, …),
-  returns `ServerRow` (read-only data class). No update/delete/insert methods.
+  returns `ServerView` (read-only data class). No update/delete/insert methods.
 - **Delete** — FK cascade from `Servers` to child tables (env_vars, mods,
   backups, ports, migrations, proxy_backends, container_metrics, server_jobs).
   No 8-repo delete ceremony.
@@ -498,6 +498,29 @@ FK `ON DELETE CASCADE` replaces manual cascade in repo `delete()` methods.
   Each table gets `FooEntity`, its `FooRepository` shrinks to queries only,
   `FooService` opens `transaction { mutate(entity) }`.
 - See architecture review 2026-07-30, candidate 3.
+
+### ServerProvisioning (master)
+
+The one module that turns a `ServerProvisionSpec` into a persisted **Server**. Replaces
+`ServerService.createServer`/`cloneServer` and the create-then-overwrite writes duplicated in
+`ExportService.importServer`. See ADR-0006.
+
+- `provision(spec): ServerRow` — validates the spec, allocates a host port (with SQLState-23
+  retry), and materialises base fields, port registration, env vars, config/stop command,
+  proxy fields, exposure/backup overrides, mods and extra ports in **one transaction**.
+  All-or-nothing; never swallows failures.
+- `clone(sourceId, name, displayName, description): ServerRow` — derives a spec from the
+  source's **runtime definition** (env, mods, extra ports, proxy fields, config/stop command,
+  container settings). Excludes identity/exposure (hostname, DNS, `exposedExternally`),
+  per-instance state (expiry, disabled) and cross-server wiring (proxy backends).
+- `ServerProvisionSpec` is a service-layer domain type; wire formats map into it at the seam.
+  A `null` override means "derive/seed the default"; a non-null value is verbatim.
+- **Import remaps proxy backends by name.** `ProxyBackendExportItem.backend_server_name` is
+  exported; network import is two-pass (provision all servers, then wire backends by resolving
+  the exported server name — names are unique). A backend absent from the target panel is
+  warn-skipped, never self-referenced. Single-server import resolves against existing servers.
+- Injected into `ServersRoutes` and `ExportService`. `ServerService` keeps
+  update/delete/resources/expiration.
 
 ### WatcherGate (agent)
 

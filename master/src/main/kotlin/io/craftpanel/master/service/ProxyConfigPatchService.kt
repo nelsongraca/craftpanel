@@ -5,7 +5,7 @@ import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.ProxyBackendRepository
 import io.craftpanel.master.service.repo.ProxyBackendRow
 import io.craftpanel.master.service.repo.ServerRepository
-import io.craftpanel.master.service.repo.ServerRow
+import io.craftpanel.master.service.repo.ServerView
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -97,13 +97,13 @@ class ProxyConfigPatchService(
         return Json.encodeToString(patchSet)
     }
 
-    private fun address(backendServerRow: ServerRow?): String {
-        val fallbackType = backendServerRow?.serverType ?: ServerType.VANILLA
-        val port = backendServerRow?.containerListenPort ?: images.internalListenPort(fallbackType)
-        return "$containerNamePrefix-${backendServerRow?.id ?: "unknown"}:$port"
+    private fun address(backendServerView: ServerView?): String {
+        val fallbackType = backendServerView?.serverType ?: ServerType.VANILLA
+        val port = backendServerView?.containerListenPort ?: images.internalListenPort(fallbackType)
+        return "$containerNamePrefix-${backendServerView?.id ?: "unknown"}:$port"
     }
 
-    private fun serversOp(dialect: ProxyDialect, backends: List<Pair<ProxyBackendRow, ServerRow?>>): JsonObject {
+    private fun serversOp(dialect: ProxyDialect, backends: List<Pair<ProxyBackendRow, ServerView?>>): JsonObject {
         val servers = buildMap<String, JsonElement> {
             backends.forEach { (b, backendRow) ->
                 put(

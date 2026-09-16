@@ -8,7 +8,7 @@ import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.domain.ServerType
-import io.craftpanel.master.service.repo.ServerRow
+import io.craftpanel.master.service.repo.ServerView
 import io.craftpanel.master.util.toUtcString
 import io.craftpanel.proto.ServerDesiredState
 import io.kotest.assertions.throwables.shouldThrow
@@ -72,12 +72,12 @@ class ContainerLifecycleTest :
             }
         }
 
-        fun serverRow(id: Uuid = serverId): ServerRow = transaction {
+        fun serverRow(id: Uuid = serverId): ServerView = transaction {
             Servers.selectAll()
                 .where { Servers.id eq id }
                 .first()
                 .let { r ->
-                    ServerRow(
+                    ServerView(
                         id = r[Servers.id].value,
                         name = r[Servers.name],
                         displayName = r[Servers.displayName],
@@ -117,11 +117,7 @@ class ContainerLifecycleTest :
                 }
         }
 
-        fun lifecycle(
-            startTimeout: kotlin.time.Duration = 2.seconds,
-            stopTimeout: kotlin.time.Duration = 2.seconds,
-            removeTimeout: kotlin.time.Duration = 2.seconds,
-        ) = ContainerLifecycle(
+        fun lifecycle(startTimeout: kotlin.time.Duration = 2.seconds, stopTimeout: kotlin.time.Duration = 2.seconds, removeTimeout: kotlin.time.Duration = 2.seconds) = ContainerLifecycle(
             gateway = gateway,
             modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
             serverRepository = repos.serverRepository,

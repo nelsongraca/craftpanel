@@ -8,7 +8,7 @@ class UpdateProxyBackendsStep : MigrationStep {
     override val description = "Update proxy backends"
 
     override suspend fun execute(plan: MigrationPlan, coord: MigrationCoordinator): StepResult {
-        val freshServer = plan.freshServerRow ?: return StepResult.Failure("Server row not available")
+        val freshServer = plan.freshServerView ?: return StepResult.Failure("Server row not available")
         runCatching {
             coord.updateProxyBackendsAfterMigration(plan.serverId, plan.targetNodeRow.privateIp, freshServer.hostPort)
         }
