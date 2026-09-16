@@ -321,6 +321,20 @@ class MigrationsRoutesTest :
             }
         }
 
+        test("migration events websocket authenticates before resolving the migration") {
+            testApplication {
+                // A random (non-existent) migration id: auth must run first, so the close is 1008
+                // (unauthenticated) rather than 1000 (migration not found) — no existence probing.
+                val unknown = Uuid.random()
+                testApp(extraPlugins = { install(WebSockets) }) { _ -> configureMigrationsTest(buildMigrationService()) }
+                val client = jsonClient()
+
+                client.webSocket("/api/migrations/$unknown/events") {
+                    closeReason.await()?.code shouldBe CloseReason.Codes.VIOLATED_POLICY.code
+                }
+            }
+        }
+
         test("migration events websocket closes with 1008 for user without server.migrate") {
             testApplication {
                 val (_, sourceKId) = insertNode()

@@ -30,21 +30,28 @@ class WsAuthorization(private val wsTicketService: WsTicketService, private val 
 
     /**
      * Authorize a server-scoped socket: consume the ticket, resolve the server (from [serverId] or
-     * the `{id}` path parameter), and check [permission].
+     * the `{id}` path parameter), and check [permission]. The ticket is always consumed first so an
+     * unauthenticated client can never distinguish "resource exists" from "resource missing".
      */
     fun authorizeServerSocket(call: ApplicationCall, permission: Permission, serverId: Uuid? = null): Access {
-        val rawTicket = call.request.queryParameters["ticket"]
-            ?: return Access.Denied("Missing ticket")
-        val userId = wsTicketService.consume(rawTicket)
+        val userId = consumeTicket(call)
             ?: return Access.Denied("Invalid or expired ticket")
         val id = serverId ?: call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
             ?: return Access.Denied("Missing server ID", CloseReason.Codes.NORMAL)
-        val scope = ServerLookup.scope(id)
+        return authorizeServer(userId, permission, id)
+    }
+
+    /**
+     * Permission check for a socket whose user is already authenticated (its ticket has been
+     * consumed). Used when the server id comes from a lookup performed after ticket consumption.
+     */
+    fun authorizeServer(userId: Uuid, permission: Permission, serverId: Uuid): Access {
+        val scope = ServerLookup.scope(serverId)
             ?: return Access.Denied("Server not found", CloseReason.Codes.NORMAL)
-        if (!permissionResolver.hasPermission(userId, permission, id, scope.networkId)) {
+        if (!permissionResolver.hasPermission(userId, permission, serverId, scope.networkId)) {
             return Access.Denied("Insufficient permissions")
         }
-        return Access.Granted(userId, id, scope.networkId)
+        return Access.Granted(userId, serverId, scope.networkId)
     }
 
     /** Re-check a socket's permission (used by the periodic revalidation loop). */

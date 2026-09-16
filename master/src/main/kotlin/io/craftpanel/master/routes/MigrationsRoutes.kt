@@ -97,6 +97,12 @@ fun Route.migrationsRoutes(migrationService: MigrationService, wsAuthorization: 
     }
 
     webSocket("/api/migrations/{migrationId}/events") {
+        // Authenticate before resolving the migration, so an unauthenticated client cannot probe
+        // whether a migration exists from the close code.
+        val userId = wsAuthorization.consumeTicket(call) ?: run {
+            close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Invalid or expired ticket"))
+            return@webSocket
+        }
         val migrationIdStr = call.parameters["migrationId"] ?: run {
             close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Missing migration ID"))
             return@webSocket
@@ -109,7 +115,7 @@ fun Route.migrationsRoutes(migrationService: MigrationService, wsAuthorization: 
             close(CloseReason(CloseReason.Codes.NORMAL, "Migration not found"))
             return@webSocket
         }
-        val grant = when (val access = wsAuthorization.authorizeServerSocket(call, Permission.SERVER_MIGRATE, serverId)) {
+        val grant = when (val access = wsAuthorization.authorizeServer(userId, Permission.SERVER_MIGRATE, serverId)) {
             is WsAuthorization.Access.Denied -> {
                 close(CloseReason(access.codes, access.message))
                 return@webSocket
