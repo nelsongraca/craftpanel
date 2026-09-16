@@ -19,7 +19,7 @@ class NodeOperationsTest : BaseSystemTest() {
     init {
         context("getNode") {
 
-            should("returns full metadata for a trusted node") {
+            should("return full metadata for a trusted node") {
                 val node = api.getNode(SharedStack.nodeId)
                 node.id shouldBe SharedStack.nodeId
                 node.status shouldBe NodeStatus.ACTIVE
@@ -30,7 +30,7 @@ class NodeOperationsTest : BaseSystemTest() {
                 node.createdAt.shouldNotBeEmpty()
             }
 
-            should("returns 404 for non-existent node") {
+            should("return 404 for a non-existent node") {
                 val ex = shouldThrow<ClientException> {
                     api.getNode("00000000-0000-0000-0000-000000000000")
                 }
@@ -51,7 +51,7 @@ class NodeOperationsTest : BaseSystemTest() {
                 }
             }
 
-            should("updates node display name") {
+            should("update the node display name") {
                 val newName = "updated-node-${System.currentTimeMillis()}"
                 api.updateNode(
                     SharedStack.nodeId,
@@ -61,7 +61,7 @@ class NodeOperationsTest : BaseSystemTest() {
                 node.displayName shouldBe newName
             }
 
-            should("returns 422 for invalid port range") {
+            should("return 422 for an invalid port range") {
                 val ex = shouldThrow<ClientException> {
                     api.updateNode(
                         SharedStack.nodeId,
@@ -74,7 +74,7 @@ class NodeOperationsTest : BaseSystemTest() {
 
         context("rejectNode") {
 
-            should("rejects a PENDING node and transitions it to REJECTED") {
+            should("reject a PENDING node and transition it to REJECTED") {
                 val containerId = SharedStack.addAgent()
                 try {
                     val pending = nodeHelper.awaitPendingNode()
@@ -88,7 +88,7 @@ class NodeOperationsTest : BaseSystemTest() {
                 }
             }
 
-            should("rejecting an ACTIVE node returns 409") {
+            should("return 409 when rejecting an ACTIVE node") {
                 val containerId = SharedStack.addAgent()
                 var nodeId = ""
                 try {
@@ -105,7 +105,7 @@ class NodeOperationsTest : BaseSystemTest() {
 
         context("rotateNodeToken") {
 
-            should("rotates the node token and returns a new key") {
+            should("rotate the node token and return a new key") {
                 val containerId = SharedStack.addAgent()
                 var nodeId = ""
                 try {
@@ -121,7 +121,7 @@ class NodeOperationsTest : BaseSystemTest() {
                 }
             }
 
-            should("agent with old token is rejected after rotation") {
+            should("reject an agent with the old token after rotation") {
                 val containerId = SharedStack.addAgent()
                 var nodeId = ""
                 try {
@@ -137,7 +137,7 @@ class NodeOperationsTest : BaseSystemTest() {
 
         context("decommissionNode") {
 
-            should("decommissions a node without active servers") {
+            should("decommission a node without active servers") {
                 val containerId = SharedStack.addAgent()
                 var nodeId = ""
                 try {
@@ -151,7 +151,7 @@ class NodeOperationsTest : BaseSystemTest() {
                 }
             }
 
-            should("decommissioning a node with active servers returns 409") {
+            should("return 409 when decommissioning a node with active servers") {
                 val containerId = SharedStack.addAgent()
                 var nodeId = ""
                 var serverId = ""

@@ -30,14 +30,14 @@ class FileUploadTest : BaseSystemTest() {
 
         context("uploadServerFile") {
 
-            should("uploads a text file and it appears in the listing") {
+            should("upload a text file and show it in the listing") {
                 val content = "uploaded content ${System.currentTimeMillis()}"
                 helper.uploadFile(serverId, "/uploaded.txt", content.toByteArray(), authHelper.token)
                 val listing = api.listServerFiles(serverId)
                 listing.propertyEntries.map { it.name } shouldContain "uploaded.txt"
             }
 
-            should("uploaded file content is readable back") {
+            should("read uploaded file content back") {
                 val content = "hello from upload"
                 helper.uploadFile(serverId, "/readable.txt", content.toByteArray(), authHelper.token)
                 val result = api.readServerFile(serverId, path = "/readable.txt")
@@ -45,14 +45,14 @@ class FileUploadTest : BaseSystemTest() {
                 result.encoding shouldBe "utf-8"
             }
 
-            should("upload overwrites an existing file") {
+            should("overwrite an existing file on upload") {
                 api.writeServerFile(serverId, path = "/overwrite.txt", body = "original")
                 helper.uploadFile(serverId, "/overwrite.txt", "replaced".toByteArray(), authHelper.token)
                 val result = api.readServerFile(serverId, path = "/overwrite.txt")
                 result.content shouldBe "replaced"
             }
 
-            should("returns 404 for non-existent server") {
+            should("return 404 for a non-existent server") {
                 val result = runCatching {
                     helper.uploadFile("00000000-0000-0000-0000-000000000000", "/x.txt", "x".toByteArray(), authHelper.token)
                 }

@@ -91,15 +91,15 @@ class McRouterRoutingTest : BaseSystemTest() {
 
         context("mc-router label-driven routing") {
 
-            should("routes a known hostname to its backend") {
+            should("route a known hostname to its backend") {
                 awaitRoutedMotd(hostnameA) shouldContain motdA
             }
 
-            should("routes a second hostname to its own distinct backend") {
+            should("route a second hostname to its own distinct backend") {
                 awaitRoutedMotd(hostnameB) shouldContain motdB
             }
 
-            should("does not route an unknown hostname to any backend") {
+            should("not route an unknown hostname to any backend") {
                 // mc-router has no backend for this hostname → it closes the connection
                 // without a status response. A successful status read here would mean the
                 // router fell through to some backend, which must not happen.
@@ -112,21 +112,21 @@ class McRouterRoutingTest : BaseSystemTest() {
 
         context("custom domain routing") {
 
-            should("routes the managed subdomain hostname to a server with a custom hostname") {
+            should("route the managed subdomain hostname to a server with a custom hostname") {
                 awaitRoutedMotd(hostnameC) shouldContain motdC
             }
 
-            should("routes the custom hostname to the same server") {
+            should("route the custom hostname to the same server") {
                 awaitRoutedMotd(customHostnameC) shouldContain motdC
             }
 
-            should("canonical_hostname reflects the custom hostname in the API response") {
+            should("reflect the custom hostname in canonical_hostname in the API response") {
                 val server = api.getServer(serverIdC)
                 server.customHostname shouldBe customHostnameC
                 server.canonicalHostname shouldBe customHostnameC
             }
 
-            should("clearing the custom hostname drops only that route") {
+            should("drop only that route when clearing the custom hostname") {
                 // Stop, clear custom hostname, restart
                 api.stopServer(serverIdC)
                 helper.awaitStoppedOrGone(serverIdC)
@@ -164,7 +164,7 @@ class McRouterRoutingTest : BaseSystemTest() {
 
         context("mc-router provisioning") {
 
-            should("starts the router with IN_DOCKER and DYNAMIC_PROXY_PROTOCOL enabled") {
+            should("start the router with IN_DOCKER and DYNAMIC_PROXY_PROTOCOL enabled") {
                 val env = withContext(Dispatchers.IO) {
                     SharedStack.dockerClient.inspectContainerCmd(SharedStack.mcRouterContainerName)
                         .exec()

@@ -23,13 +23,13 @@ class ServerUpgradeTest : BaseSystemTest() {
                     runCatching { api.deleteServer(serverId) }
                 }
 
-                should("mc_version persisted after PATCH") {
+                should("persist mc_version after PATCH") {
                     api.updateServer(serverId, UpdateServerRequest(mcVersion = "1.21.5"))
                     val server = api.getServer(serverId)
                     server.mcVersion shouldBe "1.21.5"
                 }
 
-                should("container VERSION env reflects mc_version after start") {
+                should("reflect mc_version in the container VERSION env after start") {
                     api.updateServer(serverId, UpdateServerRequest(mcVersion = "1.21.5"))
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, ServerStatus.HEALTHY)
@@ -43,7 +43,7 @@ class ServerUpgradeTest : BaseSystemTest() {
                     env["VERSION"] shouldBe "1.21.5"
                 }
 
-                should("container VERSION env updated after stop, PATCH, restart") {
+                should("update the container VERSION env after stop, PATCH, restart") {
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, ServerStatus.HEALTHY)
                     api.stopServer(serverId)
@@ -73,7 +73,7 @@ class ServerUpgradeTest : BaseSystemTest() {
                     runCatching { api.deleteServer(serverId) }
                 }
 
-                should("itzg_image_tag persisted after PATCH") {
+                should("persist itzg_image_tag after PATCH") {
                     api.updateServer(serverId, UpdateServerRequest(itzgImageTag = "latest"))
                     val server = api.getServer(serverId)
                     server.itzgImageTag shouldBe "latest"

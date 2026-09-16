@@ -22,7 +22,7 @@ class DashboardWsTest : BaseSystemTest() {
     init {
         context("Dashboard WebSocket") {
 
-            should("connects with valid ticket and receives SNAPSHOT event") {
+            should("connect with a valid ticket and receive a SNAPSHOT event") {
                 val ticket = api.authWsTicket()
                 val url = "$wsBaseUrl/api/ws?ticket=${ticket.ticket}"
                 val latch = CountDownLatch(1)
@@ -50,7 +50,7 @@ class DashboardWsTest : BaseSystemTest() {
                 ws.close(1000, "test done")
             }
 
-            should("snapshot payload has expected structure") {
+            should("return a SNAPSHOT payload with the expected structure") {
                 val ticket = api.authWsTicket()
                 val url = "$wsBaseUrl/api/ws?ticket=${ticket.ticket}"
                 val latch = CountDownLatch(1)
@@ -82,7 +82,7 @@ class DashboardWsTest : BaseSystemTest() {
                 ws.close(1000, "test done")
             }
 
-            should("rejects connection with invalid ticket") {
+            should("reject a connection with an invalid ticket") {
                 val url = "$wsBaseUrl/api/ws?ticket=invalid-fake-ticket"
                 val latch = CountDownLatch(1)
                 var closeCode = -1
@@ -113,7 +113,7 @@ class DashboardWsTest : BaseSystemTest() {
                 closeCode shouldBe 1008
             }
 
-            should("emits SERVER_STATUS events across start and stop") {
+            should("emit SERVER_STATUS events across start and stop") {
                 // One server drives both the start (HEALTHY) and stop (STOPPED) assertions on a
                 // single WS connection, saving an extra create + start cycle vs. two separate tests.
                 val serverId = helper.createTestServer(nodeId)

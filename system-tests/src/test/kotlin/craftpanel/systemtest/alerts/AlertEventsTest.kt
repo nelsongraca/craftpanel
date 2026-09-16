@@ -26,13 +26,13 @@ class AlertEventsTest : BaseSystemTest() {
     init {
         context("Alert events") {
 
-            should("returns empty events when no thresholds exist") {
+            should("return no events when no thresholds exist") {
                 val events = api.listAlertEvents()
                 val list = events["events"].orEmpty()
                 list.shouldBeEmpty()
             }
 
-            should("events populate after threshold breach") {
+            should("populate events after a threshold breach") {
                 val threshold = api.createAlertThreshold(
                     CreateAlertThresholdRequest(
                         scopeType = ScopeType.NODE,
@@ -54,7 +54,7 @@ class AlertEventsTest : BaseSystemTest() {
                 }
             }
 
-            should("active_only filter returns only unresolved events") {
+            should("return only unresolved events when active_only is set") {
                 val threshold = api.createAlertThreshold(
                     CreateAlertThresholdRequest(
                         scopeType = ScopeType.NODE,
@@ -75,7 +75,7 @@ class AlertEventsTest : BaseSystemTest() {
                 }
             }
 
-            should("scope filter returns only matching events") {
+            should("return only matching events when a scope is set") {
                 val threshold = api.createAlertThreshold(
                     CreateAlertThresholdRequest(
                         scopeType = ScopeType.NODE,
@@ -98,7 +98,7 @@ class AlertEventsTest : BaseSystemTest() {
                 }
             }
 
-            should("deleting threshold removes its events") {
+            should("remove a threshold's events when it is deleted") {
                 val thresholdA = api.createAlertThreshold(
                     CreateAlertThresholdRequest(
                         scopeType = ScopeType.NODE,

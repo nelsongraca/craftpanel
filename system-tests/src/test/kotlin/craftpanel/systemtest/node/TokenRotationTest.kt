@@ -30,7 +30,7 @@ class TokenRotationTest : BaseSystemTest() {
 
         context("Token rotation") {
 
-            should("rotates token and returns a new key, node stays ACTIVE") {
+            should("rotate the token, return a new key, and keep the node ACTIVE") {
                 val response = api.rotateNodeToken(agentNodeId)
                 response.nodeKey.shouldNotBeEmpty()
 
@@ -38,7 +38,7 @@ class TokenRotationTest : BaseSystemTest() {
                 node.status shouldBe NodeStatus.ACTIVE
             }
 
-            should("can rotate token twice") {
+            should("rotate the token twice") {
                 val first = api.rotateNodeToken(agentNodeId)
                 first.nodeKey.shouldNotBeEmpty()
 
@@ -46,13 +46,13 @@ class TokenRotationTest : BaseSystemTest() {
                 second.nodeKey.shouldNotBeEmpty()
             }
 
-            should("returns 404 for non-existent node") {
+            should("return 404 for a non-existent node") {
                 shouldThrow<ClientException> {
                     api.rotateNodeToken("00000000-0000-0000-0000-000000000000")
                 }.statusCode shouldBe 404
             }
 
-            should("agent with old key is rejected after rotation") {
+            should("reject an agent with the old key after rotation") {
                 val response = api.rotateNodeToken(agentNodeId)
                 response.nodeKey.shouldNotBeEmpty()
 

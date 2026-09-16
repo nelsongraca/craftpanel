@@ -42,7 +42,7 @@ class ServerMigrationTest : BaseSystemTest() {
 
         context("Server migration") {
 
-            should("migrates a STOPPED server to target node and reaches terminal state") {
+            should("migrate a STOPPED server to the target node and reach a terminal state") {
                 val serverId = helper.createTestServer(sourceNodeId)
                     .also { serverIds.add(it) }
 
@@ -65,7 +65,7 @@ class ServerMigrationTest : BaseSystemTest() {
                 server.nodeId shouldBe targetNodeId
             }
 
-            should("migrates a RUNNING server (source guarded) to target node and reaches terminal state") {
+            should("migrate a RUNNING server (source guarded) to the target node and reach a terminal state") {
                 val serverId = helper.createTestServer(sourceNodeId)
                     .also { serverIds.add(it) }
 
@@ -88,7 +88,7 @@ class ServerMigrationTest : BaseSystemTest() {
                 server.nodeId shouldBe targetNodeId
             }
 
-            should("server can start on target node after migration") {
+            should("start a server on the target node after migration") {
                 val serverId = helper.createTestServer(sourceNodeId)
                     .also { serverIds.add(it) }
 
@@ -109,7 +109,7 @@ class ServerMigrationTest : BaseSystemTest() {
                 helper.awaitStatus(serverId, ServerStatus.HEALTHY, timeoutMs = 120_000)
             }
 
-            should("receives migration progress events via WebSocket") {
+            should("receive migration progress events via WebSocket") {
                 val serverId = helper.createTestServer(sourceNodeId)
                     .also { serverIds.add(it) }
 
@@ -157,7 +157,7 @@ class ServerMigrationTest : BaseSystemTest() {
                 events.shouldNotBeEmpty()
             }
 
-            should("listMigrations returns non-empty after migration") {
+            should("return a non-empty migration list after migration") {
                 val serverId = helper.createTestServer(sourceNodeId)
                     .also { serverIds.add(it) }
 
@@ -177,7 +177,7 @@ class ServerMigrationTest : BaseSystemTest() {
                     .shouldNotBeEmpty()
             }
 
-            should("migrate HEALTHY server is allowed (server is stopped as part of migration)") {
+            should("allow migrating a HEALTHY server (it is stopped as part of migration)") {
                 val serverId = helper.createTestServer(sourceNodeId)
                     .also { serverIds.add(it) }
                 api.startServer(serverId)
@@ -197,7 +197,7 @@ class ServerMigrationTest : BaseSystemTest() {
                 migration.status shouldBe MigrationStatus.COMPLETED
             }
 
-            should("migrate to non-existent node returns 404") {
+            should("return 404 when migrating to a non-existent node") {
                 val serverId = helper.createTestServer(sourceNodeId)
                     .also { serverIds.add(it) }
 
@@ -213,7 +213,7 @@ class ServerMigrationTest : BaseSystemTest() {
                 }.statusCode shouldBe 404
             }
 
-            should("get non-existent migration returns 404") {
+            should("return 404 when getting a non-existent migration") {
                 shouldThrow<ClientException> {
                     api.getMigration("00000000-0000-0000-0000-000000000000")
                 }.statusCode shouldBe 404

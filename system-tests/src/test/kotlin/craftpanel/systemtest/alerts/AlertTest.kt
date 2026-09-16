@@ -18,7 +18,7 @@ class AlertTest : BaseSystemTest() {
 
             lateinit var thresholdId: String
 
-            should("creates a NODE-scoped alert threshold") {
+            should("create a NODE-scoped alert threshold") {
                 val threshold = api.createAlertThreshold(
                     CreateAlertThresholdRequest(
                         scopeType = ScopeType.NODE,
@@ -31,25 +31,25 @@ class AlertTest : BaseSystemTest() {
                 threshold.metric shouldBe "cpu_percent"
             }
 
-            should("lists alert thresholds includes created threshold") {
+            should("list alert thresholds including the created one") {
                 val thresholds = api.listAlertThresholds()
                 thresholds.thresholds.map { it.id } shouldContain thresholdId
             }
 
-            should("deletes alert threshold") {
+            should("delete an alert threshold") {
                 api.deleteAlertThreshold(thresholdId)
                 val thresholds = api.listAlertThresholds()
                 thresholds.thresholds.map { it.id } shouldNotContain thresholdId
             }
 
-            should("deleting non-existent threshold returns 404") {
+            should("return 404 when deleting a non-existent threshold") {
                 val ex = shouldThrow<ClientException> {
                     api.deleteAlertThreshold("00000000-0000-0000-0000-000000000000")
                 }
                 ex.statusCode shouldBe 404
             }
 
-            should("creating threshold with invalid scope_type returns 422") {
+            should("return 422 when creating a threshold with an invalid scope_type") {
                 val ex = shouldThrow<ClientException> {
                     api.createAlertThreshold(
                         CreateAlertThresholdRequest(

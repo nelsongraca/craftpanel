@@ -13,7 +13,7 @@ class NodeMetricsTest : BaseSystemTest() {
     init {
         context("Node metrics") {
 
-            should("returns metric structure for trusted node") {
+            should("return the metric structure for a trusted node") {
                 val metrics = api.getNodeMetrics(nodeId)
                 metrics.timestamps.shouldNotBe(null)
                 metrics.cpuPercent.shouldNotBe(null)
@@ -26,7 +26,7 @@ class NodeMetricsTest : BaseSystemTest() {
                 metrics.timestamps.size shouldBe metrics.cpuPercent.size
             }
 
-            should("metric arrays have matching sizes") {
+            should("return metric arrays with matching sizes") {
                 val metrics = api.getNodeMetrics(nodeId)
                 val n = metrics.timestamps.size
                 if (n > 0) {
@@ -38,7 +38,7 @@ class NodeMetricsTest : BaseSystemTest() {
                 }
             }
 
-            should("returns 404 for non-existent node") {
+            should("return 404 for a non-existent node") {
                 shouldThrow<ClientException> {
                     api.getNodeMetrics("00000000-0000-0000-0000-000000000000")
                 }.statusCode shouldBe 404

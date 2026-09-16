@@ -28,7 +28,7 @@ class PermissionResolutionTest : BaseSystemTest() {
 
         context("Wildcard permission resolution") {
 
-            should("server.* grants all server operations") {
+            should("grant all server operations for server.*") {
                 val email = "wild-server-${System.currentTimeMillis()}@test.com"
                 val group = api.createGroup(
                     CreateGroupRequest(name = "wild-server-group-${System.currentTimeMillis()}")
@@ -73,7 +73,7 @@ class PermissionResolutionTest : BaseSystemTest() {
                 }
             }
 
-            should("wildcard * grants all permissions") {
+            should("grant all permissions for the wildcard *") {
                 val email = "wild-all-${System.currentTimeMillis()}@test.com"
                 val superAdminGroup = api.listGroups()
                     .first { it.name == "Super Admin" }
@@ -103,7 +103,7 @@ class PermissionResolutionTest : BaseSystemTest() {
 
         context("Scope union resolution") {
 
-            should("GLOBAL server.view + SERVER-scoped server.start allows start on assigned server only") {
+            should("allow start only on the assigned server with GLOBAL server.view + SERVER-scoped server.start") {
                 val otherServer = helper.createTestServer(nodeId)
                 val email = "scope-union-${System.currentTimeMillis()}@test.com"
                 try {
@@ -162,7 +162,7 @@ class PermissionResolutionTest : BaseSystemTest() {
                 }
             }
 
-            should("NETWORK scope respected after server moves between networks") {
+            should("respect NETWORK scope after a server moves between networks") {
                 val netA = api.createNetwork(
                     CreateNetworkRequest(name = "perm-move-a-${System.currentTimeMillis()}")
                 )
@@ -225,7 +225,7 @@ class PermissionResolutionTest : BaseSystemTest() {
                 }
             }
 
-            should("duplicate permission nodes from multiple groups are deduplicated") {
+            should("deduplicate repeated permission nodes from multiple groups") {
                 val email = "perm-dedup-${System.currentTimeMillis()}@test.com"
                 val groupA = api.createGroup(
                     CreateGroupRequest(name = "dedup-a-${System.currentTimeMillis()}")

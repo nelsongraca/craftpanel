@@ -34,7 +34,7 @@ class ServerSignalStopTest : BaseSystemTest() {
 
         context("Signal stop commands") {
 
-            should("^C stop command delivers SIGINT for a graceful exit") {
+            should("deliver SIGINT for a graceful exit with the ^C stop command") {
                 api.updateStopCommand(serverId, PatchStopCommandRequest(stopCommand = "^C"))
                 api.startServer(serverId)
                 helper.awaitStatus(serverId, ServerStatus.HEALTHY)
@@ -48,7 +48,7 @@ class ServerSignalStopTest : BaseSystemTest() {
                     .exec().state?.exitCodeLong shouldBe 130L
             }
 
-            should("SIGTERM stop command name delivers SIGTERM for a graceful exit") {
+            should("deliver SIGTERM for a graceful exit with the SIGTERM stop command name") {
                 api.updateStopCommand(serverId, PatchStopCommandRequest(stopCommand = "SIGTERM"))
                 api.startServer(serverId)
                 helper.awaitStatus(serverId, ServerStatus.HEALTHY)
@@ -62,7 +62,7 @@ class ServerSignalStopTest : BaseSystemTest() {
                     .exec().state?.exitCodeLong shouldBe 143L
             }
 
-            should("text stop command is still written to stdin, not delivered as a signal") {
+            should("write a text stop command to stdin instead of delivering a signal") {
                 api.updateStopCommand(serverId, PatchStopCommandRequest(stopCommand = "stop"))
                 api.startServer(serverId)
                 helper.awaitStatus(serverId, ServerStatus.HEALTHY)

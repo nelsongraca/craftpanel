@@ -15,13 +15,13 @@ class AuthSecurityTest : BaseSystemTest() {
     init {
         context("Token security") {
 
-            should("refresh without refresh cookie returns 401") {
+            should("return 401 on refresh without a refresh cookie") {
                 val freshApi = DefaultApi(basePath = SharedStack.masterApiUrl)
                 val ex = shouldThrow<ClientException> { freshApi.authRefresh() }
                 ex.statusCode shouldBe 401
             }
 
-            should("login with new credentials works after logout") {
+            should("allow login with new credentials after logout") {
                 val tempEmail = "authsec-${System.currentTimeMillis()}@test.com"
                 val tempPw = "test-pw"
                 api.createUser(CreateUserRequest(username = "authsec-${System.currentTimeMillis()}", email = tempEmail, password = tempPw))
@@ -43,12 +43,12 @@ class AuthSecurityTest : BaseSystemTest() {
                 }
             }
 
-            should("logout-all succeeds when authenticated") {
+            should("succeed on logout-all when authenticated") {
                 api.authLogoutAll()
                 api.authMe()
             }
 
-            should("expired access token returns 401") {
+            should("return 401 for an expired access token") {
                 val savedProvider = api.accessTokenProvider
                 try {
                     val response = api.authLogin(LoginRequest(ADMIN_EMAIL, ADMIN_PASSWORD))
@@ -64,7 +64,7 @@ class AuthSecurityTest : BaseSystemTest() {
                 }
             }
 
-            should("refresh after user deactivation returns 401") {
+            should("return 401 on refresh after user deactivation") {
                 val tempEmail = "authsec-deact-${System.currentTimeMillis()}@test.com"
                 val tempPw = "test-pw"
                 val userObj = api.createUser(

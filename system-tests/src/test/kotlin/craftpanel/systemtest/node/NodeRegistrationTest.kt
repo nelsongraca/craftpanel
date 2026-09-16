@@ -31,19 +31,19 @@ class NodeRegistrationTest : BaseSystemTest() {
         context("Node registration") {
             var nodeId = ""
 
-            should("agent registers and appears as PENDING before trust") {
+            should("show a newly registered agent as PENDING before trust") {
                 val node = nodeHelper.awaitPendingNode()
                 nodeId = node.id
                 agentNodeId = node.id
                 node.status shouldBe NodeStatus.PENDING
             }
 
-            should("PENDING node stays PENDING after agent connects and sends state snapshot") {
+            should("keep a PENDING node PENDING after the agent connects and sends a state snapshot") {
                 val node = api.getNode(nodeId)
                 node.status shouldBe NodeStatus.PENDING
             }
 
-            should("PENDING node stays PENDING after agent container restart") {
+            should("keep a PENDING node PENDING after an agent container restart") {
                 val docker = SharedStack.dockerClient
                 docker.restartContainerCmd(agentContainerId)
                     .exec()
@@ -54,13 +54,13 @@ class NodeRegistrationTest : BaseSystemTest() {
                 node.status shouldBe NodeStatus.PENDING
             }
 
-            should("trusting a PENDING node transitions it to ACTIVE") {
+            should("transition a trusted PENDING node to ACTIVE") {
                 api.trustNode(nodeId)
                 val active = nodeHelper.pollUntilActive(nodeId)
                 active.status shouldBe NodeStatus.ACTIVE
             }
 
-            should("a second trust call on an ACTIVE node returns 409") {
+            should("return 409 when trusting an already-ACTIVE node") {
                 val ex = shouldThrow<ClientException> { api.trustNode(nodeId) }
                 ex.statusCode shouldBe 409
             }

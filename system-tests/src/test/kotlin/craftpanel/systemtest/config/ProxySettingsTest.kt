@@ -41,14 +41,14 @@ class ProxySettingsTest : BaseSystemTest() {
 
         context("Proxy settings management") {
 
-            should("returns default motd and null settings for a new proxy server") {
+            should("return default motd and null settings for a new proxy server") {
                 val settings = api.getProxySettings(proxyServerId)
                 settings.motd shouldBe "Velocity powered by CraftPanel"
                 settings.maxPlayers shouldBe null
                 settings.forwardingMode shouldBe null
             }
 
-            should("sets and returns proxy settings") {
+            should("set and return proxy settings") {
                 val result = api.updateProxySettings(
                     proxyServerId,
                     UpdateProxySettingsRequest(
@@ -67,7 +67,7 @@ class ProxySettingsTest : BaseSystemTest() {
                 settings.forwardingMode shouldBe "LEGACY"
             }
 
-            should("clears settings by setting null values") {
+            should("clear settings by setting null values") {
                 api.updateProxySettings(
                     proxyServerId,
                     UpdateProxySettingsRequest(
@@ -82,7 +82,7 @@ class ProxySettingsTest : BaseSystemTest() {
                 settings.forwardingMode shouldBe null
             }
 
-            should("rejects invalid forwarding mode with 422") {
+            should("return 422 for an invalid forwarding mode") {
                 val ex = shouldThrow<ClientException> {
                     api.updateProxySettings(
                         proxyServerId,
@@ -96,7 +96,7 @@ class ProxySettingsTest : BaseSystemTest() {
                 ex.statusCode shouldBe 422
             }
 
-            should("rejects non-positive maxPlayers with 422") {
+            should("return 422 for a non-positive maxPlayers") {
                 val ex = shouldThrow<ClientException> {
                     api.updateProxySettings(
                         proxyServerId,
@@ -110,7 +110,7 @@ class ProxySettingsTest : BaseSystemTest() {
                 ex.statusCode shouldBe 422
             }
 
-            should("updateProxySettings on a non-proxy server returns 409") {
+            should("return 409 when updating proxy settings on a non-proxy server") {
                 val ex = shouldThrow<ClientException> {
                     api.updateProxySettings(
                         gameServerId,
@@ -124,14 +124,14 @@ class ProxySettingsTest : BaseSystemTest() {
                 ex.statusCode shouldBe 409
             }
 
-            should("getProxySettings on a non-existent server returns 404") {
+            should("return 404 when getting proxy settings for a non-existent server") {
                 val ex = shouldThrow<ClientException> {
                     api.getProxySettings("00000000-0000-0000-0000-000000000000")
                 }
                 ex.statusCode shouldBe 404
             }
 
-            should("starts proxy with PATCH_DEFINITIONS env var") {
+            should("start a proxy with the PATCH_DEFINITIONS env var") {
                 api.updateProxySettings(
                     proxyServerId,
                     UpdateProxySettingsRequest(

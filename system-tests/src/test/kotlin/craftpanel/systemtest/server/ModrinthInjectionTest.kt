@@ -74,7 +74,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
 
             context("PINNED strategy") {
 
-                should("MODRINTH_PROJECTS env var is absent on a server with no mods") {
+                should("omit the MODRINTH_PROJECTS env var on a server with no mods") {
                     val info = docker.inspectContainerCmd(containerName(serverId))
                         .exec()
                     val envKeys = info.config?.env?.map { it.substringBefore("=") }
@@ -82,7 +82,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                     envKeys shouldNotContain "MODRINTH_PROJECTS"
                 }
 
-                should("adding a pinned mod and restarting injects MODRINTH_PROJECTS into the container") {
+                should("inject MODRINTH_PROJECTS into the container after adding a pinned mod and restarting") {
                     val lithiumVersion = resolveModrinthVersionId("lithium", "fabric", "1.21.4")
                     api.addMod(
                         serverId,
@@ -104,7 +104,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                     env shouldContain "MODRINTH_PROJECTS=lithium:$lithiumVersion"
                 }
 
-                should("adding a second mod includes both in MODRINTH_PROJECTS") {
+                should("include both mods in MODRINTH_PROJECTS after adding a second one") {
                     val lithiumVersion = resolveModrinthVersionId("lithium", "fabric", "1.21.4")
                     val sodiumVersion = resolveModrinthVersionId("sodium", "fabric", "1.21.4")
                     api.addMod(
@@ -141,7 +141,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                     projects shouldContain "sodium:$sodiumVersion"
                 }
 
-                should("removing a mod and restarting removes it from MODRINTH_PROJECTS") {
+                should("remove a mod from MODRINTH_PROJECTS after removing it and restarting") {
                     val lithiumVersion = resolveModrinthVersionId("lithium", "fabric", "1.21.4")
                     val sodiumVersion = resolveModrinthVersionId("sodium", "fabric", "1.21.4")
                     api.addMod(
@@ -186,7 +186,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
 
             context("LATEST strategy") {
 
-                should("a LATEST mod appears in MODRINTH_PROJECTS without a version pin") {
+                should("include a LATEST mod in MODRINTH_PROJECTS without a version pin") {
                     api.addMod(
                         serverId,
                         CreateModRequest(
@@ -212,7 +212,7 @@ class ModrinthInjectionTest : BaseSystemTest() {
                     projects.none { it.startsWith("lithium:") } shouldBe true
                 }
 
-                should("adding a mod with no version compatible with the server's loader+mcVersion is rejected") {
+                should("reject adding a mod with no version compatible with the server's loader+mcVersion") {
                     // essentialsx is a Paper/Spigot-only plugin, never published a Fabric build - exercises the
                     // root-cause fix: addMod validates loader+mcVersion compatibility before persisting, so an
                     // incompatible mod can never leave a server unable to boot once itzg tries to resolve it.

@@ -32,7 +32,7 @@ class BackupDownloadTest : BaseSystemTest() {
 
         context("Backup download") {
 
-            should("downloads a completed backup") {
+            should("download a completed backup") {
                 val backup = api.triggerBackup(serverId)
                 helper.awaitStatus(serverId, ServerStatus.HEALTHY)
 
@@ -49,7 +49,7 @@ class BackupDownloadTest : BaseSystemTest() {
                 bytes.size.toLong() shouldBe completed.sizeBytes
             }
 
-            should("downloading a non-existent backup returns 404") {
+            should("return 404 when downloading a non-existent backup") {
                 val ex = shouldThrow<ClientException> {
                     api.downloadBackup(
                         serverId,
@@ -59,7 +59,7 @@ class BackupDownloadTest : BaseSystemTest() {
                 ex.statusCode shouldBe 404
             }
 
-            should("downloading an in-progress backup returns 409") {
+            should("return 409 when downloading an in-progress backup") {
                 val backup = api.triggerBackup(serverId)
                 // Check status immediately — fake-server may complete the backup near-instantly.
                 // Only assert 409 if the backup is genuinely still IN_PROGRESS.

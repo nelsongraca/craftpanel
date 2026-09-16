@@ -4,8 +4,8 @@ import craftpanel.systemtest.client.model.ServerStatus
 import craftpanel.systemtest.harness.BaseSystemTest
 import io.kotest.core.annotation.Tags
 import io.kotest.matchers.shouldBe
-import kotlin.time.Duration.Companion.milliseconds
 import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.milliseconds
 
 /**
  * Agent-owned crash recovery: an unexpected container death is restarted by the agent (within
@@ -30,7 +30,7 @@ class ServerCrashRestartTest : BaseSystemTest() {
 
         context("Crash recovery") {
 
-            should("auto-restarts a crashed container within budget") {
+            should("auto-restart a crashed container within budget") {
                 api.startServer(serverId)
                 helper.awaitStatus(serverId, ServerStatus.HEALTHY)
 

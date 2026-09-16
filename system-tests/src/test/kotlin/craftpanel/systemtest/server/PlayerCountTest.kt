@@ -12,7 +12,7 @@ class PlayerCountTest : BaseSystemTest() {
     init {
         context("Player count via MC Query protocol") {
 
-            should("agent reports correct player count and names from fake server") {
+            should("report the correct player count and names from the fake server") {
 
                 val serverId = helper.createTestServer(nodeId)
                 try {
@@ -37,7 +37,7 @@ class PlayerCountTest : BaseSystemTest() {
                 }
             }
 
-            should("agent reports zero players when no players are online") {
+            should("report zero players when no players are online") {
 
                 val serverId = helper.createTestServer(nodeId)
                 try {

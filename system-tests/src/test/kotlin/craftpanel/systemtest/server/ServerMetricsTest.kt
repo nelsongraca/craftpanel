@@ -40,14 +40,14 @@ class ServerMetricsTest : BaseSystemTest() {
 
         context("Server container metrics") {
 
-            should("running server returns metric series") {
+            should("return metric series for a running server") {
                 val metrics = api.getServerMetrics(serverId, fiveMinutesAgo(), now())
 
                 metrics.serverId shouldBe serverId
                 metrics.series shouldNotBe null
             }
 
-            should("stopped server returns empty metrics") {
+            should("return empty metrics for a stopped server") {
                 val metrics = api.getServerMetrics(serverId2, fiveMinutesAgo(), now())
 
                 metrics.serverId shouldBe serverId2
@@ -57,17 +57,18 @@ class ServerMetricsTest : BaseSystemTest() {
                 metrics.series.netOutBytes shouldBe emptyList()
             }
 
-            should("non-existent server returns 404") {
+            should("return 404 for a non-existent server") {
                 val ex = shouldThrow<ClientException> {
                     api.getServerMetrics(
                         "00000000-0000-0000-0000-000000000000",
-                        fiveMinutesAgo(), now()
+                        fiveMinutesAgo(),
+                        now()
                     )
                 }
                 ex.statusCode shouldBe 404
             }
 
-            should("missing from query parameter returns 400") {
+            should("return 400 when the from query parameter is missing") {
                 val ex = shouldThrow<ClientException> {
                     api.getServerMetrics(serverId2, "", now())
                 }

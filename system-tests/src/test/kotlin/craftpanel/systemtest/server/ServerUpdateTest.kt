@@ -30,19 +30,19 @@ class ServerUpdateTest : BaseSystemTest() {
 
         context("Server update") {
 
-            should("updates server name") {
+            should("update the server name") {
                 api.updateServer(serverId, UpdateServerRequest(displayName = "renamed-server"))
                 val server = api.getServer(serverId)
                 server.displayName shouldBe "renamed-server"
             }
 
-            should("updates server description") {
+            should("update the server description") {
                 api.updateServer(serverId, UpdateServerRequest(description = "test description"))
                 val server = api.getServer(serverId)
                 server.description shouldBe "test description"
             }
 
-            should("updates server network") {
+            should("update the server network") {
                 val network = api.createNetwork(
                     CreateNetworkRequest(name = "update-net-${System.currentTimeMillis()}")
                 )
@@ -50,13 +50,12 @@ class ServerUpdateTest : BaseSystemTest() {
                     api.updateServer(serverId, UpdateServerRequest(networkId = network.id))
                     val server = api.getServer(serverId)
                     server.networkId shouldBe network.id
-                }
-                finally {
+                } finally {
                     runCatching { api.deleteNetwork(network.id) }
                 }
             }
 
-            should("updating non-existent server returns 404") {
+            should("return 404 when updating a non-existent server") {
                 shouldThrow<ClientException> {
                     api.updateServer(
                         "00000000-0000-0000-0000-000000000000",
@@ -65,7 +64,7 @@ class ServerUpdateTest : BaseSystemTest() {
                 }.statusCode shouldBe 404
             }
 
-            should("partial update only changes specified fields") {
+            should("change only the specified fields on a partial update") {
                 val original = api.getServer(serverId)
                 val originalName = original.name
 
@@ -75,7 +74,7 @@ class ServerUpdateTest : BaseSystemTest() {
                 updated.name shouldBe originalName
             }
 
-            should("update is idempotent") {
+            should("make repeated updates idempotent") {
                 api.updateServer(serverId, UpdateServerRequest(displayName = "idempotent-name"))
                 api.updateServer(serverId, UpdateServerRequest(displayName = "idempotent-name"))
                 val server = api.getServer(serverId)
@@ -85,7 +84,7 @@ class ServerUpdateTest : BaseSystemTest() {
 
         context("Reconfigure (recreate-if-diff)") {
 
-            should("an env change while running does not restart, but a restart recreates with the new spec") {
+            should("not restart on an env change while running, but recreate with the new spec on restart") {
                 api.startServer(serverId)
                 helper.awaitStatus(serverId, ServerStatus.HEALTHY)
                 val before = docker.inspectContainerCmd(containerName(serverId)).exec().id

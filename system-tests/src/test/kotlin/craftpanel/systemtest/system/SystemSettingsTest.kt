@@ -30,26 +30,26 @@ class SystemSettingsTest : BaseSystemTest() {
                     metricRetentionDays = originalMetricRetentionDays,
                     defaultBackupMaxCount = originalBackupMaxCount,
                     defaultPortRangeStart = originalPortRangeStart,
-                    defaultPortRangeEnd = originalPortRangeEnd,
+                    defaultPortRangeEnd = originalPortRangeEnd
                 )
             )
         }
 
         context("System settings") {
 
-            should("gets system settings with defaults") {
+            should("get system settings with defaults") {
                 val response = api.getSystemSettings()
                 response.settings.metricRetentionDays shouldBe 30
             }
 
-            should("updates system settings") {
+            should("update system settings") {
                 val updated = api.updateSystemSettings(
                     PatchSettingsRequest(metricRetentionDays = 60)
                 )
                 updated.settings.metricRetentionDays shouldBe 60
             }
 
-            should("updates backup and port settings") {
+            should("update backup and port settings") {
                 val updated = api.updateSystemSettings(
                     PatchSettingsRequest(
                         defaultBackupMaxCount = 10,

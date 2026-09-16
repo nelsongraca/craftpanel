@@ -15,7 +15,6 @@ import io.kotest.matchers.string.shouldNotBeEmpty
 @Tags("Node")
 class MultiNodeTest : BaseSystemTest() {
 
-
     private val serverIds = mutableListOf<String>()
 
     init {
@@ -29,7 +28,7 @@ class MultiNodeTest : BaseSystemTest() {
 
         context("Multi-node operations") {
 
-            should("listNodes returns both agents") {
+            should("return both agents when listing nodes") {
                 val nodes = api.listNodes()
                 nodes.shouldHaveSize(2)
                 nodes.all { it.status == NodeStatus.ACTIVE } shouldBe true
@@ -38,7 +37,7 @@ class MultiNodeTest : BaseSystemTest() {
                     .shouldHaveSize(2)
             }
 
-            should("getNode returns correct metadata for each agent") {
+            should("return correct metadata for each agent") {
                 val nodes = api.listNodes()
                 nodes.shouldHaveSize(2)
 
@@ -50,7 +49,7 @@ class MultiNodeTest : BaseSystemTest() {
                 }
             }
 
-            should("can create servers on both nodes") {
+            should("create servers on both nodes") {
                 val nodes = api.listNodes()
                 val nodeA = nodes[0].id
                 val nodeB = nodes[1].id
@@ -70,7 +69,7 @@ class MultiNodeTest : BaseSystemTest() {
                     .shouldContainAll(listOf(serverA, serverB))
             }
 
-            should("can start and stop servers on both nodes") {
+            should("start and stop servers on both nodes") {
                 val nodes = api.listNodes()
                 val nodeA = nodes[0].id
                 val nodeB = nodes[1].id
@@ -92,7 +91,7 @@ class MultiNodeTest : BaseSystemTest() {
                 helper.awaitStoppedOrGone(serverB)
             }
 
-            should("node metrics available for both nodes") {
+            should("expose node metrics for both nodes") {
                 val nodes = api.listNodes()
                 for (node in nodes) {
                     // First metric tick arrives up to METRICS_POLL_INTERVAL_SECONDS

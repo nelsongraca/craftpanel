@@ -44,7 +44,7 @@ class AdminTest : BaseSystemTest() {
             val testEmail = "testuser-${System.currentTimeMillis()}@test.com"
             val testUsername = "testuser-${System.currentTimeMillis()}"
 
-            should("creates a new user") {
+            should("create a new user") {
                 val user = api.createUser(
                     CreateUserRequest(username = testUsername, email = testEmail, password = "test-password-123")
                 )
@@ -54,19 +54,19 @@ class AdminTest : BaseSystemTest() {
                 user.isActive shouldBe true
             }
 
-            should("lists users including the new user") {
+            should("list users including the new user") {
                 val users = api.listUsers()
                 users.users.map { it.email } shouldContain testEmail
             }
 
-            should("gets user by ID") {
+            should("get a user by ID") {
                 val user = api.getUser(createdUserId)
                 user.email shouldBe testEmail
                 user.username shouldBe testUsername
                 user.isActive shouldBe true
             }
 
-            should("updates user email and username") {
+            should("update a user's email and username") {
                 val newEmail = "updated-${System.currentTimeMillis()}@test.com"
                 val newUsername = "updated-${System.currentTimeMillis()}"
                 val updated = api.updateUser(
@@ -77,7 +77,7 @@ class AdminTest : BaseSystemTest() {
                 updated.username shouldBe newUsername
             }
 
-            should("deactivates a user") {
+            should("deactivate a user") {
                 val updated = api.updateUser(
                     createdUserId,
                     PatchUserRequest(isActive = false)
@@ -85,13 +85,13 @@ class AdminTest : BaseSystemTest() {
                 updated.isActive shouldBe false
             }
 
-            should("deleted user no longer appears in list") {
+            should("omit a deleted user from the list") {
                 api.deleteUser(createdUserId)
                 val users = api.listUsers()
                 users.users.map { it.email } shouldNotContain testEmail
             }
 
-            should("creating a user with duplicate email returns 409") {
+            should("return 409 when creating a user with a duplicate email") {
                 val ex = shouldThrow<ClientException> {
                     api.createUser(
                         CreateUserRequest(
@@ -104,7 +104,7 @@ class AdminTest : BaseSystemTest() {
                 ex.statusCode shouldBe 409
             }
 
-            should("cannot delete self") {
+            should("refuse to delete your own account") {
                 val me = api.authMe()
                 val ex = shouldThrow<ClientException> {
                     api.deleteUser(me.id)
@@ -112,7 +112,7 @@ class AdminTest : BaseSystemTest() {
                 ex.statusCode shouldBe 409
             }
 
-            should("getting a non-existent user returns 404") {
+            should("return 404 when getting a non-existent user") {
                 val ex = shouldThrow<ClientException> {
                     api.getUser("00000000-0000-0000-0000-000000000000")
                 }
@@ -125,7 +125,7 @@ class AdminTest : BaseSystemTest() {
             lateinit var createdGroupId: String
             val groupName = "test-group-${System.currentTimeMillis()}"
 
-            should("creates a new group") {
+            should("create a new group") {
                 val group = api.createGroup(CreateGroupRequest(name = groupName))
                 createdGroupId = group.id
                 group.name shouldBe groupName
@@ -133,24 +133,24 @@ class AdminTest : BaseSystemTest() {
                 group.permissions shouldBe emptyList()
             }
 
-            should("lists groups including the new group") {
+            should("list groups including the new group") {
                 val groups = api.listGroups()
                 groups.map { it.name } shouldContain groupName
             }
 
-            should("gets group by ID") {
+            should("get a group by ID") {
                 val group = api.getGroup(createdGroupId)
                 group.name shouldBe groupName
                 group.isSystem shouldBe false
             }
 
-            should("updates group name") {
+            should("update a group name") {
                 val newName = "renamed-group-${System.currentTimeMillis()}"
                 val updated = api.updateGroup(createdGroupId, PatchGroupRequest(name = newName))
                 updated.name shouldBe newName
             }
 
-            should("sets group permissions") {
+            should("set group permissions") {
                 val updated = api.setGroupPermissions(
                     createdGroupId,
                     PutGroupPermissionsRequest(permissions = listOf("server.view", "server.console"))
@@ -158,13 +158,13 @@ class AdminTest : BaseSystemTest() {
                 updated.permissions shouldBe listOf("server.view", "server.console")
             }
 
-            should("deletes a custom group") {
+            should("delete a custom group") {
                 api.deleteGroup(createdGroupId)
                 val groups = api.listGroups()
                 groups.map { it.id } shouldNotContain createdGroupId
             }
 
-            should("cannot delete a system group") {
+            should("refuse to delete a system group") {
                 val groups = api.listGroups()
                 val superAdmin = groups.first { it.isSystem && it.name == "Super Admin" }
                 val ex = shouldThrow<ClientException> {
@@ -173,7 +173,7 @@ class AdminTest : BaseSystemTest() {
                 ex.statusCode shouldBe 409
             }
 
-            should("creating a group with duplicate name returns 409") {
+            should("return 409 when creating a group with a duplicate name") {
                 val ex = shouldThrow<ClientException> {
                     api.createGroup(CreateGroupRequest(name = "Viewer"))
                 }
@@ -183,7 +183,7 @@ class AdminTest : BaseSystemTest() {
 
         context("Group assignments") {
 
-            should("creates a GLOBAL assignment") {
+            should("create a GLOBAL assignment") {
                 val assignment = api.createAssignment(
                     assignUserId,
                     CreateAssignmentRequest(
@@ -196,12 +196,12 @@ class AdminTest : BaseSystemTest() {
                 assignment.scopeType shouldBe ScopeType.GLOBAL
             }
 
-            should("lists assignments for user") {
+            should("list assignments for a user") {
                 val assignments = api.listUserAssignments(assignUserId)
                 assignments.assignments.map { it.id } shouldContain assignmentId
             }
 
-            should("deletes an assignment") {
+            should("delete an assignment") {
                 api.deleteAssignment(assignUserId, assignmentId)
                 val assignments = api.listUserAssignments(assignUserId)
                 assignments.assignments.map { it.id } shouldNotContain assignmentId

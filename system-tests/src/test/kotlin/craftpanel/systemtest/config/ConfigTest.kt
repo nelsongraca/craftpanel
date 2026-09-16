@@ -32,7 +32,7 @@ class ConfigTest : BaseSystemTest() {
 
         context("Server configuration") {
 
-            should("get env vars returns defaults for new server") {
+            should("return default env vars for a new server") {
                 val envVars = api.getEnvVars(serverId)
                 envVars.envVars.shouldNotBeEmpty()
                 envVars.envVars.map { it.key } shouldContain "ALLOW_FLIGHT"
@@ -40,7 +40,7 @@ class ConfigTest : BaseSystemTest() {
                 envVars.envVars.map { it.key } shouldContain "MAX_PLAYERS"
             }
 
-            should("sets and retrieves env vars") {
+            should("set and retrieve env vars") {
                 api.replaceEnvVars(
                     serverId,
                     PutEnvVarsRequest(
@@ -55,7 +55,7 @@ class ConfigTest : BaseSystemTest() {
                 envVars.envVars.map { it.key } shouldContain "ANOTHER_KEY"
             }
 
-            should("replaces env vars, removing previous entries") {
+            should("replace env vars and remove previous entries") {
                 api.replaceEnvVars(
                     serverId,
                     PutEnvVarsRequest(
@@ -73,19 +73,19 @@ class ConfigTest : BaseSystemTest() {
                 envVars.envVars.first().key shouldBe "SECOND_KEY"
             }
 
-            should("updates stop command") {
+            should("update the stop command") {
                 api.updateStopCommand(serverId, PatchStopCommandRequest(stopCommand = "say Goodbye"))
                 val server = api.getServer(serverId)
                 server.stopCommand shouldBe "say Goodbye"
             }
 
-            should("updates config mode") {
+            should("update the config mode") {
                 api.updateConfigMode(serverId, PatchConfigModeRequest(configMode = ConfigMode.MANAGED))
                 val server = api.getServer(serverId)
                 server.configMode shouldBe ConfigMode.MANAGED
             }
 
-            should("managing proxy backends on a non-proxy server returns 409") {
+            should("return 409 when managing proxy backends on a non-proxy server") {
                 val ex = shouldThrow<ClientException> {
                     api.replaceProxyBackends(
                         serverId,
@@ -103,7 +103,7 @@ class ConfigTest : BaseSystemTest() {
                 ex.statusCode shouldBe 409
             }
 
-            should("configuring a non-existent server returns 404") {
+            should("return 404 when configuring a non-existent server") {
                 val ex = shouldThrow<ClientException> {
                     api.getEnvVars("00000000-0000-0000-0000-000000000000")
                 }
@@ -113,7 +113,7 @@ class ConfigTest : BaseSystemTest() {
 
         context("Server resources") {
 
-            should("updates server memory and CPU") {
+            should("update server memory and CPU") {
                 api.updateServerResources(
                     serverId2,
                     PatchResourcesRequest(memoryMb = 1024, cpuShares = 256)
@@ -123,7 +123,7 @@ class ConfigTest : BaseSystemTest() {
                 server.cpuShares shouldBe 256
             }
 
-            should("updating server resources beyond node capacity returns 409") {
+            should("return 409 when updating server resources beyond node capacity") {
                 val node = api.getNode(nodeId)
                 val excessiveMb = node.totalRamMb + 1024
                 val ex = shouldThrow<ClientException> {
@@ -138,7 +138,7 @@ class ConfigTest : BaseSystemTest() {
 
         context("Server exposure") {
 
-            should("updates server exposure") {
+            should("update server exposure") {
                 api.updateServerExposure(
                     serverId2,
                     PatchExposureRequest(exposedExternally = true)

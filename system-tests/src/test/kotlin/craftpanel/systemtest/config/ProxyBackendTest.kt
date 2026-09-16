@@ -39,12 +39,12 @@ class ProxyBackendTest : BaseSystemTest() {
 
         context("Proxy backend management") {
 
-            should("returns empty backends for a new proxy server") {
+            should("return empty backends for a new proxy server") {
                 val backends = api.getProxyBackends(proxyServerId)
                 backends.backends.shouldBeEmpty()
             }
 
-            should("replaces backends with a game server") {
+            should("replace backends with a game server") {
                 val result = api.replaceProxyBackends(
                     proxyServerId,
                     PutProxyBackendsRequest(
@@ -63,13 +63,13 @@ class ProxyBackendTest : BaseSystemTest() {
                 result.backends.first().order shouldBe 1
             }
 
-            should("reads back the configured backends") {
+            should("read back the configured backends") {
                 val backends = api.getProxyBackends(proxyServerId)
                 backends.backends.shouldHaveSize(1)
                 backends.backends.first().backendServerId shouldBe gameServerId
             }
 
-            should("replaces backends with multiple servers maintaining order") {
+            should("replace backends with multiple servers and maintain order") {
                 val secondGame = ServerHelper(api).createTestServer(nodeId)
                 try {
                     val result = api.replaceProxyBackends(
@@ -84,13 +84,12 @@ class ProxyBackendTest : BaseSystemTest() {
                     result.backends.shouldHaveSize(2)
                     result.backends[0].order shouldBe 1
                     result.backends[1].order shouldBe 2
-                }
-                finally {
+                } finally {
                     runCatching { api.deleteServer(secondGame) }
                 }
             }
 
-            should("replaces backends with empty list clears them") {
+            should("clear backends when replaced with an empty list") {
                 api.replaceProxyBackends(
                     proxyServerId,
                     PutProxyBackendsRequest(backends = emptyList())
@@ -99,7 +98,7 @@ class ProxyBackendTest : BaseSystemTest() {
                 backends.backends.shouldBeEmpty()
             }
 
-            should("replacing backends on a non-proxy server returns 409") {
+            should("return 409 when replacing backends on a non-proxy server") {
                 val sId = ServerHelper(api).createTestServer(nodeId)
                 try {
                     val ex = shouldThrow<ClientException> {
@@ -117,20 +116,19 @@ class ProxyBackendTest : BaseSystemTest() {
                         )
                     }
                     ex.statusCode shouldBe 409
-                }
-                finally {
+                } finally {
                     runCatching { api.deleteServer(sId) }
                 }
             }
 
-            should("getting backends on a non-existent server returns 404") {
+            should("return 404 when getting backends for a non-existent server") {
                 val ex = shouldThrow<ClientException> {
                     api.getProxyBackends("00000000-0000-0000-0000-000000000000")
                 }
                 ex.statusCode shouldBe 404
             }
 
-            should("replacing backends with non-existent backend server returns 400") {
+            should("return 400 when replacing backends with a non-existent backend server") {
                 val proxy = api.createServer(
                     CreateServerRequest(
                         name = "test-proxy-err-${System.currentTimeMillis()}",
@@ -158,13 +156,12 @@ class ProxyBackendTest : BaseSystemTest() {
                         )
                     }
                     ex.statusCode shouldBe 422
-                }
-                finally {
+                } finally {
                     runCatching { api.deleteServer(proxy.id) }
                 }
             }
 
-            should("starts proxy server after backends configured") {
+            should("start a proxy server after backends are configured") {
 
                 api.replaceProxyBackends(
                     proxyServerId,

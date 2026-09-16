@@ -28,7 +28,7 @@ class PermissionsTest : BaseSystemTest() {
 
         context("Multi-user permission enforcement") {
 
-            should("user without any assignment cannot list servers") {
+            should("reject listing servers for a user without any assignment") {
                 val email = "perm-no-list-${System.currentTimeMillis()}@test.com"
                 createViewerUser(email, "pw")
                 withViewerApi(email, "pw") { vApi ->
@@ -38,7 +38,7 @@ class PermissionsTest : BaseSystemTest() {
                 cleanupUser(email)
             }
 
-            should("user without any assignment cannot list users") {
+            should("reject listing users for a user without any assignment") {
                 val email = "perm-no-users-${System.currentTimeMillis()}@test.com"
                 createViewerUser(email, "pw")
                 withViewerApi(email, "pw") { vApi ->
@@ -48,7 +48,7 @@ class PermissionsTest : BaseSystemTest() {
                 cleanupUser(email)
             }
 
-            should("user without any assignment cannot view system settings") {
+            should("reject viewing system settings for a user without any assignment") {
                 val email = "perm-no-settings-${System.currentTimeMillis()}@test.com"
                 createViewerUser(email, "pw")
                 withViewerApi(email, "pw") { vApi ->
@@ -58,7 +58,7 @@ class PermissionsTest : BaseSystemTest() {
                 cleanupUser(email)
             }
 
-            should("user without any assignment cannot list nodes") {
+            should("reject listing nodes for a user without any assignment") {
                 val email = "perm-no-nodes-${System.currentTimeMillis()}@test.com"
                 createViewerUser(email, "pw")
                 withViewerApi(email, "pw") { vApi ->
@@ -68,7 +68,7 @@ class PermissionsTest : BaseSystemTest() {
                 cleanupUser(email)
             }
 
-            should("user with GLOBAL viewer can list servers and see details") {
+            should("let a GLOBAL viewer list servers and see details") {
                 val email = "perm-global-view-${System.currentTimeMillis()}@test.com"
                 val (_, groupId) = createViewerUserWithGlobalAssignment(email, "pw")
                 withViewerApi(email, "pw") { vApi ->
@@ -85,7 +85,7 @@ class PermissionsTest : BaseSystemTest() {
                 cleanupUser(email)
             }
 
-            should("user with GLOBAL viewer cannot start/stop/delete servers") {
+            should("reject start/stop/delete for a GLOBAL viewer") {
                 val email = "perm-global-cmd-${System.currentTimeMillis()}@test.com"
                 val (_, groupId) = createViewerUserWithGlobalAssignment(email, "pw")
                 withViewerApi(email, "pw") { vApi ->
@@ -97,7 +97,7 @@ class PermissionsTest : BaseSystemTest() {
                 cleanupUser(email)
             }
 
-            should("user with GLOBAL viewer cannot access admin endpoints") {
+            should("reject admin endpoints for a GLOBAL viewer") {
                 val email = "perm-global-admin-${System.currentTimeMillis()}@test.com"
                 val (_, groupId) = createViewerUserWithGlobalAssignment(email, "pw")
                 withViewerApi(email, "pw") { vApi ->
@@ -110,7 +110,7 @@ class PermissionsTest : BaseSystemTest() {
                 cleanupUser(email)
             }
 
-            should("user with SERVER-scoped assignment sees only the assigned server") {
+            should("show only the assigned server to a SERVER-scoped user") {
                 val otherServer = helper.createTestServer(nodeId)
                 val email = "perm-scoped-${System.currentTimeMillis()}@test.com"
                 val groupId = createScopedViewerUser(email, "pw", serverId)
@@ -124,7 +124,7 @@ class PermissionsTest : BaseSystemTest() {
                 runCatching { api.deleteServer(otherServer) }
             }
 
-            should("user with SERVER-scoped assignment can get the assigned server") {
+            should("let a SERVER-scoped user get the assigned server") {
                 val email = "perm-scoped-get-${System.currentTimeMillis()}@test.com"
                 val groupId = createScopedViewerUser(email, "pw", serverId)
                 withViewerApi(email, "pw") { vApi ->
@@ -135,7 +135,7 @@ class PermissionsTest : BaseSystemTest() {
                 cleanupUser(email)
             }
 
-            should("inactive user cannot login") {
+            should("reject login for an inactive user") {
                 val email = "perm-inactive-${System.currentTimeMillis()}@test.com"
                 val (userId, groupId) = createViewerUserWithGlobalAssignment(email, "pw")
                 api.updateUser(userId, PatchUserRequest(isActive = false))
@@ -149,7 +149,7 @@ class PermissionsTest : BaseSystemTest() {
                 cleanupUser(email)
             }
 
-            should("user with NETWORK-scoped assignment sees all servers in the network") {
+            should("show all servers in the network to a NETWORK-scoped user") {
                 val net = api.createNetwork(
                     CreateNetworkRequest(name = "perm-net-${System.currentTimeMillis()}")
                 )
@@ -215,7 +215,7 @@ class PermissionsTest : BaseSystemTest() {
                 }
             }
 
-            should("user with start but not stop permission can start but not stop") {
+            should("let a user with start but not stop permission start but not stop") {
                 val email = "perm-start-only-${System.currentTimeMillis()}@test.com"
                 val group = api.createGroup(
                     CreateGroupRequest(name = "start-only-group-${System.currentTimeMillis()}")
@@ -250,7 +250,7 @@ class PermissionsTest : BaseSystemTest() {
                 }
             }
 
-            should("deleted user cannot login") {
+            should("reject login for a deleted user") {
                 val email = "perm-deleted-${System.currentTimeMillis()}@test.com"
                 val (userId, groupId) = createViewerUserWithGlobalAssignment(email, "pw")
                 api.deleteUser(userId)
@@ -263,7 +263,7 @@ class PermissionsTest : BaseSystemTest() {
                 cleanupUser(email)
             }
 
-            should("user without server.view sees empty server list") {
+            should("show an empty server list to a user without server.view") {
                 val email = "perm-no-view-${System.currentTimeMillis()}@test.com"
                 val group = api.createGroup(
                     CreateGroupRequest(name = "no-view-group-${System.currentTimeMillis()}")
@@ -294,7 +294,7 @@ class PermissionsTest : BaseSystemTest() {
                 }
             }
 
-            should("user without system.users gets 403 from listUsers") {
+            should("return 403 when listing users without system.users") {
                 val email = "perm-no-users-${System.currentTimeMillis()}@test.com"
                 val group = api.createGroup(
                     CreateGroupRequest(name = "no-users-group-${System.currentTimeMillis()}")
@@ -325,7 +325,7 @@ class PermissionsTest : BaseSystemTest() {
                 }
             }
 
-            should("user without system.settings gets 403 from getSystemSettings") {
+            should("return 403 when reading system settings without system.settings") {
                 val email = "perm-no-settings-${System.currentTimeMillis()}@test.com"
                 val group = api.createGroup(
                     CreateGroupRequest(name = "no-settings-group-${System.currentTimeMillis()}")
@@ -356,7 +356,7 @@ class PermissionsTest : BaseSystemTest() {
                 }
             }
 
-            should("user without system.groups gets 403 from listGroups") {
+            should("return 403 when listing groups without system.groups") {
                 val email = "perm-no-groups-${System.currentTimeMillis()}@test.com"
                 val group = api.createGroup(
                     CreateGroupRequest(name = "no-groups-group-${System.currentTimeMillis()}")
@@ -387,7 +387,7 @@ class PermissionsTest : BaseSystemTest() {
                 }
             }
 
-            should("user without system.alerts gets 403 from listAlertThresholds") {
+            should("return 403 when listing alert thresholds without system.alerts") {
                 val email = "perm-no-alerts-${System.currentTimeMillis()}@test.com"
                 val group = api.createGroup(
                     CreateGroupRequest(name = "no-alerts-group-${System.currentTimeMillis()}")

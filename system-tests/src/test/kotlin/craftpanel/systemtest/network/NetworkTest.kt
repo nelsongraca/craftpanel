@@ -19,7 +19,7 @@ class NetworkTest : BaseSystemTest() {
             lateinit var createdNetworkId: String
             val networkName = "test-network-${System.currentTimeMillis()}"
 
-            should("creates a network") {
+            should("create a network") {
                 val network = api.createNetwork(
                     CreateNetworkRequest(
                         name = networkName
@@ -29,30 +29,30 @@ class NetworkTest : BaseSystemTest() {
                 network.name shouldBe networkName
             }
 
-            should("lists networks including the new network") {
+            should("list networks including the new one") {
                 val networks = api.listNetworks()
                 networks.map { it.name } shouldContain networkName
             }
 
-            should("gets network detail by ID") {
+            should("get a network by ID") {
                 val network = api.getNetwork(createdNetworkId)
                 network.name shouldBe networkName
             }
 
-            should("updates network name") {
+            should("update the network name") {
                 val newName = "renamed-network-${System.currentTimeMillis()}"
                 api.updateNetwork(createdNetworkId, PatchNetworkRequest(name = newName))
                 val network = api.getNetwork(createdNetworkId)
                 network.name shouldBe newName
             }
 
-            should("deletes a network") {
+            should("delete a network") {
                 api.deleteNetwork(createdNetworkId)
                 val networks = api.listNetworks()
                 networks.map { it.id } shouldNotContain createdNetworkId
             }
 
-            should("creating a network with duplicate name returns 409") {
+            should("return 409 when creating a network with a duplicate name") {
                 val name = "unique-network-${System.currentTimeMillis()}"
                 api.createNetwork(CreateNetworkRequest(name = name))
                 val ex = shouldThrow<ClientException> {
@@ -61,7 +61,7 @@ class NetworkTest : BaseSystemTest() {
                 ex.statusCode shouldBe 409
             }
 
-            should("getting a non-existent network returns 404") {
+            should("return 404 when getting a non-existent network") {
                 val ex = shouldThrow<ClientException> {
                     api.getNetwork("00000000-0000-0000-0000-000000000000")
                 }

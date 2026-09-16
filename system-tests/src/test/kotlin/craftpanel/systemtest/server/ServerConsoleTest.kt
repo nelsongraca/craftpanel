@@ -34,7 +34,7 @@ class ServerConsoleTest : BaseSystemTest() {
 
             context("connection auth") {
 
-                should("rejects connection without a ticket") {
+                should("reject a connection without a ticket") {
                     val url = "$wsBaseUrl/api/ws/console/$serverId"
                     val request = Request.Builder()
                         .url(url)
@@ -66,7 +66,7 @@ class ServerConsoleTest : BaseSystemTest() {
                     closeCode shouldBe 1008
                 }
 
-                should("connects with valid ticket") {
+                should("connect with a valid ticket") {
                     val ticket = api.authWsTicket()
                     val url = "$wsBaseUrl/api/ws/console/$serverId?ticket=${ticket.ticket}"
                     val latch = CountDownLatch(1)
@@ -91,7 +91,7 @@ class ServerConsoleTest : BaseSystemTest() {
                     ws.close(1000, "test done")
                 }
 
-                should("connecting to non-existent server closes normally") {
+                should("close normally when connecting to a non-existent server") {
                     val ticket = api.authWsTicket()
                     val url = "$wsBaseUrl/api/ws/console/00000000-0000-0000-0000-000000000000?ticket=${ticket.ticket}"
                     val latch = CountDownLatch(1)
@@ -121,7 +121,7 @@ class ServerConsoleTest : BaseSystemTest() {
                     closeCode shouldBe 1000
                 }
 
-                should("rejects connection with invalid ticket") {
+                should("reject a connection with an invalid ticket") {
                     val url = "$wsBaseUrl/api/ws/console/$serverId?ticket=invalid-fake-ticket"
                     val latch = CountDownLatch(1)
                     var closeCode = -1
@@ -153,7 +153,7 @@ class ServerConsoleTest : BaseSystemTest() {
 
             context("interactive session") {
 
-                should("connects and sends a command") {
+                should("connect and send a command") {
                     val ticket = api.authWsTicket()
                     val url = "$wsBaseUrl/api/ws/console/$serverId?ticket=${ticket.ticket}"
                     val connectLatch = CountDownLatch(1)
@@ -174,7 +174,7 @@ class ServerConsoleTest : BaseSystemTest() {
                     ws.close(1000, "test done")
                 }
 
-                should("disconnecting and reconnecting creates a new session") {
+                should("create a new session on disconnect and reconnect") {
                     suspend fun connect(): WebSocket {
                         val ticket = api.authWsTicket()
                         val url = "$wsBaseUrl/api/ws/console/$serverId?ticket=${ticket.ticket}"
@@ -199,7 +199,7 @@ class ServerConsoleTest : BaseSystemTest() {
                     ws2.close(1000, "test done")
                 }
 
-                should("sends arbitrary text and appears in Docker logs") {
+                should("send arbitrary text that appears in Docker logs") {
                     val ticket = api.authWsTicket()
                     val url = "$wsBaseUrl/api/ws/console/$serverId?ticket=${ticket.ticket}"
                     val connectLatch = CountDownLatch(1)
@@ -219,7 +219,7 @@ class ServerConsoleTest : BaseSystemTest() {
                     ws.close(1000, "test done")
                 }
 
-                should("detaches cleanly") {
+                should("detach cleanly") {
                     val ticket = api.authWsTicket()
                     val url = "$wsBaseUrl/api/ws/console/$serverId?ticket=${ticket.ticket}"
                     val connectLatch = CountDownLatch(1)
@@ -251,7 +251,7 @@ class ServerConsoleTest : BaseSystemTest() {
                     closeCode shouldBe 1000
                 }
 
-                should("sending stop command reaches the container") {
+                should("deliver a sent stop command to the container") {
                     var ws: WebSocket? = null
                     try {
                         val ticket = api.authWsTicket()
@@ -280,7 +280,7 @@ class ServerConsoleTest : BaseSystemTest() {
 
             context("stopped server") {
 
-                should("connecting to stopped server closes") {
+                should("close when connecting to a stopped server") {
                     api.stopServer(serverId)
                     helper.awaitStoppedOrGone(serverId)
 

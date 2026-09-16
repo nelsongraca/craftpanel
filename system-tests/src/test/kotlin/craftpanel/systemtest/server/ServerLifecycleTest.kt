@@ -38,17 +38,17 @@ class ServerLifecycleTest : BaseSystemTest() {
             }
             context("creation") {
 
-                should("creates a server and returns it with status STOPPED") {
+                should("create a server and return it with status STOPPED") {
                     val server = api.getServer(serverId)
                     server.status shouldBe ServerStatus.STOPPED
                 }
 
-                should("created server appears in GET /servers list") {
+                should("show a created server in the GET /servers list") {
                     val servers = api.listServers()
                     servers.map { it.id } shouldContain serverId
                 }
 
-                should("container does not exist on the node before first start") {
+                should("keep the container absent on the node before the first start") {
                     shouldThrow<NotFoundException> {
                         docker.inspectContainerCmd(containerName(serverId))
                             .exec()
@@ -58,20 +58,20 @@ class ServerLifecycleTest : BaseSystemTest() {
 
             context("start") {
 
-                should("starting a STOPPED server transitions it to STARTING then HEALTHY") {
+                should("start a STOPPED server and transition it to STARTING then HEALTHY") {
                     api.startServer(serverId)
                     val server = helper.awaitStatus(serverId, ServerStatus.HEALTHY)
                     helper.awaitContainerLog(containerName(serverId), "stdin listener ready", docker, 15_000)
                     server.status shouldBe ServerStatus.HEALTHY
                 }
 
-                should("container exists on node after start") {
+                should("create the container on the node after start") {
                     val info = docker.inspectContainerCmd(containerName(serverId))
                         .exec()
                     info.state?.running shouldBe true
                 }
 
-                should("container has correct env vars") {
+                should("set the correct env vars on the container") {
                     val info = docker.inspectContainerCmd(containerName(serverId))
                         .exec()
                     val env = info.config?.env?.toList()
@@ -81,7 +81,7 @@ class ServerLifecycleTest : BaseSystemTest() {
                     env shouldContain "MEMORY=384M"
                 }
 
-                should("starting an already HEALTHY server returns 409") {
+                should("return 409 when starting an already-HEALTHY server") {
                     val ex = shouldThrow<ClientException> { api.startServer(serverId) }
                     ex.statusCode shouldBe 409
                 }
@@ -89,20 +89,20 @@ class ServerLifecycleTest : BaseSystemTest() {
 
             context("delete") {
 
-                should("deleting a RUNNING server returns 409") {
+                should("return 409 when deleting a RUNNING server") {
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, ServerStatus.HEALTHY)
                     val ex = shouldThrow<ClientException> { api.deleteServer(serverId) }
                     ex.statusCode shouldBe 409
                 }
 
-                should("deleting a STOPPED server returns 204") {
+                should("return 204 when deleting a STOPPED server") {
                     api.stopServer(serverId)
                     helper.awaitStoppedOrGone(serverId)
                     api.deleteServer(serverId)
                 }
 
-                should("deleted server no longer appears in GET /servers") {
+                should("omit a deleted server from GET /servers") {
                     val servers = api.listServers()
                     servers.map { it.id } shouldNotContain serverId
                 }
@@ -110,7 +110,7 @@ class ServerLifecycleTest : BaseSystemTest() {
 
             context("stop") {
 
-                should("stopping a HEALTHY server transitions it to STOPPED") {
+                should("stop a HEALTHY server and transition it to STOPPED") {
                     api.startServer(serverId)
                     val response = helper.awaitStatus(serverId, ServerStatus.HEALTHY)
                     response.status shouldBe ServerStatus.HEALTHY
@@ -120,12 +120,12 @@ class ServerLifecycleTest : BaseSystemTest() {
                     server.status shouldBe ServerStatus.STOPPED
                 }
 
-                should("stop command was sent to container stdin") {
+                should("send the stop command to container stdin") {
                     val logs = docker.collectLogs(containerName(serverId))
                     logs stringContain "[fake-server] stdin received: stop"
                 }
 
-                should("stopping an already STOPPED server returns 409") {
+                should("return 409 when stopping an already-STOPPED server") {
                     val ex = shouldThrow<ClientException> { api.stopServer(serverId) }
                     ex.statusCode shouldBe 409
                 }

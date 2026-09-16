@@ -70,13 +70,13 @@ class ServerModsTest : BaseSystemTest() {
 
         context("listMods") {
 
-            should("new server has no mods") {
+            should("have no mods on a new server") {
                 val mods = api.listMods(serverId)
                 mods.values.flatten()
                     .isEmpty() shouldBe true
             }
 
-            should("after adding one mod, list contains it") {
+            should("include a mod in the list after adding it") {
                 api.addMod(
                     serverId,
                     CreateModRequest(
@@ -92,7 +92,7 @@ class ServerModsTest : BaseSystemTest() {
                 all.first().modrinthProjectId shouldBe "lithium"
             }
 
-            should("after adding two mods, both are present") {
+            should("include both mods after adding two") {
                 api.addMod(
                     serverId,
                     CreateModRequest(
@@ -122,7 +122,7 @@ class ServerModsTest : BaseSystemTest() {
 
         context("addMod") {
 
-            should("adding duplicate mod returns 409") {
+            should("return 409 when adding a duplicate mod") {
                 api.addMod(
                     serverId,
                     CreateModRequest(
@@ -149,7 +149,7 @@ class ServerModsTest : BaseSystemTest() {
 
         context("updateMod") {
 
-            should("changes version pin") {
+            should("change the version pin") {
                 val mod = api.addMod(
                     serverId,
                     CreateModRequest(
@@ -170,7 +170,7 @@ class ServerModsTest : BaseSystemTest() {
                 updated.pinnedVersionId shouldBe lithiumVersion2
             }
 
-            should("changes strategy from PINNED to LATEST") {
+            should("change strategy from PINNED to LATEST") {
                 val mod = api.addMod(
                     serverId,
                     CreateModRequest(
@@ -195,7 +195,7 @@ class ServerModsTest : BaseSystemTest() {
 
         context("deleteMod") {
 
-            should("removes an existing mod") {
+            should("remove an existing mod") {
                 val mod = api.addMod(
                     serverId,
                     CreateModRequest(
@@ -211,7 +211,7 @@ class ServerModsTest : BaseSystemTest() {
                     .isEmpty() shouldBe true
             }
 
-            should("returns 404 for non-existent mod") {
+            should("return 404 for a non-existent mod") {
                 val ex = shouldThrow<ClientException> {
                     api.deleteMod(
                         serverId,

@@ -33,12 +33,12 @@ class NodeResourcesTest : BaseSystemTest() {
 
         context("Node RAM allocation") {
 
-            should("allocated_ram_mb matches baseline before any servers are created in this spec") {
+            should("match allocated_ram_mb to the baseline before any servers are created in this spec") {
                 val node = api.getNode(nodeId)
                 node.allocatedRamMb shouldBe baseline
             }
 
-            should("total_ram_mb reflects SYSTEM_RESERVED_RAM_MB subtraction by agent") {
+            should("subtract SYSTEM_RESERVED_RAM_MB from total_ram_mb as reported by the agent") {
                 // The agent subtracts SYSTEM_RESERVED_RAM_MB from raw hardware RAM before
                 // reporting totalRamMb to master. The stored total must be positive and
                 // represents the capacity available for server allocation.
@@ -46,7 +46,7 @@ class NodeResourcesTest : BaseSystemTest() {
                 node.totalRamMb shouldBeGreaterThan 0
             }
 
-            should("allocated_ram_mb increases when a server is created") {
+            should("increase allocated_ram_mb when a server is created") {
                 val serverId = serverHelper.createTestServer(nodeId, memoryMb = 512)
                 createdServerIds += serverId
 
@@ -54,7 +54,7 @@ class NodeResourcesTest : BaseSystemTest() {
                 node.allocatedRamMb shouldBe baseline + 512
             }
 
-            should("allocated_ram_mb accumulates across multiple servers") {
+            should("accumulate allocated_ram_mb across multiple servers") {
                 val serverId = serverHelper.createTestServer(nodeId, memoryMb = 256)
                 createdServerIds += serverId
 
@@ -62,14 +62,14 @@ class NodeResourcesTest : BaseSystemTest() {
                 node.allocatedRamMb shouldBe baseline + 512 + 256
             }
 
-            should("allocated_ram_mb is always less than or equal to total_ram_mb") {
+            should("keep allocated_ram_mb at or below total_ram_mb") {
                 val node = api.getNode(nodeId)
                 node.allocatedRamMb shouldBeGreaterThanOrEqual 0
                 node.allocatedRamMb.toLong() + 1 // ensure no overflow
                 (node.totalRamMb - node.allocatedRamMb) shouldBeGreaterThanOrEqual 0
             }
 
-            should("creating a server that exceeds total_ram_mb capacity returns 409") {
+            should("return 409 when creating a server that exceeds total_ram_mb capacity") {
                 val node = api.getNode(nodeId)
                 val excessiveMb = node.totalRamMb + 1
 

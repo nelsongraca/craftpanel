@@ -16,34 +16,34 @@ class AuthTest : BaseSystemTest() {
 
         context("Authentication") {
 
-            should("returns 401 for invalid credentials") {
+            should("return 401 for invalid credentials") {
                 val ex = shouldThrow<ClientException> {
                     api.authLogin(LoginRequest("nonexistent@test.com", "wrong-password"))
                 }
                 ex.statusCode shouldBe 401
             }
 
-            should("returns 401 for wrong password") {
+            should("return 401 for a wrong password") {
                 val ex = shouldThrow<ClientException> {
                     api.authLogin(LoginRequest(ADMIN_EMAIL, "wrong-password"))
                 }
                 ex.statusCode shouldBe 401
             }
 
-            should("returns 401 for wrong email") {
+            should("return 401 for a wrong email") {
                 val ex = shouldThrow<ClientException> {
                     api.authLogin(LoginRequest("wrong@craftpanel.test", ADMIN_PASSWORD))
                 }
                 ex.statusCode shouldBe 401
             }
 
-            should("returns access token on successful login") {
+            should("return an access token on successful login") {
                 val response = api.authLogin(LoginRequest(ADMIN_EMAIL, ADMIN_PASSWORD))
                 response.accessToken.shouldNotBeEmpty()
                 response.expiresIn shouldBe 900 // 15 minutes in seconds
             }
 
-            should("returns 401 when accessing protected endpoint without token") {
+            should("return 401 when accessing a protected endpoint without a token") {
                 val savedProvider = api.accessTokenProvider
                 api.accessTokenProvider = { null }
                 val ex = shouldThrow<ClientException> {
@@ -53,7 +53,7 @@ class AuthTest : BaseSystemTest() {
                 api.accessTokenProvider = savedProvider
             }
 
-            should("returns current user info via GET /api/auth/me") {
+            should("return current user info via GET /api/auth/me") {
                 authHelper.login()
                 val me = api.authMe()
                 me.email shouldBe ADMIN_EMAIL
@@ -63,31 +63,31 @@ class AuthTest : BaseSystemTest() {
                 me.permissions shouldBe listOf("*")
             }
 
-            should("issues WebSocket ticket via POST /api/auth/ws-ticket") {
+            should("issue a WebSocket ticket via POST /api/auth/ws-ticket") {
                 authHelper.login()
                 val ticket = api.authWsTicket()
                 ticket.ticket.shouldNotBeEmpty()
                 ticket.expiresIn shouldBe 30
             }
 
-            should("logout returns 204") {
+            should("return 204 on logout") {
                 authHelper.login()
                 api.authLogout()
             }
 
-            should("logout-all returns 204") {
+            should("return 204 on logout-all") {
                 authHelper.login()
                 api.authLogoutAll()
             }
 
-            should("change-password with correct old password returns 204") {
+            should("return 204 on change-password with the correct old password") {
                 val email = "pw-change-1-${System.currentTimeMillis()}@test.com"
                 createPasswordTestUser(email, "old-pw-1")
                 val userApi = authenticatedAs(email, "old-pw-1")
                 userApi.authChangePassword(ChangePasswordRequest("old-pw-1", "new-pw-1"))
             }
 
-            should("can login with new password after change-password") {
+            should("log in with the new password after change-password") {
                 val email = "pw-change-2-${System.currentTimeMillis()}@test.com"
                 createPasswordTestUser(email, "old-pw-2")
                 val userApi = authenticatedAs(email, "old-pw-2")
@@ -96,7 +96,7 @@ class AuthTest : BaseSystemTest() {
                 authenticatedAs(email, "new-pw-2").authMe()
             }
 
-            should("change-password with wrong old password returns 400") {
+            should("return 400 on change-password with the wrong old password") {
                 val email = "pw-change-3-${System.currentTimeMillis()}@test.com"
                 createPasswordTestUser(email, "old-pw-3")
                 val userApi = authenticatedAs(email, "old-pw-3")

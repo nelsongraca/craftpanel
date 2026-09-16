@@ -28,20 +28,20 @@ class ServerEdgeCasesTest : BaseSystemTest() {
                     runCatching { api.deleteServer(serverId) }
                 }
 
-                should("deleting a HEALTHY server returns 409") {
+                should("return 409 when deleting a HEALTHY server") {
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, ServerStatus.HEALTHY, timeoutMs = 180_000)
                     val ex = shouldThrow<ClientException> { api.deleteServer(serverId) }
                     ex.statusCode shouldBe 409
                 }
 
-                should("deleting a STARTING server returns 409") {
+                should("return 409 when deleting a STARTING server") {
                     api.startServer(serverId)
                     val ex = shouldThrow<ClientException> { api.deleteServer(serverId) }
                     ex.statusCode shouldBe 409
                 }
 
-                should("stop then delete succeeds") {
+                should("stop a server and then delete it successfully") {
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, ServerStatus.HEALTHY, timeoutMs = 180_000)
                     api.stopServer(serverId)
@@ -63,7 +63,7 @@ class ServerEdgeCasesTest : BaseSystemTest() {
                     runCatching { api.deleteServer(serverId) }
                 }
 
-                should("restarting a HEALTHY server transitions through STOPPING to HEALTHY") {
+                should("restart a HEALTHY server through STOPPING back to HEALTHY") {
                     api.startServer(serverId)
                     helper.awaitStatus(serverId, ServerStatus.HEALTHY)
 
@@ -73,7 +73,7 @@ class ServerEdgeCasesTest : BaseSystemTest() {
                     afterRestart.status shouldBe ServerStatus.HEALTHY
                 }
 
-                should("restarting a STOPPED server returns 409") {
+                should("return 409 when restarting a STOPPED server") {
                     val ex = shouldThrow<ClientException> { api.restartServer(serverId) }
                     ex.statusCode shouldBe 409
                 }

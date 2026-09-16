@@ -29,7 +29,7 @@ class NodeShutdownTest : BaseSystemTest() {
 
         context("Node shutdown") {
 
-            should("shuts down agent container") {
+            should("shut down the agent container") {
                 val response = api.shutdownNode(agentNodeId)
                 response.message shouldBe "Shutdown command sent"
 
@@ -37,7 +37,7 @@ class NodeShutdownTest : BaseSystemTest() {
                 node.status shouldBe NodeStatus.ACTIVE
             }
 
-            should("shutdown non-existent node returns 404") {
+            should("return 404 when shutting down a non-existent node") {
                 shouldThrow<ClientException> {
                     api.shutdownNode("00000000-0000-0000-0000-000000000000")
                 }.statusCode shouldBe 404

@@ -11,12 +11,12 @@ class NodeIpTest : BaseSystemTest() {
     init {
         context("getMyIp") {
 
-            should("returns a non-blank string") {
+            should("return a non-blank string") {
                 val ip = api.getMyIp()
                 ip.shouldNotBeBlank()
             }
 
-            should("returns a value that looks like an IP address") {
+            should("return a value that looks like an IP address") {
                 val ip = api.getMyIp()
                 (ip.contains('.') || ip.contains(':')).shouldBeTrue()
             }

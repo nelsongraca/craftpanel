@@ -7,10 +7,10 @@ import io.kotest.core.annotation.Tags
 import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.collections.shouldHaveSize
 import io.kotest.matchers.maps.shouldContainKeys
-import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.shouldNotBe
 import org.openapitools.client.infrastructure.ClientException
 
 @Tags("Misc")
@@ -38,7 +38,7 @@ class ExportImportTest : BaseSystemTest() {
                     containerListenPort = 25565,
                     containerProtocol = "UDP",
                     disableHealthcheck = true,
-                    forceRedownload = true,
+                    forceRedownload = true
                 )
             ).id
 
@@ -56,7 +56,7 @@ class ExportImportTest : BaseSystemTest() {
                         EnvVarItem(key = "MAX_PLAYERS", value = "10"),
                         EnvVarItem(key = "ALLOW_FLIGHT", value = "true"),
                         EnvVarItem(key = "SPAWN_PROTECTION", value = "0"),
-                        EnvVarItem(key = "ONLINE_MODE", value = "false"),
+                        EnvVarItem(key = "ONLINE_MODE", value = "false")
                     )
                 )
             )
@@ -70,7 +70,7 @@ class ExportImportTest : BaseSystemTest() {
 
         context("Server export/import") {
 
-            should("export contains every config field with correct values") {
+            should("include every config field with correct values in an export") {
                 sourceExport.name shouldBe sourceName
                 sourceExport.displayName shouldBe "Export Test Display"
                 sourceExport.description shouldBe "A server for export testing"
@@ -91,7 +91,7 @@ class ExportImportTest : BaseSystemTest() {
                 sourceExport.customServerJar.shouldBeNull()
             }
 
-            should("export contains all env vars with correct values") {
+            should("include all env vars with correct values in an export") {
                 val envVars = sourceExport.envVars ?: emptyList()
                 val byKey = envVars.associate { it.key to it.`value` }
                 byKey["DIFFICULTY"] shouldBe "hard"
@@ -103,14 +103,14 @@ class ExportImportTest : BaseSystemTest() {
                 byKey["ONLINE_MODE"] shouldBe "false"
             }
 
-            should("full round-trip: export, delete source, import back preserves every field") {
+            should("preserve every field through a full round-trip: export, delete source, import back") {
                 api.deleteServer(sourceServerId)
                 helper.awaitStoppedOrGone(sourceServerId)
 
                 val imported = api.importServer(
                     ImportServerRequest(
                         `data` = sourceExport,
-                        nodeId = nodeId,
+                        nodeId = nodeId
                     )
                 )
 
@@ -150,17 +150,17 @@ class ExportImportTest : BaseSystemTest() {
                 }
             }
 
-            should("export from a non-existent server returns 404") {
+            should("return 404 when exporting a non-existent server") {
                 val ex = shouldThrow<ClientException> { api.exportServer("00000000-0000-0000-0000-000000000000") }
                 ex.statusCode shouldBe 404
             }
 
-            should("import without node_id returns 422") {
+            should("return 422 when importing without node_id") {
                 val ex = shouldThrow<ClientException> {
                     api.importServer(
                         ImportServerRequest(
                             `data` = sourceExport.copy(name = "no-node-$sourceName"),
-                            nodeId = "",
+                            nodeId = ""
                         )
                     )
                 }
@@ -170,7 +170,7 @@ class ExportImportTest : BaseSystemTest() {
 
         context("Network export/import") {
 
-            should("export network with 2 servers and re-import creates everything") {
+            should("recreate everything by exporting a network with 2 servers and re-importing") {
                 val ts = System.currentTimeMillis()
                 val netName = "export-net-$ts"
 
@@ -210,7 +210,7 @@ class ExportImportTest : BaseSystemTest() {
                     val importedNet = api.importNetwork(
                         ImportNetworkRequest(
                             data = export,
-                            nodeAssignments = export.servers!!.associate { it.name to nodeId },
+                            nodeAssignments = export.servers!!.associate { it.name to nodeId }
                         )
                     )
                     importedNet.name shouldBe netName

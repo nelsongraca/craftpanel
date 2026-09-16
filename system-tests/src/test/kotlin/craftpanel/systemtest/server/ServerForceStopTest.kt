@@ -26,7 +26,7 @@ class ServerForceStopTest : BaseSystemTest() {
                 runCatching { api.deleteServer(serverId) }
             }
 
-            should("force stop a HEALTHY server transitions it to STOPPED") {
+            should("force-stop a HEALTHY server and transition it to STOPPED") {
                 api.startServer(serverId)
                 helper.awaitStatus(serverId, ServerStatus.HEALTHY)
 
@@ -37,7 +37,7 @@ class ServerForceStopTest : BaseSystemTest() {
                 server.status shouldBe ServerStatus.STOPPED
             }
 
-            should("force stopping an already STOPPED server returns 409") {
+            should("return 409 when force-stopping an already-STOPPED server") {
                 api.startServer(serverId)
                 helper.awaitStatus(serverId, ServerStatus.HEALTHY)
                 api.forceStopServer(serverId)
@@ -61,7 +61,7 @@ class ServerForceStopTest : BaseSystemTest() {
                 runCatching { api.deleteServer(serverId) }
             }
 
-            should("graceful stop hangs but force stop kills the container") {
+            should("kill the container with force stop when a graceful stop hangs") {
                 api.startServer(serverId)
                 helper.awaitStatus(serverId, ServerStatus.HEALTHY)
 

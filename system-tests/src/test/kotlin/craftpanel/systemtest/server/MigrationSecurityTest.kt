@@ -21,7 +21,6 @@ class MigrationSecurityTest : BaseSystemTest() {
     init {
         context("Migration validation") {
 
-
             lateinit var serverId: String
 
             beforeEach {
@@ -34,7 +33,7 @@ class MigrationSecurityTest : BaseSystemTest() {
                 runCatching { api.deleteServer(serverId) }
             }
 
-            should("start migration of running server returns 409") {
+            should("return 409 when starting a migration of a running server") {
                 api.startServer(serverId)
                 helper.awaitStatus(serverId, ServerStatus.HEALTHY)
                 try {
@@ -48,14 +47,13 @@ class MigrationSecurityTest : BaseSystemTest() {
                             )
                         )
                     }.statusCode shouldBe 409
-                }
-                finally {
+                } finally {
                     runCatching { api.stopServer(serverId) }
                     helper.awaitStoppedOrGone(serverId)
                 }
             }
 
-            should("start migration to non-existent node returns 404") {
+            should("return 404 when starting a migration to a non-existent node") {
                 shouldThrow<ClientException> {
                     api.startMigration(
                         serverId,
@@ -68,13 +66,13 @@ class MigrationSecurityTest : BaseSystemTest() {
                 }.statusCode shouldBe 404
             }
 
-            should("list migrations on clean server returns empty") {
+            should("return an empty migration list for a clean server") {
                 val migrations = api.listMigrations(serverId)
                 migrations["migrations"].orEmpty()
                     .shouldBeEmpty()
             }
 
-            should("get non-existent migration returns 404") {
+            should("return 404 when getting a non-existent migration") {
                 shouldThrow<ClientException> {
                     api.getMigration("00000000-0000-0000-0000-000000000000")
                 }.statusCode shouldBe 404
@@ -83,19 +81,19 @@ class MigrationSecurityTest : BaseSystemTest() {
 
         context("Migration WebSocket auth") {
 
-            should("rejects connection without a ticket") {
-                val url = "${wsBaseUrl}/api/migrations/00000000-0000-0000-0000-000000000000/events"
+            should("reject a connection without a ticket") {
+                val url = "$wsBaseUrl/api/migrations/00000000-0000-0000-0000-000000000000/events"
                 wsCloseCode(url) shouldBe 1008
             }
 
-            should("rejects connection with invalid ticket") {
-                val url = "${wsBaseUrl}/api/migrations/00000000-0000-0000-0000-000000000000/events?ticket=invalid-fake-ticket"
+            should("reject a connection with an invalid ticket") {
+                val url = "$wsBaseUrl/api/migrations/00000000-0000-0000-0000-000000000000/events?ticket=invalid-fake-ticket"
                 wsCloseCode(url) shouldBe 1008
             }
 
-            should("non-existent migration with valid ticket closes normally") {
+            should("close normally for a non-existent migration with a valid ticket") {
                 val ticket = api.authWsTicket()
-                val url = "${wsBaseUrl}/api/migrations/00000000-0000-0000-0000-000000000000/events?ticket=${ticket.ticket}"
+                val url = "$wsBaseUrl/api/migrations/00000000-0000-0000-0000-000000000000/events?ticket=${ticket.ticket}"
                 wsCloseCode(url) shouldBe 1000
             }
         }
@@ -105,19 +103,25 @@ class MigrationSecurityTest : BaseSystemTest() {
         val latch = CountDownLatch(1)
         var closeCode = -1
 
-        wsClient.newWebSocket(request(url), object : WebSocketListener() {
-            override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
-                closeCode = code; latch.countDown()
-            }
+        wsClient.newWebSocket(
+            request(url),
+            object : WebSocketListener() {
+                override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {
+                    closeCode = code
+                    latch.countDown()
+                }
 
-            override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
-                if (closeCode == -1) closeCode = code; latch.countDown()
-            }
+                override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
+                    if (closeCode == -1) closeCode = code
+                    latch.countDown()
+                }
 
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                closeCode = response?.code ?: -1; latch.countDown()
+                override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
+                    closeCode = response?.code ?: -1
+                    latch.countDown()
+                }
             }
-        })
+        )
 
         latch.await(5, TimeUnit.SECONDS)
         return closeCode

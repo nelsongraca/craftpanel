@@ -27,18 +27,18 @@ class BackupTest : BaseSystemTest() {
 
         context("Backup lifecycle") {
 
-            should("list backups returns empty for new server") {
+            should("return an empty backup list for a new server") {
                 val backups = api.listBackups(serverId)
                 backups.getOrDefault("backups", emptyList())
                     .shouldBeEmpty()
             }
 
-            should("get backup schedule returns defaults") {
+            should("return the default backup schedule") {
                 val schedule = api.getBackupSchedule(serverId)
                 schedule.backupMaxCount shouldBe 10
             }
 
-            should("updates backup schedule") {
+            should("update the backup schedule") {
                 val updated = api.updateBackupSchedule(
                     serverId,
                     PutBackupScheduleRequest(
@@ -50,7 +50,7 @@ class BackupTest : BaseSystemTest() {
                 updated.backupMaxCount shouldBe 10
             }
 
-            should("triggers backup on a running server") {
+            should("trigger a backup on a running server") {
                 val backup = api.triggerBackup(serverId)
                 backup.id.shouldNotBeEmpty()
                 backup.serverId shouldBe serverId
@@ -60,7 +60,7 @@ class BackupTest : BaseSystemTest() {
                 helper.awaitStatus(serverId, ServerStatus.HEALTHY)
             }
 
-            should("triggers and then deletes a backup") {
+            should("trigger and then delete a backup") {
                 val backup = api.triggerBackup(serverId)
                 helper.awaitBackupCompleted(serverId, backup.id)
 

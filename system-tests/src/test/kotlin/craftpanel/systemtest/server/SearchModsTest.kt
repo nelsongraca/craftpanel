@@ -30,14 +30,14 @@ class SearchModsTest : BaseSystemTest() {
 
         context("searchMods") {
 
-            should("returns 404 for non-existent server") {
+            should("return 404 for a non-existent server") {
                 val ex = shouldThrow<ClientException> {
                     api.searchMods("00000000-0000-0000-0000-000000000000", query = "fabric-api")
                 }
                 ex.statusCode shouldBe 404
             }
 
-            should("returns 403 for user without SERVER_MODS permission") {
+            should("return 403 for a user without the SERVER_MODS permission") {
                 val email = "search-no-mods-${System.currentTimeMillis()}@test.com"
                 val password = "pw-mods-test"
                 val savedToken = ApiClient.accessToken
@@ -75,7 +75,7 @@ class SearchModsTest : BaseSystemTest() {
                 }
             }
 
-            should("succeeds or returns 502 when Modrinth is unreachable") {
+            should("succeed or return 502 when Modrinth is unreachable") {
                 // searchMods proxies Modrinth; in CI without outbound internet it returns 502
                 val ex = runCatching {
                     api.searchMods(serverId, query = "fabric-api", limit = 5)

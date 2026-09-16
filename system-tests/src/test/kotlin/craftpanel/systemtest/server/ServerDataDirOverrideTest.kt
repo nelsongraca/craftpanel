@@ -57,7 +57,7 @@ class ServerDataDirOverrideTest : BaseSystemTest() {
 
         context("Server data directory override") {
 
-            should("mounts the container at servers/<override> and lands data there") {
+            should("mount the container at servers/<override> and land data there") {
                 val overrideName = "cp-override-${System.currentTimeMillis()}"
                 api.updateServerDataDir(serverId, UpdateServerDataDirRequest(dataDirName = overrideName))
                 api.getServer(serverId).dataDirName shouldBe overrideName
@@ -78,13 +78,13 @@ class ServerDataDirOverrideTest : BaseSystemTest() {
                 SharedStack.agentDataDirs().none { File(it, "servers/$serverId/override-marker.txt").exists() } shouldBe true
             }
 
-            should("rejects an invalid directory name with 422") {
+            should("return 422 for an invalid directory name") {
                 shouldThrow<ClientException> {
                     api.updateServerDataDir(serverId, UpdateServerDataDirRequest(dataDirName = "../etc"))
                 }.statusCode shouldBe 422
             }
 
-            should("recreates a running server onto the new directory when the override changes") {
+            should("recreate a running server onto the new directory when the override changes") {
                 ensureRunning()
                 val beforeId = docker.inspectContainerCmd(containerName(serverId)).exec().id
 
@@ -102,7 +102,7 @@ class ServerDataDirOverrideTest : BaseSystemTest() {
                 (recreated != null) shouldBe true
             }
 
-            should("clears the override and remounts at the server-id directory") {
+            should("clear the override and remount at the server-id directory") {
                 api.updateServerDataDir(
                     serverId,
                     UpdateServerDataDirRequest(dataDirName = "cp-cleared-${System.currentTimeMillis()}")

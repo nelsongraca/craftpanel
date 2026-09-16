@@ -42,12 +42,12 @@ class ProxyLifecycleTest : BaseSystemTest() {
 
         context("Proxy lifecycle with force stop") {
 
-            should("start proxy transitions it to HEALTHY") {
+            should("transition a started proxy to HEALTHY") {
                 api.startServer(proxyId)
                 helper.awaitStatus(proxyId, ServerStatus.HEALTHY)
             }
 
-            should("stop proxy transitions it to STOPPED") {
+            should("transition a stopped proxy to STOPPED") {
                 api.stopServer(proxyId)
                 helper.awaitStoppedOrGone(proxyId)
 
@@ -55,12 +55,12 @@ class ProxyLifecycleTest : BaseSystemTest() {
                 server.status shouldBe ServerStatus.STOPPED
             }
 
-            should("force stop on already stopped proxy returns 409") {
+            should("return 409 when force-stopping an already-stopped proxy") {
                 val ex = shouldThrow<ClientException> { api.forceStopServer(proxyId) }
                 ex.statusCode shouldBe 409
             }
 
-            should("force stop on stopped proxy does not go UNHEALTHY") {
+            should("not mark a force-stopped proxy UNHEALTHY") {
                 api.startServer(proxyId)
                 helper.awaitStatus(proxyId, ServerStatus.HEALTHY)
 
