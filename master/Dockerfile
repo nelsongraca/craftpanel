@@ -1,7 +1,7 @@
 FROM eclipse-temurin:25-jdk-alpine
 
 RUN apk add --no-cache su-exec && \
-    addgroup -S craftpanel && adduser -S craftpanel -G craftpanel
+    addgroup -g 1000 craftpanel && adduser -u 1000 -G craftpanel -S craftpanel
 
 WORKDIR /app
 
