@@ -4,6 +4,7 @@ import craftpanel.systemtest.client.model.*
 import craftpanel.systemtest.harness.BaseSystemTest
 import craftpanel.systemtest.harness.SharedStack
 import io.kotest.core.annotation.Tags
+import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.string.shouldContain
 import kotlinx.coroutines.*
@@ -160,6 +161,21 @@ class McRouterRoutingTest : BaseSystemTest() {
                 server.canonicalHostname shouldBe hostnameC
             }
         }
+
+        context("mc-router provisioning") {
+
+            should("starts the router with IN_DOCKER and DYNAMIC_PROXY_PROTOCOL enabled") {
+                val env = withContext(Dispatchers.IO) {
+                    SharedStack.dockerClient.inspectContainerCmd(SharedStack.mcRouterContainerName)
+                        .exec()
+                        .config?.env
+                        .orEmpty()
+                        .toList()
+                }
+                env shouldContain "IN_DOCKER=true"
+                env shouldContain "DYNAMIC_PROXY_PROTOCOL=true"
+            }
+        }
     }
 
     /** Creates a server on the test network, sets its MOTD, marks it externally exposed, starts it, waits HEALTHY. */
@@ -234,7 +250,9 @@ class McRouterRoutingTest : BaseSystemTest() {
             System.err.println("[mcrouter-diag] router host port bindings: ${router.networkSettings?.ports?.bindings}")
             System.err.println(
                 "[mcrouter-diag] router env IN_DOCKER: " +
-                    (router.config?.env?.firstOrNull { it.startsWith("IN_DOCKER") } ?: "<unset>")
+                    (router.config?.env?.firstOrNull { it.startsWith("IN_DOCKER") } ?: "<unset>") +
+                    " DYNAMIC_PROXY_PROTOCOL: " +
+                    (router.config?.env?.firstOrNull { it.startsWith("DYNAMIC_PROXY_PROTOCOL") } ?: "<unset>")
             )
 
             // Backends carrying the routing label and the networks they live on.

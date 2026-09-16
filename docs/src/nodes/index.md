@@ -121,7 +121,7 @@ The directory must exist before the agent starts; the agent does not create it.
 
 ### mc-router provisioning
 
-On startup the agent automatically provisions a single `craftpanel-mc-router` container on the local Docker daemon, running with `IN_DOCKER=true` so it discovers backends from the Docker event stream.
+On startup the agent automatically provisions a single `craftpanel-mc-router` container on the local Docker daemon, running with `IN_DOCKER=true` and `DYNAMIC_PROXY_PROTOCOL=true` so it discovers backends from the Docker event stream.
 This container routes incoming Minecraft TCP connections to the correct game server container using Docker label-based hostname matching (label `mc-router.host=<hostname>`, plus `mc-router.port` and
 `mc-router.network`).
 

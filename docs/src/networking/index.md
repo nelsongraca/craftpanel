@@ -169,7 +169,7 @@ In addition to the managed subdomain, a server can have a **custom hostname** �
 
 ### mc-router auto-discovery labels
 
-mc-router runs with `IN_DOCKER=true` so it subscribes to the Docker event stream and routes by these container labels (set by the agent at container creation):
+mc-router runs with `IN_DOCKER=true` and `DYNAMIC_PROXY_PROTOCOL=true` so it subscribes to the Docker event stream and routes by these container labels (set by the agent at container creation):
 
 | Label | Value | Purpose |
 |---|---|---|
@@ -177,7 +177,7 @@ mc-router runs with `IN_DOCKER=true` so it subscribes to the Docker event stream
 | `mc-router.port` | `25565` | container-internal Minecraft port |
 | `mc-router.network` | the `craftpanel` network name | which Docker network mc-router dials the backend on |
 
-The label key is `mc-router.host` (not `hostname`) and `IN_DOCKER=true` is required — without it the mounted Docker socket is unused and labels are ignored.
+The label key is `mc-router.host` (not `hostname`) and `IN_DOCKER=true` is required — without it the mounted Docker socket is unused and labels are ignored. `DYNAMIC_PROXY_PROTOCOL=true` makes mc-router send PROXY protocol to backends that support it.
 
 When expose is disabled, no public DNS record exists. The server is reachable only within its Docker network or by node IP + port (used for cross-node proxy easy-mode configuration).
 

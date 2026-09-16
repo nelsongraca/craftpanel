@@ -24,6 +24,8 @@ class McRouterProvisioner(private val docker: DockerClient, private val image: S
         if (existing != null) {
             // Recreate if IN_DOCKER=true is missing — that's the flag that enables label-based
             // auto-discovery. Without it mc-router ignores container labels and routes nothing.
+            // Also recreate if DYNAMIC_PROXY_PROTOCOL=true is missing — the fork flag that makes
+            // mc-router emit PROXY protocol to backends that advertise support for it.
             // Also recreate if the docker.sock GID isn't in group_add — a container created by
             // an older agent build predates the group_add fix and will crash-loop forever on
             // permission-denied, and restarting it (the "exists but not running" branch below)
@@ -31,12 +33,13 @@ class McRouterProvisioner(private val docker: DockerClient, private val image: S
             // The host-port binding is always set on creation and not re-checked here: Docker inspect
             // may not expose bindings via networkSettings.ports inside the container network, and
             // a running shared container must not be destroyed while co-located agents depend on it.
-            val hasAutoDiscovery = existing.config?.env
-                ?.any { it == "IN_DOCKER=true" } == true
+            val env = existing.config?.env.orEmpty()
+            val hasAutoDiscovery = env.any { it == "IN_DOCKER=true" }
+            val hasDynamicProxyProtocol = env.any { it == "DYNAMIC_PROXY_PROTOCOL=true" }
             val socketGid = this.socketGid
             val hasSocketGroup = socketGid == null || existing.hostConfig?.groupAdd?.contains(socketGid) == true
-            if (!hasAutoDiscovery || !hasSocketGroup) {
-                log.info("mc-router drift (autoDiscovery=$hasAutoDiscovery, socketGroup=$hasSocketGroup) — recreating")
+            if (!hasAutoDiscovery || !hasDynamicProxyProtocol || !hasSocketGroup) {
+                log.info("mc-router drift (autoDiscovery=$hasAutoDiscovery, dynamicProxyProtocol=$hasDynamicProxyProtocol, socketGroup=$hasSocketGroup) — recreating")
                 runCatching {
                     docker.removeContainerCmd(existing.id)
                         .withForce(true)
@@ -88,7 +91,9 @@ class McRouterProvisioner(private val docker: DockerClient, private val image: S
                 // IN_DOCKER=true subscribes mc-router to the Docker event stream so it reads
                 // per-container `mc-router.host`/`mc-router.port`/`mc-router.network` labels.
                 // Without it the mounted docker socket is never used and labels are ignored.
-                .withEnv("IN_DOCKER=true")
+                // DYNAMIC_PROXY_PROTOCOL=true lets the fork send PROXY protocol to backends that
+                // advertise support for it, preserving the real client IP at the backend.
+                .withEnv("IN_DOCKER=true", "DYNAMIC_PROXY_PROTOCOL=true")
                 .withHostConfig(hostConfig)
                 .withLabels(mapOf("craftpanel.managed" to "true"))
                 .exec().id
