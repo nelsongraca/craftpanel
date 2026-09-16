@@ -3,6 +3,7 @@
 import {useCallback, useEffect, useState} from "react";
 import {getProxySettings, updateProxySettings} from "@/lib/generated/sdk.gen";
 import {SelectField} from "@/components/ui/form-elements";
+import {isVelocityType} from "@/lib/server-types";
 
 const VELOCITY_FORWARDING_MODES = ["NONE", "LEGACY", "MODERN", "BUNGEEGUARD"];
 
@@ -24,7 +25,7 @@ export function ProxySettingsSection({
     const [error, setError] = useState<string | null>(null);
     const [forwardingWarnings, setForwardingWarnings] = useState<string[]>([]);
 
-    const isVelocity = serverType === "VELOCITY";
+    const isVelocity = isVelocityType(serverType);
 
     const load = useCallback(async () => {
         setLoading(true);

@@ -24,6 +24,7 @@ import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {HeaderActionButton} from "@/components/servers/header-action-button";
 import {OverviewTab} from "@/components/servers/overview-tab";
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
+import {isCustomType, isModLoaderType, isPicolimboType, isProxyType} from "@/lib/server-types";
 
 type LiveMetrics = { cpuPercent: number; ramUsedMb: number; netInBytes: number; netOutBytes: number };
 type LivePlayers = { count: number; list: string[] };
@@ -221,10 +222,10 @@ export default function ServerDetailPage() {
     // Render
 
     const sStatus = server.status;
-    const isProxy = ["VELOCITY", "BUNGEECORD", "WATERFALL"].includes(server.server_type);
-    const isCustom = server.server_type === "CUSTOM";
-    const isPicolimbo = server.server_type === "PICOLIMBO";
-    const isModServerType = ["FABRIC", "FORGE", "NEOFORGE", "QUILT"].includes(server.server_type);
+    const isProxy = isProxyType(server.server_type);
+    const isCustom = isCustomType(server.server_type);
+    const isPicolimbo = isPicolimboType(server.server_type);
+    const isModServerType = isModLoaderType(server.server_type);
     const serverPerms = serverPermissions(permissions, user?.server_permissions ?? {}, server.id);
     const disabled = serverDisabled(server);
     const expired = serverExpired(server.expires_at);

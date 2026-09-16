@@ -8,8 +8,7 @@ import type {ServerResponse} from "@/lib/generated/types.gen";
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter} from "@/components/ui/dialog";
 import {Empty, EmptyDescription} from "@/components/ui/empty";
 import {SelectField} from "@/components/ui/form-elements";
-
-const PROXY_TYPES = new Set(["VELOCITY", "BUNGEECORD", "WATERFALL"]);
+import {isProxyType} from "@/lib/server-types";
 
 function slugify(name: string): string {
     return name
@@ -253,7 +252,7 @@ export function ProxyBackendsSection({
 
     const addedIds = new Set(backends.map((b) => b.backendServerId));
     const available = networkServers.filter(
-        (s) => !PROXY_TYPES.has(s.server_type) && !addedIds.has(s.id),
+        (s) => !isProxyType(s.server_type) && !addedIds.has(s.id),
     );
 
     return (

@@ -7,6 +7,7 @@ import type {ModResponse as Mod} from "@/lib/generated/types.gen";
 import {SelectField} from "@/components/ui/form-elements";
 import {McVersionSelect} from "@/components/ui/mc-version";
 import {Empty, EmptyDescription} from "@/components/ui/empty";
+import {isModLoaderType, modrinthKind} from "@/lib/server-types";
 
 type PinStrategy = "LATEST" | "PINNED" | "BETA" | "ALPHA";
 
@@ -43,7 +44,7 @@ async function fetchModrinthVersions(projectId: string, serverType: string, mcVe
         const params = new URLSearchParams();
         // Mod loaders (Fabric/Forge/NeoForge/Quilt) map directly to a loader filter;
         // proxies expose plugins filtered by game version only.
-        if (MOD_SERVER_TYPES.has(serverType.toUpperCase())) params.set("loaders", `["${serverType.toUpperCase()}"]`);
+        if (isModLoaderType(serverType)) params.set("loaders", `["${serverType.toUpperCase()}"]`);
         if (mcVersion) params.set("game_versions", `["${mcVersion}"]`);
         const query = params.toString();
         const res = await fetch(`https://api.modrinth.com/v2/project/${projectId}/version${query ? `?${query}` : ""}`);
@@ -63,10 +64,8 @@ interface ModrinthHit {
     downloads: number;
 }
 
-const MOD_SERVER_TYPES = new Set(["FABRIC", "FORGE", "NEOFORGE", "QUILT"]);
-
 export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serverId: string; serverType: string; mcVersion: string; onModsChanged?: () => void }) {
-    const isMod = MOD_SERVER_TYPES.has(serverType.toUpperCase());
+    const isMod = isModLoaderType(serverType);
     const itemLabel = isMod ? "mod" : "plugin";
     const [mods, setMods] = useState<Mod[]>([]);
     const [loading, setLoading] = useState(true);
@@ -394,7 +393,7 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
                                     <div key={hit.project_id} className="flex items-start justify-between gap-3 p-2 rounded border border-border bg-bg">
                                         <div className="min-w-0 flex-1">
                                             <a
-                                                href={`https://modrinth.com/${MOD_SERVER_TYPES.has(serverType.toUpperCase()) ? "mod" : "plugin"}/${hit.slug}`}
+                                                href={`https://modrinth.com/${modrinthKind(serverType)}/${hit.slug}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="text-sm font-medium text-text-primary truncate block hover:text-accent hover:underline"
@@ -402,7 +401,7 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
                                                 {hit.title}
                                             </a>
                                             <a
-                                                href={`https://modrinth.com/${MOD_SERVER_TYPES.has(serverType.toUpperCase()) ? "mod" : "plugin"}/${hit.slug}`}
+                                                href={`https://modrinth.com/${modrinthKind(serverType)}/${hit.slug}`}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
                                                 className="text-xs text-text-muted truncate block hover:text-accent"
@@ -497,7 +496,7 @@ export function ModsTab({serverId, serverType, mcVersion, onModsChanged}: { serv
                                 <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-2">
                                         <a
-                                            href={`https://modrinth.com/${MOD_SERVER_TYPES.has(serverType.toUpperCase()) ? "mod" : "plugin"}/${mod.modrinth_project_id}`}
+                                            href={`https://modrinth.com/${modrinthKind(serverType)}/${mod.modrinth_project_id}`}
                                             target="_blank"
                                             rel="noopener noreferrer"
                                             className="text-sm font-medium text-text-primary truncate hover:text-accent hover:underline"

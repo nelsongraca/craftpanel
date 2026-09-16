@@ -9,6 +9,7 @@ import {PlayersPanel} from "./players-panel";
 import {hasPermission} from "@/lib/permissions";
 import {timeAgo} from "@/lib/utils/format";
 import type {Network, Node, Server} from "@/lib/types";
+import {isCustomType, isProxyType} from "@/lib/server-types";
 
 type LiveMetrics = { cpuPercent: number; ramUsedMb: number; netInBytes: number; netOutBytes: number };
 type LivePlayers = { count: number; list: string[] };
@@ -55,7 +56,7 @@ export function OverviewTab({
                         Server Info
                     </p>
                     <InfoRow label="Type" value={server.server_type}/>
-                    <InfoRow label="Version" value={["VELOCITY", "BUNGEECORD", "WATERFALL", "CUSTOM"].includes(server.server_type) ? "-" : server.mc_version}/>
+                    <InfoRow label="Version" value={(isProxyType(server.server_type) || isCustomType(server.server_type)) ? "-" : server.mc_version}/>
                     <InfoRow label="Config" value={server.config_mode}/>
                     <InfoRow label="Node" value={node?.display_name ?? server.node_id.slice(0, 8) + "\u2026"}/>
                     <InfoRow label="Network" value={network?.name ?? "-"}/>

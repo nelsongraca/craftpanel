@@ -8,6 +8,7 @@ import {updateServer, listNetworks, updateServerExpiration, setServerDisabled, u
 import type {Network, Server} from "@/lib/types";
 import {hasPermission} from "@/lib/permissions";
 import {Switch} from "@/components/ui/switch";
+import {isCustomType, isPicolimboType} from "@/lib/server-types";
 
 interface EditGeneralProps {
     server: Server;
@@ -18,9 +19,8 @@ interface EditGeneralProps {
 }
 
 export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: EditGeneralProps) {
-    const isProxy = ["VELOCITY", "BUNGEECORD", "WATERFALL"].includes(server.server_type);
-    const isCustom = server.server_type === "CUSTOM";
-    const isPicolimbo = server.server_type === "PICOLIMBO";
+    const isCustom = isCustomType(server.server_type);
+    const isPicolimbo = isPicolimboType(server.server_type);
     const canSetExpiry = hasPermission(permissions, "server.expires");
     const canDisable = hasPermission(permissions, "server.disable");
     const canOverrideDir = hasPermission(permissions, "server.dir_override");

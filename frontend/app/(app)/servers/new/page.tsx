@@ -11,6 +11,7 @@ import {SelectField, TextAreaField, TextField} from "@/components/ui/form-elemen
 import {McVersionSelect} from "@/components/ui/mc-version";
 import {Skeleton} from "@/components/ui/skeleton";
 import type {Network, Node} from "@/lib/types";
+import {isCustomType, isPicolimboType, PROXY_TYPES} from "@/lib/server-types";
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -18,8 +19,6 @@ const GAME_SERVER_TYPES = [
     "CUSTOM", "VANILLA", "PAPER", "FABRIC", "FOLIA", "FORGE",
     "NEOFORGE", "QUILT", "SPIGOT", "LIMBO", "PICOLIMBO",
 ] as const;
-
-const PROXY_TYPES = ["VELOCITY", "BUNGEECORD", "WATERFALL"] as const;
 
 // ── Field component helpers ───────────────────────────────────────────────────
 
@@ -86,9 +85,8 @@ export default function NewServerPage() {
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const isProxy = (PROXY_TYPES as readonly string[]).includes(serverType);
-    const isCustom = serverType === "CUSTOM";
-    const isPicolimbo = serverType === "PICOLIMBO";
+    const isCustom = isCustomType(serverType);
+    const isPicolimbo = isPicolimboType(serverType);
     const canSetExpiry = hasPermission(permissions, "server.expires");
 
     function toExpiresAtIso(local: string): string | undefined {

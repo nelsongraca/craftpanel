@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { useConfirmDialog } from "@/lib/hooks/useConfirmDialog";
 import { Modal } from "@/components/ui/form-elements";
 import {Empty, EmptyDescription, EmptyMedia} from "@/components/ui/empty";
+import {isProxyType} from "@/lib/server-types";
 
 export function PortsTab({
     serverId,
@@ -249,7 +250,7 @@ export function PortsTab({
                                     type="number"
                                     value={editContainerPort}
                                     onChange={(e) => setEditContainerPort(e.target.value)}
-                                    placeholder={serverType.startsWith("VELOCITY") || serverType.startsWith("BUNGEE") || serverType.startsWith("WATERFALL") ? "25577" : "25565"}
+                                    placeholder={isProxyType(serverType) ? "25577" : "25565"}
                                     className="w-full bg-surface-high border border-border rounded px-3 py-2 text-text-primary font-mono text-xs focus:outline-none focus:border-accent"
                                     min={1}
                                     max={65535}

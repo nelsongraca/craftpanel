@@ -10,8 +10,7 @@ import {StopCommandSection} from "@/components/config/stop-command-section";
 import {ConfigModeToggle} from "@/components/config/config-mode-toggle";
 import {UnsavedBar} from "@/components/config/unsaved-bar";
 import {useServerEnvConfig, type EnvField} from "@/lib/hooks/useServerEnvConfig";
-
-const PROXY_TYPES = new Set(["VELOCITY", "BUNGEECORD", "WATERFALL"]);
+import {isProxyType} from "@/lib/server-types";
 
 // Module-level constants so the hook's load effect is keyed on a stable field signature.
 const GAME_FIELDS: readonly EnvField[] = SECTIONS.flatMap((section) => section.fields);
@@ -32,7 +31,7 @@ export function ConfigTab({
     stopCommand: string;
     onOpenGeneralSettings?: () => void;
 }) {
-    if (PROXY_TYPES.has(serverType)) {
+    if (isProxyType(serverType)) {
         return (
             <ProxyServerConfigSection
                 serverId={serverId}
