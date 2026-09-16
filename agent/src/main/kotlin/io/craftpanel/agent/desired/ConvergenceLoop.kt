@@ -16,12 +16,10 @@ import java.util.concurrent.ConcurrentHashMap
 /**
  * Orchestrates desired-state convergence for the container lifecycle, per connection.
  *
- * Three entry points feed [converge]:
+ * Two entry points feed [converge]:
  * 1. A `ServerDesiredState` envelope from master (apply — store intent, then converge).
  * 2. An unexpected container death from the [io.craftpanel.agent.docker.ContainerEventWatcher]
  *    (only unauthored deaths reach here — the WatcherGate suppresses authored ones).
- * 3. Legacy one-shot commands (start/stop/restart) during the master transition — they store the
- *    intent and run the op directly, so a subsequent crash still converges correctly.
  *
  * All per-server work is serialized by a per-server [Mutex]; each converge re-reads fresh state and
  * re-decides, so stale/queued events converge to a harmless no-op once the target holds.
@@ -45,7 +43,28 @@ class ConvergenceLoop(
 
     /** Applies a `ServerDesiredState` envelope: store the intent, then converge. */
     fun applyDesired(env: ServerDesiredState): Job {
+        // Log the intent + the identity-carrying spec fields so "did the agent receive the new
+        // config?" is answerable from logs. Deliberately NOT the whole env map (may hold secrets).
+        if (env.hasSpec()) {
+            log.info(
+                "Desired state for {}: desired={} forceRestart={} force={} noRestart={} image={} TYPE={} VERSION={} container={}",
+                env.serverId, env.desired, env.forceRestart, env.force, env.noRestart,
+                env.spec.image, env.spec.envVarsMap["TYPE"] ?: "-", env.spec.envVarsMap["VERSION"] ?: "-",
+                env.spec.containerName
+            )
+        } else {
+            log.info(
+                "Desired state for {}: desired={} forceRestart={} force={} noRestart={} (no spec)",
+                env.serverId, env.desired, env.forceRestart, env.force, env.noRestart
+            )
+        }
         store.upsert(env.serverId) { state ->
+            // A user-initiated (re)start — a fresh start from a non-RUNNING intent, or an explicit
+            // restart — clears the crash-restart history so an operator can recover a crash-looped
+            // server. Autonomous crash-restarts must NOT reset it, otherwise a container that
+            // launches then immediately dies would restart forever and never report CRASH_LOOPED.
+            val userStart = env.desired == ServerDesiredState.Desired.RUNNING &&
+                (state.desired != ServerDesiredState.Desired.RUNNING || env.forceRestart)
             state.copy(
                 desired = env.desired,
                 spec = if (env.hasSpec()) env.spec else state.spec,
@@ -53,6 +72,8 @@ class ConvergenceLoop(
                 forceRestart = env.forceRestart,
                 force = env.force,
                 noRestart = env.noRestart,
+                restartCount = if (userStart) 0 else state.restartCount,
+                windowStartEpochMillis = if (userStart) null else state.windowStartEpochMillis,
             )
         }
         if (env.desired == ServerDesiredState.Desired.STOPPED && env.force) {
@@ -155,8 +176,11 @@ class ConvergenceLoop(
         }
         out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.STARTING)
         try {
-            operator.ensureRunning(spec, recreate)
-            markHealthy(serverId, spec)
+            val created = operator.ensureRunning(spec, recreate)
+            // Only a container that was actually created/recreated has this spec applied; a plain
+            // start of an existing container must not claim it (that would hide a stale container
+            // behind a matching appliedSpec and abort every future recreate).
+            if (created) recordAppliedSpec(serverId, spec)
             out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.HEALTHY)
         } catch (e: Exception) {
             log.error("Failed to ensure RUNNING for server $serverId", e)
@@ -202,15 +226,16 @@ class ConvergenceLoop(
         }
     }
 
-    /** A successful start means the crash-restart budget resets. */
-    private fun markHealthy(serverId: String, appliedSpec: StartContainerCommand) {
-        store.upsert(serverId) { state ->
-            state.copy(
-                appliedSpec = appliedSpec,
-                restartCount = 0,
-                windowStartEpochMillis = null,
-            )
-        }
+    /**
+     * Records the spec the container was actually created/recreated with (drives recreate-if-diff).
+     * Called only when [ContainerOperator.ensureRunning] created a container — never on a plain
+     * start of an existing one. It does NOT touch the crash-restart budget: a start that immediately
+     * dies must keep accumulating so a crash loop is eventually reported as
+     * [ConvergenceDecision.CrashLooped]. The budget is cleared by an explicit user (re)start
+     * ([applyDesired]) or by the window lapsing in [ConvergenceMachine].
+     */
+    private fun recordAppliedSpec(serverId: String, appliedSpec: StartContainerCommand) {
+        store.upsert(serverId) { state -> state.copy(appliedSpec = appliedSpec) }
     }
 
     companion object {

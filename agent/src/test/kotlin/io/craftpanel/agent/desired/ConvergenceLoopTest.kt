@@ -230,6 +230,29 @@ class ConvergenceLoopTest :
             cm.calls.filter { it.startsWith("start:") } shouldBe listOf("start:craftpanel-srv-1")
         }
 
+        test("a restart with an unknown applied spec preserves the existing container (no recreate)") {
+            // Conservative by design: a fresh agent process (store lost) must NOT tear down a
+            // running server on a guess. Recreation is reserved for a proven spec change.
+            val cm = FakeContainerManager()
+            cm.createContainer(startCmd(image = "old-image"))
+            cm.startContainer("craftpanel-srv-1")
+            cm.calls.clear()
+            val store = DesiredStateStore()
+            store.upsert("srv-1") { it.copy(spec = startCmd(image = "new-image"), appliedSpec = null) }
+            val (channel, out) = newOutbound()
+            val loop = newLoop(cm, out, store = store)
+
+            runBlocking {
+                loop.applyDesired(
+                    desiredRunning(spec = startCmd(image = "new-image")).toBuilder().setForceRestart(true).build()
+                ).join()
+            }
+
+            cm.calls.any { it.startsWith("remove:") || it.startsWith("create:") } shouldBe false
+            cm.containers["craftpanel-srv-1"]?.state shouldBe FakeContainerManager.State.RUNNING
+            channel.statuses().last().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
+        }
+
         test("force stop preempts an in-flight graceful stop with SIGKILL") {
             val cm = FakeContainerManager()
             cm.createContainer(startCmd())
@@ -428,6 +451,51 @@ class ConvergenceLoopTest :
 
             channel.statuses()
                 .last().status shouldBe ServerStatusUpdate.ServerStatus.CRASH_LOOPED
+        }
+
+        test("a crash loop where the container starts then immediately dies is reported as CRASH_LOOPED") {
+            // Regression: markHealthy used to reset the budget on every successful launch, so a
+            // container that starts and immediately crashes (exit 2) restarted forever and never
+            // hit CRASH_LOOPED. maxAttempts is 3 in desiredRunning.
+            val cm = FakeContainerManager()
+            val (channel, out) = newOutbound()
+            val loop = newLoop(cm, out)
+
+            runBlocking {
+                loop.applyDesired(desiredRunning(spec = startCmd())).join() // start #0 → HEALTHY
+                repeat(5) {
+                    cm.killContainer("craftpanel-srv-1")
+                    loop.onContainerDie("srv-1", 2).join()
+                }
+            }
+
+            channel.statuses().last().status shouldBe ServerStatusUpdate.ServerStatus.CRASH_LOOPED
+            // 1 initial start + 3 budgeted restarts; the 4th and 5th crashes are not restarted.
+            cm.calls.count { it == "start:craftpanel-srv-1" } shouldBe 4
+        }
+
+        test("an explicit user restart resets the crash-restart budget") {
+            val cm = FakeContainerManager()
+            val (channel, out) = newOutbound()
+            val loop = newLoop(cm, out)
+
+            runBlocking {
+                loop.applyDesired(desiredRunning(spec = startCmd())).join()
+                // Exhaust the budget: 3 crashes restarted, the 4th is not.
+                repeat(3) {
+                    cm.killContainer("craftpanel-srv-1")
+                    loop.onContainerDie("srv-1", 2).join()
+                }
+                // A user restart clears the crash history ...
+                loop.applyDesired(
+                    desiredRunning(spec = startCmd()).toBuilder().setForceRestart(true).build()
+                ).join()
+                // ... so the next crash is restarted again rather than crash-looping instantly.
+                cm.killContainer("craftpanel-srv-1")
+                loop.onContainerDie("srv-1", 2).join()
+            }
+
+            channel.statuses().last().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
         }
 
         test("no_restart suppresses crash-restart while desired remains RUNNING") {

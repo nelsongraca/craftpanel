@@ -78,13 +78,13 @@ class ConvergenceMachineTest :
         }
 
         test("desired=RUNNING and running with force_restart issues ConditionalRestart") {
-            val result = ConvergenceMachine.decide(state(forceRestart = true), running, now)
+            val result = ConvergenceMachine.decide(state(forceRestart = true, appliedSpec = baseSpec), running, now)
             result.decision shouldBe ConvergenceDecision.ConditionalRestart(false)
             result.next.forceRestart shouldBe false
         }
 
         test("desired=RUNNING, stopped, force_restart pending consumes as an ordinary start") {
-            val result = ConvergenceMachine.decide(state(forceRestart = true), stopped, now)
+            val result = ConvergenceMachine.decide(state(forceRestart = true, appliedSpec = baseSpec), stopped, now)
             result.decision shouldBe ConvergenceDecision.EnsureRunning(false)
             result.next.forceRestart shouldBe false
         }
@@ -158,6 +158,11 @@ class ConvergenceMachineTest :
         test("unknown applied spec (fresh agent process) does not recreate") {
             val result = ConvergenceMachine.decide(state(spec = specA, appliedSpec = null), stopped, now)
             result.decision shouldBe ConvergenceDecision.EnsureRunning(recreate = false)
+        }
+
+        test("unknown applied spec never recreates, even on a user restart") {
+            val result = ConvergenceMachine.decide(state(spec = specA, appliedSpec = null, forceRestart = true), running, now)
+            result.decision shouldBe ConvergenceDecision.ConditionalRestart(recreate = false)
         }
 
         test("running + force_restart with a spec diff recreates; without a diff it does not") {

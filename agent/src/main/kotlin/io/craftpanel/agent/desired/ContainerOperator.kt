@@ -38,9 +38,12 @@ class ContainerOperator(
      * Brings the container to running against [spec]. When [recreate] is true (the agent detected
      * the stored spec differs from the one the container was last applied with) the existing
      * container is removed first; otherwise an existing container is simply started, and a missing
-     * one is created. Throws on failure so the caller reports UNHEALTHY / retries.
+     * one is created. Returns true when the container was actually created/recreated — the caller
+     * uses this to record [io.craftpanel.agent.desired.DesiredState.appliedSpec] (a plain start of
+     * an existing container must NOT claim the new spec was applied). Throws on failure so the
+     * caller reports UNHEALTHY / retries.
      */
-    suspend fun ensureRunning(spec: StartContainerCommand, recreate: Boolean) {
+    suspend fun ensureRunning(spec: StartContainerCommand, recreate: Boolean): Boolean {
         val containerName = spec.containerName
         val exists = withContext(Dispatchers.IO) { containerManager.containerExists(containerName) }
         val needsCreate = recreate || !exists
@@ -78,6 +81,7 @@ class ContainerOperator(
             )
         }.onFailure { log.warn("Failed to create servers-by-name symlink for ${spec.serverId}", it) }
         withContext(Dispatchers.IO) { containerManager.startContainer(containerName) }
+        return needsCreate
     }
 
     /** Graceful stop (signal/stdin stop command then Docker stop with [timeoutSeconds] timeout). */

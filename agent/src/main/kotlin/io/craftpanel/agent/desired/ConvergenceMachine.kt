@@ -41,7 +41,9 @@ data class ConvergenceResult(
  * (trivially table-testable). Uses the master-supplied restart budget semantics:
  *
  * - A crash-restart is allowed while `count <= max_attempts`; the count resets when the
- *   window lapses or when the server reaches HEALTHY.
+ *   window lapses or on an explicit user (re)start (handled by [ConvergenceLoop]). It is NOT
+ *   reset by a start that merely launches the container — an immediately-dying container keeps
+ *   accumulating to [ConvergenceDecision.CrashLooped].
  * - `max_attempts <= 0` means "never auto-restart" — immediate [ConvergenceDecision.CrashLooped].
  * - Provisioning (container absent, desired=RUNNING) is never budget-capped.
  */
@@ -130,9 +132,11 @@ object ConvergenceMachine {
     }
 
     /**
-     * Recreate is required only when we know the container was last applied with a *different*
-     * spec. A null [DesiredState.appliedSpec] means unknown (fresh agent process, never started
-     * here) — start the existing container rather than destroy-and-recreate it.
+     * Recreate ONLY when we are certain the container's applied spec differs from the desired one.
+     * A null [DesiredState.appliedSpec] means unknown (fresh agent process, container created by an
+     * earlier agent run) — start the existing container rather than destroy-and-recreate it. The
+     * agent must never tear down a running server on a guess; recreation is reserved for a proven
+     * spec change.
      */
     private fun shouldRecreate(state: DesiredState): Boolean =
         state.appliedSpec != null && state.spec != state.appliedSpec
