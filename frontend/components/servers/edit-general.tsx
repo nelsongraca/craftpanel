@@ -4,7 +4,7 @@ import {useEffect, useState} from "react";
 import {InfoRow} from "./server-info";
 import {EditFieldRow, EditInput, EditSelect, EditTextarea, EditSection} from "./edit-fields";
 import {McVersionSelect} from "@/components/ui/mc-version";
-import {updateServer, listNetworks, updateServerExpiration, setServerDisabled} from "@/lib/generated/sdk.gen";
+import {updateServer, listNetworks, updateServerExpiration, setServerDisabled, updateServerDataDir} from "@/lib/generated/sdk.gen";
 import type {Network, Server} from "@/lib/types";
 import {hasPermission} from "@/lib/permissions";
 import {Switch} from "@/components/ui/switch";
@@ -23,6 +23,7 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
     const isPicolimbo = server.server_type === "PICOLIMBO";
     const canSetExpiry = hasPermission(permissions, "server.expires");
     const canDisable = hasPermission(permissions, "server.disable");
+    const canOverrideDir = hasPermission(permissions, "server.dir_override");
 
     const [editing, setEditing] = useState(false);
     const [displayName, setDisplayName] = useState("");
@@ -31,6 +32,7 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
     const [mcVersion, setMcVersion] = useState("");
     const [expiresAt, setExpiresAt] = useState<string>(""); // datetime-local string
     const [disabled, setDisabled] = useState(false);
+    const [dataDirName, setDataDirName] = useState("");
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [networks, setNetworks] = useState<Network[]>([]);
@@ -42,6 +44,7 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
         setMcVersion(server.mc_version);
         setExpiresAt(server.expires_at ? server.expires_at.slice(0, 16) : "");
         setDisabled(server.disabled ?? false);
+        setDataDirName(server.data_dir_name ?? "");
         setError(null);
         setEditing(true);
         if (networks.length === 0) {
@@ -107,6 +110,21 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
                 }
             }
 
+            // Data directory override via dedicated endpoint if permission and changed
+            if (canOverrideDir) {
+                const prev = server.data_dir_name ?? "";
+                if (dataDirName.trim() !== prev) {
+                    const {error: dirErr} = await updateServerDataDir({
+                        path: {id: server.id},
+                        body: {data_dir_name: dataDirName.trim() || null}
+                    });
+                    if (dirErr) {
+                        setError(dirErr.message ?? "Failed to update data directory");
+                        return;
+                    }
+                }
+            }
+
             onSaved();
             setEditing(false);
         } catch {
@@ -139,6 +157,7 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
                             : "Never"
                     }
                 />
+                <InfoRow label="Data Directory" value={server.data_dir_name || server.id}/>
             </div>
             <div className="space-y-3">
                 <EditFieldRow label="Display Name">
@@ -186,6 +205,19 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
                                         : "Server can be started and stopped normally."}
                                 </span>
                         </div>
+                    </EditFieldRow>
+                )}
+                {canOverrideDir && (
+                    <EditFieldRow label="Data Directory">
+                        <EditInput
+                            value={dataDirName}
+                            onChange={(e) => setDataDirName(e.target.value)}
+                            placeholder={server.id}
+                        />
+                        <p className="text-xs text-text-muted mt-1">
+                            Overrides the data directory name (defaults to the server ID). No files are moved — the
+                            directory must already hold the data; changing it recreates a running server.
+                        </p>
                     </EditFieldRow>
                 )}
                 {!isPicolimbo && (

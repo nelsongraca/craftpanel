@@ -20,6 +20,7 @@ Access control is implemented as a **permission node** system. Permissions are c
 | `server.configure`  | Edit server configuration (properties, env vars, type, version)                                                                                                                                                 |
 | `server.resources`  | Change RAM and CPU allocation for a server                                                                                                                                                                      |
 | `server.files`      | Access the file explorer and editor for a server's data directory                                                                                                                                               |
+| `server.dir_override` | Override a server's data directory name (default = server id). Super Admin only                                                                                                                               |
 | `server.mods`       | Manage the mod/plugin list via Modrinth search                                                                                                                                                                  |
 | `server.console`    | View live console output and send commands                                                                                                                                                                      |
 | `server.export`     | Export server configuration as JSON and download full instance archives                                                                                                                                         |
@@ -42,7 +43,7 @@ The following groups are pre-configured on installation. Administrators may crea
 | Group            | Permissions                                                                                        |
 |------------------|----------------------------------------------------------------------------------------------------|
 | **Super Admin**  | All permission nodes                                                                               |
-| **Server Admin** | All except `system.settings`, `system.users`, `system.nodes`, `server.resources`, `server.migrate` |
+| **Server Admin** | All except `system.settings`, `system.users`, `system.nodes`, `server.resources`, `server.migrate`, `server.dir_override` |
 | **Operator**     | `server.restart`, `server.console`, `server.view`, `server.backup`                                 |
 | **Viewer**       | `server.view`                                                                                      |
 

@@ -9,24 +9,7 @@ import kotlin.uuid.Uuid
 object PermissionResolver {
 
     fun resolve(userId: Uuid, serverId: Uuid? = null, networkId: Uuid? = null): Set<String> = transaction {
-        val user = Users.selectAll()
-            .where { Users.id eq userId }
-            .firstOrNull() ?: return@transaction emptySet()
-
-        if (!user[Users.isActive]) return@transaction emptySet()
-
-        val groupIds = buildList {
-            addAll(groupIdsForScope(userId, ScopeType.GLOBAL.name, null))
-            if (serverId != null) addAll(groupIdsForScope(userId, ScopeType.SERVER.name, serverId))
-            if (networkId != null) addAll(groupIdsForScope(userId, ScopeType.NETWORK.name, networkId))
-        }.toSet()
-
-        if (groupIds.isEmpty()) return@transaction emptySet()
-
-        GroupPermissions.selectAll()
-            .where { GroupPermissions.groupId inList groupIds }
-            .map { it[GroupPermissions.permission] }
-            .toSet()
+        loadIndex(userId)?.permissionsFor(serverId, networkId) ?: emptySet()
     }
 
     fun hasPermission(userId: Uuid, permission: Permission, serverId: Uuid? = null, networkId: Uuid? = null): Boolean {
@@ -44,53 +27,17 @@ object PermissionResolver {
      * mirroring the visibility logic so the frontend can render per-server action buttons.
      */
     fun serverPermissions(userId: Uuid): Map<Uuid, Set<String>> = transaction {
-        val user = Users.selectAll()
-            .where { Users.id eq userId }
-            .firstOrNull() ?: return@transaction emptyMap()
+        val index = loadIndex(userId) ?: return@transaction emptyMap()
 
-        if (!user[Users.isActive]) return@transaction emptyMap()
-
-        // (id, networkId) for every server.
         val servers = Servers.selectAll()
-            .map { row ->
-                (row[Servers.id].value to row[Servers.networkId]?.value)
-            }
+            .map { it[Servers.id].value to it[Servers.networkId]?.value }
 
-        val assignments = UserGroupAssignments.selectAll()
-            .where { UserGroupAssignments.userId eq userId }
-            .map { Assignment(it[UserGroupAssignments.groupId].value, it[UserGroupAssignments.scopeType], it[UserGroupAssignments.scopeId]) }
-
-        if (assignments.isEmpty()) return@transaction emptyMap()
-
-        // groupId -> permission nodes
-        val groupPermissions = GroupPermissions.selectAll()
-            .where {
-                GroupPermissions.groupId inList assignments.map { it.groupId }
-                    .toSet()
-            }
-            .groupBy({ it[GroupPermissions.groupId].value }, { it[GroupPermissions.permission] })
-
-        val globalGroupIds = assignments.filter { it.scopeType == ScopeType.GLOBAL.name }
-            .map { it.groupId }
-            .toSet()
-        val serverGroupIds = assignments.filter { it.scopeType == ScopeType.SERVER.name }
-            .associate { it.scopeId to it.groupId }
-        val networkGroupIds = assignments.filter { it.scopeType == ScopeType.NETWORK.name }
-            .associate { it.scopeId to it.groupId }
-
-        val result = mutableMapOf<Uuid, Set<String>>()
-        for ((serverId, networkId) in servers) {
-            val granted = buildSet {
-                globalGroupIds.forEach { addAll(groupPermissions[it].orEmpty()) }
-                serverGroupIds[serverId]?.let { addAll(groupPermissions[it].orEmpty()) }
-                networkId?.let { nid -> networkGroupIds[nid]?.let { addAll(groupPermissions[it].orEmpty()) } }
-            }
-            // Only surface servers the user can actually view.
-            if (granted.any { matches(it, Permission.SERVER_VIEW.node) }) {
-                result[serverId] = granted
+        buildMap {
+            for ((serverId, networkId) in servers) {
+                val granted = index.permissionsFor(serverId, networkId)
+                if (granted.any { matches(it, Permission.SERVER_VIEW.node) }) put(serverId, granted)
             }
         }
-        result
     }
 
     /**
@@ -101,63 +48,52 @@ object PermissionResolver {
      * mirroring the visibility logic so the frontend can render per-network action buttons.
      */
     fun networkPermissions(userId: Uuid): Map<Uuid, Set<String>> = transaction {
-        val user = Users.selectAll()
-            .where { Users.id eq userId }
-            .firstOrNull() ?: return@transaction emptyMap()
-
-        if (!user[Users.isActive]) return@transaction emptyMap()
+        val index = loadIndex(userId) ?: return@transaction emptyMap()
 
         val networks = ServerNetworks.selectAll()
             .map { it[ServerNetworks.id].value }
 
-        val assignments = UserGroupAssignments.selectAll()
-            .where { UserGroupAssignments.userId eq userId }
-            .map { Assignment(it[UserGroupAssignments.groupId].value, it[UserGroupAssignments.scopeType], it[UserGroupAssignments.scopeId]) }
-
-        if (assignments.isEmpty()) return@transaction emptyMap()
-
-        // groupId -> permission nodes
-        val groupPermissions = GroupPermissions.selectAll()
-            .where {
-                GroupPermissions.groupId inList assignments.map { it.groupId }
-                    .toSet()
-            }
-            .groupBy({ it[GroupPermissions.groupId].value }, { it[GroupPermissions.permission] })
-
-        val globalGroupIds = assignments.filter { it.scopeType == ScopeType.GLOBAL.name }
-            .map { it.groupId }
-            .toSet()
-        val networkGroupIds = assignments.filter { it.scopeType == ScopeType.NETWORK.name }
-            .associate { it.scopeId to it.groupId }
-
-        val result = mutableMapOf<Uuid, Set<String>>()
-        for (networkId in networks) {
-            val granted = buildSet {
-                globalGroupIds.forEach { addAll(groupPermissions[it].orEmpty()) }
-                networkGroupIds[networkId]?.let { addAll(groupPermissions[it].orEmpty()) }
-            }
-            // Only surface networks the user can actually view.
-            if (granted.any { matches(it, Permission.NETWORK_VIEW.node) }) {
-                result[networkId] = granted
+        buildMap {
+            for (networkId in networks) {
+                val granted = index.permissionsFor(networkId = networkId)
+                if (granted.any { matches(it, Permission.NETWORK_VIEW.node) }) put(networkId, granted)
             }
         }
-        result
     }
 
-    private data class Assignment(val groupId: Uuid, val scopeType: String, val scopeId: Uuid?)
+    /**
+     * Builds the user's [GrantIndex] from their assignments and their groups' permissions.
+     * Returns `null` when the user is missing or inactive. Must run inside a transaction.
+     *
+     * The scope-union itself lives in [GrantIndex]; this is only the schema-loading adapter, so
+     * `PermissionResolver` and the repo-backed visibility resolvers share one algorithm.
+     */
+    private fun loadIndex(userId: Uuid): GrantIndex? {
+        val user = Users.selectAll()
+            .where { Users.id eq userId }
+            .firstOrNull() ?: return null
 
-    private fun groupIdsForScope(userId: Uuid, scopeType: String, scopeId: Uuid?): List<Uuid> = UserGroupAssignments.selectAll()
-        .where {
-            val base = (UserGroupAssignments.userId eq userId) and
-                (UserGroupAssignments.scopeType eq scopeType)
-            if (scopeId != null) {
-                base and (UserGroupAssignments.scopeId eq scopeId)
+        if (!user[Users.isActive]) return null
+
+        val assignments = UserGroupAssignments.selectAll()
+            .where { UserGroupAssignments.userId eq userId }
+            .map {
+                AssignmentScope(
+                    groupId = it[UserGroupAssignments.groupId].value,
+                    scopeType = it[UserGroupAssignments.scopeType],
+                    scopeId = it[UserGroupAssignments.scopeId]
+                )
             }
-            else {
-                base
-            }
-        }
-        .map { it[UserGroupAssignments.groupId].value }
+
+        if (assignments.isEmpty()) return GrantIndex.from(emptyList(), emptyMap())
+
+        val permissionsByGroup = GroupPermissions.selectAll()
+            .where { GroupPermissions.groupId inList assignments.map { it.groupId }.toSet() }
+            .groupBy({ it[GroupPermissions.groupId].value }, { it[GroupPermissions.permission] })
+            .mapValues { it.value.toSet() }
+
+        return GrantIndex.from(assignments, permissionsByGroup)
+    }
 
     private fun matches(granted: String, required: String): Boolean {
         if (granted == "*") return true

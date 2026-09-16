@@ -1,6 +1,7 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.common.ContainerNames
+import io.craftpanel.common.ServerPaths
 import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.Backups
 import io.craftpanel.master.database.schema.ContainerMetrics
@@ -38,7 +39,10 @@ class ServerService(
     private val serverRepository: ServerRepository,
     private val nodeRepository: NodeRepository,
     private val networkRepository: NetworkRepository,
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
+    // Optional so existing constructions (and unit tests) need not provide it. Only used to
+    // force a recreate after a data-directory override change.
+    private val lifecycle: ContainerLifecycle? = null
 ) {
 
     private val log = LoggerFactory.getLogger(ServerService::class.java)
@@ -105,6 +109,36 @@ class ServerService(
     }
 
     private fun containerPortProvidedOrInvalid(containerListenPort: Int?): Boolean = containerListenPort != null && (containerListenPort <= 0 || containerListenPort > 65535)
+
+    /**
+     * Admin override for the `servers/<name>` data directory. Null/blank clears the override.
+     * No rename is performed — the directory must already hold the data (or be created empty on
+     * next start). After saving, the node's override snapshot is re-pushed so even stopped servers
+     * resolve the new path; a running container is forced to recreate against the new bind mount.
+     */
+    fun updateDataDirName(id: Uuid, dataDirName: String?): ServerView {
+        val server = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
+        val clean = dataDirName?.trim()?.ifEmpty { null }
+        if (clean != null) {
+            if (!ServerPaths.isValidDataDirName(clean)) {
+                throw UnprocessableException("Invalid data directory name")
+            }
+            val clash = serverRepository.listByNodeId(server.nodeId)
+                .any { it.id != id && it.dataDirName == clean }
+            if (clash) throw ConflictException("Data directory name already in use on this node")
+        }
+
+        transaction {
+            Server.findById(id)?.let { it.dataDirName = clean }
+        }
+        val updated = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
+
+        gateway.rebuildSymlinks(updated.nodeId.toString())
+        if (DesiredStatus.fromDb(updated.desiredStatus) == DesiredStatus.RUNNING) {
+            lifecycle?.sendDesiredState(updated, DesiredStatus.RUNNING, forceRestart = true)
+        }
+        return updated
+    }
 
     fun deleteServer(id: Uuid) {
         val existing = serverRepository.findById(id) ?: throw NotFoundException("Server not found")

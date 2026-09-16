@@ -30,7 +30,7 @@ private val migrationJson = Json {
     namingStrategy = JsonNamingStrategy.SnakeCase
 }
 
-fun Route.migrationsRoutes(wsTicketService: WsTicketService, migrationService: MigrationService) {
+fun Route.migrationsRoutes(migrationService: MigrationService, wsAuthorization: WsAuthorization) {
     authenticate(JWT_AUTH) {
         route("/api/servers/{id}/migrations") {
             get("", {
@@ -90,25 +90,13 @@ fun Route.migrationsRoutes(wsTicketService: WsTicketService, migrationService: M
                     }
                     ?: return@get call.respond(HttpStatusCode.BadRequest, ErrorResponse("Invalid migration ID"))
                 val migration = migrationService.getMigration(migrationId)
-                val serverId = Uuid.parse(migration.serverId)
-                val networkId = ServerLookup.scope(serverId)?.networkId
-                if (!PermissionResolver.hasPermission(call.userId(), Permission.SERVER_MIGRATE, serverId = serverId, networkId = networkId)) {
-                    throw ForbiddenException("Insufficient permissions")
-                }
+                call.requireServerPermission(Uuid.parse(migration.serverId), Permission.SERVER_MIGRATE)
                 call.respond(migration)
             }
         }
     }
 
     webSocket("/api/migrations/{migrationId}/events") {
-        val ticket = call.request.queryParameters["ticket"] ?: run {
-            close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Missing ticket"))
-            return@webSocket
-        }
-        val userId = wsTicketService.consume(ticket) ?: run {
-            close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Invalid or expired ticket"))
-            return@webSocket
-        }
         val migrationIdStr = call.parameters["migrationId"] ?: run {
             close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Missing migration ID"))
             return@webSocket
@@ -121,10 +109,13 @@ fun Route.migrationsRoutes(wsTicketService: WsTicketService, migrationService: M
             close(CloseReason(CloseReason.Codes.NORMAL, "Migration not found"))
             return@webSocket
         }
-        val networkId = ServerLookup.scope(serverId)?.networkId
-        if (!PermissionResolver.hasPermission(userId, Permission.SERVER_MIGRATE, serverId = serverId, networkId = networkId)) {
-            close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Insufficient permissions"))
-            return@webSocket
+        val grant = when (val access = wsAuthorization.authorizeServerSocket(call, Permission.SERVER_MIGRATE, serverId)) {
+            is WsAuthorization.Access.Denied -> {
+                close(CloseReason(access.codes, access.message))
+                return@webSocket
+            }
+
+            is WsAuthorization.Access.Granted -> access
         }
         val flow = migrationService.getEventFlow(migrationIdStr) ?: run {
             close(CloseReason(CloseReason.Codes.NORMAL, "Migration not found or already completed"))
@@ -139,14 +130,10 @@ fun Route.migrationsRoutes(wsTicketService: WsTicketService, migrationService: M
                 }
             }
         }
-        val revalidationJob = launch {
-            while (true) {
-                delay(5.minutes)
-                if (!PermissionResolver.hasPermission(userId, Permission.SERVER_MIGRATE, serverId = serverId, networkId = networkId)) {
-                    close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Permission revoked"))
-                    break
-                }
-            }
+        val revalidationJob = revalidatePeriodically(
+            check = { wsAuthorization.hasPermission(grant.userId, Permission.SERVER_MIGRATE, grant.serverId, grant.networkId) }
+        ) {
+            close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Permission revoked"))
         }
         try {
             incoming.consumeEach { }

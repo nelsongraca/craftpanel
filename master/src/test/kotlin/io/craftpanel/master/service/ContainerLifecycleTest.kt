@@ -107,6 +107,7 @@ class ContainerLifecycleTest :
                         containerProtocol = r[Servers.containerProtocol],
                         disableHealthcheck = r[Servers.disableHealthcheck],
                         forceRedownload = r[Servers.forceRedownload],
+                        dataDirName = r[Servers.dataDirName],
                         lastPlayerCount = r[Servers.lastPlayerCount],
                         lastPlayerNames = r[Servers.lastPlayerNames],
                         lastPlayerUpdate = r[Servers.lastPlayerUpdate]?.toString(),
@@ -172,6 +173,15 @@ class ContainerLifecycleTest :
             cmd.envVarsMap["SERVER_PORT"] shouldBe "25565"
             cmd.internalListenPort shouldBe 25565
             cmd.dataContainerPath shouldBe "/data"
+            cmd.dataDirName shouldBe ""
+        }
+
+        test("buildStartSpec - carries the data-dir override") {
+            transaction {
+                Servers.update({ Servers.id eq serverId }) { it[Servers.dataDirName] = "survival" }
+            }
+            val cmd = lifecycle().buildStartSpec(serverRow())
+            cmd.dataDirName shouldBe "survival"
         }
 
         test("buildStartSpec - proxy server type - data container path is /server") {

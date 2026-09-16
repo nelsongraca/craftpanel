@@ -1,5 +1,7 @@
 package io.craftpanel.agent.config
 
+import io.craftpanel.common.ServerPaths
+
 data class AgentConfig(
     val profile: String,
     val masterAddress: String,
@@ -60,48 +62,50 @@ data class AgentConfig(
 
         private val log = org.slf4j.LoggerFactory.getLogger(AgentConfig::class.java)
 
-        fun fromEnv(): AgentConfig = AgentConfig(
-            profile = System.getenv("APP_PROFILE") ?: "prod",
-            masterAddress = System.getenv("MASTER_HOST") ?: "localhost",
-            masterPort = System.getenv("MASTER_GRPC_PORT")
-                ?.toIntOrNull() ?: 50051,
-            masterHttpPort = System.getenv("MASTER_HTTP_PORT")
-                ?.toIntOrNull() ?: 8080,
-            tlsCertPath = System.getenv("GRPC_TLS_CERT") ?: "",
-            caCertFilePath = System.getenv("GRPC_CA_CERT_FILE") ?: "/app/config/grpc-ca.crt",
-            bootstrapToken = secretFromFileOrEnv("NODE_BOOTSTRAP_TOKEN", "changeme"),
-            keyFilePath = System.getenv("NODE_KEY_FILE") ?: "/app/config/node.key",
-            dockerSocketPath = System.getenv("DOCKER_SOCKET") ?: "unix:///var/run/docker.sock",
-            agentVersion = System.getenv("AGENT_VERSION") ?: "dev",
-            dataBasePath = System.getenv("DATA_PATH") ?: "/data",
-            hostDataBasePath = System.getenv("HOST_DATA_PATH")
-                ?: System.getenv("DATA_PATH") ?: "/data",
-            serversByNameRoot = System.getenv("SERVERS_BY_NAME_PATH")
-                ?: "${System.getenv("DATA_PATH") ?: "/data"}/servers-by-name",
-            backupsByServerRoot = System.getenv("BACKUPS_BY_SERVER_PATH")
-                ?: "${System.getenv("DATA_PATH") ?: "/data"}/backups-by-server",
-            mcRouterImage = System.getenv("MCROUTER_IMAGE") ?: "itzg/mc-router:latest",
-            mcRouterUpdateOnStart = System.getenv("MCROUTER_UPDATE_ON_START")
-                ?.lowercase() != "false",
-            mcRouterContainerName = System.getenv("MCROUTER_CONTAINER_NAME") ?: "",
-            mcRouterEnabled = System.getenv("MCROUTER_ENABLED")?.lowercase() != "false",
-            publicIpUrl = System.getenv("PUBLIC_IP_URL") ?: "",
-            hostnameOverride = System.getenv("NODE_HOSTNAME") ?: "",
-            systemReservedRamMb = System.getenv("SYSTEM_RESERVED_RAM_MB")
-                ?.toIntOrNull()
-                ?.coerceAtLeast(0) ?: 0,
-            systemReservedCpuShares = System.getenv("SYSTEM_RESERVED_CPU_SHARES")
-                ?.toIntOrNull()
-                ?.coerceAtLeast(0) ?: 0,
-            craftpanelNetwork = System.getenv("CRAFTPANEL_NETWORK") ?: "craftpanel",
-            containerNamePrefix = System.getenv("CRAFTPANEL_CONTAINER_PREFIX") ?: "craftpanel",
-            privateIpOverride = System.getenv("NODE_PRIVATE_IP") ?: "",
-            metricsPollIntervalSeconds = System.getenv("METRICS_POLL_INTERVAL_SECONDS")
-                ?.toIntOrNull()
-                ?.coerceAtLeast(1) ?: 5,
-            pullMaxImageAgeHours = System.getenv("PULL_MAX_IMAGE_AGE_HOURS")
-                ?.toLongOrNull()
-                ?.coerceAtLeast(0) ?: 24
-        )
+        fun fromEnv(): AgentConfig {
+            val dataPath = System.getenv("DATA_PATH") ?: "/data"
+            return AgentConfig(
+                profile = System.getenv("APP_PROFILE") ?: "prod",
+                masterAddress = System.getenv("MASTER_HOST") ?: "localhost",
+                masterPort = System.getenv("MASTER_GRPC_PORT")
+                    ?.toIntOrNull() ?: 50051,
+                masterHttpPort = System.getenv("MASTER_HTTP_PORT")
+                    ?.toIntOrNull() ?: 8080,
+                tlsCertPath = System.getenv("GRPC_TLS_CERT") ?: "",
+                caCertFilePath = System.getenv("GRPC_CA_CERT_FILE") ?: "/app/config/grpc-ca.crt",
+                bootstrapToken = secretFromFileOrEnv("NODE_BOOTSTRAP_TOKEN", "changeme"),
+                keyFilePath = System.getenv("NODE_KEY_FILE") ?: "/app/config/node.key",
+                dockerSocketPath = System.getenv("DOCKER_SOCKET") ?: "unix:///var/run/docker.sock",
+                agentVersion = System.getenv("AGENT_VERSION") ?: "dev",
+                dataBasePath = dataPath,
+                hostDataBasePath = System.getenv("HOST_DATA_PATH") ?: dataPath,
+                serversByNameRoot = System.getenv("SERVERS_BY_NAME_PATH")
+                    ?: ServerPaths.serversByNameRoot(dataPath),
+                backupsByServerRoot = System.getenv("BACKUPS_BY_SERVER_PATH")
+                    ?: ServerPaths.backupsByServerRoot(dataPath),
+                mcRouterImage = System.getenv("MCROUTER_IMAGE") ?: "itzg/mc-router:latest",
+                mcRouterUpdateOnStart = System.getenv("MCROUTER_UPDATE_ON_START")
+                    ?.lowercase() != "false",
+                mcRouterContainerName = System.getenv("MCROUTER_CONTAINER_NAME") ?: "",
+                mcRouterEnabled = System.getenv("MCROUTER_ENABLED")?.lowercase() != "false",
+                publicIpUrl = System.getenv("PUBLIC_IP_URL") ?: "",
+                hostnameOverride = System.getenv("NODE_HOSTNAME") ?: "",
+                systemReservedRamMb = System.getenv("SYSTEM_RESERVED_RAM_MB")
+                    ?.toIntOrNull()
+                    ?.coerceAtLeast(0) ?: 0,
+                systemReservedCpuShares = System.getenv("SYSTEM_RESERVED_CPU_SHARES")
+                    ?.toIntOrNull()
+                    ?.coerceAtLeast(0) ?: 0,
+                craftpanelNetwork = System.getenv("CRAFTPANEL_NETWORK") ?: "craftpanel",
+                containerNamePrefix = System.getenv("CRAFTPANEL_CONTAINER_PREFIX") ?: "craftpanel",
+                privateIpOverride = System.getenv("NODE_PRIVATE_IP") ?: "",
+                metricsPollIntervalSeconds = System.getenv("METRICS_POLL_INTERVAL_SECONDS")
+                    ?.toIntOrNull()
+                    ?.coerceAtLeast(1) ?: 5,
+                pullMaxImageAgeHours = System.getenv("PULL_MAX_IMAGE_AGE_HOURS")
+                    ?.toLongOrNull()
+                    ?.coerceAtLeast(0) ?: 24
+            )
+        }
     }
 }

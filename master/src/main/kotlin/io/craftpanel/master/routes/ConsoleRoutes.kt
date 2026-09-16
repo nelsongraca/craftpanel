@@ -31,21 +31,12 @@ private fun DefaultWebSocketSession.sendConsole(event: ConsoleEvent) {
     outgoing.trySend(Frame.Text(json.encodeToString(ConsoleEvent.serializer(), event)))
 }
 
-internal data class ServerInfo(val serverId: Uuid, val networkId: Uuid?)
+fun Route.consoleRoutes(proxy: DataServiceProxy, wsAuthorization: WsAuthorization, systemService: SystemService) = with(ConsoleRoutes(proxy, wsAuthorization, systemService)) { register() }
 
-fun Route.consoleRoutes(wsTicketService: WsTicketService, proxy: DataServiceProxy, permissionResolver: PermissionResolver, systemService: SystemService) =
-    with(ConsoleRoutes(wsTicketService, proxy, permissionResolver, systemService)) { register() }
-
-class ConsoleRoutes(private val wsTicketService: WsTicketService, private val proxy: DataServiceProxy, private val permissionResolver: PermissionResolver, private val systemService: SystemService) {
+class ConsoleRoutes(private val proxy: DataServiceProxy, private val wsAuthorization: WsAuthorization, private val systemService: SystemService) {
 
     private val log = LoggerFactory.getLogger(ConsoleRoutes::class.java)
     private val sessionManager = ConsoleSessionManager(proxy::console, CoroutineScope(SupervisorJob().plus(Dispatchers.IO)))
-
-    internal fun lookupServer(rawId: String): ServerInfo? {
-        val id = runCatching { Uuid.parse(rawId) }.getOrNull() ?: return null
-        val scope = ServerLookup.scope(id) ?: return null
-        return ServerInfo(serverId = id, networkId = scope.networkId)
-    }
 
     fun Route.register() {
         // operationId: consoleWebSocket
@@ -53,31 +44,18 @@ class ConsoleRoutes(private val wsTicketService: WsTicketService, private val pr
         // Bidirectional: client sends console input, server streams console output.
         webSocket("/api/ws/console/{id}") {
             // ── Auth ──────────────────────────────────────────────────────────
-            val ticket = call.request.queryParameters["ticket"] ?: run {
-                close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Missing ticket"))
-                return@webSocket
-            }
-            val userId = wsTicketService.consume(ticket) ?: run {
-                close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Invalid or expired ticket"))
-                return@webSocket
-            }
+            val grant = when (val access = wsAuthorization.authorizeServerSocket(call, Permission.SERVER_CONSOLE)) {
+                is WsAuthorization.Access.Denied -> {
+                    close(CloseReason(access.codes, access.message))
+                    return@webSocket
+                }
 
-            val serverId = call.parameters["id"] ?: run {
-                close(CloseReason(CloseReason.Codes.NORMAL, "Missing server ID"))
-                return@webSocket
+                is WsAuthorization.Access.Granted -> access
             }
-            val serverInfo = lookupServer(serverId) ?: run {
-                close(CloseReason(CloseReason.Codes.NORMAL, "Server not found"))
-                return@webSocket
-            }
-
-            if (!permissionResolver.hasPermission(userId, Permission.SERVER_CONSOLE, serverInfo.serverId, serverInfo.networkId)) {
-                close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Insufficient permissions"))
-                return@webSocket
-            }
+            val serverId = grant.serverId.toString()
 
             // ── Session ───────────────────────────────────────────────────────
-            val session = sessionManager.getOrCreate(serverInfo.serverId)
+            val session = sessionManager.getOrCreate(grant.serverId)
 
             sendConsole(ConsoleEvent.Ready(serverId))
 
@@ -92,15 +70,11 @@ class ConsoleRoutes(private val wsTicketService: WsTicketService, private val pr
                 }
             }
 
-            val revalidationJob = launch {
-                while (true) {
-                    delay(5.minutes)
-                    if (!permissionResolver.hasPermission(userId, Permission.SERVER_CONSOLE, serverInfo.serverId, serverInfo.networkId)) {
-                        sendConsole(ConsoleEvent.Disconnected(serverId, "Session revoked"))
-                        close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Session revoked"))
-                        return@launch
-                    }
-                }
+            val revalidationJob = revalidatePeriodically(
+                check = { wsAuthorization.hasPermission(grant.userId, Permission.SERVER_CONSOLE, grant.serverId, grant.networkId) }
+            ) {
+                sendConsole(ConsoleEvent.Disconnected(serverId, "Session revoked"))
+                close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Session revoked"))
             }
 
             val closeWatcherJob = launch {
@@ -121,10 +95,6 @@ class ConsoleRoutes(private val wsTicketService: WsTicketService, private val pr
                         runCatching {
                             val event = json.decodeFromString(ConsoleInEvent.serializer(), frame.readText())
                             if (event is ConsoleInEvent.Input) {
-                                if (!permissionResolver.hasPermission(userId, Permission.SERVER_CONSOLE, serverInfo.serverId, serverInfo.networkId)) {
-                                    close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Insufficient permissions"))
-                                    return@webSocket
-                                }
                                 session.input.trySend(event.data.toByteArray())
                             }
                         }.onFailure { log.warn("Malformed console input: {}", it.message) }
@@ -134,7 +104,7 @@ class ConsoleRoutes(private val wsTicketService: WsTicketService, private val pr
                 outputJob.cancel()
                 revalidationJob.cancel()
                 closeWatcherJob.cancel()
-                sessionManager.releaseViewer(serverInfo.serverId)
+                sessionManager.releaseViewer(grant.serverId)
             }
         }
 
@@ -154,23 +124,11 @@ class ConsoleRoutes(private val wsTicketService: WsTicketService, private val pr
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val rawId = call.parameters["id"] ?: run {
-                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Missing server ID"))
-                    return@get
-                }
-                val serverInfo = lookupServer(rawId) ?: run {
-                    call.respond(HttpStatusCode.NotFound, ErrorResponse("Server not found"))
-                    return@get
-                }
-                val userId = call.userId()
-                if (!permissionResolver.hasPermission(userId, Permission.SERVER_CONSOLE, serverInfo.serverId, serverInfo.networkId)) {
-                    call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                    return@get
-                }
+                val auth = call.requireServerPermission(Permission.SERVER_CONSOLE)
 
                 val defaultTail = systemService.getSettings().settings.consoleTailLines
                 val tailLines = (call.request.queryParameters["tail"]?.toIntOrNull() ?: defaultTail).coerceIn(1, 5000)
-                val lines = proxy.fetchContainerLogs(serverInfo.serverId, tailLines)
+                val lines = proxy.fetchContainerLogs(auth.serverId, tailLines)
                 call.respond(ConsoleLogsResponse(lines))
             }
         }

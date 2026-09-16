@@ -41,7 +41,9 @@ data class ServerResponse(
     @SerialName("container_listen_port") val containerListenPort: Int? = null,
     @SerialName("container_protocol") val containerProtocol: String = "TCP",
     @SerialName("disable_healthcheck") val disableHealthcheck: Boolean = false,
-    @SerialName("force_redownload") val forceRedownload: Boolean = false
+    @SerialName("force_redownload") val forceRedownload: Boolean = false,
+    // Admin override for the data directory name; null = server id.
+    @SerialName("data_dir_name") val dataDirName: String? = null
 )
 
 @Serializable
@@ -91,6 +93,12 @@ data class PatchExpirationRequest(@SerialName("expires_at") val expiresAt: Strin
 data class PatchDisabledRequest(@SerialName("disabled") val disabled: Boolean)
 
 @Serializable
+data class UpdateServerDataDirRequest(
+    // Null or empty clears the override (revert to the server id).
+    @SerialName("data_dir_name") val dataDirName: String? = null
+)
+
+@Serializable
 data class PatchExposureRequest(
     @SerialName("exposed_externally") val exposedExternally: Boolean,
     @SerialName("public_subdomain") val publicSubdomain: String? = null,
@@ -134,6 +142,7 @@ internal fun ServerView.toResponse(serverExposure: ServerExposure, isMigrating: 
         containerListenPort = containerListenPort,
         containerProtocol = containerProtocol,
         disableHealthcheck = disableHealthcheck,
-        forceRedownload = forceRedownload
+        forceRedownload = forceRedownload,
+        dataDirName = dataDirName
     )
 }

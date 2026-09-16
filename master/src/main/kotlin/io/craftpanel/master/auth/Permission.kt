@@ -18,6 +18,10 @@ enum class Permission(val node: String) {
     SERVER_CONFIGURE("server.configure"),
     SERVER_RESOURCES("server.resources"),
     SERVER_FILES("server.files"),
+
+    // Super-admin-only: override the server's data directory name. Deliberately NOT seeded into
+    // any system group except Super Admin (which holds `*`).
+    SERVER_DIR_OVERRIDE("server.dir_override"),
     SERVER_MODS("server.mods"),
     SERVER_CONSOLE("server.console"),
     SERVER_EXPORT("server.export"),

@@ -350,6 +350,10 @@ message StartContainerCommand {
   // differs from the host data directory owner (e.g., PicoLimbo runs as 1001
   // but the agent creates the data dir as UID 1000).
   string container_user = 18;
+  // Admin override for the server's data directory name (the `servers/<name>` segment).
+  // Empty = use the server id. Part of the spec so a change forces a recreate and the
+  // bind mount is remounted against the new directory.
+  string data_dir_name = 19;
 }
 
 message ExtraPortBinding {
@@ -400,6 +404,9 @@ message RebuildSymlinksCommand {
   message ServerEntry {
     string server_id = 1;
     string server_name = 2;
+    // Admin override for the data directory name. Empty = use the server id. Lets the
+    // agent resolve paths for servers it has no desired-state spec for (stopped/never-started).
+    string data_dir_name = 3;
   }
   message BackupEntry {
     string backup_id = 1;

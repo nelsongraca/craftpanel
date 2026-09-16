@@ -247,11 +247,13 @@ server.create     server.delete   server.start    server.stop
 server.force_stop server.restart  server.configure server.resources
 server.files      server.mods     server.console  server.export
 server.backup     server.migrate  server.view     server.expires
-server.disable
+server.disable    server.dir_override
 network.create    network.delete  network.configure network.view
 ```
 
 Wildcards supported at runtime (`*`, `server.*`, `system.*`). Only explicit nodes stored in DB. The API accepts only explicit nodes; wildcards exist only in seeded system groups and are expanded at check time. Permissions are **additive only** — no deny rules.
+
+`server.dir_override` overrides a server's data directory name (default = server id). It is deliberately **Super Admin-only** — seeded into no other system group (`*` covers Super Admin).
 
 ### Assignment scopes
 
@@ -280,7 +282,7 @@ Always hits DB. Cache may be added later.
 | Group        | Permissions                                                                                        |
 |--------------|----------------------------------------------------------------------------------------------------|
 | Super Admin  | `*` (all)                                                                                          |
-| Server Admin | All except `system.settings`, `system.users`, `system.nodes`, `server.resources`, `server.migrate` |
+| Server Admin | All except `system.settings`, `system.users`, `system.nodes`, `server.resources`, `server.migrate`, `server.dir_override` |
 | Operator     | `server.restart`, `server.console`, `server.view`, `server.backup`                                 |
 | Viewer       | `server.view`                                                                                      |
 

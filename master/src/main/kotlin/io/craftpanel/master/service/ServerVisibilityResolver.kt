@@ -12,25 +12,16 @@ class ServerVisibilityResolver(private val userRepository: UserRepository, priva
     internal fun resolve(userId: Uuid): ServerVisibility {
         if (!userRepository.isActive(userId)) return ServerVisibility(false, emptySet(), emptySet())
         val assignments = userRepository.listAssignments(userId)
-        val groupIds = assignments.map { it.groupId }
+        if (assignments.isEmpty()) return ServerVisibility(false, emptySet(), emptySet())
+
+        val permissionsByGroup = assignments.map { it.groupId }
             .toSet()
-        if (groupIds.isEmpty()) return ServerVisibility(false, emptySet(), emptySet())
-        val viewGroups = groupIds.filter { gid ->
-            groupRepository.getPermissions(gid)
-                .any { PermissionResolver.grants(it, Permission.SERVER_VIEW) }
-        }
-            .toSet()
-        if (viewGroups.isEmpty()) return ServerVisibility(false, emptySet(), emptySet())
-        var isGlobal = false
-        val networkIds = mutableSetOf<Uuid>()
-        val serverIds = mutableSetOf<Uuid>()
-        for (a in assignments.filter { it.groupId in viewGroups }) {
-            when (a.scopeType) {
-                ScopeType.GLOBAL.name  -> isGlobal = true
-                ScopeType.NETWORK.name -> a.scopeId?.let { networkIds += it }
-                ScopeType.SERVER.name  -> a.scopeId?.let { serverIds += it }
-            }
-        }
-        return ServerVisibility(isGlobal, networkIds, serverIds)
+            .associateWith { groupRepository.getPermissions(it).toSet() }
+        val scopes = GrantIndex.from(
+            assignments.map { AssignmentScope(it.groupId, it.scopeType, it.scopeId) },
+            permissionsByGroup
+        ).scopesGranting(Permission.SERVER_VIEW)
+
+        return ServerVisibility(scopes.global, scopes.networkIds, scopes.serverIds)
     }
 }

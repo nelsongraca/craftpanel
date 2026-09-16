@@ -21,7 +21,7 @@ fun Route.registerAppRoutes() {
     groupsRoutes(get())
     assignmentsRoutes(get())
     systemRoutes(get(), get())
-    consoleRoutes(get(), get(), get(), get())
+    consoleRoutes(get(), get(), get())
     filesRoutes(get())
     backupsRoutes(get())
     configRoutes(get(), get(), get())

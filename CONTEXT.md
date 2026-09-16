@@ -10,15 +10,50 @@ modules/seams** so future reviews don't re-litigate them.
 ### Authorization seam (master)
 The single place that guards REST handlers: parse the resource id, resolve the
 **Server**'s **Scope** (its `networkId`), check the required **Permission Node**,
-and short-circuit on failure. Implemented as throw-based suspend helpers on
-`ApplicationCall` (`requireServerPermission`, `requirePermission`) that throw
-`ServiceException` subtypes mapped to HTTP status by the already-installed
-`StatusPages`. Replaces the ~66 copy-pasted guard preludes.
+and short-circuit on failure. Throw-based helpers on `ApplicationCall`
+(`RouteAuthorization.kt`) that throw `ServiceException` subtypes mapped to HTTP
+status by `StatusPages` — **every** REST denial goes through them, including the
+network-scoped and explicit-id cases:
+- `requireServerPermission(permission): AuthorizedServer` — reads `{id}`.
+- `requireServerPermission(serverId, permission): AuthorizedServer` — when the id
+  comes from elsewhere (e.g. a `migrationId`).
+- `requireNetworkPermission(permission): Uuid` — reads `{id}`, 404s on unknown.
+- `requireNetworkPermission(networkId, permission)` — id from a body; caller owns existence.
+- `requirePermission(permission)` — global.
 - **Why throw-based, not a Ktor plugin/interceptor:** install-on-route forces
   `route()` nesting around every smiley4 doc-blocked handler — awkward and
   indentation-heavy. The throw helper is one line inside the existing handler,
   leaves doc-blocks untouched, and makes per-endpoint permission trivial (no
   verb→permission map). See plan `master-authorization-seam.md`.
+
+### GrantIndex (master)
+The one scope-union algorithm: a user's group assignments plus their groups'
+permission nodes, indexed by scope. Pure and immutable
+(`GrantIndex.from(assignments, permissionsByGroup)`), with
+`permissionsFor(serverId?, networkId?): Set<String>` and
+`scopesGranting(permission): ScopeSet(global, serverIds, networkIds)`.
+- Every scope may hold several groups (two SERVER-scoped groups on one server);
+  the union is over all of them — the previous `associate { scopeId to groupId }`
+  silently kept only the last.
+- `PermissionResolver` builds it from schema queries; `ServerVisibilityResolver`
+  and `NetworkVisibilityResolver` build it from `UserRepository`/`GroupRepository`
+  — one algorithm, the data paths stay as they were.
+- `ScopeType.NODE` is **alert-only** (`AlertThresholds.scope_type`); assignments
+  accept GLOBAL/SERVER/NETWORK. `AssignmentService` rejects anything else.
+
+### WsAuthorization (master)
+The one seam that authorizes a WebSocket connection, since a socket answers a
+failed check with a close code (1008), not an HTTP status.
+- `authorizeServerSocket(call, permission, serverId? = null): Granted | Denied`
+  — consumes `?ticket=`, resolves the server scope (or takes an explicit id, for
+  the migration path), checks the permission. `Denied` carries the close code +
+  message; the route closes.
+- `consumeTicket(call): Uuid?` — for the resource-less dashboard socket.
+- `revalidatePeriodically(interval) { check } { onRevoked }` — one 5-minute
+  revalidation loop shared by all three sockets; tolerates transient DB errors
+  and lets the route run a pre-close action (console's Disconnected event).
+- Console's per-input permission re-check was removed — one DB resolution per
+  keystroke for no extra safety over revalidation.
 
 ### ServerLookup (master)
 The one query that resolves a **Server** id to its **Scope** (`networkId`).

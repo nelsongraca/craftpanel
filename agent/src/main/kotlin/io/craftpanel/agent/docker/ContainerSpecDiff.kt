@@ -1,5 +1,6 @@
 package io.craftpanel.agent.docker
 
+import io.craftpanel.common.ServerPaths
 import io.craftpanel.proto.StartContainerCommand
 
 /** A field whose live container configuration does not match the desired spec. */
@@ -50,7 +51,7 @@ object ContainerSpecDiff {
             }
 
             val expectedMount = BindSnapshot(
-                hostPath = "$hostDataBasePath/servers/${spec.serverId}",
+                hostPath = ServerPaths.dataDir(hostDataBasePath, spec.serverId, spec.dataDirName),
                 containerPath = spec.dataContainerPath.ifEmpty { "/data" },
                 readOnly = false
             )

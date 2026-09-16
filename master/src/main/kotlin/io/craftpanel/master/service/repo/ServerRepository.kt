@@ -33,6 +33,8 @@ data class ServerView(
     val containerProtocol: String = "TCP",
     val disableHealthcheck: Boolean = false,
     val forceRedownload: Boolean = false,
+    // Admin override for the data directory name; null = use the server id.
+    val dataDirName: String? = null,
     val proxyMotd: String? = null,
     val proxyMaxPlayers: Int? = null,
     val proxyForwardingMode: String? = null,

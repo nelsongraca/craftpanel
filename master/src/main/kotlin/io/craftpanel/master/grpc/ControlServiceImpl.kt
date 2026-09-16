@@ -72,7 +72,7 @@ class ControlServiceImpl(
      * rebuild both trees from canonical storage. Deliberately conservative — only ever
      * adds symlinks; never prunes. See server-path-navigation plan, Task 4.
      */
-    private fun sendRebuildSymlinks(nodeId: String) {
+    override fun rebuildSymlinks(nodeId: String) {
         val kotlinNodeId = runCatching { Uuid.parse(nodeId) }.getOrNull() ?: return
         runCatching { buildRebuildSymlinksCommand(kotlinNodeId) }
             .onSuccess { command -> sendToNode(nodeId, command) }
@@ -92,6 +92,7 @@ class ControlServiceImpl(
             builder.addServersBuilder()
                 .setServerId(server.id.toString())
                 .setServerName(server.name)
+                .setDataDirName(server.dataDirName ?: "")
         }
         backups.forEach { (server, backup) ->
             builder.addBackupsBuilder()
@@ -162,7 +163,7 @@ class ControlServiceImpl(
         when {
             msg.hasNodeState() -> {
                 nodeStateHandler.handle(msg, msg.nodeId)
-                sendRebuildSymlinks(msg.nodeId)
+                rebuildSymlinks(msg.nodeId)
             }
 
             msg.hasNodeMetrics() -> nodeMetricsHandler.handle(msg, msg.nodeId, lastMetricsAt, lastEmittedHealth)

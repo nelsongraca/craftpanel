@@ -115,6 +115,7 @@ val appModule = module {
     single { RefreshTokenService(userRepository = get()) }
     single { TrustedDeviceService(userRepository = get()) }
     single { WsTicketService() }
+    single { WsAuthorization(get(), get()) }
     single { TotpService(cipher = get()) }
 
     // Domain services
@@ -195,7 +196,8 @@ val appModule = module {
             serverRepository = get(),
             nodeRepository = get(),
             networkRepository = get(),
-            settingsRepository = get()
+            settingsRepository = get(),
+            lifecycle = get()
         )
     }
     single {

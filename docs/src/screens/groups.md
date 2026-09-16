@@ -206,6 +206,10 @@ Group list and permission editor.
           <div class="cp-checkbox">✓</div>
           <span>server.files</span>
         </div>
+        <div class="cp-perm-item">
+          <div class="cp-checkbox"></div>
+          <span>server.dir_override</span>
+        </div>
         <div class="cp-perm-item checked">
           <div class="cp-checkbox">✓</div>
           <span>server.mods</span>

@@ -148,6 +148,7 @@ class ContainerLifecycle(
             internalListenPort = server.containerListenPort ?: images.internalListenPort(server.serverType)
             containerProtocol = server.containerProtocol
             serverName = server.name
+            dataDirName = server.dataDirName ?: ""
             extraPorts.addAll(extraPortPb)
             containerUser = if (server.serverType.isPicolimbo) "1000:1000" else ""
         }

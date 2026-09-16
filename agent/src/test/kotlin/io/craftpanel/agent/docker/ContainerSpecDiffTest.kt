@@ -85,6 +85,19 @@ class ContainerSpecDiffTest :
                 SpecDiff.Mismatch(listOf(SpecDiffReason.BIND))
         }
 
+        test("a data-dir override changes the expected bind path") {
+            // Container is still mounted at the id path, spec now expects the override.
+            diff(s = spec().toBuilder().setDataDirName("survival").build()) shouldBe
+                SpecDiff.Mismatch(listOf(SpecDiffReason.BIND))
+        }
+
+        test("a data-dir override matches when the container is bound to it") {
+            diff(
+                s = spec().toBuilder().setDataDirName("survival").build(),
+                snap = snapshot().copy(binds = listOf(BindSnapshot("/hostdata/servers/survival", "/data", false)))
+            ) shouldBe SpecDiff.Match
+        }
+
         test("a read-only data bind") {
             diff(snap = snapshot().copy(binds = listOf(BindSnapshot("/hostdata/servers/srv-1", "/data", true)))) shouldBe
                 SpecDiff.Mismatch(listOf(SpecDiffReason.BIND))

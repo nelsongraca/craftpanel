@@ -2,18 +2,20 @@ package io.craftpanel.master.routes
 
 import io.craftpanel.master.*
 import io.craftpanel.master.auth.PermissionResolver
+import io.craftpanel.master.auth.WsAuthorization
 import io.craftpanel.master.auth.WsTicketService
-import io.craftpanel.master.database.schema.Nodes
-import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
 import io.craftpanel.master.service.SystemService
 import io.craftpanel.master.service.repo.impl.SettingsRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
-import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.shouldBe
-import org.jetbrains.exposed.v1.jdbc.insert
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import io.ktor.client.plugins.websocket.*
+import io.ktor.server.application.*
+import io.ktor.server.routing.*
+import io.ktor.server.testing.*
+import io.ktor.server.websocket.WebSockets
+import io.ktor.websocket.CloseReason
 import kotlin.uuid.Uuid
 
 class ConsoleRoutesTest :
@@ -21,57 +23,39 @@ class ConsoleRoutesTest :
         val repos = TestRepositories()
         val noopNodeRegistrar = createTestNodeRegistrar()
         val noopProxy = DataServiceProxy(createTestAgentDataOps(), BulkDataServiceImpl(noopNodeRegistrar), repos.serverRepository)
-        val consoleRoutes = ConsoleRoutes(WsTicketService(), noopProxy, PermissionResolver, SystemService(settingsRepository = SettingsRepositoryImpl()))
+        val wsAuthorization = WsAuthorization(WsTicketService(), PermissionResolver)
+        val systemService = SystemService(settingsRepository = SettingsRepositoryImpl())
 
         beforeTest {
             TestDatabase.initIfNeeded()
             TestDatabase.reset()
         }
 
-        fun createNode(): Uuid = transaction {
-            Nodes.insert {
-                it[Nodes.hostname] = "node-1"
-                it[Nodes.displayName] = "node-1"
-                it[Nodes.publicIp] = "1.2.3.4"
-                it[Nodes.privateIp] = "10.0.0.1"
-                it[Nodes.tokenHash] = "a".repeat(64)
-                it[Nodes.status] = "ACTIVE"
-                it[Nodes.totalRamMb] = 8192
-                it[Nodes.totalCpuShares] = 1024
-            }[Nodes.id].let { Uuid.parse(it.toString()) }
+        fun Route.configureConsoleTest() {
+            consoleRoutes(noopProxy, wsAuthorization, systemService)
         }
 
-        fun createServer(nodeId: Uuid): Uuid = transaction {
-            Servers.insert {
-                it[Servers.name] = "test-server"
-                it[Servers.displayName] = "Test Server"
-                it[Servers.nodeId] = nodeId
-                it[Servers.serverType] = "VANILLA"
-                it[Servers.mcVersion] = "LATEST"
-                it[Servers.memoryMb] = 1024
-                it[Servers.hostPort] = 25565
-            }[Servers.id].let { Uuid.parse(it.toString()) }
+        // The console socket authorizes after the WS upgrade (a missing/invalid ticket closes with
+        // 1008 rather than returning HTTP 401) — covered here through the WsAuthorization seam.
+        test("console websocket closes with 1008 when the ticket is missing") {
+            testApplication {
+                testApp(extraPlugins = { install(WebSockets) }) { _ -> configureConsoleTest() }
+                val client = jsonClient()
+
+                client.webSocket("/api/ws/console/${Uuid.random()}") {
+                    closeReason.await()?.code shouldBe CloseReason.Codes.VIOLATED_POLICY.code
+                }
+            }
         }
 
-        test("lookupServer returns null for a malformed id") {
-            consoleRoutes.lookupServer("not-a-uuid")
-                .shouldBeNull()
-        }
+        test("console websocket closes with 1008 when the ticket is invalid") {
+            testApplication {
+                testApp(extraPlugins = { install(WebSockets) }) { _ -> configureConsoleTest() }
+                val client = jsonClient()
 
-        test("lookupServer returns null when server does not exist") {
-            consoleRoutes.lookupServer(
-                Uuid.random()
-                    .toString()
-            )
-                .shouldBeNull()
-        }
-
-        test("lookupServer returns the server info when the server exists") {
-            val nodeId = createNode()
-            val serverId = createServer(nodeId)
-
-            val result = consoleRoutes.lookupServer(serverId.toString())
-
-            result shouldBe ServerInfo(serverId = serverId, networkId = null)
+                client.webSocket("/api/ws/console/${Uuid.random()}?ticket=bogus") {
+                    closeReason.await()?.code shouldBe CloseReason.Codes.VIOLATED_POLICY.code
+                }
+            }
         }
     })

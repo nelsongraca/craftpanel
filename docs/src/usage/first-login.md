@@ -33,7 +33,7 @@ CraftPanel ships four built-in groups:
 | Group          | Permissions                                                                                        |
 |----------------|-----------------------------------------------------------------------------------------------------|
 | Super Admin    | All permissions                                                                                    |
-| Server Admin   | All except system settings, users, nodes, resource allocation, and migration                       |
+| Server Admin   | All except system settings, users, nodes, resource allocation, migration, and data directory override |
 | Operator       | Restart, console, view, backup                                                                      |
 | Viewer         | View only                                                                                            |
 

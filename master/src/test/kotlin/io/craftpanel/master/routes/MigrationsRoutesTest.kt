@@ -2,7 +2,9 @@ package io.craftpanel.master.routes
 
 import io.craftpanel.master.*
 import io.craftpanel.master.auth.JwtManager
+import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.auth.TokenClaims
+import io.craftpanel.master.auth.WsAuthorization
 import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
@@ -70,8 +72,10 @@ class MigrationsRoutesTest :
             TestDatabase.reset()
         }
 
+        val wsTicketService = WsTicketService()
+
         fun Route.configureMigrationsTest(svc: MigrationService) {
-            migrationsRoutes(WsTicketService(), svc)
+            migrationsRoutes(svc, WsAuthorization(wsTicketService, PermissionResolver))
         }
 
         fun createUserJwt(groupName: String): Pair<Uuid, String> {
@@ -324,7 +328,6 @@ class MigrationsRoutesTest :
                 val (serverJavaId, _) = insertServer(sourceKId)
                 val migrationId = insertMigration(serverJavaId, sourceKId, targetKId)
                 val (viewerId, _) = createUserJwt("Viewer")
-                val wsTicketService = WsTicketService()
                 val rawTicket = wsTicketService.issue(viewerId).first
                 testApp(extraPlugins = { install(WebSockets) }) { _ -> configureMigrationsTest(buildMigrationService()) }
                 val client = jsonClient()

@@ -1,8 +1,8 @@
 package io.craftpanel.master.database.schema
 
-import org.jetbrains.exposed.v1.core.dao.id.UuidTable
-import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.ReferenceOption
+import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.core.dao.id.UuidTable
 import org.jetbrains.exposed.v1.datetime.CurrentDateTime
 import org.jetbrains.exposed.v1.datetime.datetime
 
@@ -17,6 +17,7 @@ object Servers : UuidTable("servers") {
     val serverType = varchar("server_type", 20).default("VANILLA")
     val mcVersion = varchar("mc_version", 16).default("LATEST")
     val status = varchar("status", 10).default("STOPPED") // agent-reported; never STARTING/STOPPING (synthesizeStatus owns those)
+
     // Master's intent for this server: NULL=unset, "RUNNING", "STOPPED". Mirrors the desired-state
     // envelope; the agent converges to it and owns crash-restart. Read-time synthesis combines this
     // with the reported `status` to produce the status surfaced via the API.
@@ -34,15 +35,23 @@ object Servers : UuidTable("servers") {
     val configMode = varchar("config_mode", 10).default("MANAGED") // MANAGED | MANUAL
     val stopCommand = varchar("stop_command", 64).default("stop")
     val itzgImageTag = varchar("itzg_image_tag", 100).default("latest")
+
     // TYPE=CUSTOM support — only meaningful for CUSTOM servers.
     val customServerJar = varchar("custom_server_jar", 512).nullable()
+
     // Container-internal listen port. Null = derive from server_type (25565 game / 25577 proxy).
     val containerListenPort = integer("container_listen_port").nullable()
+
     // Container-internal listen protocol: TCP | UDP.
     val containerProtocol = varchar("container_protocol", 4).default("TCP")
+
     // Passed through to itzg as DISABLE_HEALTHCHECK=true / FORCE_REDOWNLOAD=true.
     val disableHealthcheck = bool("disable_healthcheck").default(false)
     val forceRedownload = bool("force_redownload").default(false)
+
+    // Admin override (server.dir_override) for the `servers/<name>` data directory segment.
+    // NULL = derive from the server id. Unique per node is enforced in the service, not here.
+    val dataDirName = varchar("data_dir_name", 100).nullable()
     val disabled = bool("disabled").default(false)
     val expiresAt = datetime("expires_at").nullable()
     val proxyMotd = varchar("proxy_motd", 500).nullable()

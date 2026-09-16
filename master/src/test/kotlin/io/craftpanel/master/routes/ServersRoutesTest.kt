@@ -810,6 +810,132 @@ class ServersRoutesTest :
             }
         }
 
+        // ── PATCH /servers/{id}/data-dir ─────────────────────────────────────────
+
+        test("PATCH data-dir returns 403 for Server Admin (super-admin-only)") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Server Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+                val resp = client.patch("/api/servers/$serverId/data-dir") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"data_dir_name":"custom-dir"}""")
+                }
+                resp.status shouldBe HttpStatusCode.Forbidden
+            }
+        }
+
+        test("PATCH data-dir sets the override for Super Admin") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+                val resp = client.patch("/api/servers/$serverId/data-dir") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"data_dir_name":"custom-dir"}""")
+                }
+                resp.status shouldBe HttpStatusCode.OK
+                resp.body<JsonObject>()["data_dir_name"]!!.jsonPrimitive.content shouldBe "custom-dir"
+                transaction {
+                    Servers.selectAll()
+                        .where { Servers.id eq serverId }
+                        .first()[Servers.dataDirName]
+                } shouldBe "custom-dir"
+            }
+        }
+
+        test("PATCH data-dir rebuilds symlinks for the server's node") {
+            testApplication {
+                val gw = TestAgentGateway()
+                testApp { jwtManager -> configureServersTest(gw) }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+                val resp = client.patch("/api/servers/$serverId/data-dir") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"data_dir_name":"custom-dir"}""")
+                }
+                resp.status shouldBe HttpStatusCode.OK
+                gw.symlinkRebuilds.contains(nodeId.toString()) shouldBe true
+            }
+        }
+
+        test("PATCH data-dir clears the override when null") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+                transaction {
+                    Server.findById(serverId)?.let { it.dataDirName = "custom-dir" }
+                }
+                val resp = client.patch("/api/servers/$serverId/data-dir") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"data_dir_name":null}""")
+                }
+                resp.status shouldBe HttpStatusCode.OK
+                val dirField = resp.body<JsonObject>()["data_dir_name"]
+                (dirField == null || dirField.toString() == "null") shouldBe true
+                transaction {
+                    Servers.selectAll()
+                        .where { Servers.id eq serverId }
+                        .first()[Servers.dataDirName]
+                } shouldBe null
+            }
+        }
+
+        test("PATCH data-dir rejects a name with a path separator") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId)
+                val resp = client.patch("/api/servers/$serverId/data-dir") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"data_dir_name":"bad/name"}""")
+                }
+                resp.status shouldBe HttpStatusCode.UnprocessableEntity
+            }
+        }
+
+        test("PATCH data-dir rejects a name already in use on the node") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val a = createServer(nodeId, "dir-a")
+                val b = createServer(nodeId, "dir-b")
+                transaction {
+                    Server.findById(a)?.let { it.dataDirName = "shared-dir" }
+                }
+                val resp = client.patch("/api/servers/$b/data-dir") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"data_dir_name":"shared-dir"}""")
+                }
+                resp.status shouldBe HttpStatusCode.Conflict
+            }
+        }
+
         // ── DELETE /servers/{id} ─────────────────────────────────────────────────
 
         test("DELETE server returns 409 when not STOPPED") {

@@ -59,11 +59,10 @@ fun Route.serversRoutes(
             }) {
                 call.requirePermission(Permission.SERVER_CREATE)
                 val req = call.receive<CreateServerRequest>()
-                if (req.networkId != null) {
+                if (!req.networkId.isNullOrEmpty()) {
                     val targetNetworkId = runCatching { Uuid.parse(req.networkId) }.getOrNull()
-                    if (targetNetworkId != null && !PermissionResolver.hasPermission(call.userId(), Permission.NETWORK_VIEW, networkId = targetNetworkId)) {
-                        return@post call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                    }
+                        ?: throw BadRequestException("Invalid network_id")
+                    call.requireNetworkPermission(targetNetworkId, Permission.NETWORK_VIEW)
                 }
                 if (req.expiresAt != null) call.requirePermission(Permission.SERVER_EXPIRES)
                 val row = provisioning.provision(
@@ -108,15 +107,9 @@ fun Route.serversRoutes(
                 }
             }) {
                 call.requirePermission(Permission.SERVER_CREATE)
-                val sourceId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
-                    ?: throw UnprocessableException("Invalid server id")
-                val scope = ServerLookup.scope(sourceId)
-                    ?: throw NotFoundException("Server not found")
-                if (!PermissionResolver.hasPermission(call.userId(), Permission.SERVER_VIEW, serverId = sourceId, networkId = scope.networkId)) {
-                    throw ForbiddenException("Insufficient permissions")
-                }
+                val sourceAuth = call.requireServerPermission(Permission.SERVER_VIEW)
                 val req = call.receive<CloneServerRequest>()
-                val row = provisioning.clone(sourceId, req.name, req.displayName, req.description)
+                val row = provisioning.clone(sourceAuth.serverId, req.name, req.displayName, req.description)
                 call.respond(HttpStatusCode.Created, row.toResponse(serverExposure, false))
             }
 
@@ -153,11 +146,10 @@ fun Route.serversRoutes(
             }) {
                 val auth = call.requireServerPermission(Permission.SERVER_CONFIGURE)
                 val body = call.receive<UpdateServerRequest>()
-                if (body.networkId != null) {
+                if (!body.networkId.isNullOrEmpty()) {
                     val targetNetworkId = runCatching { Uuid.parse(body.networkId) }.getOrNull()
-                    if (targetNetworkId != null && !PermissionResolver.hasPermission(call.userId(), Permission.NETWORK_VIEW, networkId = targetNetworkId)) {
-                        return@patch call.respond(HttpStatusCode.Forbidden, ErrorResponse("Insufficient permissions"))
-                    }
+                        ?: throw BadRequestException("Invalid network_id")
+                    call.requireNetworkPermission(targetNetworkId, Permission.NETWORK_VIEW)
                 }
                 serverService.updateServer(
                     auth.serverId,
@@ -173,6 +165,28 @@ fun Route.serversRoutes(
                     forceRedownload = body.forceRedownload
                 )
                 call.respond(HttpStatusCode.NoContent)
+            }
+
+            patch("/{id}/data-dir", {
+                operationId = "updateServerDataDir"
+                summary = "Override the server data directory name"
+                request {
+                    pathParameter<String>("id")
+                    body<UpdateServerDataDirRequest>()
+                }
+                response {
+                    code(HttpStatusCode.OK) { body<ServerResponse>() }
+                    code(HttpStatusCode.Conflict) { body<ErrorResponse>() }
+                    code(HttpStatusCode.UnprocessableEntity) { body<ErrorResponse>() }
+                    code(HttpStatusCode.NotFound) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Forbidden) { body<ErrorResponse>() }
+                    code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
+                }
+            }) {
+                val auth = call.requireServerPermission(Permission.SERVER_DIR_OVERRIDE)
+                val body = call.receive<UpdateServerDataDirRequest>()
+                val updated = serverService.updateDataDirName(auth.serverId, body.dataDirName)
+                call.respond(updated.toResponse(serverExposure, queryService.isMigrating(updated.id)))
             }
 
             delete("/{id}", {

@@ -23,16 +23,12 @@ private fun DefaultWebSocketSession.sendWsRaw(envelope: WsEnvelope) {
     outgoing.trySend(Frame.Text(wsJson.encodeToString(envelope)))
 }
 
-fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, dashboardService: DashboardService) {
+fun Route.dashboardWsRoutes(dashboardService: DashboardService, wsAuthorization: WsAuthorization) {
     // operationId: dashboardWebSocket
     // Requires: ?ticket=<ws-ticket> (from POST /api/auth/ws-ticket)
     // Emits server/node status, metrics, alerts, and player updates as JSON envelopes.
     webSocket("/api/ws") {
-        val ticket = call.request.queryParameters["ticket"] ?: run {
-            close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Missing ticket"))
-            return@webSocket
-        }
-        val userId = wsTicketService.consume(ticket) ?: run {
+        val userId = wsAuthorization.consumeTicket(call) ?: run {
             close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Invalid or expired ticket"))
             return@webSocket
         }
@@ -47,18 +43,13 @@ fun Route.dashboardWsRoutes(wsTicketService: WsTicketService, dashboardService: 
         }
 
         // ── 5-min permission revalidation ─────────────────────────────────────
-        val revalidationJob = launch {
-            while (true) {
-                delay(5.minutes)
-                val stillVisible = runCatching {
-                    PermissionResolver.serverPermissions(userId).isNotEmpty() ||
-                        PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES)
-                }.getOrNull() ?: true // transient DB error: skip, retry next tick
-                if (!stillVisible) {
-                    close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Permission revoked"))
-                    break
-                }
+        val revalidationJob = revalidatePeriodically(
+            check = {
+                PermissionResolver.serverPermissions(userId).isNotEmpty() ||
+                    PermissionResolver.hasPermission(userId, Permission.SYSTEM_NODES)
             }
+        ) {
+            close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Permission revoked"))
         }
 
         try {

@@ -2,6 +2,7 @@ package io.craftpanel.agent.grpc.handlers
 
 import com.google.protobuf.timestamp
 import io.craftpanel.agent.grpc.AgentOutbound
+import io.craftpanel.common.ServerPaths
 import io.craftpanel.proto.ServerStatusUpdate
 import org.slf4j.Logger
 import java.io.IOException
@@ -14,8 +15,69 @@ import java.nio.file.attribute.BasicFileAttributes
 import java.security.SecureRandom
 import java.time.Instant
 
-/** Root data directory for a given server, shared by [FileHandler] and [ContainerHandler]. */
-internal fun serverDataRoot(dataBasePath: String, serverId: String): Path = Paths.get(dataBasePath, "servers", serverId).normalize()
+/**
+ * Process-wide `serverId -> dataDirName` overrides, fed by master's state sync. The data directory
+ * name defaults to the server id and may be overridden by an admin. Master re-pushes the full
+ * mapping on every reconnect ([io.craftpanel.proto.RebuildSymlinksCommand]) and inside each
+ * desired-state spec, so nothing is persisted here.
+ *
+ * Only the override map lives here; the naming rule itself is [ServerPaths]. Not every server has
+ * an entry — absence means "use the server id".
+ */
+internal object ServerDataDirs {
+
+    private val log = org.slf4j.LoggerFactory.getLogger(ServerDataDirs::class.java)
+
+    @Volatile
+    private var byServer: Map<String, String> = emptyMap()
+
+    fun nameFor(serverId: String): String? = byServer[serverId]
+
+    fun put(serverId: String, dataDirName: String) {
+        val clean = dataDirName.trim()
+        if (ServerPaths.isValidDataDirName(clean)) {
+            byServer = byServer + (serverId to clean)
+        } else {
+            if (clean.isNotEmpty()) log.warn("Ignoring invalid data directory name '{}' for server {}", clean, serverId)
+            byServer = byServer - serverId
+        }
+    }
+
+    /** Atomically replaces the whole mapping from a master snapshot. */
+    fun replaceAll(entries: Map<String, String>) {
+        val byName = entries.mapValues { it.value.trim() }
+        // Blank = "no override" (the common case) and is not an error; only a non-blank name that
+        // fails validation is worth warning about.
+        byName.filterValues { it.isNotEmpty() && !ServerPaths.isValidDataDirName(it) }
+            .forEach { (serverId, name) -> log.warn("Ignoring invalid data directory name '{}' for server {}", name, serverId) }
+        byServer = byName.filterValues { ServerPaths.isValidDataDirName(it) }
+    }
+
+    fun remove(serverId: String) {
+        byServer = byServer - serverId
+    }
+
+    /** Test seam — the mapping is otherwise owned by master's pushes. */
+    fun clear() {
+        byServer = emptyMap()
+    }
+}
+
+/**
+ * Root data directory for a given server, shared by [FileHandler] and [ContainerHandler].
+ * Consults [ServerDataDirs] for the admin override, falling back to the server id.
+ *
+ * Fail-closed: refuses any path that resolves outside `<dataBasePath>/servers`. [ServerPaths]
+ * already guarantees a single safe segment, so this is defence-in-depth at the filesystem
+ * trust boundary — the composed path feeds writes, deletes, and container bind mounts.
+ */
+internal fun serverDataRoot(dataBasePath: String, serverId: String): Path {
+    val name = ServerPaths.dataDirName(serverId, ServerDataDirs.nameFor(serverId))
+    val serversRoot = Paths.get(dataBasePath, ServerPaths.SERVERS).normalize()
+    val resolved = Paths.get(dataBasePath, ServerPaths.SERVERS, name).normalize()
+    check(resolved.parent == serversRoot) { "Refusing data path outside $serversRoot: $resolved" }
+    return resolved
+}
 
 /** Recursively deletes a file or directory tree, shared by [FileHandler] and [ContainerHandler]. */
 internal fun deleteRecursively(path: Path) {

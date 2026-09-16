@@ -86,7 +86,10 @@ class CraftPanelStack {
     private var agentJar: File? = null
     private var coverageDir: File? = null
     private var cachedGatewayIp: String? = null
-    private val agentDataDirs = mutableMapOf<String, File>()
+
+    // Keyed by the container object, not its id: the id is only assigned on start(), whereas the
+    // host /data directory is known when the container is built.
+    private val agentDataDirs = mutableMapOf<AgentContainer, File>()
 
     var nodeId: String = ""
         private set
@@ -108,6 +111,13 @@ class CraftPanelStack {
 
     val agentContainerIds: List<String>
         get() = agents.map { it.containerId }
+
+    /**
+     * Host-side data directories of every agent's `/data` bind mount. Used by tests that need to
+     * assert on-disk layout (e.g. the per-server `servers/<name>` directory). Order matches
+     * [agentContainerIds].
+     */
+    fun agentDataDirs(): List<File> = agents.mapNotNull { agentDataDirs[it] }
 
     val dockerClient: DockerClient
         get() = DockerClientFactory.instance()
@@ -312,7 +322,7 @@ class CraftPanelStack {
                     withEnv("JAVA_TOOL_OPTIONS", "-javaagent:/opt/kover/agent.jar=file:/tmp/coverage/$agentArgs")
                 }
             }
-            .also { agentDataDirs[it.containerId] = dataDir }
+            .also { agentDataDirs[it] = dataDir }
     }
 
     private fun computeGatewayIp(): String {
@@ -344,10 +354,12 @@ class CraftPanelStack {
         val container = agents.find { it.containerId == containerId }
         container?.let { gracefulStop(it) }
         agents.removeAll { it.containerId == containerId }
-        agentDataDirs.remove(containerId)
-            ?.let { dir ->
-                runCatching { dir.deleteRecursively() }
-            }
+        container?.let { c ->
+            agentDataDirs.remove(c)
+                ?.let { dir ->
+                    runCatching { dir.deleteRecursively() }
+                }
+        }
         runCatching {
             dockerClient.removeContainerCmd(containerId)
                 .withForce(true)

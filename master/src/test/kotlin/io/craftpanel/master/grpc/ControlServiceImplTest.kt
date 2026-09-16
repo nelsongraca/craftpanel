@@ -21,6 +21,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.uuid.Uuid
@@ -208,5 +209,26 @@ class ControlServiceImplTest :
 
                 (emitted.any { it.nodeId == nodeId.toString() && it.health == NodeHealth.HEALTHY }) shouldBe true
             }
+        }
+
+        // -------------------------------------------------------------------------
+        // buildRebuildSymlinksCommand — carries the data-dir override
+        // -------------------------------------------------------------------------
+
+        test("buildRebuildSymlinksCommand includes each server's data_dir_name") {
+            val nodeId = createNode(status = "ACTIVE")
+            val withOverride = createServer(nodeId)
+            val withoutOverride = createServer(nodeId)
+            transaction {
+                Servers.update({ Servers.id eq withOverride }) { it[Servers.dataDirName] = "survival" }
+            }
+
+            val msg = service.buildRebuildSymlinksCommand(nodeId)
+            msg.rebuildSymlinks.serversList
+                .associate { it.serverId to it.dataDirName }
+                .let { entries ->
+                    entries[withOverride.toString()] shouldBe "survival"
+                    entries[withoutOverride.toString()] shouldBe ""
+                }
         }
     })

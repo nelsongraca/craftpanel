@@ -73,6 +73,8 @@ class ContainerHandler(private val containerManager: ContainerManager, private v
 
     /** Recreates the servers-by-name symlink tree from a master snapshot (reconnect self-heal). */
     suspend fun rebuildServerSymlinks(servers: List<RebuildSymlinksCommand.ServerEntry>) {
+        // Full snapshot: replaces (not merges) the data-dir overrides so removed servers don't leak.
+        ServerDataDirs.replaceAll(servers.associate { it.serverId to it.dataDirName })
         withContext(Dispatchers.IO) {
             servers.forEach { entry ->
                 runCatching {

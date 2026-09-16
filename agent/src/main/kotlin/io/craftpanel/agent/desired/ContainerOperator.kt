@@ -8,8 +8,10 @@ import io.craftpanel.agent.docker.ContainerSpecDiff
 import io.craftpanel.agent.docker.NetworkManager
 import io.craftpanel.agent.docker.PortBindingSnapshot
 import io.craftpanel.agent.docker.SpecDiff
+import io.craftpanel.agent.grpc.handlers.ServerDataDirs
 import io.craftpanel.agent.grpc.handlers.SymlinkMaintainer
 import io.craftpanel.agent.grpc.handlers.serverDataRoot
+import io.craftpanel.common.ServerPaths
 import io.craftpanel.proto.StartContainerCommand
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -54,6 +56,10 @@ class ContainerOperator(private val containerManager: ContainerManager, private 
      */
     suspend fun ensureRunning(spec: StartContainerCommand, recreate: Boolean): Boolean {
         val containerName = spec.containerName
+        // Keep the path registry in step with the spec so file/backup ops resolve the same
+        // directory this container is mounted against.
+        ServerDataDirs.put(spec.serverId, spec.dataDirName)
+        val dataDir = ServerPaths.dataDir(config.hostDataBasePath, spec.serverId, spec.dataDirName)
         val exists = withContext(Dispatchers.IO) { containerManager.containerExists(containerName) }
         val needsCreate = recreate || !exists
         log.info("Converge: start container $containerName (recreate=$recreate, needsCreate=$needsCreate)")
@@ -65,7 +71,7 @@ class ContainerOperator(private val containerManager: ContainerManager, private 
             val specWithMount = spec.toBuilder()
                 .addMounts(
                     io.craftpanel.proto.volumeMount {
-                        hostPath = "${config.hostDataBasePath}/servers/${spec.serverId}"
+                        hostPath = dataDir
                         containerPath = spec.dataContainerPath.ifEmpty { "/data" }
                         readOnly = false
                     }
