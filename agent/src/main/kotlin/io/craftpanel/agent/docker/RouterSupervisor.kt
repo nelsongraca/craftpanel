@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.math.min
 import kotlin.time.Duration.Companion.seconds
 
-class RouterSupervisor(private val provisioner: McRouterProvisioner) {
+class RouterSupervisor(private val provisioner: McRouterProvisioner, private val enabled: Boolean = true) {
 
     private val log = LoggerFactory.getLogger(RouterSupervisor::class.java)
     private val _isRunning = AtomicBoolean(false)
@@ -14,6 +14,11 @@ class RouterSupervisor(private val provisioner: McRouterProvisioner) {
     val isRunning: Boolean get() = _isRunning.get()
 
     suspend fun run() {
+        if (!enabled) {
+            log.info("mc-router management disabled (MCROUTER_ENABLED=false)")
+            _isRunning.set(true)
+            return
+        }
         var backoffSeconds = 5L
         while (true) {
             val ok = runCatching {

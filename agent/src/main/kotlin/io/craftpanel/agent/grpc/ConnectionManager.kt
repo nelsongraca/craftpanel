@@ -41,7 +41,7 @@ class ConnectionManager(
 
         val certPem: String? = when {
             config.tlsEnabled -> File(config.tlsCertPath).readText()
-            else              -> NodeKeyStore.readCaCert(config.caCertFilePath)
+            else -> NodeKeyStore.readCaCert(config.caCertFilePath)
         }
 
         if (certPem != null) {
@@ -49,8 +49,7 @@ class ConnectionManager(
                 .trustManager(ByteArrayInputStream(certPem.toByteArray()))
                 .build()
             builder.sslContext(sslContext)
-        }
-        else {
+        } else {
             check(config.profile == "dev") {
                 "gRPC TLS is required outside dev profile — set GRPC_TLS_CERT or mount master's grpc-ca.crt at ${config.caCertFilePath}"
             }
@@ -87,9 +86,14 @@ class ConnectionManager(
                             config.craftpanelNetwork,
                             config.mcRouterContainerName
                         )
-                        networkManager = NetworkManager(docker, provisioner.containerName)
-                        metricsCollector.mcRouterContainerName = provisioner.containerName
-                        val supervisor = RouterSupervisor(provisioner)
+                        networkManager = NetworkManager(
+                            docker,
+                            provisioner.containerName,
+                            config.mcRouterEnabled
+                        )
+                        metricsCollector.mcRouterContainerName =
+                            if (config.mcRouterEnabled) provisioner.containerName else ""
+                        val supervisor = RouterSupervisor(provisioner, config.mcRouterEnabled)
                         routerSupervisor = supervisor
                         coroutineScope.launch { supervisor.run() }
                     }
@@ -105,7 +109,7 @@ class ConnectionManager(
                         operator = ContainerOperator(containerManager, checkNotNull(networkManager), config),
                         containerNamePrefix = config.containerNamePrefix,
                         out = out,
-                        scope = convergenceScope,
+                        scope = convergenceScope
                     )
 
                     ControlStreamHandler(
@@ -127,10 +131,9 @@ class ConnectionManager(
                         gate = gate,
                         out = out,
                         loop = loop,
-                        convergenceScope = convergenceScope,
+                        convergenceScope = convergenceScope
                     ).run(channel, outboundChannel)
-                }
-                finally {
+                } finally {
                     scope.close()
                     channel.shutdown()
                 }

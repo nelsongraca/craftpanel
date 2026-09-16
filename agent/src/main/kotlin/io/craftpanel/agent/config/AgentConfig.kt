@@ -22,6 +22,8 @@ data class AgentConfig(
     val mcRouterImage: String,
     val mcRouterUpdateOnStart: Boolean,
     val mcRouterContainerName: String,
+    // When false, the agent never provisions, attaches, detaches, or metrics-queries mc-router.
+    val mcRouterEnabled: Boolean = true,
     val publicIpUrl: String,
     val hostnameOverride: String,
     val systemReservedRamMb: Int,
@@ -82,6 +84,7 @@ data class AgentConfig(
             mcRouterUpdateOnStart = System.getenv("MCROUTER_UPDATE_ON_START")
                 ?.lowercase() != "false",
             mcRouterContainerName = System.getenv("MCROUTER_CONTAINER_NAME") ?: "",
+            mcRouterEnabled = System.getenv("MCROUTER_ENABLED")?.lowercase() != "false",
             publicIpUrl = System.getenv("PUBLIC_IP_URL") ?: "",
             hostnameOverride = System.getenv("NODE_HOSTNAME") ?: "",
             systemReservedRamMb = System.getenv("SYSTEM_RESERVED_RAM_MB")

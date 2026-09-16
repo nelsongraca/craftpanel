@@ -5,10 +5,7 @@ import com.github.dockerjava.api.exception.ConflictException
 import com.github.dockerjava.api.model.Network
 import org.slf4j.LoggerFactory
 
-class NetworkManager(
-    private val docker: DockerClient,
-    private val mcRouterContainerName: String,
-) {
+class NetworkManager(private val docker: DockerClient, private val mcRouterContainerName: String, private val mcRouterEnabled: Boolean = true) {
 
     private val log = LoggerFactory.getLogger(NetworkManager::class.java)
 
@@ -50,14 +47,14 @@ class NetworkManager(
         }.onFailure { e ->
             if (e is ConflictException) {
                 log.info("Network $networkName already exists (created by another agent) — reusing")
-            }
-            else {
+            } else {
                 log.warn("Failed to create network $networkName: ${e.message}")
             }
         }
     }
 
     private fun attachMcRouter(networkName: String) {
+        if (!mcRouterEnabled) return
         val routerId = getMcRouterId() ?: run {
             log.warn("mc-router not found — cannot attach to $networkName")
             return
@@ -65,7 +62,9 @@ class NetworkManager(
         val net = findNetwork(networkName) ?: return
         if (net.containers.orEmpty()
                 .containsKey(routerId)
-        ) return
+        ) {
+            return
+        }
         runCatching {
             docker.connectToNetworkCmd()
                 .withNetworkId(networkName)
@@ -76,6 +75,7 @@ class NetworkManager(
     }
 
     private fun detachMcRouter(networkName: String) {
+        if (!mcRouterEnabled) return
         val routerId = getMcRouterId() ?: return
         runCatching {
             docker.disconnectFromNetworkCmd()
@@ -86,17 +86,15 @@ class NetworkManager(
         }.onFailure { log.warn("Failed to detach mc-router from $networkName: ${it.message}") }
     }
 
-    private fun findNetwork(networkName: String): Network? =
-        runCatching {
-            docker.listNetworksCmd()
-                .withNameFilter(networkName)
-                .exec()
-                .firstOrNull { it.name == networkName }
-        }.getOrNull()
+    private fun findNetwork(networkName: String): Network? = runCatching {
+        docker.listNetworksCmd()
+            .withNameFilter(networkName)
+            .exec()
+            .firstOrNull { it.name == networkName }
+    }.getOrNull()
 
-    private fun getMcRouterId(): String? =
-        runCatching {
-            docker.inspectContainerCmd(mcRouterContainerName)
-                .exec().id
-        }.getOrNull()
+    private fun getMcRouterId(): String? = runCatching {
+        docker.inspectContainerCmd(mcRouterContainerName)
+            .exec().id
+    }.getOrNull()
 }
