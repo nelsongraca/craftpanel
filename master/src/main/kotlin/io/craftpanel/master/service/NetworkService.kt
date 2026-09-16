@@ -1,6 +1,7 @@
 package io.craftpanel.master.service
 
 import com.github.dockerjava.api.DockerClient
+import io.craftpanel.common.ContainerNames
 import io.craftpanel.master.database.entity.Network
 import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.ServerNetworks
@@ -57,6 +58,8 @@ class NetworkService(
 
     private val log = org.slf4j.LoggerFactory.getLogger(NetworkService::class.java)
 
+    private val names = ContainerNames(containerNamePrefix)
+
     private val hasDockerEndpoint: Boolean = dockerClient != null
 
     private val visibilityResolver = NetworkVisibilityResolver(userRepository, groupRepository)
@@ -80,7 +83,7 @@ class NetworkService(
 
     private fun createOverlayNetwork(networkId: String) {
         val docker = dockerClient ?: return
-        val name = "$containerNamePrefix-net-$networkId"
+        val name = names.sharedNetwork(networkId)
         runCatching {
             docker.createNetworkCmd()
                 .withName(name)
@@ -94,7 +97,7 @@ class NetworkService(
 
     private fun deleteOverlayNetwork(networkId: String) {
         val docker = dockerClient ?: return
-        val name = "$containerNamePrefix-net-$networkId"
+        val name = names.sharedNetwork(networkId)
         runCatching {
             val nets = docker.listNetworksCmd()
                 .withNameFilter(name)

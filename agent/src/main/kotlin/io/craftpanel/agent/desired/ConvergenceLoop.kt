@@ -1,6 +1,7 @@
 package io.craftpanel.agent.desired
 
 import io.craftpanel.agent.grpc.AgentOutbound
+import io.craftpanel.common.ContainerNames
 import io.craftpanel.proto.RestartBudget
 import io.craftpanel.proto.ServerDesiredState
 import io.craftpanel.proto.ServerStatusUpdate
@@ -29,10 +30,11 @@ class ConvergenceLoop(
     private val operator: ContainerOperator,
     private val containerNamePrefix: String,
     private val out: AgentOutbound,
-    private val scope: CoroutineScope,
+    private val scope: CoroutineScope
 ) {
 
     private val log = LoggerFactory.getLogger(ConvergenceLoop::class.java)
+    private val names = ContainerNames(containerNamePrefix)
     private val locks = ConcurrentHashMap<String, Mutex>()
 
     // In-flight converge per server. Lets a force-stop preempt a graceful stop that is holding
@@ -55,7 +57,11 @@ class ConvergenceLoop(
         } else {
             log.info(
                 "Desired state for {}: desired={} forceRestart={} force={} noRestart={} (no spec)",
-                env.serverId, env.desired, env.forceRestart, env.force, env.noRestart
+                env.serverId,
+                env.desired,
+                env.forceRestart,
+                env.force,
+                env.noRestart
             )
         }
         store.upsert(env.serverId) { state ->
@@ -73,7 +79,7 @@ class ConvergenceLoop(
                 force = env.force,
                 noRestart = env.noRestart,
                 restartCount = if (userStart) 0 else state.restartCount,
-                windowStartEpochMillis = if (userStart) null else state.windowStartEpochMillis,
+                windowStartEpochMillis = if (userStart) null else state.windowStartEpochMillis
             )
         }
         if (env.desired == ServerDesiredState.Desired.STOPPED && env.force) {
@@ -90,7 +96,7 @@ class ConvergenceLoop(
      */
     private fun preemptWithKill(serverId: String) {
         if (inFlight[serverId]?.isActive != true) return
-        val containerName = store.get(serverId).spec?.containerName ?: "$containerNamePrefix-$serverId"
+        val containerName = store.get(serverId).spec?.containerName ?: names.container(serverId)
         log.info("Force stop for $serverId — preempting in-flight convergence with SIGKILL")
         scope.launch {
             runCatching { operator.forceKill(containerName) }
@@ -114,9 +120,7 @@ class ConvergenceLoop(
 
     // ── Convergence ─────────────────────────────────────────────────────────
 
-    private fun trigger(serverId: String): Job {
-        return launchConverge(serverId) { converge(serverId) }
-    }
+    private fun trigger(serverId: String): Job = launchConverge(serverId) { converge(serverId) }
 
     private fun launchConverge(serverId: String, block: suspend () -> Unit): Job {
         val job = scope.launch {
@@ -134,7 +138,7 @@ class ConvergenceLoop(
     private suspend fun converge(serverId: String) {
         val state = store.get(serverId)
         if (state.desired == ServerDesiredState.Desired.DESIRED_UNSPECIFIED) return
-        val containerName = state.spec?.containerName ?: "$containerNamePrefix-$serverId"
+        val containerName = state.spec?.containerName ?: names.container(serverId)
         val containerPresent = operator.containerExists(containerName)
         val running = containerPresent && operator.isRunning(containerName)
         // Inspect the live container so recreate-if-diff is based on its real configuration, not only
@@ -157,15 +161,20 @@ class ConvergenceLoop(
         val stopCommand = state.spec?.stopCommand ?: ""
         when (val decision = result.decision) {
             is ConvergenceDecision.EnsureRunning -> executeEnsureRunning(serverId, decision.recreate)
+
             is ConvergenceDecision.ConditionalRestart -> executeConditionalRestart(serverId, decision.recreate, stopCommand = stopCommand)
+
             is ConvergenceDecision.EnsureStopped -> {
                 if (actual.running) executeEnsureStopped(serverId, containerName, stopCommand = stopCommand)
             }
+
             is ConvergenceDecision.ForceKill -> executeForceKill(serverId, containerName)
+
             is ConvergenceDecision.CrashLooped -> {
                 log.warn("Server {} crash-looped: {}", serverId, decision.reason)
                 out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.CRASH_LOOPED)
             }
+
             is ConvergenceDecision.NoOp -> {
                 val status = when (state.desired) {
                     ServerDesiredState.Desired.RUNNING if actual.running -> ServerStatusUpdate.ServerStatus.HEALTHY
@@ -198,14 +207,9 @@ class ConvergenceLoop(
         }
     }
 
-    private suspend fun executeConditionalRestart(
-        serverId: String,
-        recreate: Boolean,
-        timeoutSeconds: Int = DEFAULT_STOP_TIMEOUT,
-        stopCommand: String = "",
-    ) {
+    private suspend fun executeConditionalRestart(serverId: String, recreate: Boolean, timeoutSeconds: Int = DEFAULT_STOP_TIMEOUT, stopCommand: String = "") {
         val state = store.get(serverId)
-        val containerName = state.spec?.containerName ?: "$containerNamePrefix-$serverId"
+        val containerName = state.spec?.containerName ?: names.container(serverId)
         out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.STARTING)
         try {
             operator.ensureStopped(containerName, timeoutSeconds, stopCommand)

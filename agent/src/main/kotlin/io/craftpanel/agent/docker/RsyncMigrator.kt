@@ -3,6 +3,7 @@ package io.craftpanel.agent.docker
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.model.*
+import io.craftpanel.common.ContainerNames
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.net.Socket
@@ -12,10 +13,11 @@ import java.util.concurrent.TimeUnit
 class RsyncMigrator(private val docker: DockerClient, private val craftpanelNetwork: String = "", private val containerNamePrefix: String = "craftpanel") {
 
     private val log = LoggerFactory.getLogger(RsyncMigrator::class.java)
+    private val names = ContainerNames(containerNamePrefix)
 
     fun startReceiver(migrationId: String, port: Int, destPath: String, password: String, rsyncImage: String): String {
         File(destPath).mkdirs()
-        val containerName = "$containerNamePrefix-rsync-recv-$migrationId"
+        val containerName = names.rsyncReceive(migrationId)
         val portBinding = ExposedPort.tcp(port)
         val portBindings = Ports()
         portBindings.bind(portBinding, Ports.Binding.bindPort(port))
@@ -77,7 +79,7 @@ CONF
         rsyncImage: String,
         onProgress: (bytesTransferred: Long, totalBytes: Long, percent: Int, phase: String) -> Unit
     ): Boolean {
-        val containerName = "$containerNamePrefix-rsync-send-${migrationId}${if (isFinalPass) "-final" else ""}"
+        val containerName = names.rsyncSend(migrationId, final = isFinalPass)
         val script = """
             set -e
             apk add rsync --quiet --no-progress

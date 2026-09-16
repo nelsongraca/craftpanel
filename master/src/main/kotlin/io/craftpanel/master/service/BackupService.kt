@@ -1,5 +1,6 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.common.ContainerNames
 import io.craftpanel.master.database.entity.Backup
 import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.Backups
@@ -47,9 +48,16 @@ data class PutBackupScheduleRequest(@SerialName("backup_schedule") val backupSch
 
 data class BackupDownloadInfo(val serverId: Uuid, val backupId: String)
 
-class BackupService(private val gateway: AgentGateway, private val dataServiceProxy: DataServiceProxy, private val serverRepository: ServerRepository, private val backupRepository: BackupRepository) {
+class BackupService(
+    private val gateway: AgentGateway,
+    private val dataServiceProxy: DataServiceProxy,
+    private val serverRepository: ServerRepository,
+    private val backupRepository: BackupRepository,
+    private val containerNamePrefix: String = ContainerNames.DEFAULT_PREFIX
+) {
 
     private val log = org.slf4j.LoggerFactory.getLogger(BackupService::class.java)
+    private val names = ContainerNames(containerNamePrefix)
 
     fun listBackups(serverId: Uuid): List<BackupResponse> = backupRepository.listBackups(serverId)
         .map { it.toResponse() }
@@ -112,7 +120,7 @@ class BackupService(private val gateway: AgentGateway, private val dataServicePr
                 triggerBackup = triggerBackupCommand {
                     this.backupId = backup.id.toString()
                     this.serverId = serverId.toString()
-                    containerName = "craftpanel-$serverId"
+                    containerName = names.container(serverId.toString())
                     serverName = serverRow.name
                     createdAtFormatted = formatSymlinkTimestamp(backup.createdAt)
                 }
@@ -121,12 +129,12 @@ class BackupService(private val gateway: AgentGateway, private val dataServicePr
 
         if (!sent) {
             transaction {
-            Backup.findById(backup.id)?.let {
-                it.status = BackupStatus.FAILED.name
-                it.errorMessage = "Agent not connected"
-                it.completedAt = now.toLocalDateTime(TimeZone.UTC)
+                Backup.findById(backup.id)?.let {
+                    it.status = BackupStatus.FAILED.name
+                    it.errorMessage = "Agent not connected"
+                    it.completedAt = now.toLocalDateTime(TimeZone.UTC)
+                }
             }
-        }
             throw BadGatewayException("Agent not connected")
         }
 

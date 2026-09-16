@@ -4,10 +4,12 @@ import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.FakeContainerManager
 import io.craftpanel.agent.docker.NetworkManager
 import io.craftpanel.agent.grpc.AgentOutbound
+import io.craftpanel.common.ContainerNames
 import io.craftpanel.proto.*
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.mockk.mockk
+import io.mockk.verify
 import kotlinx.coroutines.channels.Channel
 import java.nio.file.Files
 
@@ -46,8 +48,7 @@ class ContainerHandlerTest :
 
         fun newFake() = FakeContainerManager()
 
-        fun newHandler(cm: FakeContainerManager) =
-            ContainerHandler(cm, config, mockk<NetworkManager>(relaxed = true))
+        fun newHandler(cm: FakeContainerManager) = ContainerHandler(cm, config, mockk<NetworkManager>(relaxed = true))
 
         fun startCmd(serverId: String = "srv-1") = startContainerCommand {
             containerName = "craftpanel-$serverId"
@@ -69,8 +70,9 @@ class ContainerHandlerTest :
                 if (r.isSuccess) {
                     val msg = r.getOrThrow()
                     if (msg.hasServerStatus()) add(msg.serverStatus)
+                } else {
+                    break
                 }
-                else break
             }
         }
 
@@ -109,5 +111,37 @@ class ContainerHandlerTest :
             val ack = msgs.first { it.hasShutdownAcknowledge() }.shutdownAcknowledge
             ack.gracefulCount shouldBe 2
             ack.forcedCount shouldBe 0
+        }
+
+        // Regression: the network cleanup filter used to hardcode "craftpanel-net-"/"craftpanel-server-",
+        // so under a custom prefix the shared network was never detached and leaked.
+        test("remove cleans up a shared network under a custom prefix") {
+            val prefix = "mypanel"
+            val ns = ContainerNames(prefix)
+            val cm = FakeContainerManager(containerNamePrefix = prefix)
+            val net = mockk<NetworkManager>(relaxed = true)
+            val handler = ContainerHandler(cm, config.copy(containerNamePrefix = prefix), net)
+            val shared = ns.sharedNetwork("net-1")
+            cm.createContainer(
+                startContainerCommand {
+                    containerName = ns.container("srv-1")
+                    serverId = "srv-1"
+                    serverName = "myserver"
+                    image = "itzg/minecraft-server:latest"
+                    dockerNetwork = shared
+                }
+            )
+            cm.startContainer(ns.container("srv-1"))
+            val channel = Channel<AgentMessage>(Channel.UNLIMITED)
+
+            handler.handleRemove(
+                removeContainerCommand {
+                    containerName = ns.container("srv-1")
+                    serverId = "srv-1"
+                },
+                AgentOutbound(channel, "node-1")
+            )
+
+            verify { net.maybeDetachAndDelete(shared, any()) }
         }
     })

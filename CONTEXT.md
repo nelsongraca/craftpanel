@@ -527,6 +527,22 @@ The one module that turns a `ServerProvisionSpec` into a persisted **Server**. R
 - Injected into `ServersRoutes` and `ExportService`. `ServerService` keeps
   update/delete/resources/expiration.
 
+### ContainerNames (common)
+
+The one owner of the Docker name convention, shared by master and agent via the `:common` module.
+`class ContainerNames(prefix)` — prefix-derived, per-server names only: `container(serverId)`,
+`sharedNetwork(networkId)`, `standaloneNetwork(serverId)`, `rsyncReceive(migrationId)`,
+`rsyncSend(migrationId, final)`, `serverIdOf(name)` (strict inverse — throws on a name that is not
+ours), `isManagedContainerName(name)`, `isManagedNetwork(name)`.
+
+- Replaces every raw `"$prefix-…"` construction in both modules; a drifted copy caused the
+  custom-prefix network leak (`ContainerHandler`) and a hardcoded backup container name
+  (`BackupService`).
+- Callers wrap their existing `containerNamePrefix` once — construction sites and DI are unchanged.
+- Host-global names (the `craftpanel` network, the mc-router container) are **not** prefix-derived;
+  they are one-per-host infrastructure supplied as explicit config.
+- See ADR-0007.
+
 ### WatcherGate (agent)
 
 The one module that decides "is this container death a crash worth reporting?"

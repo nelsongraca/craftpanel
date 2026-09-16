@@ -1,5 +1,6 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.common.ContainerNames
 import io.craftpanel.master.config.ImagesConfig
 import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.domain.AgentEvent
@@ -30,6 +31,8 @@ class ContainerLifecycle(
     private val removeTimeout: Duration = 10.seconds
 ) {
 
+    private val names = ContainerNames(containerNamePrefix)
+
     // ── Declarative desired-state (master intent setter) ──────────────────────
 
     /**
@@ -54,7 +57,7 @@ class ContainerLifecycle(
             masterMessage {
                 removeContainer = removeContainerCommand {
                     serverId = id.toString()
-                    containerName = "$containerNamePrefix-$id"
+                    containerName = names.container(id.toString())
                     this.force = force
                 }
             }
@@ -130,7 +133,7 @@ class ContainerLifecycle(
         }
         return startContainerCommand {
             serverId = id.toString()
-            containerName = "$containerNamePrefix-$id"
+            containerName = names.container(id.toString())
             stopCommand = server.stopCommand
             this.image = image
             envVars.putAll(allVars)
@@ -139,8 +142,8 @@ class ContainerLifecycle(
             memoryMb = server.memoryMb
             cpuShares = server.cpuShares
             dockerNetwork = server.networkId
-                ?.let { "$containerNamePrefix-net-$it" }
-                ?: "$containerNamePrefix-server-$id"
+                ?.let { names.sharedNetwork(it.toString()) }
+                ?: names.standaloneNetwork(id.toString())
             dataContainerPath = images.dataContainerPath(server.serverType)
             internalListenPort = server.containerListenPort ?: images.internalListenPort(server.serverType)
             containerProtocol = server.containerProtocol

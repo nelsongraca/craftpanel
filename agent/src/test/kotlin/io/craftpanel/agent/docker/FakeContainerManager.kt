@@ -4,10 +4,11 @@ import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.exception.ConflictException
 import com.github.dockerjava.api.exception.NotFoundException
 import com.github.dockerjava.api.model.Frame
+import io.craftpanel.common.ContainerNames
 import io.craftpanel.proto.*
 import java.io.InputStream
-import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.CopyOnWriteArrayList
 
 /**
  * Behavioral in-memory [ContainerManager] for handler tests: models the container state
@@ -25,9 +26,7 @@ import java.util.concurrent.ConcurrentHashMap
  * | removeContainer  | no-op                       | entry gone                            | markStopping + markRemoved    |
  * | containerExists  | false                       | true                                  | —                             |
  */
-class FakeContainerManager(
-    private val containerNamePrefix: String = "craftpanel",
-) : ContainerManager {
+class FakeContainerManager(private val containerNamePrefix: String = "craftpanel") : ContainerManager {
 
     enum class State { CREATED, RUNNING, STOPPED }
 
@@ -51,12 +50,13 @@ class FakeContainerManager(
 
     var swarmActive = false
 
-    private fun serverIdOf(containerName: String): String = containerName.removePrefix("$containerNamePrefix-")
+    private val names = ContainerNames(containerNamePrefix)
+
+    private fun serverIdOf(containerName: String): String = names.serverIdOf(containerName)
 
     private fun idOf(containerName: String) = "id-$containerName"
 
-    private fun require(containerName: String): Entry =
-        containers[containerName] ?: throw NotFoundException("no such container: $containerName")
+    private fun require(containerName: String): Entry = containers[containerName] ?: throw NotFoundException("no such container: $containerName")
 
     override fun createContainer(cmd: StartContainerCommand): String {
         calls.add("create:${cmd.containerName}")
@@ -184,7 +184,7 @@ class FakeContainerManager(
             memoryMb = cmd.memoryMb,
             cpuShares = cmd.cpuShares,
             labels = labels,
-            networkMode = cmd.dockerNetwork,
+            networkMode = cmd.dockerNetwork
         )
     }
 
@@ -194,11 +194,7 @@ class FakeContainerManager(
 
     override fun isSwarmActive(): Boolean = swarmActive
 
-    override fun attachInteractive(
-        containerName: String,
-        inputStream: InputStream,
-        callback: ResultCallback<Frame>
-    ): ResultCallback<Frame> {
+    override fun attachInteractive(containerName: String, inputStream: InputStream, callback: ResultCallback<Frame>): ResultCallback<Frame> {
         calls.add("attach:$containerName")
         return callback
     }

@@ -44,6 +44,7 @@ extra["gitVersion"] = gitVersion
 dependencies {
     kover(project(":master"))
     kover(project(":agent"))
+    kover(project(":common"))
 }
 
 kover {
@@ -66,7 +67,7 @@ if (project.hasProperty("withCoverage")) {
     tasks.register("koverFullReport") {
         group = "verification"
         description = "Unit tests + all coverage reports (per-module + merged). Add -PsystemTest to include system tests."
-        dependsOn(":master:test", ":agent:test", ":frontend:testFrontend", "koverHtmlReport", "koverXmlReport")
+        dependsOn(":master:test", ":agent:test", ":common:test", ":frontend:testFrontend", "koverHtmlReport", "koverXmlReport")
         if (project.hasProperty("systemTest")) {
             dependsOn(
                 ":system-tests:test",
@@ -111,7 +112,7 @@ tasks.named("check") {
 tasks.register("test") {
     group = "verification"
     description = "Runs all tests (JVM subprojects + frontend). Add -PsystemTest to include system-tests."
-    dependsOn(":master:test", ":agent:test", ":frontend:typecheckFrontend", ":frontend:testFrontend")
+    dependsOn(":master:test", ":agent:test", ":common:test", ":frontend:typecheckFrontend", ":frontend:testFrontend")
     if (project.hasProperty("systemTest")) {
         dependsOn(":system-tests:test")
     }

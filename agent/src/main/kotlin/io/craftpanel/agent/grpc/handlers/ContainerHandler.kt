@@ -4,6 +4,7 @@ import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.NetworkManager
 import io.craftpanel.agent.grpc.AgentOutbound
+import io.craftpanel.common.ContainerNames
 import io.craftpanel.proto.*
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -13,6 +14,7 @@ import java.nio.file.Files
 class ContainerHandler(private val containerManager: ContainerManager, private val config: AgentConfig, private val networkManager: NetworkManager) {
 
     private val log = LoggerFactory.getLogger(ContainerHandler::class.java)
+    private val names = ContainerNames(config.containerNamePrefix)
 
     /**
      * start/stop/restart now live in the desired-state convergence layer
@@ -31,13 +33,13 @@ class ContainerHandler(private val containerManager: ContainerManager, private v
                 // Clean up from container's network list (if container existed)
                 if (containerId != null) {
                     networkNames
-                        .filter { it.startsWith("craftpanel-net-") || it.startsWith("craftpanel-server-") }
+                        .filter { names.isManagedNetwork(it) }
                         .forEach { net -> networkManager.maybeDetachAndDelete(net, containerId) }
                 }
                 // Always try deterministic cleanup of standalone server bridge by server ID
                 // (handles the case where the container was already gone before this command)
                 networkManager.maybeDetachAndDelete(
-                    "${config.containerNamePrefix}-server-${cmd.serverId}",
+                    names.standaloneNetwork(cmd.serverId),
                     ""
                 )
             }

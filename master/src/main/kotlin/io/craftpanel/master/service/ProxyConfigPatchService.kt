@@ -1,5 +1,6 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.common.ContainerNames
 import io.craftpanel.master.config.ImagesConfig
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.ProxyBackendRepository
@@ -49,6 +50,7 @@ class ProxyConfigPatchService(
     private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
     private val containerNamePrefix: String = "craftpanel"
 ) {
+    private val names = ContainerNames(containerNamePrefix)
     fun generatePatch(proxyServerId: Uuid): String? {
         val serverRow = serverRepository.findById(proxyServerId)
             ?: throw NotFoundException("Server not found")
@@ -100,7 +102,7 @@ class ProxyConfigPatchService(
     private fun address(backendServerView: ServerView?): String {
         val fallbackType = backendServerView?.serverType ?: ServerType.VANILLA
         val port = backendServerView?.containerListenPort ?: images.internalListenPort(fallbackType)
-        return "$containerNamePrefix-${backendServerView?.id ?: "unknown"}:$port"
+        return "${names.container(backendServerView?.id?.toString() ?: "unknown")}:$port"
     }
 
     private fun serversOp(dialect: ProxyDialect, backends: List<Pair<ProxyBackendRow, ServerView?>>): JsonObject {

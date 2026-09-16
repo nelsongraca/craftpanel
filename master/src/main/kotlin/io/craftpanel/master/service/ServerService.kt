@@ -1,5 +1,6 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.common.ContainerNames
 import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.Backups
 import io.craftpanel.master.database.schema.ContainerMetrics
@@ -41,6 +42,7 @@ class ServerService(
 ) {
 
     private val log = LoggerFactory.getLogger(ServerService::class.java)
+    private val names = ContainerNames(containerNamePrefix)
     private val capacityChecker = ResourceCapacityChecker(serverRepository)
 
     fun updateServer(
@@ -130,7 +132,7 @@ class ServerService(
             masterMessage {
                 removeContainer = removeContainerCommand {
                     serverId = id.toString()
-                    containerName = "$containerNamePrefix-$id"
+                    containerName = names.container(id.toString())
                     force = true
                     deleteData = true
                     serverName = existing.name

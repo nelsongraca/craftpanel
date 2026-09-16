@@ -36,6 +36,7 @@ val dockerGidProvider = providers.provider {
 }
 
 dependencies {
+    implementation(project(":common"))
     implementation(libs.bundles.grpc.server)
     implementation(libs.kotlinx.coroutines.core)
     implementation(libs.kotlinx.serialization.json)

@@ -1,5 +1,6 @@
 package io.craftpanel.master.service.migration
 
+import io.craftpanel.common.ContainerNames
 import io.craftpanel.master.database.schema.PortRegistry
 import io.craftpanel.master.domain.MigrationStatus
 import io.craftpanel.master.service.MigrationEvent
@@ -41,7 +42,7 @@ class MigrationRunner(private val steps: List<MigrationStep>, private val plan: 
                     plan.targetNodeIdStr,
                     masterMessage {
                         removeContainer = removeContainerCommand {
-                            containerName = "${plan.containerNamePrefix}-rsync-recv-${plan.migrationIdStr}"
+                            containerName = ContainerNames(plan.containerNamePrefix).rsyncReceive(plan.migrationIdStr)
                             force = true
                         }
                     }

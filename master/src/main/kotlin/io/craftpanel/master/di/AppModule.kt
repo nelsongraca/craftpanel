@@ -220,7 +220,7 @@ val appModule = module {
             migrationRepository = get()
         )
     }
-    single { BackupService(get<AgentGateway>(), get(), get(), get()) }
+    single { BackupService(get<AgentGateway>(), get(), get(), get(), get(named("containerPrefix"))) }
     single { DesiredStateSyncService(lifecycle = get(), serverRepository = get()) }
     single {
         SecretCipher(

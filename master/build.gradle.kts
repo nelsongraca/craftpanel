@@ -24,6 +24,7 @@ java {
 }
 
 dependencies {
+    implementation(project(":common"))
     implementation(libs.bundles.ktor.server)
     implementation(libs.bundles.exposed)
     implementation(libs.exposed.migration.jdbc)

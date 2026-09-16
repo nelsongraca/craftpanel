@@ -6,6 +6,7 @@ import com.github.dockerjava.api.command.PullImageResultCallback
 import com.github.dockerjava.api.exception.ConflictException
 import com.github.dockerjava.api.exception.NotFoundException
 import com.github.dockerjava.api.model.*
+import io.craftpanel.common.ContainerNames
 import io.craftpanel.proto.*
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
@@ -33,7 +34,9 @@ class DockerContainerManager(
 
     private val log = LoggerFactory.getLogger(DockerContainerManager::class.java)
 
-    private fun serverIdOf(containerName: String): String = containerName.removePrefix("$containerNamePrefix-")
+    private val names = ContainerNames(containerNamePrefix)
+
+    private fun serverIdOf(containerName: String): String = names.serverIdOf(containerName)
 
     override fun listRunningContainerIds(): List<Pair<String, String>> {
         return docker.listContainersCmd()
@@ -49,7 +52,7 @@ class DockerContainerManager(
     override fun listContainers(): List<ContainerState> = docker.listContainersCmd()
         .withShowAll(true)
         .exec()
-        .filter { it.names.any { n -> n.contains("$containerNamePrefix-") } }
+        .filter { it.names.any { n -> names.isManagedContainerName(n.trimStart('/')) } }
         .map { container ->
             containerState {
                 containerId = container.id
@@ -211,6 +214,7 @@ class DockerContainerManager(
                 }
                 log.warn("Container {} did not exit within {}s after signal {} — force stopping", containerName, timeout, action.signal)
             }
+
             StopAction.WriteText -> {
                 val exited = sendStopCommandToStdin(containerName, stopCommand, timeout)
                 if (exited) {
@@ -219,6 +223,7 @@ class DockerContainerManager(
                 }
                 log.warn("Container {} did not exit within {}s after stop command — force stopping", containerName, timeout)
             }
+
             // Empty stop command — proceed directly to Docker stop.
             StopAction.Skip -> {}
         }
@@ -357,12 +362,12 @@ class DockerContainerManager(
             memoryMb = ((hostConfig?.memory ?: 0L) / (1024 * 1024)).toInt(),
             cpuShares = hostConfig?.cpuShares ?: 0,
             labels = config?.labels.orEmpty(),
-            networkMode = hostConfig?.networkMode ?: "",
+            networkMode = hostConfig?.networkMode ?: ""
         )
     }.getOrNull()
 
     override fun execRconCommand(serverId: String, command: String) {
-        val containerName = "$containerNamePrefix-$serverId"
+        val containerName = names.container(serverId)
         runCatching {
             val exec = docker.execCreateCmd(containerName)
                 .withCmd("rcon-cli", command)
