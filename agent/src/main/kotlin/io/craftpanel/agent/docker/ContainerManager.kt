@@ -7,6 +7,29 @@ import io.craftpanel.proto.StartContainerCommand
 import java.io.InputStream
 
 /**
+ * A read-only view of a container's actual configuration, reconstructed from `docker inspect`.
+ * The desired-state layer compares this against the desired [StartContainerCommand] to decide a
+ * recreate — so the decision is based on the live container, not only on the agent's in-memory
+ * applied spec (which is lost when the agent process restarts).
+ */
+data class ContainerSnapshot(
+    val image: String,
+    /** Effective env (image defaults + configured), parsed from `KEY=VALUE` pairs. */
+    val env: Map<String, String>,
+    val binds: List<BindSnapshot>,
+    val portBindings: List<PortBindingSnapshot>,
+    val user: String,
+    val memoryMb: Int,
+    val cpuShares: Int,
+    val labels: Map<String, String>,
+    val networkMode: String,
+)
+
+data class BindSnapshot(val hostPath: String, val containerPath: String, val readOnly: Boolean)
+
+data class PortBindingSnapshot(val containerPort: Int, val protocol: String, val hostPort: Int)
+
+/**
  * Container operations against the node's Docker daemon, with death-gating built in:
  * stop/kill/remove mark the resulting death intentional and start registers ownership,
  * so the [ContainerEventWatcher] never reports a death this agent caused.
@@ -37,6 +60,9 @@ interface ContainerManager {
     fun getContainerNetworkNames(containerName: String): List<String>
 
     fun getContainerId(containerName: String): String?
+
+    /** Inspect the container's actual configuration, or null when it does not exist. */
+    fun inspectContainer(containerName: String): ContainerSnapshot?
 
     fun execRconCommand(serverId: String, command: String)
 

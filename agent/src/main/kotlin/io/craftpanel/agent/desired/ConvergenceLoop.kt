@@ -135,10 +135,20 @@ class ConvergenceLoop(
         val state = store.get(serverId)
         if (state.desired == ServerDesiredState.Desired.DESIRED_UNSPECIFIED) return
         val containerName = state.spec?.containerName ?: "$containerNamePrefix-$serverId"
-        val actual = ActualState(
-            containerPresent = operator.containerExists(containerName),
-            running = operator.isRunning(containerName),
-        )
+        val containerPresent = operator.containerExists(containerName)
+        val running = containerPresent && operator.isRunning(containerName)
+        // Inspect the live container so recreate-if-diff is based on its real configuration, not only
+        // the in-memory applied spec (which is lost when the agent process restarts).
+        val specMatches = if (containerPresent && state.spec != null) {
+            operator.inspect(containerName)?.let { operator.matches(it, state.spec) }
+        } else {
+            null
+        }
+        if (specMatches == true && state.appliedSpec == null) {
+            // Cache the confirmed spec so a later uninspectable converge still knows what is applied.
+            store.upsert(serverId) { it.copy(appliedSpec = state.spec) }
+        }
+        val actual = ActualState(containerPresent = containerPresent, running = running, specMatches = specMatches)
         val result = ConvergenceMachine.decide(state, actual)
         store.upsert(serverId) { result.next }
         // Graceful stop must use the stop command carried in the stored spec (text stdin or a

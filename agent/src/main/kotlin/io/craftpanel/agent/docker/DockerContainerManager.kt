@@ -325,6 +325,42 @@ class DockerContainerManager(
             .exec().id
     }.getOrNull()
 
+    override fun inspectContainer(containerName: String): ContainerSnapshot? = runCatching {
+        val info = docker.inspectContainerCmd(containerName).exec()
+        val config = info.config
+        val hostConfig = info.hostConfig
+
+        val env = config?.env.orEmpty().mapNotNull { pair ->
+            val i = pair.indexOf('=')
+            if (i > 0) pair.substring(0, i) to pair.substring(i + 1) else null
+        }.toMap()
+
+        val binds = info.mounts.orEmpty().mapNotNull { m ->
+            val destination = m.destination?.path ?: return@mapNotNull null
+            BindSnapshot(hostPath = m.source ?: "", containerPath = destination, readOnly = m.rw == false)
+        }
+
+        val portBindings = hostConfig?.portBindings?.bindings.orEmpty().flatMap { (exposed, bindings) ->
+            bindings.orEmpty().mapNotNull { binding ->
+                val hostPort = binding?.hostPortSpec?.takeIf { it.isNotBlank() }?.toIntOrNull()
+                    ?: return@mapNotNull null
+                PortBindingSnapshot(exposed.port, exposed.protocol.name.lowercase(), hostPort)
+            }
+        }
+
+        ContainerSnapshot(
+            image = config?.image ?: "",
+            env = env,
+            binds = binds,
+            portBindings = portBindings,
+            user = config?.user ?: "",
+            memoryMb = ((hostConfig?.memory ?: 0L) / (1024 * 1024)).toInt(),
+            cpuShares = hostConfig?.cpuShares ?: 0,
+            labels = config?.labels.orEmpty(),
+            networkMode = hostConfig?.networkMode ?: "",
+        )
+    }.getOrNull()
+
     override fun execRconCommand(serverId: String, command: String) {
         val containerName = "$containerNamePrefix-$serverId"
         runCatching {

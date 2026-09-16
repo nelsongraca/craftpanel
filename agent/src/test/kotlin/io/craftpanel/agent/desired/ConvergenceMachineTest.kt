@@ -165,6 +165,38 @@ class ConvergenceMachineTest :
             result.decision shouldBe ConvergenceDecision.ConditionalRestart(recreate = false)
         }
 
+        test("an inspected mismatch is definitive: user restart recreates, match does not") {
+            val mismatch = ConvergenceMachine.decide(
+                state(spec = specA, appliedSpec = null, forceRestart = true),
+                ActualState(containerPresent = true, running = true, specMatches = false),
+                now,
+            )
+            mismatch.decision shouldBe ConvergenceDecision.ConditionalRestart(recreate = true)
+
+            val match = ConvergenceMachine.decide(
+                state(spec = specA, appliedSpec = null, forceRestart = true),
+                ActualState(containerPresent = true, running = true, specMatches = true),
+                now,
+            )
+            match.decision shouldBe ConvergenceDecision.ConditionalRestart(recreate = false)
+        }
+
+        test("an inspected mismatch is definitive: autonomous crash-restart recreates, match does not") {
+            val mismatch = ConvergenceMachine.decide(
+                state(spec = specA, appliedSpec = null),
+                ActualState(containerPresent = true, running = false, specMatches = false),
+                now,
+            )
+            mismatch.decision shouldBe ConvergenceDecision.EnsureRunning(recreate = true)
+
+            val match = ConvergenceMachine.decide(
+                state(spec = specA, appliedSpec = null),
+                ActualState(containerPresent = true, running = false, specMatches = true),
+                now,
+            )
+            match.decision shouldBe ConvergenceDecision.EnsureRunning(recreate = false)
+        }
+
         test("running + force_restart with a spec diff recreates; without a diff it does not") {
             val diff = ConvergenceMachine.decide(state(spec = specB, appliedSpec = specA, forceRestart = true), running, now)
             diff.decision shouldBe ConvergenceDecision.ConditionalRestart(recreate = true)

@@ -151,6 +151,43 @@ class FakeContainerManager(
         return containers[containerName]?.let { idOf(containerName) }
     }
 
+    /**
+     * Reconstructs the container's config from the command it was created with, mirroring
+     * [DockerContainerManager.createContainer] (env, bind, port bindings, user, limits, labels).
+     */
+    override fun inspectContainer(containerName: String): ContainerSnapshot? {
+        calls.add("inspect:$containerName")
+        if (!containers.containsKey(containerName)) return null
+        val cmd = createdCommands.lastOrNull { it.containerName == containerName } ?: return null
+        val portBindings = buildList {
+            if (cmd.hostPort > 0) {
+                add(PortBindingSnapshot(cmd.internalListenPort, cmd.containerProtocol.ifEmpty { "TCP" }.lowercase(), cmd.hostPort))
+            }
+            cmd.extraPortsList.forEach {
+                if (it.hostPort > 0) add(PortBindingSnapshot(it.containerPort, it.protocol.ifEmpty { "TCP" }.lowercase(), it.hostPort))
+            }
+        }
+        val labels = buildMap {
+            put("craftpanel.managed", "true")
+            put("craftpanel.server.id", cmd.serverId)
+            if (cmd.publicHostname.isNotEmpty() && cmd.containerProtocol.uppercase() != "UDP") {
+                put("mc-router.host", cmd.publicHostname)
+            }
+            if (cmd.stopCommand.isNotEmpty()) put("craftpanel.stop.command", cmd.stopCommand)
+        }
+        return ContainerSnapshot(
+            image = cmd.image,
+            env = cmd.envVarsMap.toMap(),
+            binds = cmd.mountsList.map { BindSnapshot(it.hostPath, it.containerPath, it.readOnly) },
+            portBindings = portBindings,
+            user = cmd.containerUser,
+            memoryMb = cmd.memoryMb,
+            cpuShares = cmd.cpuShares,
+            labels = labels,
+            networkMode = cmd.dockerNetwork,
+        )
+    }
+
     override fun execRconCommand(serverId: String, command: String) {
         calls.add("rcon:$serverId:$command")
     }

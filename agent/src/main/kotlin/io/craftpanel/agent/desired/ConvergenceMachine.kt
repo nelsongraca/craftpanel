@@ -6,6 +6,12 @@ import io.craftpanel.proto.ServerDesiredState
 data class ActualState(
     val containerPresent: Boolean,
     val running: Boolean,
+    /**
+     * Whether the existing container's configuration matches the desired spec, from a Docker
+     * inspect. `null` when the container is absent or could not be inspected — in which case the
+     * decision falls back to the in-memory [DesiredState.appliedSpec].
+     */
+    val specMatches: Boolean? = null,
 )
 
 /** What the agent must do to converge [DesiredState] towards [ActualState]. */
@@ -74,7 +80,7 @@ object ConvergenceMachine {
     }
 
     private fun decideRunning(state: DesiredState, actual: ActualState, nowMillis: Long): ConvergenceResult {
-        val recreate = shouldRecreate(state)
+        val recreate = shouldRecreate(state, actual)
         // Already running. A user-initiated restart (force_restart) still fires; everything else
         // is a no-op — a spec change while running is reconfigure-only, applied at next start.
         if (actual.running) {
@@ -132,14 +138,19 @@ object ConvergenceMachine {
     }
 
     /**
-     * Recreate ONLY when we are certain the container's applied spec differs from the desired one.
-     * A null [DesiredState.appliedSpec] means unknown (fresh agent process, container created by an
-     * earlier agent run) — start the existing container rather than destroy-and-recreate it. The
-     * agent must never tear down a running server on a guess; recreation is reserved for a proven
-     * spec change.
+     * Recreate ONLY when we are certain the live container does not match the desired spec.
+     *
+     * - If the container was inspected ([ActualState.specMatches] != null), that is definitive:
+     *   recreate when it does not match, start it as-is when it does.
+     * - Otherwise fall back to the in-memory [DesiredState.appliedSpec]: recreate only on a known
+     *   difference; a null (unknown) applied spec never tears the container down.
      */
-    private fun shouldRecreate(state: DesiredState): Boolean =
-        state.appliedSpec != null && state.spec != state.appliedSpec
+    private fun shouldRecreate(state: DesiredState, actual: ActualState): Boolean {
+        val spec = state.spec ?: return false
+        actual.specMatches?.let { return !it }
+        val applied = state.appliedSpec ?: return false
+        return spec != applied
+    }
 
     private fun restartCandidateCount(state: DesiredState, nowMillis: Long): Int {
         val windowStart = state.windowStartEpochMillis

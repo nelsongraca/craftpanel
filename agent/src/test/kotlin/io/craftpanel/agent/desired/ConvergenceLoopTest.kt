@@ -230,9 +230,9 @@ class ConvergenceLoopTest :
             cm.calls.filter { it.startsWith("start:") } shouldBe listOf("start:craftpanel-srv-1")
         }
 
-        test("a restart with an unknown applied spec preserves the existing container (no recreate)") {
-            // Conservative by design: a fresh agent process (store lost) must NOT tear down a
-            // running server on a guess. Recreation is reserved for a proven spec change.
+        test("a restart recreates when the live container config differs from the desired spec") {
+            // The container was created with a different image than the desired spec. Even with an
+            // unknown in-memory applied spec, the inspect proves the mismatch → recreate.
             val cm = FakeContainerManager()
             cm.createContainer(startCmd(image = "old-image"))
             cm.startContainer("craftpanel-srv-1")
@@ -248,9 +248,46 @@ class ConvergenceLoopTest :
                 ).join()
             }
 
+            cm.calls.filter { it.startsWith("remove:") || it.startsWith("create:") || it.startsWith("start:") } shouldBe
+                listOf("remove:craftpanel-srv-1", "create:craftpanel-srv-1", "start:craftpanel-srv-1")
+            channel.statuses().last().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
+        }
+
+        test("a restart does not recreate when the live container config matches the desired spec") {
+            val cm = FakeContainerManager()
+            val (_, out) = newOutbound()
+            val loop = newLoop(cm, out)
+            val spec = startCmd()
+
+            runBlocking {
+                loop.applyDesired(desiredRunning(spec = spec)).join() // creates the container
+                cm.calls.clear()
+                loop.applyDesired(
+                    desiredRunning(spec = spec).toBuilder().setForceRestart(true).build()
+                ).join()
+            }
+
             cm.calls.any { it.startsWith("remove:") || it.startsWith("create:") } shouldBe false
             cm.containers["craftpanel-srv-1"]?.state shouldBe FakeContainerManager.State.RUNNING
-            channel.statuses().last().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
+        }
+
+        test("changing the stop command does not force a recreate") {
+            val cm = FakeContainerManager()
+            val (_, out) = newOutbound()
+            val loop = newLoop(cm, out)
+            val base = startCmd()
+            val withStop = base.toBuilder().setStopCommand("^C").build()
+
+            runBlocking {
+                loop.applyDesired(desiredRunning(spec = base)).join() // created with no stop command
+                cm.calls.clear()
+                loop.applyDesired(
+                    desiredRunning(spec = withStop).toBuilder().setForceRestart(true).build()
+                ).join()
+            }
+
+            cm.calls.any { it.startsWith("remove:") || it.startsWith("create:") } shouldBe false
+            cm.containers["craftpanel-srv-1"]?.state shouldBe FakeContainerManager.State.RUNNING
         }
 
         test("force stop preempts an in-flight graceful stop with SIGKILL") {
