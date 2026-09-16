@@ -529,4 +529,59 @@ class ContainerManagerTest :
             graceful shouldBe 1
             forced shouldBe 0
         }
+
+        // Covers the `docker inspect` -> ContainerSnapshot mapping the recreate-if-diff decision
+        // depends on (env parsing, mounts, port bindings, memory bytes->MB, labels, network mode).
+        test("inspectContainer maps a docker inspect response into a ContainerSnapshot") {
+            val config = ContainerConfig()
+                .withImage("itzg/minecraft-server:latest")
+                .withUser("1000")
+                .withEnv(arrayOf("MOTD=hi", "PVP=true"))
+                .withLabels(mapOf("craftpanel.managed" to "true", "mc-router.host" to "play.example.com"))
+            val hostConfig = HostConfig()
+                .withMemory(1_073_741_824L)
+                .withCpuShares(512)
+                .withNetworkMode("craftpanel-net-net-1")
+                .withPortBindings(
+                    Ports().also {
+                        it.bind(ExposedPort.tcp(25565), Ports.Binding.bindPort(25566))
+                        it.bind(ExposedPort.udp(19132), Ports.Binding.bindPort(19133))
+                    }
+                )
+            val mount = InspectContainerResponse.Mount()
+                .withSource("/host/servers/srv-1")
+                .withDestination(Volume("/data"))
+                .withRw(true)
+
+            val inspectResponse = mockk<InspectContainerResponse>()
+            every { inspectResponse.config } returns config
+            every { inspectResponse.hostConfig } returns hostConfig
+            every { inspectResponse.mounts } returns listOf(mount)
+            val inspectCmd = mockk<InspectContainerCmd>(relaxed = true)
+            every { docker.inspectContainerCmd("craftpanel-srv-1") } returns inspectCmd
+            every { inspectCmd.exec() } returns inspectResponse
+
+            val snapshot = manager.inspectContainer("craftpanel-srv-1")!!
+
+            snapshot.image shouldBe "itzg/minecraft-server:latest"
+            snapshot.user shouldBe "1000"
+            snapshot.env shouldBe mapOf("MOTD" to "hi", "PVP" to "true")
+            snapshot.binds shouldBe listOf(BindSnapshot("/host/servers/srv-1", "/data", false))
+            snapshot.portBindings.sortedBy { it.containerPort } shouldBe listOf(
+                PortBindingSnapshot(19132, "udp", 19133),
+                PortBindingSnapshot(25565, "tcp", 25566)
+            )
+            snapshot.memoryMb shouldBe 1024
+            snapshot.cpuShares shouldBe 512
+            snapshot.labels shouldBe mapOf("craftpanel.managed" to "true", "mc-router.host" to "play.example.com")
+            snapshot.networkMode shouldBe "craftpanel-net-net-1"
+        }
+
+        test("inspectContainer returns null when the container does not exist") {
+            val inspectCmd = mockk<InspectContainerCmd>(relaxed = true)
+            every { docker.inspectContainerCmd("missing") } returns inspectCmd
+            every { inspectCmd.exec() } throws NotFoundException("no such container")
+
+            manager.inspectContainer("missing") shouldBe null
+        }
     })

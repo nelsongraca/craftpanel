@@ -543,6 +543,24 @@ ours), `isManagedContainerName(name)`, `isManagedNetwork(name)`.
   they are one-per-host infrastructure supplied as explicit config.
 - See ADR-0007.
 
+### ContainerSpecDiff (agent)
+
+The one module that answers "does the live container satisfy the desired spec?" — the
+recreate-if-diff decision. Pure: `ContainerSpecDiff.diff(spec, snapshot, hostDataBasePath): SpecDiff`,
+where `SpecDiff` is `Match` or `Mismatch(reasons)` with `SpecDiffReason` ∈ `IMAGE`, `USER`, `MEMORY`,
+`CPU`, `ENV`, `BIND`, `PORTS`, `HOSTNAME_LABEL`, `NETWORK_MODE`.
+
+- `ContainerOperator.diff(snapshot, spec)` supplies `config.hostDataBasePath`; the comparison itself
+  is pure and unit-tested directly with constructed `ContainerSnapshot`s (no fake needed).
+- `ConvergenceLoop` maps `diff is Match` to `ActualState.specMatches` and logs `Mismatch.reasons`
+  when a recreate is decided — replacing the old reason-less `matches(): Boolean`.
+- `stop_command` is never compared (agent-side action, not container config); an empty spec field
+  means "not managed" and its snapshot counterpart is not checked.
+- `DockerContainerManager.inspectContainer` (docker-inspect → `ContainerSnapshot`) now has its own
+  test with a constructed inspect response — the untested half the `FakeContainerManager` mirror
+  could never cover.
+- See architecture review 2026-09-16, candidate 4.
+
 ### WatcherGate (agent)
 
 The one module that decides "is this container death a crash worth reporting?"

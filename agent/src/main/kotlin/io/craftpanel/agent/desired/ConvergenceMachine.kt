@@ -11,7 +11,7 @@ data class ActualState(
      * inspect. `null` when the container is absent or could not be inspected — in which case the
      * decision falls back to the in-memory [DesiredState.appliedSpec].
      */
-    val specMatches: Boolean? = null,
+    val specMatches: Boolean? = null
 )
 
 /** What the agent must do to converge [DesiredState] towards [ActualState]. */
@@ -38,8 +38,15 @@ sealed interface ConvergenceDecision {
 data class ConvergenceResult(
     val decision: ConvergenceDecision,
     /** The [DesiredState] after this decision — one-shot flags cleared, counts advanced. */
-    val next: DesiredState,
+    val next: DesiredState
 )
+
+/** True when this decision tears down and recreates the container (as opposed to a plain start). */
+fun ConvergenceDecision.recreateRequested(): Boolean = when (this) {
+    is ConvergenceDecision.EnsureRunning -> recreate
+    is ConvergenceDecision.ConditionalRestart -> recreate
+    else -> false
+}
 
 /**
  * Pure next-state function for desired-state convergence. No Docker, no I/O, no clock —
@@ -67,7 +74,7 @@ object ConvergenceMachine {
         }
     }
 
-        private fun decideStopped(state: DesiredState, actual: ActualState): ConvergenceResult {
+    private fun decideStopped(state: DesiredState, actual: ActualState): ConvergenceResult {
         if (!actual.running) {
             // Already stopped (or never created) — converged. One-shot `force` is still cleared.
             return ConvergenceResult(ConvergenceDecision.NoOp, state.clearOneShots())
@@ -132,7 +139,7 @@ object ConvergenceMachine {
             restartCount = candidateCount,
             windowStartEpochMillis = state.windowStartEpochMillis ?: nowMillis,
             forceRestart = false,
-            force = false,
+            force = false
         )
         return ConvergenceResult(ConvergenceDecision.EnsureRunning(recreate), next)
     }

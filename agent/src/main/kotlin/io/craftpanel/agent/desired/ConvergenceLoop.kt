@@ -1,5 +1,6 @@
 package io.craftpanel.agent.desired
 
+import io.craftpanel.agent.docker.SpecDiff
 import io.craftpanel.agent.grpc.AgentOutbound
 import io.craftpanel.common.ContainerNames
 import io.craftpanel.proto.RestartBudget
@@ -143,11 +144,12 @@ class ConvergenceLoop(
         val running = containerPresent && operator.isRunning(containerName)
         // Inspect the live container so recreate-if-diff is based on its real configuration, not only
         // the in-memory applied spec (which is lost when the agent process restarts).
-        val specMatches = if (containerPresent && state.spec != null) {
-            operator.inspect(containerName)?.let { operator.matches(it, state.spec) }
+        val specDiff = if (containerPresent && state.spec != null) {
+            operator.inspect(containerName)?.let { operator.diff(it, state.spec) }
         } else {
             null
         }
+        val specMatches = specDiff?.let { it is SpecDiff.Match }
         if (specMatches == true && state.appliedSpec == null) {
             // Cache the confirmed spec so a later uninspectable converge still knows what is applied.
             store.upsert(serverId) { it.copy(appliedSpec = state.spec) }
@@ -155,6 +157,14 @@ class ConvergenceLoop(
         val actual = ActualState(containerPresent = containerPresent, running = running, specMatches = specMatches)
         val result = ConvergenceMachine.decide(state, actual)
         store.upsert(serverId) { result.next }
+        if (result.decision.recreateRequested()) {
+            log.info(
+                "Recreating container {} for server {} — live config differs from desired spec: {}",
+                containerName,
+                serverId,
+                (specDiff as? SpecDiff.Mismatch)?.reasons ?: "spec not inspectable; differs from last applied"
+            )
+        }
         // Graceful stop must use the stop command carried in the stored spec (text stdin or a
         // signal sentinel like "^C"/"SIGTERM"). Dropping it degrades every envelope-driven stop
         // to a bare Docker SIGTERM.
