@@ -1,5 +1,5 @@
 import {describe, it, expect, vi, beforeEach} from 'vitest'
-import {render, screen, waitFor} from '@testing-library/react'
+import {fireEvent, render, screen, waitFor} from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import {TotpSetupModal} from '../TotpSetupModal'
 
@@ -55,8 +55,29 @@ describe('TotpSetupModal', () => {
             expect(generated.authTotpEnable).toHaveBeenCalledWith({body: {code: '123456'}})
             expect(onEnabled).toHaveBeenCalled()
         })
-        expect(screen.getByText('AAAAAAAA')).toBeInTheDocument()
-        expect(screen.getByText('BBBBBBBB')).toBeInTheDocument()
+        expect(screen.getByLabelText('Recovery codes')).toHaveValue('AAAAAAAA\nBBBBBBBB')
+    })
+
+    it('copies all recovery codes with a single button', async () => {
+        vi.mocked(generated.authTotpSetup).mockResolvedValue({data: setupData, error: undefined} as never)
+        vi.mocked(generated.authTotpEnable).mockResolvedValue({data: undefined, error: undefined} as never)
+
+        render(<TotpSetupModal onClose={vi.fn()} onEnabled={vi.fn()}/>)
+
+        await screen.findByAltText('TOTP QR code')
+
+        const user = userEvent.setup()
+        // userEvent.setup() installs its own clipboard stub, so define ours after it.
+        const writeText = vi.fn().mockResolvedValue(undefined)
+        Object.defineProperty(navigator, 'clipboard', {value: {writeText}, configurable: true})
+
+        await user.type(screen.getByPlaceholderText('123456'), '123456')
+        await user.click(screen.getByRole('button', {name: 'Enable TOTP'}))
+        await screen.findByLabelText('Recovery codes')
+
+        fireEvent.click(screen.getByRole('button', {name: 'Copy all'}))
+
+        await waitFor(() => expect(writeText).toHaveBeenCalledWith('AAAAAAAA\nBBBBBBBB'))
     })
 
     it('keeps the verification form on an invalid code', async () => {
@@ -74,6 +95,6 @@ describe('TotpSetupModal', () => {
         await waitFor(() => {
             expect(screen.getByText('Invalid verification code')).toBeInTheDocument()
         })
-        expect(screen.queryByText('AAAAAAAA')).not.toBeInTheDocument()
+        expect(screen.queryByLabelText('Recovery codes')).not.toBeInTheDocument()
     })
 })

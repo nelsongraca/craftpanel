@@ -138,17 +138,26 @@ export function TotpSetupModal({onClose, onEnabled}: TotpSetupModalProps) {
                         Save these recovery codes in a safe place. Each can be used once to sign in if you
                         lose your authenticator. They won&apos;t be shown again.
                     </p>
-                    <div className="grid grid-cols-1 gap-1.5">
-                        {setup?.recovery_codes.map((rc) => (
-                            <div key={rc} className="flex items-center gap-2">
-                                <code className="flex-1 font-mono text-xs text-text-primary bg-surface-high border border-border rounded px-3 py-1.5">
-                                    {rc}
-                                </code>
-                                <button className={BTN_GHOST} onClick={() => copy(`rc-${rc}`, rc)}>
-                                    {copied?.key === `rc-${rc}` ? "Copied!" : "Copy"}
-                                </button>
-                            </div>
-                        ))}
+                    <div className="space-y-1.5">
+                        <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">
+                            Recovery codes
+                        </p>
+                        <div className="flex items-start gap-2">
+                            <textarea
+                                readOnly
+                                aria-label="Recovery codes"
+                                value={(setup?.recovery_codes ?? []).join("\n")}
+                                rows={Math.max(setup?.recovery_codes?.length ?? 0, 1)}
+                                onFocus={(e) => e.currentTarget.select()}
+                                className="flex-1 font-mono text-xs text-text-primary bg-surface-high border border-border rounded px-3 py-2 resize-none"
+                            />
+                            <button
+                                className={BTN_GHOST}
+                                onClick={() => copy("all", (setup?.recovery_codes ?? []).join("\n"))}
+                            >
+                                {copied?.key === "all" ? "Copied!" : "Copy all"}
+                            </button>
+                        </div>
                     </div>
                     <div className="flex justify-end">
                         <button className={BTN_PRIMARY} onClick={onClose}>

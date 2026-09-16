@@ -113,8 +113,7 @@ describe('AccountPage', () => {
 
         await waitFor(() => {
             expect(generated.authTotpEnable).toHaveBeenCalledWith({body: {code: '123456'}})
-            expect(screen.getByText('AAAAAAAA')).toBeInTheDocument()
-            expect(screen.getByText('BBBBBBBB')).toBeInTheDocument()
+            expect(screen.getByLabelText('Recovery codes')).toHaveValue('AAAAAAAA\nBBBBBBBB')
         })
     })
 
