@@ -19,7 +19,7 @@ class RouterSupervisor(private val provisioner: McRouterProvisioner) {
             val ok = runCatching {
                 provisioner.ensureRunning()
                 _isRunning.set(true)
-                log.info("mc-router running")
+                log.debug("mc-router running")
             }.onFailure { e ->
                 _isRunning.set(false)
                 log.warn("mc-router provisioning failed — retrying in ${backoffSeconds}s: ${e.message}")
