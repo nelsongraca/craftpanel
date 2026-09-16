@@ -9,7 +9,7 @@ import kotlin.uuid.Uuid
  */
 class FakeRepositories {
 
-    val servers = mutableMapOf<Uuid, FakeServerRepository.MutableServer>()
+    val servers = mutableMapOf<Uuid, ServerView>()
     val envVars = mutableMapOf<Uuid, MutableList<EnvVarRow>>()
     val mods = mutableMapOf<Uuid, MutableMap<Uuid, FakeServerRepository.MutableMod>>()
     val migrations = mutableMapOf<Uuid, FakeServerRepository.MutableMigration>()

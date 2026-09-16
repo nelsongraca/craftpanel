@@ -177,7 +177,7 @@ class NetworkService(
 
     fun deleteNetwork(id: Uuid) {
         networkRepository.findById(id) ?: throw NotFoundException("Network not found")
-        transaction { Servers.selectAll().where { Servers.networkId eq id }.forEach { Server.findById(it[Servers.id])?.let { s -> s.networkId = null } } }
+        // Servers.network_id is ON DELETE SET_NULL, so member servers are detached by the FK.
         transaction { Network.findById(id)?.delete() }
         deleteOverlayNetwork(id.toString())
     }

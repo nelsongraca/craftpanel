@@ -103,7 +103,7 @@ class ResourceCapacityCheckerTest :
             nodes.setCapacity(node.id, totalRamMb = 2048, totalCpuShares = 2048, reservedRamMb = 0)
             val freshNode = nodes.findById(node.id)!!
             val sid = Uuid.random()
-            repos.servers[sid] = FakeServerRepository.MutableServer(
+            repos.servers[sid] = fakeServerView(
                 id = sid, name = "existing", displayName = "existing", description = null,
                 nodeId = node.id, networkId = null, serverType = ServerType.VANILLA,
                 mcVersion = "1.21.4", itzgImageTag = "latest", hostPort = 25565,
@@ -125,7 +125,7 @@ class ResourceCapacityCheckerTest :
             nodes.setCapacity(node.id, totalRamMb = 2048, totalCpuShares = 2048, reservedRamMb = 0)
             val freshNode = nodes.findById(node.id)!!
             val existingId = Uuid.random()
-            repos.servers[existingId] = FakeServerRepository.MutableServer(
+            repos.servers[existingId] = fakeServerView(
                 id = existingId, name = "existing", displayName = "existing", description = null,
                 nodeId = node.id, networkId = null, serverType = ServerType.VANILLA,
                 mcVersion = "1.21.4", itzgImageTag = "latest", hostPort = 25565,

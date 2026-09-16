@@ -1,6 +1,7 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.config.ImagesConfig
+import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.domain.ServerStatus
@@ -10,6 +11,7 @@ import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.proto.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.filterIsInstance
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
@@ -59,6 +61,10 @@ class ContainerLifecycle(
         )
     }
 
+    private fun setDesiredStatus(id: Uuid, value: String?) {
+        transaction { Server.findById(id)?.let { it.desiredStatus = value } }
+    }
+
     // ── Await-based primitives (used by MigrationService for cross-node relocation) ─
 
     /**
@@ -69,7 +75,7 @@ class ContainerLifecycle(
         ensureStartable(server)
         val id = server.id
         val previous = serverRepository.findById(id)?.desiredStatus
-        serverRepository.updateDesiredStatus(id, DesiredStatus.RUNNING.toDb())
+        setDesiredStatus(id, DesiredStatus.RUNNING.toDb())
         try {
             awaitStatus(id.toString(), ServerStatus.HEALTHY, startTimeout) {
                 if (!sendDesiredState(server, DesiredStatus.RUNNING, nodeId, publicHostname = publicHostname)) {
@@ -77,7 +83,7 @@ class ContainerLifecycle(
                 }
             }
         } catch (e: Exception) {
-            serverRepository.updateDesiredStatus(id, previous)
+            setDesiredStatus(id, previous)
             throw e
         }
     }
@@ -86,7 +92,7 @@ class ContainerLifecycle(
     suspend fun stop(server: ServerView, nodeId: String) {
         val id = server.id
         val previous = serverRepository.findById(id)?.desiredStatus
-        serverRepository.updateDesiredStatus(id, DesiredStatus.STOPPED.toDb())
+        setDesiredStatus(id, DesiredStatus.STOPPED.toDb())
         try {
             awaitStatus(id.toString(), ServerStatus.STOPPED, stopTimeout) {
                 if (!sendDesiredState(server, DesiredStatus.STOPPED, nodeId)) {
@@ -94,7 +100,7 @@ class ContainerLifecycle(
                 }
             }
         } catch (e: Exception) {
-            serverRepository.updateDesiredStatus(id, previous)
+            setDesiredStatus(id, previous)
             throw e
         }
     }

@@ -1,11 +1,13 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.ServerRepository
 import io.craftpanel.master.service.repo.ServerView
 import io.craftpanel.master.service.repo.disabledReason
 import io.craftpanel.master.service.repo.isDisabled
+import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
 /**
@@ -40,9 +42,9 @@ class ServerLifecycleService(
         // container — force a restart so the agent retries past its exhausted crash budget.
         val forceRestart = desired == DesiredStatus.RUNNING
         val previous = serverRow.desiredStatus
-        serverRepository.updateDesiredStatus(id, DesiredStatus.RUNNING.toDb())
+        setDesiredStatus(id, DesiredStatus.RUNNING.toDb())
         if (!lifecycle.sendDesiredState(serverRow, DesiredStatus.RUNNING, forceRestart = forceRestart, publicHostname = publicHostname)) {
-            serverRepository.updateDesiredStatus(id, previous)
+            setDesiredStatus(id, previous)
             throw BadGatewayException("Agent not connected")
         }
     }
@@ -57,9 +59,9 @@ class ServerLifecycleService(
         if (serverRow.isDisabled()) throw ConflictException(serverRow.disabledReason())
         writeProxyPatch(serverRow)
         val previous = serverRow.desiredStatus
-        serverRepository.updateDesiredStatus(id, DesiredStatus.RUNNING.toDb())
+        setDesiredStatus(id, DesiredStatus.RUNNING.toDb())
         if (!lifecycle.sendDesiredState(serverRow, DesiredStatus.RUNNING, forceRestart = true, publicHostname = serverExposure.mcRouterLabel(serverRow))) {
-            serverRepository.updateDesiredStatus(id, previous)
+            setDesiredStatus(id, previous)
             throw BadGatewayException("Agent not connected")
         }
     }
@@ -70,11 +72,15 @@ class ServerLifecycleService(
             throw ConflictException("Server is already stopped")
         }
         val previous = serverRow.desiredStatus
-        serverRepository.updateDesiredStatus(id, DesiredStatus.STOPPED.toDb())
+        setDesiredStatus(id, DesiredStatus.STOPPED.toDb())
         if (!lifecycle.sendDesiredState(serverRow, DesiredStatus.STOPPED, force = force)) {
-            serverRepository.updateDesiredStatus(id, previous)
+            setDesiredStatus(id, previous)
             throw BadGatewayException("Agent not connected")
         }
+    }
+
+    private fun setDesiredStatus(id: Uuid, value: String?) {
+        transaction { Server.findById(id)?.let { it.desiredStatus = value } }
     }
 
     private suspend fun writeProxyPatch(server: ServerView) {

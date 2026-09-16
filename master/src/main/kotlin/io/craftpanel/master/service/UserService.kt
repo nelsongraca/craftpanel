@@ -1,10 +1,10 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.database.entity.User
 import io.craftpanel.master.database.schema.RefreshTokens
 import io.craftpanel.master.database.schema.UserGroupAssignments
 import io.craftpanel.master.database.schema.Users
-import io.craftpanel.master.auth.Argon2Hasher
 import io.craftpanel.master.service.repo.UserRepository
 import io.craftpanel.master.service.repo.UserRow
 import io.craftpanel.master.util.toUtcString
@@ -16,25 +16,13 @@ import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
 @Serializable
-data class CreateUserRequest(
-    val username: String,
-    val email: String,
-    val password: String,
-    @SerialName("force_password_change") val forcePasswordChange: Boolean? = false
-)
+data class CreateUserRequest(val username: String, val email: String, val password: String, @SerialName("force_password_change") val forcePasswordChange: Boolean? = false)
 
 @Serializable
-data class PatchUserRequest(
-    val username: String? = null,
-    val email: String? = null,
-    @SerialName("is_active") val isActive: Boolean? = null,
-)
+data class PatchUserRequest(val username: String? = null, val email: String? = null, @SerialName("is_active") val isActive: Boolean? = null)
 
 @Serializable
-data class ResetPasswordRequest(
-    val password: String,
-    @SerialName("force_password_change") val forcePasswordChange: Boolean? = true
-)
+data class ResetPasswordRequest(val password: String, @SerialName("force_password_change") val forcePasswordChange: Boolean? = true)
 
 @Serializable
 data class UserResponse(
@@ -45,7 +33,7 @@ data class UserResponse(
     @SerialName("created_at") val createdAt: String,
     @SerialName("must_change_password") val mustChangePassword: Boolean = false,
     val groups: List<String> = emptyList(),
-    @SerialName("last_login_at") val lastLoginAt: String? = null,
+    @SerialName("last_login_at") val lastLoginAt: String? = null
 )
 
 @Serializable
@@ -53,10 +41,10 @@ data class UsersListResponse(val users: List<UserResponse>)
 
 class UserService(private val userRepository: UserRepository) {
 
-    fun listUsers(): UsersListResponse =
-        UsersListResponse(
-            userRepository.listAll()
-                .map { it.toResponse(userRepository) })
+    fun listUsers(): UsersListResponse = UsersListResponse(
+        userRepository.listAll()
+            .map { it.toResponse(userRepository) }
+    )
 
     fun createUser(req: CreateUserRequest): UserResponse {
         val hash = Argon2Hasher.hash(req.password)
@@ -84,9 +72,8 @@ class UserService(private val userRepository: UserRepository) {
         }.toResponse(userRepository)
     }
 
-    fun getUser(targetId: Uuid): UserResponse =
-        userRepository.findById(targetId)
-            ?.toResponse(userRepository) ?: throw NotFoundException("User not found")
+    fun getUser(targetId: Uuid): UserResponse = userRepository.findById(targetId)
+        ?.toResponse(userRepository) ?: throw NotFoundException("User not found")
 
     fun updateUser(targetId: Uuid, req: PatchUserRequest): UserResponse {
         userRepository.findById(targetId) ?: throw NotFoundException("User not found")
@@ -110,12 +97,8 @@ class UserService(private val userRepository: UserRepository) {
 
     fun deleteUser(targetId: Uuid) {
         userRepository.findById(targetId) ?: throw NotFoundException("User not found")
-        transaction {
-            UserGroupAssignments.deleteWhere { UserGroupAssignments.userId eq targetId }
-            RefreshTokens.deleteWhere { RefreshTokens.userId eq targetId }
-            User.findById(targetId)
-                ?.delete()
-        }
+        // Child rows (assignments, refresh tokens, recovery codes, trusted devices) cascade from Users.
+        transaction { User.findById(targetId)?.delete() }
     }
 
     fun resetPassword(targetId: Uuid, req: ResetPasswordRequest) {
@@ -139,5 +122,5 @@ private fun UserRow.toResponse(repo: UserRepository) = UserResponse(
     createdAt = createdAt,
     mustChangePassword = mustChangePassword,
     groups = repo.getUserGlobalGroups(id).map { it.groupName },
-    lastLoginAt = lastLoginAt,
+    lastLoginAt = lastLoginAt
 )

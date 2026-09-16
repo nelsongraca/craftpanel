@@ -76,6 +76,4 @@ interface ServerRepository {
     fun listExpiredRunning(now: kotlinx.datetime.LocalDateTime): List<ServerView>
     fun countByNetworkId(networkId: Uuid): Int
     fun countByNodeId(nodeId: Uuid): Int
-    fun updateDesiredStatus(id: Uuid, value: String?)
-    fun updateForwardingSecret(id: Uuid, enc: String)
 }

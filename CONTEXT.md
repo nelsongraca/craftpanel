@@ -471,33 +471,38 @@ visibility (was a private nested class).
 
 ### DAO Entity seam (master)
 
-The one pattern for all database writes. Uses Exposed DAO entities with
-automatic dirty tracking instead of the DSL `update {}` pattern. Services own
-`transaction {}` boundaries; repositories keep only read-side query methods.
-FK `ON DELETE CASCADE` replaces manual cascade in repo `delete()` methods.
+The one pattern for database writes and the read projection. Exposed DAO entities
+provide automatic dirty tracking; services own `transaction {}` boundaries. See
+ADR-0004 (+ its 2026-09-16 amendment).
 
-- **Entity** — `ServerEntity(id: EntityID<Uuid>) : UUIDEntity(id)`, one `var`
-  per column. Exposed generates `UPDATE only_changed_columns …` at flush time.
-- **Repository interface** — query methods only (`findById`, `listAll`, …),
-  returns `ServerView` (read-only data class). No update/delete/insert methods.
-- **Delete** — FK cascade from `Servers` to child tables (env_vars, mods,
-  backups, ports, migrations, proxy_backends, container_metrics, server_jobs).
-  No 8-repo delete ceremony.
-- **Service** — opens `transaction { }`, reads via repo, mutates via entity.
-  Pattern:
+- **Entity** — `Server(id: EntityID<Uuid>) : UuidEntity(id)`, one `var` per
+  column. Exposed generates `UPDATE only_changed_columns …` at flush time.
+- **Single projection** — `Server.toServerView()` is the one mapping to the
+  detached, immutable **ServerView** (renamed from `ServerRow`). No `ResultRow`
+  mapping, no test mirror. Reads query entities.
+- **Repository** — exposes reads plus *behavioural* operations. No bare column
+  setters (`updateDesiredStatus`/`updateForwardingSecret` were removed — those
+  are entity writes in the calling service). A repository survives when it earns
+  its keep by **behaviour** (cache + `EntityHook`, allocation, token/alert
+  lifecycle) **or leverage** (one query, many call sites) — see the amendment;
+  the "drop trivial repos" phase 3 is withdrawn.
+- **Delete** — FK `ON DELETE CASCADE` (and `SET_NULL` for `Servers.network_id`)
+  is the only cascade. No manual `deleteWhere` ceremony in services.
+  `AlertThresholds`/`AlertEvents` are polymorphic (no FK) and are *not* cascaded
+  on server delete — tracked separately.
+- **Service** — opens `transaction { }`, reads via repo, mutates via entity:
   ```kotlin
   transaction {
-      val s = ServerEntity.findById(id) ?: throw NotFoundException()
-      s.status = "STARTING"
+      val s = Server.findById(id) ?: throw NotFoundException()
+      s.desiredStatus = "RUNNING"
   }
   ```
-- **Testing** — `FakeServerRepository` for unit tests (queries only).
-  Entity-write tests use `TestDatabase` + `transaction { }`.
-- **Scope** — start with `Servers`/`ServerEntity`. Expand to all tables
-  (Nodes, Networks, Users, Groups, Backups, Mods, …) in follow-up passes.
-  Each table gets `FooEntity`, its `FooRepository` shrinks to queries only,
-  `FooService` opens `transaction { mutate(entity) }`.
-- See architecture review 2026-07-30, candidate 3.
+- **Testing** — fakes store `ServerView` (built via `fakeServerView(...)`);
+  `TestDatabase.reset()` keeps referential integrity ON so FK cascade is real.
+  `CascadeDeleteTest` asserts it for server/user/group/network roots.
+- **Scope** — `Servers` demonstrates the pattern; other tables follow as their
+  write paths are touched. `ServerProvisioning` is the create-side entry point.
+- See architecture review 2026-07-30 candidate 3, and 2026-09-16 (write seam).
 
 ### ServerProvisioning (master)
 

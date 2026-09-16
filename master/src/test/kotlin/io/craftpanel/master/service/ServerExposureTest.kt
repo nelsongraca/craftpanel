@@ -4,6 +4,7 @@ import io.craftpanel.master.service.repo.FakeRepositories
 import io.craftpanel.master.service.repo.FakeServerRepository
 import io.craftpanel.master.service.repo.FakeSettingsRepository
 import io.craftpanel.master.service.repo.ServerView
+import io.craftpanel.master.service.repo.fakeServerView
 import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.nulls.shouldBeNull
@@ -172,7 +173,7 @@ class ServerExposureTest :
 
             test("rejects collision with another server's custom hostname") {
                 val otherId = Uuid.random()
-                repos.servers[otherId] = FakeServerRepository.MutableServer(
+                repos.servers[otherId] = fakeServerView(
                     id = otherId,
                     name = "other", displayName = "other", description = null,
                     nodeId = Uuid.random(), networkId = null, serverType = ServerType.VANILLA,
@@ -187,7 +188,7 @@ class ServerExposureTest :
 
             test("allows a server to keep its own custom hostname (excludeServerId)") {
                 val serverId = Uuid.random()
-                repos.servers[serverId] = FakeServerRepository.MutableServer(
+                repos.servers[serverId] = fakeServerView(
                     id = serverId,
                     name = "self", displayName = "self", description = null,
                     nodeId = Uuid.random(), networkId = null, serverType = ServerType.VANILLA,
@@ -200,7 +201,7 @@ class ServerExposureTest :
 
             test("rejects collision with a managed DNS record name") {
                 val otherId = Uuid.random()
-                repos.servers[otherId] = FakeServerRepository.MutableServer(
+                repos.servers[otherId] = fakeServerView(
                     id = otherId,
                     name = "other2", displayName = "other2", description = null,
                     nodeId = Uuid.random(), networkId = null, serverType = ServerType.VANILLA,

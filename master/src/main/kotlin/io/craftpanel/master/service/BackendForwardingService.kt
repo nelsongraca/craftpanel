@@ -56,9 +56,28 @@ class BackendForwardingService(
                     writeFile(backend.backendServerId, patchFileName(classification.file), patchJson.toByteArray())
                     transaction {
                         val existingOnline = EnvVar.find { (ServerEnvVars.serverId eq backend.backendServerId) and (ServerEnvVars.key eq "ONLINE_MODE") }.firstOrNull()
-                        if (existingOnline != null) existingOnline.value = "false" else EnvVar.new { this.serverId = EntityID(backend.backendServerId, Servers); key = "ONLINE_MODE"; value = "false" }
+                        if (existingOnline != null) {
+                            existingOnline.value = "false"
+                        } else {
+                            EnvVar.new {
+                                this.serverId = EntityID(backend.backendServerId, Servers)
+                                key = "ONLINE_MODE"
+                                value = "false"
+                            }
+                        }
                         val existingPatch = EnvVar.find { (ServerEnvVars.serverId eq backend.backendServerId) and (ServerEnvVars.key eq "PATCH_DEFINITIONS") }.firstOrNull()
-                        if (existingPatch != null) existingPatch.value = patchFileEnvValue(classification.file) else EnvVar.new { this.serverId = EntityID(backend.backendServerId, Servers); key = "PATCH_DEFINITIONS"; value = patchFileEnvValue(classification.file) }
+                        if (existingPatch !=
+                            null
+                        ) {
+                            existingPatch.value = patchFileEnvValue(classification.file)
+                        } else {
+                            EnvVar.new {
+                                this.serverId = EntityID(backend.backendServerId, Servers)
+                                key = "PATCH_DEFINITIONS"
+                                value =
+                                    patchFileEnvValue(classification.file)
+                            }
+                        }
                     }
                 }
             }
@@ -79,7 +98,7 @@ class BackendForwardingService(
         }
         val plain = generateSecret()
         val enc = cipher.encrypt(plain)
-        serverRepository.updateForwardingSecret(proxyServerId, enc)
+        transaction { Server.findById(proxyServerId)?.let { it.forwardingSecretEnc = enc } }
         return plain
     }
 

@@ -206,16 +206,16 @@ class ServerRepositoryImplTest :
             serverRepository.findById(id)!!.name shouldBe "srv-a"
         }
 
-        test("updateDesiredStatus and updateForwardingSecret invalidate via the hook") {
+        test("entity writes invalidate the cached view via the hook") {
             val nodeId = createNode()
             val id = createServer(nodeId, name = "srv")
 
             serverRepository.findById(id)!!.desiredStatus shouldBe null
 
-            serverRepository.updateDesiredStatus(id, "RUNNING")
+            transaction { Server.findById(id)?.let { it.desiredStatus = "RUNNING" } }
             serverRepository.findById(id)!!.desiredStatus shouldBe "RUNNING"
 
-            serverRepository.updateForwardingSecret(id, "secret-enc")
+            transaction { Server.findById(id)?.let { it.forwardingSecretEnc = "secret-enc" } }
             serverRepository.findById(id)!!.forwardingSecretEnc shouldBe "secret-enc"
         }
     })

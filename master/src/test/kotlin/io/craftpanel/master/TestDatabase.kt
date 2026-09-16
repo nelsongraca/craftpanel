@@ -27,14 +27,14 @@ object TestDatabase {
 
     fun reset() {
         transaction {
-            exec("SET REFERENTIAL_INTEGRITY FALSE")
+            // Referential integrity stays ON so tests exercise the real FK cascade/SET_NULL behaviour.
+            // Deletion is children-first purely so the explicit clear does not depend on cascade.
             listOf(
                 AlertEvents, AlertThresholds, Backups, ServerMods, ProxyBackends,
                 MigrationStepLog, ServerMigrations, PortRegistry, ContainerMetrics,
                 NodeMetrics, ServerEnvVars, ServerJobs, ServerExtraPorts, Servers, Nodes, ServerNetworks,
                 SystemSettings, TrustedDevices, RefreshTokens, RecoveryCodes, UserGroupAssignments, Groups, Users
             ).forEach { it.deleteAll() }
-            exec("SET REFERENTIAL_INTEGRITY TRUE")
             seedSystemGroups()
         }
     }

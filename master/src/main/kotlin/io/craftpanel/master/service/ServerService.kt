@@ -1,11 +1,8 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.database.entity.EnvVar
-import io.craftpanel.master.database.entity.Mod
 import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.Backups
 import io.craftpanel.master.database.schema.ContainerMetrics
-import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.PortRegistry
 import io.craftpanel.master.database.schema.ProxyBackends
 import io.craftpanel.master.database.schema.ServerEnvVars
@@ -17,19 +14,17 @@ import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.domain.ServerStatus
-import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.domain.synthesizeStatus
-import io.craftpanel.master.service.repo.*
-import io.craftpanel.master.service.repo.impl.*
-import io.craftpanel.master.util.parseUtcInstant
+import io.craftpanel.master.service.repo.NetworkRepository
+import io.craftpanel.master.service.repo.NodeRepository
+import io.craftpanel.master.service.repo.ServerRepository
+import io.craftpanel.master.service.repo.ServerView
+import io.craftpanel.master.service.repo.SettingsRepository
 import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.removeContainerCommand
-import kotlinx.datetime.TimeZone
-import kotlinx.datetime.toLocalDateTime
-import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
-import org.jetbrains.exposed.v1.jdbc.*
-import org.jetbrains.exposed.v1.jdbc.selectAll
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
 import kotlin.uuid.Uuid
@@ -144,15 +139,8 @@ class ServerService(
         )
 
         transaction {
-            PortRegistry.deleteWhere { PortRegistry.serverId eq id }
-            ServerMods.deleteWhere { ServerMods.serverId eq id }
-            ServerJobs.deleteWhere { ServerJobs.serverId eq id }
-            ServerMigrations.deleteWhere { ServerMigrations.serverId eq id }
-            ServerEnvVars.deleteWhere { ServerEnvVars.serverId eq id }
-            Backups.deleteWhere { Backups.serverId eq id }
-            ContainerMetrics.deleteWhere { ContainerMetrics.serverId eq id }
-            ProxyBackends.deleteWhere { ProxyBackends.proxyServerId eq id }
-            ProxyBackends.deleteWhere { ProxyBackends.backendServerId eq id }
+            // Every child table (ports, mods, jobs, migrations, env vars, backups, container metrics,
+            // proxy backends) declares ON DELETE CASCADE, so deleting the server row removes them.
             Server.findById(id)
                 ?.delete()
         }
