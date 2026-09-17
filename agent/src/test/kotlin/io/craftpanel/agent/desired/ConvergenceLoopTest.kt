@@ -57,9 +57,10 @@ class ConvergenceLoopTest :
             outbound: AgentOutbound,
             scope: CoroutineScope = newScope(),
             store: DesiredStateStore = DesiredStateStore(),
+            startConflictRetryDelayMs: Long = 5_000L,
         ) = ConvergenceLoop(
             store = store,
-            operator = ContainerOperator(cm, mockk<NetworkManager>(relaxed = true), config),
+            operator = ContainerOperator(cm, mockk<NetworkManager>(relaxed = true), config, startConflictRetryDelayMs = startConflictRetryDelayMs),
             containerNamePrefix = config.containerNamePrefix,
             out = outbound,
             scope = scope,
@@ -334,6 +335,29 @@ class ConvergenceLoopTest :
             cm.failStart = true
             val (channel, out) = newOutbound()
             val loop = newLoop(cm, out)
+
+            runBlocking { loop.applyDesired(desiredRunning(spec = startCmd())).join() }
+
+            channel.statuses().last().status shouldBe ServerStatusUpdate.ServerStatus.UNHEALTHY
+        }
+
+        test("a transient host-port conflict is retried until the port frees up") {
+            val cm = FakeContainerManager()
+            cm.startPortConflicts = 2
+            val (channel, out) = newOutbound()
+            val loop = newLoop(cm, out, startConflictRetryDelayMs = 1L)
+
+            runBlocking { loop.applyDesired(desiredRunning(spec = startCmd())).join() }
+
+            channel.statuses().last().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
+            cm.containers["craftpanel-srv-1"]?.state shouldBe FakeContainerManager.State.RUNNING
+        }
+
+        test("a persistent host-port conflict still reports UNHEALTHY") {
+            val cm = FakeContainerManager()
+            cm.startPortConflicts = 100
+            val (channel, out) = newOutbound()
+            val loop = newLoop(cm, out, startConflictRetryDelayMs = 1L)
 
             runBlocking { loop.applyDesired(desiredRunning(spec = startCmd())).join() }
 

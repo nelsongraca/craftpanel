@@ -45,6 +45,9 @@ class FakeContainerManager(private val containerNamePrefix: String = "craftpanel
     /** When true, [startContainer] throws before starting (start failure injection). */
     var failStart = false
 
+    /** When > 0, [startContainer] throws a Docker host-port conflict this many times, then succeeds. */
+    var startPortConflicts = 0
+
     /** When > 0, [stopContainer] blocks this many millis first (simulates a hanging graceful stop). */
     var stopBlockMs: Long = 0
 
@@ -83,6 +86,12 @@ class FakeContainerManager(private val containerNamePrefix: String = "craftpanel
 
     override fun startContainer(containerName: String) {
         calls.add("start:$containerName")
+        if (startPortConflicts > 0) {
+            startPortConflicts--
+            throw IllegalStateException(
+                "failed to bind host port for 0.0.0.0:40002:172.21.0.3:25577/tcp: address already in use"
+            )
+        }
         if (failStart) throw RuntimeException("injected start failure")
         require(containerName).state = State.RUNNING
         gate.markStarted(serverIdOf(containerName))
