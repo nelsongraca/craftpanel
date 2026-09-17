@@ -84,12 +84,15 @@ class ServerDataDirOverrideTest : BaseSystemTest() {
                 }.statusCode shouldBe 422
             }
 
-            should("recreate a running server onto the new directory when the override changes") {
+            should("defer a running server directory change until restart") {
                 ensureRunning()
                 val beforeId = docker.inspectContainerCmd(containerName(serverId)).exec().id
 
                 val runtimeName = "cp-runtime-${System.currentTimeMillis()}"
                 api.updateServerDataDir(serverId, UpdateServerDataDirRequest(dataDirName = runtimeName))
+
+                api.restartServer(serverId)
+                helper.awaitStatus(serverId, ServerStatus.HEALTHY)
 
                 val recreated = pollUntilNotNull(30_000) {
                     inspectOrNull()
@@ -102,15 +105,12 @@ class ServerDataDirOverrideTest : BaseSystemTest() {
                 (recreated != null) shouldBe true
             }
 
-            should("clear the override and remount at the server-id directory") {
-                api.updateServerDataDir(
-                    serverId,
-                    UpdateServerDataDirRequest(dataDirName = "cp-cleared-${System.currentTimeMillis()}")
-                )
-                api.getServer(serverId).dataDirName shouldNotBe null
-
+            should("defer clearing the override until restart") {
                 api.updateServerDataDir(serverId, UpdateServerDataDirRequest(dataDirName = null))
                 api.getServer(serverId).dataDirName shouldBe null
+
+                api.restartServer(serverId)
+                helper.awaitStatus(serverId, ServerStatus.HEALTHY)
 
                 val remounted = pollUntilNotNull(30_000) {
                     inspectOrNull()
