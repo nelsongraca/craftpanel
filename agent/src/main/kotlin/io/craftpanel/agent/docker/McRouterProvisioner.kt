@@ -33,13 +33,20 @@ class McRouterProvisioner(private val docker: DockerClient, private val image: S
             // The host-port binding is always set on creation and not re-checked here: Docker inspect
             // may not expose bindings via networkSettings.ports inside the container network, and
             // a running shared container must not be destroyed while co-located agents depend on it.
-            val env = existing.config?.env.orEmpty()
-            val hasAutoDiscovery = env.any { it == "IN_DOCKER=true" }
-            val hasDynamicProxyProtocol = env.any { it == "DYNAMIC_PROXY_PROTOCOL=true" }
             val socketGid = this.socketGid
-            val hasSocketGroup = socketGid == null || existing.hostConfig?.groupAdd?.contains(socketGid) == true
-            if (!hasAutoDiscovery || !hasDynamicProxyProtocol || !hasSocketGroup) {
-                log.info("mc-router drift (autoDiscovery=$hasAutoDiscovery, dynamicProxyProtocol=$hasDynamicProxyProtocol, socketGroup=$hasSocketGroup) — recreating")
+            // The configured image can change (MCROUTER_IMAGE, or a different default across agent
+            // releases). Recreate when the container was built from a different image — otherwise
+            // switching the image on an existing node would never take effect. Recreating falls
+            // through to the pull path below, so an image that is absent locally is still fetched.
+            val drift = routerContainerDrift(
+                env = existing.config?.env.orEmpty().toList(),
+                groupAdd = existing.hostConfig?.groupAdd,
+                containerImage = existing.config?.image,
+                expectedImage = image,
+                socketGid = socketGid
+            )
+            if (drift.isNotEmpty()) {
+                log.info("mc-router drift (${drift.joinToString(", ")}) — recreating")
                 runCatching {
                     docker.removeContainerCmd(existing.id)
                         .withForce(true)
@@ -222,4 +229,17 @@ class McRouterProvisioner(private val docker: DockerClient, private val image: S
                 .awaitCompletion()
         }
     }
+}
+
+/**
+ * Names of the configuration checks an existing mc-router container fails; empty when it matches the
+ * agent's configured router. Covers the label-based auto-discovery env flags, the docker.sock group
+ * membership, and the container image. Pure so the drift matrix is table-testable — a non-empty
+ * result means the container must be recreated.
+ */
+internal fun routerContainerDrift(env: List<String>, groupAdd: List<String>?, containerImage: String?, expectedImage: String, socketGid: String?): List<String> = buildList {
+    if (env.none { it == "IN_DOCKER=true" }) add("autoDiscovery")
+    if (env.none { it == "DYNAMIC_PROXY_PROTOCOL=true" }) add("dynamicProxyProtocol")
+    if (socketGid != null && groupAdd?.contains(socketGid) != true) add("socketGroup")
+    if (containerImage != expectedImage) add("image")
 }

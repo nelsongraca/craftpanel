@@ -106,7 +106,12 @@ class ConnectionManager(
                     val convergenceScope = CoroutineScope(SupervisorJob())
                     val loop = ConvergenceLoop(
                         store = koin.get<DesiredStateStore>(),
-                        operator = ContainerOperator(containerManager, checkNotNull(networkManager), config),
+                        operator = ContainerOperator(
+                            containerManager,
+                            checkNotNull(networkManager),
+                            config,
+                            ensureRouterRunning = { checkNotNull(routerSupervisor).ensureReady() }
+                        ),
                         containerNamePrefix = config.containerNamePrefix,
                         out = out,
                         scope = convergenceScope

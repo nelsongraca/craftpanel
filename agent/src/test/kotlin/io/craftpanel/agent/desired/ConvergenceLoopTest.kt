@@ -1,8 +1,8 @@
 package io.craftpanel.agent.desired
 
 import io.craftpanel.agent.config.AgentConfig
-import io.craftpanel.agent.docker.FakeContainerManager
 import io.craftpanel.agent.docker.ContainerManager
+import io.craftpanel.agent.docker.FakeContainerManager
 import io.craftpanel.agent.docker.NetworkManager
 import io.craftpanel.agent.grpc.AgentOutbound
 import io.craftpanel.agent.grpc.handlers.DesiredStateHandler
@@ -58,34 +58,40 @@ class ConvergenceLoopTest :
             scope: CoroutineScope = newScope(),
             store: DesiredStateStore = DesiredStateStore(),
             startConflictRetryDelayMs: Long = 5_000L,
+            ensureRouterRunning: suspend () -> Unit = {}
         ) = ConvergenceLoop(
             store = store,
-            operator = ContainerOperator(cm, mockk<NetworkManager>(relaxed = true), config, startConflictRetryDelayMs = startConflictRetryDelayMs),
+            operator = ContainerOperator(
+                cm,
+                mockk<NetworkManager>(relaxed = true),
+                config,
+                ensureRouterRunning = ensureRouterRunning,
+                startConflictRetryDelayMs = startConflictRetryDelayMs
+            ),
             containerNamePrefix = config.containerNamePrefix,
             out = outbound,
-            scope = scope,
+            scope = scope
         )
 
-        fun startCmd(serverId: String = "srv-1", serverName: String = "myserver", image: String = "itzg/minecraft-server:latest") =
-            startContainerCommand {
-                containerName = "craftpanel-$serverId"
-                this.serverId = serverId
-                this.serverName = serverName
-                this.image = image
-                hostPort = 25565
-                internalListenPort = 25565
-            }
+        fun startCmd(serverId: String = "srv-1", serverName: String = "myserver", image: String = "itzg/minecraft-server:latest", publicHostname: String = "") = startContainerCommand {
+            containerName = "craftpanel-$serverId"
+            this.serverId = serverId
+            this.serverName = serverName
+            this.image = image
+            this.publicHostname = publicHostname
+            hostPort = 25565
+            internalListenPort = 25565
+        }
 
-        fun desiredRunning(serverId: String = "srv-1", spec: StartContainerCommand? = null) =
-            serverDesiredState {
-                this.serverId = serverId
-                desired = ServerDesiredState.Desired.RUNNING
-                spec?.let { this.spec = it }
-                restartBudget = restartBudget {
-                    maxAttempts = 3
-                    windowSeconds = 600
-                }
+        fun desiredRunning(serverId: String = "srv-1", spec: StartContainerCommand? = null) = serverDesiredState {
+            this.serverId = serverId
+            desired = ServerDesiredState.Desired.RUNNING
+            spec?.let { this.spec = it }
+            restartBudget = restartBudget {
+                maxAttempts = 3
+                windowSeconds = 600
             }
+        }
 
         fun Channel<AgentMessage>.statuses(): List<ServerStatusUpdate> = buildList {
             while (true) {
@@ -93,7 +99,9 @@ class ConvergenceLoopTest :
                 if (r.isSuccess) {
                     val msg = r.getOrThrow()
                     if (msg.hasServerStatus()) add(msg.serverStatus)
-                } else break
+                } else {
+                    break
+                }
             }
         }
 
@@ -129,6 +137,34 @@ class ConvergenceLoopTest :
             cm.containers["craftpanel-srv-1"]?.state shouldBe FakeContainerManager.State.RUNNING
             channel.statuses()
                 .last().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
+        }
+
+        test("applyDesired RUNNING for an exposed server ensures mc-router before starting the container") {
+            val cm = FakeContainerManager()
+            val (channel, out) = newOutbound()
+            val loop = newLoop(cm, out, ensureRouterRunning = { cm.calls.add("ensure-router") })
+
+            runBlocking {
+                loop.applyDesired(desiredRunning(spec = startCmd(publicHostname = "play.example.com"))).join()
+            }
+
+            // Router is ensured before the container is created, so the mc-router.host label routes
+            // the moment the server is up.
+            cm.calls.filter { it == "ensure-router" || it.startsWith("create:") } shouldBe
+                listOf("ensure-router", "create:craftpanel-srv-1")
+            cm.containers["craftpanel-srv-1"]?.state shouldBe FakeContainerManager.State.RUNNING
+            channel.statuses().last().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
+        }
+
+        test("applyDesired RUNNING for an unexposed server does not touch mc-router") {
+            val cm = FakeContainerManager()
+            val (_, out) = newOutbound()
+            val loop = newLoop(cm, out, ensureRouterRunning = { cm.calls.add("ensure-router") })
+
+            runBlocking { loop.applyDesired(desiredRunning(spec = startCmd())).join() }
+
+            cm.calls.any { it == "ensure-router" } shouldBe false
+            cm.containers["craftpanel-srv-1"]?.state shouldBe FakeContainerManager.State.RUNNING
         }
 
         test("applyDesired STOPPED stops a running container and reports STOPPED") {

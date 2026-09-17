@@ -33,6 +33,13 @@ class ContainerOperator(
     private val containerManager: ContainerManager,
     private val networkManager: NetworkManager,
     private val config: AgentConfig,
+    /**
+     * Ensures the node's mc-router is present and correct before an exposed server starts, so its
+     * `mc-router.host` label routes as soon as the container is up. Injected from
+     * [io.craftpanel.agent.docker.RouterSupervisor.ensureReady]; defaults to a no-op so unexposed
+     * starts and tests never touch the router.
+     */
+    private val ensureRouterRunning: suspend () -> Unit = {},
     /** Bounded retry budget for a transient host-port conflict at start (see [startWithPortConflictRetry]). */
     private val startConflictMaxAttempts: Int = 12,
     private val startConflictRetryDelayMs: Long = 5_000L
@@ -71,6 +78,11 @@ class ContainerOperator(
         val exists = withContext(Dispatchers.IO) { containerManager.containerExists(containerName) }
         val needsCreate = recreate || !exists
         log.info("Converge: start container $containerName (recreate=$recreate, needsCreate=$needsCreate)")
+        // Only servers carrying an mc-router routing label need the router. Block on it first so the
+        // label routes the moment the container is up instead of waiting for the next supervisor tick.
+        if (spec.publicHostname.isNotEmpty()) {
+            withContext(Dispatchers.IO) { ensureRouterRunning() }
+        }
         if (needsCreate) {
             if (exists) {
                 withContext(Dispatchers.IO) { containerManager.removeContainer(containerName, force = true) }
@@ -122,7 +134,11 @@ class ContainerOperator(
             if (!failure.isHostPortConflict() || attempt >= startConflictMaxAttempts) throw failure
             log.warn(
                 "Start of {} failed — host port still in use ({}); retry {}/{} in {}ms",
-                containerName, failure.message, attempt, startConflictMaxAttempts, startConflictRetryDelayMs
+                containerName,
+                failure.message,
+                attempt,
+                startConflictMaxAttempts,
+                startConflictRetryDelayMs
             )
             delay(startConflictRetryDelayMs)
             attempt++

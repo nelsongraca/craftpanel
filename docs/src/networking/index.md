@@ -31,15 +31,15 @@ mc-router is attached to the `craftpanel` infra network **and** to every server 
 
 ### Lifecycle management
 
-The **agent** provisions and manages the mc-router container automatically — no manual setup is required on the node. On every startup the agent:
+The **agent** provisions and manages the mc-router container automatically — no manual setup is required on the node. In a background supervisor loop (and, for exposed servers, synchronously before a
+start) the agent:
 
-1. Pulls the configured mc-router image (controlled by `MCROUTER_IMAGE`, default `itzg/mc-router:latest`)
-2. Starts the container if it is not already running, or leaves it in place if it is
+1. Recreates the container when it drifts from the configured image (controlled by `MCROUTER_IMAGE`, default `itzg/mc-router:latest`) or is missing the required env flags / docker.sock group
+2. Otherwise starts it if it is not running, or leaves it in place if it is
 3. Attaches mc-router to any server network bridges that exist locally
 
-The pull step runs by default so nodes always run the latest mc-router release. It can be disabled by setting `MCROUTER_UPDATE_ON_START=false`, which causes the agent to use whatever image is already
-cached locally — useful when the image is pinned to a specific digest or when image pulls are restricted. See [Agent Configuration](../nodes/index.md#agent-configuration) for the full list of env
-vars.
+The image is pulled whenever the container is created or recreated. `MCROUTER_UPDATE_ON_START=false` skips the pull unless the image is absent locally — useful when the image is pinned to a specific
+digest or when image pulls are restricted. See [Agent Configuration](../nodes/index.md#agent-configuration) for the full list of env vars.
 
 ## Docker Networks
 

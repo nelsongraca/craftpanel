@@ -128,11 +128,11 @@ This container routes incoming Minecraft TCP connections to the correct game ser
 The mc-router container is attached to the `craftpanel` network (controlled by `CRAFTPANEL_NETWORK`) so it can reach game server containers by their container name.
 See [Docker Network](../networking/index.md#docker-networks).
 
-When `MCROUTER_UPDATE_ON_START=true` (default) the agent pulls the configured image before creating the container, so the node always runs the latest version of mc-router. Set to `false` in
-environments where image pulls are restricted or where a pinned digest is baked into `MCROUTER_IMAGE`.
+The image is pulled whenever the container is created or recreated: with `MCROUTER_UPDATE_ON_START=true` (default) the configured image is pulled first; with `false` it is pulled only when it is
+absent locally. Set `false` in environments where image pulls are restricted or where a pinned digest is baked into `MCROUTER_IMAGE`.
 
-If the mc-router container is already running, the pull (if enabled) still executes so the local image cache is updated, but the running container is not restarted — the update takes effect on the
-next agent restart.
+The agent reconciles the running container against its configured image and env on every check. If the container was built from a **different image** (e.g. `MCROUTER_IMAGE` changed), or is missing
+`IN_DOCKER=true` / `DYNAMIC_PROXY_PROTOCOL=true`, or the docker.sock group membership, it is removed and recreated with the configured image; an already-matching container is left as-is.
 
 ### mc-router health and recovery
 
@@ -144,6 +144,8 @@ mc-router provisioning runs in a background supervisor loop — agent startup is
 | Down / starting | `DEGRADED`   | New player connections fail; existing server containers unaffected  |
 
 When mc-router recovers the agent reports `router_running = true` on the next metrics poll and master updates `health` to `HEALTHY`.
+
+Starting an **exposed** server (one with a public subdomain or custom hostname) additionally blocks on this reconciliation first, so its `mc-router.host` label routes the moment the container is up rather than waiting for the next supervisor tick. Unexposed servers never touch mc-router.
 
 ## Colocation with Master
 
