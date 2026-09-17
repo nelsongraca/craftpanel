@@ -63,11 +63,7 @@ data class ModrinthSearchResult(val statusCode: Int, val body: String)
 private data class ModrinthVersion(val id: String)
 
 @Serializable
-private data class ModrinthVersionDetail(
-    val id: String,
-    @SerialName("version_number") val versionNumber: String,
-    @SerialName("version_type") val versionType: String
-)
+private data class ModrinthVersionDetail(val id: String, @SerialName("version_number") val versionNumber: String, @SerialName("version_type") val versionType: String)
 
 @Serializable
 data class ModCompatibilityResult(
@@ -79,10 +75,7 @@ data class ModCompatibilityResult(
 )
 
 @Serializable
-data class CompatibilityCheckResponse(
-    @SerialName("target_version") val targetVersion: String,
-    val results: List<ModCompatibilityResult>
-)
+data class CompatibilityCheckResponse(@SerialName("target_version") val targetVersion: String, val results: List<ModCompatibilityResult>)
 
 class ModService(
     private val serverRepository: ServerRepository,
@@ -123,6 +116,7 @@ class ModService(
             val row = ServerMods.selectAll()
                 .where { ServerMods.id eq m.id }
                 .first()
+            Server.findById(serverId)?.let { it.restartPending = true }
             ModRow(
                 id = row[ServerMods.id].value,
                 serverId = row[ServerMods.serverId].value,
@@ -146,9 +140,9 @@ class ModService(
             throw UnprocessableException("pinned_version_id is required when pin_strategy is PINNED")
         }
         val pinnedVersionId = when {
-            req.pinnedVersionId != null                                         -> req.pinnedVersionId
+            req.pinnedVersionId != null -> req.pinnedVersionId
             req.pinStrategy != null && req.pinStrategy != ModPinStrategy.PINNED -> null
-            else                                                                -> modRepository.findModById(modId)?.pinnedVersionId
+            else -> modRepository.findModById(modId)?.pinnedVersionId
         }
         transaction {
             Mod.findById(modId)
@@ -157,6 +151,7 @@ class ModService(
                     it.pinnedVersionId = pinnedVersionId?.ifEmpty { null }
                     it.installedVersionId = null
                 }
+            Server.findById(serverId)?.let { it.restartPending = true }
         }
         return modRepository.findModById(modId)!!
             .toResponse()
@@ -169,6 +164,7 @@ class ModService(
         transaction {
             Mod.findById(modId)
                 ?.delete()
+            Server.findById(serverId)?.let { it.restartPending = true }
         }
     }
 
@@ -196,8 +192,7 @@ class ModService(
                 }
                 ModrinthSearchResult(response.status.value, response.bodyAsText())
             }
-        }
-        catch (e: Exception) {
+        } catch (e: Exception) {
             log.error("Modrinth search failed for query='$query'", e)
             ModrinthSearchResult(502, "")
         }
@@ -235,8 +230,7 @@ class ModService(
                 val versions = response.body<List<ModrinthVersion>>()
                 if (pinnedVersionId != null) versions.any { it.id == pinnedVersionId } else versions.isNotEmpty()
             }
-        }
-        catch (e: Exception) {
+        } catch (e: Exception) {
             log.error("Modrinth version check failed for project='$projectId'", e)
             throw BadGatewayException("Could not verify Modrinth compatibility for '$projectId'")
         }
@@ -258,8 +252,7 @@ class ModService(
                     latestCompatibleVersionId = latest.id,
                     latestCompatibleVersionNumber = latest.versionNumber
                 )
-            }
-            else {
+            } else {
                 ModCompatibilityResult(
                     modrinthProjectId = mod.modrinthProjectId,
                     displayName = mod.displayName,
@@ -293,8 +286,7 @@ class ModService(
                 if (!response.status.isSuccess()) return@runBlocking emptyList()
                 response.body<List<ModrinthVersionDetail>>()
             }
-        }
-        catch (e: Exception) {
+        } catch (e: Exception) {
             log.error("Modrinth version fetch failed for project='$projectId'", e)
             throw BadGatewayException("Could not verify Modrinth compatibility for '$projectId'")
         }
@@ -305,9 +297,9 @@ class ModService(
             val projectId = row.modrinthProjectId
             when (ModPinStrategy.fromDb(row.pinStrategy)) {
                 ModPinStrategy.PINNED -> "$projectId:${row.pinnedVersionId}"
-                ModPinStrategy.BETA   -> "$projectId:beta"
-                ModPinStrategy.ALPHA  -> "$projectId:alpha"
-                else                  -> projectId
+                ModPinStrategy.BETA -> "$projectId:beta"
+                ModPinStrategy.ALPHA -> "$projectId:alpha"
+                else -> projectId
             }
         }
 }

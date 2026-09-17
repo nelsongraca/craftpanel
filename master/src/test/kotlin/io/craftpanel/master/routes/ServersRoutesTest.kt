@@ -1122,6 +1122,7 @@ class ServersRoutesTest :
                 }
                 row[Servers.memoryMb] shouldBe 3000
                 row[Servers.cpuShares] shouldBe 512
+                row[Servers.restartPending] shouldBe true
             }
         }
 
@@ -1183,6 +1184,31 @@ class ServersRoutesTest :
                 }
                 row[Servers.exposedExternally] shouldBe true
                 row[Servers.publicSubdomain] shouldBe "myserver"
+            }
+        }
+
+        test("PATCH exposure while running defers the restart and flags restart_pending") {
+            val gw = TestAgentGateway()
+            testApplication {
+                testApp { jwtManager -> configureServersTest(gw) }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, "expose-me", status = "HEALTHY")
+                val resp = client.patch("/api/servers/$serverId/exposure") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"exposed_externally":true,"public_subdomain":"myserver","custom_hostname":"play.example.com"}""")
+                }
+                resp.status shouldBe HttpStatusCode.NoContent
+                // The agent receives the refreshed spec (so a later recreate picks up the new label)
+                // but is NOT told to restart.
+                gw.sent.size shouldBe 1
+                gw.sent[0].second.serverDesiredState.forceRestart shouldBe false
+                transaction {
+                    Servers.selectAll().where { Servers.id eq serverId }.first()[Servers.restartPending]
+                } shouldBe true
             }
         }
 

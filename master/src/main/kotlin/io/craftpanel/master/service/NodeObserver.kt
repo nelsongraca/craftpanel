@@ -59,8 +59,7 @@ class NodeObserver(
                         /* unrelated events */
                     }
                 }
-            }
-            catch (e: Exception) {
+            } catch (e: Exception) {
                 log.warn("NodeObserver: failed to process event {} — {}", event::class.simpleName, e.message)
             }
         }
@@ -121,6 +120,10 @@ class NodeObserver(
                 ?.let {
                     it.status = event.status.toDb()
                     it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
+                    // A genuine (re)start applies the latest spec; clear the pending-restart marker.
+                    // Only STARTING counts — a reconnect re-affirms HEALTHY via a NoOp converge
+                    // without recreating, so clearing on HEALTHY would drop the marker spuriously.
+                    if (event.status == ServerStatus.STARTING) it.restartPending = false
                 }
         }
     }

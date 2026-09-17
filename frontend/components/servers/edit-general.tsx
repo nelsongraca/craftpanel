@@ -215,8 +215,9 @@ export function EditGeneral({server, permissions, forceOpenSignal, onSaved}: Edi
                             placeholder={server.id}
                         />
                         <p className="text-xs text-text-muted mt-1">
-                            Overrides the data directory name (defaults to the server ID). No files are moved — the
-                            directory must already hold the data; changing it recreates a running server.
+                            Overrides the data directory name (defaults to the server ID). No files are moved —
+                            the directory must already hold the data; a running server is flagged restart-pending
+                            and picks up the new path on the next start or restart.
                         </p>
                     </EditFieldRow>
                 )}

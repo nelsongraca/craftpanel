@@ -136,6 +136,7 @@ The `itzg_image_tag` field refers to the [itzg/minecraft-server](https://hub.doc
     "jeb_"
   ],
   "is_migrating": false,
+  "restart_pending": false,
   "disabled": false,
   "stop_command": "stop",
   "expires_at": null,
@@ -174,8 +175,8 @@ Set `network_id` to `null` to remove the server from its network.
 
 `display_name`, `description`, and `network_id` take effect immediately. Spec-level fields (`mc_version`, `itzg_image_tag`, `custom_server_jar`,
 `container_listen_port`, `container_protocol`, `disable_healthcheck`, `force_redownload`) are persisted and applied on the **next container start or restart**: master rebuilds the
-spec and pushes it, and the agent recreates the container when the new spec differs from the one it last applied. There is no `needs_recreate` flag — the recreate decision is the
-agent's (spec-diff). The UI shows a static "changes take effect on the next start or restart" note.
+spec and pushes it, and the agent recreates the container when the new spec differs from the one it last applied. This does **not** restart a running server — it sets `restart_pending`,
+which the UI surfaces with a restart prompt. The recreate decision itself is the agent's (spec-diff); master never drives it from a flag.
 
 The CUSTOM fields follow the same create-time rules: `custom_server_jar` is validated against the server type, and `container_listen_port` / `container_protocol` changes are persisted and applied on
 the next start.
@@ -261,6 +262,8 @@ Toggles external exposure and sets or clears the public subdomain. Master create
 ```
 
 When `exposed_externally` is `false`, `public_subdomain` is ignored and the existing DNS record is deleted.
+
+The DNS record is created/updated/deleted immediately. The mc-router label change is **not** applied to a running container — the server is flagged `restart_pending` and the new routing names take effect on the next start or restart.
 
 **Response `204`.**
 

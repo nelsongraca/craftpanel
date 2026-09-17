@@ -1,8 +1,8 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.database.entity.Server
-import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.dns.DnsProvider
+import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.service.repo.ServerRepository
@@ -34,7 +34,9 @@ class ServerExposureService(
             // the request (the UI keeps the field's previous value in state when the box is
             // unchecked).
             !exposedExternally -> null
+
             customHostname != null -> serverExposure.resolveCustomHostnames(customHostname, id)
+
             else -> serverRow.customHostname
         }
 
@@ -111,12 +113,12 @@ class ServerExposureService(
         val currentStatus = ServerStatus.fromDb(serverRow.status)
         if (currentStatus.isRunning) {
             val freshRow = serverRepository.findById(id)!!
-            // Restart only when the mc-router routing names actually changed — exposing, disabling,
-            // or editing a hostname. Disabling clears the custom hostname, so the label goes null
-            // and the stale `mc-router.host` label is dropped on recreate. In desired-state model
-            // this is a restart-envelope; the convergence loop owns the transition.
+            // mc-router labels are baked in at container creation, so a routing-name change only
+            // takes effect on the next start/restart. Flag a pending restart for the UI and refresh
+            // the agent's stored spec — never yank a live server out from under its players.
             if (serverExposure.mcRouterLabel(serverRow) != serverExposure.mcRouterLabel(freshRow)) {
-                lifecycle.sendDesiredState(freshRow, DesiredStatus.RUNNING, forceRestart = true, publicHostname = serverExposure.mcRouterLabel(freshRow))
+                transaction { Server.findById(id)?.let { it.restartPending = true } }
+                lifecycle.sendDesiredState(freshRow, DesiredStatus.RUNNING, publicHostname = serverExposure.mcRouterLabel(freshRow))
             }
         }
     }

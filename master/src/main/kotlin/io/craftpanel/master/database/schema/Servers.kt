@@ -33,6 +33,7 @@ object Servers : UuidTable("servers") {
         .uniqueIndex()
     val dnsRecordId = varchar("dns_record_id", 100).nullable()
     val dnsRecordName = varchar("dns_record_name", 255).nullable()
+
     // Comma-separated list of mc-router routing names (mc-router accepts a comma-separated host
     // list). Widened from 253 so several hostnames fit; per-hostname uniqueness is enforced in
     // ServerExposure validation, not by this column.
@@ -58,6 +59,11 @@ object Servers : UuidTable("servers") {
     // Admin override (server.dir_override) for the `servers/<name>` data directory segment.
     // NULL = derive from the server id. Unique per node is enforced in the service, not here.
     val dataDirName = varchar("data_dir_name", 100).nullable()
+
+    // UI-only marker: a config change was saved that the running container has not applied yet.
+    // Master never uses this to drive convergence (the agent derives recreate from spec != applied);
+    // it is set by config writers and cleared when the agent reports a genuine STARTING transition.
+    val restartPending = bool("restart_pending").default(false)
     val disabled = bool("disabled").default(false)
     val expiresAt = datetime("expires_at").nullable()
     val proxyMotd = varchar("proxy_motd", 500).nullable()

@@ -67,11 +67,15 @@ class ServerExtraPortRepositoryImpl : ServerExtraPortRepository {
             it[PortRegistry.serverId] = EntityID(serverId, Servers)
         }
 
+        // Port bindings are part of the container spec — flag a restart so the UI can prompt.
+        Servers.update({ Servers.id eq serverId }) { it[Servers.restartPending] = true }
+
         entity.toRow()
     }
 
     override fun deleteExtraPort(portId: Uuid): Boolean = transaction {
         val entity = ServerExtraPort.findById(portId) ?: return@transaction false
+        val sId = entity.serverId.value
         val nId = entity.nodeId.value
         val hPort = entity.hostPort
         val proto = entity.protocol
@@ -81,6 +85,8 @@ class ServerExtraPortRepositoryImpl : ServerExtraPortRepository {
         }
 
         entity.delete()
+
+        Servers.update({ Servers.id eq sId }) { it[Servers.restartPending] = true }
 
         true
     }

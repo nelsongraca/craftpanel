@@ -17,6 +17,7 @@ import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.uuid.Uuid
 
@@ -66,6 +67,16 @@ class NodeObserverTest :
                 .first()[Servers.status]
         }
 
+        fun dbRestartPending(): Boolean = transaction {
+            Servers.selectAll()
+                .where { Servers.id eq serverId }
+                .first()[Servers.restartPending]
+        }
+
+        fun setRestartPending(value: Boolean) = transaction {
+            Servers.update({ Servers.id eq serverId }) { it[Servers.restartPending] = value }
+        }
+
         fun observer(events: MutableSharedFlow<AgentEvent>) = NodeObserver(
             agentEvents = events,
             emitAgentEvent = {},
@@ -100,6 +111,36 @@ class NodeObserverTest :
                 delay(50.milliseconds)
 
                 dbStatus() shouldBe "STOPPED"
+                job.cancel()
+            }
+        }
+
+        test("clears restart_pending on a STARTING transition") {
+            runTest {
+                setRestartPending(true)
+                val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
+                val job = observer(events).start(this)
+                delay(50.milliseconds)
+
+                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.STARTING))
+                delay(50.milliseconds)
+
+                dbRestartPending() shouldBe false
+                job.cancel()
+            }
+        }
+
+        test("keeps restart_pending on a HEALTHY reaffirm (no STARTING)") {
+            runTest {
+                setRestartPending(true)
+                val events = MutableSharedFlow<AgentEvent>(extraBufferCapacity = 16)
+                val job = observer(events).start(this)
+                delay(50.milliseconds)
+
+                events.emit(AgentEvent.ServerStatusEvent(serverId.toString(), ServerStatus.HEALTHY))
+                delay(50.milliseconds)
+
+                dbRestartPending() shouldBe true
                 job.cancel()
             }
         }

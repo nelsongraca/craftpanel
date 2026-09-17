@@ -51,6 +51,7 @@ class EnvVarsService(private val serverRepository: ServerRepository, private val
                     value = ev.value
                 }
             }
+            Server.findById(serverId)?.let { it.restartPending = true }
         }
         return getEnvVars(serverId)
     }
@@ -72,6 +73,7 @@ class EnvVarsService(private val serverRepository: ServerRepository, private val
         transaction {
             val e = Server.findById(serverId) ?: return@transaction
             e.configMode = req.configMode.name
+            e.restartPending = true
         }
         return getEnvVars(serverId)
     }

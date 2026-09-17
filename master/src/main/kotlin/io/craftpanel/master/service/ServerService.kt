@@ -65,6 +65,12 @@ class ServerService(
         val newNetworkId: Uuid? = networkId?.ifEmpty { null }
             ?.let { parseUuid(it) ?: throw UnprocessableException("Invalid network_id") }
 
+        // Fields that alter the container spec: saving any of them while running leaves the live
+        // container stale until the next start/restart, so flag a pending restart for the UI.
+        val specChanged = networkId != null || mcVersion != null || itzgImageTag != null ||
+            customServerJar != null || containerListenPort != null || containerProtocol != null ||
+            disableHealthcheck != null || forceRedownload != null
+
         val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
         val serverType = serverRow.serverType
         if (serverType.isCustom && customServerJar != null && customServerJar.isBlank()) {
@@ -105,6 +111,7 @@ class ServerService(
             if (containerProtocol != null) e.containerProtocol = validateContainerProtocol(containerProtocol)
             if (disableHealthcheck != null) e.disableHealthcheck = disableHealthcheck
             if (forceRedownload != null) e.forceRedownload = forceRedownload
+            if (specChanged) e.restartPending = true
         }
     }
 
@@ -114,7 +121,8 @@ class ServerService(
      * Admin override for the `servers/<name>` data directory. Null/blank clears the override.
      * No rename is performed — the directory must already hold the data (or be created empty on
      * next start). After saving, the node's override snapshot is re-pushed so even stopped servers
-     * resolve the new path; a running container is forced to recreate against the new bind mount.
+     * resolve the new path; a running container is flagged restart-pending and picks up the new bind
+     * mount on the next start/restart (never restarted out from under players).
      */
     fun updateDataDirName(id: Uuid, dataDirName: String?): ServerView {
         val server = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
@@ -128,14 +136,20 @@ class ServerService(
             if (clash) throw ConflictException("Data directory name already in use on this node")
         }
 
+        val changed = server.dataDirName != clean
         transaction {
-            Server.findById(id)?.let { it.dataDirName = clean }
+            Server.findById(id)?.let {
+                it.dataDirName = clean
+                if (changed) it.restartPending = true
+            }
         }
         val updated = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
 
         gateway.rebuildSymlinks(updated.nodeId.toString())
         if (DesiredStatus.fromDb(updated.desiredStatus) == DesiredStatus.RUNNING) {
-            lifecycle?.sendDesiredState(updated, DesiredStatus.RUNNING, forceRestart = true)
+            // Refresh the agent's stored spec (no force_restart): the bind mount applies on the next
+            // start/restart or an autonomous crash-recreate, not immediately.
+            lifecycle?.sendDesiredState(updated, DesiredStatus.RUNNING)
         }
         return updated
     }
@@ -198,6 +212,7 @@ class ServerService(
             e.memoryMb = memoryMb
             e.cpuShares = cpuShares
             if (itzgImageTag != null) e.itzgImageTag = itzgImageTag
+            e.restartPending = true
         }
     }
 

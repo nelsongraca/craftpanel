@@ -81,6 +81,7 @@ function server(overrides: Record<string, unknown> = {}): Record<string, unknown
         custom_hostname: null,
         canonical_hostname: null,
         is_migrating: false,
+        restart_pending: false,
         disabled: false,
         config_mode: "MANAGED",
         stop_command: "stop",
@@ -693,6 +694,22 @@ describe("ServersPage", () => {
             await renderWith({servers: [s]});
 
             expect(screen.getAllByText("Disabled").length).toBeGreaterThan(0);
+        });
+    });
+
+    describe("Restart pending", () => {
+        it("running server with restart_pending shows the Restart pending label", async () => {
+            const s = server({status: "HEALTHY", restart_pending: true});
+            await renderWith({servers: [s]});
+
+            expect(screen.getAllByText("Restart pending").length).toBeGreaterThan(0);
+        });
+
+        it("stopped server with restart_pending shows no Restart pending label", async () => {
+            const s = server({status: "STOPPED", restart_pending: true});
+            await renderWith({servers: [s]});
+
+            expect(screen.queryByText("Restart pending")).not.toBeInTheDocument();
         });
     });
 

@@ -35,6 +35,8 @@ data class ServerView(
     val forceRedownload: Boolean = false,
     // Admin override for the data directory name; null = use the server id.
     val dataDirName: String? = null,
+    // UI-only marker: saved config the running container has not applied yet. Not used for convergence.
+    val restartPending: Boolean = false,
     val proxyMotd: String? = null,
     val proxyMaxPlayers: Int? = null,
     val proxyForwardingMode: String? = null,
@@ -55,8 +57,7 @@ data class ServerView(
  * Parse a stored value into a normalized list: trimmed, blanks dropped, duplicates removed,
  * order preserved.
  */
-fun parseCustomHostnames(raw: String?): List<String> =
-    raw?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }?.distinct() ?: emptyList()
+fun parseCustomHostnames(raw: String?): List<String> = raw?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }?.distinct() ?: emptyList()
 
 fun ServerView.customHostnames(): List<String> = parseCustomHostnames(customHostname)
 

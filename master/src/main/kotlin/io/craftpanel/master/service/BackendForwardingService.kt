@@ -78,6 +78,7 @@ class BackendForwardingService(
                                     patchFileEnvValue(classification.file)
                             }
                         }
+                        Server.findById(backend.backendServerId)?.let { it.restartPending = true }
                     }
                 }
             }

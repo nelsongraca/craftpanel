@@ -140,8 +140,8 @@ Each server has an **expose externally** toggle. When enabled:
 1. The user chooses a subdomain (e.g. `survival`) — master validates it is unique
 2. The public hostname becomes `survival.mc.domain.tld`
 3. Master creates an A record via the DNS provider API (Cloudflare recommended, TTL 60 seconds) pointing to the current node's IP
-4. The mc-router label `mc-router.host=survival.mc.domain.tld` is set on the container
-5. mc-router on the node picks up the label and begins routing that hostname to the container
+4. The mc-router label `mc-router.host=survival.mc.domain.tld` is set on the container — applied on the next start/restart. A running server is flagged **restart pending**, never restarted automatically
+5. Once the container is (re)created, mc-router on the node picks up the label and begins routing that hostname to the container
 6. The public hostname is shown on the server detail page for users to add to their Minecraft client
 
 ### Custom domains (bring your own DNS)
@@ -154,7 +154,7 @@ In addition to the managed subdomain, a server can have one or more **custom hos
 
 **Canonical hostname:** The **canonical (display) hostname** shown on the server detail page (`canonical_hostname` API field) is the first custom hostname when any are set, otherwise the managed subdomain hostname. Setting custom hostnames does not remove the managed subdomain route.
 
-**Setting, adding, or clearing custom hostnames triggers a container recreate** — the mc-router label is baked at container creation, so it must be refreshed to pick up the change.
+**Setting, adding, or clearing custom hostnames does not restart the server.** The mc-router label is baked in at container creation, so a change marks the server **restart pending** (surfaced in the UI); the new routing names take effect on the next start or restart.
 
 **Validation:** Every custom hostname must be a valid RFC-1123 hostname. The panel rejects the whole list when any entry:
 

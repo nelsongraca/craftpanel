@@ -22,7 +22,7 @@ data class UpdateProxySettingsRequest(val motd: String?, @SerialName("max_player
 
 /**
  * Proxy-side settings (MOTD, max players, forwarding mode) stored on the proxy
- * server row. Persisting them marks the proxy for recreate and, if the proxy is
+ * server row. Persisting them marks a restart pending and, if the proxy is
  * currently running, writes the refreshed patch immediately via [ProxyConfigPatchService].
  * A forwarding-mode change also fans out matching config to every eligible backend
  * via [BackendForwardingService] (#44) — backends that can't support the mode are
@@ -60,6 +60,7 @@ class ProxySettingsService(
             e.proxyMotd = req.motd
             e.proxyMaxPlayers = req.maxPlayers
             e.proxyForwardingMode = mode
+            e.restartPending = true
         }
         writePatchIfRunning(proxyServerId, row.status)
 

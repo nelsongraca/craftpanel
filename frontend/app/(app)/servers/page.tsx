@@ -360,6 +360,11 @@ export default function ServersPage() {
                             Expired
                         </p>
                     )}
+                    {server.restart_pending && server.status !== "STOPPED" && (
+                        <p className="mt-1 text-xs font-mono text-warning leading-none">
+                            Restart pending
+                        </p>
+                    )}
                     {server.exposed_externally && server.public_subdomain && (
                         <p className="mt-0.5 text-xs font-mono text-text-muted leading-none">
                             {server.public_subdomain}
@@ -448,6 +453,9 @@ export default function ServersPage() {
                         </p>
                         {server.exposed_externally && server.public_subdomain && (
                             <p className="mt-0.5 font-mono text-xs text-text-muted truncate">{server.public_subdomain}</p>
+                        )}
+                        {server.restart_pending && server.status !== "STOPPED" && (
+                            <p className="mt-0.5 font-mono text-xs text-warning truncate">Restart pending</p>
                         )}
                     </div>
                     <Badge variant={serverStatusVariant(status)}>{serverStatusLabel(status)}</Badge>

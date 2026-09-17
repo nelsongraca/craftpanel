@@ -36,6 +36,7 @@ import {
     getNetwork,
     listNetworks,
     startServer,
+    restartServer,
 } from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import ServerDetailPage from "../page";
@@ -60,6 +61,7 @@ function detailServer(overrides: Record<string, unknown> = {}): Record<string, u
         custom_hostname: null,
         canonical_hostname: null,
         is_migrating: false,
+        restart_pending: false,
         disabled: false,
         config_mode: "MANAGED",
         stop_command: "stop",
@@ -178,6 +180,41 @@ describe("ServerDetailPage", () => {
             await waitFor(() => {
                 expect(startServer).toHaveBeenCalledWith({path: {id: "s1"}});
             });
+        });
+    });
+
+    describe("Restart pending", () => {
+        it("shows the banner with a Restart Now action for a running server", async () => {
+            vi.mocked(restartServer).mockResolvedValue({data: {}, response: new Response()} as never);
+            await renderDetail({status: "HEALTHY", restart_pending: true}, ["server.restart"]);
+
+            expect(
+                screen.getByText("Settings saved. Restart the server for changes to take effect."),
+            ).toBeInTheDocument();
+
+            const user = userEvent.setup();
+            await user.click(screen.getByRole("button", {name: "Restart Now"}));
+
+            await waitFor(() => {
+                expect(restartServer).toHaveBeenCalledWith({path: {id: "s1"}});
+            });
+        });
+
+        it("hides the banner for a stopped server", async () => {
+            await renderDetail({status: "STOPPED", restart_pending: true});
+
+            expect(
+                screen.queryByText("Settings saved. Restart the server for changes to take effect."),
+            ).not.toBeInTheDocument();
+        });
+
+        it("hides Restart Now without server.restart permission", async () => {
+            await renderDetail({status: "HEALTHY", restart_pending: true});
+
+            expect(
+                screen.getByText("Settings saved. Restart the server for changes to take effect."),
+            ).toBeInTheDocument();
+            expect(screen.queryByRole("button", {name: "Restart Now"})).not.toBeInTheDocument();
         });
     });
 

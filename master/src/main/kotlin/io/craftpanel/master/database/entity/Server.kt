@@ -38,6 +38,7 @@ class Server(id: EntityID<Uuid>) : UuidEntity(id) {
     var disableHealthcheck by Servers.disableHealthcheck
     var forceRedownload by Servers.forceRedownload
     var dataDirName by Servers.dataDirName
+    var restartPending by Servers.restartPending
     var disabled by Servers.disabled
     var expiresAt by Servers.expiresAt
     var proxyMotd by Servers.proxyMotd
@@ -84,6 +85,7 @@ class Server(id: EntityID<Uuid>) : UuidEntity(id) {
         disableHealthcheck = disableHealthcheck,
         forceRedownload = forceRedownload,
         dataDirName = dataDirName,
+        restartPending = restartPending,
         proxyMotd = proxyMotd,
         proxyMaxPlayers = proxyMaxPlayers,
         proxyForwardingMode = proxyForwardingMode,
