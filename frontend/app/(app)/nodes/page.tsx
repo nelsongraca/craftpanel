@@ -313,7 +313,7 @@ export default function NodesPage() {
                 <SelectField
                     surface="surface-higher"
                     fieldSize="sm"
-                    className="h-7 font-heading"
+                    className="h-7 w-40 font-heading"
                     value={filterStatus}
                     onChange={(e) => setFilterStatus(e.target.value)}
                 >

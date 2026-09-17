@@ -470,7 +470,7 @@ export default function ServersPage() {
                     <SelectField
                         surface="surface-higher"
                         fieldSize="sm"
-                        className="h-7 font-heading"
+                        className="h-7 w-40 font-heading"
                         value={filterStatus}
                         onChange={(e) => setFilterStatus(e.target.value)}
                     >
@@ -482,7 +482,7 @@ export default function ServersPage() {
                         <SelectField
                             surface="surface-higher"
                             fieldSize="sm"
-                            className="h-7 font-heading"
+                            className="h-7 w-40 font-heading"
                             value={filterNetwork}
                             onChange={(e) => setFilterNetwork(e.target.value)}
                         >
@@ -496,7 +496,7 @@ export default function ServersPage() {
                         <SelectField
                             surface="surface-higher"
                             fieldSize="sm"
-                            className="h-7 font-heading"
+                            className="h-7 w-40 font-heading"
                             value={filterNode}
                             onChange={(e) => setFilterNode(e.target.value)}
                         >
@@ -510,7 +510,7 @@ export default function ServersPage() {
                         <SelectField
                             surface="surface-higher"
                             fieldSize="sm"
-                            className="h-7 font-heading"
+                            className="h-7 w-40 font-heading"
                             value={filterType}
                             onChange={(e) => setFilterType(e.target.value)}
                         >
