@@ -1,9 +1,12 @@
 package io.craftpanel.agent.grpc.handlers
 
 import org.slf4j.LoggerFactory
+import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
+import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.nio.file.StandardCopyOption
 
 /**
  * Maintains human-readable symlink overlays alongside the UUID-keyed canonical
@@ -17,9 +20,9 @@ object SymlinkMaintainer {
 
     /**
      * Creates (or verifies) a `<serversByNameRoot>/<name>` symlink to [canonicalPath].
-     * On a real collision (path exists and points elsewhere), falls back to
-     * `<name>-<uuid8>` using the last path segment of [canonicalPath] (the server UUID)
-     * as the suffix source.
+     * A pre-existing symlink at that name is treated as a stale overlay entry and replaced — names
+     * are unique, so it can only ever be this server's previous target or a leftover. Only when the
+     * name is occupied by a real file/directory does it fall back to `<name>-<lastSegment8>`.
      */
     fun createServerNameSymlink(serversByNameRoot: String, name: String, canonicalPath: Path) {
         val root = Paths.get(serversByNameRoot)
@@ -51,31 +54,55 @@ object SymlinkMaintainer {
 
     private fun createOrReplaceSymlink(parentDir: Path, linkName: String, canonicalTarget: Path, relativeTarget: Path) {
         val link = parentDir.resolve(linkName)
-        if (Files.exists(link, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
-            val existingTarget = runCatching { Files.readSymbolicLink(link) }.getOrNull()
-            val resolvedExisting = existingTarget?.let { parentDir.resolve(it).normalize() }
-            val resolvedCanonical = canonicalTarget.normalize()
-            if (resolvedExisting == resolvedCanonical) {
-                return // already correct, idempotent no-op
-            }
-            // Real collision: fall back to a uuid8-suffixed name using the canonical
-            // path's last segment (the server/backup UUID) as the disambiguator.
-            val suffix = canonicalTarget.fileName.toString().take(8)
-            val suffixedName = "$linkName-$suffix".let {
-                if (linkName.endsWith(".tar.gz")) "${linkName.removeSuffix(".tar.gz")}-$suffix.tar.gz" else it
-            }
-            val suffixedLink = parentDir.resolve(suffixedName)
-            if (!Files.exists(suffixedLink, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
-                Files.createSymbolicLink(suffixedLink, parentDir.relativize(canonicalTarget))
-                log.info("Symlink collision at {} — created {} instead", link, suffixedLink)
-            }
+        if (!Files.exists(link, LinkOption.NOFOLLOW_LINKS)) {
+            Files.createSymbolicLink(link, relativeTarget)
             return
         }
-        Files.createSymbolicLink(link, relativeTarget)
+
+        if (Files.isSymbolicLink(link)) {
+            val existingTarget = runCatching { Files.readSymbolicLink(link) }.getOrNull()
+            val resolvedExisting = existingTarget?.let { parentDir.resolve(it).normalize() }
+            if (resolvedExisting == canonicalTarget.normalize()) {
+                return // already correct, idempotent no-op
+            }
+            // The overlay is agent-owned and names are unique, so a symlink at an overlay name that
+            // points elsewhere is always stale (a changed data-dir override, a rename, or a leftover
+            // from a removed server) — replace it rather than folding a suffixed alias next to it.
+            replaceSymlink(parentDir, link, canonicalTarget)
+            log.info("Replaced stale symlink {} -> {}", link, canonicalTarget)
+            return
+        }
+
+        // Genuine collision: the overlay name is occupied by a real entry we do not own. Leave it
+        // untouched and disambiguate with the canonical target's last segment (name/uuid/backup id).
+        val suffix = canonicalTarget.fileName.toString().take(8)
+        val suffixedName = "$linkName-$suffix".let {
+            if (linkName.endsWith(".tar.gz")) "${linkName.removeSuffix(".tar.gz")}-$suffix.tar.gz" else it
+        }
+        val suffixedLink = parentDir.resolve(suffixedName)
+        if (!Files.exists(suffixedLink, LinkOption.NOFOLLOW_LINKS)) {
+            Files.createSymbolicLink(suffixedLink, parentDir.relativize(canonicalTarget))
+            log.info("Overlay name {} is occupied by a real entry — created {} instead", link, suffixedLink)
+        }
+    }
+
+    /** Atomically repoints [link] at [canonicalTarget], replacing whatever symlink is there now. */
+    private fun replaceSymlink(parentDir: Path, link: Path, canonicalTarget: Path) {
+        val tmp = parentDir.resolve(".${link.fileName}.tmp-${System.nanoTime()}")
+        Files.createSymbolicLink(tmp, parentDir.relativize(canonicalTarget))
+        try {
+            Files.move(tmp, link, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING)
+        } catch (_: AtomicMoveNotSupportedException) {
+            Files.deleteIfExists(link)
+            Files.move(tmp, link, StandardCopyOption.REPLACE_EXISTING)
+        } catch (e: Exception) {
+            Files.deleteIfExists(tmp)
+            throw e
+        }
     }
 
     private fun removeIfSymlink(path: Path) {
-        if (Files.exists(path, java.nio.file.LinkOption.NOFOLLOW_LINKS) && Files.isSymbolicLink(path)) {
+        if (Files.exists(path, LinkOption.NOFOLLOW_LINKS) && Files.isSymbolicLink(path)) {
             Files.delete(path)
         }
     }

@@ -10,6 +10,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.slf4j.LoggerFactory
 import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.Paths
 
 class ContainerHandler(private val containerManager: ContainerManager, private val config: AgentConfig, private val networkManager: NetworkManager) {
 
@@ -76,8 +78,14 @@ class ContainerHandler(private val containerManager: ContainerManager, private v
         // Full snapshot: replaces (not merges) the data-dir overrides so removed servers don't leak.
         ServerDataDirs.replaceAll(servers.associate { it.serverId to it.dataDirName })
         withContext(Dispatchers.IO) {
+            val root = Paths.get(config.serversByNameRoot)
+            Files.createDirectories(root)
+            val desired = servers
+                .filter { it.serverName.isNotBlank() }
+                .associate { it.serverName to serverDataRoot(config.dataBasePath, it.serverId) }
             servers.forEach { entry ->
                 runCatching {
+                    if (entry.serverName.isBlank()) return@runCatching
                     val canonicalPath = serverDataRoot(config.dataBasePath, entry.serverId)
                     if (Files.exists(canonicalPath)) {
                         SymlinkMaintainer.createServerNameSymlink(
@@ -87,6 +95,22 @@ class ContainerHandler(private val containerManager: ContainerManager, private v
                         )
                     }
                 }.onFailure { log.warn("Rebuild: failed servers-by-name symlink for ${entry.serverId}", it) }
+            }
+            pruneStaleServerSymlinks(root, desired)
+        }
+    }
+
+    /** Deletes agent-owned overlay symlinks that no longer match the snapshot. Real entries are left alone. */
+    private fun pruneStaleServerSymlinks(root: Path, desired: Map<String, Path>) {
+        Files.list(root).use { stream ->
+            stream.forEach { link ->
+                if (!Files.isSymbolicLink(link)) return@forEach
+                val expected = desired[link.fileName.toString()]?.normalize()
+                val actual = runCatching { root.resolve(Files.readSymbolicLink(link)).normalize() }.getOrNull()
+                if (expected == null || actual != expected) {
+                    runCatching { Files.delete(link) }
+                        .onFailure { log.warn("Rebuild: failed to prune stale symlink $link", it) }
+                }
             }
         }
     }

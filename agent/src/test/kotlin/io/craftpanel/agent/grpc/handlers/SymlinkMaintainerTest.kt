@@ -22,6 +22,7 @@ class SymlinkMaintainerTest :
         }
 
         afterTest {
+            ServerDataDirs.clear()
             dataBasePath.toFile().deleteRecursively()
             serversByNameRoot.toFile().deleteRecursively()
         }
@@ -44,7 +45,7 @@ class SymlinkMaintainerTest :
             target.toString() shouldStartWith ".."
         }
 
-        test("createServerNameSymlink appends uuid8 suffix on real collision") {
+        test("createServerNameSymlink replaces a stale symlink at the same name") {
             val serverIdA = "11111111-1111-1111-1111-111111111111"
             val serverIdB = "22222222-2222-2222-2222-222222222222"
             val rootA = serverDataRoot(dataBasePath.toString(), serverIdA).also { it.createDirectories() }
@@ -53,8 +54,38 @@ class SymlinkMaintainerTest :
             SymlinkMaintainer.createServerNameSymlink(serversByNameRoot.toString(), "duplicate-name", rootA)
             SymlinkMaintainer.createServerNameSymlink(serversByNameRoot.toString(), "duplicate-name", rootB)
 
-            serversByNameRoot.resolve("duplicate-name").exists() shouldBe true
-            serversByNameRoot.resolve("duplicate-name-22222222").exists() shouldBe true
+            val link = serversByNameRoot.resolve("duplicate-name")
+            link.isSymbolicLink() shouldBe true
+            serversByNameRoot.resolve(link.readSymbolicLink()).normalize() shouldBe rootB.normalize()
+            serversByNameRoot.resolve("duplicate-name-22222222").exists() shouldBe false
+        }
+
+        // Regression: a data-dir override change used to leave the primary link pointing at the old
+        // directory and create a folded `<name>-<dirName>` alias (e.g. `queue` + `queue-queue`).
+        test("createServerNameSymlink repoints the primary link when the data dir override changes") {
+            val serverId = "55555555-5555-5555-5555-555555555555"
+            val defaultRoot = serverDataRoot(dataBasePath.toString(), serverId).also { it.createDirectories() }
+            SymlinkMaintainer.createServerNameSymlink(serversByNameRoot.toString(), "queue", defaultRoot)
+
+            ServerDataDirs.put(serverId, "queue")
+            val overriddenRoot = serverDataRoot(dataBasePath.toString(), serverId).also { it.createDirectories() }
+            SymlinkMaintainer.createServerNameSymlink(serversByNameRoot.toString(), "queue", overriddenRoot)
+
+            val link = serversByNameRoot.resolve("queue")
+            link.isSymbolicLink() shouldBe true
+            serversByNameRoot.resolve(link.readSymbolicLink()).normalize() shouldBe overriddenRoot.normalize()
+            serversByNameRoot.resolve("queue-queue").exists() shouldBe false
+        }
+
+        test("createServerNameSymlink keeps the suffix fallback when a real entry occupies the name") {
+            val serverId = "66666666-6666-6666-6666-666666666666"
+            val canonicalRoot = serverDataRoot(dataBasePath.toString(), serverId).also { it.createDirectories() }
+            val occupant = serversByNameRoot.resolve("occupied").also { it.createDirectories() }
+
+            SymlinkMaintainer.createServerNameSymlink(serversByNameRoot.toString(), "occupied", canonicalRoot)
+
+            occupant.isSymbolicLink() shouldBe false
+            serversByNameRoot.resolve("occupied-66666666").isSymbolicLink() shouldBe true
         }
 
         test("createServerNameSymlink is idempotent when called twice for the same server") {

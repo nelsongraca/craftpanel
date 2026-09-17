@@ -405,6 +405,16 @@ class ControlStreamHandlerTest :
                     .setServerName(serverName)
                 val cmd = b.build()
 
+                // Stale primary link + a folded leftover from the old collision logic.
+                Files.createSymbolicLink(
+                    java.nio.file.Path.of(byNameRoot.absolutePath, serverName),
+                    java.nio.file.Path.of("../../servers/stale-dir")
+                )
+                Files.createSymbolicLink(
+                    java.nio.file.Path.of(byNameRoot.absolutePath, "$serverName-deadbeef"),
+                    java.nio.file.Path.of("../../servers/stale-dir")
+                )
+
                 val rebuildConfig = config.copy(
                     dataBasePath = tempDir.absolutePath,
                     serversByNameRoot = byNameRoot.absolutePath
@@ -413,7 +423,10 @@ class ControlStreamHandlerTest :
                 ContainerHandler(containerManager, rebuildConfig, mockk<NetworkManager>(relaxed = true))
                     .rebuildServerSymlinks(cmd.serversList)
 
-                Files.exists(java.nio.file.Path.of(byNameRoot.absolutePath, serverName)) shouldBe true
+                val primary = java.nio.file.Path.of(byNameRoot.absolutePath, serverName)
+                Files.isSymbolicLink(primary) shouldBe true
+                primary.toRealPath() shouldBe serverDir.toPath().toRealPath()
+                Files.exists(java.nio.file.Path.of(byNameRoot.absolutePath, "$serverName-deadbeef")) shouldBe false
                 byNameRoot.deleteRecursively()
             }
         }
@@ -440,6 +453,13 @@ class ControlStreamHandlerTest :
                     .setFilePath(backupFile.absolutePath)
                 val cmd = b.build()
 
+                // Stale backup link that no longer appears in the snapshot.
+                Files.createDirectories(java.nio.file.Path.of(byServerRoot.absolutePath, serverName))
+                Files.createSymbolicLink(
+                    java.nio.file.Path.of(byServerRoot.absolutePath, serverName, "1999-01-01_00-00-00.tar.gz"),
+                    java.nio.file.Path.of("../../../backups/gone.tar.gz")
+                )
+
                 val rebuildConfig = config.copy(
                     dataBasePath = tempDir.absolutePath,
                     serversByNameRoot = byServerRoot.absolutePath,
@@ -449,6 +469,7 @@ class ControlStreamHandlerTest :
                 BackupHandler(rebuildConfig).rebuildBackupSymlinks(cmd.backupsList)
 
                 Files.exists(java.nio.file.Path.of(byServerRoot.absolutePath, serverName, "$timestamp.tar.gz")) shouldBe true
+                Files.exists(java.nio.file.Path.of(byServerRoot.absolutePath, serverName, "1999-01-01_00-00-00.tar.gz")) shouldBe false
                 byServerRoot.deleteRecursively()
             }
         }
