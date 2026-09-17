@@ -92,7 +92,7 @@ val appModule = module {
     }
     single { BulkDataServiceImpl(get()) }
     single { DataServiceProxy(get<AgentDataOps>(), get(), get<ServerRepository>()) }
-    single { ProxyConfigPatchService(get(), get(), get(), get(named("containerPrefix"))) }
+    single { ProxyConfigPatchService(get(), get(), get()) }
 
     // Observability — subscribes to agentEvents emitted by ControlServiceImpl
     single { AlertEvaluator(alertRepository = get()) }
@@ -210,7 +210,8 @@ val appModule = module {
             extraPortRepository = get(),
             envVarsRepository = get(),
             modRepository = get(),
-            networkService = get()
+            networkService = get(),
+            containerNamePrefix = get(named("containerPrefix"))
         )
     }
     single {

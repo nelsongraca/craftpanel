@@ -59,6 +59,7 @@ class ContainerManagerTest :
             every { createCmd.withHostConfig(any()) } returns createCmd
             every { createCmd.withLabels(any()) } returns createCmd
             every { createCmd.withStdinOpen(any()) } returns createCmd
+            every { createCmd.withHostName(any()) } returns createCmd
             val response = mockk<CreateContainerResponse>()
             every { response.id } returns returnedId
             every { createCmd.exec() } returns response

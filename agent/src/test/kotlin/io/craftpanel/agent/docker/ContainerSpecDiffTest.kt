@@ -23,6 +23,7 @@ class ContainerSpecDiffTest :
             internalListenPort = 25565
             containerProtocol = "TCP"
             publicHostname = "play.example.com"
+            serverName = "survival"
             extraPorts.add(
                 extraPortBinding {
                     hostPort = 25580
@@ -45,7 +46,8 @@ class ContainerSpecDiffTest :
             memoryMb = 1024,
             cpuShares = 256,
             labels = mapOf("mc-router.host" to "play.example.com"),
-            networkMode = "craftpanel-server-srv-1"
+            networkMode = "craftpanel-server-srv-1",
+            hostname = "survival"
         )
 
         fun diff(s: StartContainerCommand = spec(), snap: ContainerSnapshot = snapshot()) = ContainerSpecDiff.diff(s, snap, hostRoot)
@@ -145,6 +147,16 @@ class ContainerSpecDiffTest :
 
         test("no docker network means the network mode is not checked") {
             diff(s = spec().toBuilder().setDockerNetwork("").build(), snap = snapshot().copy(networkMode = "bridge")) shouldBe
+                SpecDiff.Match
+        }
+
+        test("hostname differs from the server name") {
+            diff(snap = snapshot().copy(hostname = "9f8e7d6c5b4a")) shouldBe
+                SpecDiff.Mismatch(listOf(SpecDiffReason.HOSTNAME))
+        }
+
+        test("no server name means the hostname is not checked") {
+            diff(s = spec().toBuilder().setServerName("").build(), snap = snapshot().copy(hostname = "9f8e7d6c5b4a")) shouldBe
                 SpecDiff.Match
         }
 

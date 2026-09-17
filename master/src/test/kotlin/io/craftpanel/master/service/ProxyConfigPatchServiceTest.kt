@@ -84,8 +84,10 @@ class ProxyConfigPatchServiceTest :
                 e.proxyForwardingMode = "LEGACY"
             }
 
-            val alphaId = createServer(nodeId, "alpha-${Uuid.random()}", ServerType.VANILLA)
-            val betaId = createServer(nodeId, "beta-${Uuid.random()}", ServerType.PAPER)
+            val alphaName = "alpha-${Uuid.random()}"
+            val betaName = "beta-${Uuid.random()}"
+            val alphaId = createServer(nodeId, alphaName, ServerType.VANILLA)
+            val betaId = createServer(nodeId, betaName, ServerType.PAPER)
             transaction {
                 ProxyBackends.insert { it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers); it[ProxyBackends.backendServerId] = EntityID(alphaId, Servers); it[ProxyBackends.backendName] = "alpha"; it[ProxyBackends.order] = 0 }
                 ProxyBackends.insert { it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers); it[ProxyBackends.backendServerId] = EntityID(betaId, Servers); it[ProxyBackends.backendName] = "beta"; it[ProxyBackends.order] = 1 }
@@ -101,8 +103,8 @@ class ProxyConfigPatchServiceTest :
             val serversOp = ops[0]["\$set"]!!.jsonObject
             serversOp["path"] shouldBe JsonPrimitive("$.servers")
             val servers = serversOp["value"]!!.jsonObject
-            servers["alpha"] shouldBe JsonPrimitive("craftpanel-$alphaId:25565")
-            servers["beta"] shouldBe JsonPrimitive("craftpanel-$betaId:25565")
+            servers["alpha"] shouldBe JsonPrimitive("$alphaName:25565")
+            servers["beta"] shouldBe JsonPrimitive("$betaName:25565")
             servers["try"] shouldBe JsonArray(listOf(JsonPrimitive("alpha"), JsonPrimitive("beta")))
 
             val motdOp = ops[1]["\$set"]!!.jsonObject
@@ -129,8 +131,10 @@ class ProxyConfigPatchServiceTest :
                 e.proxyForwardingMode = "LEGACY"
             }
 
-            val alphaId = createServer(nodeId, "alpha-${Uuid.random()}", ServerType.VANILLA)
-            val betaId = createServer(nodeId, "beta-${Uuid.random()}", ServerType.PAPER)
+            val alphaName = "alpha-${Uuid.random()}"
+            val betaName = "beta-${Uuid.random()}"
+            val alphaId = createServer(nodeId, alphaName, ServerType.VANILLA)
+            val betaId = createServer(nodeId, betaName, ServerType.PAPER)
             transaction {
                 ProxyBackends.insert { it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers); it[ProxyBackends.backendServerId] = EntityID(alphaId, Servers); it[ProxyBackends.backendName] = "alpha"; it[ProxyBackends.order] = 0 }
                 ProxyBackends.insert { it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers); it[ProxyBackends.backendServerId] = EntityID(betaId, Servers); it[ProxyBackends.backendName] = "beta"; it[ProxyBackends.order] = 1 }
@@ -148,13 +152,13 @@ class ProxyConfigPatchServiceTest :
             val servers = serversOp["value"]!!.jsonObject
             servers["alpha"] shouldBe JsonObject(
                 mapOf(
-                    "address" to JsonPrimitive("craftpanel-$alphaId:25565"),
+                    "address" to JsonPrimitive("$alphaName:25565"),
                     "restricted" to JsonPrimitive(false)
                 )
             )
             servers["beta"] shouldBe JsonObject(
                 mapOf(
-                    "address" to JsonPrimitive("craftpanel-$betaId:25565"),
+                    "address" to JsonPrimitive("$betaName:25565"),
                     "restricted" to JsonPrimitive(false)
                 )
             )
@@ -206,7 +210,8 @@ class ProxyConfigPatchServiceTest :
         test("generates Velocity patch with only backends (no proxy settings)") {
             val nodeId = createNode()
             val proxyId = createServer(nodeId, "proxy-${Uuid.random()}", ServerType.VELOCITY)
-            val alphaId = createServer(nodeId, "alpha-${Uuid.random()}", ServerType.VANILLA)
+            val alphaName = "alpha-${Uuid.random()}"
+            val alphaId = createServer(nodeId, alphaName, ServerType.VANILLA)
             transaction {
                 ProxyBackends.insert { it[ProxyBackends.proxyServerId] = EntityID(proxyId, Servers); it[ProxyBackends.backendServerId] = EntityID(alphaId, Servers); it[ProxyBackends.backendName] = "alpha"; it[ProxyBackends.order] = 0 }
             }
@@ -218,7 +223,7 @@ class ProxyConfigPatchServiceTest :
             val serversOp = ops[0]["\$set"]!!.jsonObject
             serversOp["path"] shouldBe JsonPrimitive("$.servers")
             val servers = serversOp["value"]!!.jsonObject
-            servers["alpha"] shouldBe JsonPrimitive("craftpanel-$alphaId:25565")
+            servers["alpha"] shouldBe JsonPrimitive("$alphaName:25565")
             servers["try"] shouldBe JsonArray(listOf(JsonPrimitive("alpha")))
         }
     })

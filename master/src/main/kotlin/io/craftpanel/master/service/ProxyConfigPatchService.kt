@@ -1,6 +1,5 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.common.ContainerNames
 import io.craftpanel.master.config.ImagesConfig
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.ProxyBackendRepository
@@ -47,10 +46,8 @@ private val BUNGEE_DIALECT = ProxyDialect(
 class ProxyConfigPatchService(
     private val proxyBackendRepository: ProxyBackendRepository,
     private val serverRepository: ServerRepository,
-    private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
-    private val containerNamePrefix: String = "craftpanel"
+    private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy")
 ) {
-    private val names = ContainerNames(containerNamePrefix)
     fun generatePatch(proxyServerId: Uuid): String? {
         val serverRow = serverRepository.findById(proxyServerId)
             ?: throw NotFoundException("Server not found")
@@ -102,7 +99,9 @@ class ProxyConfigPatchService(
     private fun address(backendServerView: ServerView?): String {
         val fallbackType = backendServerView?.serverType ?: ServerType.VANILLA
         val port = backendServerView?.containerListenPort ?: images.internalListenPort(fallbackType)
-        return "${names.container(backendServerView?.id?.toString() ?: "unknown")}:$port"
+        // The server name is the container's Docker hostname, so it resolves by DNS on the shared
+        // network. Master enforces the name is a DNS-safe slug at provisioning time.
+        return "${backendServerView?.name ?: "unknown"}:$port"
     }
 
     private fun serversOp(dialect: ProxyDialect, backends: List<Pair<ProxyBackendRow, ServerView?>>): JsonObject {

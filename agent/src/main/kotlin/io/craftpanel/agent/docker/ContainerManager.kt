@@ -23,6 +23,8 @@ data class ContainerSnapshot(
     val cpuShares: Int,
     val labels: Map<String, String>,
     val networkMode: String,
+    /** Docker hostname (`Config.Hostname`) — the server name, and thus its DNS name on the network. */
+    val hostname: String,
 )
 
 data class BindSnapshot(val hostPath: String, val containerPath: String, val readOnly: Boolean)

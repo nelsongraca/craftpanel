@@ -561,6 +561,55 @@ class ServersRoutesTest :
             }
         }
 
+        test("POST servers returns 422 for an invalid server name") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val resp = client.post("/api/servers") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"Bad_Name","node_id":"$nodeId","server_type":"VANILLA","memory_mb":512}""")
+                }
+                resp.status shouldBe HttpStatusCode.UnprocessableEntity
+            }
+        }
+
+        test("POST servers returns 422 for a server name longer than 63 characters") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val longName = "a".repeat(64)
+                val resp = client.post("/api/servers") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"$longName","node_id":"$nodeId","server_type":"VANILLA","memory_mb":512}""")
+                }
+                resp.status shouldBe HttpStatusCode.UnprocessableEntity
+            }
+        }
+
+        test("POST servers returns 422 for a name under the reserved container prefix") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val resp = client.post("/api/servers") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"name":"craftpanel-router","node_id":"$nodeId","server_type":"VANILLA","memory_mb":512}""")
+                }
+                resp.status shouldBe HttpStatusCode.UnprocessableEntity
+            }
+        }
+
         test("POST servers returns 422 for invalid node_id") {
             testApplication {
                 testApp { jwtManager -> configureServersTest() }

@@ -31,7 +31,9 @@ patch file into the proxy's data dir and sets the `PATCH_DEFINITIONS` env var.
 The image applies it on every start.
 
 The render (patch content) stays in **master** — the backend addresses are
-computed by master (`craftpanel-<backendId>:<internal port>`), so the agent has
+computed by master (`<serverName>:<internal port>`, where the server name is the
+backend container's Docker hostname and therefore its DNS name on the shared
+network), so the agent has
 no data to add. The agent stays a pure dispatcher: it writes a file it received
 (existing `WriteFileRequest` path) and sets an env var. No new proto message.
 

@@ -13,7 +13,8 @@ enum class SpecDiffReason {
     BIND,
     PORTS,
     HOSTNAME_LABEL,
-    NETWORK_MODE
+    NETWORK_MODE,
+    HOSTNAME
 }
 
 /** Outcome of comparing a desired spec against the live container's inspected configuration. */
@@ -72,6 +73,9 @@ object ContainerSpecDiff {
             }
             if (spec.dockerNetwork.isNotEmpty() && snapshot.networkMode != spec.dockerNetwork) {
                 add(SpecDiffReason.NETWORK_MODE)
+            }
+            if (spec.serverName.isNotEmpty() && snapshot.hostname != spec.serverName) {
+                add(SpecDiffReason.HOSTNAME)
             }
         }
         return if (reasons.isEmpty()) SpecDiff.Match else SpecDiff.Mismatch(reasons)

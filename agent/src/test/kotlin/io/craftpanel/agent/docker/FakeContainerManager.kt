@@ -184,7 +184,8 @@ class FakeContainerManager(private val containerNamePrefix: String = "craftpanel
             memoryMb = cmd.memoryMb,
             cpuShares = cmd.cpuShares,
             labels = labels,
-            networkMode = cmd.dockerNetwork
+            networkMode = cmd.dockerNetwork,
+            hostname = cmd.serverName
         )
     }
 

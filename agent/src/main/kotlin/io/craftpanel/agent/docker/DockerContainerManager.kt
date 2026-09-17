@@ -137,6 +137,11 @@ class DockerContainerManager(
             )
             .withStdinOpen(true)
             .let { createCmd ->
+                // The server name is the container hostname, so it resolves as a DNS name on the
+                // shared network (Docker folds Config.Hostname into the endpoint's DNS names).
+                if (cmd.serverName.isNotEmpty()) createCmd.withHostName(cmd.serverName) else createCmd
+            }
+            .let { createCmd ->
                 if (cmd.containerUser.isNotEmpty()) createCmd.withUser(cmd.containerUser) else createCmd
             }
             .exec()
@@ -362,7 +367,8 @@ class DockerContainerManager(
             memoryMb = ((hostConfig?.memory ?: 0L) / (1024 * 1024)).toInt(),
             cpuShares = hostConfig?.cpuShares ?: 0,
             labels = config?.labels.orEmpty(),
-            networkMode = hostConfig?.networkMode ?: ""
+            networkMode = hostConfig?.networkMode ?: "",
+            hostname = config?.hostName ?: ""
         )
     }.getOrNull()
 

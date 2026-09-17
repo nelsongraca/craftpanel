@@ -227,10 +227,11 @@ export default function NewServerPage() {
                             onChange={(e) => setName(e.target.value)}
                             placeholder="survival-1"
                             required
+                            maxLength={63}
                             pattern="[a-z0-9][a-z0-9\-]*"
-                            title="Lowercase letters, numbers and hyphens"
+                            title="Lowercase letters, numbers and hyphens, up to 63 characters"
                         />
-                        <p className="mt-1 text-xs text-text-muted">Unique slug used internally and for container naming.</p>
+                        <p className="mt-1 text-xs text-text-muted">Unique slug used internally, for container naming and as the server hostname.</p>
                     </div>
                     <div>
                         <Label htmlFor="display-name">Display Name</Label>

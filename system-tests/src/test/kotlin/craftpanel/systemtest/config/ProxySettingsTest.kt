@@ -184,7 +184,7 @@ class ProxySettingsTest : BaseSystemTest() {
 
                 val servers = toml.getTable("servers")!!
                 servers.keySet() shouldContainExactly setOf("game-server-1", "try")
-                servers.getString("game-server-1") shouldBe "${containerName(gameServerId)}:25565"
+                servers.getString("game-server-1") shouldBe "${api.getServer(gameServerId).name}:25565"
                 servers.getArray("try")!!.toList() shouldContainExactly listOf("game-server-1")
             }
         }

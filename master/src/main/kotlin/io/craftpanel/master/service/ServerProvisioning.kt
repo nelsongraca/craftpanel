@@ -1,5 +1,7 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.common.ContainerNames
+import io.craftpanel.common.ServerNames
 import io.craftpanel.master.database.entity.EnvVar
 import io.craftpanel.master.database.entity.Mod
 import io.craftpanel.master.database.entity.Server
@@ -88,13 +90,22 @@ class ServerProvisioning(
     private val extraPortRepository: ServerExtraPortRepository,
     private val envVarsRepository: EnvVarsRepository,
     private val modRepository: ModRepository,
-    private val networkService: NetworkService? = null
+    private val networkService: NetworkService? = null,
+    private val containerNamePrefix: String = ContainerNames.DEFAULT_PREFIX
 ) {
 
     private val log = LoggerFactory.getLogger(ServerProvisioning::class.java)
     private val capacityChecker = ResourceCapacityChecker(serverRepository)
 
     fun provision(spec: ServerProvisionSpec): ServerView {
+        if (!ServerNames.isValid(spec.name)) {
+            throw UnprocessableException(
+                "Invalid server name: must match [a-z0-9][a-z0-9-]* and be at most ${ServerNames.MAX_LENGTH} characters"
+            )
+        }
+        if (ServerNames.collidesWithPrefix(spec.name, containerNamePrefix)) {
+            throw UnprocessableException("Server name must not start with the reserved prefix '${containerNamePrefix.trim().trimEnd('-')}-'")
+        }
         if (spec.memoryMb <= 0) throw UnprocessableException("memory_mb must be positive")
         if (spec.cpuShares < 0) throw UnprocessableException("cpu_shares must be non-negative")
         val expiryLocal = parseExpiresAt(spec.expiresAt)
