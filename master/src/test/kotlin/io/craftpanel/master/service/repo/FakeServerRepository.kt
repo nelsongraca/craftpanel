@@ -76,7 +76,7 @@ class FakeServerRepository(private val state: FakeRepositories) : ServerReposito
 
     override fun findBySubdomain(subdomain: String): ServerView? = state.servers.values.firstOrNull { it.publicSubdomain == subdomain }
 
-    override fun findByCustomHostname(hostname: String): ServerView? = state.servers.values.firstOrNull { it.customHostname == hostname }
+    override fun findByCustomHostname(hostname: String): ServerView? = state.servers.values.firstOrNull { hostname in it.customHostnames() }
 
     override fun findByDnsRecordName(hostname: String): ServerView? = state.servers.values.firstOrNull { it.dnsRecordName == hostname }
 

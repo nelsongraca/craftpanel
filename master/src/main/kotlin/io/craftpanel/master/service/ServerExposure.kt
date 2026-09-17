@@ -28,14 +28,25 @@ class ServerExposure(private val settingsRepository: SettingsRepository, private
         return row.dnsRecordName ?: resolveSuffix()?.let { "${row.publicSubdomain}.$it" }
     }
 
-    /** the mc-router label: managed + custom hostnames comma-joined, or null. */
+    /** the mc-router label: managed + all custom hostnames comma-joined, or null. */
     fun mcRouterLabel(row: ServerView): String? {
-        val parts = listOfNotNull(managedHostname(row), row.customHostname)
+        val parts = listOfNotNull(managedHostname(row)) + row.customHostnames()
         return if (parts.isEmpty()) null else parts.joinToString(",")
     }
 
-    /** the canonical hostname shown in the API (custom takes precedence). */
-    fun canonicalHostname(row: ServerView): String? = row.customHostname ?: managedHostname(row)
+    /** the canonical hostname shown in the API (first custom takes precedence, else managed). */
+    fun canonicalHostname(row: ServerView): String? = row.customHostnames().firstOrNull() ?: managedHostname(row)
+
+    /**
+     * Parses a raw comma-separated custom-hostname list, validates every entry, and returns the
+     * normalized comma-joined value — or null when the list is empty.
+     */
+    fun resolveCustomHostnames(raw: String?, excludeServerId: Uuid): String? {
+        val hostnames = parseCustomHostnames(raw)
+        if (hostnames.isEmpty()) return null
+        hostnames.forEach { validateCustomHostname(it, excludeServerId) }
+        return hostnames.joinToString(",")
+    }
 
     /** RFC-1123 validation + collision checks against managed/custom names + suffixes. */
     fun validateCustomHostname(hostname: String, excludeServerId: Uuid) {

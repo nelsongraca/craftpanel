@@ -146,23 +146,25 @@ Each server has an **expose externally** toggle. When enabled:
 
 ### Custom domains (bring your own DNS)
 
-In addition to the managed subdomain, a server can have a **custom hostname** — a user-supplied FQDN such as `play.their-domain.com`. The panel only configures mc-router routing for this hostname; it never manages DNS for custom domains.
+In addition to the managed subdomain, a server can have one or more **custom hostnames** — user-supplied FQDNs such as `play.their-domain.com`. The panel only configures mc-router routing for these hostnames; it never manages DNS for custom domains. They are stored as a single comma-separated `custom_hostname` value (mc-router's host-list format) and shown as individual chips in the UI.
 
 **User responsibility:** The user must point an A record (or CNAME to an A record) at the node's public IP themselves using their own DNS provider. The panel cannot create, update, or delete records in user-owned DNS zones.
 
-**Additive routing:** Both the managed subdomain and the custom hostname can be active simultaneously. The mc-router label becomes a comma-joined list, e.g. `survival.mc.domain.tld,play.their-domain.com`. Both addresses work.
+**Additive routing:** The managed subdomain and every custom hostname can be active simultaneously. The mc-router label becomes a comma-joined list, e.g. `survival.mc.domain.tld,play.their-domain.com,creative.their-domain.com`. All addresses work.
 
-**Canonical hostname:** The **canonical (display) hostname** shown on the server detail page (`canonical_hostname` API field) is the custom hostname when set, otherwise the managed subdomain hostname. Setting a custom hostname does not remove the managed subdomain route.
+**Canonical hostname:** The **canonical (display) hostname** shown on the server detail page (`canonical_hostname` API field) is the first custom hostname when any are set, otherwise the managed subdomain hostname. Setting custom hostnames does not remove the managed subdomain route.
 
-**Setting or clearing a custom hostname triggers a container recreate** — the mc-router label is baked at container creation, so it must be refreshed to pick up the change.
+**Setting, adding, or clearing custom hostnames triggers a container recreate** — the mc-router label is baked at container creation, so it must be refreshed to pick up the change.
 
-**Validation:** A custom hostname must be a valid RFC-1123 hostname. The panel rejects:
+**Validation:** Every custom hostname must be a valid RFC-1123 hostname. The panel rejects the whole list when any entry:
 
-- Hostnames already in use by another server's custom hostname
-- Hostnames that match an existing managed DNS record name
-- Hostnames under a panel-managed domain suffix (e.g. anything ending in `.mc.domain.tld`) — those must go through the managed subdomain path
+- Is already in use by another server's custom hostnames
+- Matches an existing managed DNS record name
+- Is under a panel-managed domain suffix (e.g. anything ending in `.mc.domain.tld`) — those must go through the managed subdomain path
 
-**Disabling external exposure** keeps a still-set custom hostname routing through mc-router. Only the managed subdomain half of the label is removed; the custom half remains. The user's traffic still reaches the server via their custom domain even when the panel subdomain is disabled.
+Duplicates within the submitted list are collapsed.
+
+**Disabling external exposure** unsets the custom hostnames along with the managed subdomain: custom hostnames are mc-router routing names, so they do not outlive the exposure they belong to.
 
 !!! warning "Custom domains and migration"
     When a server is migrated to a different node, the panel updates the managed A record to point to the destination node's IP automatically. **Custom domains are not updated.** The user's A/CNAME still points at the old node's IP until they update it manually. Players using the custom hostname will be routed to the old node until the user updates their DNS. This is a user responsibility — the panel cannot touch user-owned DNS zones.

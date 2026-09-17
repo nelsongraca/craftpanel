@@ -8,6 +8,7 @@ import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.domain.DesiredStatus
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.JdbcTransaction
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
 
@@ -56,8 +57,25 @@ object DatabaseFactory {
                 ServerExtraPorts,
                 TrustedDevices
             )
+            widenCustomHostnameColumn()
             seedSystemGroups()
             backfillDesiredStatus()
+        }
+    }
+
+    /**
+     * `custom_hostname` grew from a single DNS name (253) to a comma-separated list
+     * ([Servers.CUSTOM_HOSTNAME_MAX_LENGTH]). Exposed's migration utils add/drop columns but never
+     * alter varchar lengths, so the widening is explicit and idempotent. Postgres-only: tests build
+     * the schema fresh from the definition.
+     */
+    private fun JdbcTransaction.widenCustomHostnameColumn() {
+        val currentLength = exec(
+            "SELECT character_maximum_length FROM information_schema.columns " +
+                "WHERE table_name = 'servers' AND column_name = 'custom_hostname'"
+        ) { rs -> if (rs.next()) rs.getInt(1) else null } ?: return
+        if (currentLength < Servers.CUSTOM_HOSTNAME_MAX_LENGTH) {
+            exec("ALTER TABLE servers ALTER COLUMN custom_hostname TYPE varchar(${Servers.CUSTOM_HOSTNAME_MAX_LENGTH})")
         }
     }
 

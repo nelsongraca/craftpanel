@@ -50,6 +50,16 @@ data class ServerView(
     val updatedAt: String
 )
 
+/**
+ * Custom hostnames are persisted comma-separated (mc-router accepts a comma-separated host list).
+ * Parse a stored value into a normalized list: trimmed, blanks dropped, duplicates removed,
+ * order preserved.
+ */
+fun parseCustomHostnames(raw: String?): List<String> =
+    raw?.split(",")?.map { it.trim() }?.filter { it.isNotEmpty() }?.distinct() ?: emptyList()
+
+fun ServerView.customHostnames(): List<String> = parseCustomHostnames(customHostname)
+
 fun ServerView.isExpired(now: kotlin.time.Instant = kotlin.time.Clock.System.now()): Boolean {
     val raw = expiresAt ?: return false
     val expires = parseUtcInstant(raw) ?: return false

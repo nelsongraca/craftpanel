@@ -1186,6 +1186,52 @@ class ServersRoutesTest :
             }
         }
 
+        test("PATCH exposure persists multiple custom hostnames comma-joined") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, "multi-host")
+                val resp = client.patch("/api/servers/$serverId/exposure") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"exposed_externally":true,"custom_hostname":" a.example.com , b.example.com ,a.example.com "}""")
+                }
+                resp.status shouldBe HttpStatusCode.NoContent
+                val row = transaction {
+                    Servers.selectAll()
+                        .where { Servers.id eq serverId }
+                        .first()
+                }
+                row[Servers.customHostname] shouldBe "a.example.com,b.example.com"
+            }
+        }
+
+        test("PATCH exposure returns 422 when a custom hostname is already in another server's list") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val s1 = createServer(nodeId, "host-a", port = 25565)
+                val s2 = createServer(nodeId, "host-b", port = 25566)
+                client.patch("/api/servers/$s1/exposure") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"exposed_externally":true,"custom_hostname":"a.example.com,b.example.com"}""")
+                }
+                val resp = client.patch("/api/servers/$s2/exposure") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"exposed_externally":true,"custom_hostname":"c.example.com,b.example.com"}""")
+                }
+                resp.status shouldBe HttpStatusCode.UnprocessableEntity
+            }
+        }
+
         test("PATCH exposure disabling unsets public subdomain and custom hostname") {
             testApplication {
                 testApp { jwtManager -> configureServersTest() }

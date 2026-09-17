@@ -141,6 +141,21 @@ class ServerExposureTest :
                 )
                 serverExposure.mcRouterLabel(row) shouldBe "play.example.com,custom.example.com"
             }
+
+            test("multiple custom hostnames are preserved in order") {
+                val row = testServerView(customHostname = "a.example.com,b.example.com")
+                serverExposure.mcRouterLabel(row) shouldBe "a.example.com,b.example.com"
+            }
+
+            test("managed plus multiple custom hostnames") {
+                val row = testServerView(
+                    exposedExternally = true,
+                    publicSubdomain = "play",
+                    dnsRecordName = "play.example.com",
+                    customHostname = "a.example.com, b.example.com"
+                )
+                serverExposure.mcRouterLabel(row) shouldBe "play.example.com,a.example.com,b.example.com"
+            }
         }
 
         context("canonicalHostname") {
@@ -157,6 +172,37 @@ class ServerExposureTest :
             test("falls back to managed when no custom hostname") {
                 val row = testServerView(exposedExternally = true, publicSubdomain = "play", dnsRecordName = "play.example.com")
                 serverExposure.canonicalHostname(row) shouldBe "play.example.com"
+            }
+
+            test("first custom hostname wins over later ones") {
+                val row = testServerView(customHostname = "first.example.com,second.example.com")
+                serverExposure.canonicalHostname(row) shouldBe "first.example.com"
+            }
+        }
+
+        context("resolveCustomHostnames") {
+            test("null for blank input") {
+                serverExposure.resolveCustomHostnames("  ", Uuid.random())
+                    .shouldBeNull()
+            }
+
+            test("null for null input") {
+                serverExposure.resolveCustomHostnames(null, Uuid.random())
+                    .shouldBeNull()
+            }
+
+            test("trims, drops blanks and de-duplicates") {
+                val resolved = serverExposure.resolveCustomHostnames(
+                    " a.example.com , b.example.com ,a.example.com, ",
+                    Uuid.random()
+                )
+                resolved shouldBe "a.example.com,b.example.com"
+            }
+
+            test("rejects the whole list when any hostname is invalid") {
+                shouldThrow<UnprocessableException> {
+                    serverExposure.resolveCustomHostnames("ok.example.com,not_valid!", Uuid.random())
+                }
             }
         }
 
@@ -183,6 +229,21 @@ class ServerExposureTest :
                 )
                 shouldThrow<UnprocessableException> {
                     serverExposure.validateCustomHostname("taken.example.com", Uuid.random())
+                }
+            }
+
+            test("rejects collision with a hostname inside another server's list") {
+                val otherId = Uuid.random()
+                repos.servers[otherId] = fakeServerView(
+                    id = otherId,
+                    name = "other-list", displayName = "other-list", description = null,
+                    nodeId = Uuid.random(), networkId = null, serverType = ServerType.VANILLA,
+                    mcVersion = "1.21.4", itzgImageTag = "latest", hostPort = 25569,
+                    memoryMb = 1024, cpuShares = 0, configMode = "MANAGED", stopCommand = "stop",
+                    exposedExternally = true, customHostname = "a.example.com,b.example.com"
+                )
+                shouldThrow<UnprocessableException> {
+                    serverExposure.validateCustomHostname("b.example.com", Uuid.random())
                 }
             }
 

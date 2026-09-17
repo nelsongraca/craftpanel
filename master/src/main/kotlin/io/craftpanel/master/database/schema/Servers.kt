@@ -8,6 +8,9 @@ import org.jetbrains.exposed.v1.datetime.datetime
 
 object Servers : UuidTable("servers") {
 
+    /** Max length of the comma-separated `custom_hostname` list. */
+    const val CUSTOM_HOSTNAME_MAX_LENGTH = 1000
+
     val name = varchar("name", 100).uniqueIndex()
     val displayName = varchar("display_name", 100).default("")
     val description = varchar("description", 500).nullable()
@@ -30,7 +33,10 @@ object Servers : UuidTable("servers") {
         .uniqueIndex()
     val dnsRecordId = varchar("dns_record_id", 100).nullable()
     val dnsRecordName = varchar("dns_record_name", 255).nullable()
-    val customHostname = varchar("custom_hostname", 253).nullable()
+    // Comma-separated list of mc-router routing names (mc-router accepts a comma-separated host
+    // list). Widened from 253 so several hostnames fit; per-hostname uniqueness is enforced in
+    // ServerExposure validation, not by this column.
+    val customHostname = varchar("custom_hostname", CUSTOM_HOSTNAME_MAX_LENGTH).nullable()
         .uniqueIndex()
     val configMode = varchar("config_mode", 10).default("MANAGED") // MANAGED | MANUAL
     val stopCommand = varchar("stop_command", 64).default("stop")

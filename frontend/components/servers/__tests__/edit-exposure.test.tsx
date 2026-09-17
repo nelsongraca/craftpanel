@@ -82,6 +82,43 @@ describe('EditExposure', () => {
         await user.click(screen.getByTitle('Edit Public Access'))
         await user.click(screen.getByLabelText('Expose via mc-router'))
         expect(screen.getByText('Public Subdomain')).toBeInTheDocument()
-        expect(screen.getByText('Custom Hostname')).toBeInTheDocument()
+        expect(screen.getByText('Custom Hostnames')).toBeInTheDocument()
+    })
+
+    it('renders one chip per stored hostname', () => {
+        render(
+            <EditExposure
+                server={makeServer({exposed_externally: true, custom_hostname: 'a.example.com,b.example.com'})}
+                onSaved={vi.fn()}
+            />,
+        )
+        expect(screen.getByText('a.example.com')).toBeInTheDocument()
+        expect(screen.getByText('b.example.com')).toBeInTheDocument()
+    })
+
+    it('adds chips and saves them comma-joined', async () => {
+        vi.mocked(updateServerExposure).mockResolvedValue({data: {}, error: undefined, response: new Response()})
+        const user = userEvent.setup()
+        render(<EditExposure server={makeServer({exposed_externally: true, public_subdomain: 'myserver'})} onSaved={vi.fn()}/>)
+        await user.click(screen.getByTitle('Edit Public Access'))
+        const input = screen.getByPlaceholderText('play.example.com')
+        await user.type(input, 'a.example.com{Enter}')
+        await user.type(input, 'b.example.com{Enter}')
+        expect(screen.getByText('a.example.com')).toBeInTheDocument()
+        await user.click(screen.getByText('Save'))
+        expect(updateServerExposure).toHaveBeenCalledWith({
+            path: {id: 's1'},
+            body: {exposed_externally: true, public_subdomain: 'myserver', custom_hostname: 'a.example.com,b.example.com'},
+        })
+    })
+
+    it('removes a chip', async () => {
+        vi.mocked(updateServerExposure).mockResolvedValue({data: {}, error: undefined, response: new Response()})
+        const user = userEvent.setup()
+        render(<EditExposure server={makeServer({exposed_externally: true, custom_hostname: 'a.example.com,b.example.com'})} onSaved={vi.fn()}/>)
+        await user.click(screen.getByTitle('Edit Public Access'))
+        await user.click(screen.getByLabelText('Remove a.example.com'))
+        expect(screen.queryByText('a.example.com')).not.toBeInTheDocument()
+        expect(screen.getByText('b.example.com')).toBeInTheDocument()
     })
 })

@@ -29,19 +29,12 @@ class ServerExposureService(
         }
 
         val resolvedCustomHostname: String? = when {
-            // Disabling exposure unsets the custom hostname: it is an mc-router routing name, so it
-            // must not outlive the exposure it belongs to. Ignore any value still sent with the
-            // request (the UI keeps the field's previous value in state when the box is unchecked).
+            // Disabling exposure unsets the custom hostnames: they are mc-router routing names, so
+            // they must not outlive the exposure they belong to. Ignore any value still sent with
+            // the request (the UI keeps the field's previous value in state when the box is
+            // unchecked).
             !exposedExternally -> null
-            customHostname != null -> {
-                val ch = customHostname.trim()
-                if (ch.isEmpty()) {
-                    null
-                } else {
-                    serverExposure.validateCustomHostname(ch, id)
-                    ch
-                }
-            }
+            customHostname != null -> serverExposure.resolveCustomHostnames(customHostname, id)
             else -> serverRow.customHostname
         }
 

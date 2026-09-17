@@ -5,6 +5,7 @@ import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.service.repo.AbstractCachedRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import io.craftpanel.master.service.repo.ServerView
+import io.craftpanel.master.service.repo.parseCustomHostnames
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
@@ -49,8 +50,12 @@ class ServerRepositoryImpl :
         Server.find { Servers.publicSubdomain eq subdomain }.firstOrNull()?.toServerView()
     }
 
+    // custom_hostname holds a comma-separated list, so membership is checked after parsing rather
+    // than with an equality predicate.
     override fun findByCustomHostname(hostname: String): ServerView? = transaction {
-        Server.find { Servers.customHostname eq hostname }.firstOrNull()?.toServerView()
+        Server.find { Servers.customHostname.isNotNull() }
+            .firstOrNull { hostname in parseCustomHostnames(it.customHostname) }
+            ?.toServerView()
     }
 
     override fun findByDnsRecordName(hostname: String): ServerView? = transaction {
