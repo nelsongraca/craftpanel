@@ -11,6 +11,7 @@ import {hasPermission, serverPermissions} from "@/lib/permissions";
 import type {Network, Node, Server} from "@/lib/types";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {useResourceList} from "@/lib/hooks/useResourceList";
+import {useWs} from "@/lib/ws-context";
 import {IconActionButton} from "@/components/ui/list-table";
 import {SmartList} from "@/components/ui/smart-list";
 import type {SmartListColumn} from "@/components/ui/smart-list";
@@ -161,11 +162,14 @@ function sortServers(servers: Server[], key: SortKey | null, dir: SortDir, nodeM
 export default function ServersPage() {
     const router = useRouter();
     const {user} = useAuth();
+    const {subscribe} = useWs();
     const permissions = user?.permissions ?? [];
 
     const {data: servers, initialLoad, reload: reloadServers} = useResourceList(listServers, []);
     const [nodes, setNodes] = useState<Node[]>([]);
     const [networks, setNetworks] = useState<Network[]>([]);
+    // Live container RAM usage by server id, from the WS snapshot + metrics stream.
+    const [ramUsage, setRamUsage] = useState<Record<string, number>>({});
     const [actionError, setActionError] = useState<string | null>(null);
     const [pendingAction, setPendingAction] = useState<Record<string, string>>({});
     const {confirm, dialog} = useConfirmDialog();
@@ -204,6 +208,33 @@ export default function ServersPage() {
             if (netRes.data) setNetworks(netRes.data);
         });
     }, []);
+
+    useEffect(() => {
+        const unsubSnapshot = subscribe("snapshot", (payload) => {
+            const next: Record<string, number> = {};
+            for (const s of payload.servers ?? []) {
+                if (s.metrics) next[s.id] = s.metrics.ram_used_mb;
+            }
+            setRamUsage(next);
+        });
+        const unsubMetrics = subscribe("server.metrics", (payload) => {
+            setRamUsage((prev) => ({...prev, [payload.server_id]: payload.ram_used_mb}));
+        });
+        const unsubStatus = subscribe("server.status", (payload) => {
+            if (payload.status !== "STOPPED") return;
+            setRamUsage((prev) => {
+                if (!(payload.server_id in prev)) return prev;
+                const next = {...prev};
+                delete next[payload.server_id];
+                return next;
+            });
+        });
+        return () => {
+            unsubSnapshot();
+            unsubMetrics();
+            unsubStatus();
+        };
+    }, [subscribe]);
 
     const nodeMap = Object.fromEntries(nodes.map((n) => [n.id, n]));
 
@@ -370,7 +401,7 @@ export default function ServersPage() {
             header: <>RAM<SortIndicator active={sortKey === "ram"} dir={sortDir}/></>,
             headerClassName: "cursor-pointer select-none hover:text-accent",
             onHeaderClick: () => toggleSort("ram"),
-            render: (server) => <RamBar total={server.memory_mb}/>,
+            render: (server) => <RamBar total={server.memory_mb} used={ramUsage[server.id]}/>,
         },
         {
             key: "node",
@@ -422,7 +453,7 @@ export default function ServersPage() {
                     <Badge variant={serverStatusVariant(status)}>{serverStatusLabel(status)}</Badge>
                 </div>
                 <div className="mt-2.5 flex items-center justify-between gap-2">
-                    <RamBar total={server.memory_mb}/>
+                    <RamBar total={server.memory_mb} used={ramUsage[server.id]}/>
                     <div onClick={(e) => e.stopPropagation()}>
                         {renderActions(server)}
                     </div>

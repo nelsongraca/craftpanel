@@ -1,6 +1,31 @@
 import {describe, it, expect, vi, beforeEach} from "vitest";
-import {render, screen, waitFor} from "@testing-library/react";
+import {act, render, screen, waitFor} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
+const ws = vi.hoisted(() => {
+    const listeners = new Map<string, Set<(payload: unknown) => void>>();
+    return {
+        listeners,
+        emit(type: string, payload: unknown) {
+            listeners.get(type)?.forEach((l) => l(payload));
+        },
+        clear() {
+            listeners.clear();
+        },
+    };
+});
+
+vi.mock("@/lib/ws-context", () => ({
+    useWs: () => ({
+        subscribe: (type: string, listener: (payload: unknown) => void) => {
+            if (!ws.listeners.has(type)) ws.listeners.set(type, new Set());
+            ws.listeners.get(type)!.add(listener);
+            return () => {
+                ws.listeners.get(type)!.delete(listener);
+            };
+        },
+    }),
+}));
 
 vi.mock("@/lib/generated/sdk.gen", () => ({
     listServers: vi.fn(),
@@ -116,6 +141,7 @@ async function renderWith(
 describe("ServersPage", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        ws.clear();
     });
 
     describe("Loading state", () => {
@@ -152,6 +178,35 @@ describe("ServersPage", () => {
             expect(screen.getAllByText("Healthy").length).toBeGreaterThan(0);
             expect(screen.getAllByText(/2048 MB/).length).toBeGreaterThan(0);
             expect(screen.getAllByText("Node 1").length).toBeGreaterThan(0);
+        });
+
+        it("shows '-' for RAM usage until metrics arrive, then the live value", async () => {
+            await renderWith({servers: [server()], nodes: [node()]});
+
+            expect(screen.getAllByText("- / 2048 MB").length).toBeGreaterThan(0);
+
+            act(() => {
+                ws.emit("snapshot", {
+                    servers: [{id: "s1", metrics: {ram_used_mb: 512}}],
+                    nodes: [],
+                });
+            });
+
+            expect(await screen.findAllByText("512 / 2048 MB")).not.toHaveLength(0);
+        });
+
+        it("updates RAM usage from the metrics stream and clears it when stopped", async () => {
+            await renderWith({servers: [server()], nodes: [node()]});
+
+            act(() => {
+                ws.emit("server.metrics", {server_id: "s1", ram_used_mb: 1024});
+            });
+            expect(await screen.findAllByText("1024 / 2048 MB")).not.toHaveLength(0);
+
+            act(() => {
+                ws.emit("server.status", {server_id: "s1", status: "STOPPED"});
+            });
+            expect(await screen.findAllByText("- / 2048 MB")).not.toHaveLength(0);
         });
 
         it("shows truncated node id when node not found in map", async () => {
