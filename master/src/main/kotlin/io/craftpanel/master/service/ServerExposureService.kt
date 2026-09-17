@@ -28,16 +28,21 @@ class ServerExposureService(
             if (existing != null && existing.id != id) throw UnprocessableException("Public subdomain already taken")
         }
 
-        val resolvedCustomHostname: String? = if (customHostname != null) {
-            val ch = customHostname.trim()
-            if (ch.isEmpty()) {
-                null
-            } else {
-                serverExposure.validateCustomHostname(ch, id)
-                ch
+        val resolvedCustomHostname: String? = when {
+            // Disabling exposure unsets the custom hostname: it is an mc-router routing name, so it
+            // must not outlive the exposure it belongs to. Ignore any value still sent with the
+            // request (the UI keeps the field's previous value in state when the box is unchecked).
+            !exposedExternally -> null
+            customHostname != null -> {
+                val ch = customHostname.trim()
+                if (ch.isEmpty()) {
+                    null
+                } else {
+                    serverExposure.validateCustomHostname(ch, id)
+                    ch
+                }
             }
-        } else {
-            serverRow.customHostname
+            else -> serverRow.customHostname
         }
 
         val existingRecordId = serverRow.dnsRecordId
@@ -87,14 +92,12 @@ class ServerExposureService(
             }
         }
 
-        val prevCustomHostname = serverRow.customHostname
-        val customHostnameChanged = resolvedCustomHostname != prevCustomHostname
-        val exposureChanged = publicSubdomain != null || customHostnameChanged
+        val resolvedPublicSubdomain = if (exposedExternally) publicSubdomain else null
 
         transaction {
             val e = Server.findById(id) ?: return@transaction
             e.exposedExternally = exposedExternally
-            e.publicSubdomain = if (!exposedExternally) null else publicSubdomain
+            e.publicSubdomain = resolvedPublicSubdomain
             e.customHostname = resolvedCustomHostname
             e.dnsRecordId = if (exposedExternally && publicSubdomain != null) {
                 newRecordId
@@ -113,11 +116,15 @@ class ServerExposureService(
         }
 
         val currentStatus = ServerStatus.fromDb(serverRow.status)
-        if (currentStatus.isRunning && exposureChanged) {
+        if (currentStatus.isRunning) {
             val freshRow = serverRepository.findById(id)!!
-            // In desired-state model, send a restart-envelope so the agent recreates the container
-            // with the updated bindings. No DB status write — convergence loop owns the transition.
-            lifecycle.sendDesiredState(freshRow, DesiredStatus.RUNNING, forceRestart = true, publicHostname = serverExposure.mcRouterLabel(freshRow))
+            // Restart only when the mc-router routing names actually changed — exposing, disabling,
+            // or editing a hostname. Disabling clears the custom hostname, so the label goes null
+            // and the stale `mc-router.host` label is dropped on recreate. In desired-state model
+            // this is a restart-envelope; the convergence loop owns the transition.
+            if (serverExposure.mcRouterLabel(serverRow) != serverExposure.mcRouterLabel(freshRow)) {
+                lifecycle.sendDesiredState(freshRow, DesiredStatus.RUNNING, forceRestart = true, publicHostname = serverExposure.mcRouterLabel(freshRow))
+            }
         }
     }
 }

@@ -1186,6 +1186,39 @@ class ServersRoutesTest :
             }
         }
 
+        test("PATCH exposure disabling unsets public subdomain and custom hostname") {
+            testApplication {
+                testApp { jwtManager -> configureServersTest() }
+                val client = jsonClient()
+                val userId = createUser()
+                assignGlobalGroup(userId, "Super Admin")
+                val nodeId = createNode()
+                val serverId = createServer(nodeId, "expose-me")
+                client.patch("/api/servers/$serverId/exposure") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"exposed_externally":true,"public_subdomain":"myserver","custom_hostname":"play.example.com"}""")
+                }
+                // The UI keeps the previous field values in state when the box is unchecked, so a
+                // stale custom_hostname may ride along — it must still be cleared.
+                val resp = client.patch("/api/servers/$serverId/exposure") {
+                    bearerAuth(tokenFor(userId))
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"exposed_externally":false,"public_subdomain":"myserver","custom_hostname":"play.example.com"}""")
+                }
+                resp.status shouldBe HttpStatusCode.NoContent
+                val row = transaction {
+                    Servers.selectAll()
+                        .where { Servers.id eq serverId }
+                        .first()
+                }
+                row[Servers.exposedExternally] shouldBe false
+                row[Servers.publicSubdomain] shouldBe null
+                row[Servers.customHostname] shouldBe null
+                row[Servers.dnsRecordName] shouldBe null
+            }
+        }
+
         test("PATCH exposure returns 422 when subdomain already taken") {
             testApplication {
                 testApp { jwtManager -> configureServersTest() }

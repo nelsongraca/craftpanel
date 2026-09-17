@@ -35,8 +35,9 @@ export function EditExposure({server, onSaved}: EditExposureProps) {
                 path: {id: server.id},
                 body: {
                     exposed_externally: exposedExternally,
-                    public_subdomain: publicSubdomain || null,
-                    custom_hostname: customHostname || null,
+                    // Disabling exposure unsets the hostnames; don't resend stale state values.
+                    public_subdomain: exposedExternally ? publicSubdomain || null : null,
+                    custom_hostname: exposedExternally ? customHostname || null : null,
                 },
             });
             if (expErr) {
