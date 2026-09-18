@@ -44,13 +44,17 @@ Kotlin. If the itzg project restructures its images, the change requires a code 
 ### Container restart ownership
 
 Managed containers run with Docker restart policy **`no`** — Docker never auto-restarts them. Restart-on-crash is **owned by the agent**, not master and not Docker. Master states
-intent (`desired_status`) + the full runtime spec + a restart budget; the agent converges and restarts crashed servers within that budget, so a graceful stop (the server self-exits in response to its stop command) is never mistaken for a crash.
+intent (`desired_status`) + the full runtime spec + a restart budget; the agent converges and restarts crashed servers within that budget. Whether to restart is decided **only by
+desired state** — the Docker exit code is informational (a self-exit is restarted while desired stays `RUNNING`; an authored stop sets desired `STOPPED` first, so it is not).
 
 When a managed container dies, the agent's Docker `die` watcher fires. Authored deaths (stop/remove/recreate) are suppressed by the watcher gate; a genuine unexpected death
-triggers a converge. If desired state is `RUNNING` and the crash count is within budget (`restart_max_attempts`, default 5, within `restart_window_seconds`, default 600, both from
-system settings and shipped in every `ServerDesiredState` envelope), the agent restarts the container. Exhausting the budget leaves the container stopped and the agent reports
-`CRASH_LOOPED`; a manual start re-converges. A successful start resets the counter. A `no_restart` flag (used during live migration) suppresses autonomous restart while desired
-stays `RUNNING`.
+triggers a converge. The gate is seeded from every desired-state envelope, so ownership survives an agent process restart even for a container the agent did not itself start this
+run. If desired state is `RUNNING` and the crash count is within budget (`restart_max_attempts`, default 5, within `restart_window_seconds`, default 600, both from system settings
+and shipped in every `ServerDesiredState` envelope), the agent restarts the container. Exhausting the budget leaves the container stopped and the agent reports `CRASH_LOOPED`; a
+manual start re-converges. A successful start resets the counter. A `no_restart` flag (used during live migration) suppresses autonomous restart while desired stays `RUNNING`.
+
+Two backstops cover a death whose `die` event is lost (agent/Docker daemon restart, dropped event stream): the watcher re-subscribes with exponential backoff, and the agent
+periodically re-converges any server with intent that is not running (`AGENT_RECONCILE_INTERVAL_SECONDS`, default 30, `0` disables).
 
 ### Desired state vs reported state
 

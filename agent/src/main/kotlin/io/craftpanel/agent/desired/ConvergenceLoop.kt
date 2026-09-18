@@ -1,6 +1,7 @@
 package io.craftpanel.agent.desired
 
 import io.craftpanel.agent.docker.SpecDiff
+import io.craftpanel.agent.docker.WatcherGate
 import io.craftpanel.agent.grpc.AgentOutbound
 import io.craftpanel.common.ContainerNames
 import io.craftpanel.proto.RestartBudget
@@ -30,6 +31,7 @@ class ConvergenceLoop(
     private val store: DesiredStateStore,
     private val operator: ContainerOperator,
     private val containerNamePrefix: String,
+    private val gate: WatcherGate,
     private val out: AgentOutbound,
     private val scope: CoroutineScope
 ) {
@@ -64,6 +66,15 @@ class ConvergenceLoop(
                 env.force,
                 env.noRestart
             )
+        }
+        // Ownership is asserted by master intent, not only by an actual `docker start`. This is what
+        // makes crash detection survive an agent process restart: the gate is in-memory, so without
+        // this an already-running container reconciled to NoOp would never be marked managed and
+        // every later death would be silently suppressed.
+        gate.markManaged(env.serverId)
+        if (env.desired == ServerDesiredState.Desired.RUNNING) {
+            // Master wants it up — any earlier intentional-stop flag no longer applies.
+            gate.clearStopping(env.serverId)
         }
         store.upsert(env.serverId) { state ->
             // A user-initiated (re)start — a fresh start from a non-RUNNING intent, or an explicit
@@ -119,6 +130,34 @@ class ConvergenceLoop(
         store.remove(serverId)
     }
 
+    /**
+     * Backstop sweep: re-converges every server whose intent is RUNNING but which is not currently
+     * running. Recovers deaths the Docker event stream never delivered (agent/daemon restart, a
+     * dropped stream) without waiting for a reconnect. Only RUNNING-intent servers are swept, so the
+     * sweep is one Docker call plus an inspect per down server, never touches intentional stops, and
+     * never spams status updates.
+     */
+    suspend fun reconcileAll() {
+        val running = runCatching { operator.runningServerIds() }
+            .getOrElse {
+                log.warn("Reconcile sweep skipped — could not list running containers: {}", it.message)
+                return
+            }
+        val stale = store.all().filter { state ->
+            state.desired == ServerDesiredState.Desired.RUNNING && state.serverId !in running
+        }
+        if (stale.isNotEmpty()) {
+            log.info(
+                "Reconcile sweep: {} server(s) with intent but not running — converging: {}",
+                stale.size,
+                stale.map { it.serverId }
+            )
+        }
+        for (state in stale) {
+            trigger(state.serverId).join()
+        }
+    }
+
     // ── Convergence ─────────────────────────────────────────────────────────
 
     private fun trigger(serverId: String): Job = launchConverge(serverId) { converge(serverId) }
@@ -156,6 +195,11 @@ class ConvergenceLoop(
         }
         val actual = ActualState(containerPresent = containerPresent, running = running, specMatches = specMatches)
         val result = ConvergenceMachine.decide(state, actual)
+        log.info(
+            "Converge {}: desired={} present={} running={} specMatches={} noRestart={} restartCount={}/{} -> {}",
+            serverId, state.desired, containerPresent, running, specMatches, state.noRestart,
+            state.restartCount, state.budget?.maxAttempts ?: "unlimited", result.decision::class.simpleName
+        )
         store.upsert(serverId) { result.next }
         if (result.decision.recreateRequested()) {
             log.info(
@@ -186,6 +230,9 @@ class ConvergenceLoop(
             }
 
             is ConvergenceDecision.NoOp -> {
+                // Observed running supersedes any earlier intentional-stop flag (e.g. a stop that
+                // failed and left the container up); otherwise a later genuine death stays suppressed.
+                if (actual.running) gate.clearStopping(serverId)
                 val status = when (state.desired) {
                     ServerDesiredState.Desired.RUNNING if actual.running -> ServerStatusUpdate.ServerStatus.HEALTHY
                     ServerDesiredState.Desired.STOPPED if !actual.running -> ServerStatusUpdate.ServerStatus.STOPPED

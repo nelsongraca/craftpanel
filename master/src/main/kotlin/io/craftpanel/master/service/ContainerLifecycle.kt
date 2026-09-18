@@ -68,6 +68,15 @@ class ContainerLifecycle(
         transaction { Server.findById(id)?.let { it.desiredStatus = value } }
     }
 
+    /**
+     * Persists master's intent for a server. Used by reconciliation when a row has no recorded
+     * intent and it is re-derived from the agent-reported status (see [DesiredStateSyncService]).
+     * The public counterpart of [setDesiredStatus]; keeps the raw-null write private.
+     */
+    fun persistDesiredStatus(serverId: Uuid, desired: DesiredStatus) {
+        setDesiredStatus(serverId, desired.toDb())
+    }
+
     // ── Await-based primitives (used by MigrationService for cross-node relocation) ─
 
     /**

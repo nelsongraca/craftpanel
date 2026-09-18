@@ -63,7 +63,12 @@ Rejected alternatives:
   remains only as the spec carrier inside `ServerDesiredState`.
 - Crash-restart correctness now depends on the agent's `die` watcher and the watcher gate
   suppressing authored deaths (stop/remove/recreate). The gate is exercised by the desired-state
-  path.
+  path. Ownership is seeded from every envelope (`applyDesired`), not only from an actual
+  container start, so an agent process restart does not empty the gate and silence detection.
+- Restart is decided by desired state, never by the Docker exit code — an unexpected self-exit
+  that returns 0 is restarted while desired stays `RUNNING`. Two backstops cover a lost `die`
+  event: the watcher re-subscribes with exponential backoff, and a periodic reconcile sweep
+  re-converges intent that is not running (`AGENT_RECONCILE_INTERVAL_SECONDS`, default 30).
 - Migration sets `no_restart` on the source for the sync window and clears it on completion or
   failure.
 

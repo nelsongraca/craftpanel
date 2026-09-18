@@ -23,9 +23,9 @@ class DesiredStateSyncServiceTest :
                 gateway = gateway,
                 modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
                 serverRepository = repos.serverRepository,
-                envVarsRepository = repos.envVarsRepository,
+                envVarsRepository = repos.envVarsRepository
             ),
-            serverRepository = repos.serverRepository,
+            serverRepository = repos.serverRepository
         )
 
         fun createNode(): Uuid = transaction {
@@ -46,13 +46,13 @@ class DesiredStateSyncServiceTest :
             }[Nodes.id].let { Uuid.parse(it.toString()) }
         }
 
-        fun createServer(nodeId: Uuid, desiredStatus: String?): Uuid = transaction {
+        fun createServer(nodeId: Uuid, desiredStatus: String?, status: String = "STOPPED"): Uuid = transaction {
             Servers.insert {
                 it[Servers.nodeId] = nodeId
                 it[Servers.name] = "s-${Uuid.random()}"
                 it[Servers.hostPort] = 25565
                 it[Servers.memoryMb] = 1024
-                it[Servers.status] = "STOPPED"
+                it[Servers.status] = status
                 it[Servers.desiredStatus] = desiredStatus
             }[Servers.id].let { Uuid.parse(it.toString()) }
         }
@@ -74,11 +74,32 @@ class DesiredStateSyncServiceTest :
             }
         }
 
-        test("pushAllForNode skips servers with unset desired status") {
+        test("pushAllForNode skips a server with unset intent and a STOPPED report") {
             runTest {
-                createServer(nodeId, null)
+                createServer(nodeId, null, status = "STOPPED")
                 service().pushAllForNode(nodeId.toString())
                 gateway.sent.size shouldBe 0
+            }
+        }
+
+        test("pushAllForNode re-derives RUNNING for unset intent with a running report and persists it") {
+            runTest {
+                val id = createServer(nodeId, null, status = "HEALTHY")
+                service().pushAllForNode(nodeId.toString())
+                gateway.sent.size shouldBe 1
+                gateway.sent.single().second.serverDesiredState.desired shouldBe
+                    io.craftpanel.proto.ServerDesiredState.Desired.RUNNING
+                repos.serverRepository.findById(id)?.desiredStatus shouldBe "RUNNING"
+            }
+        }
+
+        test("pushAllForNode re-derives RUNNING for a crash-looped server with unset intent") {
+            runTest {
+                createServer(nodeId, null, status = "CRASH_LOOPED")
+                service().pushAllForNode(nodeId.toString())
+                gateway.sent.size shouldBe 1
+                gateway.sent.single().second.serverDesiredState.desired shouldBe
+                    io.craftpanel.proto.ServerDesiredState.Desired.RUNNING
             }
         }
 

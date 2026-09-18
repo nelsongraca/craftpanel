@@ -34,6 +34,8 @@ data class AgentConfig(
     val containerNamePrefix: String,
     val privateIpOverride: String,
     val metricsPollIntervalSeconds: Int,
+    // Cadence of the convergence backstop sweep in the agent. 0 disables the sweep.
+    val reconcileIntervalSeconds: Int = 30,
     // Max age (hours) a locally-cached image may be before a fresh pull is attempted.
     // Prod default 24h; tests set a very large value so local-only images are never re-pulled.
     val pullMaxImageAgeHours: Long = 24
@@ -102,6 +104,9 @@ data class AgentConfig(
                 metricsPollIntervalSeconds = System.getenv("METRICS_POLL_INTERVAL_SECONDS")
                     ?.toIntOrNull()
                     ?.coerceAtLeast(1) ?: 5,
+                reconcileIntervalSeconds = System.getenv("AGENT_RECONCILE_INTERVAL_SECONDS")
+                    ?.toIntOrNull()
+                    ?.coerceAtLeast(0) ?: 30,
                 pullMaxImageAgeHours = System.getenv("PULL_MAX_IMAGE_AGE_HOURS")
                     ?.toLongOrNull()
                     ?.coerceAtLeast(0) ?: 24

@@ -54,6 +54,11 @@ class ContainerOperator(
     /** Inspect the live container's config, or null when it does not exist. */
     fun inspect(containerName: String): ContainerSnapshot? = containerManager.inspectContainer(containerName)
 
+    /** Server ids whose container is currently running — one Docker call, for the reconcile sweep. */
+    suspend fun runningServerIds(): Set<String> = withContext(Dispatchers.IO) {
+        containerManager.listRunningContainerIds().map { it.first }.toSet()
+    }
+
     /**
      * Whether the live container's configuration already satisfies [spec] — see [ContainerSpecDiff].
      * Any mismatch means we are certain the container differs and must be recreated.

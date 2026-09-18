@@ -23,7 +23,7 @@ class ControlStreamHandler(
     private val gate: WatcherGate,
     private val out: AgentOutbound,
     private val loop: ConvergenceLoop,
-    private val convergenceScope: CoroutineScope,
+    private val convergenceScope: CoroutineScope
 ) {
 
     private val log = LoggerFactory.getLogger(ControlStreamHandler::class.java)
@@ -42,7 +42,10 @@ class ControlStreamHandler(
         out.send {
             nodeState = snapshot
         }
-        log.info("Sent NodeStateSnapshot with ${snapshot.containersCount} containers")
+        log.info(
+            "Sent NodeStateSnapshot with ${snapshot.containersCount} containers: {}",
+            snapshot.containersList.joinToString { "${it.serverId.ifEmpty { "?" }}=${it.runState}" }
+        )
 
         // Periodic metrics loop
         val metricsInterval = config.metricsPollIntervalSeconds.toLong().seconds
@@ -68,10 +71,28 @@ class ControlStreamHandler(
             }
         }
 
+        // Backstop: periodically re-converge servers with intent that are not running. Catches
+        // deaths the Docker event stream never delivered (agent/Docker daemon restart, dropped
+        // stream) instead of leaving the server down until the next reconnect.
+        if (config.reconcileIntervalSeconds > 0) {
+            val reconcileInterval = config.reconcileIntervalSeconds.toLong().seconds
+            launch {
+                while (true) {
+                    delay(reconcileInterval)
+                    runCatching { loop.reconcileAll() }
+                        .onFailure { log.warn("Periodic reconciliation sweep failed", it) }
+                }
+            }
+        } else {
+            log.warn("Convergence reconcile sweep disabled (reconcileIntervalSeconds=0)")
+        }
+
         // Near-instant crash signal: unexpected deaths feed the convergence loop, which decides
         // restart (within budget) vs report. Authored deaths are suppressed by the WatcherGate;
-        // the periodic snapshot reconcile is the backstop if an event is missed.
+        // the watcher self-heals (exponential-backoff resubscribe) and the reconcile sweep above
+        // is the second backstop.
         val eventStream = eventWatcher.watch(
+            scope = this,
             shouldReport = gate::shouldReportDie,
             onContainerCrash = { serverId -> loop.onContainerDie(serverId, exitCode = 1) },
             onContainerStopped = { serverId -> loop.onContainerDie(serverId, exitCode = 0) }

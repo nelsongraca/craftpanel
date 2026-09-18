@@ -113,6 +113,7 @@ class ConnectionManager(
                             ensureRouterRunning = { checkNotNull(routerSupervisor).ensureReady() }
                         ),
                         containerNamePrefix = config.containerNamePrefix,
+                        gate = gate,
                         out = out,
                         scope = convergenceScope
                     )

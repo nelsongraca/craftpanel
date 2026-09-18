@@ -11,6 +11,9 @@ object Servers : UuidTable("servers") {
     /** Max length of the comma-separated `custom_hostname` list. */
     const val CUSTOM_HOSTNAME_MAX_LENGTH = 1000
 
+    /** Max length of the agent-reported `status`; must fit `CRASH_LOOPED` (12). */
+    const val STATUS_MAX_LENGTH = 20
+
     val name = varchar("name", 100).uniqueIndex()
     val displayName = varchar("display_name", 100).default("")
     val description = varchar("description", 500).nullable()
@@ -19,7 +22,7 @@ object Servers : UuidTable("servers") {
         .nullable()
     val serverType = varchar("server_type", 20).default("VANILLA")
     val mcVersion = varchar("mc_version", 16).default("LATEST")
-    val status = varchar("status", 10).default("STOPPED") // agent-reported; never STARTING/STOPPING (synthesizeStatus owns those)
+    val status = varchar("status", STATUS_MAX_LENGTH).default("STOPPED") // agent-reported; never STARTING/STOPPING (synthesizeStatus owns those)
 
     // Master's intent for this server: NULL=unset, "RUNNING", "STOPPED". Mirrors the desired-state
     // envelope; the agent converges to it and owns crash-restart. Read-time synthesis combines this

@@ -58,6 +58,7 @@ object DatabaseFactory {
                 TrustedDevices
             )
             widenCustomHostnameColumn()
+            widenServerStatusColumn()
             seedSystemGroups()
             backfillDesiredStatus()
         }
@@ -76,6 +77,22 @@ object DatabaseFactory {
         ) { rs -> if (rs.next()) rs.getInt(1) else null } ?: return
         if (currentLength < Servers.CUSTOM_HOSTNAME_MAX_LENGTH) {
             exec("ALTER TABLE servers ALTER COLUMN custom_hostname TYPE varchar(${Servers.CUSTOM_HOSTNAME_MAX_LENGTH})")
+        }
+    }
+
+    /**
+     * `status` grew from 10 to [Servers.STATUS_MAX_LENGTH] so the agent-reported `CRASH_LOOPED`
+     * (12 chars) can be persisted — at 10 every crash-loop report failed the insert. Exposed's
+     * migration utils never alter varchar lengths, so the widening is explicit and idempotent.
+     * Postgres-only: tests build the schema fresh from the definition.
+     */
+    private fun JdbcTransaction.widenServerStatusColumn() {
+        val currentLength = exec(
+            "SELECT character_maximum_length FROM information_schema.columns " +
+                "WHERE table_name = 'servers' AND column_name = 'status'"
+        ) { rs -> if (rs.next()) rs.getInt(1) else null } ?: return
+        if (currentLength < Servers.STATUS_MAX_LENGTH) {
+            exec("ALTER TABLE servers ALTER COLUMN status TYPE varchar(${Servers.STATUS_MAX_LENGTH})")
         }
     }
 

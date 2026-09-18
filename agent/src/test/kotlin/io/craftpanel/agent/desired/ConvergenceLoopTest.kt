@@ -4,6 +4,7 @@ import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.ContainerManager
 import io.craftpanel.agent.docker.FakeContainerManager
 import io.craftpanel.agent.docker.NetworkManager
+import io.craftpanel.agent.docker.WatcherGate
 import io.craftpanel.agent.grpc.AgentOutbound
 import io.craftpanel.agent.grpc.handlers.DesiredStateHandler
 import io.craftpanel.proto.*
@@ -57,6 +58,7 @@ class ConvergenceLoopTest :
             outbound: AgentOutbound,
             scope: CoroutineScope = newScope(),
             store: DesiredStateStore = DesiredStateStore(),
+            gate: WatcherGate = WatcherGate(),
             startConflictRetryDelayMs: Long = 5_000L,
             ensureRouterRunning: suspend () -> Unit = {}
         ) = ConvergenceLoop(
@@ -69,6 +71,7 @@ class ConvergenceLoopTest :
                 startConflictRetryDelayMs = startConflictRetryDelayMs
             ),
             containerNamePrefix = config.containerNamePrefix,
+            gate = gate,
             out = outbound,
             scope = scope
         )
@@ -618,6 +621,152 @@ class ConvergenceLoopTest :
             // Should not have attempted a restart — container remains stopped
             cm.calls.any { it.startsWith("start:") } shouldBe false
             cm.containers["craftpanel-srv-1"]?.state shouldBe FakeContainerManager.State.STOPPED
+        }
+
+        // ── ownership seeding + reconcile backstop ────────────────────────────
+
+        test("applyDesired seeds gate ownership when the container is already running") {
+            // Regression: after an agent process restart the gate is empty and the container is
+            // already running, so convergence NoOps and `startContainer` never marks it managed.
+            // Every later death was then suppressed. Master intent must seed ownership.
+            val cm = runningFake()
+            val (_, out) = newOutbound()
+            val loop = newLoop(cm, out, gate = cm.gate)
+            cm.gate.markRemoved("srv-1")
+            cm.gate.shouldReportDie("srv-1") shouldBe false
+
+            runBlocking { loop.applyDesired(desiredRunning(spec = startCmd())).join() }
+
+            cm.gate.shouldReportDie("srv-1") shouldBe true
+        }
+
+        test("applyDesired RUNNING clears a stale stopping flag") {
+            val cm = runningFake()
+            val (_, out) = newOutbound()
+            val loop = newLoop(cm, out, gate = cm.gate)
+            cm.gate.markStopping("srv-1")
+            cm.gate.shouldReportDie("srv-1") shouldBe false
+
+            runBlocking { loop.applyDesired(desiredRunning(spec = startCmd())).join() }
+
+            cm.gate.shouldReportDie("srv-1") shouldBe true
+        }
+
+        test("applyDesired STOPPED leaves the stopping flag set") {
+            val cm = runningFake()
+            val (_, out) = newOutbound()
+            val loop = newLoop(cm, out, gate = cm.gate)
+            cm.gate.markStopping("srv-1")
+
+            runBlocking {
+                loop.applyDesired(
+                    serverDesiredState {
+                        serverId = "srv-1"
+                        desired = ServerDesiredState.Desired.STOPPED
+                    }
+                ).join()
+            }
+
+            cm.gate.shouldReportDie("srv-1") shouldBe false
+        }
+
+        test("reconcileAll restarts a container that died with no die event") {
+            val cm = runningFake()
+            val (_, out) = newOutbound()
+            val loop = newLoop(cm, out)
+            runBlocking { loop.applyDesired(desiredRunning(spec = startCmd())).join() }
+            // Death with no die event delivered: the container stops out-of-band, gate untouched.
+            cm.containers["craftpanel-srv-1"]!!.state = FakeContainerManager.State.STOPPED
+            cm.calls.clear()
+
+            runBlocking { loop.reconcileAll() }
+
+            cm.containers["craftpanel-srv-1"]?.state shouldBe FakeContainerManager.State.RUNNING
+            cm.calls.any { it == "start:craftpanel-srv-1" } shouldBe true
+        }
+
+        test("reconcileAll leaves running containers untouched") {
+            val cm = runningFake()
+            val (_, out) = newOutbound()
+            val loop = newLoop(cm, out)
+            runBlocking { loop.applyDesired(desiredRunning(spec = startCmd())).join() }
+            cm.calls.clear()
+
+            runBlocking { loop.reconcileAll() }
+
+            cm.calls.any { it.startsWith("start:") || it.startsWith("create:") } shouldBe false
+        }
+
+        test("reconcileAll does not restart a server whose intent is STOPPED") {
+            val cm = runningFake()
+            val (_, out) = newOutbound()
+            val loop = newLoop(cm, out)
+            runBlocking {
+                loop.applyDesired(desiredRunning(spec = startCmd())).join()
+                loop.applyDesired(
+                    serverDesiredState {
+                        serverId = "srv-1"
+                        desired = ServerDesiredState.Desired.STOPPED
+                    }
+                ).join()
+            }
+            cm.calls.clear()
+
+            runBlocking { loop.reconcileAll() }
+
+            cm.containers["craftpanel-srv-1"]?.state shouldBe FakeContainerManager.State.STOPPED
+            cm.calls.any { it.startsWith("start:") } shouldBe false
+        }
+
+        test("an exit-0 die event restarts under desired RUNNING") {
+            // Exit code is informational only; intent decides. A graceful self-exit while master
+            // still wants the server up must be restarted.
+            val cm = runningFake()
+            val (channel, out) = newOutbound()
+            val loop = newLoop(cm, out)
+
+            runBlocking {
+                loop.applyDesired(desiredRunning(spec = startCmd())).join()
+                cm.gate.markStopping("srv-1")
+                cm.killContainer("craftpanel-srv-1")
+                loop.onContainerDie("srv-1", 0).join()
+            }
+
+            channel.statuses().last().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
+            cm.containers["craftpanel-srv-1"]?.state shouldBe FakeContainerManager.State.RUNNING
+        }
+
+        test("an exit-0 die event does not restart under desired STOPPED") {
+            val cm = runningFake()
+            val (_, out) = newOutbound()
+            val loop = newLoop(cm, out)
+
+            runBlocking {
+                loop.applyDesired(
+                    serverDesiredState {
+                        serverId = "srv-1"
+                        desired = ServerDesiredState.Desired.STOPPED
+                    }
+                ).join()
+            }
+            cm.calls.clear()
+
+            runBlocking { loop.onContainerDie("srv-1", 0).join() }
+
+            cm.calls.any { it.startsWith("start:") } shouldBe false
+        }
+
+        test("converge clears a stale stopping flag when the container is observed running") {
+            val cm = runningFake()
+            val (_, out) = newOutbound()
+            val loop = newLoop(cm, out, gate = cm.gate)
+            runBlocking { loop.applyDesired(desiredRunning(spec = startCmd())).join() }
+            cm.gate.markStopping("srv-1")
+            cm.gate.shouldReportDie("srv-1") shouldBe false
+
+            runBlocking { loop.onContainerDie("srv-1", 0).join() }
+
+            cm.gate.shouldReportDie("srv-1") shouldBe true
         }
 
         // ── handler routing ───────────────────────────────────────────────────
