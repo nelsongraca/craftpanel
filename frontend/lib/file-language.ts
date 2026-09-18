@@ -1,6 +1,7 @@
 "use client";
 
-import {LanguageSupport, StreamLanguage} from "@codemirror/language";
+import {StreamLanguage} from "@codemirror/language";
+import type {Extension} from "@codemirror/state";
 import {json} from "@codemirror/lang-json";
 import {yaml} from "@codemirror/lang-yaml";
 import {xml} from "@codemirror/lang-xml";
@@ -40,11 +41,7 @@ export function languageIdFromPath(path: string): LanguageId {
   }
 }
 
-function toLanguageSupport(lang: StreamLanguage<unknown>): LanguageSupport {
-  return {language: lang, support: [], extension: lang.extension};
-}
-
-export function languageExtension(lang: LanguageId): LanguageSupport[] {
+export function languageExtension(lang: LanguageId): Extension[] {
   switch (lang) {
     case "yaml":
       return [yaml()];
@@ -55,9 +52,9 @@ export function languageExtension(lang: LanguageId): LanguageSupport[] {
     case "markdown":
       return [markdown()];
     case "properties":
-      return [toLanguageSupport(StreamLanguage.define(properties))];
+      return [StreamLanguage.define(properties)];
     case "toml":
-      return [toLanguageSupport(StreamLanguage.define(toml))];
+      return [StreamLanguage.define(toml)];
     default:
       return [];
   }

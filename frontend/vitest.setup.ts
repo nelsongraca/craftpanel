@@ -20,6 +20,10 @@ if (typeof Range !== "undefined" && !Range.prototype.getBoundingClientRect) {
 
 import '@testing-library/jest-dom'
 
+// jsdom/vitest Blob interop: stub object URLs so downloads don't throw
+URL.createObjectURL = vi.fn(() => 'blob:mock')
+URL.revokeObjectURL = vi.fn()
+
 vi.mock('next/navigation', () => ({
     useRouter: () => ({ push: vi.fn(), replace: vi.fn(), back: vi.fn() }),
     usePathname: () => '/',

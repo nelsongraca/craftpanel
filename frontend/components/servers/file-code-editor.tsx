@@ -96,11 +96,11 @@ export function FileCodeEditor({
   }, [onSave]);
 
   const langId = languageIdFromPath(path);
-  const langExts = languageExtension(langId);
+  const langExts = useMemo(() => languageExtension(langId), [langId]);
 
   const saveKeymap = useMemo(
     () =>
-      // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/refs
+      // eslint-disable-next-line react-hooks/refs
       keymap.of([
         {
           key: "Mod-s",
@@ -118,9 +118,10 @@ export function FileCodeEditor({
     () => [
       craftpanelTheme,
       saveKeymap,
+      ...(wrap ? [EditorView.lineWrapping] : []),
       ...langExts,
     ],
-    [langId, saveKeymap, langExts]
+    [wrap, saveKeymap, langExts]
   );
 
   const handleChange = useCallback(
