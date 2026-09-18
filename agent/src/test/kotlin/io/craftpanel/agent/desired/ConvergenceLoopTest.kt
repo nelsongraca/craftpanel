@@ -17,6 +17,8 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
 import java.nio.file.Files
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 class ConvergenceLoopTest :
     FunSpec({
@@ -767,6 +769,43 @@ class ConvergenceLoopTest :
             runBlocking { loop.onContainerDie("srv-1", 0).join() }
 
             cm.gate.shouldReportDie("srv-1") shouldBe true
+        }
+
+        test("a concurrent restart envelope is not clobbered by an in-flight converge") {
+            // Regression for the ServerDataDirOverrideTest flake: a plain RUNNING converge was
+            // holding the per-server lock between its read and its write; the restart envelope
+            // upserted force_restart=true, then the in-flight converge wrote its stale snapshot
+            // (force_restart=false) back over it, so the container was never restarted.
+            val cm = runningFake()
+            val (_, out) = newOutbound()
+            val loop = newLoop(cm, out)
+            runBlocking { loop.applyDesired(desiredRunning(spec = startCmd())).join() }
+
+            val inspectEntered = CountDownLatch(1)
+            val releaseInspect = CountDownLatch(1)
+            cm.beforeInspect = {
+                inspectEntered.countDown()
+                releaseInspect.await()
+            }
+
+            val plain = loop.applyDesired(desiredRunning(spec = startCmd()))
+            inspectEntered.await(5, TimeUnit.SECONDS) shouldBe true
+
+            val restart = loop.applyDesired(
+                desiredRunning(spec = startCmd()).toBuilder()
+                    .setForceRestart(true)
+                    .build()
+            )
+
+            cm.beforeInspect = null
+            releaseInspect.countDown()
+            runBlocking {
+                plain.join()
+                restart.join()
+            }
+
+            cm.calls.any { it.startsWith("stop:") } shouldBe true
+            cm.containers["craftpanel-srv-1"]?.state shouldBe FakeContainerManager.State.RUNNING
         }
 
         // ── handler routing ───────────────────────────────────────────────────

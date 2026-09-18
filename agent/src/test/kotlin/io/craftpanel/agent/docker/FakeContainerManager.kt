@@ -53,6 +53,12 @@ class FakeContainerManager(private val containerNamePrefix: String = "craftpanel
 
     var swarmActive = false
 
+    /**
+     * Optional hook invoked at the start of [inspectContainer]. Lets a test hold a converge inside
+     * a Docker call so a second envelope can race it deterministically.
+     */
+    var beforeInspect: (() -> Unit)? = null
+
     private val names = ContainerNames(containerNamePrefix)
 
     private fun serverIdOf(containerName: String): String = names.serverIdOf(containerName)
@@ -166,6 +172,7 @@ class FakeContainerManager(private val containerNamePrefix: String = "craftpanel
      */
     override fun inspectContainer(containerName: String): ContainerSnapshot? {
         calls.add("inspect:$containerName")
+        beforeInspect?.invoke()
         if (!containers.containsKey(containerName)) return null
         val cmd = createdCommands.lastOrNull { it.containerName == containerName } ?: return null
         val portBindings = buildList {

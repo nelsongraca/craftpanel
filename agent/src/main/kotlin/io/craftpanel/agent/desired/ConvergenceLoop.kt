@@ -76,28 +76,35 @@ class ConvergenceLoop(
             // Master wants it up — any earlier intentional-stop flag no longer applies.
             gate.clearStopping(env.serverId)
         }
-        store.upsert(env.serverId) { state ->
-            // A user-initiated (re)start — a fresh start from a non-RUNNING intent, or an explicit
-            // restart — clears the crash-restart history so an operator can recover a crash-looped
-            // server. Autonomous crash-restarts must NOT reset it, otherwise a container that
-            // launches then immediately dies would restart forever and never report CRASH_LOOPED.
-            val userStart = env.desired == ServerDesiredState.Desired.RUNNING &&
-                (state.desired != ServerDesiredState.Desired.RUNNING || env.forceRestart)
-            state.copy(
-                desired = env.desired,
-                spec = if (env.hasSpec()) env.spec else state.spec,
-                budget = if (env.hasRestartBudget()) env.restartBudget else state.budget,
-                forceRestart = env.forceRestart,
-                force = env.force,
-                noRestart = env.noRestart,
-                restartCount = if (userStart) 0 else state.restartCount,
-                windowStartEpochMillis = if (userStart) null else state.windowStartEpochMillis
-            )
-        }
         if (env.desired == ServerDesiredState.Desired.STOPPED && env.force) {
             preemptWithKill(env.serverId)
         }
-        return trigger(env.serverId)
+        // Store the intent and converge under the SAME per-server lock. A converge that read one
+        // intent must never write its (possibly stale) snapshot back over a newer envelope that
+        // landed while it was running — otherwise a restart envelope can be clobbered by an
+        // in-flight plain RUNNING converge, leaving `force_restart` lost and the server not
+        // restarted (ServerDataDirOverrideTest flake).
+        return launchConverge(env.serverId) {
+            store.upsert(env.serverId) { state ->
+                // A user-initiated (re)start — a fresh start from a non-RUNNING intent, or an explicit
+                // restart — clears the crash-restart history so an operator can recover a crash-looped
+                // server. Autonomous crash-restarts must NOT reset it, otherwise a container that
+                // launches then immediately dies would restart forever and never report CRASH_LOOPED.
+                val userStart = env.desired == ServerDesiredState.Desired.RUNNING &&
+                    (state.desired != ServerDesiredState.Desired.RUNNING || env.forceRestart)
+                state.copy(
+                    desired = env.desired,
+                    spec = if (env.hasSpec()) env.spec else state.spec,
+                    budget = if (env.hasRestartBudget()) env.restartBudget else state.budget,
+                    forceRestart = env.forceRestart,
+                    force = env.force,
+                    noRestart = env.noRestart,
+                    restartCount = if (userStart) 0 else state.restartCount,
+                    windowStartEpochMillis = if (userStart) null else state.windowStartEpochMillis
+                )
+            }
+            converge(env.serverId)
+        }
     }
 
     /**
