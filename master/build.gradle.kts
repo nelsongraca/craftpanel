@@ -9,7 +9,6 @@ plugins {
     alias(libs.plugins.ktor)
     alias(libs.plugins.kover)
     alias(libs.plugins.flowkode.buildx)
-    id("craftpanel.protobuf-convention")
     application
 }
 
@@ -69,10 +68,6 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>()
             freeCompilerArgs.add("-opt-in=kotlin.uuid.ExperimentalUuidApi")
         }
     }
-
-sourceSets.main {
-    proto.srcDir("${rootProject.projectDir}/proto")
-}
 
 tasks.register<Copy>("stageDocker") {
     dependsOn(tasks.installDist)
@@ -146,8 +141,6 @@ kover {
     reports {
         filters {
             excludes {
-                packages("io.craftpanel.proto")
-                classes("*Grpc*", "*OuterClass")
                 classes("io.craftpanel.master.MainKt")
             }
         }

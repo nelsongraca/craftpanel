@@ -8,7 +8,6 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.kover)
     alias(libs.plugins.flowkode.buildx)
-    id("craftpanel.protobuf-convention")
     application
 }
 
@@ -57,10 +56,6 @@ dependencies {
 
 tasks.withType<Test> {
     useJUnitPlatform()
-}
-
-sourceSets.main {
-    proto.srcDir("${rootProject.projectDir}/proto")
 }
 
 tasks.register<Copy>("stageDocker") {
@@ -117,8 +112,6 @@ kover {
     reports {
         filters {
             excludes {
-                packages("io.craftpanel.proto")
-                classes("*Grpc*", "*OuterClass")
                 classes("io.craftpanel.agent.MainKt")
             }
         }

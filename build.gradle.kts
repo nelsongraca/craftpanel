@@ -52,7 +52,7 @@ kover {
         filters {
             excludes {
                 packages("com.craftpanel")
-                classes("*Grpc*", "*OuterClass")
+                classes("io.craftpanel.proto.*", "*Grpc*", "*OuterClass")
                 classes("io.craftpanel.master.MainKt", "io.craftpanel.agent.MainKt")
             }
         }
