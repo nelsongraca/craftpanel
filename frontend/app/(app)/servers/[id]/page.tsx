@@ -1,6 +1,7 @@
 "use client";
 
 import {useCallback, useEffect, useState} from "react";
+import dynamic from "next/dynamic";
 import {useParams, useRouter} from "next/navigation";
 import Link from "next/link";
 import {ChevronRight, Copy, Download, MoreHorizontal, Play, RotateCcw, Shuffle, Skull, Square, Trash2, X,} from "lucide-react";
@@ -13,13 +14,6 @@ import {serverDisabled, serverExpired, serverStatusLabel, serverStatusVariant} f
 import {Badge} from "@/components/ui/badge";
 import {Skeleton} from "@/components/ui/skeleton";
 import {Empty, EmptyDescription} from "@/components/ui/empty";
-import {ConsoleTab} from "./console-tab";
-import {FilesTab} from "./files-tab";
-import {BackupsTab} from "./backups-tab";
-import {ModsTab} from "./mods-tab";
-import {ConfigTab} from "./config-tab";
-import {PortsTab} from "./ports-tab";
-import {MigrationTab} from "./migration-tab";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {HeaderActionButton} from "@/components/servers/header-action-button";
 import {OverviewTab} from "@/components/servers/overview-tab";
@@ -31,6 +25,15 @@ type LivePlayers = { count: number; list: string[] };
 
 const TABS = ["Overview", "Console", "Files", "Mods", "Backups", "Configuration", "Ports", "Migration"] as const;
 type Tab = (typeof TABS)[number];
+
+// Lazily load each tab so visiting one tab does not bundle/evaluate the rest.
+const ConsoleTab = dynamic(() => import("./console-tab").then((m) => m.ConsoleTab), {ssr: false});
+const FilesTab = dynamic(() => import("./files-tab").then((m) => m.FilesTab), {ssr: false});
+const BackupsTab = dynamic(() => import("./backups-tab").then((m) => m.BackupsTab), {ssr: false});
+const ModsTab = dynamic(() => import("./mods-tab").then((m) => m.ModsTab), {ssr: false});
+const ConfigTab = dynamic(() => import("./config-tab").then((m) => m.ConfigTab), {ssr: false});
+const PortsTab = dynamic(() => import("./ports-tab").then((m) => m.PortsTab), {ssr: false});
+const MigrationTab = dynamic(() => import("./migration-tab").then((m) => m.MigrationTab), {ssr: false});
 
 export default function ServerDetailPage() {
     const params = useParams();

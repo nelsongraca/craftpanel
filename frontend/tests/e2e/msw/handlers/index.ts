@@ -2,6 +2,12 @@ import {authHandlers} from "./auth";
 import {serverHandlers} from "./servers";
 import {nodeHandlers} from "./nodes";
 import {portHandlers} from "./ports";
+import {fileHandlers} from "./files";
+import {backupHandlers} from "./backups";
+import {configHandlers} from "./config";
+import {serverDetailHandlers} from "./server-detail";
+import {adminHandlers} from "./admin";
+import {modHandlers} from "./mods";
 
 // WS handlers are NOT included by default — they cause @msw/playwright to
 // install routeWebSocket(MATCH_ALL) which intercepts Turbopack's HMR WebSocket
@@ -11,6 +17,12 @@ export const handlers = [
     ...serverHandlers,
     ...nodeHandlers,
     ...portHandlers,
+    ...fileHandlers,
+    ...backupHandlers,
+    ...configHandlers,
+    ...serverDetailHandlers,
+    ...adminHandlers,
+    ...modHandlers,
 ];
 
 export {dashboardWsHandlers, consoleWsHandlers, migrationWsHandlers} from "./websockets";

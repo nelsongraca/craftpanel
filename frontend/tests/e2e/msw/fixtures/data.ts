@@ -7,6 +7,18 @@ import type {
     MigrationResponse,
     LoginResponse,
     WsTicketResponse,
+    BackupResponse,
+    BackupScheduleResponse,
+    EnvVarItem,
+    ProxySettingsResponse,
+    ProxyBackendItem,
+    AlertThresholdResponse,
+    AlertEventResponse,
+    GroupResponse,
+    UserResponse,
+    AssignmentResponse,
+    SystemSettingsResponse,
+    NodeMetricsResponse,
 } from "@/lib/generated/types.gen";
 
 export const FAKE_TOKEN = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.test.sig";
@@ -130,7 +142,7 @@ export const fakeServers: ServerResponse[] = [
         is_migrating: false,
         restart_pending: false,
         disabled: false,
-        config_mode: "MANUAL",
+        config_mode: "MANAGED",
         stop_command: "stop",
         last_player_count: 3,
         last_player_names: ["Steve", "Alex"],
@@ -197,6 +209,21 @@ export const fakeServers: ServerResponse[] = [
         memory_mb: 1024,
         disabled: true,
     },
+    {
+        ...SERVER_DEFAULTS,
+        id: "srv-proxy",
+        name: "velocity",
+        display_name: "Velocity Proxy",
+        server_type: "VELOCITY",
+        mc_version: "1.21.5",
+        itzg_image_tag: "latest",
+        status: "HEALTHY",
+        node_id: "node-1",
+        network_id: "net-1",
+        host_port: 25577,
+        memory_mb: 1024,
+        config_mode: "MANAGED",
+    },
 ];
 
 export const fakeHealthyServer: ServerResponse = fakeServers[0];
@@ -247,6 +274,218 @@ export const fakeMigration: MigrationResponse = {
     created_at: "2025-06-20T10:00:00Z",
     completed_at: null,
 };
+
+// ── Backups ────────────────────────────────────────────────────────────────
+
+export const fakeBackups: BackupResponse[] = [
+    {
+        id: "backup-1",
+        server_id: "srv-1",
+        node_id: "node-1",
+        trigger: "MANUAL",
+        status: "COMPLETED",
+        file_path: "/backups/backup-1.tar.gz",
+        size_bytes: 1048576,
+        error_message: null,
+        created_at: "2025-06-20T10:00:00Z",
+        completed_at: "2025-06-20T10:05:00Z",
+    },
+    {
+        id: "backup-2",
+        server_id: "srv-1",
+        node_id: "node-1",
+        trigger: "SCHEDULED",
+        status: "FAILED",
+        file_path: null,
+        size_bytes: null,
+        error_message: "Disk full",
+        created_at: "2025-06-21T02:00:00Z",
+        completed_at: "2025-06-21T02:01:00Z",
+    },
+];
+
+export const fakeBackupSchedule: BackupScheduleResponse = {
+    backup_schedule: "0 2 * * *",
+    backup_max_count: 10,
+};
+
+// ── Env vars / config ──────────────────────────────────────────────────────
+
+export const fakeEnvVars: EnvVarItem[] = [
+    {key: "DIFFICULTY", value: "normal"},
+    {key: "PVP", value: "true"},
+    {key: "CUSTOM_EXTRA", value: "hello"},
+];
+
+export const fakeProxySettings: ProxySettingsResponse = {
+    motd: "A Minecraft Proxy",
+    max_players: 20,
+    forwarding_mode: "MODERN",
+    forwarding_warnings: [],
+};
+
+export const fakeProxyBackends: ProxyBackendItem[] = [
+    {
+        id: "backend-1",
+        backend_server_id: "srv-2",
+        backend_name: "creative",
+        order: 0,
+    },
+];
+
+// ── Alerts ─────────────────────────────────────────────────────────────────
+
+export const fakeAlertThresholds: AlertThresholdResponse[] = [
+    {
+        id: "threshold-1",
+        scope_type: "NODE",
+        scope_id: "node-1",
+        metric: "cpu_percent",
+        threshold_value: 90,
+        threshold_state: null,
+        created_at: "2025-01-01T00:00:00Z",
+    },
+];
+
+export const fakeAlertEvents: AlertEventResponse[] = [
+    {
+        id: "event-1",
+        threshold_id: "threshold-1",
+        message: "node-1 CPU above 90%",
+        fired_at: "2025-06-20T10:00:00Z",
+        resolved_at: null,
+    },
+];
+
+// ── Users / groups ─────────────────────────────────────────────────────────
+
+export const fakeUsers: UserResponse[] = [
+    {
+        id: "user-1",
+        username: "admin",
+        email: "admin@craftpanel.test",
+        is_active: true,
+        created_at: "2025-01-01T00:00:00Z",
+        must_change_password: false,
+        groups: ["Super Admin"],
+        last_login_at: "2025-06-20T10:00:00Z",
+    },
+    {
+        id: "user-2",
+        username: "viewer",
+        email: "viewer@craftpanel.test",
+        is_active: false,
+        created_at: "2025-01-02T00:00:00Z",
+        must_change_password: false,
+        groups: ["Viewer"],
+        last_login_at: null,
+    },
+];
+
+export const fakeGroups: GroupResponse[] = [
+    {
+        id: "group-1",
+        name: "Super Admin",
+        is_system: true,
+        permissions: ["*"],
+        created_at: "2025-01-01T00:00:00Z",
+    },
+    {
+        id: "group-2",
+        name: "Operator",
+        is_system: true,
+        permissions: ["server.restart", "server.console", "server.view", "server.backup"],
+        created_at: "2025-01-01T00:00:00Z",
+    },
+];
+
+export const fakeAssignments: AssignmentResponse[] = [
+    {
+        id: "assign-1",
+        group_id: "group-1",
+        scope_type: "GLOBAL",
+        scope_id: null,
+    },
+];
+
+export const fakeSystemSettings: SystemSettingsResponse = {
+    settings: {
+        app_name: "CraftPanel",
+        app_logo: null,
+        metric_retention_days: 30,
+        default_backup_max_count: 10,
+        default_port_range_start: 25565,
+        default_port_range_end: 25600,
+        restart_max_attempts: 3,
+        restart_window_seconds: 300,
+        rate_limit_login_per_minute: 10,
+        rate_limit_refresh_per_minute: 30,
+        rate_limit_totp_verify_per_minute: 10,
+        image_minecraft: "itzg/minecraft-server",
+        image_proxy: "itzg/mc-proxy",
+        console_tail_lines: 200,
+        dns_domain_suffix: null,
+        dns_zone_id: null,
+    },
+    updated_at: "2025-01-01T00:00:00Z",
+    updated_by: "user-1",
+};
+
+export const fakeNodeMetrics: NodeMetricsResponse = {
+    timestamps: [new Date(Date.now() - 10 * 60_000).toISOString(), new Date(Date.now() - 5 * 60_000).toISOString()],
+    cpu_percent: [10, 20],
+    ram_used_mb: [1024, 2048],
+    ram_total_mb: [8192, 8192],
+    net_in_bytes: [1000, 2000],
+    net_out_bytes: [500, 1000],
+    disk_used_bytes: [1073741824, 1073741824],
+    disk_total_bytes: [10737418240, 10737418240],
+};
+
+export const fakeMigrationWithSteps: MigrationResponse = {
+    id: "mig-1",
+    server_id: "srv-1",
+    source_node_id: "node-1",
+    target_node_id: "node-2",
+    status: "COMPLETED",
+    steps: [
+        {
+            step_number: 1,
+            description: "Syncing world data",
+            status: "SUCCESS",
+            started_at: "2025-06-20T10:00:00Z",
+            completed_at: "2025-06-20T10:01:00Z",
+            error_message: null,
+        },
+        {
+            step_number: 2,
+            description: "Cutting over DNS",
+            status: "SUCCESS",
+            started_at: "2025-06-20T10:01:00Z",
+            completed_at: "2025-06-20T10:02:00Z",
+            error_message: null,
+        },
+    ],
+    created_at: "2025-06-20T10:00:00Z",
+    completed_at: "2025-06-20T10:02:00Z",
+};
+
+export const fakeModrinthVersions = [
+    {
+        id: "we-7.3.0",
+        version_number: "7.3.0",
+        name: "WorldEdit 7.3.0",
+        version_type: "release",
+        date_published: "2025-01-01T00:00:00Z",
+    },
+    {
+        id: "we-7.2.0",
+        version_number: "7.2.0",
+        name: "WorldEdit 7.2.0",
+        version_type: "beta",
+        date_published: "2024-12-01T00:00:00Z",
+    },
+];
 
 export const dashboardSnapshot = {
     type: "snapshot",

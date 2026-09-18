@@ -16,5 +16,9 @@ export const authHandlers = [
 
     http.post("/api/auth/ws-ticket", () => HttpResponse.json(wsTicketResponse)),
 
+    http.get("/api/auth/totp/status", () =>
+        HttpResponse.json({enabled: false, recovery_codes_remaining: 0})
+    ),
+
     http.post("/api/auth/logout", () => new HttpResponse(null, {status: 204})),
 ];

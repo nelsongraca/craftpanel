@@ -2,6 +2,9 @@ import {test as base} from "@playwright/test";
 import {type AnyHandler} from "msw";
 import {defineNetworkFixture, type NetworkFixture} from "@msw/playwright";
 import {handlers} from "./msw/handlers";
+import {resetConfig} from "./msw/handlers/config";
+import {resetMods} from "./msw/handlers/mods";
+import {resetBackups} from "./msw/handlers/backups";
 import {startJSCoverage, stopJSCoverage} from "./coverage";
 
 interface Fixtures {
@@ -35,6 +38,13 @@ export const test = base.extend<Fixtures>({
         },
         {auto: true},
     ],
+});
+
+// Reset any mutable handler state so tests cannot leak into one another.
+test.beforeEach(() => {
+    resetConfig();
+    resetMods();
+    resetBackups();
 });
 
 export {expect} from "@playwright/test";
