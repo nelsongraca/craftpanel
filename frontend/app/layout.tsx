@@ -72,7 +72,7 @@ export default function RootLayout({
                 dangerouslySetInnerHTML={{__html: `window.__API_URL__=${JSON.stringify(process.env.PUBLIC_API_URL ?? "")};`}}
             />
         </head>
-        <body className="min-h-full flex flex-col bg-bg text-text-primary font-sans">
+        <body className="h-full flex flex-col bg-bg text-text-primary font-sans">
         <SerwistProvider swUrl="/serwist/sw.js">
             <AuthProvider>{children}</AuthProvider>
         </SerwistProvider>

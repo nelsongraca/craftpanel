@@ -8,6 +8,16 @@ if (typeof globalThis.PointerEvent === 'undefined') {
     } as unknown as typeof PointerEvent
 }
 
+// CodeMirror 6 needs Range.getBoundingClientRect in jsdom
+if (typeof Range !== "undefined" && !Range.prototype.getBoundingClientRect) {
+    Range.prototype.getBoundingClientRect = function () {
+        return new DOMRect();
+    };
+    Range.prototype.getClientRects = function () {
+        return [] as unknown as DOMRectList;
+    };
+}
+
 import '@testing-library/jest-dom'
 
 vi.mock('next/navigation', () => ({

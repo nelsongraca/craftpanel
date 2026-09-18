@@ -231,9 +231,9 @@ export default function ServerDetailPage() {
     const expired = serverExpired(server.expires_at);
 
     return (
-        <div>
+        <div className="flex flex-col h-full min-h-0">
             {/* Page header */}
-            <div className="px-6 pt-6 pb-5 border-b border-border">
+            <div className="px-6 pt-6 pb-5 border-b border-border shrink-0">
 
                 {/* Breadcrumb */}
                 <div className="flex items-center gap-1.5 text-xs font-heading font-bold uppercase tracking-wider text-text-muted mb-4">
@@ -438,8 +438,8 @@ export default function ServerDetailPage() {
             )}
 
             {/* Tab bar */}
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as Tab)}>
-                <div className="scrollbar-none border-b border-border bg-surface overflow-x-auto pb-[7px]">
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as Tab)} className="flex-1 min-h-0 overflow-hidden">
+                <div className="scrollbar-none border-b border-border bg-surface overflow-x-auto pb-[7px] shrink-0">
                     <TabsList variant="line" className="h-auto w-full justify-start rounded-none bg-transparent px-6 py-0">
                         {TABS.filter((tab) => !(isProxy && tab === "Migration") && !((isCustom || isPicolimbo) && tab === "Mods")).map((tab) => (
                             <TabsTrigger
@@ -453,7 +453,7 @@ export default function ServerDetailPage() {
                     </TabsList>
                 </div>
 
-                <TabsContent value="Overview">
+                <TabsContent value="Overview" className="overflow-auto">
                     <OverviewTab
                         server={server}
                         node={node}
@@ -465,21 +465,21 @@ export default function ServerDetailPage() {
                         onSaved={() => void fetchServer()}
                     />
                 </TabsContent>
-                <TabsContent value="Console">
+                <TabsContent value="Console" className="flex-1 min-h-0 overflow-hidden">
                     <ConsoleTab serverId={server.id} serverStatus={server.status}/>
                 </TabsContent>
-                <TabsContent value="Files">
+                <TabsContent value="Files" className="flex-1 min-h-0 overflow-hidden">
                     <FilesTab serverId={server.id}/>
                 </TabsContent>
-                <TabsContent value="Backups">
+                <TabsContent value="Backups" className="overflow-auto">
                     <BackupsTab serverId={server.id}/>
                 </TabsContent>
                 {!isCustom && !isPicolimbo && (
-                    <TabsContent value="Mods">
+                    <TabsContent value="Mods" className="overflow-auto">
                         <ModsTab serverId={server.id} serverType={server.server_type} mcVersion={server.mc_version} onModsChanged={() => void fetchServer()}/>
                     </TabsContent>
                 )}
-                <TabsContent value="Configuration">
+                <TabsContent value="Configuration" className="overflow-auto">
                     <ConfigTab
                         serverId={server.id}
                         serverType={server.server_type}
@@ -492,11 +492,11 @@ export default function ServerDetailPage() {
                         }}
                     />
                 </TabsContent>
-                <TabsContent value="Ports">
+                <TabsContent value="Ports" className="overflow-auto">
                     <PortsTab serverId={server.id} serverType={server.server_type} currentContainerPort={server.container_listen_port} currentProtocol={server.container_protocol} />
                 </TabsContent>
                 {!isProxy && (
-                    <TabsContent value="Migration">
+                    <TabsContent value="Migration" className="overflow-auto">
                         <div className="px-6 py-6">
                             <MigrationTab
                                 serverId={server.id}

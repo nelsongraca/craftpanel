@@ -5,7 +5,8 @@ import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {usePromptDialog} from "@/lib/hooks/usePromptDialog";
 import {Empty, EmptyDescription} from "@/components/ui/empty";
 import {deleteServerFile, downloadServerFile, listServerFiles, mkdirServerFile, moveServerFile, readServerFile, uploadServerFile, writeServerFile,} from "@/lib/generated/sdk.gen";
-import {ChevronDown, ChevronRight, Download, File, Folder, FolderPlus, Pencil, Save, Trash2, Upload, X} from "lucide-react";
+import {ChevronDown, ChevronRight, Download, File, Folder, FolderPlus, Pencil, Save, Trash2, Upload, X, WrapText} from "lucide-react";
+import {FileCodeEditor} from "@/components/servers/file-code-editor";
 
 interface FileEntry {
     name: string;
@@ -41,6 +42,7 @@ export function FilesTab({serverId}: Props) {
     const [dirty, setDirty] = useState(false);
     const [rootLoading, setRootLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+    const [wrap, setWrap] = useState(false);
     const {confirm, dialog} = useConfirmDialog();
     const {prompt, dialog: promptDialog} = usePromptDialog();
     const [renameNode, setRenameNode] = useState<{ path: string; name: string } | null>(null);
@@ -103,6 +105,8 @@ export function FilesTab({serverId}: Props) {
         setError(null);
         setFileContent("");
         setFileEncoding("utf-8");
+        const ext = node.path.split(".").pop()?.toLowerCase();
+        setWrap(ext === "md" || ext === "markdown" || ext === "log" || ext === "txt");
         const {data, error: err} = await readServerFile({path: {id: serverId}, query: {path: node.path}});
         setLoadingFile(false);
         if (err || !data) {
@@ -323,7 +327,7 @@ export function FilesTab({serverId}: Props) {
 
     return (
         <>
-            <div className="flex h-[600px]">
+            <div className="flex h-full min-h-0">
                 {/* ── Tree ── */}
                 <div className="w-64 shrink-0 border-r border-border flex flex-col overflow-hidden">
                     <div className="flex items-center gap-1 px-3 py-2 border-b border-border">
@@ -348,7 +352,7 @@ export function FilesTab({serverId}: Props) {
                 </div>
 
                 {/* ── Editor ── */}
-                <div className="flex-1 flex flex-col overflow-hidden">
+                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
                     {error && (
                         <div className="px-4 py-1.5 bg-error/10 border-b border-error/20 text-error text-xs font-mono flex items-center gap-2">
                             <X size={12}/>
@@ -361,14 +365,23 @@ export function FilesTab({serverId}: Props) {
                             <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
                                 <span className="font-mono text-xs text-text-dim flex-1 truncate">{selectedPath}</span>
                                 {fileEncoding !== "binary" && (
-                                    <button
-                                        className="flex items-center gap-1 px-2.5 py-1 bg-accent text-bg text-xs font-bold rounded disabled:opacity-50"
-                                        onClick={() => void saveFile()}
-                                        disabled={savingFile || !dirty}
-                                    >
-                                        <Save size={11}/>
-                                        {savingFile ? "Saving…" : "Save"}
-                                    </button>
+                                    <>
+                                        <button
+                                            title={wrap ? "Disable word wrap" : "Enable word wrap"}
+                                            className={`p-1 text-text-muted hover:text-accent transition-colors ${wrap ? "text-accent" : ""}`}
+                                            onClick={() => setWrap((w) => !w)}
+                                        >
+                                            <WrapText size={13}/>
+                                        </button>
+                                        <button
+                                            className="flex items-center gap-1 px-2.5 py-1 bg-accent text-bg text-xs font-bold rounded disabled:opacity-50"
+                                            onClick={() => void saveFile()}
+                                            disabled={savingFile || !dirty}
+                                        >
+                                            <Save size={11}/>
+                                            {savingFile ? "Saving…" : "Save"}
+                                        </button>
+                                    </>
                                 )}
                                 {fileEncoding === "binary" && (
                                     <button
@@ -380,20 +393,22 @@ export function FilesTab({serverId}: Props) {
                                     </button>
                                 )}
                             </div>
-                            <div className="flex-1 overflow-auto">
+                            <div className="flex-1 min-h-0">
                                 {loadingFile ? (
                                     <p className="text-text-muted text-xs p-4">Loading…</p>
                                 ) : fileEncoding === "binary" ? (
                                     <p className="text-text-muted text-xs p-4">Binary file - use the download button to retrieve it.</p>
                                 ) : (
-                                    <textarea
-                                        className="w-full h-full bg-bg font-mono text-xs text-text-primary p-4 resize-none focus:outline-none leading-relaxed"
+                                    <FileCodeEditor
                                         value={fileContent}
-                                        onChange={(e) => {
-                                            setFileContent(e.target.value);
+                                        onChange={(val) => {
+                                            setFileContent(val);
                                             setDirty(true);
                                         }}
-                                        spellCheck={false}
+                                        onSave={saveFile}
+                                        path={selectedPath}
+                                        encoding={fileEncoding}
+                                        wrap={wrap}
                                     />
                                 )}
                             </div>

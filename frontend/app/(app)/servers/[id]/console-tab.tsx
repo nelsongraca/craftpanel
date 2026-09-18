@@ -39,14 +39,13 @@ function ServerLogView({serverId}: { serverId: string }) {
     );
 
     return (
-        <div className="px-6 py-6 flex flex-col gap-2">
-            {error && <p className="text-error text-xs font-mono">{error}</p>}
+        <div className="px-6 py-6 flex flex-col gap-2 h-full min-h-0">
+            {error && <p className="text-error text-xs font-mono shrink-0">{error}</p>}
             {!error && html === null && fallback("Loading\u2026")}
             {!error && html !== null && html === "" && fallback("No log output available")}
             {!error && html !== null && html !== "" && (
                 <pre
-                    className="rounded border border-border bg-surface p-3 text-xs font-mono overflow-auto whitespace-pre-wrap leading-relaxed"
-                    style={{height: "520px"}}
+                    className="rounded border border-border bg-surface p-3 text-xs font-mono overflow-auto whitespace-pre-wrap leading-relaxed flex-1 min-h-0"
                     dangerouslySetInnerHTML={{__html: html}}
                 />
             )}
@@ -246,17 +245,16 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
     }
 
     return (
-        <div className="px-6 py-6 flex flex-col gap-2">
+        <div className="px-6 py-6 flex flex-col gap-2 h-full min-h-0">
             {error && (
-                <p className="text-error text-xs font-mono">{error}</p>
+                <p className="text-error text-xs font-mono shrink-0">{error}</p>
             )}
             {statusMsg && !error && (
-                <p className="text-text-muted text-xs font-mono">{statusMsg}</p>
+                <p className="text-text-muted text-xs font-mono shrink-0">{statusMsg}</p>
             )}
             <div
                 ref={containerRef}
-                className="rounded border border-border overflow-hidden"
-                style={{height: "520px"}}
+                className="rounded border border-border overflow-hidden flex-1 min-h-0"
             />
         </div>
     );

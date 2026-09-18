@@ -1,7 +1,39 @@
 import {describe, it, expect, vi, beforeEach} from "vitest";
-import {render, screen, waitFor, fireEvent} from "@testing-library/react";
+import {render, screen, waitFor, fireEvent, act} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {FilesTab} from "../files-tab";
+
+vi.mock("@/components/servers/file-code-editor", () => ({
+    FileCodeEditor: ({
+        value,
+        onChange,
+        onSave,
+        path,
+        encoding,
+        wrap,
+    }: {
+        value: string;
+        onChange: (v: string) => void;
+        onSave: () => void;
+        path: string;
+        encoding?: string;
+        wrap?: boolean;
+    }) => (
+        <textarea
+            data-testid="code-editor"
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === "s") {
+                    e.preventDefault();
+                    onSave();
+                }
+            }}
+            spellCheck={false}
+            className="w-full h-full font-mono text-xs p-4"
+        />
+    ),
+}));
 
 vi.mock("@/lib/generated/sdk.gen", () => ({
     listServerFiles: vi.fn(),
@@ -24,6 +56,18 @@ import {
     uploadServerFile,
     downloadServerFile,
 } from "@/lib/generated/sdk.gen";
+
+function getEditorText(): string {
+    const textarea = screen.getByTestId("code-editor");
+    return textarea.value;
+}
+
+function setEditorText(text: string) {
+    const textarea = screen.getByTestId("code-editor");
+    act(() => {
+        fireEvent.change(textarea, {target: {value: text}});
+    });
+}
 
 vi.mock("@/components/ui/confirm-dialog", () => ({
     ConfirmDialog: ({
@@ -204,7 +248,7 @@ describe("FilesTab", () => {
         await user.click(screen.getByText("ops.json"));
 
         await waitFor(() => {
-            expect(screen.getByDisplayValue('{"ops":[]}')).toBeInTheDocument();
+            expect(getEditorText()).toBe('{"ops":[]}');
         });
     });
 
@@ -550,9 +594,9 @@ describe("FilesTab", () => {
                 expect(screen.getByText("config.yml")).toBeInTheDocument(),
             );
             await user.click(screen.getByText("config.yml"));
-            await waitFor(() =>
-                expect(screen.getByDisplayValue("setting: value")).toBeInTheDocument(),
-            );
+            await waitFor(() => {
+                expect(getEditorText()).toBe("setting: value");
+            });
             return {user};
         }
 
@@ -564,8 +608,7 @@ describe("FilesTab", () => {
         it("sends writeServerFile when Save is clicked with dirty content", async () => {
             vi.mocked(writeServerFile).mockResolvedValue({data: undefined} as never);
             const {user} = await setupEditor();
-            const textarea = screen.getByDisplayValue("setting: value");
-            fireEvent.change(textarea, {target: {value: "setting: newvalue"}});
+            await act(async () => setEditorText("setting: newvalue"));
 
             await user.click(screen.getByText("Save"));
 
@@ -585,8 +628,7 @@ describe("FilesTab", () => {
             vi.mocked(writeServerFile).mockResolvedValue({
                 error: {message: "Failed to save file"},
             } as never);
-            const textarea = screen.getByDisplayValue("setting: value");
-            fireEvent.change(textarea, {target: {value: "setting: bad"}});
+            await act(async () => setEditorText("setting: bad"));
 
             await user.click(screen.getByText("Save"));
 
@@ -642,7 +684,7 @@ describe("FilesTab", () => {
 
             await user.click(screen.getByText("good.txt"));
             await waitFor(() =>
-                expect(screen.getByDisplayValue("previous file content")).toBeInTheDocument(),
+                expect(getEditorText()).toBe("previous file content"),
             );
 
             vi.mocked(readServerFile).mockResolvedValueOnce({
@@ -653,9 +695,7 @@ describe("FilesTab", () => {
             await waitFor(() => {
                 expect(screen.getByText("Failed to load file")).toBeInTheDocument();
             });
-            expect(
-                screen.queryByDisplayValue("previous file content"),
-            ).not.toBeInTheDocument();
+            expect(getEditorText()).not.toBe("previous file content");
         });
     });
 
