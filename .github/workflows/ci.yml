@@ -27,13 +27,13 @@ jobs:
         run: sudo apt-get install -y pv
 
       - name: Run backend unit tests
-        run: ./gradlew :master:test :agent:test -PwithCoverage
+        run: ./gradlew :master:test :agent:test :common:test -PwithCoverage
 
       - uses: ./.github/actions/codecov-upload
         with:
           flags: backend
-          test-results: master/build/test-results/**/*.xml,agent/build/test-results/**/*.xml
-          coverage-files: master/build/reports/kover/report.xml,agent/build/reports/kover/report.xml
+          test-results: master/build/test-results/**/*.xml,agent/build/test-results/**/*.xml,common/build/test-results/**/*.xml
+          coverage-files: master/build/reports/kover/report.xml,agent/build/reports/kover/report.xml,common/build/reports/kover/report.xml
           token: ${{ secrets.CODECOV_TOKEN }}
 
   frontend:

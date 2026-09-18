@@ -5,11 +5,38 @@ coverage:
         target: auto
         threshold: 5%
 
+comment:
+  layout: "condensed_header, diff, flags, components"
+
 flags:
   system:
     carryforward: true
   e2e:
     carryforward: true
+
+component_management:
+  default_rules:
+    statuses:
+      - type: project
+        target: auto
+        threshold: 1%
+  individual_components:
+    - component_id: master
+      name: Master
+      paths:
+        - master/**
+    - component_id: agent
+      name: Agent
+      paths:
+        - agent/**
+    - component_id: frontend
+      name: Frontend
+      paths:
+        - frontend/**
+    - component_id: common
+      name: Common
+      paths:
+        - common/**
 
 ignore:
   - "**/repo/*RepositoryImpl.kt"

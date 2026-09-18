@@ -34,4 +34,10 @@ kover {
             }
         }
     }
+    reports {
+        total {
+            html { title = "CraftPanel Common" }
+            xml { xmlFile = layout.buildDirectory.file("reports/kover/report.xml") }
+        }
+    }
 }
