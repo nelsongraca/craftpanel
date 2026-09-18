@@ -138,6 +138,18 @@ tasks.named("check") {
     dependsOn.clear()
 }
 
+// Cache priming for CI: the single `build-images` job resolves the full test runtime classpath
+// (testcontainers, tomlj/antlr4, etc.) so the parallel shards never download those runtime-only
+// dependencies concurrently from Maven Central (429 Too Many Requests).
+tasks.register("resolveTestRuntimeClasspath") {
+    group = "verification"
+    description = "Resolves the test runtime classpath (CI dependency-cache priming)."
+    // A lazy FileCollection input is config-cache-safe (unlike capturing the configuration provider).
+    val testRuntime = configurations.named("testRuntimeClasspath")
+    inputs.files(testRuntime)
+    doLast { inputs.files.files.size }
+}
+
 val masterJarFile = rootProject.layout.projectDirectory.file("master/build/libs/master.jar")
 val agentJarFile = rootProject.layout.projectDirectory.file("agent/build/libs/agent.jar")
 val masterSrcDir = rootProject.layout.projectDirectory.dir("master/src/main/kotlin")

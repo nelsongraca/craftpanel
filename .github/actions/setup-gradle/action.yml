@@ -1,5 +1,11 @@
 name: Setup Gradle
-description: Set up Java + Gradle caches shared across workflows
+description: Set up Java + Gradle (dependency and build caches) shared across workflows
+
+inputs:
+  cache-read-only:
+    description: Restore Gradle caches but never write them (use in fan-out consumer jobs)
+    required: false
+    default: "false"
 
 runs:
   using: composite
@@ -10,12 +16,11 @@ runs:
         distribution: temurin
         java-version: 25
 
-    - name: Cache Gradle dependencies
-      uses: actions/cache@v4
+    # Official Gradle action. Its cache is keyed per job (OS + job id + workflow + SHA) and
+    # downloaded dependencies are deduplicated across jobs, so a fast job can no longer save an
+    # incomplete cache that a later job restores (the previous `actions/cache` key was shared and
+    # immutable, which let a producer poison the system-test shards' dependency cache).
+    - name: Setup Gradle
+      uses: gradle/actions/setup-gradle@v6
       with:
-        path: |
-          ~/.gradle/caches/
-          ~/.gradle/wrapper/
-          .gradle/
-        key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle.kts', '**/gradle-wrapper.properties', 'gradle/libs.versions.toml') }}
-        restore-keys: ${{ runner.os }}-gradle-
+        cache-read-only: ${{ inputs.cache-read-only }}

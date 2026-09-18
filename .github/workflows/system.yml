@@ -26,24 +26,13 @@ jobs:
 
       - uses: ./.github/actions/setup-gradle
 
-      - name: Restore Gradle build cache
-        uses: actions/cache/restore@v4
-        with:
-          path: ~/.gradle/caches/build-cache-1
-          key: gradle-build-cache-${{ github.sha }}
-          restore-keys: gradle-build-cache-
-
       - name: Build Docker images
         run: ./gradlew :master:buildxBuild :agent:buildxBuild :fake-server:dockerBuildImage -PdockerCache=true
 
-      - name: Warm up system-tests compile cache
-        run: ./gradlew :system-tests:compileTestKotlin
-
-      - name: Save Gradle build cache
-        uses: actions/cache/save@v4
-        with:
-          path: ~/.gradle/caches/build-cache-1
-          key: gradle-build-cache-${{ github.sha }}
+      # Single producer for the shard dependency cache: resolve everything the shards need
+      # (including runtime-only deps like testcontainers/antlr4) before they fan out.
+      - name: Warm up system-tests test dependencies
+        run: ./gradlew :system-tests:compileTestKotlin :system-tests:resolveTestRuntimeClasspath
 
       - name: Save Docker images
         run: |
@@ -73,14 +62,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Fan-out consumer: restore caches, never write (the shards must not each save a partial
+      # Gradle User Home / dependency cache).
       - uses: ./.github/actions/setup-gradle
-
-      - name: Restore Gradle build cache
-        uses: actions/cache/restore@v4
         with:
-          path: ~/.gradle/caches/build-cache-1
-          key: gradle-build-cache-${{ github.sha }}
-          restore-keys: gradle-build-cache-
+          cache-read-only: true
 
       - name: Download image artifact
         uses: actions/download-artifact@v4
@@ -126,13 +112,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: ./.github/actions/setup-gradle
-
-      - name: Restore Gradle build cache
-        uses: actions/cache/restore@v4
         with:
-          path: ~/.gradle/caches/build-cache-1
-          key: gradle-build-cache-${{ github.sha }}
-          restore-keys: gradle-build-cache-
+          cache-read-only: true
 
       - name: Download all shard coverage artifacts
         uses: actions/download-artifact@v4
