@@ -23,6 +23,9 @@ class RefreshTokenService(private val userRepository: UserRepository) {
 
     private val tokenLifetime = 30.days
 
+    /** Lifetime of every refresh token, in seconds — used as the refresh cookie's Max-Age. */
+    val cookieMaxAgeSeconds: Long = tokenLifetime.inWholeSeconds
+
     fun issue(userId: Uuid, trusted: Boolean = false, deviceFingerprint: String? = null): RefreshTokenResult {
         val rawToken = generateRaw()
         val hash = sha256Hex(rawToken)

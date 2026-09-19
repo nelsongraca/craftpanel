@@ -170,7 +170,11 @@ private fun ApplicationCall.issueSessionCookies(
         secure = secureCookies,
         extensions = mapOf("SameSite" to "Strict"),
         path = "/api/auth",
-        domain = cookieDomainOrNull
+        domain = cookieDomainOrNull,
+        // Persist the cookie across browser/PWA restarts; without this it is a session
+        // cookie and the OS/browser drops it on close, logging the user out despite the
+        // 30-day refresh token still being valid in the DB.
+        maxAge = refreshTokenService.cookieMaxAgeSeconds
     )
     return LoginResponse(
         accessToken = accessToken,

@@ -174,6 +174,9 @@ class AuthRoutesTest :
             ?.removePrefix("refresh_token=")
             ?.takeIf { it.isNotEmpty() }
 
+        fun HttpResponse.refreshCookieHeader(): String? = headers.getAll(HttpHeaders.SetCookie)
+            ?.find { it.startsWith("refresh_token=") }
+
         suspend fun ApplicationTestBuilder.login(email: String = "alice@example.com", password: String = "hunter2"): Pair<String, String> {
             val response = jsonClient().post("/api/auth/login") {
                 contentType(ContentType.Application.Json)
@@ -204,6 +207,8 @@ class AuthRoutesTest :
                 body.accessToken shouldNotBe null
                 body.expiresIn shouldBe 900L
                 response.refreshTokenCookie() shouldNotBe null
+                // Persistent, not a session cookie — survives browser/PWA restarts.
+                response.refreshCookieHeader() shouldContain "Max-Age=${refreshTokenService.cookieMaxAgeSeconds}"
             }
         }
 
@@ -274,6 +279,8 @@ class AuthRoutesTest :
                 val newRefreshToken = refreshResponse.refreshTokenCookie()
                 newRefreshToken shouldNotBe null
                 newRefreshToken shouldNotBe firstRefreshToken
+                // Rotation keeps the cookie persistent so the session survives restarts.
+                refreshResponse.refreshCookieHeader() shouldContain "Max-Age=${refreshTokenService.cookieMaxAgeSeconds}"
             }
         }
 
