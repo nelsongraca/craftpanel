@@ -84,7 +84,7 @@ export function EditResources({server, onSaved}: EditResourcesProps) {
                         value={cpuCores}
                         onChange={(e) => setCpuCores(Number(e.target.value))}
                         min={0}
-                        step={0.5}
+                        step="any"
                     />
                     <p className="text-xs text-text-muted mt-1">Hard CPU cap in cores. 0 = unlimited.</p>
                 </EditFieldRow>
