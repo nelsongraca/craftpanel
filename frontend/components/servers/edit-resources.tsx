@@ -69,8 +69,8 @@ export function EditResources({server, onSaved}: EditResourcesProps) {
                         type="number"
                         value={ramMb}
                         onChange={(e) => setRamMb(Number(e.target.value))}
-                        min={512}
-                        step={256}
+                        min={64}
+                        step={64}
                     />
                 </EditFieldRow>
                 <EditFieldRow label="CPU Shares">
