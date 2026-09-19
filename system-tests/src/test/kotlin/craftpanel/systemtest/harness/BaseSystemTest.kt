@@ -2,6 +2,8 @@ package craftpanel.systemtest.harness
 
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.command.ExecCreateCmdResponse
+import com.github.dockerjava.api.model.Frame
+import com.github.dockerjava.api.model.StreamType
 import com.github.dockerjava.core.command.ExecStartResultCallback
 import craftpanel.systemtest.client.api.DefaultApi
 import io.kotest.core.spec.style.ShouldSpec
@@ -28,8 +30,17 @@ abstract class BaseSystemTest : ShouldSpec() {
             .withAttachStderr(true)
             .exec()
         val output = ByteArrayOutputStream()
+        val callback = object : ExecStartResultCallback() {
+            override fun onNext(frame: Frame) {
+                // STDERR frames are tagged; write both streams into the single captured buffer so
+                // callers see combined output. STDIN/RAW carry no meaningful payload here.
+                if (frame.streamType == StreamType.STDERR || frame.streamType == StreamType.STDOUT) {
+                    frame.payload?.let { output.write(it) }
+                }
+            }
+        }
         docker.execStartCmd(exec.id)
-            .exec(ExecStartResultCallback(output, output))
+            .exec(callback)
             .awaitCompletion(30, TimeUnit.SECONDS)
         val text = output.toString(Charsets.UTF_8)
         val exitCode = docker.inspectExecCmd(exec.id).exec().exitCodeLong
@@ -43,7 +54,10 @@ abstract class BaseSystemTest : ShouldSpec() {
         }
         beforeTest {
             authHelper.login()
-            nodeHelper.pollUntilActive(nodeId)
+            // Wait for every node in the shared stack, not just the primary one. A spec that
+            // happens to run while the target agent is re-establishing its control stream would
+            // otherwise race "agent not connected".
+            SharedStack.nodeIds.forEach { nodeHelper.pollUntilHealthy(it) }
         }
     }
 }

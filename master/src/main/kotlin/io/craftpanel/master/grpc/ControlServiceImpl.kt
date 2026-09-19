@@ -126,10 +126,18 @@ class ControlServiceImpl(
             requests.collect { msg ->
                 log.info("control stream msg: nodeId=${msg.nodeId}, hasNodeState=${msg.hasNodeState()}, hasNodeMetrics=${msg.hasNodeMetrics()}")
                 if (connectedNodeId.get() == null) {
+                    // Auth failure (e.g. PENDING/REJECTED node) MUST propagate — it closes the stream.
                     authenticate(msg.nodeId, outChannel)
                     connectedNodeId.set(msg.nodeId)
                 }
-                dispatch(msg, lastMetricsAt, lastEmittedHealth)
+                // A handler throw must never tear down the bidirectional stream: an uncaught
+                // exception propagates through channelFlow and deregisters the agent, forcing a
+                // reconnect (and a window where sendToNode fails). Re-throw cancellation only.
+                runCatching { dispatch(msg, lastMetricsAt, lastEmittedHealth) }
+                    .onFailure { e ->
+                        if (e is CancellationException) throw e
+                        log.error("Node ${msg.nodeId}: control-stream message handling failed (${msg.payloadCase})", e)
+                    }
             }
         } finally {
             watchdogJob.cancel()

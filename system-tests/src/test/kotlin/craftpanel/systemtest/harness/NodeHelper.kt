@@ -56,4 +56,22 @@ class NodeHelper(private val api: DefaultApi) {
                 .takeIf { it.status == NodeStatus.ACTIVE }
         } ?: error("Node $id did not transition to ACTIVE within ${timeoutMs}ms. Last status: ${lastStatus ?: "none"}")
     }
+
+    /**
+     * Wait until a node is ACTIVE *and* HEALTHY. ACTIVE is a DB status set on IdentifyNode, which
+     * happens before the agent's control stream is registered — so a caller that only checks ACTIVE
+     * can race the agent's reconnect and hit "agent not connected". HEALTHY is driven by the first
+     * metrics message on the live stream, making it a reliable liveness signal.
+     */
+    suspend fun pollUntilHealthy(id: String, timeoutMs: Long = 60_000): NodeResponse {
+        var last: NodeResponse? = null
+        return pollUntilNotNull(timeoutMs) {
+            api.getNode(id)
+                .also { last = it }
+                .takeIf { it.status == NodeStatus.ACTIVE && it.health == NodeHealth.HEALTHY }
+        } ?: error(
+            "Node $id did not become ACTIVE+HEALTHY within ${timeoutMs}ms. " +
+                "Last: status=${last?.status ?: "none"}, health=${last?.health ?: "none"}"
+        )
+    }
 }
