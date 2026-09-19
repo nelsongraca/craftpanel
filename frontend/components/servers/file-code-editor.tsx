@@ -2,6 +2,7 @@
 
 import {useMemo, useRef, useEffect, useCallback} from "react";
 import CodeMirror, {EditorView, keymap} from "@uiw/react-codemirror";
+import {darculaInit} from "@uiw/codemirror-theme-darcula";
 import {languageIdFromPath, languageExtension} from "@/lib/file-language";
 
 interface Props {
@@ -13,37 +14,19 @@ interface Props {
   wrap?: boolean;
 }
 
-const craftpanelTheme = EditorView.theme({
-  "&": {
-    backgroundColor: "var(--bg)",
-    color: "var(--text-primary)",
+const darculaTheme = darculaInit({
+  settings: {
     fontFamily: "var(--font-mono)",
     fontSize: "12px",
-    lineHeight: "1.5",
-    height: "100%",
+    gutterBackground: "var(--surface)",
+    gutterForeground: "var(--text-dim)",
+    gutterActiveForeground: "var(--text-primary)",
   },
-  ".cm-content": {
-    caretColor: "var(--accent)",
-    padding: "8px",
-  },
+});
+
+const editorChrome = EditorView.theme({
   ".cm-gutters": {
-    backgroundColor: "var(--surface)",
     borderRight: "1px solid var(--border)",
-    minWidth: "48px",
-  },
-  ".cm-lineNumbers .cm-gutterElement": {
-    color: "var(--text-muted)",
-    paddingRight: "8px",
-  },
-  ".cm-activeLine": {
-    backgroundColor: "var(--surface-high)",
-  },
-  ".cm-activeLineGutter": {
-    backgroundColor: "var(--surface-higher)",
-  },
-  ".cm-selectionMatch": {
-    backgroundColor: "var(--accent-bright)",
-    opacity: "0.15",
   },
   ".cm-searchMatch": {
     backgroundColor: "var(--accent)",
@@ -53,12 +36,6 @@ const craftpanelTheme = EditorView.theme({
     backgroundColor: "var(--accent-bright)",
     opacity: "0.5",
   },
-  ".cm-tooltip": {
-    backgroundColor: "var(--surface-higher)",
-    border: "1px solid var(--border)",
-    borderRadius: "4px",
-    boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-  },
   ".cm-diagnostic": {
     textDecoration: "underline wavy var(--error)",
     textDecorationThickness: "2px",
@@ -66,21 +43,7 @@ const craftpanelTheme = EditorView.theme({
   ".cm-lint-marker": {
     color: "var(--error)",
   },
-  ".cm-panel": {
-    backgroundColor: "var(--surface)",
-    borderTop: "1px solid var(--border)",
-  },
-  ".cm-button": {
-    backgroundColor: "var(--surface-high)",
-    border: "1px solid var(--border)",
-    color: "var(--text-primary)",
-    borderRadius: "4px",
-    padding: "2px 8px",
-    "&:hover": {
-      backgroundColor: "var(--surface-higher)",
-    },
-  },
-}, {dark: true});
+});
 
 export function FileCodeEditor({
   value,
@@ -116,7 +79,7 @@ export function FileCodeEditor({
 
   const extensions = useMemo(
     () => [
-      craftpanelTheme,
+      editorChrome,
       saveKeymap,
       ...(wrap ? [EditorView.lineWrapping] : []),
       ...langExts,
@@ -134,11 +97,13 @@ export function FileCodeEditor({
       <CodeMirror
         value={value}
         onChange={handleChange}
+        theme={darculaTheme}
         extensions={extensions}
         height="100%"
         indentWithTab={false}
         basicSetup={{
           lineNumbers: true,
+          syntaxHighlighting: false,
           highlightActiveLine: true,
           highlightSelectionMatches: true,
           closeBracketsKeymap: true,
