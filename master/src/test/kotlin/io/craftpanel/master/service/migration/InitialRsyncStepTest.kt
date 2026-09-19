@@ -44,7 +44,7 @@ class InitialRsyncStepTest :
                 id = Uuid.random(), name = "test", displayName = "test",
                 description = null, nodeId = Uuid.random(), networkId = null,
                 serverType = ServerType.VANILLA, mcVersion = "1.21.4", status = "HEALTHY",
-                hostPort = 25565, memoryMb = 1024, cpuShares = 0,
+                hostPort = 25565, memoryMb = 1024, cpuLimitMillicores = 0,
                 exposedExternally = false, publicSubdomain = null,
                 dnsRecordId = null, dnsRecordName = null, customHostname = null,
                 configMode = "MANAGED", stopCommand = "stop", itzgImageTag = "latest",
@@ -56,7 +56,7 @@ class InitialRsyncStepTest :
             targetNodeRow = NodeRow(
                 id = Uuid.random(), displayName = "target", hostname = "target",
                 publicIp = "1.2.3.4", privateIp = "10.0.0.1", tokenHash = "",
-                status = "ACTIVE", health = "HEALTHY", totalRamMb = 8192, totalCpuShares = 0,
+                status = "ACTIVE", health = "HEALTHY", totalRamMb = 8192, totalCpuMillicores = 0,
                 systemRamUsedMb = null, portRangeStart = 25565, portRangeEnd = 25600,
                 swarmActive = false, agentVersion = null, lastSeenAt = null,
                 createdAt = "", updatedAt = ""

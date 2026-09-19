@@ -17,7 +17,7 @@ const makeServer = (overrides?: Partial<Server>): Server => ({
     server_type: 'PAPER',
     mc_version: '1.21',
     memory_mb: 2048,
-    cpu_shares: 100,
+    cpu_limit_millicores: 500,
     config_mode: 'MANAGED',
     host_port: '25565',
     node_id: 'n1',
@@ -40,7 +40,7 @@ describe('EditResources', () => {
     it('renders resource info', () => {
         render(<EditResources server={makeServer()} onSaved={vi.fn()}/>)
         expect(screen.getByText('2048 MB')).toBeInTheDocument()
-        expect(screen.getByText('100')).toBeInTheDocument()
+        expect(screen.getByText('0.5 cores')).toBeInTheDocument()
         expect(screen.getByText('latest')).toBeInTheDocument()
     })
 
@@ -49,7 +49,7 @@ describe('EditResources', () => {
         render(<EditResources server={makeServer()} onSaved={vi.fn()}/>)
         await user.click(screen.getByTitle('Edit Resources'))
         expect(screen.getByDisplayValue('2048')).toBeInTheDocument()
-        expect(screen.getByDisplayValue('100')).toBeInTheDocument()
+        expect(screen.getByDisplayValue('0.5')).toBeInTheDocument()
     })
 
     it('calls updateServerResources on save', async () => {
@@ -64,7 +64,7 @@ describe('EditResources', () => {
         await user.click(screen.getByText('Save'))
         expect(updateServerResources).toHaveBeenCalledWith({
             path: {id: 's1'},
-            body: {memory_mb: 4096, cpu_shares: 100, itzg_image_tag: 'latest'},
+            body: {memory_mb: 4096, cpu_limit_millicores: 500, itzg_image_tag: 'latest'},
         })
         expect(onSaved).toHaveBeenCalled()
     })

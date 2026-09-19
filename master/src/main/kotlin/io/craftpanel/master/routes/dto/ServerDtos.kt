@@ -23,7 +23,7 @@ data class ServerResponse(
     @SerialName("network_id") val networkId: String?,
     @SerialName("host_port") val hostPort: Int,
     @SerialName("memory_mb") val memoryMb: Int,
-    @SerialName("cpu_shares") val cpuShares: Int,
+    @SerialName("cpu_limit_millicores") val cpuLimitMillicores: Int,
     @SerialName("exposed_externally") val exposedExternally: Boolean,
     @SerialName("public_subdomain") val publicSubdomain: String?,
     @SerialName("custom_hostname") val customHostname: String?,
@@ -58,7 +58,7 @@ data class CreateServerRequest(
     @SerialName("mc_version") val mcVersion: String = "LATEST",
     @SerialName("itzg_image_tag") val itzgImageTag: String = "latest",
     @SerialName("memory_mb") val memoryMb: Int,
-    @SerialName("cpu_shares") val cpuShares: Int = 0,
+    @SerialName("cpu_limit_millicores") val cpuLimitMillicores: Int = 0,
     @SerialName("expires_at") val expiresAt: String? = null,
     @SerialName("custom_server_jar") val customServerJar: String? = null,
     @SerialName("container_listen_port") val containerListenPort: Int? = null,
@@ -85,7 +85,7 @@ data class UpdateServerRequest(
 )
 
 @Serializable
-data class PatchResourcesRequest(@SerialName("memory_mb") val memoryMb: Int, @SerialName("cpu_shares") val cpuShares: Int, @SerialName("itzg_image_tag") val itzgImageTag: String? = null)
+data class PatchResourcesRequest(@SerialName("memory_mb") val memoryMb: Int, @SerialName("cpu_limit_millicores") val cpuLimitMillicores: Int, @SerialName("itzg_image_tag") val itzgImageTag: String? = null)
 
 @Serializable
 data class PatchExpirationRequest(@SerialName("expires_at") val expiresAt: String?)
@@ -124,7 +124,7 @@ internal fun ServerView.toResponse(serverExposure: ServerExposure, isMigrating: 
         networkId = networkId?.toString(),
         hostPort = hostPort,
         memoryMb = memoryMb,
-        cpuShares = cpuShares,
+        cpuLimitMillicores = cpuLimitMillicores,
         exposedExternally = exposedExternally,
         publicSubdomain = publicSubdomain,
         customHostname = customHostname,

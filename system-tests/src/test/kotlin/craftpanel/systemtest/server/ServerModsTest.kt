@@ -52,7 +52,7 @@ class ServerModsTest : BaseSystemTest() {
                     mcVersion = "1.21.4",
                     itzgImageTag = "latest",
                     memoryMb = 512,
-                    cpuShares = 0
+                    cpuLimitMillicores = 0
                 )
             ).id
             api.startServer(serverId)

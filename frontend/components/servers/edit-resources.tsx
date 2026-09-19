@@ -5,6 +5,7 @@ import {InfoRow} from "./server-info";
 import {EditFieldRow, EditInput, EditSection} from "./edit-fields";
 import {updateServerResources} from "@/lib/generated/sdk.gen";
 import type {Server} from "@/lib/types";
+import {fmtCpuLimit} from "@/lib/utils/format";
 
 interface EditResourcesProps {
     server: Server;
@@ -14,14 +15,14 @@ interface EditResourcesProps {
 export function EditResources({server, onSaved}: EditResourcesProps) {
     const [editing, setEditing] = useState(false);
     const [ramMb, setRamMb] = useState(0);
-    const [cpuShares, setCpuShares] = useState(0);
+    const [cpuCores, setCpuCores] = useState(0);
     const [itzgTag, setItzgTag] = useState("");
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     function open() {
         setRamMb(server.memory_mb);
-        setCpuShares(server.cpu_shares);
+        setCpuCores(server.cpu_limit_millicores / 1000);
         setItzgTag(server.itzg_image_tag);
         setError(null);
         setEditing(true);
@@ -33,7 +34,11 @@ export function EditResources({server, onSaved}: EditResourcesProps) {
         try {
             const {error: resErr} = await updateServerResources({
                 path: {id: server.id},
-                body: {memory_mb: ramMb, cpu_shares: cpuShares, itzg_image_tag: itzgTag || undefined},
+                body: {
+                    memory_mb: ramMb,
+                    cpu_limit_millicores: Math.round(cpuCores * 1000),
+                    itzg_image_tag: itzgTag || undefined
+                },
             });
             if (resErr) {
                 setError(resErr.message ?? "Failed to save");
@@ -60,7 +65,7 @@ export function EditResources({server, onSaved}: EditResourcesProps) {
         >
             <div>
                 <InfoRow label="RAM" value={`${server.memory_mb} MB`}/>
-                <InfoRow label="CPU Shares" value={server.cpu_shares === 0 ? "Unlimited" : String(server.cpu_shares)}/>
+                <InfoRow label="CPU" value={fmtCpuLimit(server.cpu_limit_millicores)}/>
                 <InfoRow label="Image Tag" value={server.itzg_image_tag}/>
             </div>
             <div className="space-y-3">
@@ -73,14 +78,15 @@ export function EditResources({server, onSaved}: EditResourcesProps) {
                         step={64}
                     />
                 </EditFieldRow>
-                <EditFieldRow label="CPU Shares">
+                <EditFieldRow label="CPU Limit (cores)">
                     <EditInput
                         type="number"
-                        value={cpuShares}
-                        onChange={(e) => setCpuShares(Number(e.target.value))}
+                        value={cpuCores}
+                        onChange={(e) => setCpuCores(Number(e.target.value))}
                         min={0}
+                        step={0.5}
                     />
-                    <p className="text-xs text-text-muted mt-1">0 = unlimited</p>
+                    <p className="text-xs text-text-muted mt-1">Hard CPU cap in cores. 0 = unlimited.</p>
                 </EditFieldRow>
                 <EditFieldRow label="itzg Image Tag">
                     <EditInput

@@ -37,7 +37,7 @@ class ServerHelper(private val api: DefaultApi) {
         }
     }
 
-    suspend fun createTestServer(nodeId: String, memoryMb: Int = 512, cpuShares: Int = 0, networkId: String? = null): String {
+    suspend fun createTestServer(nodeId: String, memoryMb: Int = 512, cpuLimitMillicores: Int = 0, networkId: String? = null): String {
         val response = api.createServer(
             CreateServerRequest(
                 name = "test-${System.currentTimeMillis()}-${Random.nextInt(100000)}",
@@ -46,7 +46,7 @@ class ServerHelper(private val api: DefaultApi) {
                 mcVersion = "1.21.4",
                 itzgImageTag = "latest",
                 memoryMb = memoryMb,
-                cpuShares = cpuShares,
+                cpuLimitMillicores = cpuLimitMillicores,
                 networkId = networkId
             )
         )

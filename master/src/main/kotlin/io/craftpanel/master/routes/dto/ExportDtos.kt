@@ -14,7 +14,7 @@ data class ServerExportData(
     @SerialName("mc_version") val mcVersion: String,
     @SerialName("itzg_image_tag") val itzgImageTag: String,
     @SerialName("memory_mb") val memoryMb: Int,
-    @SerialName("cpu_shares") val cpuShares: Int,
+    @SerialName("cpu_limit_millicores") val cpuLimitMillicores: Int,
     @SerialName("exposed_externally") val exposedExternally: Boolean? = false,
     @SerialName("custom_hostname") val customHostname: String? = null,
     @SerialName("config_mode") val configMode: String,

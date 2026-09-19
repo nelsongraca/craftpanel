@@ -19,10 +19,10 @@ class FakeNodeRepository : NodeRepository {
         var status: String = "PENDING",
         var health: String = "HEALTHY",
         var totalRamMb: Int = 0,
-        var totalCpuShares: Int = 0,
+        var totalCpuMillicores: Int = 0,
         var systemRamUsedMb: Int? = null,
         var reservedRamMb: Int = 1024,
-        var reservedCpuShares: Int = 1024,
+        var reservedCpuMillicores: Int = 1024,
         var systemCpuPercent: Double? = null,
         var portRangeStart: Int = 25570,
         var portRangeEnd: Int = 26070,
@@ -53,13 +53,13 @@ class FakeNodeRepository : NodeRepository {
         allocatedCpu = cpu
     }
 
-    fun setCapacity(id: Uuid, totalRamMb: Int, totalCpuShares: Int = 0, systemRamUsedMb: Int? = null, reservedRamMb: Int = 1024, reservedCpuShares: Int = 1024, systemCpuPercent: Double? = null) {
+    fun setCapacity(id: Uuid, totalRamMb: Int, totalCpuMillicores: Int = 0, systemRamUsedMb: Int? = null, reservedRamMb: Int = 1024, reservedCpuMillicores: Int = 1024, systemCpuPercent: Double? = null) {
         nodes[id]?.let {
             it.totalRamMb = totalRamMb
-            it.totalCpuShares = totalCpuShares
+            it.totalCpuMillicores = totalCpuMillicores
             it.systemRamUsedMb = systemRamUsedMb
             it.reservedRamMb = reservedRamMb
-            it.reservedCpuShares = reservedCpuShares
+            it.reservedCpuMillicores = reservedCpuMillicores
             it.systemCpuPercent = systemCpuPercent
         }
     }
@@ -73,7 +73,7 @@ class FakeNodeRepository : NodeRepository {
         portRangeStart: Int = 25570,
         portRangeEnd: Int = 26070,
         totalRamMb: Int = 0,
-        totalCpuShares: Int = 0,
+        totalCpuMillicores: Int = 0,
         agentVersion: String? = null,
         lastSeenAt: String? = null,
         id: Uuid = Uuid.random()
@@ -81,7 +81,7 @@ class FakeNodeRepository : NodeRepository {
         val n = MutableNode(
             id, displayName, hostname, publicIp, privateIp, tokenHash,
             portRangeStart = portRangeStart, portRangeEnd = portRangeEnd,
-            totalRamMb = totalRamMb, totalCpuShares = totalCpuShares,
+            totalRamMb = totalRamMb, totalCpuMillicores = totalCpuMillicores,
             agentVersion = agentVersion, lastSeenAt = lastSeenAt
         )
         nodes[id] = n
@@ -97,14 +97,14 @@ class FakeNodeRepository : NodeRepository {
         portRangeStart: Int,
         portRangeEnd: Int,
         totalRamMb: Int = 0,
-        totalCpuShares: Int = 0,
+        totalCpuMillicores: Int = 0,
         agentVersion: String? = null,
         lastSeenAt: kotlin.time.Instant? = null
     ): NodeRow = addNode(
         displayName = displayName, hostname = hostname,
         publicIp = publicIp, privateIp = privateIp, tokenHash = tokenHash,
         portRangeStart = portRangeStart, portRangeEnd = portRangeEnd,
-        totalRamMb = totalRamMb, totalCpuShares = totalCpuShares,
+        totalRamMb = totalRamMb, totalCpuMillicores = totalCpuMillicores,
         agentVersion = agentVersion, lastSeenAt = lastSeenAt?.toString()
     )
 
@@ -120,7 +120,7 @@ class FakeNodeRepository : NodeRepository {
     override fun listByIds(ids: List<Uuid>): List<NodeRow> = ids.mapNotNull { nodes[it]?.toRow() }
 
     override fun calculateAllocatedRam(id: Uuid): Int = allocatedRam(id)
-    override fun calculateAllocatedCpu(id: Uuid): Int = allocatedCpu(id)
+    override fun calculateAllocatedCpuMillicores(id: Uuid): Int = allocatedCpu(id)
 
     override fun getMetrics(nodeId: Uuid, limit: Int): List<NodeMetricsRow> = metrics.filter { it.nodeId == nodeId }
         .take(limit)
@@ -136,7 +136,7 @@ class FakeNodeRepository : NodeRepository {
         status,
         health,
         totalRamMb,
-        totalCpuShares,
+        totalCpuMillicores,
         systemRamUsedMb,
         reservedRamMb,
         portRangeStart,
@@ -146,7 +146,7 @@ class FakeNodeRepository : NodeRepository {
         lastSeenAt,
         createdAt,
         updatedAt,
-        reservedCpuShares,
+        reservedCpuMillicores,
         systemCpuPercent
     )
 }

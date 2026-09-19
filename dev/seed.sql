@@ -27,17 +27,17 @@ ON g.name = mapping.group_name
     ON CONFLICT DO NOTHING;
 
 -- Node
-INSERT INTO nodes (id, display_name, hostname, public_ip, private_ip, token_hash, status, total_ram_mb, total_cpu_shares, port_range_start, port_range_end, data_path, agent_version)
+INSERT INTO nodes (id, display_name, hostname, public_ip, private_ip, token_hash, status, total_ram_mb, total_cpu_millicores, port_range_start, port_range_end, data_path, agent_version)
 VALUES ('10000000-0000-0000-0000-000000000001', 'Primary Node', 'node1.local', '192.168.1.10', '10.0.0.10',
         'a665a45920422f9d417e4867efdc4fb8a04a1f3fff1fa07e998e86f7f7a27ae3',
-        'ACTIVE', 32768, 1024, 25570, 26070, '/data', '1.0.0') ON CONFLICT DO NOTHING;
+        'ACTIVE', 32768, 1000, 25570, 26070, '/data', '1.0.0') ON CONFLICT DO NOTHING;
 
 -- Server network
 INSERT INTO server_networks (id, name, type, proxy_type, proxy_port, description)
 VALUES ('20000000-0000-0000-0000-000000000001', 'Main Network', 'PROXY', 'VELOCITY', 25565, 'Primary dev network') ON CONFLICT DO NOTHING;
 
 -- Servers
-INSERT INTO servers (id, name, display_name, description, node_id, network_id, server_type, status, host_port, memory_mb, cpu_shares, exposed_externally, config_mode)
+INSERT INTO servers (id, name, display_name, description, node_id, network_id, server_type, status, host_port, memory_mb, cpu_limit_millicores, exposed_externally, config_mode)
 VALUES ('30000000-0000-0000-0000-000000000001', 'survival', 'Survival', 'Main survival world', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'PAPER', 'HEALTHY',
         25571, 4096, 0, false, 'MANAGED'),
        ('30000000-0000-0000-0000-000000000002', 'creative', 'Creative', 'Creative building', '10000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'PAPER', 'STOPPED', 25572,

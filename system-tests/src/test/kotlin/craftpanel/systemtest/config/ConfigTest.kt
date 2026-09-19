@@ -21,7 +21,7 @@ class ConfigTest : BaseSystemTest() {
             serverId = helper.createTestServer(nodeId)
             api.startServer(serverId)
             helper.awaitStatus(serverId, ServerStatus.HEALTHY)
-            serverId2 = helper.createTestServer(nodeId, memoryMb = 512, cpuShares = 128)
+            serverId2 = helper.createTestServer(nodeId, memoryMb = 512, cpuLimitMillicores = 1000)
         }
         afterSpec {
             runCatching { api.stopServer(serverId) }
@@ -116,11 +116,11 @@ class ConfigTest : BaseSystemTest() {
             should("update server memory and CPU") {
                 api.updateServerResources(
                     serverId2,
-                    PatchResourcesRequest(memoryMb = 1024, cpuShares = 256)
+                    PatchResourcesRequest(memoryMb = 1024, cpuLimitMillicores = 1000)
                 )
                 val server = api.getServer(serverId2)
                 server.memoryMb shouldBe 1024
-                server.cpuShares shouldBe 256
+                server.cpuLimitMillicores shouldBe 1000
             }
 
             should("return 409 when updating server resources beyond node capacity") {
@@ -129,7 +129,7 @@ class ConfigTest : BaseSystemTest() {
                 val ex = shouldThrow<ClientException> {
                     api.updateServerResources(
                         serverId2,
-                        PatchResourcesRequest(memoryMb = excessiveMb, cpuShares = 128)
+                        PatchResourcesRequest(memoryMb = excessiveMb, cpuLimitMillicores = 1000)
                     )
                 }
                 ex.statusCode shouldBe 409

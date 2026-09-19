@@ -75,7 +75,7 @@ function server(overrides: Record<string, unknown> = {}): Record<string, unknown
         network_id: null,
         host_port: 25565,
         memory_mb: 2048,
-        cpu_shares: 100,
+        cpu_limit_millicores: 100,
         exposed_externally: false,
         public_subdomain: null,
         custom_hostname: null,

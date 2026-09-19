@@ -68,7 +68,7 @@ function stoppedServer() {
         network_id: "net-1",
         host_port: 25565,
         memory_mb: 2048,
-        cpu_shares: 1024,
+        cpu_limit_millicores: 1024,
         exposed_externally: true,
         public_subdomain: "survival",
         is_migrating: false,

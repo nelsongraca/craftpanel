@@ -8,6 +8,7 @@ vi.mock('@/lib/utils/format', () => ({
     fmtMb: (mb: number) => `${(mb / 1024).toFixed(1)} GB`,
     fmtBytes: (b: number) => `${(b / 1024).toFixed(0)} KB`,
     timeAgo: () => '2h ago',
+    fmtCpuLimit: (mc: number) => (mc === 0 ? 'Unlimited' : `${mc / 1000} cores`),
 }))
 
 vi.mock('@/lib/status', () => ({
@@ -22,7 +23,7 @@ const makeServer = (overrides?: Partial<Server>): Server => ({
     server_type: 'PAPER',
     mc_version: '1.21',
     memory_mb: 2048,
-    cpu_shares: 100,
+    cpu_limit_millicores: 100,
     config_mode: 'MANAGED',
     host_port: '25565',
     node_id: 'n1',

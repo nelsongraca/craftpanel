@@ -541,7 +541,7 @@ class ContainerManagerTest :
                 .withLabels(mapOf("craftpanel.managed" to "true", "mc-router.host" to "play.example.com"))
             val hostConfig = HostConfig()
                 .withMemory(1_073_741_824L)
-                .withCpuShares(512)
+                .withNanoCPUs(512_000_000L)
                 .withNetworkMode("craftpanel-net-net-1")
                 .withPortBindings(
                     Ports().also {
@@ -573,7 +573,7 @@ class ContainerManagerTest :
                 PortBindingSnapshot(25565, "tcp", 25566)
             )
             snapshot.memoryMb shouldBe 1024
-            snapshot.cpuShares shouldBe 512
+            snapshot.cpuLimitMillicores shouldBe 512
             snapshot.labels shouldBe mapOf("craftpanel.managed" to "true", "mc-router.host" to "play.example.com")
             snapshot.networkMode shouldBe "craftpanel-net-net-1"
         }

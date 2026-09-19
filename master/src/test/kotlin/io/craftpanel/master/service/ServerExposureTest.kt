@@ -30,7 +30,7 @@ private fun testServerView(
     status = "STOPPED",
     hostPort = 25565,
     memoryMb = 1024,
-    cpuShares = 0,
+    cpuLimitMillicores = 0,
     exposedExternally = exposedExternally,
     publicSubdomain = publicSubdomain,
     dnsRecordId = null,
@@ -224,7 +224,7 @@ class ServerExposureTest :
                     name = "other", displayName = "other", description = null,
                     nodeId = Uuid.random(), networkId = null, serverType = ServerType.VANILLA,
                     mcVersion = "1.21.4", itzgImageTag = "latest", hostPort = 25566,
-                    memoryMb = 1024, cpuShares = 0, configMode = "MANAGED", stopCommand = "stop",
+                    memoryMb = 1024, cpuLimitMillicores = 0, configMode = "MANAGED", stopCommand = "stop",
                     exposedExternally = true, customHostname = "taken.example.com"
                 )
                 shouldThrow<UnprocessableException> {
@@ -239,7 +239,7 @@ class ServerExposureTest :
                     name = "other-list", displayName = "other-list", description = null,
                     nodeId = Uuid.random(), networkId = null, serverType = ServerType.VANILLA,
                     mcVersion = "1.21.4", itzgImageTag = "latest", hostPort = 25569,
-                    memoryMb = 1024, cpuShares = 0, configMode = "MANAGED", stopCommand = "stop",
+                    memoryMb = 1024, cpuLimitMillicores = 0, configMode = "MANAGED", stopCommand = "stop",
                     exposedExternally = true, customHostname = "a.example.com,b.example.com"
                 )
                 shouldThrow<UnprocessableException> {
@@ -254,7 +254,7 @@ class ServerExposureTest :
                     name = "self", displayName = "self", description = null,
                     nodeId = Uuid.random(), networkId = null, serverType = ServerType.VANILLA,
                     mcVersion = "1.21.4", itzgImageTag = "latest", hostPort = 25567,
-                    memoryMb = 1024, cpuShares = 0, configMode = "MANAGED", stopCommand = "stop",
+                    memoryMb = 1024, cpuLimitMillicores = 0, configMode = "MANAGED", stopCommand = "stop",
                     exposedExternally = true, customHostname = "self.example.com"
                 )
                 serverExposure.validateCustomHostname("self.example.com", serverId)
@@ -267,7 +267,7 @@ class ServerExposureTest :
                     name = "other2", displayName = "other2", description = null,
                     nodeId = Uuid.random(), networkId = null, serverType = ServerType.VANILLA,
                     mcVersion = "1.21.4", itzgImageTag = "latest", hostPort = 25568,
-                    memoryMb = 1024, cpuShares = 0, configMode = "MANAGED", stopCommand = "stop",
+                    memoryMb = 1024, cpuLimitMillicores = 0, configMode = "MANAGED", stopCommand = "stop",
                     exposedExternally = true, publicSubdomain = "play",
                     dnsRecordId = "rec1", dnsRecordName = "play.example.com"
                 )

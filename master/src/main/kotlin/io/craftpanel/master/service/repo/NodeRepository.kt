@@ -12,7 +12,7 @@ data class NodeRow(
     val status: String,
     val health: String,
     val totalRamMb: Int,
-    val totalCpuShares: Int,
+    val totalCpuMillicores: Int,
     val systemRamUsedMb: Int?,
     val reservedRamMb: Int = 1024,
     val portRangeStart: Int,
@@ -22,7 +22,7 @@ data class NodeRow(
     val lastSeenAt: String?,
     val createdAt: String,
     val updatedAt: String,
-    val reservedCpuShares: Int = 1024,
+    val reservedCpuMillicores: Int = 1000,
     val systemCpuPercent: Double? = null
 )
 
@@ -47,7 +47,7 @@ interface NodeRepository {
     fun listByIds(ids: List<Uuid>): List<NodeRow>
 
     fun calculateAllocatedRam(id: Uuid): Int
-    fun calculateAllocatedCpu(id: Uuid): Int
+    fun calculateAllocatedCpuMillicores(id: Uuid): Int
 
     fun getMetrics(nodeId: Uuid, limit: Int): List<NodeMetricsRow>
 }

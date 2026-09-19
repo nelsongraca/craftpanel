@@ -38,7 +38,7 @@ class UpdateNodeAssignmentStepTest :
                     it[Nodes.tokenHash] = "a".repeat(64)
                     it[Nodes.status] = "ACTIVE"
                     it[Nodes.totalRamMb] = 8192
-                    it[Nodes.totalCpuShares] = 0
+                    it[Nodes.totalCpuMillicores] = 0
                     it[Nodes.portRangeStart] = 25565
                     it[Nodes.portRangeEnd] = 25600
                 }[Nodes.id].let { Uuid.parse(it.toString()) }
@@ -53,7 +53,7 @@ class UpdateNodeAssignmentStepTest :
                     it[Servers.itzgImageTag] = "latest"
                     it[Servers.hostPort] = 25565
                     it[Servers.memoryMb] = 1024
-                    it[Servers.cpuShares] = 0
+                    it[Servers.cpuLimitMillicores] = 0
                     it[Servers.status] = "STOPPED"
                 }[Servers.id].let { Uuid.parse(it.toString()) }
             }
@@ -66,7 +66,7 @@ class UpdateNodeAssignmentStepTest :
                     it[Nodes.tokenHash] = "b".repeat(64)
                     it[Nodes.status] = "ACTIVE"
                     it[Nodes.totalRamMb] = 16384
-                    it[Nodes.totalCpuShares] = 0
+                    it[Nodes.totalCpuMillicores] = 0
                     it[Nodes.portRangeStart] = 25565
                     it[Nodes.portRangeEnd] = 25600
                 }[Nodes.id].let { Uuid.parse(it.toString()) }
@@ -95,7 +95,7 @@ class UpdateNodeAssignmentStepTest :
                     id = serverId, name = "test-server", displayName = "test-server",
                     description = null, nodeId = nodeId, networkId = null,
                     serverType = ServerType.VANILLA, mcVersion = "1.21.4", status = "STOPPED",
-                    hostPort = 25565, memoryMb = 1024, cpuShares = 0,
+                    hostPort = 25565, memoryMb = 1024, cpuLimitMillicores = 0,
                     exposedExternally = false, publicSubdomain = null,
                     dnsRecordId = null, dnsRecordName = null, customHostname = null,
                     configMode = "MANAGED", stopCommand = "stop", itzgImageTag = "latest",
@@ -107,7 +107,7 @@ class UpdateNodeAssignmentStepTest :
                 targetNodeRow = NodeRow(
                     id = targetNodeId, displayName = "target-node", hostname = "target-node",
                     publicIp = "5.6.7.8", privateIp = "10.0.0.2", tokenHash = "",
-                    status = "ACTIVE", health = "HEALTHY", totalRamMb = 16384, totalCpuShares = 0,
+                    status = "ACTIVE", health = "HEALTHY", totalRamMb = 16384, totalCpuMillicores = 0,
                     systemRamUsedMb = null, portRangeStart = 25565, portRangeEnd = 25600,
                     swarmActive = false, agentVersion = null, lastSeenAt = null,
                     createdAt = "", updatedAt = ""

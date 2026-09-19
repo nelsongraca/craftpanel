@@ -78,7 +78,7 @@ Overview tab shown when opening a server. Tabs across the top switch between Ove
     <div class="cp-card">
       <div class="cp-card-title">CPU Usage</div>
       <div class="cp-stat">38%</div>
-      <div class="cp-stat-sub">512 CPU shares</div>
+      <div class="cp-stat-sub">0.5 cores</div>
     </div>
   </div>
 

@@ -46,13 +46,13 @@ Runtime health — master/agent-observed, independent of lifecycle status.
 | `status`               | VARCHAR(20)          | Admin-driven lifecycle state: `PENDING`, `ACTIVE`, `REJECTED`, or `DECOMMISSIONED`                |
 | `health`               | VARCHAR(20)        | Runtime health: `HEALTHY`, `DEGRADED`, or `UNREACHABLE`. Default `HEALTHY` |
 | `total_ram_mb`         | INT                | Total RAM reported by agent at registration                                |
-| `total_cpu_shares`     | INT                | Configured allocatable CPU share envelope                                  |
+| `total_cpu_millicores`     | INT                | Total allocatable CPU in millicores (cores × 1000), reported by agent at registration |
 | `system_ram_used_mb`   | INT                | RAM used by the agent host itself; reported by agent each snapshot; `NULL` if not yet collected |
 | `system_cpu_percent`   | NUMERIC(5,2)       | CPU utilisation of the agent host; reported by agent each snapshot; `NULL` if not yet collected |
 | `reserved_ram_mb`      | INT                | RAM reserved for the OS/host, excluded from server allocation capacity     |
-| `reserved_cpu_shares`  | INT                | CPU shares reserved for the OS/host, excluded from server allocation capacity |
+| `reserved_cpu_millicores`  | INT            | CPU millicores reserved for the OS/host, excluded from server allocation capacity |
 | `allocated_ram_mb`     | INT                | Sum of `ram_mb` across all servers currently on this node                  |
-| `allocated_cpu_shares` | INT                | Sum of `cpu_shares` across all servers currently on this node              |
+| `allocated_cpu_millicores` | INT            | Sum of `cpu_limit_millicores` across all servers currently on this node    |
 | `port_range_start`     | INT                | First port in the assignable range; default `25570`                        |
 | `port_range_end`       | INT                | Last port in the assignable range; default `26070`                         |
 | `agent_version`        | VARCHAR(50)        | Agent version string as reported at registration; `NULL` if not provided   |
@@ -62,7 +62,7 @@ Runtime health — master/agent-observed, independent of lifecycle status.
 | `updated_at`           | TIMESTAMPTZ        |                                                                            |
 
 !!! note "Computed fields"
-`allocated_ram_mb` and `allocated_cpu_shares` are not stored columns — they are computed at query time by summing `memory_mb` and `cpu_shares` across all servers currently assigned to the node. Master
+`allocated_ram_mb` and `allocated_cpu_millicores` are not stored columns — they are computed at query time by summing `memory_mb` and `cpu_limit_millicores` across all servers currently assigned to the node. Master
 checks available capacity (`total - reserved`) before allowing a new allocation.
 
 !!! note "`data_path`"

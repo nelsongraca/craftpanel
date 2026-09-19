@@ -34,7 +34,7 @@ class ExportImportTest : BaseSystemTest() {
                     mcVersion = "1.21.4",
                     itzgImageTag = "latest",
                     memoryMb = 1024,
-                    cpuShares = 128,
+                    cpuLimitMillicores = 1000,
                     containerListenPort = 25565,
                     containerProtocol = "UDP",
                     disableHealthcheck = true,
@@ -78,7 +78,7 @@ class ExportImportTest : BaseSystemTest() {
                 sourceExport.mcVersion shouldBe "1.21.4"
                 sourceExport.itzgImageTag shouldBe "latest"
                 sourceExport.memoryMb shouldBe 1024
-                sourceExport.cpuShares shouldBe 128
+                sourceExport.cpuLimitMillicores shouldBe 1000
                 sourceExport.stopCommand shouldBe "save-all"
                 sourceExport.exposedExternally shouldBe true
                 sourceExport.customHostname shouldBe "my-server.example.com"
@@ -122,7 +122,7 @@ class ExportImportTest : BaseSystemTest() {
                     imported.mcVersion shouldBe "1.21.4"
                     imported.itzgImageTag shouldBe "latest"
                     imported.memoryMb shouldBe 1024
-                    imported.cpuShares shouldBe 128
+                    imported.cpuLimitMillicores shouldBe 1000
                     imported.stopCommand shouldBe "save-all"
                     imported.exposedExternally shouldBe true
                     imported.customHostname shouldBe "my-server.example.com"
@@ -174,8 +174,8 @@ class ExportImportTest : BaseSystemTest() {
                 val ts = System.currentTimeMillis()
                 val netName = "export-net-$ts"
 
-                val s1Id = helper.createTestServer(nodeId, memoryMb = 512, cpuShares = 0)
-                val s2Id = helper.createTestServer(nodeId, memoryMb = 384, cpuShares = 0)
+                val s1Id = helper.createTestServer(nodeId, memoryMb = 512, cpuLimitMillicores = 0)
+                val s2Id = helper.createTestServer(nodeId, memoryMb = 384, cpuLimitMillicores = 0)
 
                 try {
                     val net = api.createNetwork(

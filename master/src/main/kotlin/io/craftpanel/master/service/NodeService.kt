@@ -23,12 +23,12 @@ data class NodeResponse(
     val status: NodeStatus,
     val health: NodeHealth,
     @SerialName("total_ram_mb") val totalRamMb: Int,
-    @SerialName("total_cpu_shares") val totalCpuShares: Int,
+    @SerialName("total_cpu_millicores") val totalCpuMillicores: Int,
     @SerialName("allocated_ram_mb") val allocatedRamMb: Int,
-    @SerialName("allocated_cpu_shares") val allocatedCpuShares: Int,
+    @SerialName("allocated_cpu_millicores") val allocatedCpuMillicores: Int,
     @SerialName("system_ram_used_mb") val systemRamUsedMb: Int?,
     @SerialName("reserved_ram_mb") val reservedRamMb: Int,
-    @SerialName("reserved_cpu_shares") val reservedCpuShares: Int,
+    @SerialName("reserved_cpu_millicores") val reservedCpuMillicores: Int,
     @SerialName("system_cpu_percent") val systemCpuPercent: Double?,
     @SerialName("port_range_start") val portRangeStart: Int,
     @SerialName("port_range_end") val portRangeEnd: Int,
@@ -62,14 +62,14 @@ class NodeService(private val gateway: AgentGateway, private val nodeRepository:
     fun listNodes(): List<NodeResponse> = nodeRepository.listAll()
         .map { node ->
             val ram = nodeRepository.calculateAllocatedRam(node.id)
-            val cpu = nodeRepository.calculateAllocatedCpu(node.id)
+            val cpu = nodeRepository.calculateAllocatedCpuMillicores(node.id)
             node.toNodeResponse(ram, cpu)
         }
 
     fun getNode(id: kotlin.uuid.Uuid): NodeResponse {
         val node = nodeRepository.findById(id) ?: throw NotFoundException("Node not found")
         val ram = nodeRepository.calculateAllocatedRam(id)
-        val cpu = nodeRepository.calculateAllocatedCpu(id)
+        val cpu = nodeRepository.calculateAllocatedCpuMillicores(id)
         return node.toNodeResponse(ram, cpu)
     }
 
@@ -153,7 +153,7 @@ class NodeService(private val gateway: AgentGateway, private val nodeRepository:
     }
 }
 
-private fun NodeRow.toNodeResponse(allocatedRamMb: Int, allocatedCpuShares: Int) = NodeResponse(
+private fun NodeRow.toNodeResponse(allocatedRamMb: Int, allocatedCpuMillicores: Int) = NodeResponse(
     id = id.toString(),
     displayName = displayName,
     hostname = hostname,
@@ -162,12 +162,12 @@ private fun NodeRow.toNodeResponse(allocatedRamMb: Int, allocatedCpuShares: Int)
     status = NodeStatus.fromDb(status),
     health = NodeHealth.valueOf(health),
     totalRamMb = totalRamMb,
-    totalCpuShares = totalCpuShares,
+    totalCpuMillicores = totalCpuMillicores,
     allocatedRamMb = allocatedRamMb,
-    allocatedCpuShares = allocatedCpuShares,
+    allocatedCpuMillicores = allocatedCpuMillicores,
     systemRamUsedMb = systemRamUsedMb,
     reservedRamMb = reservedRamMb,
-    reservedCpuShares = reservedCpuShares,
+    reservedCpuMillicores = reservedCpuMillicores,
     systemCpuPercent = systemCpuPercent,
     portRangeStart = portRangeStart,
     portRangeEnd = portRangeEnd,

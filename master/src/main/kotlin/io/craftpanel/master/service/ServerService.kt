@@ -196,13 +196,13 @@ class ServerService(
         }
     }
 
-    fun updateResources(id: Uuid, memoryMb: Int, cpuShares: Int, itzgImageTag: String?) {
+    fun updateResources(id: Uuid, memoryMb: Int, cpuLimitMillicores: Int, itzgImageTag: String?) {
         if (memoryMb <= 0) throw UnprocessableException("memory_mb must be positive")
-        if (cpuShares < 0) throw UnprocessableException("cpu_shares must be non-negative")
+        if (cpuLimitMillicores < 0) throw UnprocessableException("cpu_limit_millicores must be non-negative")
         val existing = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
         val nodeKotlinId = existing.nodeId
         val node = nodeRepository.findById(nodeKotlinId) ?: throw UnprocessableException("Node not found")
-        when (capacityChecker.check(node, excludeServerId = id, memoryMb = memoryMb, cpuShares = cpuShares)) {
+        when (capacityChecker.check(node, excludeServerId = id, memoryMb = memoryMb, cpuLimitMillicores = cpuLimitMillicores)) {
             CapacityResult.InsufficientRam -> throw ConflictException("Insufficient RAM capacity on node")
             CapacityResult.InsufficientCpu -> throw ConflictException("Insufficient CPU capacity on node")
             CapacityResult.Ok -> {}
@@ -210,7 +210,7 @@ class ServerService(
         transaction {
             val e = Server.findById(id) ?: return@transaction
             e.memoryMb = memoryMb
-            e.cpuShares = cpuShares
+            e.cpuLimitMillicores = cpuLimitMillicores
             if (itzgImageTag != null) e.itzgImageTag = itzgImageTag
             e.restartPending = true
         }

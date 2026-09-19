@@ -42,6 +42,18 @@ export function fmtPct(v: number): string {
     return `${Math.round(v)}%`;
 }
 
+/** CPU millicores → short core string, e.g. 4000 → "4c", 1500 → "1.5c", 500 → "500m". */
+export function fmtCpuCores(millicores: number): string {
+    const cores = millicores / 1000;
+    if (cores >= 1) return `${cores % 1 === 0 ? cores.toFixed(0) : cores.toFixed(1)}c`;
+    return `${millicores}m`;
+}
+
+/** CPU millicores → user-facing limit label. 0 = unlimited. */
+export function fmtCpuLimit(millicores: number): string {
+    return millicores === 0 ? "Unlimited" : `${millicores / 1000} cores`;
+}
+
 type MojangVersion = { id: string; type: string };
 
 export async function fetchReleaseVersions(): Promise<string[]> {

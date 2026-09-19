@@ -47,7 +47,7 @@ class NodeRegistrarTest :
                             publicIp = "1.2.3.4"
                             privateIp = "10.0.0.9"
                             totalRamMb = 2048
-                            totalCpuShares = 1024
+                            totalCpuMillicores = 1024
                             agentVersion = "1.0.0"
                             reservedRamMb = 512
                         }
@@ -64,7 +64,7 @@ class NodeRegistrarTest :
                 stored[Nodes.hostname] shouldBe "fake-node"
                 stored[Nodes.totalRamMb] shouldBe 2048
                 stored[Nodes.reservedRamMb] shouldBe 512
-                stored[Nodes.totalCpuShares] shouldBe 1024
+                stored[Nodes.totalCpuMillicores] shouldBe 1024
                 stored[Nodes.agentVersion] shouldBe "1.0.0"
             }
         }

@@ -43,7 +43,7 @@ class ProxyConfigPatchServiceTest :
                 it[Nodes.tokenHash] = "a".repeat(64)
                 it[Nodes.status] = "ACTIVE"
                 it[Nodes.totalRamMb] = 8192
-                it[Nodes.totalCpuShares] = 0
+                it[Nodes.totalCpuMillicores] = 0
                 it[Nodes.portRangeStart] = 25565
                 it[Nodes.portRangeEnd] = 25600
             }[Nodes.id].let { Uuid.parse(it.toString()) }
@@ -61,7 +61,7 @@ class ProxyConfigPatchServiceTest :
                 this.itzgImageTag = "latest"
                 this.hostPort = 25565
                 this.memoryMb = 1024
-                this.cpuShares = 0
+                this.cpuLimitMillicores = 0
                 this.configMode = "MANAGED"
                 this.stopCommand = "stop"
             }.id.value

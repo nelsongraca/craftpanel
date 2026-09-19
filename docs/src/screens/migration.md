@@ -47,7 +47,7 @@ Migration flow initiated from the server detail page (··· menu → Migrate).
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
               <div style="font-weight: bold;">node-1 <span style="font-size:11px; color: var(--md-default-fg-color--light);">(current)</span></div>
-              <div style="font-size: 11px;" class="cp-muted">RAM: 29.8 / 32 GB · CPU: 768 / 1024 shares</div>
+              <div style="font-size: 11px;" class="cp-muted">RAM: 29.8 / 32 GB · CPU: 750m / 1c</div>
             </div>
           </div>
         </div>
@@ -56,7 +56,7 @@ Migration flow initiated from the server detail page (··· menu → Migrate).
           <div style="display: flex; justify-content: space-between; align-items: center;">
             <div>
               <div style="font-weight: bold;">node-2 ✓</div>
-              <div style="font-size: 11px;" class="cp-muted">RAM: 12.1 / 32 GB · CPU: 256 / 1024 shares · Available: 19.9 GB</div>
+              <div style="font-size: 11px;" class="cp-muted">RAM: 12.1 / 32 GB · CPU: 250m / 1c · Available: 19.9 GB</div>
             </div>
             <span class="cp-badge cp-badge-healthy">ACTIVE</span>
           </div>

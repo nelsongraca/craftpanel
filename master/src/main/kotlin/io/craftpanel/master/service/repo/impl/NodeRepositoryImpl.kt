@@ -42,10 +42,10 @@ class NodeRepositoryImpl : NodeRepository {
             .sumOf { it[Servers.memoryMb] }
     }
 
-    override fun calculateAllocatedCpu(id: Uuid): Int = transaction {
+    override fun calculateAllocatedCpuMillicores(id: Uuid): Int = transaction {
         Servers.selectAll()
             .where { Servers.nodeId eq id }
-            .sumOf { it[Servers.cpuShares] }
+            .sumOf { it[Servers.cpuLimitMillicores] }
     }
 
     override fun getMetrics(nodeId: Uuid, limit: Int): List<NodeMetricsRow> = transaction {
@@ -80,7 +80,7 @@ private fun ResultRow.toNodeRow() = NodeRow(
     status = this[Nodes.status],
     health = this[Nodes.health],
     totalRamMb = this[Nodes.totalRamMb],
-    totalCpuShares = this[Nodes.totalCpuShares],
+    totalCpuMillicores = this[Nodes.totalCpuMillicores],
     systemRamUsedMb = this[Nodes.systemRamUsedMb],
     reservedRamMb = this[Nodes.reservedRamMb],
     portRangeStart = this[Nodes.portRangeStart],
@@ -90,6 +90,6 @@ private fun ResultRow.toNodeRow() = NodeRow(
     lastSeenAt = this[Nodes.lastSeenAt]?.toUtcString(),
     createdAt = this[Nodes.createdAt].toUtcString(),
     updatedAt = this[Nodes.updatedAt].toUtcString(),
-    reservedCpuShares = this[Nodes.reservedCpuShares],
+    reservedCpuMillicores = this[Nodes.reservedCpuMillicores],
     systemCpuPercent = this[Nodes.systemCpuPercent]
 )

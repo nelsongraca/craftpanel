@@ -25,7 +25,7 @@ private fun serverRow(id: Uuid, networkId: Uuid? = null, nodeId: Uuid = Uuid.ran
     id = id, name = "test-server", displayName = "test-server",
     description = null, nodeId = nodeId, networkId = networkId,
     serverType = ServerType.VANILLA, mcVersion = "1.21.4", status = "HEALTHY",
-    hostPort = 25565, memoryMb = 1024, cpuShares = 0,
+    hostPort = 25565, memoryMb = 1024, cpuLimitMillicores = 0,
     exposedExternally = false, publicSubdomain = null,
     dnsRecordId = null, dnsRecordName = null, customHostname = null,
     configMode = "MANAGED", stopCommand = "stop", itzgImageTag = "latest",
@@ -38,7 +38,7 @@ private fun serverRow(id: Uuid, networkId: Uuid? = null, nodeId: Uuid = Uuid.ran
 private fun nodeRow(id: Uuid) = NodeRow(
     id = id, displayName = "test-node", hostname = "test-node",
     publicIp = "5.6.7.8", privateIp = "10.0.0.2", tokenHash = "",
-    status = "ACTIVE", health = "HEALTHY", totalRamMb = 16384, totalCpuShares = 0,
+    status = "ACTIVE", health = "HEALTHY", totalRamMb = 16384, totalCpuMillicores = 0,
     systemRamUsedMb = null, portRangeStart = 25565, portRangeEnd = 25600,
     swarmActive = false, agentVersion = null, lastSeenAt = null,
     createdAt = "", updatedAt = ""

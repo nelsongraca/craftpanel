@@ -10,7 +10,7 @@ import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import {useWs} from "@/lib/ws-context";
 import type {Node} from "@/lib/types";
-import {timeAgo, fmtBytes, fmtMb, fmtBytesNetworkIo, fillColorBg, fmtPct} from "@/lib/utils/format";
+import {timeAgo, fmtBytes, fmtMb, fmtBytesNetworkIo, fillColorBg, fmtPct, fmtCpuCores} from "@/lib/utils/format";
 import {TokenModal} from "@/components/nodes/TokenModal";
 import type {ServerResponse as Server} from "@/lib/generated/types.gen";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
@@ -61,11 +61,6 @@ function InfoRow({label, value}: { label: string; value: React.ReactNode }) {
     );
 }
 
-function fmtCores(shares: number): string {
-    const cores = shares / 1024;
-    return cores >= 1 ? `${cores % 1 === 0 ? cores.toFixed(0) : cores.toFixed(1)}c` : `${shares}`;
-}
-
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
 const TABS = ["Overview", "Servers", "Metrics"] as const;
@@ -74,7 +69,7 @@ type Tab = (typeof TABS)[number];
 // ── Overview tab ──────────────────────────────────────────────────────────────
 
 function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
-    const cpuPct = node.total_cpu_shares > 0 ? Math.min(100, (node.allocated_cpu_shares / node.total_cpu_shares) * 100) : 0;
+    const cpuPct = node.total_cpu_millicores > 0 ? Math.min(100, (node.allocated_cpu_millicores / node.total_cpu_millicores) * 100) : 0;
     const ramUsedMb = Math.max(node.allocated_ram_mb, node.system_ram_used_mb ?? 0);
     const ramUsagePct = node.total_ram_mb > 0 ? Math.min(100, (ramUsedMb / node.total_ram_mb) * 100) : 0;
     const cpuUsagePct = node.system_cpu_percent != null ? Math.min(100, node.system_cpu_percent) : 0;
@@ -92,7 +87,7 @@ function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
                             {cpuPct.toFixed(0)}%
                         </p>
                         <p className="font-mono text-xs text-text-muted">
-                            {node.allocated_cpu_shares} / {node.total_cpu_shares} shares
+                            {fmtCpuCores(node.allocated_cpu_millicores)} / {fmtCpuCores(node.total_cpu_millicores)}
                         </p>
                         <div className="h-1.5 rounded-full bg-surface-higher w-full overflow-hidden">
                             <div
@@ -130,8 +125,8 @@ function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
                 <InfoRow label="Agent" value={node.agent_version ?? "-"}/>
                 <InfoRow label="RAM Total" value={fmtMb(node.total_ram_mb)}/>
                 <InfoRow label="RAM Reserved" value={fmtMb(node.reserved_ram_mb)}/>
-                <InfoRow label="CPU Total" value={fmtCores(node.total_cpu_shares)}/>
-                <InfoRow label="CPU Reserved" value={fmtCores(node.reserved_cpu_shares)}/>
+                <InfoRow label="CPU Total" value={fmtCpuCores(node.total_cpu_millicores)}/>
+                <InfoRow label="CPU Reserved" value={fmtCpuCores(node.reserved_cpu_millicores)}/>
                 <InfoRow label="Last Seen" value={node.last_seen_at ? timeAgo(node.last_seen_at) : "-"}/>
                 <InfoRow label="Created" value={new Date(node.created_at).toLocaleDateString()}/>
             </div>

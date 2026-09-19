@@ -149,7 +149,7 @@ class ContainerLifecycle(
             this.publicHostname = resolvedHostname
             hostPort = server.hostPort
             memoryMb = server.memoryMb
-            cpuShares = server.cpuShares
+            cpuLimitMillicores = server.cpuLimitMillicores
             dockerNetwork = server.networkId
                 ?.let { names.sharedNetwork(it.toString()) }
                 ?: names.standaloneNetwork(id.toString())

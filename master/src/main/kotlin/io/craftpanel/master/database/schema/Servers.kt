@@ -30,7 +30,7 @@ object Servers : UuidTable("servers") {
     val desiredStatus = varchar("desired_status", 10).nullable()
     val hostPort = integer("host_port")
     val memoryMb = integer("memory_mb")
-    val cpuShares = integer("cpu_shares").default(0) // 0 = unlimited
+    val cpuLimitMillicores = integer("cpu_limit_millicores").default(0) // 0 = unlimited
     val exposedExternally = bool("exposed_externally").default(false)
     val publicSubdomain = varchar("public_subdomain", 253).nullable()
         .uniqueIndex()

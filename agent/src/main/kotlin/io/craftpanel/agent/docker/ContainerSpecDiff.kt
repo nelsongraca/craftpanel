@@ -43,7 +43,7 @@ object ContainerSpecDiff {
             if (snapshot.image != spec.image) add(SpecDiffReason.IMAGE)
             if (snapshot.user != spec.containerUser) add(SpecDiffReason.USER)
             if (snapshot.memoryMb != spec.memoryMb) add(SpecDiffReason.MEMORY)
-            if (snapshot.cpuShares != spec.cpuShares) add(SpecDiffReason.CPU)
+            if (snapshot.cpuLimitMillicores != spec.cpuLimitMillicores) add(SpecDiffReason.CPU)
             for ((key, value) in spec.envVarsMap) {
                 if (snapshot.env[key] != value) {
                     add(SpecDiffReason.ENV)

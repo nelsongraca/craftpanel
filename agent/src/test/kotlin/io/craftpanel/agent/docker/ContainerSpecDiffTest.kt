@@ -17,7 +17,7 @@ class ContainerSpecDiffTest :
             image = "itzg/minecraft-server:latest"
             hostPort = 25565
             memoryMb = 1024
-            cpuShares = 256
+            cpuLimitMillicores = 256
             envVars.putAll(mapOf("MOTD" to "hi", "PVP" to "true"))
             dockerNetwork = "craftpanel-server-srv-1"
             internalListenPort = 25565
@@ -44,7 +44,7 @@ class ContainerSpecDiffTest :
             ),
             user = "",
             memoryMb = 1024,
-            cpuShares = 256,
+            cpuLimitMillicores = 256,
             labels = mapOf("mc-router.host" to "play.example.com"),
             networkMode = "craftpanel-server-srv-1",
             hostname = "survival"
@@ -69,7 +69,7 @@ class ContainerSpecDiffTest :
         }
 
         test("cpu shares differ") {
-            diff(snap = snapshot().copy(cpuShares = 0)) shouldBe SpecDiff.Mismatch(listOf(SpecDiffReason.CPU))
+            diff(snap = snapshot().copy(cpuLimitMillicores = 0)) shouldBe SpecDiff.Mismatch(listOf(SpecDiffReason.CPU))
         }
 
         test("a configured env var with a different value") {

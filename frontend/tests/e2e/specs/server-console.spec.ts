@@ -60,7 +60,7 @@ test("non-HEALTHY server shows crash log view instead of live console", async ({
                 network_id: "net-1",
                 host_port: 25566,
                 memory_mb: 1024,
-                cpu_shares: 512,
+                cpu_limit_millicores: 512,
                 exposed_externally: false,
                 public_subdomain: null,
                 is_migrating: false,

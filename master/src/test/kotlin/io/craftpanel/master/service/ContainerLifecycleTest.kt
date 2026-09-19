@@ -50,7 +50,7 @@ class ContainerLifecycleTest :
                     it[Nodes.tokenHash] = "a".repeat(64)
                     it[Nodes.status] = "ACTIVE"
                     it[Nodes.totalRamMb] = 8192
-                    it[Nodes.totalCpuShares] = 0
+                    it[Nodes.totalCpuMillicores] = 0
                     it[Nodes.portRangeStart] = 25565
                     it[Nodes.portRangeEnd] = 25600
                 }[Nodes.id].let { Uuid.parse(it.toString()) }
@@ -66,7 +66,7 @@ class ContainerLifecycleTest :
                     it[Servers.itzgImageTag] = "latest"
                     it[Servers.hostPort] = 25565
                     it[Servers.memoryMb] = 1024
-                    it[Servers.cpuShares] = 0
+                    it[Servers.cpuLimitMillicores] = 0
                     it[Servers.status] = "STOPPED"
                 }[Servers.id].let { Uuid.parse(it.toString()) }
             }
@@ -89,7 +89,7 @@ class ContainerLifecycleTest :
                         status = r[Servers.status],
                         hostPort = r[Servers.hostPort],
                         memoryMb = r[Servers.memoryMb],
-                        cpuShares = r[Servers.cpuShares],
+                        cpuLimitMillicores = r[Servers.cpuLimitMillicores],
                         exposedExternally = r[Servers.exposedExternally],
                         publicSubdomain = r[Servers.publicSubdomain],
                         dnsRecordId = r[Servers.dnsRecordId],
@@ -195,7 +195,7 @@ class ContainerLifecycleTest :
                     it[Servers.itzgImageTag] = "latest"
                     it[Servers.hostPort] = 25566
                     it[Servers.memoryMb] = 1024
-                    it[Servers.cpuShares] = 0
+                    it[Servers.cpuLimitMillicores] = 0
                     it[Servers.status] = "STOPPED"
                 }[Servers.id].let { Uuid.parse(it.toString()) }
             }
@@ -219,7 +219,7 @@ class ContainerLifecycleTest :
                     it[Servers.itzgImageTag] = "latest"
                     it[Servers.hostPort] = 25567
                     it[Servers.memoryMb] = 512
-                    it[Servers.cpuShares] = 0
+                    it[Servers.cpuLimitMillicores] = 0
                     it[Servers.status] = "STOPPED"
                 }[Servers.id].let { Uuid.parse(it.toString()) }
             }
@@ -241,7 +241,7 @@ class ContainerLifecycleTest :
                     it[Servers.itzgImageTag] = "latest"
                     it[Servers.hostPort] = 25570
                     it[Servers.memoryMb] = 1024
-                    it[Servers.cpuShares] = 0
+                    it[Servers.cpuLimitMillicores] = 0
                     it[Servers.status] = "STOPPED"
                     it[Servers.customServerJar] = "/data/my-server.jar"
                     it[Servers.configMode] = "MANUAL"

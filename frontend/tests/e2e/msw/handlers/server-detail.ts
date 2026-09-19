@@ -67,7 +67,7 @@ export const serverDetailHandlers = [
             server_type: server.server_type,
             mc_version: server.mc_version,
             memory_mb: server.memory_mb,
-            cpu_shares: server.cpu_shares,
+            cpu_limit_millicores: server.cpu_limit_millicores,
         });
     }),
 

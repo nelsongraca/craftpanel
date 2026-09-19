@@ -76,7 +76,7 @@ fun Route.serversRoutes(
                         mcVersion = req.mcVersion,
                         itzgImageTag = req.itzgImageTag,
                         memoryMb = req.memoryMb,
-                        cpuShares = req.cpuShares,
+                        cpuLimitMillicores = req.cpuLimitMillicores,
                         expiresAt = req.expiresAt,
                         customServerJar = req.customServerJar,
                         containerListenPort = req.containerListenPort,
@@ -224,7 +224,7 @@ fun Route.serversRoutes(
             }) {
                 val auth = call.requireServerPermission(Permission.SERVER_RESOURCES)
                 val req = call.receive<PatchResourcesRequest>()
-                serverService.updateResources(auth.serverId, req.memoryMb, req.cpuShares, req.itzgImageTag)
+                serverService.updateResources(auth.serverId, req.memoryMb, req.cpuLimitMillicores, req.itzgImageTag)
                 call.respond(HttpStatusCode.NoContent)
             }
 

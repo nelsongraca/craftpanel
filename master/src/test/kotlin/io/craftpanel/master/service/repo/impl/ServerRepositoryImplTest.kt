@@ -37,7 +37,7 @@ class ServerRepositoryImplTest :
                 it[Nodes.tokenHash] = "a".repeat(64)
                 it[Nodes.status] = "ACTIVE"
                 it[Nodes.totalRamMb] = 8192
-                it[Nodes.totalCpuShares] = 1024
+                it[Nodes.totalCpuMillicores] = 1024
             }[Nodes.id].let { Uuid.parse(it.toString()) }
         }
 
@@ -59,7 +59,7 @@ class ServerRepositoryImplTest :
                 this.itzgImageTag = "latest"
                 this.hostPort = 25565
                 this.memoryMb = 1024
-                this.cpuShares = 1024
+                this.cpuLimitMillicores = 1024
                 this.configMode = "MANAGED"
                 this.stopCommand = "stop"
             }

@@ -157,9 +157,9 @@ open class MetricsCollector(
         val totalRamMb = runCatching {
             ((parseMemInfo()["MemTotal"] ?: 0L) / 1024).toInt()
         }.getOrElse { 0 }
-        val totalCpuShares = Runtime.getRuntime()
-            .availableProcessors() * 1024
-        return Pair(totalRamMb, totalCpuShares)
+        val totalCpuMillicores = Runtime.getRuntime()
+            .availableProcessors() * 1000
+        return Pair(totalRamMb, totalCpuMillicores)
     }
 
     private data class ProcMetrics(

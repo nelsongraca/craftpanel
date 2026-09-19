@@ -39,7 +39,7 @@ class NodeAuthenticatorTest : FunSpec({
         publicIpUrl = "",
         hostnameOverride = "test-node",
         systemReservedRamMb = -10,
-        systemReservedCpuShares = -20,
+        systemReservedCpuMillicores = -20,
         craftpanelNetwork = "craftpanel",
         containerNamePrefix = "craftpanel",
         privateIpOverride = "192.0.2.10",

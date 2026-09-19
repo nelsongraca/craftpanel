@@ -19,16 +19,16 @@ class NodeAuthenticator(private val config: AgentConfig, private val metricsColl
 
     suspend fun authenticate(channel: ManagedChannel): NodeIdentity {
         val stub = ControlServiceGrpcKt.ControlServiceCoroutineStub(channel)
-        val (totalRamMb, totalCpuShares) = metricsCollector.collectCapacity()
+        val (totalRamMb, totalCpuMillicores) = metricsCollector.collectCapacity()
         val metadata = nodeMetadata {
             hostname = config.hostnameOverride.ifBlank { InetAddress.getLocalHost().hostName }
             publicIp = resolvePublicIp()
             privateIp = resolvePrivateIp()
             agentVersion = config.agentVersion
             this.totalRamMb = maxOf(0, totalRamMb)
-            this.totalCpuShares = totalCpuShares
+            this.totalCpuMillicores = totalCpuMillicores
             this.reservedRamMb = maxOf(0, config.systemReservedRamMb)
-            this.reservedCpuShares = maxOf(0, config.systemReservedCpuShares)
+            this.reservedCpuMillicores = maxOf(0, config.systemReservedCpuMillicores)
         }
 
         val existingKey = NodeKeyStore.read(config.keyFilePath)

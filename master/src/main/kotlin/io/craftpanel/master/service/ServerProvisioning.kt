@@ -44,7 +44,7 @@ data class ServerProvisionSpec(
     val mcVersion: String,
     val itzgImageTag: String,
     val memoryMb: Int,
-    val cpuShares: Int,
+    val cpuLimitMillicores: Int,
     val expiresAt: String? = null,
     val customServerJar: String? = null,
     val containerListenPort: Int? = null,
@@ -107,7 +107,7 @@ class ServerProvisioning(
             throw UnprocessableException("Server name must not start with the reserved prefix '${containerNamePrefix.trim().trimEnd('-')}-'")
         }
         if (spec.memoryMb <= 0) throw UnprocessableException("memory_mb must be positive")
-        if (spec.cpuShares < 0) throw UnprocessableException("cpu_shares must be non-negative")
+        if (spec.cpuLimitMillicores < 0) throw UnprocessableException("cpu_limit_millicores must be non-negative")
         val expiryLocal = parseExpiresAt(spec.expiresAt)
 
         val st = runCatching { ServerType.valueOf(spec.serverType) }.getOrNull()
@@ -174,7 +174,7 @@ class ServerProvisioning(
             mcVersion = source.mcVersion,
             itzgImageTag = source.itzgImageTag,
             memoryMb = source.memoryMb,
-            cpuShares = source.cpuShares,
+            cpuLimitMillicores = source.cpuLimitMillicores,
             customServerJar = source.customServerJar,
             containerListenPort = source.containerListenPort,
             containerProtocol = source.containerProtocol,
@@ -213,7 +213,7 @@ class ServerProvisioning(
         }
         if (serverRepository.findByName(spec.name) != null) throw ConflictException("Server name already taken")
 
-        when (capacityChecker.check(node, excludeServerId = null, memoryMb = spec.memoryMb, cpuShares = spec.cpuShares)) {
+        when (capacityChecker.check(node, excludeServerId = null, memoryMb = spec.memoryMb, cpuLimitMillicores = spec.cpuLimitMillicores)) {
             CapacityResult.InsufficientRam -> throw ConflictException("Insufficient RAM capacity on node")
             CapacityResult.InsufficientCpu -> throw ConflictException("Insufficient CPU capacity on node")
             CapacityResult.Ok -> {}
@@ -241,7 +241,7 @@ class ServerProvisioning(
                 this.itzgImageTag = spec.itzgImageTag
                 this.hostPort = port
                 this.memoryMb = spec.memoryMb
-                this.cpuShares = spec.cpuShares
+                this.cpuLimitMillicores = spec.cpuLimitMillicores
                 this.expiresAt = expiryLocal
                 this.configMode = spec.configMode ?: if (st.isCustom || st.isPicolimbo) "MANUAL" else "MANAGED"
                 this.stopCommand = spec.stopCommand ?: if (st.isProxy) "end" else "stop"

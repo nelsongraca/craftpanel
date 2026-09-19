@@ -26,7 +26,7 @@ class ProxyBackendTest : BaseSystemTest() {
                     mcVersion = "latest",
                     itzgImageTag = "latest",
                     memoryMb = 256,
-                    cpuShares = 64
+                    cpuLimitMillicores = 1000
                 )
             ).id
             gameServerId = ServerHelper(api).createTestServer(nodeId)
@@ -137,7 +137,7 @@ class ProxyBackendTest : BaseSystemTest() {
                         mcVersion = "latest",
                         itzgImageTag = "latest",
                         memoryMb = 256,
-                        cpuShares = 64
+                        cpuLimitMillicores = 1000
                     )
                 )
                 try {

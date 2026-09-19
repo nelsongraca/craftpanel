@@ -159,7 +159,7 @@ class ServersRoutesTest :
 
         fun tokenFor(userId: Uuid, username: String = "admin"): String = jwtManager.generate(TokenClaims(userId = userId, name = username, email = "$username@example.com", groups = emptyList()))
 
-        fun createNode(hostname: String = "node-1", status: String = "ACTIVE", totalRamMb: Int = 8192, totalCpuShares: Int = 0, portStart: Int = 25565, portEnd: Int = 25600): Uuid = transaction {
+        fun createNode(hostname: String = "node-1", status: String = "ACTIVE", totalRamMb: Int = 8192, totalCpuMillicores: Int = 0, portStart: Int = 25565, portEnd: Int = 25600): Uuid = transaction {
             Nodes.insert {
                 it[Nodes.hostname] = hostname
                 it[Nodes.displayName] = hostname
@@ -172,7 +172,7 @@ class ServersRoutesTest :
                 }".take(64)
                 it[Nodes.status] = status
                 it[Nodes.totalRamMb] = totalRamMb
-                it[Nodes.totalCpuShares] = totalCpuShares
+                it[Nodes.totalCpuMillicores] = totalCpuMillicores
                 it[Nodes.portRangeStart] = portStart
                 it[Nodes.portRangeEnd] = portEnd
             }[Nodes.id].let { Uuid.parse(it.toString()) }
@@ -214,7 +214,7 @@ class ServersRoutesTest :
                 it[Servers.mcVersion] = mcVersion
                 it[Servers.hostPort] = port
                 it[Servers.memoryMb] = memoryMb
-                it[Servers.cpuShares] = 0
+                it[Servers.cpuLimitMillicores] = 0
                 it[Servers.status] = status
             }[Servers.id].let { Uuid.parse(it.toString()) }
         }
@@ -383,7 +383,7 @@ class ServersRoutesTest :
                 val resp = client.post("/api/servers") {
                     bearerAuth(tokenFor(userId))
                     contentType(ContentType.Application.Json)
-                    setBody("""{"name":"new-server","display_name":"New Server","node_id":"$nodeId","server_type":"PAPER","memory_mb":2048,"cpu_shares":0}""")
+                    setBody("""{"name":"new-server","display_name":"New Server","node_id":"$nodeId","server_type":"PAPER","memory_mb":2048,"cpu_limit_millicores":0}""")
                 }
                 resp.status shouldBe HttpStatusCode.Created
                 val body = resp.body<JsonObject>()
@@ -440,7 +440,7 @@ class ServersRoutesTest :
                         "server_type":"CUSTOM",
                         "mc_version":"1.21.4",
                         "memory_mb":1024,
-                        "cpu_shares":0,
+                        "cpu_limit_millicores":0,
                         "custom_server_jar":"/data/my-server.jar",
                         "container_listen_port":25566,
                         "container_protocol":"UDP",
@@ -1095,7 +1095,7 @@ class ServersRoutesTest :
                 val resp = client.patch("/api/servers/$serverId/resources") {
                     bearerAuth(tokenFor(userId))
                     contentType(ContentType.Application.Json)
-                    setBody("""{"memory_mb":2048,"cpu_shares":0}""")
+                    setBody("""{"memory_mb":2048,"cpu_limit_millicores":0}""")
                 }
                 resp.status shouldBe HttpStatusCode.Forbidden
             }
@@ -1112,7 +1112,7 @@ class ServersRoutesTest :
                 val resp = client.patch("/api/servers/$serverId/resources") {
                     bearerAuth(tokenFor(userId))
                     contentType(ContentType.Application.Json)
-                    setBody("""{"memory_mb":3000,"cpu_shares":512}""")
+                    setBody("""{"memory_mb":3000,"cpu_limit_millicores":512}""")
                 }
                 resp.status shouldBe HttpStatusCode.NoContent
                 val row = transaction {
@@ -1121,7 +1121,7 @@ class ServersRoutesTest :
                         .first()
                 }
                 row[Servers.memoryMb] shouldBe 3000
-                row[Servers.cpuShares] shouldBe 512
+                row[Servers.cpuLimitMillicores] shouldBe 512
                 row[Servers.restartPending] shouldBe true
             }
         }
@@ -1138,7 +1138,7 @@ class ServersRoutesTest :
                 val resp = client.patch("/api/servers/$serverId/resources") {
                     bearerAuth(tokenFor(userId))
                     contentType(ContentType.Application.Json)
-                    setBody("""{"memory_mb":3000,"cpu_shares":0}""")
+                    setBody("""{"memory_mb":3000,"cpu_limit_millicores":0}""")
                 }
                 resp.status shouldBe HttpStatusCode.Conflict
             }
@@ -1155,7 +1155,7 @@ class ServersRoutesTest :
                 val resp = client.patch("/api/servers/$serverId/resources") {
                     bearerAuth(tokenFor(userId))
                     contentType(ContentType.Application.Json)
-                    setBody("""{"memory_mb":0,"cpu_shares":0}""")
+                    setBody("""{"memory_mb":0,"cpu_limit_millicores":0}""")
                 }
                 resp.status shouldBe HttpStatusCode.UnprocessableEntity
             }

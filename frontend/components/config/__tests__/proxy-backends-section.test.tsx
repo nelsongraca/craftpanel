@@ -21,7 +21,7 @@ const makeServer = (id: string, name: string, type: string, status: string): Ser
     network_id: 'net1',
     mc_version: '1.21',
     memory_mb: 2048,
-    cpu_shares: 100,
+    cpu_limit_millicores: 100,
     config_mode: 'MANAGED',
     host_port: '25565',
     created_at: '2026-01-01T00:00:00Z',

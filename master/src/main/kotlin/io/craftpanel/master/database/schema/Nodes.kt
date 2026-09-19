@@ -21,11 +21,11 @@ object Nodes : UuidTable("nodes") {
     val health = varchar("health", 20).default("HEALTHY")
 
     val totalRamMb = integer("total_ram_mb").default(0)
-    val totalCpuShares = integer("total_cpu_shares").default(0)
+    val totalCpuMillicores = integer("total_cpu_millicores").default(0)
     val systemRamUsedMb = integer("system_ram_used_mb").nullable()
     val systemCpuPercent = double("system_cpu_percent").nullable()
     val reservedRamMb = integer("reserved_ram_mb").default(1024)
-    val reservedCpuShares = integer("reserved_cpu_shares").default(1024)
+    val reservedCpuMillicores = integer("reserved_cpu_millicores").default(1000)
 
     val portRangeStart = integer("port_range_start").default(25570)
     val portRangeEnd = integer("port_range_end").default(26070)

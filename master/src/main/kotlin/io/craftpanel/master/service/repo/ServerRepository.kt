@@ -17,7 +17,7 @@ data class ServerView(
     val desiredStatus: String? = null,
     val hostPort: Int,
     val memoryMb: Int,
-    val cpuShares: Int,
+    val cpuLimitMillicores: Int,
     val exposedExternally: Boolean,
     val publicSubdomain: String?,
     val dnsRecordId: String?,

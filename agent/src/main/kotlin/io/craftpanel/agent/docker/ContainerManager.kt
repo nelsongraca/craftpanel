@@ -20,7 +20,8 @@ data class ContainerSnapshot(
     val portBindings: List<PortBindingSnapshot>,
     val user: String,
     val memoryMb: Int,
-    val cpuShares: Int,
+    /** Hard CPU cap in millicores (0 = unlimited), from Docker `NanoCpus` (or quota/period). */
+    val cpuLimitMillicores: Int,
     val labels: Map<String, String>,
     val networkMode: String,
     /** Docker hostname (`Config.Hostname`) — the server name, and thus its DNS name on the network. */

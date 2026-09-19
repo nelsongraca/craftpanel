@@ -19,11 +19,11 @@ class Node(id: EntityID<Uuid>) : UuidEntity(id) {
     var status by Nodes.status
     var health by Nodes.health
     var totalRamMb by Nodes.totalRamMb
-    var totalCpuShares by Nodes.totalCpuShares
+    var totalCpuMillicores by Nodes.totalCpuMillicores
     var systemRamUsedMb by Nodes.systemRamUsedMb
     var systemCpuPercent by Nodes.systemCpuPercent
     var reservedRamMb by Nodes.reservedRamMb
-    var reservedCpuShares by Nodes.reservedCpuShares
+    var reservedCpuMillicores by Nodes.reservedCpuMillicores
     var portRangeStart by Nodes.portRangeStart
     var portRangeEnd by Nodes.portRangeEnd
     var swarmActive by Nodes.swarmActive
@@ -42,10 +42,10 @@ class Node(id: EntityID<Uuid>) : UuidEntity(id) {
         status = status,
         health = health,
         totalRamMb = totalRamMb,
-        totalCpuShares = totalCpuShares,
+        totalCpuMillicores = totalCpuMillicores,
         systemRamUsedMb = systemRamUsedMb,
         reservedRamMb = reservedRamMb,
-        reservedCpuShares = reservedCpuShares,
+        reservedCpuMillicores = reservedCpuMillicores,
         systemCpuPercent = systemCpuPercent,
         portRangeStart = portRangeStart,
         portRangeEnd = portRangeEnd,

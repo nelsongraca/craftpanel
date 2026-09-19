@@ -90,13 +90,13 @@ function node(overrides: Record<string, unknown> = {}): Record<string, unknown> 
         status: "ACTIVE",
         health: "HEALTHY",
         total_ram_mb: 32768,
-        total_cpu_shares: 4096,
+        total_cpu_millicores: 4096,
         allocated_ram_mb: 8192,
-        allocated_cpu_shares: 1024,
+        allocated_cpu_millicores: 1024,
         system_ram_used_mb: null,
         system_cpu_percent: null,
         reserved_ram_mb: 1024,
-        reserved_cpu_shares: 1024,
+        reserved_cpu_millicores: 1024,
         port_range_start: 25565,
         port_range_end: 25600,
         agent_version: "1.0.0",
@@ -325,8 +325,8 @@ describe("NodeDetailPage", () => {
             const n = {
                 allocated_ram_mb: 8192,
                 total_ram_mb: 32768,
-                allocated_cpu_shares: 1024,
-                total_cpu_shares: 4096,
+                allocated_cpu_millicores: 1024,
+                total_cpu_millicores: 4096,
                 status: "ACTIVE",
                 health: "HEALTHY",
             };
@@ -389,8 +389,8 @@ describe("NodeDetailPage", () => {
             expect(screen.getByText("RAM Allocated")).toBeInTheDocument();
         });
 
-        it("handles zero total_cpu_shares gracefully", async () => {
-            await renderDetail({total_cpu_shares: 0, allocated_cpu_shares: 0});
+        it("handles zero total_cpu_millicores gracefully", async () => {
+            await renderDetail({total_cpu_millicores: 0, allocated_cpu_millicores: 0});
             expect(screen.getByText("CPU Allocated")).toBeInTheDocument();
         });
     });

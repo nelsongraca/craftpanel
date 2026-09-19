@@ -102,7 +102,8 @@ class DockerContainerManager(
                 if (cmd.memoryMb > 0) cfg.withMemory(cmd.memoryMb.toLong() * 1024 * 1024) else cfg
             }
             .let { cfg ->
-                if (cmd.cpuShares > 0) cfg.withCpuShares(cmd.cpuShares) else cfg
+                // Hard CPU cap: millicores → docker --cpus (nanocpus = millicores * 1e6).
+                if (cmd.cpuLimitMillicores > 0) cfg.withNanoCPUs(cmd.cpuLimitMillicores.toLong() * 1_000_000L) else cfg
             }
             .let { cfg ->
                 if (cmd.dockerNetwork.isNotEmpty()) cfg.withNetworkMode(cmd.dockerNetwork) else cfg
@@ -365,12 +366,25 @@ class DockerContainerManager(
             portBindings = portBindings,
             user = config?.user ?: "",
             memoryMb = ((hostConfig?.memory ?: 0L) / (1024 * 1024)).toInt(),
-            cpuShares = hostConfig?.cpuShares ?: 0,
+            cpuLimitMillicores = cpuLimitMillicoresOf(hostConfig),
             labels = config?.labels.orEmpty(),
             networkMode = hostConfig?.networkMode ?: "",
             hostname = config?.hostName ?: ""
         )
     }.getOrNull()
+
+    /**
+     * Effective hard CPU cap in millicores. Docker sets `NanoCpus` when the container was
+     * created with `--cpus`; older/daemon-set containers instead carry `CpuQuota`/`CpuPeriod`,
+     * so fall back to quota/period. 0 means no limit.
+     */
+    private fun cpuLimitMillicoresOf(hostConfig: com.github.dockerjava.api.model.HostConfig?): Int {
+        val nanoCpus = hostConfig?.nanoCPUs ?: 0L
+        if (nanoCpus > 0) return (nanoCpus / 1_000_000L).toInt()
+        val quota = hostConfig?.cpuQuota ?: 0L
+        val period = hostConfig?.cpuPeriod ?: 0L
+        return if (quota > 0 && period > 0) (quota * 1000L / period).toInt() else 0
+    }
 
     override fun execRconCommand(serverId: String, command: String) {
         val containerName = names.container(serverId)

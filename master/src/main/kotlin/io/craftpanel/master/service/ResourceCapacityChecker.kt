@@ -12,13 +12,13 @@ internal enum class CapacityResult {
 
 internal class ResourceCapacityChecker(private val serverRepository: ServerRepository) {
 
-    fun check(node: NodeRow, excludeServerId: Uuid?, memoryMb: Int, cpuShares: Int): CapacityResult {
+    fun check(node: NodeRow, excludeServerId: Uuid?, memoryMb: Int, cpuLimitMillicores: Int): CapacityResult {
         val others = serverRepository.listByNodeId(node.id)
             .filter { it.id != excludeServerId }
         val usedRam = others.sumOf { it.memoryMb }
-        val usedCpu = others.sumOf { it.cpuShares }
+        val usedCpu = others.sumOf { it.cpuLimitMillicores }
         if (usedRam + memoryMb > node.totalRamMb - node.reservedRamMb) return CapacityResult.InsufficientRam
-        if (node.totalCpuShares > 0 && usedCpu + cpuShares > node.totalCpuShares - node.reservedCpuShares) return CapacityResult.InsufficientCpu
+        if (node.totalCpuMillicores > 0 && usedCpu + cpuLimitMillicores > node.totalCpuMillicores - node.reservedCpuMillicores) return CapacityResult.InsufficientCpu
         return CapacityResult.Ok
     }
 }

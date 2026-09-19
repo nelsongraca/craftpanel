@@ -64,8 +64,8 @@ class NodeRegistrar(private val nodeConfig: NodeConfig, private val nodeReposito
                 this.portRangeEnd = DEFAULT_PORT_RANGE_END
                 this.totalRamMb = meta.totalRamMb
                 this.reservedRamMb = meta.reservedRamMb
-                this.reservedCpuShares = meta.reservedCpuShares
-                this.totalCpuShares = meta.totalCpuShares
+                this.reservedCpuMillicores = meta.reservedCpuMillicores
+                this.totalCpuMillicores = meta.totalCpuMillicores
                 this.agentVersion = meta.agentVersion.takeIf { v -> v.isNotEmpty() }
                 this.lastSeenAt = now.toLocalDateTime(TimeZone.UTC)
             }
@@ -82,7 +82,7 @@ class NodeRegistrar(private val nodeConfig: NodeConfig, private val nodeReposito
                 status = row[Nodes.status],
                 health = row[Nodes.health],
                 totalRamMb = row[Nodes.totalRamMb],
-                totalCpuShares = row[Nodes.totalCpuShares],
+                totalCpuMillicores = row[Nodes.totalCpuMillicores],
                 systemRamUsedMb = row[Nodes.systemRamUsedMb],
                 reservedRamMb = row[Nodes.reservedRamMb],
                 portRangeStart = row[Nodes.portRangeStart],
@@ -92,7 +92,7 @@ class NodeRegistrar(private val nodeConfig: NodeConfig, private val nodeReposito
                 lastSeenAt = row[Nodes.lastSeenAt]?.toUtcString(),
                 createdAt = row[Nodes.createdAt].toUtcString(),
                 updatedAt = row[Nodes.updatedAt].toUtcString(),
-                reservedCpuShares = row[Nodes.reservedCpuShares],
+                reservedCpuMillicores = row[Nodes.reservedCpuMillicores],
                 systemCpuPercent = row[Nodes.systemCpuPercent]
             )
         }
@@ -120,8 +120,8 @@ class NodeRegistrar(private val nodeConfig: NodeConfig, private val nodeReposito
                         if (request.metadata.hostname.isNotEmpty()) it.hostname = request.metadata.hostname
                         it.totalRamMb = request.metadata.totalRamMb
                         it.reservedRamMb = request.metadata.reservedRamMb
-                        it.totalCpuShares = request.metadata.totalCpuShares
-                        it.reservedCpuShares = request.metadata.reservedCpuShares
+                        it.totalCpuMillicores = request.metadata.totalCpuMillicores
+                        it.reservedCpuMillicores = request.metadata.reservedCpuMillicores
                     }
             }
         }

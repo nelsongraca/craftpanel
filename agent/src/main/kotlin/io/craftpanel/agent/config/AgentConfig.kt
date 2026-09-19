@@ -29,7 +29,7 @@ data class AgentConfig(
     val publicIpUrl: String,
     val hostnameOverride: String,
     val systemReservedRamMb: Int,
-    val systemReservedCpuShares: Int,
+    val systemReservedCpuMillicores: Int,
     val craftpanelNetwork: String,
     val containerNamePrefix: String,
     val privateIpOverride: String,
@@ -95,7 +95,7 @@ data class AgentConfig(
                 systemReservedRamMb = System.getenv("SYSTEM_RESERVED_RAM_MB")
                     ?.toIntOrNull()
                     ?.coerceAtLeast(0) ?: 0,
-                systemReservedCpuShares = System.getenv("SYSTEM_RESERVED_CPU_SHARES")
+                systemReservedCpuMillicores = System.getenv("SYSTEM_RESERVED_CPU_MILLICORES")
                     ?.toIntOrNull()
                     ?.coerceAtLeast(0) ?: 0,
                 craftpanelNetwork = System.getenv("CRAFTPANEL_NETWORK") ?: "craftpanel",

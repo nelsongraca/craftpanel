@@ -56,7 +56,7 @@ class BackendForwardingServiceTest :
                 it[Nodes.tokenHash] = "a".repeat(64)
                 it[Nodes.status] = "ACTIVE"
                 it[Nodes.totalRamMb] = 8192
-                it[Nodes.totalCpuShares] = 1024
+                it[Nodes.totalCpuMillicores] = 1024
             }[Nodes.id].let { Uuid.parse(it.toString()) }
         }
 
@@ -69,7 +69,7 @@ class BackendForwardingServiceTest :
                 it[Servers.mcVersion] = "1.21.4"
                 it[Servers.hostPort] = 25577
                 it[Servers.memoryMb] = 1024
-                it[Servers.cpuShares] = 0
+                it[Servers.cpuLimitMillicores] = 0
                 it[Servers.configMode] = "MANAGED"
                 it[Servers.stopCommand] = "stop"
                 it[Servers.itzgImageTag] = "latest"
@@ -86,7 +86,7 @@ class BackendForwardingServiceTest :
                 it[Servers.mcVersion] = "1.21.4"
                 it[Servers.hostPort] = 25565
                 it[Servers.memoryMb] = 1024
-                it[Servers.cpuShares] = 0
+                it[Servers.cpuLimitMillicores] = 0
                 it[Servers.configMode] = configMode
                 it[Servers.stopCommand] = "stop"
                 it[Servers.itzgImageTag] = "latest"

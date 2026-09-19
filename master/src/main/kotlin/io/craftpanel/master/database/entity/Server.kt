@@ -23,7 +23,7 @@ class Server(id: EntityID<Uuid>) : UuidEntity(id) {
     var desiredStatus by Servers.desiredStatus
     var hostPort by Servers.hostPort
     var memoryMb by Servers.memoryMb
-    var cpuShares by Servers.cpuShares
+    var cpuLimitMillicores by Servers.cpuLimitMillicores
     var exposedExternally by Servers.exposedExternally
     var publicSubdomain by Servers.publicSubdomain
     var dnsRecordId by Servers.dnsRecordId
@@ -68,7 +68,7 @@ class Server(id: EntityID<Uuid>) : UuidEntity(id) {
         desiredStatus = desiredStatus,
         hostPort = hostPort,
         memoryMb = memoryMb,
-        cpuShares = cpuShares,
+        cpuLimitMillicores = cpuLimitMillicores,
         exposedExternally = exposedExternally,
         publicSubdomain = publicSubdomain,
         dnsRecordId = dnsRecordId,

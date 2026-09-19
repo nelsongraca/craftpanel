@@ -1,7 +1,7 @@
 "use client";
 
 import {StatCard, RamBarInline} from "./stat-cards";
-import {fmtBytes, fmtMb, timeAgo} from "@/lib/utils/format";
+import {fmtBytes, fmtMb, timeAgo, fmtCpuLimit} from "@/lib/utils/format";
 import {serverStatusClass, serverStatusLabel} from "@/lib/status";
 import type {Node, Server} from "@/lib/types";
 import type React from "react";
@@ -54,12 +54,12 @@ export function LiveMetricsPanel({
                             <p className={`font-mono text-[20px] leading-none ${cpuColor}`}>
                                 {liveMetrics.cpuPercent.toFixed(1)}%
                             </p>
-                            <p className="font-mono text-xs text-text-muted">{server.cpu_shares} shares alloc</p>
+                            <p className="font-mono text-xs text-text-muted">{fmtCpuLimit(server.cpu_limit_millicores)}</p>
                         </>
                     ) : (
                         <>
                             <p className="font-mono text-[20px] text-text-muted leading-none">{"-"}%</p>
-                            <p className="font-mono text-xs text-text-muted">{server.cpu_shares} shares alloc</p>
+                            <p className="font-mono text-xs text-text-muted">{fmtCpuLimit(server.cpu_limit_millicores)}</p>
                         </>
                     )}
                 </StatCard>

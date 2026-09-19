@@ -16,10 +16,10 @@ class MetricsCollectorTest :
             (ramMb > 0) shouldBe true
         }
 
-        test("collectCapacity cpu shares equal availableProcessors times 1024") {
-            val (_, cpuShares) = collector.collectCapacity()
-            cpuShares shouldBe Runtime.getRuntime()
-                .availableProcessors() * 1024
+        test("collectCapacity cpu millicores equal availableProcessors times 1000") {
+            val (_, cpuLimitMillicores) = collector.collectCapacity()
+            cpuLimitMillicores shouldBe Runtime.getRuntime()
+                .availableProcessors() * 1000
         }
 
         test("collect returns a non-null NodeMetricsUpdate") {

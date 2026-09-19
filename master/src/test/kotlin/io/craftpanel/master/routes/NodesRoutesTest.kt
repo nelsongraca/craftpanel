@@ -72,7 +72,7 @@ class NodesRoutesTest :
             hostname: String = "node-1",
             status: String = "PENDING",
             totalRamMb: Int = 8192,
-            totalCpuShares: Int = 1024,
+            totalCpuMillicores: Int = 1024,
             tokenHash: String = "aabbcc${
                 hostname.hashCode()
                     .toString(16)
@@ -88,17 +88,17 @@ class NodesRoutesTest :
                     .padEnd(64, '0')
                 it[Nodes.status] = status
                 it[Nodes.totalRamMb] = totalRamMb
-                it[Nodes.totalCpuShares] = totalCpuShares
+                it[Nodes.totalCpuMillicores] = totalCpuMillicores
             }[Nodes.id].let { Uuid.parse(it.toString()) }
         }
 
-        fun createServer(nodeId: Uuid, memoryMb: Int = 1024, cpuShares: Int = 256): Uuid = transaction {
+        fun createServer(nodeId: Uuid, memoryMb: Int = 1024, cpuLimitMillicores: Int = 256): Uuid = transaction {
             Servers.insert {
                 it[Servers.nodeId] = nodeId
                 it[Servers.name] = "server-${Uuid.random()}"
                 it[Servers.hostPort] = 25565
                 it[Servers.memoryMb] = memoryMb
-                it[Servers.cpuShares] = cpuShares
+                it[Servers.cpuLimitMillicores] = cpuLimitMillicores
             }[Servers.id].let { Uuid.parse(it.toString()) }
         }
 
@@ -188,11 +188,11 @@ class NodesRoutesTest :
                 node["public_ip"] shouldNotBe null
                 node["private_ip"] shouldNotBe null
                 node["total_ram_mb"] shouldNotBe null
-                node["total_cpu_shares"] shouldNotBe null
+                node["total_cpu_millicores"] shouldNotBe null
                 node["allocated_ram_mb"] shouldNotBe null
-                node["allocated_cpu_shares"] shouldNotBe null
+                node["allocated_cpu_millicores"] shouldNotBe null
                 node["reserved_ram_mb"] shouldNotBe null
-                node["reserved_cpu_shares"] shouldNotBe null
+                node["reserved_cpu_millicores"] shouldNotBe null
                 node["system_cpu_percent"] shouldNotBe null
                 node["port_range_start"] shouldNotBe null
                 node["port_range_end"] shouldNotBe null
@@ -217,7 +217,7 @@ class NodesRoutesTest :
 
                 body.size shouldBe 1
                 body[0]["allocated_ram_mb"]!!.jsonPrimitive.content.toInt() shouldBe 3072
-                body[0]["allocated_cpu_shares"]!!.jsonPrimitive.content.toInt() shouldBe 512
+                body[0]["allocated_cpu_millicores"]!!.jsonPrimitive.content.toInt() shouldBe 512
             }
         }
 

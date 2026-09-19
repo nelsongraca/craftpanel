@@ -60,7 +60,7 @@ class ExportServiceTest :
             mcVersion: String = "LATEST",
             itzgImageTag: String = "latest",
             memoryMb: Int,
-            cpuShares: Int = 0,
+            cpuLimitMillicores: Int = 0,
             expiresAt: String? = null,
             customServerJar: String? = null,
             containerListenPort: Int? = null,
@@ -78,7 +78,7 @@ class ExportServiceTest :
                 mcVersion = mcVersion,
                 itzgImageTag = itzgImageTag,
                 memoryMb = memoryMb,
-                cpuShares = cpuShares,
+                cpuLimitMillicores = cpuLimitMillicores,
                 expiresAt = expiresAt,
                 customServerJar = customServerJar,
                 containerListenPort = containerListenPort,
@@ -113,7 +113,7 @@ class ExportServiceTest :
                 it[Nodes.tokenHash] = "a".repeat(64)
                 it[Nodes.status] = "ACTIVE"
                 it[Nodes.totalRamMb] = 8192
-                it[Nodes.totalCpuShares] = 0
+                it[Nodes.totalCpuMillicores] = 0
                 it[Nodes.portRangeStart] = 25565
                 it[Nodes.portRangeEnd] = 25600
             }[Nodes.id].let { Uuid.parse(it.toString()) }
@@ -136,7 +136,7 @@ class ExportServiceTest :
                     mcVersion = "1.21.4",
                     itzgImageTag = "latest",
                     memoryMb = 2048,
-                    cpuShares = 256,
+                    cpuLimitMillicores = 256,
                     containerListenPort = 25565,
                     containerProtocol = "UDP",
                     disableHealthcheck = true,
@@ -175,7 +175,7 @@ class ExportServiceTest :
                 export.mcVersion shouldBe "1.21.4"
                 export.itzgImageTag shouldBe "latest"
                 export.memoryMb shouldBe 2048
-                export.cpuShares shouldBe 256
+                export.cpuLimitMillicores shouldBe 256
                 export.stopCommand shouldBe "save-all"
                 export.exposedExternally shouldBe true
                 export.customHostname shouldBe "my-host.example.com"
@@ -222,7 +222,7 @@ class ExportServiceTest :
                     mcVersion = "1.21.4",
                     itzgImageTag = "latest",
                     memoryMb = 1024,
-                    cpuShares = 0
+                    cpuLimitMillicores = 0
                 )
                 val sid = row.id
 
@@ -250,7 +250,7 @@ class ExportServiceTest :
                 imported.serverType shouldBe ServerType.PAPER
                 imported.mcVersion shouldBe "1.21.4"
                 imported.memoryMb shouldBe 1024
-                imported.cpuShares shouldBe 0
+                imported.cpuLimitMillicores shouldBe 0
 
                 val envVars = repos.envVarsRepository.getEnvVars(imported.id)
                 envVars.map { it.key } shouldContain "MODE"
@@ -296,7 +296,7 @@ class ExportServiceTest :
                     mcVersion = "1.21.4",
                     itzgImageTag = "latest",
                     memoryMb = 512,
-                    cpuShares = 0
+                    cpuLimitMillicores = 0
                 )
 
                 createServer(
@@ -309,7 +309,7 @@ class ExportServiceTest :
                     mcVersion = "latest",
                     itzgImageTag = "latest",
                     memoryMb = 384,
-                    cpuShares = 0
+                    cpuLimitMillicores = 0
                 )
             }
 

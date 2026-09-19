@@ -93,7 +93,7 @@ class ModsRoutesTest :
                 it[Nodes.tokenHash] = "a".repeat(64)
                 it[Nodes.status] = "ACTIVE"
                 it[Nodes.totalRamMb] = 8192
-                it[Nodes.totalCpuShares] = 1024
+                it[Nodes.totalCpuMillicores] = 1024
             }[Nodes.id].let { Uuid.parse(it.toString()) }
         }
 

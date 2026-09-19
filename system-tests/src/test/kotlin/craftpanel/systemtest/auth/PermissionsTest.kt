@@ -161,7 +161,7 @@ class PermissionsTest : BaseSystemTest() {
                         mcVersion = "1.21.4",
                         itzgImageTag = "latest",
                         memoryMb = 256,
-                        cpuShares = 64,
+                        cpuLimitMillicores = 1000,
                         networkId = net.id
                     )
                 )
@@ -173,7 +173,7 @@ class PermissionsTest : BaseSystemTest() {
                         mcVersion = "1.21.4",
                         itzgImageTag = "latest",
                         memoryMb = 256,
-                        cpuShares = 64,
+                        cpuLimitMillicores = 1000,
                         networkId = net.id
                     )
                 )

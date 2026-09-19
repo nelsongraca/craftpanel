@@ -70,7 +70,7 @@ Node list and node detail views.
         </div>
       </div>
       <div>
-        <div style="font-size: 12px;">768 / 1024 shares</div>
+        <div style="font-size: 12px;">750m / 1c</div>
         <div style="background: var(--md-default-fg-color--lightest); border-radius: 4px; height: 4px; margin-top: 4px;">
           <div class="cp-bar" style="width: 75%;"></div>
         </div>
@@ -96,7 +96,7 @@ Node list and node detail views.
         </div>
       </div>
       <div>
-        <div style="font-size: 12px;">256 / 1024 shares</div>
+        <div style="font-size: 12px;">250m / 1c</div>
         <div style="background: var(--md-default-fg-color--lightest); border-radius: 4px; height: 4px; margin-top: 4px;">
           <div class="cp-bar" style="width: 25%;"></div>
         </div>
@@ -120,7 +120,7 @@ Node list and node detail views.
         <div style="background: var(--md-default-fg-color--lightest); border-radius: 4px; height: 4px; margin-top: 4px;"></div>
       </div>
       <div>
-        <div style="font-size: 12px;" class="cp-muted">0 / 2048 shares</div>
+        <div style="font-size: 12px;" class="cp-muted">0 / 2c</div>
         <div style="background: var(--md-default-fg-color--lightest); border-radius: 4px; height: 4px; margin-top: 4px;"></div>
       </div>
       <span class="cp-muted">—</span>

@@ -79,7 +79,7 @@ export default function NewServerPage() {
     const [nodeId, setNodeId] = useState("");
     const [networkId, setNetworkId] = useState("");
     const [ramMb, setRamMb] = useState(2048);
-    const [cpuShares, setCpuShares] = useState(0);
+    const [cpuCores, setCpuCores] = useState(0);
     const [expiresAt, setExpiresAt] = useState("");
 
     const [submitting, setSubmitting] = useState(false);
@@ -126,7 +126,7 @@ export default function NewServerPage() {
                 setNodeId(data.node_id);
                 setNetworkId(data.network_id ?? "");
                 setRamMb(data.memory_mb);
-                setCpuShares(data.cpu_shares);
+                setCpuCores(data.cpu_limit_millicores / 1000);
             }).catch(() => {
             })
             : Promise.resolve();
@@ -167,7 +167,7 @@ export default function NewServerPage() {
                 node_id: nodeId,
                 network_id: networkId || undefined,
                 memory_mb: ramMb,
-                cpu_shares: cpuShares,
+                cpu_limit_millicores: Math.round(cpuCores * 1000),
                 expires_at: canSetExpiry ? toExpiresAtIso(expiresAt) : undefined,
             });
 
@@ -419,15 +419,16 @@ export default function NewServerPage() {
                         />
                     </div>
                     <div>
-                        <Label htmlFor="cpu-shares">CPU Shares</Label>
+                        <Label htmlFor="cpu-cores">CPU Limit (cores)</Label>
                         <FieldInput
-                            id="cpu-shares"
+                            id="cpu-cores"
                             type="number"
-                            value={cpuShares}
-                            onChange={(e) => setCpuShares(Number(e.target.value))}
+                            value={cpuCores}
+                            onChange={(e) => setCpuCores(Number(e.target.value))}
                             min={0}
+                            step={0.5}
                         />
-                        <p className="mt-1 text-xs text-text-muted">Docker CPU share value. 0 = unlimited.</p>
+                        <p className="mt-1 text-xs text-text-muted">Hard CPU cap in cores. 0 = unlimited.</p>
                     </div>
                 </div>
 

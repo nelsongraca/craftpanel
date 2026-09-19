@@ -66,11 +66,11 @@ Returns only servers the caller has at least `server.view` permission on.
   "node_id": "<uuid>",
   "network_id": "<uuid>",
   "memory_mb": 4096,
-  "cpu_shares": 512
+  "cpu_limit_millicores": 500
 }
 ```
 
-`network_id` is optional. `itzg_image_tag` defaults to `"latest"`. `cpu_shares` defaults to `0` (unlimited).
+`network_id` is optional. `itzg_image_tag` defaults to `"latest"`. `cpu_limit_millicores` is a hard CPU cap (1000 millicores = 1 core) and defaults to `0` (unlimited).
 
 **CUSTOM servers:**
 
@@ -126,7 +126,7 @@ The `itzg_image_tag` field refers to the [itzg/minecraft-server](https://hub.doc
   "network_id": "<uuid>",
   "status": "HEALTHY",
   "memory_mb": 4096,
-  "cpu_shares": 512,
+  "cpu_limit_millicores": 500,
   "host_port": 25570,
   "exposed_externally": true,
   "public_subdomain": "survival",
@@ -236,7 +236,7 @@ Updates RAM and CPU allocation. Requires `server.resources`, which is held only 
 ```json
 {
   "memory_mb": 8192,
-  "cpu_shares": 1024
+  "cpu_limit_millicores": 1000
 }
 ```
 

@@ -94,15 +94,20 @@ message NodeMetadata {
   string public_ip = 2;
   string private_ip = 3;
   int32  total_ram_mb = 4;
-  int32  total_cpu_shares = 5;
+  reserved 5;
+  reserved "total_cpu_shares";
   // Agent version string — for compatibility checks.
   string agent_version = 6;
   // Host RAM reserved for the OS/host, in MiB — subtracted from capacity for
   // server scheduling. Reported by the agent (single source of truth).
   int32  reserved_ram_mb = 7;
-  // Host CPU shares reserved for the OS/host — subtracted from capacity for
-  // server scheduling. Reported by the agent (single source of truth).
-  int32  reserved_cpu_shares = 8;
+  reserved 8;
+  reserved "reserved_cpu_shares";
+  // Total allocatable CPU in millicores (cores * 1000). 0 = unknown.
+  int32  total_cpu_millicores = 9;
+  // Host CPU reserved for the OS/host, in millicores — subtracted from capacity
+  // for server scheduling. Reported by the agent (single source of truth).
+  int32  reserved_cpu_millicores = 10;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -322,7 +327,8 @@ message StartContainerCommand {
   string public_hostname = 8;
   int32 host_port = 9;
   int32 memory_mb = 10;
-  int32 cpu_shares = 11;
+  reserved 11;
+  reserved "cpu_shares";
   // Docker bridge network name for same-node container communication.
   string docker_network = 12;
   // Container working directory the persistent data volume is bind-mounted to.
@@ -354,6 +360,9 @@ message StartContainerCommand {
   // Empty = use the server id. Part of the spec so a change forces a recreate and the
   // bind mount is remounted against the new directory.
   string data_dir_name = 19;
+  // Hard CPU cap in millicores (cores * 1000), applied as Docker `--cpus` (CFS quota).
+  // 0 = unlimited (omit the limit). Part of the spec so a change forces a recreate.
+  int32 cpu_limit_millicores = 20;
 }
 
 message ExtraPortBinding {

@@ -315,7 +315,7 @@ schema — registration/identify/verify are now testable through a fake repo wit
 no live DB (see the three FakeNodeRepository-backed tests in
 `ControlServiceImplTest`).
 
-- **`create()` widened**, not duplicated: gained `totalRamMb`, `totalCpuShares`,
+- **`create()` widened**, not duplicated: gained `totalRamMb`, `totalCpuMillicores`,
   `agentVersion`, `lastSeenAt` (all defaulted so existing callers are untouched).
 - **`updateStatus(id, NodeStatus)`** (was `String`) — folds the `NodeStatus`
   enum (`toDb()`) in at the seam. `identifyNode` maps via
