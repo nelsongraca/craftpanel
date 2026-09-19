@@ -5,7 +5,7 @@ import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {usePromptDialog} from "@/lib/hooks/usePromptDialog";
 import {Empty, EmptyDescription} from "@/components/ui/empty";
 import {deleteServerFile, downloadServerFile, listServerFiles, mkdirServerFile, moveServerFile, readServerFile, uploadServerFile, writeServerFile,} from "@/lib/generated/sdk.gen";
-import {ChevronDown, ChevronRight, Download, File, Folder, FolderPlus, Pencil, Save, Trash2, Upload, X, WrapText} from "lucide-react";
+import {ArrowLeft, ChevronDown, ChevronRight, Download, File, Folder, FolderPlus, Pencil, Save, Trash2, Upload, X, WrapText} from "lucide-react";
 import {FileCodeEditor} from "@/components/servers/file-code-editor";
 
 interface FileEntry {
@@ -328,8 +328,9 @@ export function FilesTab({serverId}: Props) {
     return (
         <>
             <div className="flex h-full min-h-0">
-                {/* ── Tree ── */}
-                <div className="w-64 shrink-0 border-r border-border flex flex-col overflow-hidden">
+                {/* ── Tree ── On mobile it is a full-screen list until a file is picked; on md+ it
+                    is the fixed side pane and is always shown. */}
+                <div className={`${selectedPath ? "hidden md:flex" : "flex"} w-full md:w-64 shrink-0 border-r border-border flex-col overflow-hidden`}>
                     <div className="flex items-center gap-1 px-3 py-2 border-b border-border">
                         <span className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted flex-1">Files</span>
                         <button title="Upload file" className="p-1 text-text-muted hover:text-accent" onClick={() => uploadRef.current?.click()}>
@@ -352,7 +353,7 @@ export function FilesTab({serverId}: Props) {
                 </div>
 
                 {/* ── Editor ── */}
-                <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <div className={`${selectedPath ? "flex" : "hidden md:flex"} flex-1 flex-col min-h-0 overflow-hidden`}>
                     {error && (
                         <div className="px-4 py-1.5 bg-error/10 border-b border-error/20 text-error text-xs font-mono flex items-center gap-2">
                             <X size={12}/>
@@ -363,6 +364,13 @@ export function FilesTab({serverId}: Props) {
                     {selectedPath ? (
                         <>
                             <div className="flex items-center gap-2 px-4 py-2 border-b border-border">
+                                <button
+                                    title="Back to files"
+                                    className="p-1 -ml-1 text-text-dim hover:text-accent md:hidden"
+                                    onClick={() => setSelectedPath(null)}
+                                >
+                                    <ArrowLeft size={14}/>
+                                </button>
                                 <span className="font-mono text-xs text-text-dim flex-1 truncate">{selectedPath}</span>
                                 {fileEncoding !== "binary" && (
                                     <>

@@ -1,10 +1,9 @@
 import {http, HttpResponse} from "msw";
 import {expect, test} from "../fixture";
 
-// NOTE: opening a *text* file renders CodeMirror, which currently crashes in the
-// Turbopack dev server ("multiple instances of @codemirror/state"). The editor is
-// covered by the vitest unit tests; these specs exercise the surrounding tree,
-// prompts, binary view and downloads instead.
+// NOTE: the text-file CodeMirror editor renders in these specs (the old Turbopack
+// "multiple instances of @codemirror/state" crash is fixed). See the scrollability
+// regression test below.
 
 const rootEntries = [
     {name: "server.properties", is_directory: false, size_bytes: 42, modified_at: "2025-06-20T10:00:00Z", permissions: "rw-r--r--"},
@@ -141,4 +140,61 @@ test("downloads a file through the tree action", async ({page}) => {
     const downloadPromise = page.waitForEvent("download");
     await row.getByTitle("Download").click();
     await downloadPromise;
+});
+
+test("long text file is scrollable in the editor", async ({page, network}) => {
+    const longContent = Array.from({length: 400}, (_, i) => `line ${i + 1}`).join("\n");
+    network.use(
+        http.get("/api/servers/srv-1/files/content", () =>
+            HttpResponse.json({encoding: "utf-8", content: longContent})
+        )
+    );
+
+    await page.goto("/servers/srv-1");
+    await page.getByRole("tab", {name: "Files"}).click();
+    await page.getByText("server.properties").click();
+
+    const scroller = page.locator(".cm-scroller");
+    await expect(scroller).toBeVisible();
+
+    // The editor must not clip its content: the scroller needs a real height and an overflowing
+    // document so the user can reach every line.
+    const {scrollHeight, clientHeight, overflowY} = await scroller.evaluate((el) => ({
+        scrollHeight: el.scrollHeight,
+        clientHeight: el.clientHeight,
+        overflowY: getComputedStyle(el).overflowY,
+    }));
+
+    expect(clientHeight).toBeGreaterThan(0);
+    expect(scrollHeight).toBeGreaterThan(clientHeight);
+    expect(overflowY).toBe("auto");
+});
+
+test.describe("mobile master/detail (375px)", () => {
+    test.use({viewport: {width: 375, height: 800}});
+
+    test("file tree is full-screen until a file is picked, then the editor + back button", async ({page, network}) => {
+        network.use(
+            http.get("/api/servers/srv-1/files/content", () =>
+                HttpResponse.json({encoding: "utf-8", content: "motd=hello\n"})
+            )
+        );
+
+        await page.goto("/servers/srv-1");
+        await page.getByRole("tab", {name: "Files"}).click();
+
+        // No file selected: the tree owns the screen, the editor pane is hidden.
+        await expect(page.getByText("server.properties")).toBeVisible();
+        await expect(page.locator(".cm-scroller")).not.toBeVisible();
+
+        // Pick a file: the editor takes over and the tree is hidden.
+        await page.getByText("server.properties").click();
+        await expect(page.locator(".cm-scroller")).toBeVisible();
+        await expect(page.getByText("eula.txt")).not.toBeVisible();
+
+        // Back returns to the full-screen tree.
+        await page.getByTitle("Back to files").click();
+        await expect(page.getByText("eula.txt")).toBeVisible();
+        await expect(page.locator(".cm-scroller")).not.toBeVisible();
+    });
 });

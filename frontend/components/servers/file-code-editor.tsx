@@ -95,6 +95,7 @@ export function FileCodeEditor({
   return (
     <div style={{height: "100%", width: "100%"}}>
       <CodeMirror
+        className="h-full"
         value={value}
         onChange={handleChange}
         theme={darculaTheme}
