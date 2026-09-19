@@ -30,14 +30,18 @@ class CommandDispatcherTest :
             migration = migration,
             file = file,
             console = console,
-            bulkClient = bulkClient,
+            bulkClient = bulkClient
         )
 
         test("routes desired-state envelope to DesiredStateHandler and remove/shutdown to ContainerHandler") {
             runTest {
-                dispatcher.dispatch(masterMessage {
-                    serverDesiredState = serverDesiredState {}
-                }, out, this)
+                dispatcher.dispatch(
+                    masterMessage {
+                        serverDesiredState = serverDesiredState {}
+                    },
+                    out,
+                    this
+                )
                 dispatcher.dispatch(masterMessage { removeContainer = removeContainerCommand {} }, out, this)
                 dispatcher.dispatch(masterMessage { shutdown = shutdownCommand {} }, out, this)
                 advanceUntilIdle()
@@ -150,13 +154,13 @@ class CommandDispatcherTest :
 
         test("SYNC entries run inline; CONCURRENT entries launch on scope") {
             var syncRan = false
-            every { console.handleConsoleInput(any()) } answers { syncRan = true }
+            every { console.handleConsoleDetach(any()) } answers { syncRan = true }
 
             var concurrentRan = false
             coEvery { desired.handleDesiredState(any()) } answers { concurrentRan = true }
 
             runTest {
-                dispatcher.dispatch(masterMessage { consoleInput = consoleInput {} }, out, this)
+                dispatcher.dispatch(masterMessage { consoleDetach = consoleDetach {} }, out, this)
                 syncRan shouldBe true
 
                 dispatcher.dispatch(masterMessage { serverDesiredState = serverDesiredState {} }, out, this)
@@ -166,18 +170,30 @@ class CommandDispatcherTest :
             }
         }
 
-        test("non-CancellationException in SYNC entry is swallowed") {
-            every { console.handleConsoleInput(any()) } throws RuntimeException("boom")
+        test("console input is CONCURRENT — does not run inline") {
+            var inputRan = false
+            every { console.handleConsoleInput(any()) } answers { inputRan = true }
+
             runTest {
                 dispatcher.dispatch(masterMessage { consoleInput = consoleInput {} }, out, this)
+                inputRan shouldBe false
+                advanceUntilIdle()
+                inputRan shouldBe true
+            }
+        }
+
+        test("non-CancellationException in SYNC entry is swallowed") {
+            every { console.handleConsoleDetach(any()) } throws RuntimeException("boom")
+            runTest {
+                dispatcher.dispatch(masterMessage { consoleDetach = consoleDetach {} }, out, this)
             }
         }
 
         test("CancellationException propagates from SYNC entry") {
-            coEvery { console.handleConsoleInput(any()) } throws CancellationException("cancel")
+            every { console.handleConsoleDetach(any()) } throws CancellationException("cancel")
             shouldThrow<CancellationException> {
                 runTest {
-                    dispatcher.dispatch(masterMessage { consoleInput = consoleInput {} }, out, this)
+                    dispatcher.dispatch(masterMessage { consoleDetach = consoleDetach {} }, out, this)
                 }
             }
         }

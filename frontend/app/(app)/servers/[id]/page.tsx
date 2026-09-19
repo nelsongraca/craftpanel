@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import {useParams, useRouter} from "next/navigation";
 import Link from "next/link";
 import {ChevronRight, Copy, Download, MoreHorizontal, Play, RotateCcw, Shuffle, Skull, Square, Trash2, X,} from "lucide-react";
-import {deleteServer, exportServer, forceStopServer, getNetwork, getNode, getServer, restartServer, startServer, stopServer} from "@/lib/generated/sdk.gen";
+import {deleteServer, exportServer, forceStopServer, getNetwork, getNode, getServer, getServerMetrics, restartServer, startServer, stopServer} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission, serverPermissions} from "@/lib/permissions";
 import type {Network, Node, Server} from "@/lib/types";
@@ -65,8 +65,40 @@ export default function ServerDetailPage() {
     const fetchServer = useCallback(async () => {
         const {data, response} = await getServer({path: {id}});
         if (response?.status === 404) setNotFound(true);
-        if (data) setServer(data);
+        if (data) {
+            setServer(data);
+            // Seed players from the persisted last-known values so the count renders on first
+            // paint instead of waiting for the next WS push.
+            if (data.last_player_count != null) {
+                setLivePlayers({
+                    count: data.last_player_count,
+                    list: data.last_player_names ?? [],
+                });
+            }
+        }
         setLoading(false);
+    }, [id]);
+
+    // Seed metrics from the persisted series so RAM/CPU/network render immediately; WS pushes
+    // replace these as fresh samples arrive.
+    useEffect(() => {
+        const to = new Date();
+        const from = new Date(to.getTime() - 10 * 60_000);
+        getServerMetrics({path: {id}, query: {from: from.toISOString(), to: to.toISOString()}}).then(({data}) => {
+            if (!data) return;
+            const last = (points: { t: string; v: number }[]) => points.at(-1)?.v;
+            const cpu = last(data.series.cpu_percent);
+            const ram = last(data.series.ram_used_mb);
+            const netIn = last(data.series.net_in_bytes);
+            const netOut = last(data.series.net_out_bytes);
+            if (cpu == null && ram == null && netIn == null && netOut == null) return;
+            setLiveMetrics({
+                cpuPercent: cpu ?? 0,
+                ramUsedMb: ram ?? 0,
+                netInBytes: netIn ?? 0,
+                netOutBytes: netOut ?? 0,
+            });
+        });
     }, [id]);
 
     useEffect(() => {

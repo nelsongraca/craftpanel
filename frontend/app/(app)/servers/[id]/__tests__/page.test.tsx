@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 vi.mock("@/lib/generated/sdk.gen", () => ({
     getServer: vi.fn(),
+    getServerMetrics: vi.fn(),
     getNode: vi.fn(),
     getNetwork: vi.fn(),
     listNetworks: vi.fn(),
@@ -32,6 +33,7 @@ vi.mock("next/navigation", () => ({
 
 import {
     getServer,
+    getServerMetrics,
     getNode,
     getNetwork,
     listNetworks,
@@ -79,6 +81,18 @@ async function renderDetail(
 ) {
     vi.mocked(getServer).mockResolvedValue({
         data: detailServer(overrides),
+        response: new Response(),
+    } as never);
+    vi.mocked(getServerMetrics).mockResolvedValue({
+        data: {
+            server_id: "s1",
+            series: {
+                cpu_percent: [],
+                ram_used_mb: [],
+                net_in_bytes: [],
+                net_out_bytes: [],
+            },
+        },
         response: new Response(),
     } as never);
     vi.mocked(getNode).mockResolvedValue({data: null, response: new Response()} as never);

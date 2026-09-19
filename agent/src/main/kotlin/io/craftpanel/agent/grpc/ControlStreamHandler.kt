@@ -47,11 +47,11 @@ class ControlStreamHandler(
             snapshot.containersList.joinToString { "${it.serverId.ifEmpty { "?" }}=${it.runState}" }
         )
 
-        // Periodic metrics loop
+        // Periodic metrics loop. Emit once immediately on connect so a freshly-opened detail page
+        // has live data without waiting a full poll interval, then settle into the fixed cadence.
         val metricsInterval = config.metricsPollIntervalSeconds.toLong().seconds
         launch {
             while (true) {
-                delay(metricsInterval)
                 Heartbeat.beat()
                 val routerRunning = routerSupervisor.isRunning
                 val metrics = metricsCollector.collect()
@@ -68,6 +68,8 @@ class ControlStreamHandler(
                         metricsCollector.collectPlayerCount(serverId, containerId)
                             ?.let { pu -> out.send { playerUpdate = pu } }
                     }
+
+                delay(metricsInterval)
             }
         }
 

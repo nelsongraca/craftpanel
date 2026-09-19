@@ -1,8 +1,8 @@
 package io.craftpanel.agent.grpc
 
 import io.craftpanel.agent.grpc.handlers.BackupHandler
-import io.craftpanel.agent.grpc.handlers.ContainerHandler
 import io.craftpanel.agent.grpc.handlers.ConsoleHandler
+import io.craftpanel.agent.grpc.handlers.ContainerHandler
 import io.craftpanel.agent.grpc.handlers.DesiredStateHandler
 import io.craftpanel.agent.grpc.handlers.FileHandler
 import io.craftpanel.agent.grpc.handlers.MigrationHandler
@@ -14,9 +14,7 @@ import org.slf4j.LoggerFactory
 
 private typealias PayloadCase = MasterMessage.PayloadCase
 
-class CommandDispatcher private constructor(
-    private val entries: Map<PayloadCase, Entry>,
-) {
+class CommandDispatcher private constructor(private val entries: Map<PayloadCase, Entry>) {
 
     private val log = LoggerFactory.getLogger(CommandDispatcher::class.java)
 
@@ -37,10 +35,7 @@ class CommandDispatcher private constructor(
 
     private enum class Mode { SYNC, CONCURRENT }
 
-    private data class Entry(
-        val mode: Mode,
-        val handle: suspend (msg: MasterMessage, out: AgentOutbound) -> Unit,
-    )
+    private data class Entry(val mode: Mode, val handle: suspend (msg: MasterMessage, out: AgentOutbound) -> Unit)
 
     companion object {
         operator fun invoke(
@@ -50,17 +45,20 @@ class CommandDispatcher private constructor(
             migration: MigrationHandler,
             file: FileHandler,
             console: ConsoleHandler,
-            bulkClient: BulkDataClient,
+            bulkClient: BulkDataClient
         ): CommandDispatcher = CommandDispatcher(
             buildMap {
                 fun entry(mode: Mode, handle: suspend (msg: MasterMessage, out: AgentOutbound) -> Unit) = Entry(mode, handle)
 
                 // Container lifecycle → desired-state convergence. remove is a permanent
                 // (non-convergent) delete.
-                put(PayloadCase.REMOVE_CONTAINER, entry(Mode.SYNC) { msg, out ->
-                    container.handleRemove(msg.removeContainer, out)
-                    desired.handleServerRemoved(msg.removeContainer.serverId)
-                })
+                put(
+                    PayloadCase.REMOVE_CONTAINER,
+                    entry(Mode.SYNC) { msg, out ->
+                        container.handleRemove(msg.removeContainer, out)
+                        desired.handleServerRemoved(msg.removeContainer.serverId)
+                    }
+                )
                 put(PayloadCase.SHUTDOWN, entry(Mode.SYNC) { msg, out -> container.handleShutdown(msg.shutdown, out) })
                 put(PayloadCase.SERVER_DESIRED_STATE, entry(Mode.CONCURRENT) { msg, _ -> desired.handleDesiredState(msg.serverDesiredState) })
 
@@ -72,7 +70,7 @@ class CommandDispatcher private constructor(
                 put(PayloadCase.SEND_RCON, entry(Mode.CONCURRENT) { msg, out -> migration.handleSendRcon(msg.sendRcon) })
 
                 put(PayloadCase.CONSOLE_ATTACH, entry(Mode.CONCURRENT) { msg, out -> console.handleConsoleAttach(msg.consoleAttach, out) })
-                put(PayloadCase.CONSOLE_INPUT, entry(Mode.SYNC) { msg, out -> console.handleConsoleInput(msg.consoleInput) })
+                put(PayloadCase.CONSOLE_INPUT, entry(Mode.CONCURRENT) { msg, out -> console.handleConsoleInput(msg.consoleInput) })
                 put(PayloadCase.CONSOLE_DETACH, entry(Mode.SYNC) { msg, out -> console.handleConsoleDetach(msg.consoleDetach) })
                 put(PayloadCase.FETCH_CONTAINER_LOGS, entry(Mode.CONCURRENT) { msg, out -> console.handleFetchContainerLogs(msg.fetchContainerLogs, out) })
 
@@ -88,10 +86,13 @@ class CommandDispatcher private constructor(
                 put(PayloadCase.UPLOAD_FILE, entry(Mode.CONCURRENT) { msg, out -> file.handleUploadFile(msg.uploadFile, bulkClient, out) })
                 put(PayloadCase.DOWNLOAD_BACKUP, entry(Mode.CONCURRENT) { msg, out -> file.handleDownloadBackup(msg.downloadBackup, bulkClient, out) })
 
-                put(PayloadCase.REBUILD_SYMLINKS, entry(Mode.SYNC) { msg, out ->
-                    container.rebuildServerSymlinks(msg.rebuildSymlinks.serversList)
-                    backup.rebuildBackupSymlinks(msg.rebuildSymlinks.backupsList)
-                })
+                put(
+                    PayloadCase.REBUILD_SYMLINKS,
+                    entry(Mode.SYNC) { msg, out ->
+                        container.rebuildServerSymlinks(msg.rebuildSymlinks.serversList)
+                        backup.rebuildBackupSymlinks(msg.rebuildSymlinks.backupsList)
+                    }
+                )
             }
         )
     }

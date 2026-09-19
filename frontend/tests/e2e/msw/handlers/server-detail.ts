@@ -75,12 +75,17 @@ export const serverDetailHandlers = [
     http.delete("/api/servers/:id", () => new HttpResponse(null, {status: 204})),
 
     // Metrics
-    http.get("/api/servers/:id/metrics", () =>
-        HttpResponse.json({
-            timestamps: [new Date(Date.now() - 60_000).toISOString()],
-            cpu_percent: [12],
-            ram_used_mb: [1024],
-            ram_total_mb: [2048],
-        })
-    ),
+    http.get("/api/servers/:id/metrics", ({params}) => {
+        const server = find(params.id);
+        const t = new Date(Date.now() - 60_000).toISOString();
+        return HttpResponse.json({
+            server_id: server.id,
+            series: {
+                cpu_percent: [{t, v: 12}],
+                ram_used_mb: [{t, v: 1024}],
+                net_in_bytes: [{t, v: 2048}],
+                net_out_bytes: [{t, v: 4096}],
+            },
+        });
+    }),
 ];
