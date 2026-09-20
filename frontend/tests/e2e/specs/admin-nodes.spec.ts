@@ -121,8 +121,11 @@ test("node detail servers tab lists assigned servers", async ({page}) => {
     await page.goto("/nodes/node-1");
     await page.getByRole("tab", {name: /Servers/}).click();
 
-    await expect(table(page).getByText("Survival World")).toBeVisible();
-    await expect(page.getByRole("link", {name: "View →"}).first()).toBeVisible();
+    const row = table(page).getByText("Survival World");
+    await expect(row).toBeVisible();
+    // The row reuses the server list row, so clicking it opens the server detail.
+    await row.click();
+    await expect(page).toHaveURL("/servers/srv-1");
 });
 
 function pendingNode() {

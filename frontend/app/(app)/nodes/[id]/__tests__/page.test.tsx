@@ -17,6 +17,12 @@ vi.mock("@/lib/generated/sdk.gen", () => ({
     rotateNodeToken: vi.fn(),
     shutdownNode: vi.fn(),
     decommissionNode: vi.fn(),
+    updateNode: vi.fn(),
+    startServer: vi.fn(),
+    stopServer: vi.fn(),
+    restartServer: vi.fn(),
+    forceStopServer: vi.fn(),
+    deleteServer: vi.fn(),
 }));
 
 vi.mock("@/lib/auth-context", () => ({
@@ -32,15 +38,6 @@ vi.mock("next/navigation", () => ({
     usePathname: () => "/",
     useParams: () => ({id: "n1"}),
     useSearchParams: () => new URLSearchParams(),
-}));
-
-vi.mock("@/components/nodes/EditNodeModal", () => ({
-    EditNodeModal: vi.fn(({onClose}) => (
-        <div data-testid="edit-node-modal">
-            <span>Edit Node</span>
-            <button onClick={onClose}>Cancel</button>
-        </div>
-    )),
 }));
 
 vi.mock("@/components/nodes/TokenModal", () => ({
@@ -410,22 +407,18 @@ describe("NodeDetailPage", () => {
     });
 
     describe("Servers tab", () => {
-        it("renders server table with name, type, status, RAM, port, View link", async () => {
+        it("renders the shared server row with name, type, status and RAM", async () => {
             const srv = server({display_name: "Survival", name: "survival", server_type: "PAPER", status: "HEALTHY", memory_mb: 2048, host_port: 25565});
             await renderDetail({}, [srv]);
 
             await clickTab("Servers");
 
             await waitFor(() => {
-                expect(screen.getByText("Survival")).toBeInTheDocument();
+                expect(screen.getAllByText("Survival").length).toBeGreaterThan(0);
             });
-            expect(screen.getByText("survival")).toBeInTheDocument();
-            expect(screen.getByText("PAPER")).toBeInTheDocument();
-            expect(screen.getByText("Healthy")).toBeInTheDocument();
-            expect(screen.getAllByText(/2\.0 GB/).length).toBeGreaterThan(0);
-            expect(screen.getByText("25565")).toBeInTheDocument();
-            const viewLinks = screen.getAllByText("View →");
-            expect(viewLinks.length).toBeGreaterThan(0);
+            expect(screen.getAllByText("PAPER").length).toBeGreaterThan(0);
+            expect(screen.getAllByText("Healthy").length).toBeGreaterThan(0);
+            expect(screen.getAllByText(/2048 MB/).length).toBeGreaterThan(0);
         });
 
         it("shows empty state when no servers assigned", async () => {
@@ -435,17 +428,6 @@ describe("NodeDetailPage", () => {
 
             await waitFor(() => {
                 expect(screen.getByText(/No servers assigned to this node/i)).toBeInTheDocument();
-            });
-        });
-
-        it("shows '-' for host_port when null", async () => {
-            const srv = server({host_port: null});
-            await renderDetail({}, [srv]);
-
-            await clickTab("Servers");
-
-            await waitFor(() => {
-                expect(screen.getAllByText("-").length).toBeGreaterThan(0);
             });
         });
     });
@@ -464,7 +446,7 @@ describe("NodeDetailPage", () => {
             await clickTab("Servers");
 
             await waitFor(() => {
-                expect(screen.getByText("Survival")).toBeInTheDocument();
+                expect(screen.getAllByText("Survival").length).toBeGreaterThan(0);
             });
         });
 
@@ -590,7 +572,7 @@ describe("NodeDetailPage", () => {
 
             expect(screen.queryByRole("button", {name: "Trust"})).not.toBeInTheDocument();
             expect(screen.queryByRole("button", {name: "Reject"})).not.toBeInTheDocument();
-            expect(screen.queryByRole("button", {name: "Edit"})).not.toBeInTheDocument();
+            expect(screen.queryByTitle("Edit Node Info")).not.toBeInTheDocument();
             expect(screen.queryByRole("button", {name: "Rotate Key"})).not.toBeInTheDocument();
         });
 
@@ -599,7 +581,7 @@ describe("NodeDetailPage", () => {
 
             expect(screen.getByRole("button", {name: "Trust"})).toBeInTheDocument();
             expect(screen.getByRole("button", {name: "Reject"})).toBeInTheDocument();
-            expect(screen.getByRole("button", {name: "Edit"})).toBeInTheDocument();
+            expect(screen.getByTitle("Edit Node Info")).toBeInTheDocument();
             expect(screen.getByRole("button", {name: "Rotate Key"})).toBeInTheDocument();
         });
     });
@@ -841,15 +823,15 @@ describe("NodeDetailPage", () => {
         });
     });
 
-    describe("Edit modal", () => {
-        it("opens EditNodeModal when Edit is clicked", async () => {
+    describe("Inline edit", () => {
+        it("opens the node edit form from the Node Info card", async () => {
             await renderDetail({}, [], MANAGE);
 
             const user = userEvent.setup();
-            await user.click(screen.getByRole("button", {name: "Edit"}));
+            await user.click(screen.getByTitle("Edit Node Info"));
 
             await waitFor(() => {
-                expect(screen.getByTestId("edit-node-modal")).toBeInTheDocument();
+                expect(screen.getByText("Port Range Start")).toBeInTheDocument();
             });
         });
     });

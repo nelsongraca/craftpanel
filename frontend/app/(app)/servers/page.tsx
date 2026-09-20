@@ -3,21 +3,15 @@
 import {useEffect, useMemo, useState} from "react";
 import {useRouter, useSearchParams} from "next/navigation";
 import Link from "next/link";
-import {CopyPlus, Play, Plus, RotateCcw, Skull, Square, Trash2, Upload, X} from "lucide-react";
+import {Plus, Upload, X} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
-import {deleteServer, importServer, listNetworks, listNodes, listServers, restartServer, startServer, stopServer, forceStopServer} from "@/lib/generated/sdk.gen";
+import {importServer, listNetworks, listNodes, listServers} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
-import {hasPermission, serverPermissions} from "@/lib/permissions";
-import type {Network, Node, Server} from "@/lib/types";
-import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
+import {hasPermission} from "@/lib/permissions";
+import type {Network, Node} from "@/lib/types";
 import {useResourceList} from "@/lib/hooks/useResourceList";
-import {useWs} from "@/lib/ws-context";
-import {IconActionButton} from "@/components/ui/list-table";
-import {SmartList} from "@/components/ui/smart-list";
-import type {SmartListColumn} from "@/components/ui/smart-list";
-import {fillColor, fmtCpuLimit} from "@/lib/utils/format";
-import {serverDisabled, serverExpired, serverStatusLabel, serverStatusVariant} from "@/lib/status";
-import {Badge} from "@/components/ui/badge";
+import {ServerList} from "@/components/servers/server-list";
+import {useServerActions} from "@/components/servers/server-actions";
 import {SelectField} from "@/components/ui/form-elements";
 import {BTN_GHOST, BTN_PRIMARY, Modal, Field} from "@/components/ui/form-elements";
 
@@ -37,167 +31,20 @@ const FILTER_OPTIONS = [
     {label: "Stopped", value: "STOPPED"},
 ];
 
-function RamBar({total, used}: { total: number; used?: number }) {
-    const hasData = used != null;
-    const pct = hasData && total > 0 ? Math.min(100, (used! / total) * 100) : 0;
-    return (
-        <div className="flex flex-col gap-1">
-      <span className="font-mono text-xs text-text-muted whitespace-nowrap">
-        {hasData ? `${used} / ${total} MB` : `- / ${total} MB`}
-      </span>
-            <div className="w-20 h-1 rounded-full" style={{background: "var(--border)"}}>
-                {hasData && pct > 0 && (
-                    <div
-                        className="h-full rounded-full"
-                        style={{width: `${pct}%`, background: fillColor(pct)}}
-                    />
-                )}
-            </div>
-        </div>
-    );
-}
-
-
-function CpuBar({percent, limitMillicores}: { percent?: number; limitMillicores: number }) {
-    const hasData = percent != null;
-    const pct = hasData ? Math.min(100, percent!) : 0;
-    return (
-        <div className="flex flex-col gap-1">
-      <span className="font-mono text-xs text-text-muted whitespace-nowrap">
-        {hasData ? `${percent!.toFixed(1)}% / ${fmtCpuLimit(limitMillicores)}` : `- / ${fmtCpuLimit(limitMillicores)}`}
-      </span>
-            <div className="w-20 h-1 rounded-full" style={{background: "var(--border)"}}>
-                {hasData && pct > 0 && (
-                    <div
-                        className="h-full rounded-full"
-                        style={{width: `${pct}%`, background: fillColor(pct)}}
-                    />
-                )}
-            </div>
-        </div>
-    );
-}
-
-
-function ServerActions({
-                           server, status, pending, permissions, doAction, doDelete, doDuplicate,
-                       }: {
-    server: Server;
-    status: string;
-    pending: string | undefined;
-    permissions: string[];
-    doAction: (id: string, action: "start" | "stop" | "restart" | "forceStop") => void;
-    doDelete: (s: Server) => void;
-    doDuplicate: (s: Server) => void;
-}) {
-    const disabled = serverDisabled(server);
-    return (
-        <div className="flex items-center justify-end gap-1">
-            {status === "STOPPED" && !disabled && hasPermission(permissions, "server.start") && (
-                <IconActionButton
-                    icon={<Play size={11} strokeWidth={2.5}/>}
-                    label="Start"
-                    loading={pending === "start"}
-                    onClick={() => doAction(server.id, "start")}
-                />
-            )}
-            {(status === "HEALTHY" || status === "STARTING") && hasPermission(permissions, "server.stop") && (
-                <IconActionButton
-                    icon={<Square size={11} strokeWidth={2.5}/>}
-                    label="Stop"
-                    loading={pending === "stop"}
-                    onClick={() => doAction(server.id, "stop")}
-                    danger
-                />
-            )}
-            {status === "STOPPING" && hasPermission(permissions, "server.force_stop") && (
-                <IconActionButton
-                    icon={<Skull size={11} strokeWidth={2.5}/>}
-                    label="Force Stop"
-                    loading={pending === "forceStop"}
-                    onClick={() => doAction(server.id, "forceStop")}
-                    danger
-                />
-            )}
-            {status === "HEALTHY" && !disabled && hasPermission(permissions, "server.restart") && (
-                <IconActionButton
-                    icon={<RotateCcw size={11} strokeWidth={2.5}/>}
-                    label="Restart"
-                    loading={pending === "restart"}
-                    onClick={() => doAction(server.id, "restart")}
-                />
-            )}
-            {hasPermission(permissions, "server.create") && (
-                <IconActionButton
-                    icon={<CopyPlus size={11} strokeWidth={2.5}/>}
-                    label="Duplicate"
-                    onClick={() => doDuplicate(server)}
-                />
-            )}
-            {status === "STOPPED" && hasPermission(permissions, "server.delete") && (
-                <IconActionButton
-                    icon={<Trash2 size={11} strokeWidth={2.5}/>}
-                    label="Delete"
-                    onClick={() => doDelete(server)}
-                    danger
-                />
-            )}
-        </div>
-    );
-}
-
-type SortKey = "name" | "type" | "status" | "ram" | "cpu" | "node";
-type SortDir = "asc" | "desc";
-
-function SortIndicator({active, dir}: { active: boolean; dir: SortDir }) {
-    if (!active) return <span className="text-text-muted/50 ml-1">↕</span>;
-    return <span className="text-accent ml-1">{dir === "asc" ? "↑" : "↓"}</span>;
-}
-
-function sortServers(servers: Server[], key: SortKey | null, dir: SortDir, nodeMap: Record<string, Node>, cpuUsage: Record<string, number>): Server[] {
-    if (!key) return servers;
-    const factor = dir === "asc" ? 1 : -1;
-    const valueOf = (s: Server): string | number => {
-        switch (key) {
-            case "name":
-                return s.display_name.toLowerCase();
-            case "type":
-                return s.server_type.toLowerCase();
-            case "status":
-                return s.status.toLowerCase();
-            case "ram":
-                return s.memory_mb;
-            case "cpu":
-                return cpuUsage[s.id] ?? -1;
-            case "node":
-                return (nodeMap[s.node_id]?.display_name ?? s.node_id).toLowerCase();
-        }
-    };
-    return [...servers].sort((a, b) => {
-        const va = valueOf(a);
-        const vb = valueOf(b);
-        if (va < vb) return -1 * factor;
-        if (va > vb) return 1 * factor;
-        return 0;
-    });
-}
-
 export default function ServersPage() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const {user} = useAuth();
-    const {subscribe} = useWs();
     const permissions = user?.permissions ?? [];
 
     const {data: servers, initialLoad, reload: reloadServers} = useResourceList(listServers, []);
     const [nodes, setNodes] = useState<Node[]>([]);
     const [networks, setNetworks] = useState<Network[]>([]);
-    // Live container RAM/CPU usage by server id, from the WS snapshot + metrics stream.
-    const [ramUsage, setRamUsage] = useState<Record<string, number>>({});
-    const [cpuUsage, setCpuUsage] = useState<Record<string, number>>({});
-    const [actionError, setActionError] = useState<string | null>(null);
-    const [pendingAction, setPendingAction] = useState<Record<string, string>>({});
-    const {confirm, dialog} = useConfirmDialog();
+    const {renderActions, actionError, setActionError, dialog} = useServerActions({
+        permissions,
+        serverPermissionsMap: user?.server_permissions ?? {},
+        onChanged: reloadServers,
+    });
     const [showImport, setShowImport] = useState(false);
     const [importFile, setImportFile] = useState<File | null>(null);
     const [importNode, setImportNode] = useState("");
@@ -210,22 +57,10 @@ export default function ServersPage() {
     const [filterNode, setFilterNode] = useState("");
     const [filterType, setFilterType] = useState("");
 
-    const [sortKey, setSortKey] = useState<SortKey | null>(null);
-    const [sortDir, setSortDir] = useState<SortDir>("asc");
-
     const typeOptions = useMemo(() => {
         const types = Array.from(new Set(servers.map((s) => s.server_type))).sort();
         return types;
     }, [servers]);
-
-    function toggleSort(key: SortKey) {
-        if (sortKey === key) {
-            setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-        } else {
-            setSortKey(key);
-            setSortDir("asc");
-        }
-    }
 
     useEffect(() => {
         void Promise.all([listNodes(), listNetworks()]).then(([nRes, netRes]) => {
@@ -233,43 +68,6 @@ export default function ServersPage() {
             if (netRes.data) setNetworks(netRes.data);
         });
     }, []);
-
-    useEffect(() => {
-        const unsubSnapshot = subscribe("snapshot", (payload) => {
-            const nextRam: Record<string, number> = {};
-            const nextCpu: Record<string, number> = {};
-            for (const s of payload.servers ?? []) {
-                if (s.metrics) {
-                    nextRam[s.id] = s.metrics.ram_used_mb;
-                    nextCpu[s.id] = s.metrics.cpu_percent;
-                }
-            }
-            setRamUsage(nextRam);
-            setCpuUsage(nextCpu);
-        });
-        const unsubMetrics = subscribe("server.metrics", (payload) => {
-            setRamUsage((prev) => ({...prev, [payload.server_id]: payload.ram_used_mb}));
-            setCpuUsage((prev) => ({...prev, [payload.server_id]: payload.cpu_percent}));
-        });
-        const unsubStatus = subscribe("server.status", (payload) => {
-            if (payload.status !== "STOPPED") return;
-            const drop = (prev: Record<string, number>) => {
-                if (!(payload.server_id in prev)) return prev;
-                const next = {...prev};
-                delete next[payload.server_id];
-                return next;
-            };
-            setRamUsage(drop);
-            setCpuUsage(drop);
-        });
-        return () => {
-            unsubSnapshot();
-            unsubMetrics();
-            unsubStatus();
-        };
-    }, [subscribe]);
-
-    const nodeMap = Object.fromEntries(nodes.map((n) => [n.id, n]));
 
     const uniqueNodeCount = new Set(servers.map((s) => s.node_id)).size;
     const subtitle = initialLoad
@@ -295,55 +93,6 @@ export default function ServersPage() {
         return true;
     });
 
-    const sortedServers = useMemo(
-        () => sortServers(filteredServers, sortKey, sortDir, nodeMap, cpuUsage),
-        [filteredServers, sortKey, sortDir, nodeMap, cpuUsage]
-    );
-
-    const ACTION_FNS = {
-        start: startServer,
-        stop: stopServer,
-        restart: restartServer,
-        forceStop: forceStopServer,
-    } as const;
-
-    async function doAction(serverId: string, action: "start" | "stop" | "restart" | "forceStop") {
-        setPendingAction((p) => ({...p, [serverId]: action}));
-        setActionError(null);
-        const {error} = await ACTION_FNS[action]({path: {id: serverId}});
-        if (error) {
-            setActionError(error.message ?? "Action failed");
-        } else {
-            reloadServers();
-        }
-        setPendingAction((p) => {
-            const n = {...p};
-            delete n[serverId];
-            return n;
-        });
-    }
-
-    function doDelete(server: Server) {
-        confirm({
-            title: "Delete Server?",
-            description: `Delete "${server.display_name}"? This cannot be undone.`,
-            destructive: true,
-            onConfirm: async () => {
-                setActionError(null);
-                const {error} = await deleteServer({path: {id: server.id}});
-                if (error) {
-                    setActionError(error.message ?? "Failed to delete server");
-                } else {
-                    reloadServers();
-                }
-            },
-        });
-    }
-
-    function doDuplicate(server: Server) {
-        router.push(`/servers/new?clone=${server.id}`);
-    }
-
     async function doImportServer() {
         if (!importFile) return;
         setImportError("");
@@ -367,151 +116,6 @@ export default function ServersPage() {
     }
 
     const canCreate = hasPermission(permissions, "server.create");
-
-    const SERVER_COLUMNS: SmartListColumn<Server>[] = [
-        {
-            key: "name",
-            header: <>Server<SortIndicator active={sortKey === "name"} dir={sortDir}/></>,
-            headerClassName: "cursor-pointer select-none hover:text-accent",
-            onHeaderClick: () => toggleSort("name"),
-            render: (server) => (
-                <>
-                    <p className="text-sm font-heading font-bold text-text-primary group-hover:text-accent transition-colors leading-none">
-                        {server.display_name}
-                    </p>
-                    {server.is_migrating && (
-                        <p className="mt-1 text-xs font-mono text-warning leading-none">
-                            ⟳ Migrating
-                        </p>
-                    )}
-                    {server.disabled ? (
-                        <p className="mt-1 text-xs font-mono text-warning leading-none">
-                            Disabled
-                        </p>
-                    ) : serverExpired(server.expires_at) && (
-                        <p className="mt-1 text-xs font-mono text-error leading-none">
-                            Expired
-                        </p>
-                    )}
-                    {server.restart_pending && server.status !== "STOPPED" && (
-                        <p className="mt-1 text-xs font-mono text-warning leading-none">
-                            Restart pending
-                        </p>
-                    )}
-                    {server.exposed_externally && server.public_subdomain && (
-                        <p className="mt-0.5 text-xs font-mono text-text-muted leading-none">
-                            {server.public_subdomain}
-                        </p>
-                    )}
-                </>
-            ),
-        },
-        {
-            key: "type",
-            header: <>Type<SortIndicator active={sortKey === "type"} dir={sortDir}/></>,
-            headerClassName: "cursor-pointer select-none hover:text-accent",
-            onHeaderClick: () => toggleSort("type"),
-            render: (server) => (
-                <span
-                    className="font-mono text-xs uppercase tracking-wider text-text-dim border border-border px-1.5 py-0.5 rounded"
-                    style={{background: "var(--text-dim-bg)"}}
-                >
-                    {server.server_type}
-                </span>
-            ),
-        },
-        {
-            key: "status",
-            header: <>Status<SortIndicator active={sortKey === "status"} dir={sortDir}/></>,
-            headerClassName: "cursor-pointer select-none hover:text-accent",
-            onHeaderClick: () => toggleSort("status"),
-            render: (server) => (
-                <Badge variant={serverStatusVariant(server.status)}>{serverStatusLabel(server.status)}</Badge>
-            ),
-        },
-        {
-            key: "players",
-            header: "Players",
-            render: () => <span className="font-mono text-xs text-text-muted">-/-</span>,
-        },
-        {
-            key: "ram",
-            header: <>RAM<SortIndicator active={sortKey === "ram"} dir={sortDir}/></>,
-            headerClassName: "cursor-pointer select-none hover:text-accent",
-            onHeaderClick: () => toggleSort("ram"),
-            render: (server) => <RamBar total={server.memory_mb} used={ramUsage[server.id]}/>,
-        },
-        {
-            key: "cpu",
-            header: <>CPU<SortIndicator active={sortKey === "cpu"} dir={sortDir}/></>,
-            headerClassName: "cursor-pointer select-none hover:text-accent",
-            onHeaderClick: () => toggleSort("cpu"),
-            render: (server) => <CpuBar percent={cpuUsage[server.id]} limitMillicores={server.cpu_limit_millicores}/>,
-        },
-        {
-            key: "node",
-            header: <>Node<SortIndicator active={sortKey === "node"} dir={sortDir}/></>,
-            headerClassName: "cursor-pointer select-none hover:text-accent",
-            onHeaderClick: () => toggleSort("node"),
-            render: (server) => {
-                const node = nodeMap[server.node_id];
-                return (
-                    <span className="font-mono text-xs text-text-dim">
-                        {node?.display_name ?? `${server.node_id.slice(0, 8)}…`}
-                    </span>
-                );
-            },
-        },
-    ];
-
-    function renderActions(server: Server) {
-        const status = server.status;
-        const pending = pendingAction[server.id];
-        const serverPerms = serverPermissions(permissions, user?.server_permissions ?? {}, server.id);
-        return (
-            <ServerActions
-                server={server} status={status} pending={pending}
-                permissions={serverPerms}
-                doAction={doAction} doDelete={doDelete} doDuplicate={doDuplicate}
-            />
-        );
-    }
-
-    function renderMobileCard(server: Server) {
-        const node = nodeMap[server.node_id];
-        const status = server.status;
-        return (
-            <div
-                onClick={() => router.push(`/servers/${server.id}`)}
-                className="p-3 cursor-pointer active:bg-surface-high transition-colors"
-            >
-                <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                        <p className="text-sm font-heading font-bold text-text-primary truncate">{server.display_name}</p>
-                        <p className="mt-0.5 font-mono text-xs text-text-dim truncate">
-                            {server.server_type} · {node?.display_name ?? `${server.node_id.slice(0, 8)}…`}
-                        </p>
-                        {server.exposed_externally && server.public_subdomain && (
-                            <p className="mt-0.5 font-mono text-xs text-text-muted truncate">{server.public_subdomain}</p>
-                        )}
-                        {server.restart_pending && server.status !== "STOPPED" && (
-                            <p className="mt-0.5 font-mono text-xs text-warning truncate">Restart pending</p>
-                        )}
-                    </div>
-                    <Badge variant={serverStatusVariant(status)}>{serverStatusLabel(status)}</Badge>
-                </div>
-                <div className="mt-2.5 flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-4">
-                        <RamBar total={server.memory_mb} used={ramUsage[server.id]}/>
-                        <CpuBar percent={cpuUsage[server.id]} limitMillicores={server.cpu_limit_millicores}/>
-                    </div>
-                    <div onClick={(e) => e.stopPropagation()}>
-                        {renderActions(server)}
-                    </div>
-                </div>
-            </div>
-        );
-    }
 
     return (
         <>
@@ -616,21 +220,18 @@ export default function ServersPage() {
 
                 {/* Server list */}
                 <div className="px-6 py-4">
-                    <SmartList
-                        items={sortedServers}
-                        columns={SERVER_COLUMNS}
-                        keyFor={(server) => server.id}
+                    <ServerList
+                        servers={filteredServers}
+                        nodes={nodes}
                         loading={initialLoad}
-                        skeletonRows={5}
                         empty={
                             servers.length === 0
                                 ? "No servers yet - create one to get started"
                                 : "No servers match the current filters"
                         }
-                        actions={renderActions}
-                        actionsHeader="Actions"
                         onRowClick={(server) => router.push(`/servers/${server.id}`)}
-                        mobileCard={renderMobileCard}
+                        renderActions={renderActions}
+                        actionsHeader="Actions"
                     />
                 </div>
             </div>

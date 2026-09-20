@@ -13,11 +13,7 @@ import java.time.Instant
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-open class MetricsCollector(
-    private val docker: DockerClient,
-    private val craftpanelNetwork: String = "",
-    var mcRouterContainerName: String = "",
-) {
+open class MetricsCollector(private val docker: DockerClient, private val craftpanelNetwork: String = "", var mcRouterContainerName: String = "") {
 
     private val log = LoggerFactory.getLogger(MetricsCollector::class.java)
 
@@ -57,11 +53,13 @@ open class MetricsCollector(
             val callback = object : ResultCallback<Statistics> {
                 override fun onStart(c: Closeable?) {}
                 override fun onNext(s: Statistics) {
-                    captured = s; latch.countDown()
+                    captured = s
+                    latch.countDown()
                 }
 
                 override fun onError(t: Throwable) {
-                    log.warn("Stats error for $containerId: ${t.message}"); latch.countDown()
+                    log.warn("Stats error for $containerId: ${t.message}")
+                    latch.countDown()
                 }
 
                 override fun onComplete() {}
@@ -80,9 +78,11 @@ open class MetricsCollector(
 
             val cpuDelta = (cpu.cpuUsage?.totalUsage ?: 0L) - (preCpu.cpuUsage?.totalUsage ?: 0L)
             val systemDelta = (cpu.systemCpuUsage ?: 0L) - (preCpu.systemCpuUsage ?: 0L)
-            val numCpus = (cpu.onlineCpus?.toInt()
-                ?.takeIf { it > 0 }
-                ?: cpu.cpuUsage?.percpuUsage?.size?.takeIf { it > 0 } ?: 1)
+            val numCpus = (
+                cpu.onlineCpus?.toInt()
+                    ?.takeIf { it > 0 }
+                    ?: cpu.cpuUsage?.percpuUsage?.size?.takeIf { it > 0 } ?: 1
+                )
             // Host-wide cores consumed over the interval. `numCpus` is the daemon-reported online
             // CPU count, so this is core-relative (1 core fully used = 1.0), independent of the cap.
             val coresUsed = if (systemDelta > 0) cpuDelta.toDouble() / systemDelta * numCpus else 0.0
@@ -104,7 +104,10 @@ open class MetricsCollector(
             val now = Instant.now()
             containerMetricsUpdate {
                 this.serverId = serverId
-                recordedAt = timestamp { seconds = now.epochSecond; nanos = now.nano }
+                recordedAt = timestamp {
+                    seconds = now.epochSecond
+                    nanos = now.nano
+                }
                 this.cpuPercent = cpuPct
                 this.ramUsedMb = ramUsedMb.toInt()
                 netInBytes = netIn
@@ -129,7 +132,10 @@ open class MetricsCollector(
                 this.serverId = serverId
                 playerCount = result.playerCount
                 playerNames.addAll(result.playerNames)
-                recordedAt = timestamp { seconds = now.epochSecond; nanos = now.nano }
+                recordedAt = timestamp {
+                    seconds = now.epochSecond
+                    nanos = now.nano
+                }
             }
         }.getOrElse {
             log.warn("Failed to collect player count for server $serverId: ${it.message}")
@@ -143,51 +149,55 @@ open class MetricsCollector(
             docker.inspectContainerCmd(mcRouterContainerName)
                 .exec().networkSettings?.networks
         }.getOrNull() ?: return null
-        val net = if (craftpanelNetwork.isNotEmpty()) networks[craftpanelNetwork] ?: networks.values.firstOrNull()
-        else networks.values.firstOrNull()
+        val net = if (craftpanelNetwork.isNotEmpty()) {
+            networks[craftpanelNetwork] ?: networks.values.firstOrNull()
+        } else {
+            networks.values.firstOrNull()
+        }
         return net?.ipAddress?.takeIf { it.isNotBlank() }
     }
 
-    private fun getServerRoutingHostname(containerId: String): String? =
-        runCatching {
-            docker.inspectContainerCmd(containerId)
-                .exec().config?.labels?.get("mc-router.host")
-        }.getOrNull()
-            ?.split(",")
-            ?.firstOrNull { it.isNotBlank() }
+    private fun getServerRoutingHostname(containerId: String): String? = runCatching {
+        docker.inspectContainerCmd(containerId)
+            .exec().config?.labels?.get("mc-router.host")
+    }.getOrNull()
+        ?.split(",")
+        ?.firstOrNull { it.isNotBlank() }
 
     fun collectCapacity(): Pair<Int, Int> {
         val totalRamMb = runCatching {
             ((parseMemInfo()["MemTotal"] ?: 0L) / 1024).toInt()
         }.getOrElse { 0 }
-        val totalCpuMillicores = Runtime.getRuntime()
-            .availableProcessors() * 1000
+        val totalCpuMillicores = hostCpuCount() * 1000
         return Pair(totalRamMb, totalCpuMillicores)
     }
 
-    private data class ProcMetrics(
-        val cpuPercent: Double,
-        val cpuPerCore: List<Double>,
-        val ramUsedMb: Int,
-        val ramTotalMb: Int,
-    )
+    /**
+     * Host CPU count, read from `/proc/cpuinfo` like the other metrics sources. Deliberately NOT
+     * `Runtime.availableProcessors()`: that is cgroup-aware and returns the agent container's CPU
+     * limit (often 1), not the node's real capacity. Falls back to the JVM count only if
+     * `/proc/cpuinfo` is unreadable.
+     */
+    private fun hostCpuCount(): Int = runCatching {
+        File("/proc/cpuinfo").readLines().count { it.startsWith("processor") }
+    }.getOrElse { 0 }.takeIf { it > 0 } ?: Runtime.getRuntime().availableProcessors()
 
-    private fun readProcMetrics(): ProcMetrics {
-        return runCatching {
-            val memInfo = parseMemInfo()
-            val totalKb = memInfo["MemTotal"] ?: 0L
-            val availKb = memInfo["MemAvailable"] ?: 0L
-            val (cpuPercent, cpuPerCore) = readCpuPercent()
-            ProcMetrics(
-                cpuPercent = cpuPercent,
-                cpuPerCore = cpuPerCore,
-                ramUsedMb = ((totalKb - availKb) / 1024).toInt(),
-                ramTotalMb = (totalKb / 1024).toInt(),
-            )
-        }.getOrElse {
-            log.warn("Failed to read /proc metrics", it)
-            ProcMetrics(0.0, emptyList(), 0, 0)
-        }
+    private data class ProcMetrics(val cpuPercent: Double, val cpuPerCore: List<Double>, val ramUsedMb: Int, val ramTotalMb: Int)
+
+    private fun readProcMetrics(): ProcMetrics = runCatching {
+        val memInfo = parseMemInfo()
+        val totalKb = memInfo["MemTotal"] ?: 0L
+        val availKb = memInfo["MemAvailable"] ?: 0L
+        val (cpuPercent, cpuPerCore) = readCpuPercent()
+        ProcMetrics(
+            cpuPercent = cpuPercent,
+            cpuPerCore = cpuPerCore,
+            ramUsedMb = ((totalKb - availKb) / 1024).toInt(),
+            ramTotalMb = (totalKb / 1024).toInt()
+        )
+    }.getOrElse {
+        log.warn("Failed to read /proc metrics", it)
+        ProcMetrics(0.0, emptyList(), 0, 0)
     }
 
     private fun readCpuPercent(): Pair<Double, List<Double>> {
@@ -220,8 +230,11 @@ open class MetricsCollector(
 
         val perCore = corePairs.mapIndexed { i, (ci, ct) ->
             val pc = prevCores.getOrNull(i)
-            if (pc == null || ct - pc.total <= 0) 0.0
-            else (1.0 - (ci - pc.idle).toDouble() / (ct - pc.total)) * 100.0
+            if (pc == null || ct - pc.total <= 0) {
+                0.0
+            } else {
+                (1.0 - (ci - pc.idle).toDouble() / (ct - pc.total)) * 100.0
+            }
         }
         return percent to perCore
     }
@@ -254,20 +267,19 @@ open class MetricsCollector(
         }
     }
 
-    private fun readDiskMetrics(): Pair<Long, Long> {
-        return runCatching {
-            val fs = java.nio.file.Files.getFileStore(File("/").toPath())
-            Pair(fs.totalSpace - fs.usableSpace, fs.totalSpace)
-        }.getOrElse { Pair(0L, 0L) }
-    }
+    private fun readDiskMetrics(): Pair<Long, Long> = runCatching {
+        val fs = java.nio.file.Files.getFileStore(File("/").toPath())
+        Pair(fs.totalSpace - fs.usableSpace, fs.totalSpace)
+    }.getOrElse { Pair(0L, 0L) }
 
-    private fun parseMemInfo(): Map<String, Long> =
-        File("/proc/meminfo").readLines()
-            .associate {
-                val parts = it.split("\\s+".toRegex())
-                parts[0].trimEnd(':') to (parts.getOrNull(1)
-                    ?.toLongOrNull() ?: 0L)
-            }
+    private fun parseMemInfo(): Map<String, Long> = File("/proc/meminfo").readLines()
+        .associate {
+            val parts = it.split("\\s+".toRegex())
+            parts[0].trimEnd(':') to (
+                parts.getOrNull(1)
+                    ?.toLongOrNull() ?: 0L
+                )
+        }
 }
 
 /**

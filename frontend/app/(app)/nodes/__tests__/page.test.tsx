@@ -190,12 +190,12 @@ describe("NodesPage", () => {
                 json: async () => ({frontendVersion: "x", masterVersion: "masterhash", versionMismatch: false}),
             });
             await renderWith({nodes: [node({agent_version: "oldhash"})]});
-            expect(await screen.findByTitle(/differs from master/)).toBeInTheDocument();
+            expect((await screen.findAllByTitle(/differs from master/)).length).toBeGreaterThan(0);
         });
 
         it("shows no mismatch warning when the agent matches master", async () => {
             await renderWith({nodes: [node({agent_version: "1.0.0"})]});
-            expect(screen.queryByTitle(/differs from master/)).not.toBeInTheDocument();
+            expect(screen.queryAllByTitle(/differs from master/)).toHaveLength(0);
         });
     });
 

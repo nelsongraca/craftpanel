@@ -2,13 +2,14 @@
 
 import {useEffect, useState} from "react";
 import {useRouter} from "next/navigation";
-import {Ban, Check, KeyRound, Pencil, Power, Trash2, X, AlertTriangle} from "lucide-react";
+import {Ban, Check, KeyRound, Pencil, Power, Trash2, X} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
 import {decommissionNode, listNodes, listServers, rejectNode, rotateNodeToken, shutdownNode, trustNode,} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import type {Node} from "@/lib/types";
 import {EditNodeModal} from "@/components/nodes/EditNodeModal";
+import {AgentVersion} from "@/components/nodes/agent-version";
 import {timeAgo, fmtMb, fillColor, fmtPct} from "@/lib/utils/format";
 import {TokenModal} from "@/components/nodes/TokenModal";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
@@ -157,14 +158,6 @@ export default function NodesPage() {
     // Modals
     const [editNode, setEditNode] = useState<Node | null>(null);
     const [tokenKey, setTokenKey] = useState<string | null>(null);
-
-    // Agent reports its own build hash; a different hash from master means one of them
-    // was not redeployed from the same commit.
-    function agentVersionMismatch(node: Node): boolean {
-        const version = node.agent_version;
-        return !!health && !!version && version !== "unknown"
-            && health.masterVersion !== "unknown" && version !== health.masterVersion;
-    }
 
     useEffect(() => {
         listServers().then(({data: serverData}) => {
@@ -406,19 +399,7 @@ export default function NodesPage() {
                             key: "version",
                             header: "Version",
                             label: "Version",
-                            render: (n) => (
-                                <span className="flex items-center gap-1 font-mono text-xs text-text-dim">
-                                    {n.agent_version ?? "—"}
-                                    {agentVersionMismatch(n) && (
-                                        <span
-                                            className="text-warning"
-                                            title={`Agent build differs from master (${health?.masterVersion}) — either master or agent is not updated`}
-                                        >
-                                            <AlertTriangle size={11} strokeWidth={2.5}/>
-                                        </span>
-                                    )}
-                                </span>
-                            ),
+                            render: (n) => <AgentVersion version={n.agent_version} masterVersion={health?.masterVersion}/>,
                         },
                         {
                             key: "lastSeen",
@@ -483,9 +464,8 @@ export default function NodesPage() {
                                     </div>
                                     <div>
                                         <p className="text-xs text-text-muted">Version</p>
-                                        <p className="flex items-center gap-1 font-mono text-xs text-text-dim">
-                                            {node.agent_version ?? "—"}
-                                            {agentVersionMismatch(node) && <AlertTriangle size={11} strokeWidth={2.5} className="text-warning"/>}
+                                        <p className="font-mono text-xs text-text-dim">
+                                            <AgentVersion version={node.agent_version} masterVersion={health?.masterVersion}/>
                                         </p>
                                     </div>
                                 </div>

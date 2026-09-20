@@ -3,7 +3,7 @@
 import {useCallback, useEffect, useState} from "react";
 import {useParams, useRouter} from "next/navigation";
 import Link from "next/link";
-import {Ban, Check, ChevronRight, KeyRound, Pencil, Power, Trash2, X, AlertTriangle,} from "lucide-react";
+import {Ban, Check, ChevronRight, KeyRound, Power, Trash2, X,} from "lucide-react";
 import {CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,} from "recharts";
 import {decommissionNode, getNode, getNodeMetrics, listServers, rejectNode, rotateNodeToken, shutdownNode, trustNode,} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
@@ -14,11 +14,12 @@ import {timeAgo, fmtBytes, fmtMb, fmtBytesNetworkIo, fillColorBg, fmtPct, fmtCpu
 import {TokenModal} from "@/components/nodes/TokenModal";
 import type {ServerResponse as Server} from "@/lib/generated/types.gen";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
-import {useHealth} from "@/lib/hooks/useHealth";
 import {HeaderActionButton} from "@/components/servers/header-action-button";
 
-import {nodeStatusLabel, nodeStatusVariant, serverStatusLabel, serverStatusVariant} from "@/lib/status";
-import {EditNodeModal} from "@/components/nodes/EditNodeModal";
+import {nodeStatusLabel, nodeStatusVariant} from "@/lib/status";
+import {EditNode} from "@/components/nodes/edit-node";
+import {ServerList} from "@/components/servers/server-list";
+import {useServerActions} from "@/components/servers/server-actions";
 import {Badge} from "@/components/ui/badge";
 import {Skeleton} from "@/components/ui/skeleton";
 import {Empty, EmptyDescription} from "@/components/ui/empty";
@@ -51,17 +52,6 @@ function ResourceBar({used, total, fmt}: { used: number; total: number; fmt: (v:
     );
 }
 
-function InfoRow({label, value}: { label: string; value: React.ReactNode }) {
-    return (
-        <div className="flex items-start justify-between gap-4 py-2 border-b border-border last:border-0">
-      <span className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted shrink-0">
-        {label}
-      </span>
-            <span className="font-mono text-xs text-text-primary text-right">{value}</span>
-        </div>
-    );
-}
-
 // ── Tabs ──────────────────────────────────────────────────────────────────────
 
 const TABS = ["Overview", "Servers", "Metrics"] as const;
@@ -69,17 +59,11 @@ type Tab = (typeof TABS)[number];
 
 // ── Overview tab ──────────────────────────────────────────────────────────────
 
-function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
-    const health = useHealth();
+function OverviewTab({node, servers, onSaved, canEdit}: { node: Node; servers: Server[]; onSaved: () => void; canEdit: boolean }) {
     const cpuPct = node.total_cpu_millicores > 0 ? Math.min(100, (node.allocated_cpu_millicores / node.total_cpu_millicores) * 100) : 0;
     const ramUsedMb = Math.max(node.allocated_ram_mb, node.system_ram_used_mb ?? 0);
     const ramUsagePct = node.total_ram_mb > 0 ? Math.min(100, (ramUsedMb / node.total_ram_mb) * 100) : 0;
     const cpuUsagePct = node.system_cpu_percent != null ? Math.min(100, node.system_cpu_percent) : 0;
-    // Agent reports its own build hash; a different hash from master means one of them
-    // was not redeployed from the same commit.
-    const agentVersion = node.agent_version;
-    const agentMismatch = !!health && !!agentVersion && agentVersion !== "unknown"
-        && health.masterVersion !== "unknown" && agentVersion !== health.masterVersion;
 
     return (
         <div className="px-6 py-6 space-y-6">
@@ -120,35 +104,8 @@ function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
                 </StatCard>
             </div>
 
-            {/* Info panel */}
-            <div className="bg-surface border border-border rounded p-4">
-                <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted mb-2">
-                    Node Info
-                </p>
-                <InfoRow label="Hostname" value={node.hostname}/>
-                <InfoRow label="Public IP" value={node.public_ip}/>
-                <InfoRow label="Private IP" value={node.private_ip}/>
-                <InfoRow label="Port Range" value={`${node.port_range_start}–${node.port_range_end}`}/>
-                <InfoRow label="Agent" value={
-                    <span className="inline-flex items-center gap-1">
-                        {node.agent_version ?? "-"}
-                        {agentMismatch && (
-                            <span
-                                className="text-warning"
-                                title={`Agent build differs from master (${health?.masterVersion}) — either master or agent is not updated`}
-                            >
-                                <AlertTriangle size={11} strokeWidth={2.5} className="inline"/>
-                            </span>
-                        )}
-                    </span>
-                }/>
-                <InfoRow label="RAM Total" value={fmtMb(node.total_ram_mb)}/>
-                <InfoRow label="RAM Reserved" value={fmtMb(node.reserved_ram_mb)}/>
-                <InfoRow label="CPU Total" value={fmtCpuCores(node.total_cpu_millicores)}/>
-                <InfoRow label="CPU Reserved" value={fmtCpuCores(node.reserved_cpu_millicores)}/>
-                <InfoRow label="Last Seen" value={node.last_seen_at ? timeAgo(node.last_seen_at) : "-"}/>
-                <InfoRow label="Created" value={new Date(node.created_at).toLocaleDateString()}/>
-            </div>
+            {/* Info panel — inline editable */}
+            <EditNode node={node} onSaved={onSaved} canEdit={canEdit}/>
 
             {/* Resource usage bars */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -185,77 +142,6 @@ function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
                     </div>
                 </div>
             </div>
-        </div>
-    );
-}
-
-// ── Servers tab ───────────────────────────────────────────────────────────────
-
-function ServersTab({servers}: { servers: Server[] }) {
-    if (servers.length === 0) {
-        return (
-            <div className="px-6 py-10">
-                <Empty className="border-2 border-border rounded-md py-10">
-                    <EmptyDescription>No servers assigned to this node</EmptyDescription>
-                </Empty>
-            </div>
-        );
-    }
-
-    return (
-        <div className="px-6 py-4">
-            <table className="w-full border-collapse">
-                <thead>
-                <tr className="border-b border-border">
-                    {["Server", "Type", "Status", "RAM", "Port", ""].map((col, i) => (
-                        <th
-                            key={i}
-                            className={[
-                                "pb-2 text-[9px] font-mono font-semibold uppercase tracking-[0.1em] text-text-muted",
-                                i === 5 ? "text-right" : "text-left pr-4",
-                            ].join(" ")}
-                        >
-                            {col}
-                        </th>
-                    ))}
-                </tr>
-                </thead>
-                <tbody>
-                {servers.map((s) => {
-
-                    return (
-                        <tr key={s.id} className="border-b border-border hover:bg-surface transition-colors">
-                            <td className="py-3 pr-4">
-                                <p className="text-sm font-heading font-bold text-text-primary leading-none">{s.display_name}</p>
-                                <p className="mt-0.5 font-mono text-xs text-text-muted leading-none">{s.name}</p>
-                            </td>
-                            <td className="py-3 pr-4">
-                  <span className="font-mono text-xs uppercase tracking-wider text-text-dim border border-border px-1.5 py-0.5 rounded">
-                    {s.server_type}
-                  </span>
-                            </td>
-                            <td className="py-3 pr-4">
-                                <Badge variant={serverStatusVariant(s.status)}>{serverStatusLabel(s.status)}</Badge>
-                            </td>
-                            <td className="py-3 pr-4">
-                                <span className="font-mono text-xs text-text-muted">{fmtMb(s.memory_mb)}</span>
-                            </td>
-                            <td className="py-3 pr-4">
-                                <span className="font-mono text-xs text-text-muted">{s.host_port ?? "-"}</span>
-                            </td>
-                            <td className="py-3 text-right">
-                                <Link
-                                    href={`/servers/${s.id}`}
-                                    className="text-xs font-heading font-bold uppercase tracking-wider text-text-muted hover:text-accent transition-colors"
-                                >
-                                    View →
-                                </Link>
-                            </td>
-                        </tr>
-                    );
-                })}
-                </tbody>
-            </table>
         </div>
     );
 }
@@ -509,7 +395,6 @@ export default function NodeDetailPage() {
     const {confirm, dialog} = useConfirmDialog();
 
     // Modals
-    const [showEdit, setShowEdit] = useState(false);
     const [tokenKey, setTokenKey] = useState<string | null>(null);
 
     const fetchNode = useCallback(async () => {
@@ -519,14 +404,28 @@ export default function NodeDetailPage() {
         setLoading(false);
     }, [id]);
 
+    const fetchServers = useCallback(async () => {
+        const {data} = await listServers();
+        if (data) setServers(data.filter((s) => s.node_id === id));
+    }, [id]);
+
+    const {
+        renderActions,
+        actionError: serverActionError,
+        setActionError: setServerActionError,
+        dialog: serverActionsDialog,
+    } = useServerActions({
+        permissions,
+        serverPermissionsMap: user?.server_permissions ?? {},
+        onChanged: () => void fetchServers(),
+    });
+
     useEffect(() => {
         void fetchNode();
-        void listServers().then(({data}) => {
-            if (data) setServers(data.filter((s) => s.node_id === id));
-        });
+        void fetchServers();
         const timer = setInterval(fetchNode, 30_000);
         return () => clearInterval(timer);
-    }, [fetchNode, id]);
+    }, [fetchNode, fetchServers]);
 
     useEffect(() => {
         return subscribe("node.status", (payload) => {
@@ -633,9 +532,9 @@ export default function NodeDetailPage() {
     // ── Render ─────────────────────────────────────────────────────────────────
 
     return (
-        <div>
+        <div className="flex flex-col h-full min-h-0">
             {/* ── Page header ── */}
-            <div className="px-6 pt-6 pb-5 border-b border-border">
+            <div className="px-6 pt-6 pb-5 border-b border-border shrink-0">
                 {/* Breadcrumb */}
                 <div className="flex items-center gap-1.5 text-xs font-heading font-bold uppercase tracking-wider text-text-muted mb-4">
                     <Link href="/nodes" className="hover:text-text-primary transition-colors">Nodes</Link>
@@ -673,13 +572,6 @@ export default function NodeDetailPage() {
                                 </>
                             )}
                             <HeaderActionButton
-                                icon={<Pencil size={12} strokeWidth={2.5}/>}
-                                label="Edit"
-                                loading={false}
-                                onClick={() => setShowEdit(true)}
-                                variant="default"
-                            />
-                            <HeaderActionButton
                                 icon={<KeyRound size={12} strokeWidth={2.5}/>}
                                 label="Rotate Key"
                                 loading={pending === "rotate"}
@@ -715,18 +607,18 @@ export default function NodeDetailPage() {
             </div>
 
             {/* Error banner */}
-            {actionError && (
+            {(actionError || serverActionError) && (
                 <div className="mx-6 mt-4 flex items-center justify-between bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-xs">
-                    <span>{actionError}</span>
-                    <button onClick={() => setActionError(null)} className="ml-4 hover:opacity-70">
+                    <span>{actionError ?? serverActionError}</span>
+                    <button onClick={() => { setActionError(null); setServerActionError(null); }} className="ml-4 hover:opacity-70">
                         <X size={13}/>
                     </button>
                 </div>
             )}
 
             {/* Tab bar */}
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as Tab)}>
-                <div className="scrollbar-none border-b border-border bg-surface overflow-x-auto pb-[7px]">
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as Tab)} className="flex-1 min-h-0 overflow-hidden">
+                <div className="scrollbar-none border-b border-border bg-surface overflow-x-auto pb-[7px] shrink-0">
                     <TabsList variant="line" className="h-auto w-full justify-start rounded-none bg-transparent px-6 py-0">
                         {TABS.map((tab) => (
                             <TabsTrigger
@@ -743,19 +635,31 @@ export default function NodeDetailPage() {
                     </TabsList>
                 </div>
 
-                <TabsContent value="Overview"><OverviewTab node={node} servers={servers}/></TabsContent>
-                <TabsContent value="Servers"><ServersTab servers={servers}/></TabsContent>
-                <TabsContent value="Metrics"><MetricsTab nodeId={id}/></TabsContent>
+                <TabsContent value="Overview" className="overflow-auto">
+                    <OverviewTab node={node} servers={servers} onSaved={fetchNode} canEdit={canManage}/>
+                </TabsContent>
+                <TabsContent value="Servers" className="overflow-auto">
+                    <div className="px-6 py-4">
+                        <ServerList
+                            servers={servers}
+                            nodes={[node]}
+                            showNodeColumn={false}
+                            empty="No servers assigned to this node"
+                            onRowClick={(server) => router.push(`/servers/${server.id}`)}
+                            renderActions={renderActions}
+                            actionsHeader="Actions"
+                        />
+                    </div>
+                </TabsContent>
+                <TabsContent value="Metrics" className="overflow-auto"><MetricsTab nodeId={id}/></TabsContent>
             </Tabs>
 
             {/* Modals */}
-            {showEdit && (
-                <EditNodeModal node={node} onClose={() => setShowEdit(false)} onSaved={fetchNode}/>
-            )}
             {tokenKey && (
                 <TokenModal nodeKey={tokenKey} onClose={() => setTokenKey(null)}/>
             )}
             {dialog}
+            {serverActionsDialog}
         </div>
     );
 }

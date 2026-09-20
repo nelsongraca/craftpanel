@@ -63,6 +63,7 @@ export function EditSection({
                                 onSave,
                                 children,
                                 className,
+                                canEdit = true,
                             }: {
     label: string;
     editing: boolean;
@@ -73,6 +74,7 @@ export function EditSection({
     onSave: () => void;
     children: [React.ReactNode, React.ReactNode];
     className?: string;
+    canEdit?: boolean;
 }) {
     return (
         <div className={`bg-surface border border-border rounded p-4${className ? ` ${className}` : ""}`}>
@@ -80,7 +82,7 @@ export function EditSection({
                 <p className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted">
                     {label}
                 </p>
-                {!editing && (
+                {!editing && canEdit && (
                     <button
                         onClick={onEdit}
                         className="text-text-muted hover:text-accent transition-colors"

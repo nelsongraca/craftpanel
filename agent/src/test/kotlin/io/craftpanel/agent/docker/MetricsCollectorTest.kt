@@ -5,6 +5,7 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import io.kotest.matchers.shouldNotBe
 import io.mockk.mockk
+import java.io.File
 
 class MetricsCollectorTest :
     FunSpec({
@@ -16,10 +17,12 @@ class MetricsCollectorTest :
             (ramMb > 0) shouldBe true
         }
 
-        test("collectCapacity cpu millicores equal availableProcessors times 1000") {
-            val (_, cpuLimitMillicores) = collector.collectCapacity()
-            cpuLimitMillicores shouldBe Runtime.getRuntime()
-                .availableProcessors() * 1000
+        test("collectCapacity cpu millicores reflects host cores, not the container limit") {
+            val (_, cpuMillicores) = collector.collectCapacity()
+            (cpuMillicores > 0) shouldBe true
+            (cpuMillicores % 1000) shouldBe 0
+            val hostCores = File("/proc/cpuinfo").readLines().count { it.startsWith("processor") }
+            if (hostCores > 0) cpuMillicores shouldBe hostCores * 1000
         }
 
         test("collect returns a non-null NodeMetricsUpdate") {
