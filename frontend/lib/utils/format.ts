@@ -29,13 +29,13 @@ export function fmtBytesNetworkIo(b: number): string {
 export function fillColor(pct: number): string {
     if (pct >= 86) return "var(--error)";
     if (pct >= 66) return "var(--warning)";
-    return "var(--accent)";
+    return "var(--healthy)";
 }
 
 export function fillColorBg(pct: number): string {
     if (pct >= 86) return "bg-error";
     if (pct >= 66) return "bg-warning";
-    return "bg-accent";
+    return "bg-healthy";
 }
 
 export function fmtPct(v: number): string {

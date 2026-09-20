@@ -24,7 +24,7 @@ describe('RamBarInline', () => {
 
     it('applies green bar when usage is low', () => {
         const {container} = render(<RamBarInline usedMb={512} totalMb={2048}/>)
-        const bar = container.querySelector('.bg-accent')
+        const bar = container.querySelector('.bg-healthy')
         expect(bar).toBeInTheDocument()
     })
 

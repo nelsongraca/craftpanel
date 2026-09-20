@@ -30,7 +30,7 @@ export function RamBarInline({usedMb, totalMb}: { usedMb: number | null; totalMb
         );
     }
     const pct = Math.min(100, (usedMb / totalMb) * 100);
-    const barColor = pct > 85 ? "bg-error" : pct > 65 ? "bg-warning" : "bg-accent";
+    const barColor = pct > 85 ? "bg-error" : pct > 65 ? "bg-warning" : "bg-healthy";
     return (
         <div className="flex flex-col gap-1.5">
             <p className="font-mono text-[20px] text-text-primary leading-none">

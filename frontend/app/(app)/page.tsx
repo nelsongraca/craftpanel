@@ -22,7 +22,7 @@ function ServerStatusBadge({status}: { status: string }) {
 
 function RamBar({used, total}: { used: number; total: number }) {
     const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0;
-    const color = pct >= 86 ? "var(--error)" : pct >= 66 ? "var(--warning)" : "var(--accent)";
+    const color = pct >= 86 ? "var(--error)" : pct >= 66 ? "var(--warning)" : "var(--healthy)";
     return (
         <div className="flex items-center gap-2">
             <div className="w-16 h-1 rounded-full bg-border">

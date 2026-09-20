@@ -78,13 +78,13 @@ describe('fmtBytesNetworkIo', () => {
 describe('fillColor', () => {
     it('error at 86+', () => { expect(fillColor(86)).toBe('var(--error)') })
     it('warning at 66-85', () => { expect(fillColor(66)).toBe('var(--warning)') })
-    it('accent below 66', () => { expect(fillColor(65)).toBe('var(--accent)') })
+    it('healthy below 66', () => { expect(fillColor(65)).toBe('var(--healthy)') })
 })
 
 describe('fillColorBg', () => {
     it('bg-error at 86+', () => { expect(fillColorBg(100)).toBe('bg-error') })
     it('bg-warning at 66-85', () => { expect(fillColorBg(70)).toBe('bg-warning') })
-    it('bg-accent below 66', () => { expect(fillColorBg(0)).toBe('bg-accent') })
+    it('bg-healthy below 66', () => { expect(fillColorBg(0)).toBe('bg-healthy') })
 })
 
 describe('fetchReleaseVersions', () => {
