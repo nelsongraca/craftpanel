@@ -22,7 +22,9 @@ describe("Shell sidebar", () => {
     beforeEach(() => {
         vi.clearAllMocks();
         useAuthAs(["*"]);
-        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({json: async () => ({})}));
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+            json: async () => ({frontendVersion: "abc1234", masterVersion: "abc1234", versionMismatch: false}),
+        }));
     });
 
     afterEach(() => {
@@ -82,5 +84,33 @@ describe("Shell sidebar", () => {
         useAuthAs(["system.nodes"]);
         render(<Shell>content</Shell>);
         expect(screen.queryByText("Alerts")).toBeNull();
+    });
+});
+
+describe("Shell footer versions", () => {
+    beforeEach(() => {
+        vi.clearAllMocks();
+        useAuthAs([]);
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it("shows a single version when frontend and master match", async () => {
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+            json: async () => ({frontendVersion: "abc1234", masterVersion: "abc1234", versionMismatch: false}),
+        }));
+        render(<Shell>content</Shell>);
+        expect(await screen.findByText("version abc1234")).toBeTruthy();
+    });
+
+    it("shows both versions and a warning when they differ", async () => {
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+            json: async () => ({frontendVersion: "abc1234", masterVersion: "def5678", versionMismatch: true}),
+        }));
+        render(<Shell>content</Shell>);
+        expect(await screen.findByText("frontend abc1234 · master def5678")).toBeTruthy();
+        expect(screen.getByText("version mismatch")).toBeTruthy();
     });
 });

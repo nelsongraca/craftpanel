@@ -68,7 +68,6 @@ class FileHandlerTest :
             bootstrapToken = "test-token-16chars",
             keyFilePath = "/etc/craftpanel/node.key",
             dockerSocketPath = "unix:///var/run/docker.sock",
-            agentVersion = "test",
             dataBasePath = dataDir.absolutePath,
             hostDataBasePath = dataDir.absolutePath,
             serversByNameRoot = "${dataDir.absolutePath}/servers-by-name",

@@ -89,7 +89,6 @@ buildx {
         .get()
     dockerfile = layout.buildDirectory.file("docker/Dockerfile")
         .get().asFile
-    buildArgs { put("APP_VERSION", gitVersion.get()) }
     labels { put("org.opencontainers.image.version", gitVersion.get()) }
     push = pushEnabled
     load = !pushEnabled

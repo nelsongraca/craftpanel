@@ -279,7 +279,7 @@ export default function ServerDetailPage() {
                         <>
                             <ChevronRight size={11} strokeWidth={2.5}/>
                             <Link
-                                href="/networks"
+                                href={`/servers?network=${network.id}`}
                                 className="hover:text-text-primary transition-colors"
                             >
                                 {network.name}

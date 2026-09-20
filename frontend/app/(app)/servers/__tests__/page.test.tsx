@@ -27,6 +27,15 @@ vi.mock("@/lib/ws-context", () => ({
     }),
 }));
 
+const nav = vi.hoisted(() => ({searchParams: new URLSearchParams()}));
+
+vi.mock("next/navigation", () => ({
+    useRouter: () => ({push: vi.fn(), replace: vi.fn(), back: vi.fn()}),
+    usePathname: () => "/",
+    useParams: () => ({}),
+    useSearchParams: () => nav.searchParams,
+}));
+
 vi.mock("@/lib/generated/sdk.gen", () => ({
     listServers: vi.fn(),
     listNodes: vi.fn(),
@@ -143,6 +152,7 @@ describe("ServersPage", () => {
     beforeEach(() => {
         vi.clearAllMocks();
         ws.clear();
+        nav.searchParams = new URLSearchParams();
     });
 
     describe("Loading state", () => {
@@ -210,6 +220,35 @@ describe("ServersPage", () => {
             expect(await screen.findAllByText("- / 2048 MB")).not.toHaveLength(0);
         });
 
+        it("shows '-' for CPU usage until metrics arrive, then the live value", async () => {
+            await renderWith({servers: [server()], nodes: [node()]});
+
+            expect(screen.getAllByText("- / 0.1 cores").length).toBeGreaterThan(0);
+
+            act(() => {
+                ws.emit("snapshot", {
+                    servers: [{id: "s1", metrics: {ram_used_mb: 512, cpu_percent: 42.5}}],
+                    nodes: [],
+                });
+            });
+
+            expect(await screen.findAllByText("42.5% / 0.1 cores")).not.toHaveLength(0);
+        });
+
+        it("updates CPU usage from the metrics stream and clears it when stopped", async () => {
+            await renderWith({servers: [server()], nodes: [node()]});
+
+            act(() => {
+                ws.emit("server.metrics", {server_id: "s1", ram_used_mb: 1024, cpu_percent: 63.2});
+            });
+            expect(await screen.findAllByText("63.2% / 0.1 cores")).not.toHaveLength(0);
+
+            act(() => {
+                ws.emit("server.status", {server_id: "s1", status: "STOPPED"});
+            });
+            expect(await screen.findAllByText("- / 0.1 cores")).not.toHaveLength(0);
+        });
+
         it("shows truncated node id when node not found in map", async () => {
             await renderWith({
                 servers: [server({node_id: "unknown-node-id-drstrange"})],
@@ -263,6 +302,18 @@ describe("ServersPage", () => {
             await waitFor(() => {
                 expect(screen.getByText(/No servers match/i)).toBeInTheDocument();
             });
+        });
+    });
+
+    describe("Network filter from URL", () => {
+        it("pre-filters the list from the network query param", async () => {
+            nav.searchParams = new URLSearchParams("network=net1");
+            const inNet = server({id: "s1", display_name: "Alpha", network_id: "net1"});
+            const other = server({id: "s2", display_name: "Beta", network_id: "net2"});
+            await renderWith({servers: [inNet, other], networks: [network()]});
+
+            expect(screen.getAllByText("Alpha").length).toBeGreaterThan(0);
+            expect(screen.queryByText("Beta")).not.toBeInTheDocument();
         });
     });
 

@@ -79,7 +79,6 @@ buildx {
         .get().asFile
     buildArgs {
         put("DOCKER_GID", dockerGidProvider.get())
-        put("APP_VERSION", gitVersion.get())
     }
     labels { put("org.opencontainers.image.version", gitVersion.get()) }
     push = pushEnabled

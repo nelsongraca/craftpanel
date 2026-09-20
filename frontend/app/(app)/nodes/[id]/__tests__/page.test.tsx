@@ -2,9 +2,10 @@ import {describe, it, expect, vi, beforeEach, afterEach} from "vitest";
 import {render, screen, waitFor, act} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const {subscribeMock, pushMock} = vi.hoisted(() => ({
+const {subscribeMock, pushMock, fetchMock} = vi.hoisted(() => ({
     subscribeMock: vi.fn(() => vi.fn()),
     pushMock: vi.fn(),
+    fetchMock: vi.fn(),
 }));
 
 vi.mock("@/lib/generated/sdk.gen", () => ({
@@ -175,6 +176,11 @@ async function renderDetail(
 describe("NodeDetailPage", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        fetchMock.mockReset();
+        fetchMock.mockResolvedValue({
+            json: async () => ({frontendVersion: "1.0.0", masterVersion: "1.0.0", versionMismatch: false}),
+        });
+        vi.stubGlobal("fetch", fetchMock);
         vi.stubGlobal("ResizeObserver", class {
             observe = vi.fn();
             disconnect = vi.fn();
@@ -354,6 +360,14 @@ describe("NodeDetailPage", () => {
             expect(screen.getByText("10.0.0.1")).toBeInTheDocument();
             expect(screen.getByText("Port Range")).toBeInTheDocument();
             expect(screen.getByText(/25565–25600/)).toBeInTheDocument();
+        });
+
+        it("warns when the agent build differs from master", async () => {
+            fetchMock.mockResolvedValue({
+                json: async () => ({frontendVersion: "x", masterVersion: "masterhash", versionMismatch: false}),
+            });
+            await renderDetail({agent_version: "oldhash"});
+            expect(await screen.findByTitle(/differs from master/)).toBeInTheDocument();
         });
 
         it("renders RAM and CPU usage bars", async () => {

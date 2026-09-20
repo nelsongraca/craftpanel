@@ -2,6 +2,7 @@ import craftpanel.dockerCacheEnabled
 import craftpanel.dockerImageBase
 import craftpanel.dockerImageTag
 import craftpanel.dockerPushEnabled
+import org.siouan.frontendgradleplugin.infrastructure.gradle.AssembleTask
 
 plugins {
     alias(libs.plugins.frontend)
@@ -43,8 +44,7 @@ tasks.register<Exec>("testFrontend") {
     val pnpm = layout.projectDirectory.file(".node/bin/pnpm").asFile
     if (withCoverage) {
         commandLine(pnpm, "run", "test:coverage")
-    }
-    else {
+    } else {
         commandLine(pnpm, "run", "test")
     }
 }
@@ -97,12 +97,18 @@ tasks.named("assemble") {
 val gitVersion = rootProject.extra["gitVersion"] as Provider<String>
 val pushEnabled = dockerPushEnabled(project)
 
+// Expose the git build hash to `next build` so Next inlines it into the server bundle
+// (NEXT_PUBLIC_ vars are hardcoded at build time). Gradle is the single source of the hash.
+tasks.named<AssembleTask>("assembleFrontend") {
+    inputs.property("craftpanelBuildVersion", gitVersion)
+    environmentVariables.put("NEXT_PUBLIC_CRAFTPANEL_BUILD_VERSION", gitVersion)
+}
+
 buildx {
     imageName = dockerImageBase(project, "frontend")
     tags = listOf(dockerImageTag(project))
     context = layout.projectDirectory
     dockerfile = file("Dockerfile")
-    buildArgs { put("APP_VERSION", gitVersion.get()) }
     labels { put("org.opencontainers.image.version", gitVersion.get()) }
     push = pushEnabled
     load = !pushEnabled

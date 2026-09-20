@@ -3,7 +3,9 @@ import {NextResponse} from "next/server";
 const MASTER_URL = process.env.MASTER_URL ?? "http://localhost:8080";
 
 export async function GET() {
-    const frontendVersion = process.env.APP_VERSION ?? "unknown";
+    // Inlined at build time by Next (NEXT_PUBLIC_ vars are hardcoded into the bundle);
+    // a plain env var under vitest. Gradle sets it on assembleFrontend from the git hash.
+    const frontendVersion = process.env.NEXT_PUBLIC_CRAFTPANEL_BUILD_VERSION ?? "unknown";
     let masterVersion = "unknown";
 
     try {

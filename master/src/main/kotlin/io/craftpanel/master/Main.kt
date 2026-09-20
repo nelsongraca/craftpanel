@@ -1,5 +1,6 @@
 package io.craftpanel.master
 
+import io.craftpanel.common.BuildInfo
 import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.JwtManager
 import io.craftpanel.master.config.AppConfig
@@ -137,8 +138,7 @@ fun Application.module() {
                 this@module.log.warn("CORS: no PUBLIC_URLS configured — allowing all origins (dev mode)")
                 anyHost()
             }
-        }
-        else {
+        } else {
             for (origin in appConfig.cors.origins) {
                 allowHost(origin.host, schemes = listOf(origin.scheme))
             }
@@ -237,7 +237,7 @@ fun Application.module() {
     }
 
     routing {
-        get("health") { call.respond(mapOf("status" to "ok", "version" to (System.getenv("APP_VERSION") ?: "unknown"))) }
+        get("health") { call.respond(mapOf("status" to "ok", "version" to BuildInfo.version)) }
         route("openapi.json") { openApi() }
         route("swagger") { swaggerUI("/openapi.json") }
         registerAppRoutes()

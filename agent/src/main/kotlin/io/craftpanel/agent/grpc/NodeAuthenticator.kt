@@ -3,6 +3,7 @@ package io.craftpanel.agent.grpc
 import io.craftpanel.agent.auth.NodeKeyStore
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.docker.MetricsCollector
+import io.craftpanel.common.BuildInfo
 import io.craftpanel.proto.*
 import io.grpc.ManagedChannel
 import org.slf4j.LoggerFactory
@@ -24,7 +25,7 @@ class NodeAuthenticator(private val config: AgentConfig, private val metricsColl
             hostname = config.hostnameOverride.ifBlank { InetAddress.getLocalHost().hostName }
             publicIp = resolvePublicIp()
             privateIp = resolvePrivateIp()
-            agentVersion = config.agentVersion
+            agentVersion = BuildInfo.version
             this.totalRamMb = maxOf(0, totalRamMb)
             this.totalCpuMillicores = totalCpuMillicores
             this.reservedRamMb = maxOf(0, config.systemReservedRamMb)

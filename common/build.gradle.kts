@@ -1,3 +1,6 @@
+import org.gradle.api.tasks.WriteProperties
+import org.gradle.language.jvm.tasks.ProcessResources
+
 plugins {
     alias(libs.plugins.kotlin.jvm)
     alias(libs.plugins.kover)
@@ -13,6 +16,26 @@ java {
 
 sourceSets.main {
     proto.srcDir("${rootProject.projectDir}/proto")
+}
+
+// Build hash baked into this jar at build time. Master and agent both read it from the
+// shared jar on the classpath, so it reflects the exact commit the image was built from and
+// cannot be overridden at runtime via env vars or mounted files.
+@Suppress("UNCHECKED_CAST")
+val gitVersion = rootProject.extra["gitVersion"] as Provider<String>
+
+val generateBuildInfo by tasks.registering(WriteProperties::class) {
+    destinationFile.set(layout.buildDirectory.file("generated/buildinfo/build-info.properties"))
+    property("version", gitVersion)
+    inputs.property("version", gitVersion)
+}
+
+sourceSets.named("main") {
+    resources.srcDir(layout.buildDirectory.dir("generated/buildinfo"))
+}
+
+tasks.named<ProcessResources>("processResources") {
+    dependsOn(generateBuildInfo)
 }
 
 dependencies {

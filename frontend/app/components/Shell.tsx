@@ -9,12 +9,7 @@ import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import {DropdownMenu, DropdownMenuContent, DropdownMenuGroup, DropdownMenuItem, DropdownMenuLabel, DropdownMenuTrigger} from "@/components/ui/dropdown-menu";
 import {fetchBrandingConfig, logoUrl, type BrandingConfig} from "@/lib/config";
-
-interface HealthInfo {
-    frontendVersion: string;
-    masterVersion: string;
-    versionMismatch: boolean;
-}
+import {useHealth} from "@/lib/hooks/useHealth";
 
 interface SidebarItem {
     label: string;
@@ -63,7 +58,7 @@ export default function Shell({children}: { children: React.ReactNode }) {
     const pathname = usePathname();
     const {user, logout} = useAuth();
     const [drawerOpen, setDrawerOpen] = useState(false);
-    const [health, setHealth] = useState<HealthInfo | null>(null);
+    const health = useHealth();
     const [branding, setBranding] = useState<BrandingConfig | null>(null);
 
     const permissions = user?.permissions ?? [];
@@ -74,17 +69,15 @@ export default function Shell({children}: { children: React.ReactNode }) {
         });
     }, []);
 
-    useEffect(() => {
-        fetch("/healthz")
-            .then((res) => res.json())
-            .then(setHealth)
-            .catch(() => setHealth(null));
-    }, []);
-
     // Close the mobile drawer after navigation, else it covers the page just opened.
     useEffect(() => {
         setDrawerOpen(false);
     }, [pathname]);
+
+    const versionsMatch = !!health
+        && health.frontendVersion !== "unknown"
+        && health.masterVersion !== "unknown"
+        && health.frontendVersion === health.masterVersion;
 
     return (
         <div className="flex flex-col flex-1 min-h-0">
@@ -201,7 +194,9 @@ export default function Shell({children}: { children: React.ReactNode }) {
                         </span>
                     )}
                     <span className="text-xs font-mono text-text-muted">
-                        frontend {health?.frontendVersion ?? "…"} · master {health?.masterVersion ?? "…"}
+                        {versionsMatch
+                            ? `version ${health.frontendVersion}`
+                            : `frontend ${health?.frontendVersion ?? "…"} · master ${health?.masterVersion ?? "…"}`}
                     </span>
                 </div>
             </footer>

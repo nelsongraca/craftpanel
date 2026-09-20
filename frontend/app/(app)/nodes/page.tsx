@@ -2,7 +2,7 @@
 
 import {useEffect, useState} from "react";
 import {useRouter} from "next/navigation";
-import {Ban, Check, KeyRound, Pencil, Power, Trash2, X} from "lucide-react";
+import {Ban, Check, KeyRound, Pencil, Power, Trash2, X, AlertTriangle} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
 import {decommissionNode, listNodes, listServers, rejectNode, rotateNodeToken, shutdownNode, trustNode,} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
@@ -12,6 +12,7 @@ import {EditNodeModal} from "@/components/nodes/EditNodeModal";
 import {timeAgo, fmtMb, fillColor, fmtPct} from "@/lib/utils/format";
 import {TokenModal} from "@/components/nodes/TokenModal";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
+import {useHealth} from "@/lib/hooks/useHealth";
 import {useResourceList} from "@/lib/hooks/useResourceList";
 import {useWs} from "@/lib/ws-context";
 import {nodeDisplayStatus, nodeStatusLabel, nodeStatusVariant} from "@/lib/status";
@@ -145,6 +146,7 @@ export default function NodesPage() {
     const permissions = user?.permissions ?? [];
 
     const {data: nodes, initialLoad, reload: reloadNodes, setData: setNodes} = useResourceList(listNodes, []);
+    const health = useHealth();
     const [serverCounts, setServerCounts] = useState<Record<string, number>>({});
     const [actionError, setActionError] = useState<string | null>(null);
     const [pendingAction, setPendingAction] = useState<Record<string, string>>({});
@@ -155,6 +157,14 @@ export default function NodesPage() {
     // Modals
     const [editNode, setEditNode] = useState<Node | null>(null);
     const [tokenKey, setTokenKey] = useState<string | null>(null);
+
+    // Agent reports its own build hash; a different hash from master means one of them
+    // was not redeployed from the same commit.
+    function agentVersionMismatch(node: Node): boolean {
+        const version = node.agent_version;
+        return !!health && !!version && version !== "unknown"
+            && health.masterVersion !== "unknown" && version !== health.masterVersion;
+    }
 
     useEffect(() => {
         listServers().then(({data: serverData}) => {
@@ -393,6 +403,24 @@ export default function NodesPage() {
                             render: (n) => <span className="font-mono text-xs text-text-dim">{serverCounts[n.id] ?? 0}</span>,
                         },
                         {
+                            key: "version",
+                            header: "Version",
+                            label: "Version",
+                            render: (n) => (
+                                <span className="flex items-center gap-1 font-mono text-xs text-text-dim">
+                                    {n.agent_version ?? "—"}
+                                    {agentVersionMismatch(n) && (
+                                        <span
+                                            className="text-warning"
+                                            title={`Agent build differs from master (${health?.masterVersion}) — either master or agent is not updated`}
+                                        >
+                                            <AlertTriangle size={11} strokeWidth={2.5}/>
+                                        </span>
+                                    )}
+                                </span>
+                            ),
+                        },
+                        {
                             key: "lastSeen",
                             header: "Last Seen",
                             label: "Last seen",
@@ -452,6 +480,13 @@ export default function NodesPage() {
                                     <div>
                                         <p className="text-xs text-text-muted">Last seen</p>
                                         <p className={`font-mono text-xs ${stale ? "text-error" : "text-text-muted"}`}>{lastSeen ? timeAgo(lastSeen) : "never"}</p>
+                                    </div>
+                                    <div>
+                                        <p className="text-xs text-text-muted">Version</p>
+                                        <p className="flex items-center gap-1 font-mono text-xs text-text-dim">
+                                            {node.agent_version ?? "—"}
+                                            {agentVersionMismatch(node) && <AlertTriangle size={11} strokeWidth={2.5} className="text-warning"/>}
+                                        </p>
                                     </div>
                                 </div>
                                 <div className="mt-2.5 flex justify-end" onClick={(e) => e.stopPropagation()}>

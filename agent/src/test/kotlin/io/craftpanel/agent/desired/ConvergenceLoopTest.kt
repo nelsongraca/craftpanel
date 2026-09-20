@@ -34,7 +34,6 @@ class ConvergenceLoopTest :
             bootstrapToken = "test-token-16chars",
             keyFilePath = "/etc/craftpanel/node.key",
             dockerSocketPath = "unix:///var/run/docker.sock",
-            agentVersion = "test",
             dataBasePath = symlinkTempRoot.absolutePath,
             hostDataBasePath = symlinkTempRoot.absolutePath,
             serversByNameRoot = symlinkTempRoot.absolutePath,

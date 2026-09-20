@@ -2,9 +2,12 @@ import {describe, it, expect, vi, beforeEach} from "vitest";
 import {render, screen, waitFor, act} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 
-const {subscribeMock} = vi.hoisted(() => ({
+const {subscribeMock, fetchMock} = vi.hoisted(() => ({
     subscribeMock: vi.fn(() => vi.fn()),
+    fetchMock: vi.fn(),
 }));
+
+vi.stubGlobal("fetch", fetchMock);
 
 vi.mock("@/lib/generated/sdk.gen", () => ({
     listNodes: vi.fn(),
@@ -130,6 +133,10 @@ async function openEdit(): Promise<ReturnType<typeof userEvent.setup>> {
 describe("NodesPage", () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        fetchMock.mockReset();
+        fetchMock.mockResolvedValue({
+            json: async () => ({frontendVersion: "1.0.0", masterVersion: "1.0.0", versionMismatch: false}),
+        });
     });
 
     describe("Loading state", () => {
@@ -171,6 +178,24 @@ describe("NodesPage", () => {
             expect(screen.getAllByText("0% / 100%").length).toBeGreaterThan(0);
             expect(screen.getAllByText("1").length).toBeGreaterThan(0);
             expect(screen.getAllByText(/ago/).length).toBeGreaterThan(0);
+        });
+
+        it("shows the agent build version", async () => {
+            await renderWith({nodes: [node({agent_version: "abc1234"})]});
+            expect(screen.getAllByText("abc1234").length).toBeGreaterThan(0);
+        });
+
+        it("warns when the agent build differs from master", async () => {
+            fetchMock.mockResolvedValue({
+                json: async () => ({frontendVersion: "x", masterVersion: "masterhash", versionMismatch: false}),
+            });
+            await renderWith({nodes: [node({agent_version: "oldhash"})]});
+            expect(await screen.findByTitle(/differs from master/)).toBeInTheDocument();
+        });
+
+        it("shows no mismatch warning when the agent matches master", async () => {
+            await renderWith({nodes: [node({agent_version: "1.0.0"})]});
+            expect(screen.queryByTitle(/differs from master/)).not.toBeInTheDocument();
         });
     });
 

@@ -9,7 +9,7 @@ import {GET} from './route'
 describe('healthz GET', () => {
     beforeEach(() => {
         fetchMock.mockReset()
-        delete process.env.APP_VERSION
+        delete process.env.NEXT_PUBLIC_CRAFTPANEL_BUILD_VERSION
         delete process.env.MASTER_URL
     })
 
@@ -18,7 +18,7 @@ describe('healthz GET', () => {
     })
 
     it('reports ok with matching versions', async () => {
-        vi.stubEnv('APP_VERSION', '1.0.0')
+        vi.stubEnv('NEXT_PUBLIC_CRAFTPANEL_BUILD_VERSION', '1.0.0')
         fetchMock.mockResolvedValue({
             ok: true,
             json: async () => ({version: '1.0.0'}),
@@ -35,7 +35,7 @@ describe('healthz GET', () => {
     })
 
     it('flags a version mismatch', async () => {
-        vi.stubEnv('APP_VERSION', '2.0.0')
+        vi.stubEnv('NEXT_PUBLIC_CRAFTPANEL_BUILD_VERSION', '2.0.0')
         fetchMock.mockResolvedValue({
             ok: true,
             json: async () => ({version: '1.0.0'}),
@@ -48,7 +48,7 @@ describe('healthz GET', () => {
     })
 
     it('falls back to unknown when master is unhealthy', async () => {
-        vi.stubEnv('APP_VERSION', '1.0.0')
+        vi.stubEnv('NEXT_PUBLIC_CRAFTPANEL_BUILD_VERSION', '1.0.0')
         fetchMock.mockResolvedValue({ok: false})
 
         const res = await GET()
@@ -59,7 +59,7 @@ describe('healthz GET', () => {
     })
 
     it('falls back to unknown when master is unreachable', async () => {
-        vi.stubEnv('APP_VERSION', '1.0.0')
+        vi.stubEnv('NEXT_PUBLIC_CRAFTPANEL_BUILD_VERSION', '1.0.0')
         fetchMock.mockRejectedValue(new Error('ECONNREFUSED'))
 
         const res = await GET()
@@ -70,7 +70,7 @@ describe('healthz GET', () => {
     })
 
     it('falls back to unknown when master omits a version', async () => {
-        vi.stubEnv('APP_VERSION', '1.0.0')
+        vi.stubEnv('NEXT_PUBLIC_CRAFTPANEL_BUILD_VERSION', '1.0.0')
         fetchMock.mockResolvedValue({
             ok: true,
             json: async () => ({}),
@@ -83,7 +83,7 @@ describe('healthz GET', () => {
         expect(body.versionMismatch).toBe(false)
     })
 
-    it('reports unknown versions when APP_VERSION is unset', async () => {
+    it('reports unknown versions when NEXT_PUBLIC_CRAFTPANEL_BUILD_VERSION is unset', async () => {
         fetchMock.mockResolvedValue({
             ok: true,
             json: async () => ({version: '1.0.0'}),

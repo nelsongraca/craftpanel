@@ -14,7 +14,6 @@ data class AgentConfig(
     val bootstrapToken: String,
     val keyFilePath: String,
     val dockerSocketPath: String,
-    val agentVersion: String,
     val dataBasePath: String,
     val hostDataBasePath: String,
     // Root for the human-readable `servers-by-name/<name>` symlink overlay.
@@ -78,7 +77,6 @@ data class AgentConfig(
                 bootstrapToken = secretFromFileOrEnv("NODE_BOOTSTRAP_TOKEN", "changeme"),
                 keyFilePath = System.getenv("NODE_KEY_FILE") ?: "/app/config/node.key",
                 dockerSocketPath = System.getenv("DOCKER_SOCKET") ?: "unix:///var/run/docker.sock",
-                agentVersion = System.getenv("AGENT_VERSION") ?: "dev",
                 dataBasePath = dataPath,
                 hostDataBasePath = System.getenv("HOST_DATA_PATH") ?: dataPath,
                 serversByNameRoot = System.getenv("SERVERS_BY_NAME_PATH")

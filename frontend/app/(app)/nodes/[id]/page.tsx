@@ -3,7 +3,7 @@
 import {useCallback, useEffect, useState} from "react";
 import {useParams, useRouter} from "next/navigation";
 import Link from "next/link";
-import {Ban, Check, ChevronRight, KeyRound, Pencil, Power, Trash2, X,} from "lucide-react";
+import {Ban, Check, ChevronRight, KeyRound, Pencil, Power, Trash2, X, AlertTriangle,} from "lucide-react";
 import {CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,} from "recharts";
 import {decommissionNode, getNode, getNodeMetrics, listServers, rejectNode, rotateNodeToken, shutdownNode, trustNode,} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
@@ -14,6 +14,7 @@ import {timeAgo, fmtBytes, fmtMb, fmtBytesNetworkIo, fillColorBg, fmtPct, fmtCpu
 import {TokenModal} from "@/components/nodes/TokenModal";
 import type {ServerResponse as Server} from "@/lib/generated/types.gen";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
+import {useHealth} from "@/lib/hooks/useHealth";
 import {HeaderActionButton} from "@/components/servers/header-action-button";
 
 import {nodeStatusLabel, nodeStatusVariant, serverStatusLabel, serverStatusVariant} from "@/lib/status";
@@ -69,10 +70,16 @@ type Tab = (typeof TABS)[number];
 // ── Overview tab ──────────────────────────────────────────────────────────────
 
 function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
+    const health = useHealth();
     const cpuPct = node.total_cpu_millicores > 0 ? Math.min(100, (node.allocated_cpu_millicores / node.total_cpu_millicores) * 100) : 0;
     const ramUsedMb = Math.max(node.allocated_ram_mb, node.system_ram_used_mb ?? 0);
     const ramUsagePct = node.total_ram_mb > 0 ? Math.min(100, (ramUsedMb / node.total_ram_mb) * 100) : 0;
     const cpuUsagePct = node.system_cpu_percent != null ? Math.min(100, node.system_cpu_percent) : 0;
+    // Agent reports its own build hash; a different hash from master means one of them
+    // was not redeployed from the same commit.
+    const agentVersion = node.agent_version;
+    const agentMismatch = !!health && !!agentVersion && agentVersion !== "unknown"
+        && health.masterVersion !== "unknown" && agentVersion !== health.masterVersion;
 
     return (
         <div className="px-6 py-6 space-y-6">
@@ -122,7 +129,19 @@ function OverviewTab({node, servers}: { node: Node; servers: Server[] }) {
                 <InfoRow label="Public IP" value={node.public_ip}/>
                 <InfoRow label="Private IP" value={node.private_ip}/>
                 <InfoRow label="Port Range" value={`${node.port_range_start}–${node.port_range_end}`}/>
-                <InfoRow label="Agent" value={node.agent_version ?? "-"}/>
+                <InfoRow label="Agent" value={
+                    <span className="inline-flex items-center gap-1">
+                        {node.agent_version ?? "-"}
+                        {agentMismatch && (
+                            <span
+                                className="text-warning"
+                                title={`Agent build differs from master (${health?.masterVersion}) — either master or agent is not updated`}
+                            >
+                                <AlertTriangle size={11} strokeWidth={2.5} className="inline"/>
+                            </span>
+                        )}
+                    </span>
+                }/>
                 <InfoRow label="RAM Total" value={fmtMb(node.total_ram_mb)}/>
                 <InfoRow label="RAM Reserved" value={fmtMb(node.reserved_ram_mb)}/>
                 <InfoRow label="CPU Total" value={fmtCpuCores(node.total_cpu_millicores)}/>

@@ -1,7 +1,7 @@
 "use client";
 
 import {useEffect, useMemo, useState} from "react";
-import {useRouter} from "next/navigation";
+import {useRouter, useSearchParams} from "next/navigation";
 import Link from "next/link";
 import {CopyPlus, Play, Plus, RotateCcw, Skull, Square, Trash2, Upload, X} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
@@ -15,7 +15,7 @@ import {useWs} from "@/lib/ws-context";
 import {IconActionButton} from "@/components/ui/list-table";
 import {SmartList} from "@/components/ui/smart-list";
 import type {SmartListColumn} from "@/components/ui/smart-list";
-import {fillColor} from "@/lib/utils/format";
+import {fillColor, fmtCpuLimit} from "@/lib/utils/format";
 import {serverDisabled, serverExpired, serverStatusLabel, serverStatusVariant} from "@/lib/status";
 import {Badge} from "@/components/ui/badge";
 import {SelectField} from "@/components/ui/form-elements";
@@ -44,6 +44,27 @@ function RamBar({total, used}: { total: number; used?: number }) {
         <div className="flex flex-col gap-1">
       <span className="font-mono text-xs text-text-muted whitespace-nowrap">
         {hasData ? `${used} / ${total} MB` : `- / ${total} MB`}
+      </span>
+            <div className="w-20 h-1 rounded-full" style={{background: "var(--border)"}}>
+                {hasData && pct > 0 && (
+                    <div
+                        className="h-full rounded-full"
+                        style={{width: `${pct}%`, background: fillColor(pct)}}
+                    />
+                )}
+            </div>
+        </div>
+    );
+}
+
+
+function CpuBar({percent, limitMillicores}: { percent?: number; limitMillicores: number }) {
+    const hasData = percent != null;
+    const pct = hasData ? Math.min(100, percent!) : 0;
+    return (
+        <div className="flex flex-col gap-1">
+      <span className="font-mono text-xs text-text-muted whitespace-nowrap">
+        {hasData ? `${percent!.toFixed(1)}% / ${fmtCpuLimit(limitMillicores)}` : `- / ${fmtCpuLimit(limitMillicores)}`}
       </span>
             <div className="w-20 h-1 rounded-full" style={{background: "var(--border)"}}>
                 {hasData && pct > 0 && (
@@ -125,7 +146,7 @@ function ServerActions({
     );
 }
 
-type SortKey = "name" | "type" | "status" | "ram" | "node";
+type SortKey = "name" | "type" | "status" | "ram" | "cpu" | "node";
 type SortDir = "asc" | "desc";
 
 function SortIndicator({active, dir}: { active: boolean; dir: SortDir }) {
@@ -133,7 +154,7 @@ function SortIndicator({active, dir}: { active: boolean; dir: SortDir }) {
     return <span className="text-accent ml-1">{dir === "asc" ? "↑" : "↓"}</span>;
 }
 
-function sortServers(servers: Server[], key: SortKey | null, dir: SortDir, nodeMap: Record<string, Node>): Server[] {
+function sortServers(servers: Server[], key: SortKey | null, dir: SortDir, nodeMap: Record<string, Node>, cpuUsage: Record<string, number>): Server[] {
     if (!key) return servers;
     const factor = dir === "asc" ? 1 : -1;
     const valueOf = (s: Server): string | number => {
@@ -146,6 +167,8 @@ function sortServers(servers: Server[], key: SortKey | null, dir: SortDir, nodeM
                 return s.status.toLowerCase();
             case "ram":
                 return s.memory_mb;
+            case "cpu":
+                return cpuUsage[s.id] ?? -1;
             case "node":
                 return (nodeMap[s.node_id]?.display_name ?? s.node_id).toLowerCase();
         }
@@ -161,6 +184,7 @@ function sortServers(servers: Server[], key: SortKey | null, dir: SortDir, nodeM
 
 export default function ServersPage() {
     const router = useRouter();
+    const searchParams = useSearchParams();
     const {user} = useAuth();
     const {subscribe} = useWs();
     const permissions = user?.permissions ?? [];
@@ -168,8 +192,9 @@ export default function ServersPage() {
     const {data: servers, initialLoad, reload: reloadServers} = useResourceList(listServers, []);
     const [nodes, setNodes] = useState<Node[]>([]);
     const [networks, setNetworks] = useState<Network[]>([]);
-    // Live container RAM usage by server id, from the WS snapshot + metrics stream.
+    // Live container RAM/CPU usage by server id, from the WS snapshot + metrics stream.
     const [ramUsage, setRamUsage] = useState<Record<string, number>>({});
+    const [cpuUsage, setCpuUsage] = useState<Record<string, number>>({});
     const [actionError, setActionError] = useState<string | null>(null);
     const [pendingAction, setPendingAction] = useState<Record<string, string>>({});
     const {confirm, dialog} = useConfirmDialog();
@@ -181,7 +206,7 @@ export default function ServersPage() {
 
     const [search, setSearch] = useState("");
     const [filterStatus, setFilterStatus] = useState("");
-    const [filterNetwork, setFilterNetwork] = useState("");
+    const [filterNetwork, setFilterNetwork] = useState(searchParams.get("network") ?? "");
     const [filterNode, setFilterNode] = useState("");
     const [filterType, setFilterType] = useState("");
 
@@ -211,23 +236,31 @@ export default function ServersPage() {
 
     useEffect(() => {
         const unsubSnapshot = subscribe("snapshot", (payload) => {
-            const next: Record<string, number> = {};
+            const nextRam: Record<string, number> = {};
+            const nextCpu: Record<string, number> = {};
             for (const s of payload.servers ?? []) {
-                if (s.metrics) next[s.id] = s.metrics.ram_used_mb;
+                if (s.metrics) {
+                    nextRam[s.id] = s.metrics.ram_used_mb;
+                    nextCpu[s.id] = s.metrics.cpu_percent;
+                }
             }
-            setRamUsage(next);
+            setRamUsage(nextRam);
+            setCpuUsage(nextCpu);
         });
         const unsubMetrics = subscribe("server.metrics", (payload) => {
             setRamUsage((prev) => ({...prev, [payload.server_id]: payload.ram_used_mb}));
+            setCpuUsage((prev) => ({...prev, [payload.server_id]: payload.cpu_percent}));
         });
         const unsubStatus = subscribe("server.status", (payload) => {
             if (payload.status !== "STOPPED") return;
-            setRamUsage((prev) => {
+            const drop = (prev: Record<string, number>) => {
                 if (!(payload.server_id in prev)) return prev;
                 const next = {...prev};
                 delete next[payload.server_id];
                 return next;
-            });
+            };
+            setRamUsage(drop);
+            setCpuUsage(drop);
         });
         return () => {
             unsubSnapshot();
@@ -263,8 +296,8 @@ export default function ServersPage() {
     });
 
     const sortedServers = useMemo(
-        () => sortServers(filteredServers, sortKey, sortDir, nodeMap),
-        [filteredServers, sortKey, sortDir, nodeMap]
+        () => sortServers(filteredServers, sortKey, sortDir, nodeMap, cpuUsage),
+        [filteredServers, sortKey, sortDir, nodeMap, cpuUsage]
     );
 
     const ACTION_FNS = {
@@ -409,6 +442,13 @@ export default function ServersPage() {
             render: (server) => <RamBar total={server.memory_mb} used={ramUsage[server.id]}/>,
         },
         {
+            key: "cpu",
+            header: <>CPU<SortIndicator active={sortKey === "cpu"} dir={sortDir}/></>,
+            headerClassName: "cursor-pointer select-none hover:text-accent",
+            onHeaderClick: () => toggleSort("cpu"),
+            render: (server) => <CpuBar percent={cpuUsage[server.id]} limitMillicores={server.cpu_limit_millicores}/>,
+        },
+        {
             key: "node",
             header: <>Node<SortIndicator active={sortKey === "node"} dir={sortDir}/></>,
             headerClassName: "cursor-pointer select-none hover:text-accent",
@@ -460,8 +500,11 @@ export default function ServersPage() {
                     </div>
                     <Badge variant={serverStatusVariant(status)}>{serverStatusLabel(status)}</Badge>
                 </div>
-                <div className="mt-2.5 flex items-center justify-between gap-2">
-                    <RamBar total={server.memory_mb} used={ramUsage[server.id]}/>
+                <div className="mt-2.5 flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-4">
+                        <RamBar total={server.memory_mb} used={ramUsage[server.id]}/>
+                        <CpuBar percent={cpuUsage[server.id]} limitMillicores={server.cpu_limit_millicores}/>
+                    </div>
                     <div onClick={(e) => e.stopPropagation()}>
                         {renderActions(server)}
                     </div>
