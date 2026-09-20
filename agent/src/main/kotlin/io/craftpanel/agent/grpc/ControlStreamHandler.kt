@@ -8,14 +8,11 @@ import io.craftpanel.proto.*
 import io.grpc.ManagedChannel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import org.slf4j.LoggerFactory
-import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
-import kotlin.time.TimeSource
 
 class ControlStreamHandler(
     private val identity: NodeIdentity,
@@ -36,15 +33,12 @@ class ControlStreamHandler(
     suspend fun run(channel: ManagedChannel, realtimeChannel: Channel<AgentMessage>, telemetryChannel: Channel<AgentMessage>): Unit = coroutineScope {
         val stub = ControlServiceGrpcKt.ControlServiceCoroutineStub(channel)
 
-        // Merge the two lanes into the single client-stream the gRPC stub consumes. Realtime
-        // messages (console, status, acks) can never be displaced by telemetry backlog.
-        val stream = stub.control(merge(realtimeChannel.receiveAsFlow(), telemetryChannel.receiveAsFlow()))
-
         // The desired-state convergence loop runs as long as this connection; cancel its jobs
         // (crash-restart, pending converge) when the stream/scope dies.
         coroutineContext.job.invokeOnCompletion { convergenceScope.cancel() }
 
-        // Send NodeStateSnapshot as the first message
+        // Send NodeStateSnapshot as the first message. It is buffered on the realtime lane BEFORE
+        // the request flow starts, so no telemetry frame can precede it in the stream.
         val snapshot = buildStateSnapshot()
         out.send {
             nodeState = snapshot
@@ -54,15 +48,26 @@ class ControlStreamHandler(
             snapshot.containersList.joinToString { "${it.serverId.ifEmpty { "?" }}=${it.runState}" }
         )
 
+        // The gRPC client-stream is fed by the realtime lane. Realtime messages (console, status,
+        // acks) can never be displaced by telemetry backlog.
+        val stream = stub.control(realtimeChannel.receiveAsFlow())
+
+        // Best-effort telemetry pump: forwards the delay-tolerant lane into the request stream
+        // only when there is room. A full realtime lane drops telemetry rather than displacing it,
+        // and the metrics loop never blocks because its own channel is DROP_OLDEST.
+        launch {
+            telemetryChannel.receiveAsFlow()
+                .collect { msg -> realtimeChannel.trySend(msg) }
+        }
+
         // Periodic metrics loop. Emit once immediately on connect so a freshly-opened detail page
-        // has live data without waiting a full poll interval, then settle into the fixed cadence.
-        // Container collection is fanned out concurrently (bounded) so a node with many servers
-        // refreshes each server at roughly the poll interval rather than the sum of every call.
+        // has live data without waiting a full poll interval. Container collection is fanned out
+        // concurrently (bounded) so a node with many servers refreshes each server at roughly the
+        // poll interval rather than the sum of every call.
         val metricsInterval = config.metricsPollIntervalSeconds.toLong().seconds
         val statsSemaphore = Semaphore(config.metricsCollectionConcurrency)
         launch {
             while (true) {
-                val tickStart = TimeSource.Monotonic.markNow()
                 runCatching {
                     Heartbeat.beat()
                     val routerRunning = routerSupervisor.isRunning
@@ -101,9 +106,10 @@ class ControlStreamHandler(
                     log.warn("Metrics tick failed — keeping the stream alive", e)
                 }
 
-                // Fixed cadence: collection overrun shortens the wait instead of compounding.
-                val elapsed = tickStart.elapsedNow()
-                delay((metricsInterval - elapsed).coerceAtLeast(Duration.ZERO))
+                // Delay AFTER collection (not a fixed wall-clock cadence): the player-count pings
+                // share mc-router with the data path, so a tick that ran long must not immediately
+                // start the next one and multiply that load.
+                delay(metricsInterval)
             }
         }
 
