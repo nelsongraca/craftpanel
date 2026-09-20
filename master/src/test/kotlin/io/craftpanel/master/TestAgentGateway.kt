@@ -16,6 +16,11 @@ class TestAgentGateway(override val agentEvents: SharedFlow<AgentEvent> = Mutabl
         return sendResult
     }
 
+    override suspend fun sendToNodeSuspending(nodeId: String, msg: MasterMessage): Boolean {
+        sent.add(nodeId to msg)
+        return sendResult
+    }
+
     override fun rebuildSymlinks(nodeId: String) {
         symlinkRebuilds.add(nodeId)
     }

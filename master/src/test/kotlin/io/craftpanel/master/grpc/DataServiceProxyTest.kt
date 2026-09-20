@@ -59,7 +59,11 @@ class DataServiceProxyTest :
                 serverRepository = repos.serverRepository,
                 backupRepository = repos.backupRepository
             )
-            val agentDataOps = AgentDataOps(dataOpContext) { nodeId, msg -> controlSvc.sendToNode(nodeId, msg) }
+            val agentDataOps = AgentDataOps(
+                dataOpContext,
+                { nodeId, msg -> controlSvc.sendToNode(nodeId, msg) },
+                { nodeId, msg -> controlSvc.sendToNodeSuspending(nodeId, msg) }
+            )
             proxy = DataServiceProxy(agentDataOps, BulkDataServiceImpl(createTestNodeRegistrar(nodeRepository = nodeRepository)), repos.serverRepository)
         }
 

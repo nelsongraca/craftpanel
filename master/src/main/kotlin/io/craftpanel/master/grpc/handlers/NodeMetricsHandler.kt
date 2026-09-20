@@ -39,7 +39,9 @@ class NodeMetricsHandler(private val agentEvents: MutableSharedFlow<AgentEvent>,
             diskTotalBytes = nodeMetrics.diskTotalBytes,
             recordedAt = recordedAt
         )
-        agentEvents.emit(nodeMetricEvent)
+        if (!agentEvents.tryEmit(nodeMetricEvent)) {
+            log.debug("Dropped node metrics event for node {} — agent event buffer full", nodeId)
+        }
         val newHealth = if (nodeMetrics.routerRunning) NodeHealth.HEALTHY else NodeHealth.DEGRADED
         if (newHealth != lastEmittedHealth.get()) {
             lastEmittedHealth.set(newHealth)

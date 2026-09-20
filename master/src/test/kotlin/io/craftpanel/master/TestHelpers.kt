@@ -20,8 +20,9 @@ fun createTestNodeRegistrar(nodeConfig: NodeConfig = NodeConfig("test-token", 50
 
 fun createTestAgentDataOps(
     dataOpContext: DataOpContext = DataOpContext(ConcurrentHashMap(), ConcurrentHashMap()),
-    sendToNode: (String, io.craftpanel.proto.MasterMessage) -> Boolean = { _, _ -> false }
-): AgentDataOps = AgentDataOps(dataOpContext, sendToNode)
+    sendToNode: (String, io.craftpanel.proto.MasterMessage) -> Boolean = { _, _ -> false },
+    sendToNodeSuspending: suspend (String, io.craftpanel.proto.MasterMessage) -> Boolean = { nodeId, msg -> sendToNode(nodeId, msg) }
+): AgentDataOps = AgentDataOps(dataOpContext, sendToNode, sendToNodeSuspending)
 
 fun createTestControlServiceImpl(
     nodeConfig: NodeConfig = NodeConfig("test-token", 50052),

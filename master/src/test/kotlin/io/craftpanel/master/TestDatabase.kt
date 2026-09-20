@@ -1,5 +1,6 @@
 package io.craftpanel.master
 
+import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.database.SchemaMigrator
 import io.craftpanel.master.database.migrations.seedSystemGroups
 import io.craftpanel.master.database.schema.*
@@ -37,5 +38,8 @@ object TestDatabase {
             ).forEach { it.deleteAll() }
             seedSystemGroups()
         }
+        // The resolver caches grants for 60s; clear it so one test's users/groups never leak
+        // into another's permission checks.
+        PermissionResolver.invalidateAll()
     }
 }

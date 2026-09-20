@@ -14,6 +14,7 @@ import io.grpc.ManagedChannel
 import io.grpc.netty.GrpcSslContexts
 import io.grpc.netty.NettyChannelBuilder
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import org.koin.core.Koin
 import org.koin.core.parameter.parametersOf
@@ -98,8 +99,12 @@ class ConnectionManager(
                         coroutineScope.launch { supervisor.run() }
                     }
 
-                    val outboundChannel = Channel<AgentMessage>(capacity = 64)
-                    val out = AgentOutbound(outboundChannel, identity.nodeId)
+                    // Two outbound lanes: console/status/acks must not be starved by telemetry,
+                    // and telemetry must never back-pressure the metrics collector. The telemetry
+                    // lane drops its oldest sample when saturated.
+                    val realtimeChannel = Channel<AgentMessage>(capacity = 256)
+                    val telemetryChannel = Channel<AgentMessage>(capacity = 64, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+                    val out = AgentOutbound(realtimeChannel, telemetryChannel, identity.nodeId)
                     // Per-connection convergence: owns the crash-restart + status reporting for the
                     // lifetime of this stream. Cancelled when the stream dies; the store (process-
                     // scoped singleton) outlives it so reconnect re-pushes converge from saved intent.
@@ -138,7 +143,7 @@ class ConnectionManager(
                         out = out,
                         loop = loop,
                         convergenceScope = convergenceScope
-                    ).run(channel, outboundChannel)
+                    ).run(channel, realtimeChannel, telemetryChannel)
                 } finally {
                     scope.close()
                     channel.shutdown()

@@ -154,12 +154,15 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
             roRef.current = ro;
             if (containerRef.current) ro.observe(containerRef.current);
 
-            const {data: logData} = await fetchServerConsoleLogs({path: {id: serverId}});
-            if (disposedRef.current) return;
-            if (logData?.lines.length) {
-                term.write(logData.lines.join("").replace(/\r?\n/g, "\r\n"));
-                term.write("\x1b[90m--- live output below ---\x1b[0m\r\n");
-            }
+            // Tail history is fetched in parallel so it never delays the live socket; live output
+            // may arrive first on a busy server, which is preferable to a blank terminal.
+            void fetchServerConsoleLogs({path: {id: serverId}}).then(({data: logData}) => {
+                if (disposedRef.current) return;
+                if (logData?.lines.length) {
+                    term.write(logData.lines.join("").replace(/\r?\n/g, "\r\n"));
+                    term.write("\x1b[90m--- live output below ---\x1b[0m\r\n");
+                }
+            });
 
             term.onData((data) => {
                 const h = historyRef.current;

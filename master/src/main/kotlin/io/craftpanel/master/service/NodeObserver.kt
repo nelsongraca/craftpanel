@@ -33,6 +33,7 @@ class NodeObserver(
     private val alertEvaluator: AlertEvaluator,
     private val clock: Clock = Clock.System
 ) {
+
     private val log = LoggerFactory.getLogger(NodeObserver::class.java)
 
     fun start(scope: CoroutineScope): Job = scope.launch {
@@ -82,16 +83,10 @@ class NodeObserver(
                 this.diskTotalBytes = event.diskTotalBytes
                 this.recordedAt = event.recordedAt.toLocalDateTime(TimeZone.UTC)
             }
-        }
-        if (event.ramUsedMb > 0) {
-            transaction {
-                Node.findById(kotlinNodeId)
-                    ?.let { it.systemRamUsedMb = event.ramUsedMb }
+            Node.findById(kotlinNodeId)?.let {
+                if (event.ramUsedMb > 0) it.systemRamUsedMb = event.ramUsedMb
+                it.systemCpuPercent = event.cpuPercent
             }
-        }
-        transaction {
-            Node.findById(kotlinNodeId)
-                ?.let { it.systemCpuPercent = event.cpuPercent }
         }
     }
 

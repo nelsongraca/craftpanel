@@ -38,14 +38,20 @@ class DockerContainerManager(
 
     private fun serverIdOf(containerName: String): String = names.serverIdOf(containerName)
 
-    override fun listRunningContainerIds(): List<Pair<String, String>> {
+    override fun listRunningContainers(): List<RunningContainer> {
         return docker.listContainersCmd()
             .withShowAll(false)
             .exec()
             .filter { it.labels.containsKey("craftpanel.server.id") }
             .mapNotNull { container ->
                 val serverId = container.labels["craftpanel.server.id"]?.takeIf { it.isNotEmpty() } ?: return@mapNotNull null
-                serverId to container.id
+                RunningContainer(
+                    serverId = serverId,
+                    containerId = container.id,
+                    routingHost = container.labels["mc-router.host"]
+                        ?.split(",")
+                        ?.firstOrNull { it.isNotBlank() }
+                )
             }
     }
 
@@ -337,27 +343,34 @@ class DockerContainerManager(
     }.getOrNull()
 
     override fun inspectContainer(containerName: String): ContainerSnapshot? = runCatching {
-        val info = docker.inspectContainerCmd(containerName).exec()
+        val info = docker.inspectContainerCmd(containerName)
+            .exec()
         val config = info.config
         val hostConfig = info.hostConfig
 
-        val env = config?.env.orEmpty().mapNotNull { pair ->
-            val i = pair.indexOf('=')
-            if (i > 0) pair.substring(0, i) to pair.substring(i + 1) else null
-        }.toMap()
-
-        val binds = info.mounts.orEmpty().mapNotNull { m ->
-            val destination = m.destination?.path ?: return@mapNotNull null
-            BindSnapshot(hostPath = m.source ?: "", containerPath = destination, readOnly = m.rw == false)
-        }
-
-        val portBindings = hostConfig?.portBindings?.bindings.orEmpty().flatMap { (exposed, bindings) ->
-            bindings.orEmpty().mapNotNull { binding ->
-                val hostPort = binding?.hostPortSpec?.takeIf { it.isNotBlank() }?.toIntOrNull()
-                    ?: return@mapNotNull null
-                PortBindingSnapshot(exposed.port, exposed.protocol.name.lowercase(), hostPort)
+        val env = config?.env.orEmpty()
+            .mapNotNull { pair ->
+                val i = pair.indexOf('=')
+                if (i > 0) pair.substring(0, i) to pair.substring(i + 1) else null
             }
-        }
+            .toMap()
+
+        val binds = info.mounts.orEmpty()
+            .mapNotNull { m ->
+                val destination = m.destination?.path ?: return@mapNotNull null
+                BindSnapshot(hostPath = m.source ?: "", containerPath = destination, readOnly = m.rw == false)
+            }
+
+        val portBindings = hostConfig?.portBindings?.bindings.orEmpty()
+            .flatMap { (exposed, bindings) ->
+                bindings.orEmpty()
+                    .mapNotNull { binding ->
+                        val hostPort = binding?.hostPortSpec?.takeIf { it.isNotBlank() }
+                            ?.toIntOrNull()
+                            ?: return@mapNotNull null
+                        PortBindingSnapshot(exposed.port, exposed.protocol.name.lowercase(), hostPort)
+                    }
+            }
 
         ContainerSnapshot(
             image = config?.image ?: "",
@@ -459,6 +472,7 @@ class DockerContainerManager(
 
 /** How to interpret a configured stop command when stopping a container. */
 private sealed interface StopAction {
+
     /** Empty stop command — skip any stdin/signal step, Docker stop directly. */
     data object Skip : StopAction
 

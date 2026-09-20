@@ -33,6 +33,9 @@ data class AgentConfig(
     val containerNamePrefix: String,
     val privateIpOverride: String,
     val metricsPollIntervalSeconds: Int,
+    // Max concurrent per-container metrics collections. Bounds Docker-daemon load while removing
+    // the serial O(N) scan that made stats lag on nodes with many servers.
+    val metricsCollectionConcurrency: Int = 8,
     // Cadence of the convergence backstop sweep in the agent. 0 disables the sweep.
     val reconcileIntervalSeconds: Int = 30,
     // Max age (hours) a locally-cached image may be before a fresh pull is attempted.
@@ -87,7 +90,8 @@ data class AgentConfig(
                 mcRouterUpdateOnStart = System.getenv("MCROUTER_UPDATE_ON_START")
                     ?.lowercase() != "false",
                 mcRouterContainerName = System.getenv("MCROUTER_CONTAINER_NAME") ?: "",
-                mcRouterEnabled = System.getenv("MCROUTER_ENABLED")?.lowercase() != "false",
+                mcRouterEnabled = System.getenv("MCROUTER_ENABLED")
+                    ?.lowercase() != "false",
                 publicIpUrl = System.getenv("PUBLIC_IP_URL") ?: "",
                 hostnameOverride = System.getenv("NODE_HOSTNAME") ?: "",
                 systemReservedRamMb = System.getenv("SYSTEM_RESERVED_RAM_MB")
@@ -102,6 +106,9 @@ data class AgentConfig(
                 metricsPollIntervalSeconds = System.getenv("METRICS_POLL_INTERVAL_SECONDS")
                     ?.toIntOrNull()
                     ?.coerceAtLeast(1) ?: 5,
+                metricsCollectionConcurrency = System.getenv("METRICS_COLLECTION_CONCURRENCY")
+                    ?.toIntOrNull()
+                    ?.coerceAtLeast(1) ?: 8,
                 reconcileIntervalSeconds = System.getenv("AGENT_RECONCILE_INTERVAL_SECONDS")
                     ?.toIntOrNull()
                     ?.coerceAtLeast(0) ?: 30,

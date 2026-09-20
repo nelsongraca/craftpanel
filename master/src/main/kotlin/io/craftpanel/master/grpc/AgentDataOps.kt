@@ -21,7 +21,7 @@ import kotlin.uuid.Uuid
  * RPC-style request/response correlation over the agent-initiated control stream, used by
  * DataServiceProxy for console sessions, file ops, and container-log fetches.
  */
-class AgentDataOps(private val dataOpContext: DataOpContext, private val sendToNode: (String, MasterMessage) -> Boolean) {
+class AgentDataOps(private val dataOpContext: DataOpContext, private val sendToNode: (String, MasterMessage) -> Boolean, private val sendToNodeSuspending: suspend (String, MasterMessage) -> Boolean) {
 
     private val pendingRequests get() = dataOpContext.pendingRequests
     private val consoleOutputChannels get() = dataOpContext.consoleOutputChannels
@@ -48,7 +48,7 @@ class AgentDataOps(private val dataOpContext: DataOpContext, private val sendToN
         val outputChannel = Channel<ConsoleOutput>(Channel.BUFFERED)
         consoleOutputChannels["$nodeId/$reqId"] = outputChannel
 
-        if (!sendToNode(
+        if (!sendToNodeSuspending(
                 nodeId,
                 masterMessage {
                     consoleAttach = consoleAttach {
@@ -66,7 +66,7 @@ class AgentDataOps(private val dataOpContext: DataOpContext, private val sendToN
         val inputJob = launch {
             try {
                 input.collect { bytes ->
-                    sendToNode(
+                    sendToNodeSuspending(
                         nodeId,
                         masterMessage {
                             consoleInput = consoleInput {
@@ -77,7 +77,7 @@ class AgentDataOps(private val dataOpContext: DataOpContext, private val sendToN
                     )
                 }
             } finally {
-                sendToNode(
+                sendToNodeSuspending(
                     nodeId,
                     masterMessage {
                         consoleDetach = consoleDetach { requestId = reqId }
@@ -101,7 +101,8 @@ class AgentDataOps(private val dataOpContext: DataOpContext, private val sendToN
 
     /** Fetch static container logs for crash diagnosis. Works for any container state. */
     suspend fun fetchContainerLogs(nodeId: String, serverId: String, tailLines: Int): List<String> {
-        val reqId = Uuid.random().toString()
+        val reqId = Uuid.random()
+            .toString()
         val response = sendAndAwait(
             nodeId,
             reqId,

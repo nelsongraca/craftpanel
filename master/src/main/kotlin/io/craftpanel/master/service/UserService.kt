@@ -1,6 +1,7 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.auth.Argon2Hasher
+import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.database.entity.User
 import io.craftpanel.master.database.schema.RefreshTokens
 import io.craftpanel.master.database.schema.UserGroupAssignments
@@ -91,6 +92,7 @@ class UserService(private val userRepository: UserRepository) {
                     if (req.isActive != null) it.isActive = req.isActive
                 }
         }
+        PermissionResolver.invalidate(targetId)
         return userRepository.findById(targetId)!!
             .toResponse(userRepository)
     }
@@ -98,7 +100,11 @@ class UserService(private val userRepository: UserRepository) {
     fun deleteUser(targetId: Uuid) {
         userRepository.findById(targetId) ?: throw NotFoundException("User not found")
         // Child rows (assignments, refresh tokens, recovery codes, trusted devices) cascade from Users.
-        transaction { User.findById(targetId)?.delete() }
+        transaction {
+            User.findById(targetId)
+                ?.delete()
+        }
+        PermissionResolver.invalidate(targetId)
     }
 
     fun resetPassword(targetId: Uuid, req: ResetPasswordRequest) {
@@ -121,6 +127,7 @@ private fun UserRow.toResponse(repo: UserRepository) = UserResponse(
     isActive = isActive,
     createdAt = createdAt,
     mustChangePassword = mustChangePassword,
-    groups = repo.getUserGlobalGroups(id).map { it.groupName },
+    groups = repo.getUserGlobalGroups(id)
+        .map { it.groupName },
     lastLoginAt = lastLoginAt
 )

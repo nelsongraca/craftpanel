@@ -32,6 +32,10 @@ class ContainerMetricsHandler(private val agentEvents: MutableSharedFlow<AgentEv
             blockOutBytes = containerMetrics.blockOutBytes,
             recordedAt = recordedAt
         )
-        agentEvents.emit(containerMetricEvent)
+        // Telemetry must never suspend the control-stream collector: a lagging subscriber (DB
+        // persistence, WS fan-out) would otherwise delay console I/O sharing the same stream.
+        if (!agentEvents.tryEmit(containerMetricEvent)) {
+            log.debug("Dropped container metrics event for server {} — agent event buffer full", containerMetrics.serverId)
+        }
     }
 }

@@ -4,6 +4,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -12,6 +13,8 @@ import kotlinx.coroutines.launch
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicInteger
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 
 internal class ConsoleSession {
@@ -25,9 +28,18 @@ internal class ConsoleSession {
     )
     val closed = MutableStateFlow(false)
     var job: Job? = null
+
+    /** Pending teardown scheduled after the last viewer leaves; cancelled on re-attach. */
+    var teardownJob: Job? = null
 }
 
-internal class ConsoleSessionManager(private val openConsole: (serverId: Uuid, input: Flow<ByteArray>) -> Flow<ByteArray>, private val scope: CoroutineScope) {
+internal class ConsoleSessionManager(
+    private val openConsole: (serverId: Uuid, input: Flow<ByteArray>) -> Flow<ByteArray>,
+    private val scope: CoroutineScope,
+    // Sessions survive a short period with no viewers so switching tabs / re-opening the console
+    // does not pay a fresh agent attach round-trip.
+    private val sessionGracePeriod: Duration = 60.seconds
+) {
 
     private val log = LoggerFactory.getLogger(ConsoleSessionManager::class.java)
     private val sessions = ConcurrentHashMap<Uuid, ConsoleSession>()
@@ -37,11 +49,15 @@ internal class ConsoleSessionManager(private val openConsole: (serverId: Uuid, i
     fun getOrCreate(serverId: Uuid): ConsoleSession {
         var created = false
         val session = mutate(serverId) { existing ->
-            existing?.also { it.viewerCount.incrementAndGet() }
-                ?: ConsoleSession().also {
-                    it.viewerCount.incrementAndGet()
-                    created = true
-                }
+            existing?.also {
+                // A viewer rejoined during the grace window — keep the session and its agent attach.
+                it.teardownJob?.cancel()
+                it.teardownJob = null
+                it.viewerCount.incrementAndGet()
+            } ?: ConsoleSession().also {
+                it.viewerCount.incrementAndGet()
+                created = true
+            }
         }!!
 
         if (created) {
@@ -64,12 +80,23 @@ internal class ConsoleSessionManager(private val openConsole: (serverId: Uuid, i
     }
 
     fun releaseViewer(serverId: Uuid) {
+        var idle: ConsoleSession? = null
         mutate(serverId) { existing ->
             if (existing != null && existing.viewerCount.decrementAndGet() <= 0) {
-                existing.job?.cancel()
-                null
-            } else {
-                existing
+                idle = existing
+            }
+            existing
+        }
+        val target = idle ?: return
+        target.teardownJob = scope.launch {
+            delay(sessionGracePeriod)
+            mutate(serverId) { existing ->
+                if (existing === target && target.viewerCount.get() <= 0) {
+                    target.job?.cancel()
+                    null
+                } else {
+                    existing
+                }
             }
         }
     }

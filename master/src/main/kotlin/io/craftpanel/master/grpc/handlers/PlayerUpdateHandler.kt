@@ -28,6 +28,8 @@ class PlayerUpdateHandler(private val agentEvents: MutableSharedFlow<AgentEvent>
             playerNames = playerUpdate.playerNamesList,
             recordedAt = recordedAt
         )
-        agentEvents.emit(playerUpdateEvent)
+        if (!agentEvents.tryEmit(playerUpdateEvent)) {
+            log.debug("Dropped player update event for server {} — agent event buffer full", playerUpdate.serverId)
+        }
     }
 }

@@ -66,6 +66,23 @@ class ControlServiceImpl(
         return channel.trySend(msg).isSuccess
     }
 
+    override suspend fun sendToNodeSuspending(nodeId: String, msg: MasterMessage): Boolean {
+        val channel = connectedAgents[nodeId]
+        if (channel == null) {
+            log.warn("sendToNodeSuspending: node {} not found in connectedAgents (connected: {})", nodeId, connectedAgents.keys)
+            return false
+        }
+        return try {
+            channel.send(msg)
+            true
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            log.warn("sendToNodeSuspending: node {} send failed — {}", nodeId, e.message)
+            false
+        }
+    }
+
     /**
      * Reconnect self-heal: after a node reconciles its state snapshot, push the full
      * symlink-overlay mapping (servers-by-name + backups-by-server) so the agent can

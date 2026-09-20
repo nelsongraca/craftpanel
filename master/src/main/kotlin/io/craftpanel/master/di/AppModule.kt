@@ -52,7 +52,13 @@ val appModule = module {
     single { DataOpContext(ConcurrentHashMap(), ConcurrentHashMap()) }
 
     single { NodeRegistrar(nodeConfig = get<AppConfig>().node, nodeRepository = get()) }
-    single { AgentDataOps(dataOpContext = get(), sendToNode = { nodeId, msg -> get<ControlServiceImpl>().sendToNode(nodeId, msg) }) }
+    single {
+        AgentDataOps(
+            dataOpContext = get(),
+            sendToNode = { nodeId, msg -> get<ControlServiceImpl>().sendToNode(nodeId, msg) },
+            sendToNodeSuspending = { nodeId, msg -> get<ControlServiceImpl>().sendToNodeSuspending(nodeId, msg) }
+        )
+    }
 
     // Handlers
     single {

@@ -71,7 +71,8 @@ The agent is configured entirely through environment variables.
 | `MCROUTER_UPDATE_ON_START`      | `true`                        | Pull the mc-router image on every agent startup. Set to `false` to skip the pull and use the locally cached image.                                                                                                                        |
 | `SYSTEM_RESERVED_RAM_MB`        | `0`                           | Megabytes of RAM the agent will not offer to servers. Subtracted from the node's physical total before reporting to master. On a co-located node running master + PostgreSQL, `1024`–`2048` is typical.                                   |
 | `SYSTEM_RESERVED_CPU_MILLICORES` | `0`                          | CPU millicores the agent will not offer to servers (1000 millicores per core). Subtracted from the node's total before reporting to master.                                                                                                 |
-| `METRICS_POLL_INTERVAL_SECONDS` | `60`                          | How often the agent polls `/proc` and Docker Stats for node and container metrics. Minimum 5 seconds.                                                                                                                                     |
+| `METRICS_POLL_INTERVAL_SECONDS` | `5`                           | How often the agent polls `/proc` and Docker Stats for node and container metrics. Minimum 1 second.                                                                                                                                      |
+| `METRICS_COLLECTION_CONCURRENCY` | `8`                          | Maximum number of server containers whose stats/player counts are collected in parallel per metrics tick. Bounds Docker daemon load.                                                                                                       |
 
 ### Private IP discovery
 

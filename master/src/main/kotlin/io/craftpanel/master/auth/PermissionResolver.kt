@@ -4,13 +4,23 @@ import io.craftpanel.master.database.schema.*
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.uuid.Uuid
 
 object PermissionResolver {
 
-    fun resolve(userId: Uuid, serverId: Uuid? = null, networkId: Uuid? = null): Set<String> = transaction {
-        loadIndex(userId)?.permissionsFor(serverId, networkId) ?: emptySet()
-    }
+    /**
+     * Resolved grants are cached briefly because the WS fan-out evaluates visibility once per
+     * agent event per client. Assignments and group permissions change rarely, and live sockets
+     * are already revalidated every 5 minutes, so a 60s window is well within existing staleness.
+     */
+    private const val CACHE_TTL_NANOS = 60_000_000_000L
+
+    private data class CachedIndex(val index: GrantIndex?, val expiresAtNanos: Long)
+
+    private val indexCache = ConcurrentHashMap<Uuid, CachedIndex>()
+
+    fun resolve(userId: Uuid, serverId: Uuid? = null, networkId: Uuid? = null): Set<String> = cachedIndex(userId)?.permissionsFor(serverId, networkId) ?: emptySet()
 
     fun hasPermission(userId: Uuid, permission: Permission, serverId: Uuid? = null, networkId: Uuid? = null): Boolean {
         val granted = resolve(userId, serverId, networkId)
@@ -27,7 +37,7 @@ object PermissionResolver {
      * mirroring the visibility logic so the frontend can render per-server action buttons.
      */
     fun serverPermissions(userId: Uuid): Map<Uuid, Set<String>> = transaction {
-        val index = loadIndex(userId) ?: return@transaction emptyMap()
+        val index = cachedIndex(userId) ?: return@transaction emptyMap()
 
         val servers = Servers.selectAll()
             .map { it[Servers.id].value to it[Servers.networkId]?.value }
@@ -48,7 +58,7 @@ object PermissionResolver {
      * mirroring the visibility logic so the frontend can render per-network action buttons.
      */
     fun networkPermissions(userId: Uuid): Map<Uuid, Set<String>> = transaction {
-        val index = loadIndex(userId) ?: return@transaction emptyMap()
+        val index = cachedIndex(userId) ?: return@transaction emptyMap()
 
         val networks = ServerNetworks.selectAll()
             .map { it[ServerNetworks.id].value }
@@ -59,6 +69,26 @@ object PermissionResolver {
                 if (granted.any { matches(it, Permission.NETWORK_VIEW.node) }) put(networkId, granted)
             }
         }
+    }
+
+    /** Drop a user's cached grants (call after changing their assignments or group permissions). */
+    fun invalidate(userId: Uuid) {
+        indexCache.remove(userId)
+    }
+
+    /** Drop every cached grant set (call after a group's permissions change). */
+    fun invalidateAll() {
+        indexCache.clear()
+    }
+
+    private fun cachedIndex(userId: Uuid): GrantIndex? {
+        val now = System.nanoTime()
+        indexCache[userId]?.let { cached ->
+            if (now < cached.expiresAtNanos) return cached.index
+        }
+        val loaded = transaction { loadIndex(userId) }
+        indexCache[userId] = CachedIndex(loaded, now + CACHE_TTL_NANOS)
+        return loaded
     }
 
     /**
@@ -88,7 +118,10 @@ object PermissionResolver {
         if (assignments.isEmpty()) return GrantIndex.from(emptyList(), emptyMap())
 
         val permissionsByGroup = GroupPermissions.selectAll()
-            .where { GroupPermissions.groupId inList assignments.map { it.groupId }.toSet() }
+            .where {
+                GroupPermissions.groupId inList assignments.map { it.groupId }
+                    .toSet()
+            }
             .groupBy({ it[GroupPermissions.groupId].value }, { it[GroupPermissions.permission] })
             .mapValues { it.value.toSet() }
 

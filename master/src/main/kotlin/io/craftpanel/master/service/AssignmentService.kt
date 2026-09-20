@@ -1,5 +1,6 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.auth.ScopeType
 import io.craftpanel.master.database.schema.Groups
 import io.craftpanel.master.database.schema.UserGroupAssignments
@@ -74,7 +75,7 @@ class AssignmentService(
                 it[UserGroupAssignments.scopeId] = scopeId
             }[UserGroupAssignments.id]
             AssignmentRow(id = id, userId = targetId, groupId = groupId, scopeType = req.scopeType, scopeId = scopeId)
-        }.toResponse()
+        }.toResponse().also { PermissionResolver.invalidate(targetId) }
     }
 
     fun deleteAssignment(targetId: Uuid, assignmentId: Uuid) {
@@ -82,6 +83,7 @@ class AssignmentService(
         val assignment = all.firstOrNull { it.id == assignmentId }
             ?: throw NotFoundException("Assignment not found")
         transaction { UserGroupAssignments.deleteWhere { UserGroupAssignments.id eq assignment.id } }
+        PermissionResolver.invalidate(targetId)
     }
 }
 

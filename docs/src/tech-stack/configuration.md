@@ -179,6 +179,7 @@ The agent process (one per node) reads its own environment variables, separate f
 | `containerNamePrefix`          | `CRAFTPANEL_CONTAINER_PREFIX`       | No             | `craftpanel`                  | Prefix applied to all container names this agent creates                                                                                      |
 | `privateIpOverride`            | `NODE_PRIVATE_IP`                   | No             | —                              | Overrides the private IP the agent reports to master                                                                                          |
 | `metricsPollIntervalSeconds`   | `METRICS_POLL_INTERVAL_SECONDS`     | No             | `5`                            | Polling interval for container metrics                                                                                                        |
+| `metricsCollectionConcurrency` | `METRICS_COLLECTION_CONCURRENCY`    | No             | `8`                            | Max server containers collected in parallel per metrics tick                                                                                  |
 | `pullMaxImageAgeHours`         | `PULL_MAX_IMAGE_AGE_HOURS`          | No             | `24`                           | Max age of a locally-cached image before a fresh pull is attempted                                                                             |
 
 ## Frontend configuration

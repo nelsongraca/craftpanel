@@ -30,7 +30,7 @@ class FakeContainerManager(private val containerNamePrefix: String = "craftpanel
 
     enum class State { CREATED, RUNNING, STOPPED }
 
-    class Entry(val serverId: String, var state: State, val networks: MutableSet<String> = mutableSetOf())
+    class Entry(val serverId: String, var state: State, val networks: MutableSet<String> = mutableSetOf(), val routingHost: String? = null)
 
     val gate = WatcherGate()
     val calls = CopyOnWriteArrayList<String>()
@@ -70,7 +70,11 @@ class FakeContainerManager(private val containerNamePrefix: String = "craftpanel
     override fun createContainer(cmd: StartContainerCommand): String {
         calls.add("create:${cmd.containerName}")
         createdCommands.add(cmd)
-        containers[cmd.containerName] = Entry(cmd.serverId, State.CREATED).also {
+        containers[cmd.containerName] = Entry(
+            serverId = cmd.serverId,
+            state = State.CREATED,
+            routingHost = cmd.publicHostname.takeIf { it.isNotEmpty() && cmd.containerProtocol.uppercase() != "UDP" }
+        ).also {
             if (cmd.dockerNetwork.isNotEmpty()) it.networks.add(cmd.dockerNetwork)
         }
         return idOf(cmd.containerName)
@@ -133,11 +137,11 @@ class FakeContainerManager(private val containerNamePrefix: String = "craftpanel
         gate.markRemoved(serverIdOf(containerName))
     }
 
-    override fun listRunningContainerIds(): List<Pair<String, String>> {
-        calls.add("listRunningIds")
+    override fun listRunningContainers(): List<RunningContainer> {
+        calls.add("listRunningContainers")
         return containers.entries
             .filter { it.value.state == State.RUNNING }
-            .map { it.value.serverId to idOf(it.key) }
+            .map { RunningContainer(it.value.serverId, idOf(it.key), it.value.routingHost) }
     }
 
     override fun listContainers(): List<ContainerState> {
@@ -177,10 +181,26 @@ class FakeContainerManager(private val containerNamePrefix: String = "craftpanel
         val cmd = createdCommands.lastOrNull { it.containerName == containerName } ?: return null
         val portBindings = buildList {
             if (cmd.hostPort > 0) {
-                add(PortBindingSnapshot(cmd.internalListenPort, cmd.containerProtocol.ifEmpty { "TCP" }.lowercase(), cmd.hostPort))
+                add(
+                    PortBindingSnapshot(
+                        cmd.internalListenPort,
+                        cmd.containerProtocol.ifEmpty { "TCP" }
+                            .lowercase(),
+                        cmd.hostPort
+                    )
+                )
             }
             cmd.extraPortsList.forEach {
-                if (it.hostPort > 0) add(PortBindingSnapshot(it.containerPort, it.protocol.ifEmpty { "TCP" }.lowercase(), it.hostPort))
+                if (it.hostPort > 0) {
+                    add(
+                        PortBindingSnapshot(
+                            it.containerPort,
+                            it.protocol.ifEmpty { "TCP" }
+                                .lowercase(),
+                            it.hostPort
+                        )
+                    )
+                }
             }
         }
         val labels = buildMap {

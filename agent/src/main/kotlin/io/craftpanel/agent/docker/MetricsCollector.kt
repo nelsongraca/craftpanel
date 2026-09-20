@@ -121,12 +121,14 @@ open class MetricsCollector(private val docker: DockerClient, private val craftp
         }
     }
 
-    @Suppress("UNUSED_PARAMETER")
-    fun collectPlayerCount(serverId: String, containerId: String): PlayerUpdate? {
-        val routerIp = getMcRouterIp() ?: return null
-        val hostname = getServerRoutingHostname(containerId) ?: return null
+    /**
+     * Pings the MC server for its player list. [routerIp] and [routingHost] are resolved once per
+     * metrics cycle by the caller (see [getMcRouterIp] and [RunningContainer.routingHost]) so this
+     * does not issue a Docker inspect per server.
+     */
+    fun collectPlayerCount(serverId: String, routerIp: String, routingHost: String): PlayerUpdate? {
         return runCatching {
-            val result = McStatusClient.ping(routerIp, serverAddress = hostname) ?: return null
+            val result = McStatusClient.ping(routerIp, serverAddress = routingHost) ?: return null
             val now = Instant.now()
             playerUpdate {
                 this.serverId = serverId
@@ -143,7 +145,7 @@ open class MetricsCollector(private val docker: DockerClient, private val craftp
         }
     }
 
-    private fun getMcRouterIp(): String? {
+    fun getMcRouterIp(): String? {
         if (mcRouterContainerName.isEmpty()) return null
         val networks = runCatching {
             docker.inspectContainerCmd(mcRouterContainerName)
@@ -156,13 +158,6 @@ open class MetricsCollector(private val docker: DockerClient, private val craftp
         }
         return net?.ipAddress?.takeIf { it.isNotBlank() }
     }
-
-    private fun getServerRoutingHostname(containerId: String): String? = runCatching {
-        docker.inspectContainerCmd(containerId)
-            .exec().config?.labels?.get("mc-router.host")
-    }.getOrNull()
-        ?.split(",")
-        ?.firstOrNull { it.isNotBlank() }
 
     fun collectCapacity(): Pair<Int, Int> {
         val totalRamMb = runCatching {
@@ -179,8 +174,11 @@ open class MetricsCollector(private val docker: DockerClient, private val craftp
      * `/proc/cpuinfo` is unreadable.
      */
     private fun hostCpuCount(): Int = runCatching {
-        File("/proc/cpuinfo").readLines().count { it.startsWith("processor") }
-    }.getOrElse { 0 }.takeIf { it > 0 } ?: Runtime.getRuntime().availableProcessors()
+        File("/proc/cpuinfo").readLines()
+            .count { it.startsWith("processor") }
+    }.getOrElse { 0 }
+        .takeIf { it > 0 } ?: Runtime.getRuntime()
+        .availableProcessors()
 
     private data class ProcMetrics(val cpuPercent: Double, val cpuPerCore: List<Double>, val ramUsedMb: Int, val ramTotalMb: Int)
 
@@ -294,7 +292,8 @@ open class MetricsCollector(private val docker: DockerClient, private val craftp
  * result is clamped to 100 because cgroup quota-period granularity allows brief overshoot.
  */
 internal fun normalizeCpuPercent(coresUsed: Double, hostCores: Int, cpuLimitMillicores: Int): Double {
-    val host = hostCores.coerceAtLeast(1).toDouble()
+    val host = hostCores.coerceAtLeast(1)
+        .toDouble()
     val denomCores = if (cpuLimitMillicores > 0) minOf(cpuLimitMillicores / 1000.0, host) else host
     return (coresUsed / denomCores * 100.0).coerceIn(0.0, 100.0)
 }

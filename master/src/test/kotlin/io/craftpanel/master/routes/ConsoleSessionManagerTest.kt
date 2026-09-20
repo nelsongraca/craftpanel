@@ -11,14 +11,18 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.plus
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
 
 class ConsoleSessionManagerTest :
     FunSpec({
 
-        fun newManager() = ConsoleSessionManager(
+        fun newManager(grace: Duration = 20.milliseconds) = ConsoleSessionManager(
             openConsole = { _, _ -> flow<ByteArray> { awaitCancellation() } },
-            scope = CoroutineScope(SupervisorJob().plus(Dispatchers.IO))
+            scope = CoroutineScope(SupervisorJob().plus(Dispatchers.IO)),
+            sessionGracePeriod = grace
         )
 
         test("second getOrCreate reuses session and increments viewerCount") {
@@ -49,9 +53,20 @@ class ConsoleSessionManagerTest :
 
             val session = manager.getOrCreate(serverId)
             manager.releaseViewer(serverId)
-            delay(50)
+            delay(300)
 
             session.job?.isCancelled shouldBe true
+        }
+
+        test("releaseViewer to zero keeps session alive during the grace period") {
+            val manager = newManager(grace = 5.seconds)
+            val serverId = Uuid.random()
+
+            val session = manager.getOrCreate(serverId)
+            manager.releaseViewer(serverId)
+            delay(20)
+
+            manager.getOrCreate(serverId) shouldBe session
         }
 
         test("getOrCreate after full teardown creates fresh session") {
@@ -60,7 +75,7 @@ class ConsoleSessionManagerTest :
 
             val first = manager.getOrCreate(serverId)
             manager.releaseViewer(serverId)
-            delay(50)
+            delay(300)
             val second = manager.getOrCreate(serverId)
 
             second shouldNotBe first

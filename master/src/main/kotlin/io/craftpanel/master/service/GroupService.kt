@@ -1,6 +1,7 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.auth.Permission
+import io.craftpanel.master.auth.PermissionResolver
 import io.craftpanel.master.database.entity.Group
 import io.craftpanel.master.database.schema.GroupPermissions
 import io.craftpanel.master.database.schema.Groups
@@ -42,7 +43,9 @@ class GroupService(private val groupRepository: GroupRepository) {
         }
         return transaction {
             val e = Group.new { this.name = req.name }
-            val row = Groups.selectAll().where { Groups.id eq e.id }.first()
+            val row = Groups.selectAll()
+                .where { Groups.id eq e.id }
+                .first()
             GroupRow(
                 id = row[Groups.id].value,
                 name = row[Groups.name],
@@ -59,7 +62,10 @@ class GroupService(private val groupRepository: GroupRepository) {
     fun updateGroup(targetId: Uuid, req: PatchGroupRequest): GroupResponse {
         val existing = groupRepository.findById(targetId) ?: throw NotFoundException("Group not found")
         if (existing.isSystem) throw ConflictException("Cannot modify a system group")
-        transaction { Group.findById(targetId)?.let { it.name = req.name } }
+        transaction {
+            Group.findById(targetId)
+                ?.let { it.name = req.name }
+        }
         return groupRepository.findById(targetId)!!
             .toResponse()
     }
@@ -68,7 +74,11 @@ class GroupService(private val groupRepository: GroupRepository) {
         val existing = groupRepository.findById(targetId) ?: throw NotFoundException("Group not found")
         if (existing.isSystem) throw ConflictException("Cannot delete a system group")
         // Group permissions and user assignments cascade from Groups.
-        transaction { Group.findById(targetId)?.delete() }
+        transaction {
+            Group.findById(targetId)
+                ?.delete()
+        }
+        PermissionResolver.invalidateAll()
     }
 
     fun setGroupPermissions(targetId: Uuid, req: PutGroupPermissionsRequest): GroupResponse {
@@ -78,13 +88,15 @@ class GroupService(private val groupRepository: GroupRepository) {
         if (invalid.isNotEmpty()) throw BadRequestException("Invalid permission nodes: ${invalid.joinToString()}")
         transaction {
             GroupPermissions.deleteWhere { GroupPermissions.groupId eq targetId }
-            req.permissions.distinct().forEach { perm ->
-                GroupPermissions.insert {
-                    it[GroupPermissions.groupId] = EntityID(targetId, Groups)
-                    it[GroupPermissions.permission] = perm
+            req.permissions.distinct()
+                .forEach { perm ->
+                    GroupPermissions.insert {
+                        it[GroupPermissions.groupId] = EntityID(targetId, Groups)
+                        it[GroupPermissions.permission] = perm
+                    }
                 }
-            }
         }
+        PermissionResolver.invalidateAll()
         return groupRepository.findById(targetId)!!
             .toResponse()
     }

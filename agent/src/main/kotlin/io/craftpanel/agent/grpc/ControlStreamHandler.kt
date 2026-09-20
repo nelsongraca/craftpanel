@@ -8,9 +8,14 @@ import io.craftpanel.proto.*
 import io.grpc.ManagedChannel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.merge
 import kotlinx.coroutines.flow.receiveAsFlow
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import org.slf4j.LoggerFactory
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
 
 class ControlStreamHandler(
     private val identity: NodeIdentity,
@@ -28,10 +33,12 @@ class ControlStreamHandler(
 
     private val log = LoggerFactory.getLogger(ControlStreamHandler::class.java)
 
-    suspend fun run(channel: ManagedChannel, outboundChannel: Channel<AgentMessage>): Unit = coroutineScope {
+    suspend fun run(channel: ManagedChannel, realtimeChannel: Channel<AgentMessage>, telemetryChannel: Channel<AgentMessage>): Unit = coroutineScope {
         val stub = ControlServiceGrpcKt.ControlServiceCoroutineStub(channel)
 
-        val stream = stub.control(outboundChannel.receiveAsFlow())
+        // Merge the two lanes into the single client-stream the gRPC stub consumes. Realtime
+        // messages (console, status, acks) can never be displaced by telemetry backlog.
+        val stream = stub.control(merge(realtimeChannel.receiveAsFlow(), telemetryChannel.receiveAsFlow()))
 
         // The desired-state convergence loop runs as long as this connection; cancel its jobs
         // (crash-restart, pending converge) when the stream/scope dies.
@@ -49,27 +56,54 @@ class ControlStreamHandler(
 
         // Periodic metrics loop. Emit once immediately on connect so a freshly-opened detail page
         // has live data without waiting a full poll interval, then settle into the fixed cadence.
+        // Container collection is fanned out concurrently (bounded) so a node with many servers
+        // refreshes each server at roughly the poll interval rather than the sum of every call.
         val metricsInterval = config.metricsPollIntervalSeconds.toLong().seconds
+        val statsSemaphore = Semaphore(config.metricsCollectionConcurrency)
         launch {
             while (true) {
-                Heartbeat.beat()
-                val routerRunning = routerSupervisor.isRunning
-                val metrics = metricsCollector.collect()
-                out.send {
-                    nodeMetrics = metrics.toBuilder()
-                        .setRouterRunning(routerRunning)
-                        .build()
-                }
-
-                containerManager.listRunningContainerIds()
-                    .forEach { (serverId, containerId) ->
-                        metricsCollector.collectContainerMetrics(serverId, containerId, loop.cpuLimitMillicores(serverId))
-                            ?.let { cm -> out.send { containerMetrics = cm } }
-                        metricsCollector.collectPlayerCount(serverId, containerId)
-                            ?.let { pu -> out.send { playerUpdate = pu } }
+                val tickStart = TimeSource.Monotonic.markNow()
+                runCatching {
+                    Heartbeat.beat()
+                    val routerRunning = routerSupervisor.isRunning
+                    val metrics = metricsCollector.collect()
+                    out.sendTelemetry {
+                        nodeMetrics = metrics.toBuilder()
+                            .setRouterRunning(routerRunning)
+                            .build()
                     }
 
-                delay(metricsInterval)
+                    val containers = containerManager.listRunningContainers()
+                    val routerIp = metricsCollector.getMcRouterIp()
+                    coroutineScope {
+                        containers.map { container ->
+                            async(Dispatchers.IO) {
+                                statsSemaphore.withPermit {
+                                    metricsCollector.collectContainerMetrics(
+                                        container.serverId,
+                                        container.containerId,
+                                        loop.cpuLimitMillicores(container.serverId)
+                                    )
+                                        ?.let { cm -> out.sendTelemetry { containerMetrics = cm } }
+
+                                    val routingHost = container.routingHost
+                                    if (routerIp != null && !routingHost.isNullOrBlank()) {
+                                        metricsCollector.collectPlayerCount(container.serverId, routerIp, routingHost)
+                                            ?.let { pu -> out.sendTelemetry { playerUpdate = pu } }
+                                    }
+                                }
+                            }
+                        }
+                            .awaitAll()
+                    }
+                }.onFailure { e ->
+                    if (e is CancellationException) throw e
+                    log.warn("Metrics tick failed — keeping the stream alive", e)
+                }
+
+                // Fixed cadence: collection overrun shortens the wait instead of compounding.
+                val elapsed = tickStart.elapsedNow()
+                delay((metricsInterval - elapsed).coerceAtLeast(Duration.ZERO))
             }
         }
 

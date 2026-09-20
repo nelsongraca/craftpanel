@@ -27,7 +27,11 @@ private val json = Json {
     namingStrategy = JsonNamingStrategy.SnakeCase
 }
 
-private fun DefaultWebSocketSession.sendConsole(event: ConsoleEvent) {
+private suspend fun DefaultWebSocketSession.sendConsole(event: ConsoleEvent) {
+    outgoing.send(Frame.Text(json.encodeToString(ConsoleEvent.serializer(), event)))
+}
+
+private fun DefaultWebSocketSession.trySendConsole(event: ConsoleEvent) {
     outgoing.trySend(Frame.Text(json.encodeToString(ConsoleEvent.serializer(), event)))
 }
 
@@ -73,7 +77,7 @@ class ConsoleRoutes(private val proxy: DataServiceProxy, private val wsAuthoriza
             val revalidationJob = revalidatePeriodically(
                 check = { wsAuthorization.hasPermission(grant.userId, Permission.SERVER_CONSOLE, grant.serverId, grant.networkId) }
             ) {
-                sendConsole(ConsoleEvent.Disconnected(serverId, "Session revoked"))
+                trySendConsole(ConsoleEvent.Disconnected(serverId, "Session revoked"))
                 close(CloseReason(CloseReason.Codes.VIOLATED_POLICY, "Session revoked"))
             }
 
@@ -81,7 +85,7 @@ class ConsoleRoutes(private val proxy: DataServiceProxy, private val wsAuthoriza
                 session.closed.collect { isClosed ->
                     if (isClosed) {
                         runCatching {
-                            sendConsole(ConsoleEvent.Disconnected(serverId, "Server stopped"))
+                            trySendConsole(ConsoleEvent.Disconnected(serverId, "Server stopped"))
                             close(CloseReason(CloseReason.Codes.NORMAL, "Server stopped"))
                         }
                     }
@@ -95,7 +99,7 @@ class ConsoleRoutes(private val proxy: DataServiceProxy, private val wsAuthoriza
                         runCatching {
                             val event = json.decodeFromString(ConsoleInEvent.serializer(), frame.readText())
                             if (event is ConsoleInEvent.Input) {
-                                session.input.trySend(event.data.toByteArray())
+                                session.input.send(event.data.toByteArray())
                             }
                         }.onFailure { log.warn("Malformed console input: {}", it.message) }
                     }

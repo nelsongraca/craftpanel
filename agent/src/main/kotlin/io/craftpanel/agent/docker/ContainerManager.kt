@@ -25,12 +25,19 @@ data class ContainerSnapshot(
     val labels: Map<String, String>,
     val networkMode: String,
     /** Docker hostname (`Config.Hostname`) — the server name, and thus its DNS name on the network. */
-    val hostname: String,
+    val hostname: String
 )
 
 data class BindSnapshot(val hostPath: String, val containerPath: String, val readOnly: Boolean)
 
 data class PortBindingSnapshot(val containerPort: Int, val protocol: String, val hostPort: Int)
+
+/**
+ * Minimal identity of a running managed container, taken from a single Docker list call.
+ * [routingHost] is the first non-blank entry of the container's `mc-router.host` label, used as
+ * the ping target for player-count collection without a second inspect round-trip.
+ */
+data class RunningContainer(val serverId: String, val containerId: String, val routingHost: String?)
 
 /**
  * Container operations against the node's Docker daemon, with death-gating built in:
@@ -39,7 +46,10 @@ data class PortBindingSnapshot(val containerPort: Int, val protocol: String, val
  */
 interface ContainerManager {
 
-    fun listRunningContainerIds(): List<Pair<String, String>>
+    fun listRunningContainers(): List<RunningContainer>
+
+    /** Convenience projection for callers that only need the server/container identity. */
+    fun listRunningContainerIds(): List<Pair<String, String>> = listRunningContainers().map { it.serverId to it.containerId }
 
     fun listContainers(): List<ContainerState>
 
@@ -71,11 +81,7 @@ interface ContainerManager {
 
     fun isSwarmActive(): Boolean
 
-    fun attachInteractive(
-        containerName: String,
-        inputStream: InputStream,
-        callback: ResultCallback<Frame>
-    ): ResultCallback<Frame>
+    fun attachInteractive(containerName: String, inputStream: InputStream, callback: ResultCallback<Frame>): ResultCallback<Frame>
 
     fun fetchLogs(containerName: String, tailLines: Int, callback: ResultCallback<Frame>): ResultCallback<Frame>
 
