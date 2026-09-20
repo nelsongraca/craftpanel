@@ -11,6 +11,8 @@ import io.craftpanel.master.service.PortAllocator
 import io.craftpanel.master.service.repo.ServerExtraPortRepository
 import io.craftpanel.master.service.repo.ServerExtraPortRow
 import io.craftpanel.master.util.toUtcString
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
@@ -19,6 +21,7 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.jetbrains.exposed.v1.jdbc.update
+import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
 class ServerExtraPortRepositoryImpl : ServerExtraPortRepository {
@@ -68,7 +71,10 @@ class ServerExtraPortRepositoryImpl : ServerExtraPortRepository {
         }
 
         // Port bindings are part of the container spec — flag a restart so the UI can prompt.
-        Servers.update({ Servers.id eq serverId }) { it[Servers.restartPending] = true }
+        Servers.update({ Servers.id eq serverId }) {
+            it[Servers.restartPending] = true
+            it[Servers.updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        }
 
         entity.toRow()
     }
@@ -86,7 +92,10 @@ class ServerExtraPortRepositoryImpl : ServerExtraPortRepository {
 
         entity.delete()
 
-        Servers.update({ Servers.id eq sId }) { it[Servers.restartPending] = true }
+        Servers.update({ Servers.id eq sId }) {
+            it[Servers.restartPending] = true
+            it[Servers.updatedAt] = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        }
 
         true
     }

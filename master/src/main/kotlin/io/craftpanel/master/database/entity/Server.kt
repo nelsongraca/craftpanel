@@ -4,9 +4,13 @@ import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.ServerView
 import io.craftpanel.master.util.toUtcString
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
+import org.jetbrains.exposed.v1.dao.EntityBatchUpdate
 import org.jetbrains.exposed.v1.dao.UuidEntity
 import org.jetbrains.exposed.v1.dao.UuidEntityClass
+import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
 class Server(id: EntityID<Uuid>) : UuidEntity(id) {
@@ -54,6 +58,19 @@ class Server(id: EntityID<Uuid>) : UuidEntity(id) {
     var lastSeenAt by Servers.lastSeenAt
     var createdAt by Servers.createdAt
     var updatedAt by Servers.updatedAt
+
+    /**
+     * Stamp [updatedAt] on every real change, so it tracks the last time this server was modified
+     * (status, config, resources, lifecycle, backups, …) rather than only its creation. Exposed's
+     * entity cache calls this on flush; [writeValues] is non-empty only when an update is actually
+     * pending, so reads/refreshes never bump it.
+     */
+    override fun flush(batch: EntityBatchUpdate?): Boolean {
+        if (writeValues.isNotEmpty()) {
+            updatedAt = Clock.System.now().toLocalDateTime(TimeZone.UTC)
+        }
+        return super.flush(batch)
+    }
 
     fun toServerView() = ServerView(
         id = id.value,
