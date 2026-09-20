@@ -387,4 +387,22 @@ class ContainerLifecycleTest :
             gateway.sent.size shouldBe 1
             gateway.sent[0].second.hasRemoveContainer() shouldBe true
         }
+
+        // ── defaultHeapMb (MEMORY heuristic) ──────────────────────────────────
+
+        test("defaultHeapMb reserves a 512MB base plus 12.5% for non-heap") {
+            defaultHeapMb(2048) shouldBe 1280
+            defaultHeapMb(4096) shouldBe 3072
+            defaultHeapMb(8192) shouldBe 6656
+        }
+
+        test("defaultHeapMb floors the heap at half the container for tiny servers") {
+            defaultHeapMb(512) shouldBe 256
+            defaultHeapMb(1024) shouldBe 512
+        }
+
+        test("defaultHeapMb is non-positive safe") {
+            defaultHeapMb(0) shouldBe 0
+            defaultHeapMb(-1) shouldBe 0
+        }
     })

@@ -220,13 +220,7 @@ class ContainerLifecycle(
                 (server.containerListenPort ?: images.internalListenPort(server.serverType))
                     .toString()
             )
-            // ponytail: heap at 75% of the container's cgroup limit — Aikar's flags set
-            // -Xms=-Xmx=MEMORY with AlwaysPreTouch, which commits the full heap on startup;
-            // without headroom that equals the container's memory limit and OOMKills before
-            // the JVM logs anything. Flat percentage (no floor) keeps heap > 0 and < memoryMb
-            // for every input. Revisit the 75% heuristic if it proves wrong.
-            val heapMb = server.memoryMb * 75 / 100
-            put("MEMORY", "${heapMb}M")
+            put("MEMORY", "${defaultHeapMb(server.memoryMb)}M")
             if (modrinthProjects.isNotEmpty()) put("MODRINTH_PROJECTS", modrinthProjects)
             if (isProxy && !isManual) put("PATCH_DEFINITIONS", "/server/craftpanel-patch.json")
             if (isCustom) {
@@ -289,3 +283,31 @@ class ContainerLifecycle(
 }
 
 class ContainerLifecycleException(message: String) : Exception(message)
+
+/** Fixed JVM non-heap cost (Metaspace, thread stacks, code cache, entrypoint) reserved on top of the heap. */
+private const val NON_HEAP_BASE_MB = 512
+
+/** Per-mille of the container additionally reserved for heap-scaling non-heap memory (GC structures, direct buffers). */
+private const val NON_HEAP_RATIO_PER_MILLE = 125
+
+/**
+ * Default heap size (MB) for a container with [memoryMb] of cgroup memory, emitted as itzg's
+ * `MEMORY` env var.
+ *
+ * Deliberately non-linear. JVM non-heap memory is a roughly fixed cost plus a slice that grows
+ * with the heap, so a single flat percentage fails at both ends: the JVM's own 25% default
+ * starves big servers, while a high flat rate (previously 75%) leaves small containers no
+ * headroom — Aikar's flags set `-Xms=-Xmx=MEMORY` with `AlwaysPreTouch`, committing the whole
+ * heap at boot, so an over-large heap gets the container OOMKilled before the JVM can log.
+ *
+ * Reserves `NON_HEAP_BASE_MB + 12.5%` of the container for non-heap, capped at half the
+ * container so tiny servers keep a usable heap. Net effect: heap is 50% for the smallest
+ * servers and approaches ~87.5% as memory grows. A user-supplied `MEMORY` env var still wins
+ * on collision (see `buildAllVars`).
+ */
+internal fun defaultHeapMb(memoryMb: Int): Int {
+    if (memoryMb <= 0) return 0
+    val reservedMb = NON_HEAP_BASE_MB + memoryMb * NON_HEAP_RATIO_PER_MILLE / 1000
+    val overheadMb = minOf(reservedMb, memoryMb / 2)
+    return memoryMb - overheadMb
+}
