@@ -808,6 +808,45 @@ class ConvergenceLoopTest :
             cm.containers["craftpanel-srv-1"]?.state shouldBe FakeContainerManager.State.RUNNING
         }
 
+        // ── CPU limit lookup (metrics normalization) ─────────────────────────
+
+        test("cpuLimitMillicores returns 0 for an unknown server") {
+            val cm = FakeContainerManager()
+            val (_, out) = newOutbound()
+            val loop = newLoop(cm, out)
+
+            loop.cpuLimitMillicores("srv-unknown") shouldBe 0
+        }
+
+        test("cpuLimitMillicores falls back to the desired spec when nothing is applied") {
+            val cm = FakeContainerManager()
+            val (_, out) = newOutbound()
+            val store = DesiredStateStore()
+            val loop = newLoop(cm, out, store = store)
+
+            store.upsert("srv-1") {
+                it.copy(spec = startCmd().toBuilder().setCpuLimitMillicores(1500).build())
+            }
+
+            loop.cpuLimitMillicores("srv-1") shouldBe 1500
+        }
+
+        test("cpuLimitMillicores prefers the applied spec over the desired spec") {
+            val cm = FakeContainerManager()
+            val (_, out) = newOutbound()
+            val store = DesiredStateStore()
+            val loop = newLoop(cm, out, store = store)
+
+            store.upsert("srv-1") {
+                it.copy(
+                    spec = startCmd().toBuilder().setCpuLimitMillicores(2000).build(),
+                    appliedSpec = startCmd().toBuilder().setCpuLimitMillicores(1000).build()
+                )
+            }
+
+            loop.cpuLimitMillicores("srv-1") shouldBe 1000
+        }
+
         // ── handler routing ───────────────────────────────────────────────────
 
         test("DesiredStateHandler forwards envelopes to the loop converge path") {

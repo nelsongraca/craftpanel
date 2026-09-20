@@ -138,6 +138,16 @@ class ConvergenceLoop(
     }
 
     /**
+     * CPU cap (millicores, 0 = unlimited) the server's container was allocated, used to normalize
+     * reported CPU usage onto the allocation. Prefers the applied spec (the cap the running
+     * container actually has); falls back to the desired spec before convergence has applied it.
+     */
+    fun cpuLimitMillicores(serverId: String): Int {
+        val state = store.get(serverId)
+        return state.appliedSpec?.cpuLimitMillicores ?: state.spec?.cpuLimitMillicores ?: 0
+    }
+
+    /**
      * Backstop sweep: re-converges every server whose intent is RUNNING but which is not currently
      * running. Recovers deaths the Docker event stream never delivered (agent/daemon restart, a
      * dropped stream) without waiting for a reconnect. Only RUNNING-intent servers are swept, so the

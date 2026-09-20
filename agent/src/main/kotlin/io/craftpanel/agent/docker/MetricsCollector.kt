@@ -49,7 +49,7 @@ open class MetricsCollector(
         }
     }
 
-    fun collectContainerMetrics(serverId: String, containerId: String): ContainerMetricsUpdate? {
+    fun collectContainerMetrics(serverId: String, containerId: String, cpuLimitMillicores: Int = 0): ContainerMetricsUpdate? {
         return runCatching {
             val latch = CountDownLatch(1)
             var captured: Statistics? = null
@@ -83,7 +83,10 @@ open class MetricsCollector(
             val numCpus = (cpu.onlineCpus?.toInt()
                 ?.takeIf { it > 0 }
                 ?: cpu.cpuUsage?.percpuUsage?.size?.takeIf { it > 0 } ?: 1)
-            val cpuPct = if (systemDelta > 0) (cpuDelta.toDouble() / systemDelta) * numCpus * 100.0 else 0.0
+            // Host-wide cores consumed over the interval. `numCpus` is the daemon-reported online
+            // CPU count, so this is core-relative (1 core fully used = 1.0), independent of the cap.
+            val coresUsed = if (systemDelta > 0) cpuDelta.toDouble() / systemDelta * numCpus else 0.0
+            val cpuPct = normalizeCpuPercent(coresUsed, numCpus, cpuLimitMillicores)
 
             val statsConfig = mem.stats
             val cache = statsConfig?.cache ?: statsConfig?.inactiveFile ?: 0L
@@ -265,4 +268,21 @@ open class MetricsCollector(
                 parts[0].trimEnd(':') to (parts.getOrNull(1)
                     ?.toLongOrNull() ?: 0L)
             }
+}
+
+/**
+ * Normalizes host-core CPU consumption to a 0–100 percentage of what the container is allowed to use.
+ *
+ * Docker reports `100%` per fully-used core, so an unlimited container on an N-core host reads up to
+ * `N * 100%`. This maps it onto the allocation instead:
+ * - limit set: percentage of the cap (e.g. 1 core used of a 2-core cap → 50%)
+ * - no limit: percentage of total host capacity (1 core used on a 4-core host → 25%)
+ *
+ * The denominator is clamped to [hostCores] so an over-allocated cap can still reach 100%, and the
+ * result is clamped to 100 because cgroup quota-period granularity allows brief overshoot.
+ */
+internal fun normalizeCpuPercent(coresUsed: Double, hostCores: Int, cpuLimitMillicores: Int): Double {
+    val host = hostCores.coerceAtLeast(1).toDouble()
+    val denomCores = if (cpuLimitMillicores > 0) minOf(cpuLimitMillicores / 1000.0, host) else host
+    return (coresUsed / denomCores * 100.0).coerceIn(0.0, 100.0)
 }

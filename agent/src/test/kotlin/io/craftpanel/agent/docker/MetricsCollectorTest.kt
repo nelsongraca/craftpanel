@@ -36,4 +36,39 @@ class MetricsCollectorTest :
             collector.collectContainerMetrics("server-1", "nonexistent-container-id")
             collector shouldNotBe null
         }
+
+        // ── normalizeCpuPercent ──────────────────────────────────────────────
+
+        test("1 core used under a 1-core cap is 100%") {
+            normalizeCpuPercent(coresUsed = 1.0, hostCores = 8, cpuLimitMillicores = 1000) shouldBe 100.0
+        }
+
+        test("1 core used under a 2-core cap is 50%") {
+            normalizeCpuPercent(coresUsed = 1.0, hostCores = 8, cpuLimitMillicores = 2000) shouldBe 50.0
+        }
+
+        test("0.5 cores used under a 2-core cap is 25%") {
+            normalizeCpuPercent(coresUsed = 0.5, hostCores = 8, cpuLimitMillicores = 2000) shouldBe 25.0
+        }
+
+        test("no cap reports against total host cores") {
+            normalizeCpuPercent(coresUsed = 1.0, hostCores = 4, cpuLimitMillicores = 0) shouldBe 25.0
+        }
+
+        test("cap exceeded by host cores is clamped to host") {
+            // 4-core cap on a 2-core host: 2 cores used is physically 100%, not 50%.
+            normalizeCpuPercent(coresUsed = 2.0, hostCores = 2, cpuLimitMillicores = 4000) shouldBe 100.0
+        }
+
+        test("result is clamped to 100 on quota-period overshoot") {
+            normalizeCpuPercent(coresUsed = 1.5, hostCores = 8, cpuLimitMillicores = 1000) shouldBe 100.0
+        }
+
+        test("zero usage is 0%") {
+            normalizeCpuPercent(coresUsed = 0.0, hostCores = 8, cpuLimitMillicores = 1000) shouldBe 0.0
+        }
+
+        test("host core count below one does not divide by zero") {
+            normalizeCpuPercent(coresUsed = 0.0, hostCores = 0, cpuLimitMillicores = 0) shouldBe 0.0
+        }
     })

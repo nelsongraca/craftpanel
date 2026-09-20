@@ -63,7 +63,7 @@ class ControlStreamHandler(
 
                 containerManager.listRunningContainerIds()
                     .forEach { (serverId, containerId) ->
-                        metricsCollector.collectContainerMetrics(serverId, containerId)
+                        metricsCollector.collectContainerMetrics(serverId, containerId, loop.cpuLimitMillicores(serverId))
                             ?.let { cm -> out.send { containerMetrics = cm } }
                         metricsCollector.collectPlayerCount(serverId, containerId)
                             ?.let { pu -> out.send { playerUpdate = pu } }
