@@ -1,8 +1,7 @@
 import {describe, it, expect} from 'vitest'
 import {render, screen} from '@testing-library/react'
-import {LiveMetricsPanel} from '../live-metrics'
+import {LiveMetricsCard, LiveMetricsStatCards} from '../live-metrics'
 import type {Server, Node} from '@/lib/types'
-import type React from 'react'
 
 vi.mock('@/lib/utils/format', () => ({
     fmtMb: (mb: number) => `${(mb / 1024).toFixed(1)} GB`,
@@ -46,10 +45,10 @@ const makeNode = (): Node => ({
     status: 'ONLINE',
 })
 
-describe('LiveMetricsPanel', () => {
+describe('LiveMetricsStatCards', () => {
     it('renders Players Online stat card', () => {
         render(
-            <LiveMetricsPanel
+            <LiveMetricsStatCards
                 liveMetrics={null}
                 livePlayers={{count: 5, list: ['a', 'b']}}
                 server={makeServer()}
@@ -62,7 +61,7 @@ describe('LiveMetricsPanel', () => {
 
     it('renders RAM Usage card with RamBarInline', () => {
         render(
-            <LiveMetricsPanel
+            <LiveMetricsStatCards
                 liveMetrics={{cpuPercent: 50, ramUsedMb: 1024, netInBytes: 1000, netOutBytes: 500}}
                 livePlayers={null}
                 server={makeServer({memory_mb: 2048})}
@@ -74,19 +73,19 @@ describe('LiveMetricsPanel', () => {
 
     it('renders CPU Usage with percentage', () => {
         render(
-            <LiveMetricsPanel
+            <LiveMetricsStatCards
                 liveMetrics={{cpuPercent: 45.2, ramUsedMb: 1024, netInBytes: 1000, netOutBytes: 500}}
                 livePlayers={null}
                 server={makeServer()}
                 node={makeNode()}
             />,
         )
-        expect(screen.getAllByText('45.2%').length).toBeGreaterThanOrEqual(1)
+        expect(screen.getByText('45.2%')).toBeInTheDocument()
     })
 
     it('renders Status with label', () => {
         render(
-            <LiveMetricsPanel
+            <LiveMetricsStatCards
                 liveMetrics={null}
                 livePlayers={null}
                 server={makeServer({status: 'RUNNING'})}
@@ -95,16 +94,24 @@ describe('LiveMetricsPanel', () => {
         )
         expect(screen.getByText('Running')).toBeInTheDocument()
     })
+})
 
-    it('shows awaiting data when metrics null', () => {
+describe('LiveMetricsCard', () => {
+    it('renders CPU and network metrics', () => {
         render(
-            <LiveMetricsPanel
-                liveMetrics={null}
-                livePlayers={null}
-                server={makeServer()}
-                node={null}
+            <LiveMetricsCard
+                liveMetrics={{cpuPercent: 45.2, ramUsedMb: 1024, netInBytes: 2048, netOutBytes: 1024}}
+                server={makeServer({memory_mb: 2048})}
             />,
         )
-        expect(screen.getByText('awaiting data')).toBeInTheDocument()
+        expect(screen.getByText('Live Metrics')).toBeInTheDocument()
+        expect(screen.getByText('CPU')).toBeInTheDocument()
+        expect(screen.getByText('Net \u2193')).toBeInTheDocument()
+        expect(screen.getByText('Net \u2191')).toBeInTheDocument()
+    })
+
+    it('shows awaiting data when metrics are null', () => {
+        render(<LiveMetricsCard liveMetrics={null} server={makeServer()}/>)
+        expect(screen.getByText('awaiting data\u2026')).toBeInTheDocument()
     })
 })
