@@ -5,17 +5,17 @@ import dynamic from "next/dynamic";
 import {useParams, useRouter} from "next/navigation";
 import Link from "next/link";
 import {ChevronRight, Copy, Download, MoreHorizontal, Play, RotateCcw, Shuffle, Skull, Square, Trash2, X,} from "lucide-react";
-import {deleteServer, exportServer, forceStopServer, getNetwork, getNode, getServer, getServerMetrics, restartServer, startServer, stopServer} from "@/lib/generated/sdk.gen";
+import {exportServer, getNetwork, getNode, getServer, getServerMetrics} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission, serverPermissions} from "@/lib/permissions";
 import type {Network, Node, Server} from "@/lib/types";
 import {useWs} from "@/lib/ws-context";
-import {serverDisabled, serverExpired, serverStatusLabel, serverStatusVariant} from "@/lib/status";
+import {serverExpired, serverStatusLabel, serverStatusVariant} from "@/lib/status";
 import {Badge} from "@/components/ui/badge";
 import {Skeleton} from "@/components/ui/skeleton";
 import {Empty, EmptyDescription} from "@/components/ui/empty";
-import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {HeaderActionButton} from "@/components/servers/header-action-button";
+import {type ServerActionKind, useServerActions} from "@/components/servers/server-actions";
 import {OverviewTab} from "@/components/servers/overview-tab";
 import {Tabs, TabsContent, TabsList, TabsTrigger} from "@/components/ui/tabs";
 import {isCustomType, isModLoaderType, isPicolimboType, isProxyType} from "@/lib/server-types";
@@ -25,6 +25,14 @@ type LivePlayers = { count: number; list: string[] };
 
 const TABS = ["Overview", "Console", "Files", "Mods", "Backups", "Configuration", "Ports", "Migration"] as const;
 type Tab = (typeof TABS)[number];
+
+const HEADER_ACTION_BUTTONS = {
+    start: {icon: <Play size={12} strokeWidth={2.5}/>, label: "Start", variant: "green"},
+    stop: {icon: <Square size={12} strokeWidth={2.5}/>, label: "Stop", variant: "red"},
+    forceStop: {icon: <Skull size={12} strokeWidth={2.5}/>, label: "Force Stop", variant: "red"},
+    restart: {icon: <RotateCcw size={12} strokeWidth={2.5}/>, label: "Restart", variant: "yellow"},
+    delete: {icon: <Trash2 size={12} strokeWidth={2.5}/>, label: "Delete", variant: "red"},
+} as const;
 
 // Lazily load each tab so visiting one tab does not bundle/evaluate the rest.
 const ConsoleTab = dynamic(() => import("./console-tab").then((m) => m.ConsoleTab), {ssr: false});
@@ -48,10 +56,7 @@ export default function ServerDetailPage() {
     const [loading, setLoading] = useState(true);
     const [notFound, setNotFound] = useState(false);
     const [activeTab, setActiveTab] = useState<Tab>("Overview");
-    const [actionError, setActionError] = useState<string | null>(null);
-    const [pending, setPending] = useState<string | null>(null);
     const [menuOpen, setMenuOpen] = useState(false);
-    const {confirm, dialog} = useConfirmDialog();
 
     // Live WS data
     const [liveMetrics, setLiveMetrics] = useState<LiveMetrics | null>(null);
@@ -177,42 +182,12 @@ export default function ServerDetailPage() {
 
     // Actions
 
-    const ACTION_FNS = {
-        start: startServer,
-        stop: stopServer,
-        restart: restartServer,
-        forceStop: forceStopServer,
-    } as const;
-
-    async function doAction(action: "start" | "stop" | "restart" | "forceStop") {
-        setPending(action);
-        setActionError(null);
-        const {error} = await ACTION_FNS[action]({path: {id}});
-        if (error) {
-            setActionError(error.message ?? `Failed to ${action} server`);
-        } else {
-            await fetchServer();
-        }
-        setPending(null);
-    }
-
-    function doDelete() {
-        if (!server) return;
-        confirm({
-            title: "Delete Server?",
-            description: `Delete "${server.display_name}"? This cannot be undone.`,
-            destructive: true,
-            onConfirm: async () => {
-                setActionError(null);
-                const {error: deleteErr} = await deleteServer({path: {id}});
-                if (deleteErr) {
-                    setActionError(deleteErr.message ?? "Failed to delete server");
-                } else {
-                    router.push("/servers");
-                }
-            },
-        });
-    }
+    const {allowedActions, run, remove, pendingFor, actionError, setActionError, dialog} = useServerActions({
+        permissions,
+        serverPermissionsMap: user?.server_permissions ?? {},
+        onChanged: () => void fetchServer(),
+        onDeleted: () => router.push("/servers"),
+    });
 
     async function doExport() {
         if (!server) return;
@@ -262,7 +237,6 @@ export default function ServerDetailPage() {
     const isPicolimbo = isPicolimboType(server.server_type);
     const isModServerType = isModLoaderType(server.server_type);
     const serverPerms = serverPermissions(permissions, user?.server_permissions ?? {}, server.id);
-    const disabled = serverDisabled(server);
     const expired = serverExpired(server.expires_at);
 
     return (
@@ -307,50 +281,21 @@ export default function ServerDetailPage() {
 
                     {/* Action buttons + menu */}
                     <div className="flex items-center gap-2 shrink-0">
-                        {sStatus === "STOPPED" && !disabled && hasPermission(serverPerms, "server.start") && (
-                            <HeaderActionButton
-                                icon={<Play size={12} strokeWidth={2.5}/>}
-                                label="Start"
-                                loading={pending === "start"}
-                                onClick={() => doAction("start")}
-                                variant="green"
-                            />
-                        )}
-                        {(sStatus === "HEALTHY" || sStatus === "STARTING" || sStatus === "UNHEALTHY") && hasPermission(serverPerms, "server.stop") && (
-                            <HeaderActionButton
-                                icon={<Square size={12} strokeWidth={2.5}/>}
-                                label="Stop"
-                                loading={pending === "stop"}
-                                onClick={() => doAction("stop")}
-                                variant="red"
-                            />
-                        )}
-                        {sStatus === "STOPPING" && hasPermission(serverPerms, "server.force_stop") && (
-                            <HeaderActionButton
-                                icon={<Skull size={12} strokeWidth={2.5}/>}
-                                label="Force Stop"
-                                loading={pending === "forceStop"}
-                                onClick={() => doAction("forceStop")}
-                                variant="red"
-                            />
-                        )}
-                        {sStatus === "HEALTHY" && !disabled && hasPermission(serverPerms, "server.restart") && (
-                            <HeaderActionButton
-                                icon={<RotateCcw size={12} strokeWidth={2.5}/>}
-                                label="Restart"
-                                loading={pending === "restart"}
-                                onClick={() => doAction("restart")}
-                                variant="yellow"
-                            />
-                        )}
-                        {sStatus === "STOPPED" && hasPermission(serverPerms, "server.delete") && (
-                            <HeaderActionButton
-                                icon={<Trash2 size={12} strokeWidth={2.5}/>}
-                                label="Delete"
-                                onClick={doDelete}
-                                variant="red"
-                            />
-                        )}
+                        {allowedActions(server)
+                            .filter((action): action is Exclude<ServerActionKind, "duplicate"> => action !== "duplicate")
+                            .map((action) => {
+                                const {icon, label, variant} = HEADER_ACTION_BUTTONS[action];
+                                return (
+                                    <HeaderActionButton
+                                        key={action}
+                                        icon={icon}
+                                        label={label}
+                                        loading={pendingFor(server.id) === action}
+                                        onClick={() => action === "delete" ? remove(server) : run(server.id, action)}
+                                        variant={variant}
+                                    />
+                                );
+                            })}
 
                         {/* Overflow menu */}
                         {(hasPermission(serverPerms, "server.migrate") || hasPermission(serverPerms, "server.export") || hasPermission(serverPerms, "server.create")) && (
@@ -451,9 +396,9 @@ export default function ServerDetailPage() {
             {server.restart_pending && sStatus !== "STOPPED" && (
                 <div className="mx-6 mt-4 flex items-center justify-between bg-warning/10 border border-warning/30 text-warning rounded px-3 py-2 text-xs">
                     <span>Settings saved. Restart the server for changes to take effect.</span>
-                    {sStatus === "HEALTHY" && !disabled && hasPermission(serverPerms, "server.restart") && (
+                    {allowedActions(server).includes("restart") && (
                         <button
-                            onClick={() => void doAction("restart")}
+                            onClick={() => void run(server.id, "restart")}
                             className="ml-4 shrink-0 text-xs font-heading font-bold uppercase tracking-wider underline hover:no-underline"
                         >
                             Restart Now

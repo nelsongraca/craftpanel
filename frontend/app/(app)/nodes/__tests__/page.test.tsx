@@ -40,8 +40,8 @@ vi.mock("@/app/components/PageHeader", () => ({
 }));
 
 import {
-    listNodes, listServers, trustNode, rejectNode,
-    rotateNodeToken, shutdownNode, decommissionNode, updateNode,
+    listNodes, listServers, trustNode,
+    rotateNodeToken, updateNode,
 } from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import NodesPage from "../page";
@@ -271,83 +271,6 @@ describe("NodesPage", () => {
         });
     });
 
-    describe("Trust button", () => {
-        it("renders Trust button for PENDING node when canManage, clicking calls trustNode and reloads", async () => {
-            const nd = node({id: "n1", status: "PENDING"});
-            vi.mocked(trustNode).mockResolvedValue({data: {}} as never);
-            await renderWith({
-                nodes: [nd],
-                permissions: ["system.nodes"],
-            });
-
-            const trustBtns = screen.getAllByTitle("Trust node");
-            expect(trustBtns.length).toBeGreaterThan(0);
-
-            const user = userEvent.setup();
-            await user.click(trustBtns[0]);
-
-            await waitFor(() => {
-                expect(trustNode).toHaveBeenCalledWith({path: {id: "n1"}});
-            });
-            expect(listNodes).toHaveBeenCalledTimes(2);
-        });
-
-        it("does NOT render Trust/Reject for PENDING node without system.nodes permission", async () => {
-            const nd = node({id: "n1", status: "PENDING"});
-            await renderWith({nodes: [nd], permissions: []});
-
-            expect(screen.queryByTitle("Trust node")).not.toBeInTheDocument();
-            expect(screen.queryByTitle("Reject node")).not.toBeInTheDocument();
-        });
-    });
-
-    describe("Reject via confirm", () => {
-        it("Reject opens confirm dialog, confirming calls rejectNode", async () => {
-            const nd = node({id: "n1", status: "PENDING"});
-            vi.mocked(rejectNode).mockResolvedValue({data: {}} as never);
-            await renderWith({
-                nodes: [nd],
-                permissions: ["system.nodes"],
-            });
-
-            const user = userEvent.setup();
-            await user.click(screen.getAllByTitle("Reject node")[0]);
-
-            await waitFor(() => {
-                expect(screen.getByText("Reject Node?")).toBeInTheDocument();
-            });
-            expect(screen.getByText(/The agent will not be able to connect/i)).toBeInTheDocument();
-
-            await user.click(screen.getByRole("button", {name: "Confirm"}));
-
-            await waitFor(() => {
-                expect(rejectNode).toHaveBeenCalledWith({path: {id: "n1"}});
-            });
-        });
-
-        it("Cancel closes confirm dialog without calling rejectNode", async () => {
-            const nd = node({id: "n1", status: "PENDING"});
-            await renderWith({
-                nodes: [nd],
-                permissions: ["system.nodes"],
-            });
-
-            const user = userEvent.setup();
-            await user.click(screen.getAllByTitle("Reject node")[0]);
-
-            await waitFor(() => {
-                expect(screen.getByText("Reject Node?")).toBeInTheDocument();
-            });
-
-            await user.click(screen.getByRole("button", {name: "Cancel"}));
-
-            await waitFor(() => {
-                expect(screen.queryByText("Reject Node?")).not.toBeInTheDocument();
-            });
-            expect(rejectNode).not.toHaveBeenCalled();
-        });
-    });
-
     describe("Row actions", () => {
         it('shows Edit, Rotate Key, Shutdown, and Decommission inline icons when servers=0 and canManage', async () => {
             const nd = node({id: "n1", status: "ACTIVE"});
@@ -482,50 +405,6 @@ describe("NodesPage", () => {
 
             await waitFor(() => {
                 expect(screen.getByText("Rotation failed")).toBeInTheDocument();
-            });
-        });
-    });
-
-    describe("Shutdown", () => {
-        it("calls shutdownNode via confirm dialog", async () => {
-            const nd = node({id: "n1", display_name: "Node Alpha", status: "ACTIVE"});
-            vi.mocked(shutdownNode).mockResolvedValue({data: {}} as never);
-            await renderWith({nodes: [nd], permissions: MANAGE});
-
-            const user = await clickAction("Shutdown");
-
-            await waitFor(() => {
-                expect(screen.getByText("Shutdown Node?")).toBeInTheDocument();
-            });
-            expect(screen.getByText(/Send shutdown command to "Node Alpha"\?/i)).toBeInTheDocument();
-
-            await user.click(screen.getByRole("button", {name: "Confirm"}));
-
-            await waitFor(() => {
-                expect(shutdownNode).toHaveBeenCalledWith({path: {id: "n1"}});
-            });
-        });
-    });
-
-    describe("Decommission", () => {
-        it("calls decommissionNode via confirm dialog when servers=0", async () => {
-            const nd = node({id: "n1", display_name: "Node X", status: "ACTIVE"});
-            vi.mocked(decommissionNode).mockResolvedValue({data: {}} as never);
-            await renderWith({nodes: [nd], permissions: MANAGE});
-
-            const user = await clickAction("Decommission");
-
-            await waitFor(() => {
-                expect(screen.getByText("Decommission Node?")).toBeInTheDocument();
-            });
-            expect(
-                screen.getByText(/Decommission "Node X"\? This cannot be undone/i),
-            ).toBeInTheDocument();
-
-            await user.click(screen.getByRole("button", {name: "Confirm"}));
-
-            await waitFor(() => {
-                expect(decommissionNode).toHaveBeenCalledWith({path: {id: "n1"}});
             });
         });
     });

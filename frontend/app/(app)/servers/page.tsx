@@ -11,7 +11,7 @@ import {hasPermission} from "@/lib/permissions";
 import type {Network, Node} from "@/lib/types";
 import {useResourceList} from "@/lib/hooks/useResourceList";
 import {ServerList} from "@/components/servers/server-list";
-import {useServerActions} from "@/components/servers/server-actions";
+import {ServerActions, useServerActions} from "@/components/servers/server-actions";
 import {SelectField} from "@/components/ui/form-elements";
 import {BTN_GHOST, BTN_PRIMARY, Modal, Field} from "@/components/ui/form-elements";
 
@@ -40,7 +40,7 @@ export default function ServersPage() {
     const {data: servers, initialLoad, reload: reloadServers} = useResourceList(listServers, []);
     const [nodes, setNodes] = useState<Node[]>([]);
     const [networks, setNetworks] = useState<Network[]>([]);
-    const {renderActions, actionError, setActionError, dialog} = useServerActions({
+    const {allowedActions, run, remove, duplicate, pendingFor, actionError, setActionError, dialog} = useServerActions({
         permissions,
         serverPermissionsMap: user?.server_permissions ?? {},
         onChanged: reloadServers,
@@ -230,7 +230,15 @@ export default function ServersPage() {
                                 : "No servers match the current filters"
                         }
                         onRowClick={(server) => router.push(`/servers/${server.id}`)}
-                        renderActions={renderActions}
+                        renderActions={(server) => (
+                            <ServerActions
+                                actions={allowedActions(server)}
+                                pending={pendingFor(server.id)}
+                                onAction={(action) => run(server.id, action)}
+                                onDelete={() => remove(server)}
+                                onDuplicate={() => duplicate(server)}
+                            />
+                        )}
                         actionsHeader="Actions"
                     />
                 </div>

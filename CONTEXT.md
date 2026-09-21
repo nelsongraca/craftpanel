@@ -87,11 +87,47 @@ setInterval(30s) + cleanup}` dance duplicated across all six list pages
 - `setData` is the **WS patch seam** — nodes/servers/alerts apply
   `subscribe("node.status", …)` deltas through it, so the hook stays the sole
   owner of the list state.
-- Composes with `useAction` (existing) — the hook does **not** own the per-row
-  `pendingAction` / `actionError` machinery; mutations stay page-side.
+- Composes with the entity action hooks (below) — the list hook owns list state;
+  per-row `pendingAction` / `actionError` and mutations live in
+  `useServerActions`/`useNodeActions`, not in the page.
 - Note: an earlier `useApiData` seam was documented here but never built; this
   hook supersedes that intent with a narrower, single-resource interface.
 - See candidate 4, `improve-codebase-architecture` review 2026-07-05.
+
+### Entity action hooks (frontend)
+The one owner per entity of the action policy + execution: `useServerActions`
+(`frontend/components/servers/server-actions.tsx`) and `useNodeActions`
+(`frontend/components/nodes/node-actions.tsx`). Replace the per-page `ACTION_FNS` /
+`doAction` / `doDelete` copies and the status matrices that had drifted between
+each entity's list and detail views.
+
+- `allowedServerActions(server, permissions): ServerActionKind[]` — the canonical
+  matrix: start `STOPPED && !disabled`; stop `HEALTHY|STARTING|UNHEALTHY`;
+  forceStop `STOPPING`; restart `HEALTHY && !disabled`; duplicate `server.create`;
+  delete `STOPPED`. `useServerActions({permissions, serverPermissionsMap,
+  onChanged, onDeleted?})` returns `{allowedActions(server), run(id, action),
+  remove(server), duplicate(server), pendingFor(id), actionError, setActionError, dialog}`.
+- `allowedNodeActions(node, serverCount): NodeActionKind[]` — trust/reject
+  `PENDING`; rotate `!= PENDING`; shutdown `ACTIVE`; decommission
+  `serverCount === 0 && != DECOMMISSIONED`. `useNodeActions({onChanged,
+  onTokenRotated, onDecommissioned?})` returns `{allowedActions(node, count),
+  trust, reject, rotate, shutdown, decommission, pendingFor(id), actionError,
+  setActionError, dialog}`.
+- **Policy is shared; rendering is not.** Each context renders the allowed-action
+  list with its own button: `ServerActions`/`NodeActions` (icon buttons, lists) vs
+  the `HeaderActionButton` maps in the detail headers. The matrix cannot drift.
+- **Canonical-matrix fixes over the previous per-page copies:** the server list
+  gains stop-on-`UNHEALTHY`; the server detail no longer shows Rotate Key for a
+  `PENDING` node; the node list no longer offers Decommission for a
+  `DECOMMISSIONED` node.
+- `useConfirmDialog` is owned by the hook (the page renders the returned `dialog`);
+  `onChanged`/`onDeleted`/`onTokenRotated`/`onDecommissioned` callbacks cover the
+  list-reload vs detail-redirect differences.
+- Tested at the hook interface (`server-actions.test.tsx`,
+  `node-actions.test.tsx`); the two node page specs keep render/integration cases
+  only.
+- Supersedes the ResourceList note above ("mutations stay page-side").
+- See candidate 5, `improve-codebase-architecture` review 2026-09-20.
 
 ### DataServiceProxy domain boundary (master)
 `DataServiceProxy` is now the only class that knows proto types.

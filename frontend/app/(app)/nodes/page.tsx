@@ -2,9 +2,9 @@
 
 import {useEffect, useState} from "react";
 import {useRouter} from "next/navigation";
-import {Ban, Check, KeyRound, Pencil, Power, Trash2, X} from "lucide-react";
+import {X} from "lucide-react";
 import PageHeader from "@/app/components/PageHeader";
-import {decommissionNode, listNodes, listServers, rejectNode, rotateNodeToken, shutdownNode, trustNode,} from "@/lib/generated/sdk.gen";
+import {listNodes, listServers} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import type {Node} from "@/lib/types";
@@ -12,14 +12,13 @@ import {EditNodeModal} from "@/components/nodes/EditNodeModal";
 import {AgentVersion} from "@/components/nodes/agent-version";
 import {timeAgo, fmtMb, fillColor, fmtPct} from "@/lib/utils/format";
 import {TokenModal} from "@/components/nodes/TokenModal";
-import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
+import {NodeActions, useNodeActions} from "@/components/nodes/node-actions";
 import {useHealth} from "@/lib/hooks/useHealth";
 import {useResourceList} from "@/lib/hooks/useResourceList";
 import {useWs} from "@/lib/ws-context";
 import {nodeDisplayStatus, nodeStatusLabel, nodeStatusVariant} from "@/lib/status";
 import {Badge} from "@/components/ui/badge";
 import {SelectField} from "@/components/ui/form-elements";
-import {IconActionButton} from "@/components/ui/list-table";
 import {SmartList, type SmartListColumn} from "@/components/ui/smart-list";
 
 const STATUS_FILTER_OPTIONS = [
@@ -50,94 +49,6 @@ function MiniBar({used, total, fmt = fmtMb}: { used: number; total: number; fmt?
     );
 }
 
-// ── Row actions (shared by desktop table + mobile card) ─────────────────────────
-
-function NodeActions({
-                         node, pending, servers, canManage,
-                         doTrust, doReject, doRotateToken, doShutdown, doDecommission, setEditNode,
-                     }: {
-    node: Node;
-    pending: string | undefined;
-    servers: number;
-    canManage: boolean;
-    doTrust: (id: string) => void;
-    doReject: (id: string) => void;
-    doRotateToken: (id: string) => void;
-    doShutdown: (id: string, name: string) => void;
-    doDecommission: (node: Node) => void;
-    setEditNode: (node: Node) => void;
-}) {
-    return (
-        <div className="flex items-center justify-end gap-1">
-            {/* PENDING: Trust + Reject */}
-            {node.status === "PENDING" && canManage && (
-                <>
-                    <button
-                        onClick={() => doTrust(node.id)}
-                        disabled={!!pending}
-                        title="Trust node"
-                        className="flex items-center gap-1 px-2 py-1 text-xs font-heading font-bold uppercase tracking-wider border rounded-[2px] text-healthy border-healthy/40 hover:bg-healthy/10 transition-colors disabled:opacity-40"
-                    >
-                        {pending === "trust" ? (
-                            <span className="w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin"/>
-                        ) : (
-                            <Check size={11} strokeWidth={2.5}/>
-                        )}
-                        Trust
-                    </button>
-                    <button
-                        onClick={() => doReject(node.id)}
-                        disabled={!!pending}
-                        title="Reject node"
-                        className="flex items-center gap-1 px-2 py-1 text-xs font-heading font-bold uppercase tracking-wider border rounded-[2px] text-error border-error/40 hover:bg-error/10 transition-colors disabled:opacity-40"
-                    >
-                        {pending === "reject" ? (
-                            <span className="w-2.5 h-2.5 border border-current border-t-transparent rounded-full animate-spin"/>
-                        ) : (
-                            <Ban size={11} strokeWidth={2.5}/>
-                        )}
-                        Reject
-                    </button>
-                </>
-            )}
-
-            {/* Non-PENDING: inline icon actions */}
-            {node.status !== "PENDING" && canManage && (
-                <>
-                    <IconActionButton
-                        icon={<Pencil size={11} strokeWidth={2}/>}
-                        label="Edit"
-                        onClick={() => setEditNode(node)}
-                    />
-                    <IconActionButton
-                        icon={<KeyRound size={11} strokeWidth={2}/>}
-                        label="Rotate Key"
-                        loading={pending === "rotate"}
-                        onClick={() => doRotateToken(node.id)}
-                    />
-                    {node.status === "ACTIVE" && (
-                        <IconActionButton
-                            icon={<Power size={11} strokeWidth={2}/>}
-                            label="Shutdown"
-                            loading={pending === "shutdown"}
-                            onClick={() => doShutdown(node.id, node.display_name)}
-                        />
-                    )}
-                    {servers === 0 && (
-                        <IconActionButton
-                            icon={<Trash2 size={11} strokeWidth={2}/>}
-                            label="Decommission"
-                            loading={pending === "decommission"}
-                            onClick={() => doDecommission(node)}
-                            danger
-                        />
-                    )}
-                </>
-            )}
-        </div>
-    );
-}
-
 // ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function NodesPage() {
@@ -149,15 +60,17 @@ export default function NodesPage() {
     const {data: nodes, initialLoad, reload: reloadNodes, setData: setNodes} = useResourceList(listNodes, []);
     const health = useHealth();
     const [serverCounts, setServerCounts] = useState<Record<string, number>>({});
-    const [actionError, setActionError] = useState<string | null>(null);
-    const [pendingAction, setPendingAction] = useState<Record<string, string>>({});
-    const {confirm, dialog} = useConfirmDialog();
 
     const [filterStatus, setFilterStatus] = useState("");
 
     // Modals
     const [editNode, setEditNode] = useState<Node | null>(null);
     const [tokenKey, setTokenKey] = useState<string | null>(null);
+
+    const {allowedActions, trust, reject, rotate, shutdown, decommission, pendingFor, actionError, setActionError, dialog} = useNodeActions({
+        onChanged: reloadNodes,
+        onTokenRotated: setTokenKey,
+    });
 
     useEffect(() => {
         listServers().then(({data: serverData}) => {
@@ -178,114 +91,6 @@ export default function NodesPage() {
             );
         });
     }, [subscribe, setNodes]);
-
-    // ── Actions ────────────────────────────────────────────────────────────────
-
-    async function doTrust(nodeId: string) {
-        setPendingAction((p) => ({...p, [nodeId]: "trust"}));
-        setActionError(null);
-        const {error} = await trustNode({path: {id: nodeId}});
-        if (error) {
-            setActionError(error.message ?? "Failed to trust node");
-        } else {
-            reloadNodes();
-        }
-        setPendingAction((p) => {
-            const n = {...p};
-            delete n[nodeId];
-            return n;
-        });
-    }
-
-    function doReject(nodeId: string) {
-        confirm({
-            title: "Reject Node?",
-            description: "The agent will not be able to connect.",
-            destructive: true,
-            onConfirm: async () => {
-                setPendingAction((p) => ({...p, [nodeId]: "reject"}));
-                setActionError(null);
-                const {error: rejectErr} = await rejectNode({path: {id: nodeId}});
-                if (rejectErr) {
-                    setActionError(rejectErr.message ?? "Failed to reject node");
-                } else {
-                    reloadNodes();
-                }
-                setPendingAction((p) => {
-                    const n = {...p};
-                    delete n[nodeId];
-                    return n;
-                });
-            },
-        });
-    }
-
-    function doRotateToken(nodeId: string) {
-        confirm({
-            title: "Rotate Node Key?",
-            description: "The agent will need to re-register.",
-            onConfirm: async () => {
-                setPendingAction((p) => ({...p, [nodeId]: "rotate"}));
-                setActionError(null);
-                const {error: rotateErr, data: rotateData} = await rotateNodeToken({path: {id: nodeId}});
-                if (rotateErr) {
-                    setActionError(rotateErr.message ?? "Failed to rotate key");
-                } else if (rotateData?.node_key) {
-                    setTokenKey(rotateData.node_key);
-                }
-                setPendingAction((p) => {
-                    const n = {...p};
-                    delete n[nodeId];
-                    return n;
-                });
-            },
-        });
-    }
-
-    function doShutdown(nodeId: string, displayName: string) {
-        confirm({
-            title: "Shutdown Node?",
-            description: `Send shutdown command to "${displayName}"?`,
-            onConfirm: async () => {
-                setPendingAction((p) => ({...p, [nodeId]: "shutdown"}));
-                setActionError(null);
-                const {error: shutdownErr} = await shutdownNode({path: {id: nodeId}});
-                if (shutdownErr) {
-                    setActionError(shutdownErr.message ?? "Failed to shutdown node");
-                } else {
-                    reloadNodes();
-                }
-                setPendingAction((p) => {
-                    const n = {...p};
-                    delete n[nodeId];
-                    return n;
-                });
-            },
-        });
-    }
-
-    function doDecommission(node: Node) {
-        confirm({
-            title: "Decommission Node?",
-            description: `Decommission "${node.display_name}"? This cannot be undone.`,
-            destructive: true,
-            onConfirm: async () => {
-                setPendingAction((p) => ({...p, [node.id]: "decommission"}));
-                setActionError(null);
-                const {error: decomErr} = await decommissionNode({path: {id: node.id}});
-                if (decomErr) {
-                    setActionError(decomErr.message ?? "Failed to decommission node");
-                } else {
-                    reloadNodes();
-                }
-                setPendingAction((p) => {
-                    const n = {...p};
-                    delete n[node.id];
-                    return n;
-                });
-            },
-        });
-    }
 
     // ── Derived ────────────────────────────────────────────────────────────────
 
@@ -421,9 +226,14 @@ export default function NodesPage() {
 
                     const renderActions = (node: Node) => (
                         <NodeActions
-                            node={node} pending={pendingAction[node.id]} servers={serverCounts[node.id] ?? 0} canManage={canManage}
-                            doTrust={doTrust} doReject={doReject} doRotateToken={doRotateToken}
-                            doShutdown={doShutdown} doDecommission={doDecommission} setEditNode={setEditNode}
+                            actions={canManage ? allowedActions(node, serverCounts[node.id] ?? 0) : []}
+                            pending={pendingFor(node.id)}
+                            onTrust={() => trust(node.id)}
+                            onReject={() => reject(node.id)}
+                            onRotate={() => rotate(node.id)}
+                            onShutdown={() => shutdown(node)}
+                            onDecommission={() => decommission(node)}
+                            onEdit={() => setEditNode(node)}
                         />
                     );
 

@@ -5,7 +5,7 @@ import {useParams, useRouter} from "next/navigation";
 import Link from "next/link";
 import {Ban, Check, ChevronRight, KeyRound, Power, Trash2, X,} from "lucide-react";
 import {CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis,} from "recharts";
-import {decommissionNode, getNode, getNodeMetrics, listServers, rejectNode, rotateNodeToken, shutdownNode, trustNode,} from "@/lib/generated/sdk.gen";
+import {getNode, getNodeMetrics, listServers} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import {useWs} from "@/lib/ws-context";
@@ -13,13 +13,13 @@ import type {Node} from "@/lib/types";
 import {timeAgo, fmtBytes, fmtMb, fmtBytesNetworkIo, fillColorBg, fmtPct, fmtCpuCores} from "@/lib/utils/format";
 import {TokenModal} from "@/components/nodes/TokenModal";
 import type {ServerResponse as Server} from "@/lib/generated/types.gen";
-import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {HeaderActionButton} from "@/components/servers/header-action-button";
+import {useNodeActions} from "@/components/nodes/node-actions";
 
 import {nodeStatusLabel, nodeStatusVariant} from "@/lib/status";
 import {EditNode} from "@/components/nodes/edit-node";
 import {ServerList} from "@/components/servers/server-list";
-import {useServerActions} from "@/components/servers/server-actions";
+import {ServerActions, useServerActions} from "@/components/servers/server-actions";
 import {Badge} from "@/components/ui/badge";
 import {Skeleton} from "@/components/ui/skeleton";
 import {Empty, EmptyDescription} from "@/components/ui/empty";
@@ -56,6 +56,14 @@ function ResourceBar({used, total, fmt}: { used: number; total: number; fmt: (v:
 
 const TABS = ["Overview", "Servers", "Metrics"] as const;
 type Tab = (typeof TABS)[number];
+
+const NODE_HEADER_ACTION_BUTTONS = {
+    trust: {icon: <Check size={12} strokeWidth={2.5}/>, label: "Trust", variant: "green"},
+    reject: {icon: <Ban size={12} strokeWidth={2.5}/>, label: "Reject", variant: "red"},
+    rotate: {icon: <KeyRound size={12} strokeWidth={2.5}/>, label: "Rotate Key", variant: "default"},
+    shutdown: {icon: <Power size={12} strokeWidth={2.5}/>, label: "Shutdown", variant: "amber"},
+    decommission: {icon: <Trash2 size={12} strokeWidth={2.5}/>, label: "Decommission", variant: "red"},
+} as const;
 
 // ── Overview tab ──────────────────────────────────────────────────────────────
 
@@ -390,9 +398,6 @@ export default function NodeDetailPage() {
     const [loading, setLoading] = useState(true);
     const [notFound, setNotFound] = useState(false);
     const [activeTab, setActiveTab] = useState<Tab>("Overview");
-    const [actionError, setActionError] = useState<string | null>(null);
-    const [pending, setPending] = useState<string | null>(null);
-    const {confirm, dialog} = useConfirmDialog();
 
     // Modals
     const [tokenKey, setTokenKey] = useState<string | null>(null);
@@ -410,7 +415,11 @@ export default function NodeDetailPage() {
     }, [id]);
 
     const {
-        renderActions,
+        allowedActions: allowedServerActions,
+        run: runServerAction,
+        remove: removeServer,
+        duplicate: duplicateServer,
+        pendingFor: serverPendingFor,
         actionError: serverActionError,
         setActionError: setServerActionError,
         dialog: serverActionsDialog,
@@ -434,75 +443,11 @@ export default function NodeDetailPage() {
         });
     }, [subscribe, id, fetchNode]);
 
-    // ── Actions ────────────────────────────────────────────────────────────────
-
-    async function doTrust() {
-        setPending("trust");
-        setActionError(null);
-        const {error: trustErr} = await trustNode({path: {id}});
-        if (trustErr) setActionError(trustErr.message ?? "Failed to trust node"); else await fetchNode();
-        setPending(null);
-    }
-
-    function doReject() {
-        confirm({
-            title: "Reject Node?",
-            description: "The agent will not be able to connect.",
-            destructive: true,
-            onConfirm: async () => {
-                setPending("reject");
-                setActionError(null);
-                const {error: rejectErr} = await rejectNode({path: {id}});
-                if (rejectErr) setActionError(rejectErr.message ?? "Failed to reject node"); else await fetchNode();
-                setPending(null);
-            },
-        });
-    }
-
-    function doRotateToken() {
-        confirm({
-            title: "Rotate Node Key?",
-            description: "The agent will need to re-register.",
-            onConfirm: async () => {
-                setPending("rotate");
-                setActionError(null);
-                const {error: rotateErr, data: rotateData} = await rotateNodeToken({path: {id}});
-                if (rotateErr) setActionError(rotateErr.message ?? "Failed to rotate key"); else setTokenKey(rotateData!.node_key);
-                setPending(null);
-            },
-        });
-    }
-
-    function doShutdown() {
-        if (!node) return;
-        confirm({
-            title: "Shutdown Node?",
-            description: `Send shutdown command to "${node.display_name}"?`,
-            onConfirm: async () => {
-                setPending("shutdown");
-                setActionError(null);
-                const {error: shutdownErr} = await shutdownNode({path: {id}});
-                if (shutdownErr) setActionError(shutdownErr.message ?? "Failed to shutdown node"); else await fetchNode();
-                setPending(null);
-            },
-        });
-    }
-
-    function doDecommission() {
-        if (!node) return;
-        confirm({
-            title: "Decommission Node?",
-            description: `Decommission "${node.display_name}"? This cannot be undone.`,
-            destructive: true,
-            onConfirm: async () => {
-                setPending("decommission");
-                setActionError(null);
-                const {error: decomErr} = await decommissionNode({path: {id}});
-                if (decomErr) setActionError(decomErr.message ?? "Failed to decommission node"); else router.push("/nodes");
-                setPending(null);
-            },
-        });
-    }
+    const {allowedActions: allowedNodeActions, trust, reject, rotate, shutdown, decommission, pendingFor: nodePendingFor, actionError, setActionError, dialog: nodeActionsDialog} = useNodeActions({
+        onChanged: () => void fetchNode(),
+        onTokenRotated: setTokenKey,
+        onDecommissioned: () => router.push("/nodes"),
+    });
 
     // ── Guards ─────────────────────────────────────────────────────────────────
 
@@ -553,49 +498,27 @@ export default function NodeDetailPage() {
 
                     {canManage && (
                         <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                            {node.status === "PENDING" && (
-                                <>
+                            {allowedNodeActions(node, servers.length).map((action) => {
+                                const {icon, label, variant} = NODE_HEADER_ACTION_BUTTONS[action];
+                                return (
                                     <HeaderActionButton
-                                        icon={<Check size={12} strokeWidth={2.5}/>}
-                                        label="Trust"
-                                        loading={pending === "trust"}
-                                        onClick={doTrust}
-                                        variant="green"
+                                        key={action}
+                                        icon={icon}
+                                        label={label}
+                                        loading={nodePendingFor(node.id) === action}
+                                        onClick={() => {
+                                            switch (action) {
+                                                case "trust": void trust(node.id); break;
+                                                case "reject": reject(node.id); break;
+                                                case "rotate": rotate(node.id); break;
+                                                case "shutdown": shutdown(node); break;
+                                                case "decommission": decommission(node); break;
+                                            }
+                                        }}
+                                        variant={variant}
                                     />
-                                    <HeaderActionButton
-                                        icon={<Ban size={12} strokeWidth={2.5}/>}
-                                        label="Reject"
-                                        loading={pending === "reject"}
-                                        onClick={doReject}
-                                        variant="red"
-                                    />
-                                </>
-                            )}
-                            <HeaderActionButton
-                                icon={<KeyRound size={12} strokeWidth={2.5}/>}
-                                label="Rotate Key"
-                                loading={pending === "rotate"}
-                                onClick={doRotateToken}
-                                variant="default"
-                            />
-                            {node.status === "ACTIVE" && (
-                                <HeaderActionButton
-                                    icon={<Power size={12} strokeWidth={2.5}/>}
-                                    label="Shutdown"
-                                    loading={pending === "shutdown"}
-                                    onClick={doShutdown}
-                                    variant="amber"
-                                />
-                            )}
-                            {servers.length === 0 && node.status !== "DECOMMISSIONED" && (
-                                <HeaderActionButton
-                                    icon={<Trash2 size={12} strokeWidth={2.5}/>}
-                                    label="Decommission"
-                                    loading={pending === "decommission"}
-                                    onClick={doDecommission}
-                                    variant="red"
-                                />
-                            )}
+                                );
+                            })}
                         </div>
                     )}
                 </div>
@@ -646,7 +569,15 @@ export default function NodeDetailPage() {
                             showNodeColumn={false}
                             empty="No servers assigned to this node"
                             onRowClick={(server) => router.push(`/servers/${server.id}`)}
-                            renderActions={renderActions}
+                            renderActions={(server) => (
+                                <ServerActions
+                                    actions={allowedServerActions(server)}
+                                    pending={serverPendingFor(server.id)}
+                                    onAction={(action) => runServerAction(server.id, action)}
+                                    onDelete={() => removeServer(server)}
+                                    onDuplicate={() => duplicateServer(server)}
+                                />
+                            )}
                             actionsHeader="Actions"
                         />
                     </div>
@@ -658,7 +589,7 @@ export default function NodeDetailPage() {
             {tokenKey && (
                 <TokenModal nodeKey={tokenKey} onClose={() => setTokenKey(null)}/>
             )}
-            {dialog}
+            {nodeActionsDialog}
             {serverActionsDialog}
         </div>
     );

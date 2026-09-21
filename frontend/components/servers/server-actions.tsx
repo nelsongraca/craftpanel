@@ -10,105 +10,119 @@ import {serverDisabled} from "@/lib/status";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {IconActionButton} from "@/components/ui/list-table";
 
-export function ServerActions({
-                                  server, status, pending, permissions, doAction, doDelete, doDuplicate,
-                              }: {
-    server: Server;
-    status: string;
-    pending: string | undefined;
-    permissions: string[];
-    doAction: (id: string, action: "start" | "stop" | "restart" | "forceStop") => void;
-    doDelete: (s: Server) => void;
-    doDuplicate: (s: Server) => void;
-}) {
+export type ServerLifecycleAction = "start" | "stop" | "restart" | "forceStop";
+export type ServerActionKind = ServerLifecycleAction | "duplicate" | "delete";
+
+const LIFECYCLE_FNS = {
+    start: startServer,
+    stop: stopServer,
+    restart: restartServer,
+    forceStop: forceStopServer,
+} as const;
+
+/**
+ * The one status/permission matrix for server actions. The server list, the node detail Servers tab
+ * and the server detail header all render from this list, so the matrix cannot drift between them.
+ */
+export function allowedServerActions(server: Server, permissions: string[]): ServerActionKind[] {
     const disabled = serverDisabled(server);
+    const status = server.status;
+    const actions: ServerActionKind[] = [];
+    if (status === "STOPPED" && !disabled && hasPermission(permissions, "server.start")) actions.push("start");
+    if ((status === "HEALTHY" || status === "STARTING" || status === "UNHEALTHY") && hasPermission(permissions, "server.stop")) actions.push("stop");
+    if (status === "STOPPING" && hasPermission(permissions, "server.force_stop")) actions.push("forceStop");
+    if (status === "HEALTHY" && !disabled && hasPermission(permissions, "server.restart")) actions.push("restart");
+    if (hasPermission(permissions, "server.create")) actions.push("duplicate");
+    if (status === "STOPPED" && hasPermission(permissions, "server.delete")) actions.push("delete");
+    return actions;
+}
+
+/** Pure renderer for the list contexts: maps an allowed-action list to icon buttons. */
+export function ServerActions({
+                                  actions,
+                                  pending,
+                                  onAction,
+                                  onDelete,
+                                  onDuplicate,
+                              }: {
+    actions: ServerActionKind[];
+    pending: string | undefined;
+    onAction: (action: ServerLifecycleAction) => void;
+    onDelete: () => void;
+    onDuplicate: () => void;
+}) {
+    const iconFor = (action: ServerActionKind) => {
+        switch (action) {
+            case "start": return <Play size={11} strokeWidth={2.5}/>;
+            case "stop": return <Square size={11} strokeWidth={2.5}/>;
+            case "forceStop": return <Skull size={11} strokeWidth={2.5}/>;
+            case "restart": return <RotateCcw size={11} strokeWidth={2.5}/>;
+            case "duplicate": return <CopyPlus size={11} strokeWidth={2.5}/>;
+            case "delete": return <Trash2 size={11} strokeWidth={2.5}/>;
+        }
+    };
+    const labelFor = (action: ServerActionKind) => {
+        switch (action) {
+            case "start": return "Start";
+            case "stop": return "Stop";
+            case "forceStop": return "Force Stop";
+            case "restart": return "Restart";
+            case "duplicate": return "Duplicate";
+            case "delete": return "Delete";
+        }
+    };
+
     return (
         <div className="flex items-center justify-end gap-1">
-            {status === "STOPPED" && !disabled && hasPermission(permissions, "server.start") && (
+            {actions.map((action) => (
                 <IconActionButton
-                    icon={<Play size={11} strokeWidth={2.5}/>}
-                    label="Start"
-                    loading={pending === "start"}
-                    onClick={() => doAction(server.id, "start")}
+                    key={action}
+                    icon={iconFor(action)}
+                    label={labelFor(action)}
+                    loading={pending === action}
+                    onClick={() => {
+                        if (action === "duplicate") onDuplicate();
+                        else if (action === "delete") onDelete();
+                        else onAction(action);
+                    }}
+                    danger={action === "stop" || action === "forceStop" || action === "delete"}
                 />
-            )}
-            {(status === "HEALTHY" || status === "STARTING") && hasPermission(permissions, "server.stop") && (
-                <IconActionButton
-                    icon={<Square size={11} strokeWidth={2.5}/>}
-                    label="Stop"
-                    loading={pending === "stop"}
-                    onClick={() => doAction(server.id, "stop")}
-                    danger
-                />
-            )}
-            {status === "STOPPING" && hasPermission(permissions, "server.force_stop") && (
-                <IconActionButton
-                    icon={<Skull size={11} strokeWidth={2.5}/>}
-                    label="Force Stop"
-                    loading={pending === "forceStop"}
-                    onClick={() => doAction(server.id, "forceStop")}
-                    danger
-                />
-            )}
-            {status === "HEALTHY" && !disabled && hasPermission(permissions, "server.restart") && (
-                <IconActionButton
-                    icon={<RotateCcw size={11} strokeWidth={2.5}/>}
-                    label="Restart"
-                    loading={pending === "restart"}
-                    onClick={() => doAction(server.id, "restart")}
-                />
-            )}
-            {hasPermission(permissions, "server.create") && (
-                <IconActionButton
-                    icon={<CopyPlus size={11} strokeWidth={2.5}/>}
-                    label="Duplicate"
-                    onClick={() => doDuplicate(server)}
-                />
-            )}
-            {status === "STOPPED" && hasPermission(permissions, "server.delete") && (
-                <IconActionButton
-                    icon={<Trash2 size={11} strokeWidth={2.5}/>}
-                    label="Delete"
-                    onClick={() => doDelete(server)}
-                    danger
-                />
-            )}
+            ))}
         </div>
     );
 }
 
 /**
- * Server lifecycle/delete/duplicate actions shared by the server list and the node detail
- * Servers tab. Returns a `renderActions` for SmartList plus the error banner state and the
- * confirm dialog node the host page must render.
+ * Server lifecycle/delete/duplicate actions shared by the server list, the node detail Servers tab
+ * and the server detail header. Owns execution, per-server pending state, the confirm dialog, and
+ * the allowed-action policy; each context renders the returned actions with its own button style.
  */
 export function useServerActions({
                                      permissions,
                                      serverPermissionsMap,
                                      onChanged,
+                                     onDeleted,
                                  }: {
     permissions: string[];
     serverPermissionsMap: Record<string, string[]>;
     onChanged: () => void;
+    onDeleted?: () => void;
 }) {
     const router = useRouter();
     const [pendingAction, setPendingAction] = useState<Record<string, string>>({});
     const [actionError, setActionError] = useState<string | null>(null);
     const {confirm, dialog} = useConfirmDialog();
 
-    const ACTION_FNS = {
-        start: startServer,
-        stop: stopServer,
-        restart: restartServer,
-        forceStop: forceStopServer,
-    } as const;
+    function allowedActions(server: Server): ServerActionKind[] {
+        return allowedServerActions(server, serverPermissions(permissions, serverPermissionsMap, server.id));
+    }
 
-    async function doAction(serverId: string, action: "start" | "stop" | "restart" | "forceStop") {
+    async function run(serverId: string, action: ServerLifecycleAction) {
         setPendingAction((p) => ({...p, [serverId]: action}));
         setActionError(null);
-        const {error} = await ACTION_FNS[action]({path: {id: serverId}});
+        const {error} = await LIFECYCLE_FNS[action]({path: {id: serverId}});
         if (error) {
-            setActionError(error.message ?? "Action failed");
+            setActionError(error.message ?? `Failed to ${action} server`);
         } else {
             onChanged();
         }
@@ -119,7 +133,7 @@ export function useServerActions({
         });
     }
 
-    function doDelete(server: Server) {
+    function remove(server: Server) {
         confirm({
             title: "Delete Server?",
             description: `Delete "${server.display_name}"? This cannot be undone.`,
@@ -130,30 +144,19 @@ export function useServerActions({
                 if (error) {
                     setActionError(error.message ?? "Failed to delete server");
                 } else {
-                    onChanged();
+                    (onDeleted ?? onChanged)();
                 }
             },
         });
     }
 
-    function doDuplicate(server: Server) {
+    function duplicate(server: Server) {
         router.push(`/servers/new?clone=${server.id}`);
     }
 
-    function renderActions(server: Server) {
-        const serverPerms = serverPermissions(permissions, serverPermissionsMap, server.id);
-        return (
-            <ServerActions
-                server={server}
-                status={server.status}
-                pending={pendingAction[server.id]}
-                permissions={serverPerms}
-                doAction={doAction}
-                doDelete={doDelete}
-                doDuplicate={doDuplicate}
-            />
-        );
+    function pendingFor(serverId: string): string | undefined {
+        return pendingAction[serverId];
     }
 
-    return {renderActions, actionError, setActionError, dialog};
+    return {allowedActions, run, remove, duplicate, pendingFor, actionError, setActionError, dialog};
 }
