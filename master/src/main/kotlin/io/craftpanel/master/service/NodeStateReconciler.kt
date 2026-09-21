@@ -21,7 +21,7 @@ class NodeStateReconciler(
     private val log = LoggerFactory.getLogger(NodeStateReconciler::class.java)
 
     fun reconcileNodeState(nodeId: String, snapshot: NodeStateSnapshot): NodeHealth? {
-        val kotlinNodeId = runCatching { Uuid.parse(nodeId) }.getOrNull() ?: return null
+        val kotlinNodeId = parseUuid(nodeId) ?: return null
         val now = Clock.System.now()
         var resultHealth: NodeHealth? = null
 
@@ -54,10 +54,7 @@ class NodeStateReconciler(
     }
 
     fun markNodeUnreachable(nodeId: String) {
-        val kotlinNodeId = runCatching { Uuid.parse(nodeId) }.getOrElse {
-            log.warn("markNodeUnreachable: invalid nodeId format: $nodeId")
-            return
-        }
+        val kotlinNodeId = parseNodeId(nodeId) ?: return
         val now = Clock.System.now()
 
         val node = nodeRepository.findById(kotlinNodeId) ?: return
@@ -66,11 +63,11 @@ class NodeStateReconciler(
             return
         }
 
+        // One transaction: node health, in-flight migrations, and in-flight backups degrade together.
         transaction {
             Node.findById(kotlinNodeId)
                 ?.let { it.health = "UNREACHABLE"; it.lastSeenAt = now.toLocalDateTime(TimeZone.UTC) }
-        }
-        transaction {
+
             ServerMigration.find {
                 ((ServerMigrations.sourceNodeId eq kotlinNodeId) or (ServerMigrations.targetNodeId eq kotlinNodeId)) and
                     (ServerMigrations.status inList listOf("PENDING", "SYNCING", "CUTTING_OVER"))
@@ -79,8 +76,7 @@ class NodeStateReconciler(
                     it.status = "FAILED"
                     it.completedAt = now.toLocalDateTime(TimeZone.UTC)
                 }
-        }
-        transaction {
+
             Backup.find { (Backups.nodeId eq kotlinNodeId) and (Backups.status eq "IN_PROGRESS") }
                 .forEach {
                     it.status = "FAILED"
@@ -93,10 +89,7 @@ class NodeStateReconciler(
     }
 
     fun updateNodeHealth(nodeId: String, health: NodeHealth) {
-        val kotlinNodeId = runCatching { Uuid.parse(nodeId) }.getOrElse {
-            log.warn("updateNodeHealth: invalid nodeId format: $nodeId")
-            return
-        }
+        val kotlinNodeId = parseNodeId(nodeId) ?: return
         transaction {
             Node.findById(kotlinNodeId)
                 ?.let { it.health = health.name }
@@ -104,10 +97,7 @@ class NodeStateReconciler(
     }
 
     fun updateNodeLastSeen(nodeId: String) {
-        val kotlinNodeId = runCatching { Uuid.parse(nodeId) }.getOrElse {
-            log.warn("updateNodeLastSeen: invalid nodeId format: $nodeId")
-            return
-        }
+        val kotlinNodeId = parseNodeId(nodeId) ?: return
         transaction {
             Node.findById(kotlinNodeId)
                 ?.let {
@@ -115,5 +105,12 @@ class NodeStateReconciler(
                         .toLocalDateTime(TimeZone.UTC)
                 }
         }
+    }
+
+    /** Parse a node id from the wire, warning once when it is malformed. */
+    private fun parseNodeId(nodeId: String): Uuid? {
+        val id = parseUuid(nodeId)
+        if (id == null) log.warn("Invalid nodeId format: $nodeId")
+        return id
     }
 }

@@ -35,7 +35,7 @@ open class MigrationCoordinator(
     val gateway: AgentGateway,
     val dnsProvider: DnsProvider?,
     val lifecycle: ContainerLifecycle,
-    private val serverExposure: ServerExposure,
+    private val serverHostnames: ServerHostnames,
     val scope: CoroutineScope,
     private val eventFlow: MutableSharedFlow<MigrationEvent>?
 ) {
@@ -172,5 +172,5 @@ open class MigrationCoordinator(
         }
     }
 
-    open fun resolveTargetDns(plan: MigrationPlan): ServerExposure.NetworkDns? = serverExposure.resolveGlobalDns()
+    open fun resolveTargetDns(plan: MigrationPlan): ServerHostnames.NetworkDns? = serverHostnames.resolveGlobalDns()
 }

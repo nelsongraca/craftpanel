@@ -34,8 +34,7 @@ class ProxySettingsService(
 ) {
 
     fun getSettings(proxyServerId: Uuid): ProxySettingsResponse {
-        val row = serverRepository.findById(proxyServerId) ?: throw NotFoundException("Server not found")
-        if (!row.serverType.isProxy) throw ConflictException("Server is not a proxy type")
+        val row = serverRepository.requireProxy(proxyServerId)
         return ProxySettingsResponse(
             motd = row.proxyMotd,
             maxPlayers = row.proxyMaxPlayers,
@@ -44,8 +43,7 @@ class ProxySettingsService(
     }
 
     suspend fun updateSettings(proxyServerId: Uuid, req: UpdateProxySettingsRequest): ProxySettingsResponse {
-        val row = serverRepository.findById(proxyServerId) ?: throw NotFoundException("Server not found")
-        if (!row.serverType.isProxy) throw ConflictException("Server is not a proxy type")
+        val row = serverRepository.requireProxy(proxyServerId)
 
         val mode = req.forwardingMode?.uppercase()
         validateForwardingMode(row.serverType, mode)

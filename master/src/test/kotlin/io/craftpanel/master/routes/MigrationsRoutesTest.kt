@@ -59,10 +59,11 @@ class MigrationsRoutesTest :
                 gateway = TestAgentGateway(),
                 modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
                 serverIntent = ServerIntent(repos.serverRepository),
-                envVarsRepository = repos.envVarsRepository
+                envVarsRepository = repos.envVarsRepository,
+                extraPortRepository = repos.extraPortRepository,
             ),
-            serverExposure = ServerExposure(
-                settingsRepository = SettingsRepositoryImpl(),
+            serverHostnames = ServerHostnames(
+                settingsProvider = SettingsProvider(SettingsRepositoryImpl()),
                 serverRepository = repos.serverRepository
             )
         )

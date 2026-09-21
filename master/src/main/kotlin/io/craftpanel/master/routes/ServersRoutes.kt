@@ -20,7 +20,7 @@ fun Route.serversRoutes(
     queryService: ServerQueryService,
     lifecycleService: ServerLifecycleService,
     exposureService: ServerExposureService,
-    serverExposure: ServerExposure,
+    serverHostnames: ServerHostnames,
     exportService: ExportService
 ) {
     authenticate(JWT_AUTH) {
@@ -33,7 +33,7 @@ fun Route.serversRoutes(
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
+                val userId = call.authUserId()
                 val rows = queryService.listServers(userId)
                 val migratingIds = if (rows.isEmpty()) {
                     emptySet()
@@ -42,7 +42,7 @@ fun Route.serversRoutes(
                         .map { it.id }
                         .toSet()
                 }
-                call.respond(rows.map { it.toResponse(serverExposure, it.id in migratingIds) })
+                call.respond(rows.map { it.toResponse(serverHostnames, it.id in migratingIds) })
             }
 
             post("", {
@@ -85,7 +85,7 @@ fun Route.serversRoutes(
                         forceRedownload = req.forceRedownload
                     )
                 )
-                call.respond(HttpStatusCode.Created, row.toResponse(serverExposure, false))
+                call.respond(HttpStatusCode.Created, row.toResponse(serverHostnames, false))
             }
 
             post("/{id}/clone", {
@@ -110,7 +110,7 @@ fun Route.serversRoutes(
                 val sourceAuth = call.requireServerPermission(Permission.SERVER_VIEW)
                 val req = call.receive<CloneServerRequest>()
                 val row = provisioning.clone(sourceAuth.serverId, req.name, req.displayName, req.description)
-                call.respond(HttpStatusCode.Created, row.toResponse(serverExposure, false))
+                call.respond(HttpStatusCode.Created, row.toResponse(serverHostnames, false))
             }
 
             get("/{id}", {
@@ -126,7 +126,7 @@ fun Route.serversRoutes(
             }) {
                 val auth = call.requireServerPermission(Permission.SERVER_VIEW)
                 val row = queryService.getServer(auth.serverId)
-                call.respond(row.toResponse(serverExposure, queryService.isMigrating(auth.serverId)))
+                call.respond(row.toResponse(serverHostnames, queryService.isMigrating(auth.serverId)))
             }
 
             patch("/{id}", {
@@ -186,7 +186,7 @@ fun Route.serversRoutes(
                 val auth = call.requireServerPermission(Permission.SERVER_DIR_OVERRIDE)
                 val body = call.receive<UpdateServerDataDirRequest>()
                 val updated = serverService.updateDataDirName(auth.serverId, body.dataDirName)
-                call.respond(updated.toResponse(serverExposure, queryService.isMigrating(updated.id)))
+                call.respond(updated.toResponse(serverHostnames, queryService.isMigrating(updated.id)))
             }
 
             delete("/{id}", {
@@ -408,7 +408,7 @@ fun Route.serversRoutes(
                     throw UnprocessableException("Invalid network_id")
                 }
                 val row = exportService.importServer(req.data, nodeId, networkId)
-                call.respond(HttpStatusCode.Created, row.toResponse(serverExposure, false))
+                call.respond(HttpStatusCode.Created, row.toResponse(serverHostnames, false))
             }
 
             patch("/{id}/disabled", {

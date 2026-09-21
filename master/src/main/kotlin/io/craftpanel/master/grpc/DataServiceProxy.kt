@@ -20,9 +20,6 @@ import kotlin.uuid.Uuid
  */
 class DataServiceProxy(private val agentDataOps: AgentDataOps, private val bulkService: BulkDataServiceImpl, private val serverRepository: ServerRepository) {
 
-    private fun lookupNodeId(serverId: Uuid): String = serverRepository.findById(serverId)?.nodeId?.toString()
-        ?: error("Server $serverId not found")
-
     private data class ServerLookup(val nodeId: String, val status: String)
 
     private fun lookupServer(serverId: Uuid): ServerLookup = serverRepository.findById(serverId)
@@ -74,7 +71,7 @@ class DataServiceProxy(private val agentDataOps: AgentDataOps, private val bulkS
     }
 
     private suspend fun <R> correlate(serverId: Uuid, build: (reqId: String) -> MasterMessage, extract: (AgentMessage) -> R, err: (R) -> Pair<ErrorCode, String>): R {
-        val nodeId = lookupNodeId(serverId)
+        val nodeId = lookupServer(serverId).nodeId
         val reqId = Uuid.random()
             .toString()
         val response = agentDataOps.sendAndAwait(nodeId, reqId, build(reqId))
@@ -222,7 +219,7 @@ class DataServiceProxy(private val agentDataOps: AgentDataOps, private val bulkS
      * Returns the number of bytes written.
      */
     suspend fun uploadFile(serverId: Uuid, path: String, content: ByteArray): Long {
-        val nodeId = lookupNodeId(serverId)
+        val nodeId = lookupServer(serverId).nodeId
         val transferId = Uuid.random()
             .toString()
         val reqId = Uuid.random()
@@ -231,11 +228,12 @@ class DataServiceProxy(private val agentDataOps: AgentDataOps, private val bulkS
         // Pre-fill the upload channel before signalling the agent so it's ready when agent connects.
         val uploadChannel = bulkService.registerUpload(transferId)
         val chunkSize = 65536
-        content.toList()
-            .chunked(chunkSize)
-            .forEach { chunk ->
-                uploadChannel.send(chunk.toByteArray())
-            }
+        var offset = 0
+        while (offset < content.size) {
+            val end = minOf(offset + chunkSize, content.size)
+            uploadChannel.send(content.copyOfRange(offset, end))
+            offset = end
+        }
         uploadChannel.close()
 
         // Signal agent to open BulkDataService ReceiveFromMaster connection.
@@ -263,8 +261,31 @@ class DataServiceProxy(private val agentDataOps: AgentDataOps, private val bulkS
      * Returns a Flow of byte arrays to be streamed to the HTTP client.
      * Throws before starting the stream if the file does not exist on the agent.
      */
-    suspend fun downloadFile(serverId: Uuid, path: String): Flow<ByteArray> {
-        val nodeId = lookupNodeId(serverId)
+    suspend fun downloadFile(serverId: Uuid, path: String): Flow<ByteArray> = startDownload(serverId, notFound = "File not found") { reqId, transferId ->
+        masterMessage {
+            downloadFile = downloadFileCommand {
+                requestId = reqId
+                this.serverId = serverId.toString()
+                this.path = path
+                this.transferId = transferId
+            }
+        }
+    }
+
+    suspend fun downloadBackup(serverId: Uuid, backupId: String): Flow<ByteArray> = startDownload(serverId, notFound = "Backup file not found") { reqId, transferId ->
+        masterMessage {
+            downloadBackup = downloadBackupCommand {
+                requestId = reqId
+                this.serverId = serverId.toString()
+                this.backupId = backupId
+                this.transferId = transferId
+            }
+        }
+    }
+
+    /** Register the transfer, signal the agent, and map a failure to a typed exception before streaming. */
+    private suspend fun startDownload(serverId: Uuid, notFound: String, build: (reqId: String, transferId: String) -> MasterMessage): Flow<ByteArray> {
+        val nodeId = lookupServer(serverId).nodeId
         val transferId = Uuid.random()
             .toString()
         val reqId = Uuid.random()
@@ -274,18 +295,7 @@ class DataServiceProxy(private val agentDataOps: AgentDataOps, private val bulkS
         val downloadFlow = bulkService.registerDownload(transferId)
 
         val response = runCatching {
-            agentDataOps.sendAndAwait(
-                nodeId,
-                reqId,
-                masterMessage {
-                    downloadFile = downloadFileCommand {
-                        requestId = reqId
-                        this.serverId = serverId.toString()
-                        this.path = path
-                        this.transferId = transferId
-                    }
-                }
-            )
+            agentDataOps.sendAndAwait(nodeId, reqId, build(reqId, transferId))
         }.getOrElse { ex ->
             bulkService.cancelDownload(transferId)
             throw ex
@@ -294,43 +304,7 @@ class DataServiceProxy(private val agentDataOps: AgentDataOps, private val bulkS
         val r = response.downloadFileResponse
         if (!r.success) {
             bulkService.cancelDownload(transferId)
-            throw agentErrorToException(r.errorCode, r.errorMessage.ifBlank { "File not found" })
-        }
-
-        return downloadFlow
-    }
-
-    suspend fun downloadBackup(serverId: Uuid, backupId: String): Flow<ByteArray> {
-        val nodeId = lookupNodeId(serverId)
-        val transferId = Uuid.random()
-            .toString()
-        val reqId = Uuid.random()
-            .toString()
-
-        val downloadFlow = bulkService.registerDownload(transferId)
-
-        val response = runCatching {
-            agentDataOps.sendAndAwait(
-                nodeId,
-                reqId,
-                masterMessage {
-                    downloadBackup = downloadBackupCommand {
-                        requestId = reqId
-                        this.serverId = serverId.toString()
-                        this.backupId = backupId
-                        this.transferId = transferId
-                    }
-                }
-            )
-        }.getOrElse { ex ->
-            bulkService.cancelDownload(transferId)
-            throw ex
-        }
-
-        val r = response.downloadFileResponse
-        if (!r.success) {
-            bulkService.cancelDownload(transferId)
-            throw agentErrorToException(r.errorCode, r.errorMessage.ifBlank { "Backup file not found" })
+            throw agentErrorToException(r.errorCode, r.errorMessage.ifBlank { notFound })
         }
 
         return downloadFlow

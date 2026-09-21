@@ -4,7 +4,6 @@ import com.auth0.jwt.exceptions.JWTVerificationException
 import io.craftpanel.master.auth.*
 import io.craftpanel.master.config.RateLimitConfig
 import io.craftpanel.master.routes.ErrorResponse
-import io.craftpanel.master.routes.userId
 import io.craftpanel.master.service.repo.RecoveryCodeRepository
 import io.craftpanel.master.service.repo.UserRepository
 import io.github.smiley4.ktoropenapi.get
@@ -490,7 +489,7 @@ fun Route.authRoutes(
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
+                val userId = call.authUserId()
                 val currentRefreshToken = call.request.cookies["refresh_token"]
                 if (currentRefreshToken != null) {
                     refreshTokenService.revokeAllExceptCurrent(userId, currentRefreshToken)
@@ -511,7 +510,7 @@ fun Route.authRoutes(
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
+                val userId = call.authUserId()
                 val req = call.receive<ChangePasswordRequest>()
 
                 val userInfo = lookupUserById(userRepository, userId)
@@ -557,7 +556,7 @@ fun Route.authRoutes(
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
+                val userId = call.authUserId()
                 val (ticket, expiresIn) = wsTicketService.issue(userId)
                 call.respond(WsTicketResponse(ticket, expiresIn))
             }
@@ -572,7 +571,7 @@ fun Route.authRoutes(
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
+                val userId = call.authUserId()
                 val user = userRepository.findById(userId)
                     ?: run {
                         call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found"))
@@ -595,7 +594,7 @@ fun Route.authRoutes(
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
+                val userId = call.authUserId()
                 val user = userRepository.findById(userId)
                     ?: run {
                         call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found"))
@@ -633,7 +632,7 @@ fun Route.authRoutes(
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
+                val userId = call.authUserId()
                 val user = userRepository.findById(userId)
                     ?: run {
                         call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found"))
@@ -675,7 +674,7 @@ fun Route.authRoutes(
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
+                val userId = call.authUserId()
                 if (userRepository.findById(userId) == null) {
                     call.respond(HttpStatusCode.Unauthorized, ErrorResponse("User not found"))
                     return@post
@@ -711,7 +710,7 @@ fun Route.authRoutes(
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
+                val userId = call.authUserId()
 
                 val userInfo = lookupUserById(userRepository, userId)
                     ?: run {

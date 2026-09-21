@@ -2,7 +2,6 @@ package io.craftpanel.master.service
 
 import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.dns.DnsProvider
-import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.service.repo.ServerRepository
@@ -15,7 +14,7 @@ class ServerExposureService(
     private val lifecycle: ContainerLifecycle,
     private val serverRepository: ServerRepository,
     private val nodeRepository: NodeRepository,
-    private val serverExposure: ServerExposure
+    private val serverHostnames: ServerHostnames
 ) {
 
     private val log = LoggerFactory.getLogger(ServerExposureService::class.java)
@@ -35,7 +34,7 @@ class ServerExposureService(
             // unchecked).
             !exposedExternally -> null
 
-            customHostname != null -> serverExposure.resolveCustomHostnames(customHostname, id)
+            customHostname != null -> serverHostnames.resolveCustomHostnames(customHostname, id)
 
             else -> serverRow.customHostname
         }
@@ -46,7 +45,7 @@ class ServerExposureService(
 
         if (exposedExternally && publicSubdomain != null) {
             val provider = dnsProvider
-            val dns = serverExposure.resolveGlobalDns()
+            val dns = serverHostnames.resolveGlobalDns()
 
             if (provider != null && dns == null) {
                 throw UnprocessableException(
@@ -57,7 +56,7 @@ class ServerExposureService(
             val fullHostname = if (dns != null) {
                 "$publicSubdomain.${dns.domainSuffix}"
             } else {
-                serverExposure.resolveSuffix()
+                serverHostnames.resolveSuffix()
                     ?.let { "$publicSubdomain.$it" }
             }
 
@@ -80,7 +79,7 @@ class ServerExposureService(
         }
 
         if (!exposedExternally && existingRecordId != null && dnsProvider != null) {
-            val dns = serverExposure.resolveGlobalDns()
+            val dns = serverHostnames.resolveGlobalDns()
             if (dns != null) {
                 runCatching { dnsProvider!!.deleteARecord(dns.zoneId, existingRecordId) }
                     .onFailure { log.warn("Failed to delete DNS record $existingRecordId — continuing", it) }
@@ -116,9 +115,9 @@ class ServerExposureService(
             // mc-router labels are baked in at container creation, so a routing-name change only
             // takes effect on the next start/restart. Flag a pending restart for the UI and refresh
             // the agent's stored spec — never yank a live server out from under its players.
-            if (serverExposure.mcRouterLabel(serverRow) != serverExposure.mcRouterLabel(freshRow)) {
+            if (serverHostnames.mcRouterLabel(serverRow) != serverHostnames.mcRouterLabel(freshRow)) {
                 transaction { Server.findById(id)?.let { it.restartPending = true } }
-                lifecycle.sendDesiredState(freshRow, DesiredStatus.RUNNING, publicHostname = serverExposure.mcRouterLabel(freshRow))
+                lifecycle.refreshRunningSpec(freshRow, publicHostname = serverHostnames.mcRouterLabel(freshRow))
             }
         }
     }

@@ -5,6 +5,7 @@ import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.config.NodeConfig
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.grpc.AgentDataOps
+import io.craftpanel.master.grpc.AgentRegistry
 import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataOpContext
 import io.craftpanel.master.grpc.handlers.*
@@ -56,7 +57,7 @@ fun createTestControlServiceImpl(
     return ControlServiceImpl(
         nodeStateReconciler = nodeStateReconciler,
         nodeRegistrationService = createTestNodeRegistrationService(nodeConfig, nodeRepository),
-        agentEventsFlow = agentEvents,
+        registry = AgentRegistry(agentEvents, repos.serverRepository, repos.backupRepository),
         dataOpContext = dataOpContext,
         nodeStateHandler = nodeStateHandler,
         nodeMetricsHandler = nodeMetricsHandler,
@@ -65,8 +66,6 @@ fun createTestControlServiceImpl(
         playerUpdateHandler = playerUpdateHandler,
         backupHandler = backupHandler,
         migrationHandler = migrationHandler,
-        dataOpResponseHandler = dataOpResponseHandler,
-        serverRepository = repos.serverRepository,
-        backupRepository = repos.backupRepository
+        dataOpResponseHandler = dataOpResponseHandler
     )
 }

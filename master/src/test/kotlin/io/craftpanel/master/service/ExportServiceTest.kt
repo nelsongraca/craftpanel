@@ -15,8 +15,6 @@ import io.kotest.matchers.collections.shouldContain
 import io.kotest.matchers.nulls.shouldBeNull
 import io.kotest.matchers.nulls.shouldNotBeNull
 import io.kotest.matchers.shouldBe
-import io.kotest.matchers.shouldNotBe
-import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.*
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
@@ -42,7 +40,7 @@ class ExportServiceTest :
             serverRepository = serverRepository,
             nodeRepository = nodeRepository,
             networkRepository = networkRepository,
-            settingsRepository = settingsRepository,
+            settingsProvider = SettingsProvider(settingsRepository),
             portAllocator = createTestPortAllocator(repos.portRepository),
             extraPortRepository = repos.extraPortRepository,
             envVarsRepository = repos.envVarsRepository,

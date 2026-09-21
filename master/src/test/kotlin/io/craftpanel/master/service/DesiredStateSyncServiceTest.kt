@@ -23,7 +23,8 @@ class DesiredStateSyncServiceTest :
                 gateway = gateway,
                 modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
                 serverIntent = ServerIntent(repos.serverRepository),
-                envVarsRepository = repos.envVarsRepository
+                envVarsRepository = repos.envVarsRepository,
+                extraPortRepository = repos.extraPortRepository,
             ),
             serverRepository = repos.serverRepository,
             serverIntent = ServerIntent(repos.serverRepository)

@@ -36,7 +36,7 @@ data class PatchSettingsRequest(
     @SerialName("dns_zone_id") val dnsZoneId: String? = null
 )
 
-class SystemService(private val settingsRepository: SettingsRepository) {
+class SystemService(private val settingsRepository: SettingsRepository, private val settingsProvider: SettingsProvider) {
 
     fun getSettings(): SystemSettingsResponse = loadSettings()
 
@@ -111,6 +111,7 @@ class SystemService(private val settingsRepository: SettingsRepository) {
         }
 
         val stored = loadSettings()
+        settingsProvider.invalidate()
         val resolvedStart = req.defaultPortRangeStart ?: stored.settings.defaultPortRangeStart
         val resolvedEnd = req.defaultPortRangeEnd ?: stored.settings.defaultPortRangeEnd
         if (resolvedStart >= resolvedEnd) {

@@ -10,7 +10,6 @@ import kotlinx.datetime.toLocalDateTime
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
 import java.security.MessageDigest
-import java.util.HexFormat
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
@@ -127,11 +126,7 @@ class NodeRegistrationService(private val nodeConfig: NodeConfig, private val no
 
     fun mintKey(): String = CryptoUtils.generateToken(32)
 
-    fun hashKey(raw: String): String = HexFormat.of()
-        .formatHex(
-            MessageDigest.getInstance("SHA-256")
-                .digest(raw.toByteArray())
-        )
+    fun hashKey(raw: String): String = CryptoUtils.sha256Hex(raw)
 
     private fun inactiveReason(nodeId: Uuid, status: NodeStatus?): String = when (status) {
         NodeStatus.PENDING -> "Node $nodeId is pending admin approval"

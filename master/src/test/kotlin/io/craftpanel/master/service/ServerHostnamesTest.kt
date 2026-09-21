@@ -50,86 +50,88 @@ private fun testServerView(
     updatedAt = "2025-01-01T00:00:00Z"
 )
 
-class ServerExposureTest :
+class ServerHostnamesTest :
     FunSpec({
         lateinit var settingsRepository: FakeSettingsRepository
+        lateinit var settingsProvider: SettingsProvider
         lateinit var repos: FakeRepositories
         lateinit var serverRepository: FakeServerRepository
-        lateinit var serverExposure: ServerExposure
+        lateinit var serverHostnames: ServerHostnames
 
         beforeTest {
             settingsRepository = FakeSettingsRepository()
+            settingsProvider = SettingsProvider(settingsRepository)
             repos = FakeRepositories()
             serverRepository = FakeServerRepository(repos)
-            serverExposure = ServerExposure(settingsRepository, serverRepository)
+            serverHostnames = ServerHostnames(settingsProvider, serverRepository)
         }
 
         context("resolveSuffix") {
             test("returns the global setting when configured") {
                 settingsRepository.addSetting("dns_domain_suffix", "global.example.com")
-                serverExposure.resolveSuffix() shouldBe "global.example.com"
+                serverHostnames.resolveSuffix() shouldBe "global.example.com"
             }
 
             test("returns null when global setting not configured") {
-                serverExposure.resolveSuffix()
+                serverHostnames.resolveSuffix()
                     .shouldBeNull()
             }
         }
 
         context("resolveGlobalDns") {
             test("returns null when zone or suffix missing") {
-                serverExposure.resolveGlobalDns()
+                serverHostnames.resolveGlobalDns()
                     .shouldBeNull()
             }
 
             test("returns NetworkDns when zone and suffix configured") {
                 settingsRepository.addSetting("dns_zone_id", "zone1")
                 settingsRepository.addSetting("dns_domain_suffix", "net1.example.com")
-                val dns = serverExposure.resolveGlobalDns()
-                dns shouldBe ServerExposure.NetworkDns("zone1", "net1.example.com")
+                val dns = serverHostnames.resolveGlobalDns()
+                dns shouldBe ServerHostnames.NetworkDns("zone1", "net1.example.com")
             }
         }
 
         context("managedHostname") {
             test("null when not exposed externally") {
                 val row = testServerView(exposedExternally = false, publicSubdomain = "play")
-                serverExposure.managedHostname(row)
+                serverHostnames.managedHostname(row)
                     .shouldBeNull()
             }
 
             test("null when exposed but no subdomain") {
                 val row = testServerView(exposedExternally = true, publicSubdomain = null)
-                serverExposure.managedHostname(row)
+                serverHostnames.managedHostname(row)
                     .shouldBeNull()
             }
 
             test("uses dnsRecordName when present") {
                 val row = testServerView(exposedExternally = true, publicSubdomain = "play", dnsRecordName = "play.example.com")
-                serverExposure.managedHostname(row) shouldBe "play.example.com"
+                serverHostnames.managedHostname(row) shouldBe "play.example.com"
             }
 
             test("falls back to subdomain + resolved suffix when dnsRecordName absent") {
                 settingsRepository.addSetting("dns_domain_suffix", "example.com")
                 val row = testServerView(exposedExternally = true, publicSubdomain = "play", dnsRecordName = null)
-                serverExposure.managedHostname(row) shouldBe "play.example.com"
+                serverHostnames.managedHostname(row) shouldBe "play.example.com"
             }
         }
 
         context("mcRouterLabel") {
             test("null when neither managed nor custom hostname present") {
                 val row = testServerView()
-                serverExposure.mcRouterLabel(row)
+                serverHostnames.mcRouterLabel(row)
                     .shouldBeNull()
             }
 
             test("managed only") {
                 val row = testServerView(exposedExternally = true, publicSubdomain = "play", dnsRecordName = "play.example.com")
-                serverExposure.mcRouterLabel(row) shouldBe "play.example.com"
+                serverHostnames.mcRouterLabel(row) shouldBe "play.example.com"
             }
 
             test("custom only") {
                 val row = testServerView(customHostname = "custom.example.com")
-                serverExposure.mcRouterLabel(row) shouldBe "custom.example.com"
+                serverHostnames.mcRouterLabel(row) shouldBe "custom.example.com"
             }
 
             test("both managed and custom, comma-joined") {
@@ -139,12 +141,12 @@ class ServerExposureTest :
                     dnsRecordName = "play.example.com",
                     customHostname = "custom.example.com"
                 )
-                serverExposure.mcRouterLabel(row) shouldBe "play.example.com,custom.example.com"
+                serverHostnames.mcRouterLabel(row) shouldBe "play.example.com,custom.example.com"
             }
 
             test("multiple custom hostnames are preserved in order") {
                 val row = testServerView(customHostname = "a.example.com,b.example.com")
-                serverExposure.mcRouterLabel(row) shouldBe "a.example.com,b.example.com"
+                serverHostnames.mcRouterLabel(row) shouldBe "a.example.com,b.example.com"
             }
 
             test("managed plus multiple custom hostnames") {
@@ -154,7 +156,7 @@ class ServerExposureTest :
                     dnsRecordName = "play.example.com",
                     customHostname = "a.example.com, b.example.com"
                 )
-                serverExposure.mcRouterLabel(row) shouldBe "play.example.com,a.example.com,b.example.com"
+                serverHostnames.mcRouterLabel(row) shouldBe "play.example.com,a.example.com,b.example.com"
             }
         }
 
@@ -166,33 +168,33 @@ class ServerExposureTest :
                     dnsRecordName = "play.example.com",
                     customHostname = "custom.example.com"
                 )
-                serverExposure.canonicalHostname(row) shouldBe "custom.example.com"
+                serverHostnames.canonicalHostname(row) shouldBe "custom.example.com"
             }
 
             test("falls back to managed when no custom hostname") {
                 val row = testServerView(exposedExternally = true, publicSubdomain = "play", dnsRecordName = "play.example.com")
-                serverExposure.canonicalHostname(row) shouldBe "play.example.com"
+                serverHostnames.canonicalHostname(row) shouldBe "play.example.com"
             }
 
             test("first custom hostname wins over later ones") {
                 val row = testServerView(customHostname = "first.example.com,second.example.com")
-                serverExposure.canonicalHostname(row) shouldBe "first.example.com"
+                serverHostnames.canonicalHostname(row) shouldBe "first.example.com"
             }
         }
 
         context("resolveCustomHostnames") {
             test("null for blank input") {
-                serverExposure.resolveCustomHostnames("  ", Uuid.random())
+                serverHostnames.resolveCustomHostnames("  ", Uuid.random())
                     .shouldBeNull()
             }
 
             test("null for null input") {
-                serverExposure.resolveCustomHostnames(null, Uuid.random())
+                serverHostnames.resolveCustomHostnames(null, Uuid.random())
                     .shouldBeNull()
             }
 
             test("trims, drops blanks and de-duplicates") {
-                val resolved = serverExposure.resolveCustomHostnames(
+                val resolved = serverHostnames.resolveCustomHostnames(
                     " a.example.com , b.example.com ,a.example.com, ",
                     Uuid.random()
                 )
@@ -201,7 +203,7 @@ class ServerExposureTest :
 
             test("rejects the whole list when any hostname is invalid") {
                 shouldThrow<UnprocessableException> {
-                    serverExposure.resolveCustomHostnames("ok.example.com,not_valid!", Uuid.random())
+                    serverHostnames.resolveCustomHostnames("ok.example.com,not_valid!", Uuid.random())
                 }
             }
         }
@@ -209,12 +211,12 @@ class ServerExposureTest :
         context("validateCustomHostname") {
             test("rejects invalid RFC-1123 hostname") {
                 shouldThrow<UnprocessableException> {
-                    serverExposure.validateCustomHostname("not_a_valid_host!", Uuid.random())
+                    serverHostnames.validateCustomHostname("not_a_valid_host!", Uuid.random())
                 }
             }
 
             test("accepts valid RFC-1123 hostname") {
-                serverExposure.validateCustomHostname("play.example.com", Uuid.random())
+                serverHostnames.validateCustomHostname("play.example.com", Uuid.random())
             }
 
             test("rejects collision with another server's custom hostname") {
@@ -228,7 +230,7 @@ class ServerExposureTest :
                     exposedExternally = true, customHostname = "taken.example.com"
                 )
                 shouldThrow<UnprocessableException> {
-                    serverExposure.validateCustomHostname("taken.example.com", Uuid.random())
+                    serverHostnames.validateCustomHostname("taken.example.com", Uuid.random())
                 }
             }
 
@@ -243,7 +245,7 @@ class ServerExposureTest :
                     exposedExternally = true, customHostname = "a.example.com,b.example.com"
                 )
                 shouldThrow<UnprocessableException> {
-                    serverExposure.validateCustomHostname("b.example.com", Uuid.random())
+                    serverHostnames.validateCustomHostname("b.example.com", Uuid.random())
                 }
             }
 
@@ -257,7 +259,7 @@ class ServerExposureTest :
                     memoryMb = 1024, cpuLimitMillicores = 0, configMode = "MANAGED", stopCommand = "stop",
                     exposedExternally = true, customHostname = "self.example.com"
                 )
-                serverExposure.validateCustomHostname("self.example.com", serverId)
+                serverHostnames.validateCustomHostname("self.example.com", serverId)
             }
 
             test("rejects collision with a managed DNS record name") {
@@ -272,14 +274,14 @@ class ServerExposureTest :
                     dnsRecordId = "rec1", dnsRecordName = "play.example.com"
                 )
                 shouldThrow<UnprocessableException> {
-                    serverExposure.validateCustomHostname("play.example.com", Uuid.random())
+                    serverHostnames.validateCustomHostname("play.example.com", Uuid.random())
                 }
             }
 
             test("rejects hostname under the global managed suffix") {
                 settingsRepository.addSetting("dns_domain_suffix", "global.example.com")
                 shouldThrow<UnprocessableException> {
-                    serverExposure.validateCustomHostname("sub.global.example.com", Uuid.random())
+                    serverHostnames.validateCustomHostname("sub.global.example.com", Uuid.random())
                 }
             }
         }

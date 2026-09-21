@@ -5,6 +5,7 @@ import io.craftpanel.master.auth.*
 import io.craftpanel.master.config.JwtConfig
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.service.BrandingService
+import io.craftpanel.master.service.SettingsProvider
 import io.craftpanel.master.service.SystemService
 import io.craftpanel.master.service.repo.impl.SettingsRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
@@ -38,7 +39,10 @@ class SystemRoutesTest :
         }
 
         fun Route.configureSystemTest() {
-            systemRoutes(SystemService(settingsRepository = SettingsRepositoryImpl()), BrandingService(settingsRepository = SettingsRepositoryImpl()))
+            systemRoutes(
+                SystemService(settingsRepository = SettingsRepositoryImpl(), settingsProvider = SettingsProvider(SettingsRepositoryImpl())),
+                BrandingService(settingsProvider = SettingsProvider(SettingsRepositoryImpl()))
+            )
         }
 
         fun createUser(username: String = "admin", email: String = "admin@example.com"): Uuid = transaction {

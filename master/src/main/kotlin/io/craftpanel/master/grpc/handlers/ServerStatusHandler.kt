@@ -10,7 +10,7 @@ class ServerStatusHandler(private val agentEvents: MutableSharedFlow<AgentEvent>
 
     private val log = LoggerFactory.getLogger(ServerStatusHandler::class.java)
 
-    suspend fun handle(msg: AgentMessage, nodeId: String) {
+    suspend fun handle(msg: AgentMessage) {
         if (!msg.hasServerStatus()) {
             log.warn("ServerStatusHandler called with non-serverStatus message: ${msg.payloadCase}")
             return

@@ -6,12 +6,11 @@ import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.ServerEnvVars
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.service.repo.*
+import io.craftpanel.master.util.CryptoUtils
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.security.SecureRandom
-import java.util.*
 import kotlin.uuid.Uuid
 
 data class BackendWarning(val backendId: Uuid, val reason: String)
@@ -114,10 +113,6 @@ class BackendForwardingService(
     }
 
     companion object {
-        fun generateSecret(): String {
-            val bytes = ByteArray(24)
-            SecureRandom().nextBytes(bytes)
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes).take(32)
-        }
+        fun generateSecret(): String = CryptoUtils.generateToken(24)
     }
 }

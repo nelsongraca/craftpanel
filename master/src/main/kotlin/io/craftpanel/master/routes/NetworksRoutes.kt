@@ -23,7 +23,7 @@ fun Route.networksRoutes(networkService: NetworkService, exportService: ExportSe
                     code(HttpStatusCode.Unauthorized) { body<ErrorResponse>() }
                 }
             }) {
-                val userId = call.userId()
+                val userId = call.authUserId()
                 call.respond(networkService.listNetworks(userId))
             }
 

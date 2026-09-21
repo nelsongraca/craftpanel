@@ -52,11 +52,12 @@ class ServersRoutesTest :
                 gateway = gateway,
                 modService = modService,
                 serverIntent = ServerIntent(serverRepository),
-                envVarsRepository = repos.envVarsRepository
+                envVarsRepository = repos.envVarsRepository,
+                extraPortRepository = repos.extraPortRepository,
             )
             val nodeRepository = NodeRepositoryImpl()
-            val serverExposure = ServerExposure(
-                settingsRepository = settingsRepository,
+            val serverHostnames = ServerHostnames(
+                settingsProvider = SettingsProvider(settingsRepository),
                 serverRepository = serverRepository
             )
             val proxyPatchWriter = ProxyPatchWriter(
@@ -66,7 +67,7 @@ class ServersRoutesTest :
             val lifecycleService = ServerLifecycleService(
                 lifecycle = lifecycle,
                 serverRepository = serverRepository,
-                serverExposure = serverExposure,
+                serverHostnames = serverHostnames,
                 serverIntent = ServerIntent(serverRepository),
                 proxyPatchWriter = proxyPatchWriter
             )
@@ -75,7 +76,7 @@ class ServersRoutesTest :
                 lifecycle = lifecycle,
                 serverRepository = serverRepository,
                 nodeRepository = nodeRepository,
-                serverExposure = serverExposure
+                serverHostnames = serverHostnames
             )
             val networkService = NetworkService(
                 networkRepository = networkRepository,
@@ -88,7 +89,7 @@ class ServersRoutesTest :
                 serverRepository = serverRepository,
                 nodeRepository = nodeRepository,
                 networkRepository = networkRepository,
-                settingsRepository = settingsRepository,
+                settingsProvider = SettingsProvider(settingsRepository),
                 portAllocator = createTestPortAllocator(repos.portRepository),
                 extraPortRepository = repos.extraPortRepository,
                 envVarsRepository = repos.envVarsRepository,
@@ -101,7 +102,8 @@ class ServersRoutesTest :
                     serverRepository = serverRepository,
                     nodeRepository = nodeRepository,
                     networkRepository = networkRepository,
-                    settingsRepository = settingsRepository
+                    settingsProvider = SettingsProvider(settingsRepository),
+                    lifecycle = lifecycle
                 ),
                 provisioning,
                 ServerQueryService(
@@ -113,7 +115,7 @@ class ServersRoutesTest :
                 ),
                 lifecycleService,
                 exposureService,
-                serverExposure,
+                serverHostnames,
                 ExportService(
                     serverRepository = serverRepository,
                     networkRepository = networkRepository,

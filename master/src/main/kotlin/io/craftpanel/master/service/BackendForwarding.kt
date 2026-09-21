@@ -9,28 +9,26 @@ sealed interface Classification {
 
 object BackendForwarding {
 
-    fun classify(serverType: ServerType, mode: String): Classification {
-        val knownPaper = setOf(ServerType.PAPER, ServerType.PURPUR)
-        val knownSpigot = setOf(ServerType.SPIGOT, ServerType.BUKKIT)
-        val eligible = knownPaper + knownSpigot
+    private val PAPER_LINEAGE = setOf(ServerType.PAPER, ServerType.PURPUR)
+    private val SPIGOT_LINEAGE = setOf(ServerType.SPIGOT, ServerType.BUKKIT)
+    private val ELIGIBLE = PAPER_LINEAGE + SPIGOT_LINEAGE
 
-        if (serverType !in eligible) {
+    fun classify(serverType: ServerType, mode: String): Classification {
+        if (serverType !in ELIGIBLE) {
             return Classification.WarnSkip("$serverType does not support forwarding")
         }
 
         return when (mode) {
-            "MODERN" -> classifyModern(serverType, knownPaper)
-            "LEGACY" -> classifyLegacy(serverType, knownSpigot)
+            "MODERN" ->
+                if (serverType in PAPER_LINEAGE) {
+                    Classification.Eligible("/data/config/paper-global.yml")
+                } else {
+                    Classification.WarnSkip("$serverType does not support modern (Velocity) forwarding — only Paper lineage does")
+                }
+
+            "LEGACY" -> Classification.Eligible("/data/spigot.yml")
+
             else -> Classification.WarnSkip("Unsupported forwarding mode '$mode' for $serverType")
         }
     }
-
-    private fun classifyModern(serverType: ServerType, knownPaper: Set<ServerType>): Classification {
-        if (serverType in knownPaper) {
-            return Classification.Eligible("/data/config/paper-global.yml")
-        }
-        return Classification.WarnSkip("$serverType does not support modern (Velocity) forwarding — only Paper lineage does")
-    }
-
-    private fun classifyLegacy(serverType: ServerType, knownSpigot: Set<ServerType>): Classification = Classification.Eligible("/data/spigot.yml")
 }

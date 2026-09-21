@@ -8,18 +8,18 @@ import kotlin.uuid.Uuid
  * mc-router label, canonical hostname, global DNS resolution, and custom-hostname
  * validation.
  */
-class ServerExposure(private val settingsRepository: SettingsRepository, private val serverRepository: ServerRepository) {
+class ServerHostnames(private val settingsProvider: SettingsProvider, private val serverRepository: ServerRepository) {
 
     /** the global (zoneId, suffix), null if either is unconfigured. */
     fun resolveGlobalDns(): NetworkDns? {
-        val settings = Settings.from(settingsRepository.getAll())
+        val settings = settingsProvider.current()
         val zoneId = settings.dnsZoneId ?: return null
         val suffix = settings.dnsDomainSuffix ?: return null
         return NetworkDns(zoneId, suffix)
     }
 
     /** the global domain suffix, or null if unconfigured. */
-    fun resolveSuffix(): String? = Settings.from(settingsRepository.getAll()).dnsDomainSuffix
+    fun resolveSuffix(): String? = settingsProvider.current().dnsDomainSuffix
 
     /** managed hostname for an exposed server (subdomain.suffix), or null. */
     fun managedHostname(row: ServerView): String? {

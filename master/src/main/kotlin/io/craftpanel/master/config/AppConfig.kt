@@ -183,12 +183,6 @@ class AppConfig(config: ApplicationConfig) {
             ?.getString()
             ?.toBooleanStrictOrNull() ?: false
     )
-    val images = ImagesConfig(
-        minecraftImage = config.propertyOrNull("images.minecraftImage")
-            ?.getString() ?: "itzg/minecraft-server",
-        proxyImage = config.propertyOrNull("images.proxyImage")
-            ?.getString() ?: "itzg/mc-proxy"
-    )
     val docker = DockerConfig(
         endpoint = config.propertyOrNull("docker.endpoint")
             ?.getString() ?: ""

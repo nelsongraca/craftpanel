@@ -4,7 +4,7 @@ import io.craftpanel.master.domain.ConfigMode
 import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.domain.synthesizeStatus
-import io.craftpanel.master.service.ServerExposure
+import io.craftpanel.master.service.ServerHostnames
 import io.craftpanel.master.service.repo.ServerView
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -106,8 +106,8 @@ data class PatchExposureRequest(
     @SerialName("custom_hostname") val customHostname: String? = null
 )
 
-internal fun ServerView.toResponse(serverExposure: ServerExposure, isMigrating: Boolean): ServerResponse {
-    val canonicalHostname = serverExposure.canonicalHostname(this)
+internal fun ServerView.toResponse(serverHostnames: ServerHostnames, isMigrating: Boolean): ServerResponse {
+    val canonicalHostname = serverHostnames.canonicalHostname(this)
     return ServerResponse(
         id = id.toString(),
         name = name,

@@ -38,7 +38,7 @@ fun Route.systemRoutes(systemService: SystemService, brandingService: BrandingSe
                 }
             }) {
                 call.requirePermission(Permission.SYSTEM_SETTINGS)
-                val userId = call.userId()
+                val userId = call.authUserId()
                 val req = call.receive<PatchSettingsRequest>()
                 val result = systemService.updateSettings(userId, req)
                 if (req.appLogo != null) {

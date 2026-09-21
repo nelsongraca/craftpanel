@@ -123,6 +123,7 @@ class ContainerLifecycleTest :
             modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
             serverIntent = ServerIntent(repos.serverRepository),
             envVarsRepository = repos.envVarsRepository,
+            extraPortRepository = repos.extraPortRepository,
             startTimeout = startTimeout,
             stopTimeout = stopTimeout,
             removeTimeout = removeTimeout
@@ -147,7 +148,8 @@ class ContainerLifecycleTest :
                 gateway = TestAgentGateway(agentEvents = events, sendResult = false),
                 modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
                 serverIntent = ServerIntent(repos.serverRepository),
-                envVarsRepository = repos.envVarsRepository
+                envVarsRepository = repos.envVarsRepository,
+                extraPortRepository = repos.extraPortRepository,
             )
             val ok = lc.sendDesiredState(server, DesiredStatus.RUNNING)
             ok shouldBe false
@@ -363,7 +365,8 @@ class ContainerLifecycleTest :
                 gateway = TestAgentGateway(agentEvents = events, sendResult = false),
                 modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
                 serverIntent = ServerIntent(repos.serverRepository),
-                envVarsRepository = repos.envVarsRepository
+                envVarsRepository = repos.envVarsRepository,
+                extraPortRepository = repos.extraPortRepository,
             )
             shouldThrow<BadGatewayException> {
                 lc.stop(server, nodeId.toString())

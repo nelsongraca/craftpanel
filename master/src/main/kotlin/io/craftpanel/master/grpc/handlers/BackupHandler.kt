@@ -4,14 +4,12 @@ import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.proto.AgentMessage
 import kotlinx.coroutines.flow.MutableSharedFlow
 import org.slf4j.LoggerFactory
-import kotlin.time.Clock
-import kotlin.time.Instant
 
 class BackupHandler(private val agentEvents: MutableSharedFlow<AgentEvent>) {
 
     private val log = LoggerFactory.getLogger(BackupHandler::class.java)
 
-    suspend fun handleBackupProgress(msg: AgentMessage, nodeId: String) {
+    suspend fun handleBackupProgress(msg: AgentMessage) {
         if (!msg.hasBackupProgress()) {
             log.warn("handleBackupProgress called with non-backupProgress message: ${msg.payloadCase}")
             return
@@ -25,16 +23,12 @@ class BackupHandler(private val agentEvents: MutableSharedFlow<AgentEvent>) {
         )
     }
 
-    suspend fun handleBackupComplete(msg: AgentMessage, nodeId: String) {
+    suspend fun handleBackupComplete(msg: AgentMessage) {
         if (!msg.hasBackupComplete()) {
             log.warn("handleBackupComplete called with non-backupComplete message: ${msg.payloadCase}")
             return
         }
-        val completedAt = if (msg.backupComplete.hasCompletedAt()) {
-            Instant.fromEpochSeconds(msg.backupComplete.completedAt.seconds, msg.backupComplete.completedAt.nanos.toLong())
-        } else {
-            Clock.System.now()
-        }
+        val completedAt = recordedAtOrNow(msg.backupComplete.hasCompletedAt(), msg.backupComplete.completedAt)
         val backupCompleteEvent = AgentEvent.BackupCompleteEvent(
             serverId = msg.backupComplete.serverId,
             backupId = msg.backupComplete.backupId,

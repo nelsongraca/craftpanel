@@ -1,17 +1,12 @@
 package io.craftpanel.master.grpc.handlers
 
-import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
-import io.craftpanel.master.createTestControlServiceImpl
 import io.craftpanel.master.database.schema.Backups
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.AgentEvent
-import io.craftpanel.master.service.NodeStateReconciler
-import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
-import io.craftpanel.proto.agentMessage
-import io.craftpanel.proto.nodeStateSnapshot
+import io.craftpanel.master.grpc.AgentRegistry
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -24,14 +19,8 @@ class NodeStateHandlerTest :
     FunSpec({
 
         val repos = TestRepositories()
-        val gateway = TestAgentGateway()
         val agentEvents: MutableSharedFlow<AgentEvent> = MutableSharedFlow(extraBufferCapacity = 1024)
-        val reconciler = NodeStateReconciler(nodeRepository = NodeRepositoryImpl())
-        val service = createTestControlServiceImpl(
-            nodeStateReconciler = reconciler,
-            agentGateway = gateway,
-            repos = repos
-        )
+        val registry = AgentRegistry(agentEvents, repos.serverRepository, repos.backupRepository)
 
         fun createNode(): Uuid = transaction {
             Nodes.insert {
@@ -61,7 +50,6 @@ class NodeStateHandlerTest :
         beforeTest {
             TestDatabase.initIfNeeded()
             TestDatabase.reset()
-            gateway.sent.clear()
         }
 
         test("rebuild symlinks command includes server and completed backup") {
@@ -77,7 +65,7 @@ class NodeStateHandlerTest :
                 }
             }
 
-            val command = service.buildRebuildSymlinksCommand(nodeId)
+            val command = registry.buildRebuildSymlinksCommand(nodeId)
 
             val rebuild = command.rebuildSymlinks
             rebuild.serversList.size shouldBe 1

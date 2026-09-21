@@ -13,7 +13,6 @@ import org.jetbrains.exposed.v1.core.dao.id.EntityID
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
 import kotlin.time.Clock
-import kotlin.uuid.Uuid
 
 /**
  * Subscribes to the agent event bus and handles observability concerns:
@@ -69,7 +68,7 @@ class NodeObserver(
     // ── Metrics persistence ───────────────────────────────────────────────────
 
     private fun persistNodeMetrics(event: AgentEvent.NodeMetricsEvent) {
-        val kotlinNodeId = runCatching { Uuid.parse(event.nodeId) }.getOrNull() ?: return
+        val kotlinNodeId = parseUuid(event.nodeId) ?: return
 
         transaction {
             NodeMetricsRecord.new {
@@ -91,7 +90,7 @@ class NodeObserver(
     }
 
     private fun persistContainerMetrics(event: AgentEvent.ContainerMetricsEvent) {
-        val kotlinServerId = runCatching { Uuid.parse(event.serverId) }.getOrNull() ?: return
+        val kotlinServerId = parseUuid(event.serverId) ?: return
 
         transaction {
             ContainerMetricsRecord.new {
@@ -108,7 +107,7 @@ class NodeObserver(
     }
 
     private fun persistServerStatus(event: AgentEvent.ServerStatusEvent) {
-        val serverId = runCatching { Uuid.parse(event.serverId) }.getOrNull() ?: return
+        val serverId = parseUuid(event.serverId) ?: return
         val now = clock.now()
         transaction {
             Server.findById(serverId)
@@ -124,7 +123,7 @@ class NodeObserver(
     }
 
     private fun persistPlayerUpdate(event: AgentEvent.PlayerUpdateEvent) {
-        val serverId = runCatching { Uuid.parse(event.serverId) }.getOrNull() ?: return
+        val serverId = parseUuid(event.serverId) ?: return
         val now = clock.now()
         val namesString = event.playerNames.joinToString(",")
             .takeIf { s -> s.isNotBlank() }
@@ -138,7 +137,7 @@ class NodeObserver(
     }
 
     private fun persistBackupComplete(event: AgentEvent.BackupCompleteEvent) {
-        val backupId = runCatching { Uuid.parse(event.backupId) }.getOrNull() ?: return
+        val backupId = parseUuid(event.backupId) ?: return
         val status = if (event.success) BackupStatus.COMPLETED else BackupStatus.FAILED
         val sizeBytes = if (event.success) event.sizeBytes.takeIf { it > 0 } else null
         val errorMessage = if (!event.success) event.errorMessage.takeIf { it.isNotBlank() } else null
@@ -157,7 +156,7 @@ class NodeObserver(
     // ── Alert evaluation ──────────────────────────────────────────────────────
 
     private suspend fun evaluateNodeAlerts(event: AgentEvent.NodeMetricsEvent) {
-        val kotlinNodeId = runCatching { Uuid.parse(event.nodeId) }.getOrNull() ?: return
+        val kotlinNodeId = parseUuid(event.nodeId) ?: return
 
         val metricValues = buildMap {
             put("cpu_percent", event.cpuPercent)
@@ -174,7 +173,7 @@ class NodeObserver(
     }
 
     private suspend fun evaluateServerAlerts(event: AgentEvent.ContainerMetricsEvent) {
-        val kotlinServerId = runCatching { Uuid.parse(event.serverId) }.getOrNull() ?: return
+        val kotlinServerId = parseUuid(event.serverId) ?: return
 
         val serverMemMb = serverRepository.findById(kotlinServerId)?.memoryMb ?: return
 

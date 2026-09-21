@@ -64,6 +64,18 @@ class NetworkService(
 
     private val visibilityResolver = NetworkVisibilityResolver(userRepository, groupRepository)
 
+    /**
+     * Require every server that would share [networkId] to live on one node. [additionalNodeId] is
+     * the node the caller is (re)assigning into the network; [excludeServerId] skips the server
+     * being updated. Shared by provisioning and network reassignment.
+     */
+    fun requireSingleNodeForNetwork(networkId: Uuid, additionalNodeId: Uuid, excludeServerId: Uuid? = null) {
+        val nodeIds = (serverRepository.listByNetworkId(networkId)
+            .filter { it.id != excludeServerId }
+            .map { it.nodeId } + additionalNodeId).distinct()
+        if (nodeIds.size > 1) validateCrossNodeAssignment(nodeIds)
+    }
+
     fun validateCrossNodeAssignment(nodeIds: List<Uuid>) {
         if (!hasDockerEndpoint) {
             throw UnprocessableException(

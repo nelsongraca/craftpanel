@@ -23,11 +23,7 @@ class NodeMetricsHandler(private val agentEvents: MutableSharedFlow<AgentEvent>,
         lastMetricsAt.set(Clock.System.now())
         runCatching { nodeStateReconciler.updateNodeLastSeen(nodeId) }
             .onFailure { e -> log.warn("Node $nodeId: updateNodeLastSeen failed — ${e.message}") }
-        val recordedAt = if (nodeMetrics.hasRecordedAt()) {
-            Instant.fromEpochSeconds(nodeMetrics.recordedAt.seconds, nodeMetrics.recordedAt.nanos.toLong())
-        } else {
-            Clock.System.now()
-        }
+        val recordedAt = recordedAtOrNow(nodeMetrics.hasRecordedAt(), nodeMetrics.recordedAt)
         val nodeMetricEvent = AgentEvent.NodeMetricsEvent(
             nodeId = nodeId,
             cpuPercent = nodeMetrics.cpuPercent,
@@ -39,9 +35,7 @@ class NodeMetricsHandler(private val agentEvents: MutableSharedFlow<AgentEvent>,
             diskTotalBytes = nodeMetrics.diskTotalBytes,
             recordedAt = recordedAt
         )
-        if (!agentEvents.tryEmit(nodeMetricEvent)) {
-            log.debug("Dropped node metrics event for node {} — agent event buffer full", nodeId)
-        }
+        agentEvents.tryEmitTelemetry(nodeMetricEvent, log, nodeId)
         val newHealth = if (nodeMetrics.routerRunning) NodeHealth.HEALTHY else NodeHealth.DEGRADED
         if (newHealth != lastEmittedHealth.get()) {
             lastEmittedHealth.set(newHealth)

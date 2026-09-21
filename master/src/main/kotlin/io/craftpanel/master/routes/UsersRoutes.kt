@@ -94,7 +94,7 @@ fun Route.usersRoutes(userService: UserService) {
                 }
             }) {
                 call.requirePermission(Permission.SYSTEM_USERS)
-                val userId = call.userId()
+                val userId = call.authUserId()
                 val targetId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@delete call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
                 if (userId == targetId) {
@@ -119,7 +119,7 @@ fun Route.usersRoutes(userService: UserService) {
                 }
             }) {
                 call.requirePermission(Permission.SYSTEM_USERS)
-                val callerId = call.userId()
+                val callerId = call.authUserId()
                 val targetId = call.parameters["id"]?.let { runCatching { Uuid.parse(it) }.getOrNull() }
                     ?: return@put call.respond(HttpStatusCode.NotFound, ErrorResponse("User not found"))
                 if (callerId == targetId) {

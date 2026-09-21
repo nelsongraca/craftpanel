@@ -74,7 +74,8 @@ fun Application.module() {
         }
     }
 
-    val startupSettings = SystemService(settingsRepository = SettingsRepositoryImpl()).getSettings().settings
+    val startupSettingsRepo = SettingsRepositoryImpl()
+    val startupSettings = SystemService(settingsRepository = startupSettingsRepo, settingsProvider = SettingsProvider(startupSettingsRepo)).getSettings().settings
 
     val appScope: CoroutineScope = this
     val dnsProvider: DnsProvider? = DnsProviderFactory.create(appConfig.dns)

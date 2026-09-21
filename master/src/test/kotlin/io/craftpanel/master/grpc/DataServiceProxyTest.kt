@@ -1,6 +1,5 @@
 package io.craftpanel.master.grpc
 
-import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.createTestNodeRegistrationService
@@ -43,10 +42,11 @@ class DataServiceProxyTest :
             val backupHandler = BackupHandler(agentEvents)
             val migrationHandler = MigrationHandler(agentEvents)
             val dataOpResponseHandler = DataOpResponseHandler(dataOpContext)
+            val registry = AgentRegistry(agentEvents, repos.serverRepository, repos.backupRepository)
             val controlSvc = ControlServiceImpl(
                 nodeStateReconciler = reconciler,
                 nodeRegistrationService = createTestNodeRegistrationService(nodeRepository = nodeRepository),
-                agentEventsFlow = agentEvents,
+                registry = registry,
                 dataOpContext = dataOpContext,
                 nodeStateHandler = nodeStateHandler,
                 nodeMetricsHandler = nodeMetricsHandler,
@@ -55,14 +55,12 @@ class DataServiceProxyTest :
                 playerUpdateHandler = playerUpdateHandler,
                 backupHandler = backupHandler,
                 migrationHandler = migrationHandler,
-                dataOpResponseHandler = dataOpResponseHandler,
-                serverRepository = repos.serverRepository,
-                backupRepository = repos.backupRepository
+                dataOpResponseHandler = dataOpResponseHandler
             )
             val agentDataOps = AgentDataOps(
                 dataOpContext,
-                { nodeId, msg -> controlSvc.sendToNode(nodeId, msg) },
-                { nodeId, msg -> controlSvc.sendToNodeSuspending(nodeId, msg) }
+                { nodeId, msg -> registry.sendToNode(nodeId, msg) },
+                { nodeId, msg -> registry.sendToNodeSuspending(nodeId, msg) }
             )
             proxy = DataServiceProxy(agentDataOps, BulkDataServiceImpl(createTestNodeRegistrationService(nodeRepository = nodeRepository)), repos.serverRepository)
         }

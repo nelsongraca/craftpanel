@@ -2,7 +2,6 @@ package io.craftpanel.master.di
 
 import io.craftpanel.master.auth.*
 import io.craftpanel.master.config.AppConfig
-import io.craftpanel.master.config.ImagesConfig
 import io.craftpanel.master.crypto.SecretCipher
 import io.craftpanel.master.docker.MasterDockerClient
 import io.craftpanel.master.domain.AgentEvent
@@ -17,7 +16,6 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 import java.util.concurrent.ConcurrentHashMap
-import kotlin.uuid.Uuid
 
 val appModule = module {
     // Repositories
@@ -41,23 +39,28 @@ val appModule = module {
     single<UserRepository> { UserRepositoryImpl() }
     single<RecoveryCodeRepository> { RecoveryCodeRepositoryImpl() }
     single<SettingsRepository> { SettingsRepositoryImpl() }
+    single { SettingsProvider(get()) }
 
     // gRPC core
     single { NodeStateReconciler(nodeRepository = get()) }
-    single<AgentGateway> { get<ControlServiceImpl>() }
 
     // Shared agent events flow
     single { MutableSharedFlow<AgentEvent>(extraBufferCapacity = 1024) }
+
+    // Agent connection registry + outbound gateway
+    single { AgentRegistry(get(), get(), get()) }
+    single<AgentGateway> { get<AgentRegistry>() }
 
     // Shared data op context (passed to AgentDataOps and DataOpResponseHandler)
     single { DataOpContext(ConcurrentHashMap(), ConcurrentHashMap()) }
 
     single { NodeRegistrationService(nodeConfig = get<AppConfig>().node, nodeRepository = get()) }
     single {
+        val registry = get<AgentRegistry>()
         AgentDataOps(
             dataOpContext = get(),
-            sendToNode = { nodeId, msg -> get<ControlServiceImpl>().sendToNode(nodeId, msg) },
-            sendToNodeSuspending = { nodeId, msg -> get<ControlServiceImpl>().sendToNodeSuspending(nodeId, msg) }
+            sendToNode = { nodeId, msg -> registry.sendToNode(nodeId, msg) },
+            sendToNodeSuspending = { nodeId, msg -> registry.sendToNodeSuspending(nodeId, msg) }
         )
     }
 
@@ -83,7 +86,7 @@ val appModule = module {
         ControlServiceImpl(
             nodeStateReconciler = get(),
             nodeRegistrationService = get(),
-            agentEventsFlow = get(),
+            registry = get(),
             dataOpContext = get(),
             nodeStateHandler = get(),
             nodeMetricsHandler = get(),
@@ -92,22 +95,23 @@ val appModule = module {
             playerUpdateHandler = get(),
             backupHandler = get(),
             migrationHandler = get(),
-            dataOpResponseHandler = get(),
-            serverRepository = get(),
-            backupRepository = get()
+            dataOpResponseHandler = get()
         )
     }
     single { BulkDataServiceImpl(get()) }
     single { DataServiceProxy(get<AgentDataOps>(), get(), get<ServerRepository>()) }
-    single { ProxyConfigPatchService(get(), get(), get()) }
+    single {
+        val settingsProvider = get<SettingsProvider>()
+        ProxyConfigPatchService(get(), get()) { settingsProvider.images() }
+    }
 
-    // Observability — subscribes to agentEvents emitted by ControlServiceImpl
+    // Observability — subscribes to agentEvents emitted by AgentRegistry
     single { AlertEvaluator(alertRepository = get()) }
     single(createdAtStart = true) {
-        val csi = get<ControlServiceImpl>()
+        val registry = get<AgentRegistry>()
         NodeObserver(
-            agentEvents = csi.agentEvents,
-            emitAgentEvent = { event -> csi.emitToAgentEvents(event) },
+            agentEvents = registry.agentEvents,
+            emitAgentEvent = { event -> registry.emit(event) },
             serverRepository = get(),
             nodeRepository = get(),
             alertEvaluator = get(),
@@ -129,8 +133,8 @@ val appModule = module {
     single { UserService(userRepository = get()) }
     single { GroupService(groupRepository = get()) }
     single { AssignmentService(userRepository = get(), groupRepository = get(), serverRepository = get(), networkRepository = get()) }
-    single { SystemService(settingsRepository = get()) }
-    single { BrandingService(settingsRepository = get()) }
+    single { SystemService(settingsRepository = get(), settingsProvider = get()) }
+    single { BrandingService(settingsProvider = get()) }
     single { NodeService(gateway = get<AgentGateway>(), nodeRepository = get(), serverRepository = get(), nodeRegistrationService = get()) }
     single {
         val endpoint = get<AppConfig>().docker.endpoint
@@ -149,24 +153,21 @@ val appModule = module {
     single { ModService(modRepository = get(), serverRepository = get()) }
 
     single {
-        ServerExposure(
-            settingsRepository = get(),
+        ServerHostnames(
+            settingsProvider = get(),
             serverRepository = get()
         )
     }
 
-    single {
-        val s = get<SystemService>().getSettings().settings
-        ImagesConfig(s.imageMinecraft, s.imageProxy)
-    }
     single { ServerIntent(serverRepository = get()) }
     single {
         val dataServiceProxy = get<DataServiceProxy>()
         ProxyPatchWriter(patchService = get(), writeFile = dataServiceProxy::writeFile)
     }
     single {
+        val settingsProvider = get<SettingsProvider>()
         val budgetProvider: () -> Pair<Int, Long> = {
-            val s = get<SystemService>().getSettings().settings
+            val s = settingsProvider.current()
             s.restartMaxAttempts to s.restartWindowSeconds
         }
         ContainerLifecycle(
@@ -175,7 +176,7 @@ val appModule = module {
             serverIntent = get(),
             envVarsRepository = get(),
             extraPortRepository = get(),
-            images = get(),
+            imagesProvider = { settingsProvider.images() },
             containerNamePrefix = get(named("containerPrefix")),
             restartBudgetProvider = budgetProvider
         )
@@ -184,7 +185,7 @@ val appModule = module {
         ServerLifecycleService(
             lifecycle = get(),
             serverRepository = get(),
-            serverExposure = get(),
+            serverHostnames = get(),
             serverIntent = get(),
             proxyPatchWriter = get()
         )
@@ -195,7 +196,7 @@ val appModule = module {
             lifecycle = get(),
             serverRepository = get(),
             nodeRepository = get(),
-            serverExposure = get()
+            serverHostnames = get()
         )
     }
     single {
@@ -207,7 +208,7 @@ val appModule = module {
             serverRepository = get(),
             nodeRepository = get(),
             networkRepository = get(),
-            settingsRepository = get(),
+            settingsProvider = get(),
             lifecycle = get()
         )
     }
@@ -216,7 +217,7 @@ val appModule = module {
             serverRepository = get(),
             nodeRepository = get(),
             networkRepository = get(),
-            settingsRepository = get(),
+            settingsProvider = get(),
             portAllocator = get(),
             extraPortRepository = get(),
             envVarsRepository = get(),
@@ -280,7 +281,7 @@ val appModule = module {
             dnsProvider = get<DnsProviderHolder>().provider,
             scope = get(named("appScope")),
             lifecycle = get(),
-            serverExposure = get(),
+            serverHostnames = get(),
             containerNamePrefix = get(named("containerPrefix"))
         )
     }

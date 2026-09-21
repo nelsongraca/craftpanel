@@ -7,7 +7,6 @@ import io.craftpanel.master.database.entity.Mod
 import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.PortRegistry
-import io.craftpanel.master.database.schema.ServerEnvVars
 import io.craftpanel.master.database.schema.ServerNetworks
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.ServerType
@@ -18,7 +17,6 @@ import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.service.repo.ServerExtraPortRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import io.craftpanel.master.service.repo.ServerView
-import io.craftpanel.master.service.repo.SettingsRepository
 import io.craftpanel.master.util.parseUtcInstant
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
@@ -84,12 +82,12 @@ class ServerProvisioning(
     private val serverRepository: ServerRepository,
     private val nodeRepository: NodeRepository,
     private val networkRepository: NetworkRepository,
-    private val settingsRepository: SettingsRepository,
+    private val settingsProvider: SettingsProvider,
     private val portAllocator: PortAllocator,
     private val extraPortRepository: ServerExtraPortRepository,
     private val envVarsRepository: EnvVarsRepository,
     private val modRepository: ModRepository,
-    private val networkService: NetworkService? = null,
+    private val networkService: NetworkService,
     private val containerNamePrefix: String = ContainerNames.DEFAULT_PREFIX
 ) {
 
@@ -126,11 +124,7 @@ class ServerProvisioning(
         val networkKotlinId = spec.networkId?.let { parseUuid(it) ?: throw UnprocessableException("Invalid network_id") }
 
         if (networkKotlinId != null) {
-            val existingNodeIds = serverRepository.listByNetworkId(networkKotlinId)
-                .map { it.nodeId }
-                .distinct()
-            val allNodeIds = (existingNodeIds + nodeKotlinId).distinct()
-            if (allNodeIds.size > 1) networkService?.validateCrossNodeAssignment(allNodeIds)
+            networkService.requireSingleNodeForNetwork(networkKotlinId, nodeKotlinId)
         }
 
         return run {
@@ -220,7 +214,7 @@ class ServerProvisioning(
 
         val port = portAllocator.allocate(nodeKotlinId)
 
-        val platformName = Settings.from(settingsRepository.getAll()).appName
+        val platformName = settingsProvider.current().appName
         val serverTypeDisplay = spec.serverType.lowercase()
             .replaceFirstChar { it.uppercase() }
 

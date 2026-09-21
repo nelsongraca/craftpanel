@@ -9,7 +9,8 @@ import kotlin.uuid.Uuid
 /** Result of a successful server-scoped authorization check. */
 data class AuthorizedServer(val serverId: Uuid, val networkId: Uuid?, val userId: Uuid)
 
-private fun ApplicationCall.authUserId(): Uuid = Uuid.parse(principal<JWTPrincipal>()!!.payload.subject)
+/** The authenticated user id parsed from the JWT principal. The one JWT-user helper in master. */
+fun ApplicationCall.authUserId(): Uuid = Uuid.parse(principal<JWTPrincipal>()!!.payload.subject)
 
 /**
  * Server-scoped authorization seam: parse `{id}`, resolve its network scope, and

@@ -1,6 +1,5 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.database.entity.MigrationStep
 import io.craftpanel.master.database.entity.ServerMigration
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.dns.DnsProvider
@@ -89,7 +88,7 @@ class MigrationService(
     private val dnsProvider: DnsProvider?,
     private val scope: CoroutineScope,
     private val lifecycle: ContainerLifecycle,
-    private val serverExposure: ServerExposure,
+    private val serverHostnames: ServerHostnames,
     private val containerNamePrefix: String = "craftpanel"
 ) {
 
@@ -230,7 +229,7 @@ class MigrationService(
             gateway = gateway,
             dnsProvider = dnsProvider,
             lifecycle = lifecycle,
-            serverExposure = serverExposure,
+            serverHostnames = serverHostnames,
             scope = scope,
             eventFlow = eventFlow
         )

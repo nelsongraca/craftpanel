@@ -35,8 +35,7 @@ class ProxyBackendService(
 ) {
 
     fun listBackends(proxyServerId: Uuid): ProxyBackendListResponse {
-        val serverRow = serverRepository.findById(proxyServerId) ?: throw NotFoundException("Server not found")
-        if (!serverRow.serverType.isProxy) throw ConflictException("Server is not a proxy type")
+        serverRepository.requireProxy(proxyServerId)
         return ProxyBackendListResponse(
             proxyBackendRepository.listProxyBackends(proxyServerId)
                 .map { it.toItem() }
@@ -44,8 +43,7 @@ class ProxyBackendService(
     }
 
     suspend fun replaceBackends(proxyServerId: Uuid, req: PutProxyBackendsRequest): ProxyBackendListResponse {
-        val serverRow = serverRepository.findById(proxyServerId) ?: throw NotFoundException("Server not found")
-        if (!serverRow.serverType.isProxy) throw ConflictException("Server is not a proxy type")
+        val serverRow = serverRepository.requireProxy(proxyServerId)
 
         val names = req.backends.map { it.backendName.trim() }
         if (names.size != names.toSet().size) throw UnprocessableException("Duplicate backend names")

@@ -16,7 +16,7 @@ import kotlin.uuid.Uuid
 class ServerLifecycleService(
     private val lifecycle: ContainerLifecycle,
     private val serverRepository: ServerRepository,
-    private val serverExposure: ServerExposure,
+    private val serverHostnames: ServerHostnames,
     private val serverIntent: ServerIntent,
     private val proxyPatchWriter: ProxyPatchWriter
 ) {
@@ -31,7 +31,7 @@ class ServerLifecycleService(
         val alreadyRunning = reported == ServerStatus.HEALTHY || reported == ServerStatus.STARTING
         if (alreadyRunning) throw ConflictException("Server is already running")
         if (serverRow.isDisabled()) throw ConflictException(serverRow.disabledReason())
-        val publicHostname = serverExposure.mcRouterLabel(serverRow)
+        val publicHostname = serverHostnames.mcRouterLabel(serverRow)
         // Write the proxy patch before pushing intent: a failure here must surface loudly and leave
         // the prior intent untouched, not strand the server at a running intent with no process starting.
         proxyPatchWriter.write(serverRow)
@@ -53,7 +53,7 @@ class ServerLifecycleService(
         if (serverRow.isDisabled()) throw ConflictException(serverRow.disabledReason())
         proxyPatchWriter.write(serverRow)
         serverIntent.withIntent(id, DesiredStatus.RUNNING) {
-            lifecycle.sendDesiredState(serverRow, DesiredStatus.RUNNING, forceRestart = true, publicHostname = serverExposure.mcRouterLabel(serverRow))
+            lifecycle.sendDesiredState(serverRow, DesiredStatus.RUNNING, forceRestart = true, publicHostname = serverHostnames.mcRouterLabel(serverRow))
         }
     }
 

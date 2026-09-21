@@ -13,15 +13,15 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.filterIsInstance
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
-import kotlin.uuid.Uuid
 
 class ContainerLifecycle(
     private val gateway: AgentGateway,
     private val modService: ModService,
     private val serverIntent: ServerIntent,
     private val envVarsRepository: EnvVarsRepository,
-    private val extraPortRepository: ServerExtraPortRepository = ServerExtraPortRepositoryImpl(PortAllocator(NodeRepositoryImpl(), PortRepositoryImpl())),
-    private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
+    private val extraPortRepository: ServerExtraPortRepository,
+    /** Resolved per use so a live image-settings change takes effect without a restart. */
+    private val imagesProvider: () -> ImagesConfig = { ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy") },
     private val containerNamePrefix: String = "craftpanel",
     private val restartBudgetProvider: () -> Pair<Int, Long> = { 5 to 600L },
     private val stopTimeout: Duration = 45.seconds,
@@ -30,6 +30,7 @@ class ContainerLifecycle(
 ) {
 
     private val names = ContainerNames(containerNamePrefix)
+    private val images: ImagesConfig get() = imagesProvider()
 
     // ── Declarative desired-state (master intent setter) ──────────────────────
 
@@ -50,17 +51,16 @@ class ContainerLifecycle(
 
     fun sendRemove(server: ServerView, nodeId: String, force: Boolean = false): Boolean {
         val id = server.id
-        return send(
-            nodeId,
-            masterMessage {
-                removeContainer = removeContainerCommand {
-                    serverId = id.toString()
-                    containerName = names.container(id.toString())
-                    this.force = force
-                }
-            }
-        )
+        return send(nodeId, removeContainerMessage(names.container(id.toString()), id.toString(), force))
     }
+
+    /**
+     * Spec-only refresh: re-push the current desired spec to the agent without touching master's
+     * intent. Callers use this when a spec-feeding field changed (data-dir override, routing
+     * labels) — for a RUNNING server only, so the new spec applies on the next start/recreate.
+     */
+    fun refreshRunningSpec(server: ServerView, publicHostname: String? = null): Boolean =
+        sendDesiredState(server, DesiredStatus.RUNNING, publicHostname = publicHostname)
 
     // ── Await-based primitives (used by MigrationService for cross-node relocation) ─
 
@@ -258,6 +258,24 @@ class ContainerLifecycle(
     private fun deriveImage(serverType: ServerType, tag: String) = images.deriveImage(serverType, tag)
 
     private fun send(nodeId: String, msg: MasterMessage): Boolean = gateway.sendToNode(nodeId, msg)
+
+    companion object {
+
+        /**
+         * The one builder for a server-container removal. [deleteData] additionally wipes the
+         * server's data directory (permanent delete); [serverName] drives the servers-by-name
+         * symlink overlay removal.
+         */
+        fun removeContainerMessage(containerName: String, serverId: String, force: Boolean, deleteData: Boolean = false, serverName: String = ""): MasterMessage = masterMessage {
+            removeContainer = removeContainerCommand {
+                this.serverId = serverId
+                this.containerName = containerName
+                this.force = force
+                this.deleteData = deleteData
+                if (serverName.isNotEmpty()) this.serverName = serverName
+            }
+        }
+    }
 }
 
 class ContainerLifecycleException(message: String) : Exception(message)

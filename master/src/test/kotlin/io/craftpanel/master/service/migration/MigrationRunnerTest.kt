@@ -118,9 +118,10 @@ class MigrationRunnerTest :
                     gateway = TestAgentGateway(),
                     modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
                     serverIntent = ServerIntent(repos.serverRepository),
-                    envVarsRepository = repos.envVarsRepository
+                    envVarsRepository = repos.envVarsRepository,
+                    extraPortRepository = repos.extraPortRepository,
                 ),
-                serverExposure = ServerExposure(SettingsRepositoryImpl(), repos.serverRepository),
+                serverHostnames = ServerHostnames(SettingsProvider(SettingsRepositoryImpl()), repos.serverRepository),
                 scope = TestScope(),
                 eventFlow = MutableSharedFlow()
             )
@@ -252,7 +253,7 @@ class MigrationRunnerTest :
                     gateway = coord.gateway,
                     dnsProvider = null,
                     lifecycle = coord.lifecycle,
-                    serverExposure = ServerExposure(SettingsRepositoryImpl(), coord.serverRepository),
+                    serverHostnames = ServerHostnames(SettingsProvider(SettingsRepositoryImpl()), coord.serverRepository),
                     scope = coord.scope,
                     eventFlow = null
                 ) {

@@ -2,14 +2,10 @@ package io.craftpanel.master.grpc
 
 import io.craftpanel.master.domain.*
 import io.craftpanel.master.grpc.handlers.*
-import io.craftpanel.master.service.AgentGateway
 import io.craftpanel.master.service.NodeMetadata as NodeMetadataDto
 import io.craftpanel.master.service.NodeNotActiveException
 import io.craftpanel.master.service.NodeRegistrationService
 import io.craftpanel.master.service.NodeStateReconciler
-import io.craftpanel.master.service.repo.BackupRepository
-import io.craftpanel.master.service.repo.ServerRepository
-import io.craftpanel.master.util.formatSymlinkTimestamp
 import io.craftpanel.proto.*
 import io.grpc.Status
 import io.grpc.StatusException
@@ -17,7 +13,6 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.*
 import kotlinx.coroutines.flow.*
 import org.slf4j.LoggerFactory
-import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import kotlin.time.Clock
@@ -29,11 +24,10 @@ class ControlServiceImpl(
     private val nodeStateReconciler: NodeStateReconciler,
     private val nodeRegistrationService: NodeRegistrationService,
     private val onNodeDisconnect: (String) -> Unit = {},
-    // Shared agent events flow (passed to handlers)
-    private val agentEventsFlow: MutableSharedFlow<AgentEvent>,
+    private val registry: AgentRegistry,
     // Shared data op context (drained on node disconnect)
     private val dataOpContext: DataOpContext,
-    // Handlers (all share the same agentEventsFlow)
+    // Handlers (all share the same agent-events bus)
     private val nodeStateHandler: NodeStateHandler,
     private val nodeMetricsHandler: NodeMetricsHandler,
     private val containerMetricsHandler: ContainerMetricsHandler,
@@ -41,91 +35,10 @@ class ControlServiceImpl(
     private val playerUpdateHandler: PlayerUpdateHandler,
     private val backupHandler: BackupHandler,
     private val migrationHandler: MigrationHandler,
-    private val dataOpResponseHandler: DataOpResponseHandler,
-    private val serverRepository: ServerRepository,
-    private val backupRepository: BackupRepository
-) : ControlServiceGrpcKt.ControlServiceCoroutineImplBase(),
-    AgentGateway {
+    private val dataOpResponseHandler: DataOpResponseHandler
+) : ControlServiceGrpcKt.ControlServiceCoroutineImplBase() {
 
     private val log = LoggerFactory.getLogger(ControlServiceImpl::class.java)
-    private val connectedAgents = ConcurrentHashMap<String, SendChannel<MasterMessage>>()
-
-    // ── Observability flows ───────────────────────────────────────────────────
-    override val agentEvents = agentEventsFlow.asSharedFlow()
-
-    // ── Data op correlation (delegated to DataOpContext) ─────────────────
-    private val pendingRequests get() = dataOpContext.pendingRequests
-    private val consoleOutputChannels get() = dataOpContext.consoleOutputChannels
-
-    /** Exposed so NodeObserver can emit events (alert firings) back through the bus. */
-    suspend fun emitToAgentEvents(event: AgentEvent) {
-        agentEventsFlow.emit(event)
-    }
-
-    override fun sendToNode(nodeId: String, msg: MasterMessage): Boolean {
-        val channel = connectedAgents[nodeId]
-        if (channel == null) {
-            log.warn("sendToNode: node {} not found in connectedAgents (connected: {})", nodeId, connectedAgents.keys)
-            return false
-        }
-        return channel.trySend(msg).isSuccess
-    }
-
-    override suspend fun sendToNodeSuspending(nodeId: String, msg: MasterMessage): Boolean {
-        val channel = connectedAgents[nodeId]
-        if (channel == null) {
-            log.warn("sendToNodeSuspending: node {} not found in connectedAgents (connected: {})", nodeId, connectedAgents.keys)
-            return false
-        }
-        return try {
-            channel.send(msg)
-            true
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            log.warn("sendToNodeSuspending: node {} send failed — {}", nodeId, e.message)
-            false
-        }
-    }
-
-    /**
-     * Reconnect self-heal: after a node reconciles its state snapshot, push the full
-     * symlink-overlay mapping (servers-by-name + backups-by-server) so the agent can
-     * rebuild both trees from canonical storage. Deliberately conservative — only ever
-     * adds symlinks; never prunes. See server-path-navigation plan, Task 4.
-     */
-    override fun rebuildSymlinks(nodeId: String) {
-        val kotlinNodeId = runCatching { Uuid.parse(nodeId) }.getOrNull() ?: return
-        runCatching { buildRebuildSymlinksCommand(kotlinNodeId) }
-            .onSuccess { command -> sendToNode(nodeId, command) }
-            .onFailure { e -> log.error("Node $nodeId: failed to send RebuildSymlinksCommand — ${e.message}", e) }
-    }
-
-    @OptIn(com.google.protobuf.kotlin.OnlyForUseByGeneratedProtoCode::class)
-    internal fun buildRebuildSymlinksCommand(nodeId: Uuid): MasterMessage {
-        val servers = serverRepository.listByNodeId(nodeId)
-        val backups = servers.flatMap { server ->
-            backupRepository.listBackups(server.id)
-                .filter { it.status == "COMPLETED" && !it.filePath.isNullOrEmpty() }
-                .map { server to it }
-        }
-        val builder = RebuildSymlinksCommand.newBuilder()
-        servers.forEach { server ->
-            builder.addServersBuilder()
-                .setServerId(server.id.toString())
-                .setServerName(server.name)
-                .setDataDirName(server.dataDirName ?: "")
-        }
-        backups.forEach { (server, backup) ->
-            builder.addBackupsBuilder()
-                .setBackupId(backup.id.toString())
-                .setServerId(server.id.toString())
-                .setServerName(server.name)
-                .setCreatedAtFormatted(formatSymlinkTimestamp(backup.createdAt))
-                .setFilePath(backup.filePath ?: "")
-        }
-        return masterMessage { rebuildSymlinks = builder.build() }
-    }
 
     // ── gRPC: registration / identification ──────────────────────────────────
 
@@ -193,7 +106,7 @@ class ControlServiceImpl(
                     ?.let { nodeId ->
                         log.warn("Node $nodeId: no metrics for ${elapsed.inWholeSeconds}s — marking unreachable")
                         nodeStateReconciler.markNodeUnreachable(nodeId)
-                        agentEventsFlow.emit(AgentEvent.NodeStatusEvent(nodeId, NodeHealth.UNREACHABLE))
+                        registry.emit(AgentEvent.NodeStatusEvent(nodeId, NodeHealth.UNREACHABLE))
                     }
             }
         }
@@ -205,75 +118,54 @@ class ControlServiceImpl(
         } catch (e: NodeNotActiveException) {
             throw StatusException(Status.PERMISSION_DENIED.withDescription(e.message))
         }
-        connectedAgents[nodeId] = outChannel
-        log.debug("Node $nodeId: registered in connectedAgents (channel=${System.identityHashCode(outChannel)})")
+        registry.register(nodeId, outChannel)
     }
 
     private suspend fun dispatch(msg: AgentMessage, lastMetricsAt: AtomicReference<Instant>, lastEmittedHealth: AtomicReference<NodeHealth?>) {
         when {
             msg.hasNodeState() -> {
                 nodeStateHandler.handle(msg, msg.nodeId)
-                rebuildSymlinks(msg.nodeId)
+                registry.rebuildSymlinks(msg.nodeId)
             }
 
             msg.hasNodeMetrics() -> nodeMetricsHandler.handle(msg, msg.nodeId, lastMetricsAt, lastEmittedHealth)
 
-            msg.hasContainerMetrics() -> containerMetricsHandler.handle(msg, msg.nodeId)
+            msg.hasContainerMetrics() -> containerMetricsHandler.handle(msg)
 
-            msg.hasServerStatus() -> serverStatusHandler.handle(msg, msg.nodeId)
+            msg.hasServerStatus() -> serverStatusHandler.handle(msg)
 
-            msg.hasPlayerUpdate() -> playerUpdateHandler.handle(msg, msg.nodeId)
+            msg.hasPlayerUpdate() -> playerUpdateHandler.handle(msg)
 
-            msg.hasBackupProgress() -> backupHandler.handleBackupProgress(msg, msg.nodeId)
+            msg.hasBackupProgress() -> backupHandler.handleBackupProgress(msg)
 
-            msg.hasBackupComplete() -> backupHandler.handleBackupComplete(msg, msg.nodeId)
+            msg.hasBackupComplete() -> backupHandler.handleBackupComplete(msg)
 
-            msg.hasRsyncReady() -> migrationHandler.handleRsyncReady(msg, msg.nodeId)
+            msg.hasRsyncReady() -> migrationHandler.handleRsyncReady(msg)
 
-            msg.hasRsyncProgress() -> migrationHandler.handleRsyncProgress(msg, msg.nodeId)
+            msg.hasRsyncProgress() -> migrationHandler.handleRsyncProgress(msg)
 
-            msg.hasRsyncComplete() -> migrationHandler.handleRsyncComplete(msg, msg.nodeId)
+            msg.hasRsyncComplete() -> migrationHandler.handleRsyncComplete(msg)
 
-            msg.hasConsoleOutput() -> dataOpResponseHandler.handle(msg, msg.nodeId)
-
-            msg.hasListFilesResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
-
-            msg.hasReadFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
-
-            msg.hasWriteFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
-
-            msg.hasDeleteFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
-
-            msg.hasMakeDirectoryResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
-
-            msg.hasMoveFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
-
-            msg.hasCopyFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
-
-            msg.hasDownloadFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
-
-            msg.hasUploadFileResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
-
-            msg.hasFetchContainerLogsResponse() -> dataOpResponseHandler.handle(msg, msg.nodeId)
-
-            else -> log.debug("Node ${msg.nodeId} sent unhandled message type")
+            // Console output + every unary file/console response type: DataOpResponseHandler owns
+            // the correlation switch, so dispatch forwards the whole family in one branch.
+            else -> dataOpResponseHandler.handle(msg, msg.nodeId)
         }
     }
 
     private suspend fun teardown(nodeId: String, outChannel: SendChannel<MasterMessage>, watchdogFired: Boolean) {
-        val wasOwner = connectedAgents.remove(nodeId, outChannel)
+        val wasOwner = registry.deregister(nodeId, outChannel)
         log.debug(
             "Node $nodeId: stream finally — wasOwner=$wasOwner, watchdogFired=$watchdogFired, channel=${System.identityHashCode(outChannel)}, stillConnected=${
-                connectedAgents.containsKey(nodeId)
+                registry.isConnected(nodeId)
             }"
         )
         drainNodeRequests(nodeId)
         onNodeDisconnect(nodeId)
-        if (wasOwner && !watchdogFired && !connectedAgents.containsKey(nodeId)) {
+        if (wasOwner && !watchdogFired && !registry.isConnected(nodeId)) {
             log.warn("Node $nodeId: control stream disconnected — marking unreachable")
             nodeStateReconciler.markNodeUnreachable(nodeId)
-            agentEventsFlow.emit(AgentEvent.NodeStatusEvent(nodeId, NodeHealth.UNREACHABLE))
-        } else if (wasOwner && connectedAgents.containsKey(nodeId)) {
+            registry.emit(AgentEvent.NodeStatusEvent(nodeId, NodeHealth.UNREACHABLE))
+        } else if (wasOwner && registry.isConnected(nodeId)) {
             log.info("Node $nodeId: stream ended but new connection is already active — skipping degrade")
         } else if (!wasOwner) {
             log.debug("Node $nodeId: stream finally skipped — not owner (superseded by newer connection)")
@@ -284,7 +176,7 @@ class ControlServiceImpl(
 
     private fun drainNodeRequests(nodeId: String) {
         val prefix = "$nodeId/"
-        pendingRequests.entries.removeIf { (k, v) ->
+        dataOpContext.pendingRequests.entries.removeIf { (k, v) ->
             if (k.startsWith(prefix)) {
                 v.completeExceptionally(Exception("Node $nodeId disconnected"))
                 true
@@ -292,7 +184,7 @@ class ControlServiceImpl(
                 false
             }
         }
-        consoleOutputChannels.entries.removeIf { (k, v) ->
+        dataOpContext.consoleOutputChannels.entries.removeIf { (k, v) ->
             if (k.startsWith(prefix)) {
                 v.close(Exception("Node $nodeId disconnected"))
                 true

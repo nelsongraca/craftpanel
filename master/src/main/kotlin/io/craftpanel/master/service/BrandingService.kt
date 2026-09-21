@@ -1,13 +1,12 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.service.repo.SettingsRepository
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
 import java.io.File
 import java.security.MessageDigest
 import javax.imageio.ImageIO
 
-class BrandingService(private val settingsRepository: SettingsRepository) {
+class BrandingService(private val settingsProvider: SettingsProvider) {
 
     private val log = LoggerFactory.getLogger(javaClass)
     private val cacheDir: File by lazy {
@@ -23,10 +22,10 @@ class BrandingService(private val settingsRepository: SettingsRepository) {
         const val DEFAULT_CONTENT_TYPE = "image/svg+xml"
     }
 
-    fun hasCustomLogo(): Boolean = Settings.from(settingsRepository.getAll()).appLogo != null
+    fun hasCustomLogo(): Boolean = settingsProvider.current().appLogo != null
 
     fun getLogoData(): Pair<ByteArray, String> {
-        val raw = Settings.from(settingsRepository.getAll()).appLogo
+        val raw = settingsProvider.current().appLogo
         if (raw != null) {
             val m = DATA_URI_REGEX.matchEntire(raw)
             if (m != null) {

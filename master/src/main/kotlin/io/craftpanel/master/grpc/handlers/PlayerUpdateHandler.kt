@@ -4,32 +4,24 @@ import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.proto.AgentMessage
 import kotlinx.coroutines.flow.MutableSharedFlow
 import org.slf4j.LoggerFactory
-import kotlin.time.Clock
-import kotlin.time.Instant
 
 class PlayerUpdateHandler(private val agentEvents: MutableSharedFlow<AgentEvent>) {
 
     private val log = LoggerFactory.getLogger(PlayerUpdateHandler::class.java)
 
-    suspend fun handle(msg: AgentMessage, nodeId: String) {
+    suspend fun handle(msg: AgentMessage) {
         if (!msg.hasPlayerUpdate()) {
             log.warn("PlayerUpdateHandler called with non-playerUpdate message: ${msg.payloadCase}")
             return
         }
         val playerUpdate = msg.playerUpdate
-        val recordedAt = if (playerUpdate.hasRecordedAt()) {
-            Instant.fromEpochSeconds(playerUpdate.recordedAt.seconds, playerUpdate.recordedAt.nanos.toLong())
-        } else {
-            Clock.System.now()
-        }
+        val recordedAt = recordedAtOrNow(playerUpdate.hasRecordedAt(), playerUpdate.recordedAt)
         val playerUpdateEvent = AgentEvent.PlayerUpdateEvent(
             serverId = playerUpdate.serverId,
             playerCount = playerUpdate.playerCount,
             playerNames = playerUpdate.playerNamesList,
             recordedAt = recordedAt
         )
-        if (!agentEvents.tryEmit(playerUpdateEvent)) {
-            log.debug("Dropped player update event for server {} — agent event buffer full", playerUpdate.serverId)
-        }
+        agentEvents.tryEmitTelemetry(playerUpdateEvent, log, playerUpdate.serverId)
     }
 }

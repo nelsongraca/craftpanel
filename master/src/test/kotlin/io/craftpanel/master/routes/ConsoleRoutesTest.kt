@@ -6,6 +6,7 @@ import io.craftpanel.master.auth.WsAuthorization
 import io.craftpanel.master.auth.WsTicketService
 import io.craftpanel.master.grpc.BulkDataServiceImpl
 import io.craftpanel.master.grpc.DataServiceProxy
+import io.craftpanel.master.service.SettingsProvider
 import io.craftpanel.master.service.SystemService
 import io.craftpanel.master.service.repo.impl.SettingsRepositoryImpl
 import io.kotest.core.spec.style.FunSpec
@@ -24,7 +25,7 @@ class ConsoleRoutesTest :
         val noopNodeRegistrationService = createTestNodeRegistrationService()
         val noopProxy = DataServiceProxy(createTestAgentDataOps(), BulkDataServiceImpl(noopNodeRegistrationService), repos.serverRepository)
         val wsAuthorization = WsAuthorization(WsTicketService(), PermissionResolver)
-        val systemService = SystemService(settingsRepository = SettingsRepositoryImpl())
+        val systemService = SystemService(settingsRepository = SettingsRepositoryImpl(), settingsProvider = SettingsProvider(SettingsRepositoryImpl()))
 
         beforeTest {
             TestDatabase.initIfNeeded()

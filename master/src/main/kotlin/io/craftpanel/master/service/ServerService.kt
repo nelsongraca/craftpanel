@@ -3,16 +3,7 @@ package io.craftpanel.master.service
 import io.craftpanel.common.ContainerNames
 import io.craftpanel.common.ServerPaths
 import io.craftpanel.master.database.entity.Server
-import io.craftpanel.master.database.schema.Backups
-import io.craftpanel.master.database.schema.ContainerMetrics
-import io.craftpanel.master.database.schema.PortRegistry
-import io.craftpanel.master.database.schema.ProxyBackends
-import io.craftpanel.master.database.schema.ServerEnvVars
-import io.craftpanel.master.database.schema.ServerJobs
-import io.craftpanel.master.database.schema.ServerMigrations
-import io.craftpanel.master.database.schema.ServerMods
 import io.craftpanel.master.database.schema.ServerNetworks
-import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.dns.DnsProvider
 import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.domain.ServerStatus
@@ -21,12 +12,7 @@ import io.craftpanel.master.service.repo.NetworkRepository
 import io.craftpanel.master.service.repo.NodeRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import io.craftpanel.master.service.repo.ServerView
-import io.craftpanel.master.service.repo.SettingsRepository
-import io.craftpanel.proto.masterMessage
-import io.craftpanel.proto.removeContainerCommand
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
-import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import org.slf4j.LoggerFactory
 import kotlin.uuid.Uuid
@@ -39,10 +25,8 @@ class ServerService(
     private val serverRepository: ServerRepository,
     private val nodeRepository: NodeRepository,
     private val networkRepository: NetworkRepository,
-    private val settingsRepository: SettingsRepository,
-    // Optional so existing constructions (and unit tests) need not provide it. Only used to
-    // force a recreate after a data-directory override change.
-    private val lifecycle: ContainerLifecycle? = null
+    private val settingsProvider: SettingsProvider,
+    private val lifecycle: ContainerLifecycle
 ) {
 
     private val log = LoggerFactory.getLogger(ServerService::class.java)
@@ -84,12 +68,7 @@ class ServerService(
         }
 
         if (newNetworkId != null) {
-            val existingNodeIds = serverRepository.listByNetworkId(newNetworkId)
-                .filter { it.id != id }
-                .map { it.nodeId }
-                .distinct()
-            val allNodeIds = (existingNodeIds + serverRow.nodeId).distinct()
-            if (allNodeIds.size > 1) networkService?.validateCrossNodeAssignment(allNodeIds)
+            networkService?.requireSingleNodeForNetwork(newNetworkId, serverRow.nodeId, excludeServerId = id)
             if (networkRepository.findById(newNetworkId) == null) {
                 throw UnprocessableException("Network not found")
             }
@@ -149,7 +128,7 @@ class ServerService(
         if (DesiredStatus.fromDb(updated.desiredStatus) == DesiredStatus.RUNNING) {
             // Refresh the agent's stored spec (no force_restart): the bind mount applies on the next
             // start/restart or an autonomous crash-recreate, not immediately.
-            lifecycle?.sendDesiredState(updated, DesiredStatus.RUNNING)
+            lifecycle.refreshRunningSpec(updated)
         }
         return updated
     }
@@ -166,7 +145,7 @@ class ServerService(
         if (recordId != null) {
             val provider = dnsProvider
                 ?: throw ConflictException("Cannot delete server with DNS record: DNS provider not configured")
-            val zoneId = Settings.from(settingsRepository.getAll()).dnsZoneId
+            val zoneId = settingsProvider.current().dnsZoneId
                 ?: throw ConflictException("Cannot delete server with DNS record: no DNS zone configured")
             runCatching { provider.deleteARecord(zoneId, recordId) }
                 .onFailure { log.warn("Failed to delete DNS record $recordId during server delete", it) }
@@ -175,15 +154,13 @@ class ServerService(
         val nodeId = existing.nodeId.toString()
         gateway.sendToNode(
             nodeId,
-            masterMessage {
-                removeContainer = removeContainerCommand {
-                    serverId = id.toString()
-                    containerName = names.container(id.toString())
-                    force = true
-                    deleteData = true
-                    serverName = existing.name
-                }
-            }
+            ContainerLifecycle.removeContainerMessage(
+                containerName = names.container(id.toString()),
+                serverId = id.toString(),
+                force = true,
+                deleteData = true,
+                serverName = existing.name
+            )
         )
 
         transaction {

@@ -1,6 +1,5 @@
 package io.craftpanel.master.grpc
 
-import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
 import io.craftpanel.master.createTestNodeRegistrationService
@@ -41,10 +40,11 @@ class ControlServiceImplTest :
         val backupHandler = BackupHandler(agentEvents)
         val migrationHandler = MigrationHandler(agentEvents)
         val dataOpResponseHandler = DataOpResponseHandler(dataOpContext)
+        val registry = AgentRegistry(agentEvents, repos.serverRepository, repos.backupRepository)
         val service = ControlServiceImpl(
             nodeStateReconciler = reconciler,
             nodeRegistrationService = createTestNodeRegistrationService(nodeRepository = nodeRepository),
-            agentEventsFlow = agentEvents,
+            registry = registry,
             dataOpContext = dataOpContext,
             nodeStateHandler = nodeStateHandler,
             nodeMetricsHandler = nodeMetricsHandler,
@@ -53,9 +53,7 @@ class ControlServiceImplTest :
             playerUpdateHandler = playerUpdateHandler,
             backupHandler = backupHandler,
             migrationHandler = migrationHandler,
-            dataOpResponseHandler = dataOpResponseHandler,
-            serverRepository = repos.serverRepository,
-            backupRepository = repos.backupRepository
+            dataOpResponseHandler = dataOpResponseHandler
         )
 
         beforeTest {
@@ -130,7 +128,7 @@ class ControlServiceImplTest :
                 val emitted = mutableListOf<AgentEvent.NodeStatusEvent>()
 
                 val collectJob = launch {
-                    service.agentEvents.filterIsInstance<AgentEvent.NodeStatusEvent>()
+                    registry.agentEvents.filterIsInstance<AgentEvent.NodeStatusEvent>()
                         .collect { emitted.add(it) }
                 }
 
@@ -159,7 +157,7 @@ class ControlServiceImplTest :
                 val emitted = mutableListOf<AgentEvent.NodeStatusEvent>()
 
                 val collectJob = launch {
-                    service.agentEvents.filterIsInstance<AgentEvent.NodeStatusEvent>()
+                    registry.agentEvents.filterIsInstance<AgentEvent.NodeStatusEvent>()
                         .collect { emitted.add(it) }
                 }
 
@@ -188,7 +186,7 @@ class ControlServiceImplTest :
                 val emitted = mutableListOf<AgentEvent.NodeStatusEvent>()
 
                 val collectJob = launch {
-                    service.agentEvents.filterIsInstance<AgentEvent.NodeStatusEvent>()
+                    registry.agentEvents.filterIsInstance<AgentEvent.NodeStatusEvent>()
                         .collect { emitted.add(it) }
                 }
 
@@ -223,7 +221,7 @@ class ControlServiceImplTest :
                 Servers.update({ Servers.id eq withOverride }) { it[Servers.dataDirName] = "survival" }
             }
 
-            val msg = service.buildRebuildSymlinksCommand(nodeId)
+            val msg = registry.buildRebuildSymlinksCommand(nodeId)
             msg.rebuildSymlinks.serversList
                 .associate { it.serverId to it.dataDirName }
                 .let { entries ->

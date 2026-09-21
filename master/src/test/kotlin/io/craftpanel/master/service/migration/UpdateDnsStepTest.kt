@@ -105,7 +105,7 @@ class UpdateDnsStepTest :
             )
         }
 
-        fun coordWith(dnsProvider: DnsProvider?, resolveDns: ServerExposure.NetworkDns?): MigrationCoordinator {
+        fun coordWith(dnsProvider: DnsProvider?, resolveDns: ServerHostnames.NetworkDns?): MigrationCoordinator {
             val repos = TestRepositories()
             return object : MigrationCoordinator(
                 migrationRepository = repos.migrationRepository,
@@ -119,13 +119,14 @@ class UpdateDnsStepTest :
                     gateway = TestAgentGateway(),
                     modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
                     serverIntent = ServerIntent(repos.serverRepository),
-                    envVarsRepository = repos.envVarsRepository
+                    envVarsRepository = repos.envVarsRepository,
+                    extraPortRepository = repos.extraPortRepository,
                 ),
-                serverExposure = ServerExposure(SettingsRepositoryImpl(), repos.serverRepository),
+                serverHostnames = ServerHostnames(SettingsProvider(SettingsRepositoryImpl()), repos.serverRepository),
                 scope = TestScope(),
                 eventFlow = null
             ) {
-                override fun resolveTargetDns(plan: MigrationPlan): ServerExposure.NetworkDns? = resolveDns
+                override fun resolveTargetDns(plan: MigrationPlan): ServerHostnames.NetworkDns? = resolveDns
             }
         }
 
@@ -181,7 +182,7 @@ class UpdateDnsStepTest :
 
                     override fun deleteARecord(zoneId: String, recordId: String) {}
                 }
-                val coord = coordWith(provider, ServerExposure.NetworkDns("zone-1", "example.com"))
+                val coord = coordWith(provider, ServerHostnames.NetworkDns("zone-1", "example.com"))
                 val result = UpdateDnsStep().execute(plan, coord)
                 result.shouldBeInstanceOf<StepResult.Success>()
                 calledZone shouldBe "zone-1"
@@ -201,7 +202,7 @@ class UpdateDnsStepTest :
 
                     override fun deleteARecord(zoneId: String, recordId: String) {}
                 }
-                val coord = coordWith(provider, ServerExposure.NetworkDns("zone-1", "example.com"))
+                val coord = coordWith(provider, ServerHostnames.NetworkDns("zone-1", "example.com"))
                 val result = UpdateDnsStep().execute(plan, coord)
                 result.shouldBeInstanceOf<StepResult.Failure>()
             }
