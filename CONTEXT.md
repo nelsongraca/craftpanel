@@ -769,6 +769,36 @@ from `ContainerManager`, which previously mixed Docker I/O with gating state.
   MockK — first coverage for the recreate flow.
 - See `improve-codebase-architecture` review 2026-09-11, candidate 1.
 
+### ConnectionGraph + MetricsPump (agent)
+
+Two deepenings of the agent's per-connection wiring.
+
+- **`ConnectionGraph`** (`agent/grpc/ConnectionGraph.kt`) — the per-connection object
+  graph, built once authenticated and torn down when the stream dies.
+  `ConnectionGraph.create(koin, config, docker, containerManager, metricsCollector,
+  gate, channel, identity, routerSupervisor, networkManager)` builds the Koin
+  `ConnectionScope`, the two outbound lanes, `AgentOutbound`, the convergence scope +
+  `ConvergenceLoop`/`ContainerOperator`, the `MetricsPump`, and the
+  `ControlStreamHandler`/`CommandDispatcher`/`BulkDataClient`; `close()` tears all of
+  it down (scope.close + convergenceScope.cancel + channel.shutdown).
+  `ConnectionManager.run()` keeps only the reconnect loop, channel creation, auth,
+  backoff and the once-per-process router/network supervisor.
+- **`MetricsPump`** (`agent/grpc/MetricsPump.kt`) — the one owner of the periodic
+  metrics loop (node metrics, per-container metrics, player counts on the telemetry
+  lane). `run()` is the interval loop (interval applied after a tick, and it swallows
+  non-cancellation failures); `internal suspend fun tick()` is the test surface,
+  driven directly with fakes. The CPU-limit lookup is injected as
+  `cpuLimitMillicores: (String) -> Int` (from `ConvergenceLoop`), so the pump doesn't
+  depend on the loop. Previously inline in `ControlStreamHandler.run()` and untestable.
+- **One status seam:** `AgentOutbound.withStatus(serverId, success, log, context, block)`
+  replaces the four inlined STARTING/HEALTHY/UNHEALTHY blocks in `ConvergenceLoop` and
+  the near-duplicate `AgentUtils.withStatus` (deleted). It uses non-blocking
+  `tryServerStatus`, so statuses are best-effort; `ContainerHandler.handleRemove`'s
+  status becomes best-effort as a result.
+- Tested: `MetricsPumpTest` (tick emit/fan-out/skip/loop-resilience),
+  `AgentOutboundTest` gains `withStatus` cases.
+- See candidate 7, `improve-codebase-architecture` review 2026-09-20.
+
 ## Open / planned
 
 ### Server lifecycle orchestrator (master) — superseded by ContainerLifecycle

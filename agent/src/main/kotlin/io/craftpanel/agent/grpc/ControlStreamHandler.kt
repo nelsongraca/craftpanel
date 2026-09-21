@@ -9,16 +9,13 @@ import io.grpc.ManagedChannel
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.receiveAsFlow
-import kotlinx.coroutines.sync.Semaphore
-import kotlinx.coroutines.sync.withPermit
 import org.slf4j.LoggerFactory
 import kotlin.time.Duration.Companion.seconds
 
 class ControlStreamHandler(
-    private val identity: NodeIdentity,
     private val config: AgentConfig,
     private val containerManager: ContainerManager,
-    private val metricsCollector: MetricsCollector,
+    private val metricsPump: MetricsPump,
     private val routerSupervisor: RouterSupervisor,
     private val eventWatcher: ContainerEventWatcher,
     private val dispatcher: CommandDispatcher,
@@ -60,58 +57,9 @@ class ControlStreamHandler(
                 .collect { msg -> realtimeChannel.trySend(msg) }
         }
 
-        // Periodic metrics loop. Emit once immediately on connect so a freshly-opened detail page
-        // has live data without waiting a full poll interval. Container collection is fanned out
-        // concurrently (bounded) so a node with many servers refreshes each server at roughly the
-        // poll interval rather than the sum of every call.
-        val metricsInterval = config.metricsPollIntervalSeconds.toLong().seconds
-        val statsSemaphore = Semaphore(config.metricsCollectionConcurrency)
-        launch {
-            while (true) {
-                runCatching {
-                    Heartbeat.beat()
-                    val routerRunning = routerSupervisor.isRunning
-                    val metrics = metricsCollector.collect()
-                    out.sendTelemetry {
-                        nodeMetrics = metrics.toBuilder()
-                            .setRouterRunning(routerRunning)
-                            .build()
-                    }
-
-                    val containers = containerManager.listRunningContainers()
-                    val routerIp = metricsCollector.getMcRouterIp()
-                    coroutineScope {
-                        containers.map { container ->
-                            async(Dispatchers.IO) {
-                                statsSemaphore.withPermit {
-                                    metricsCollector.collectContainerMetrics(
-                                        container.serverId,
-                                        container.containerId,
-                                        loop.cpuLimitMillicores(container.serverId)
-                                    )
-                                        ?.let { cm -> out.sendTelemetry { containerMetrics = cm } }
-
-                                    val routingHost = container.routingHost
-                                    if (routerIp != null && !routingHost.isNullOrBlank()) {
-                                        metricsCollector.collectPlayerCount(container.serverId, routerIp, routingHost)
-                                            ?.let { pu -> out.sendTelemetry { playerUpdate = pu } }
-                                    }
-                                }
-                            }
-                        }
-                            .awaitAll()
-                    }
-                }.onFailure { e ->
-                    if (e is CancellationException) throw e
-                    log.warn("Metrics tick failed — keeping the stream alive", e)
-                }
-
-                // Delay AFTER collection (not a fixed wall-clock cadence): the player-count pings
-                // share mc-router with the data path, so a tick that ran long must not immediately
-                // start the next one and multiply that load.
-                delay(metricsInterval)
-            }
-        }
+        // Periodic metrics loop, owned by MetricsPump. Emits once immediately on connect so a
+        // freshly-opened detail page has live data without waiting a full poll interval.
+        launch { metricsPump.run() }
 
         // Backstop: periodically re-converge servers with intent that are not running. Catches
         // deaths the Docker event stream never delivered (agent/Docker daemon restart, dropped

@@ -1,10 +1,7 @@
 package io.craftpanel.agent.grpc.handlers
 
 import com.google.protobuf.timestamp
-import io.craftpanel.agent.grpc.AgentOutbound
 import io.craftpanel.common.ServerPaths
-import io.craftpanel.proto.ServerStatusUpdate
-import org.slf4j.Logger
 import java.io.IOException
 import java.nio.file.FileVisitResult
 import java.nio.file.Files
@@ -112,13 +109,4 @@ internal fun generateRsyncPassword(): String {
     val random = SecureRandom()
     return (1..32).map { chars[random.nextInt(chars.length)] }
         .joinToString("")
-}
-
-internal suspend fun withStatus(out: AgentOutbound, serverId: String, successStatus: ServerStatusUpdate.ServerStatus, log: Logger, logContext: String, block: suspend () -> Unit) {
-    runCatching { block() }
-        .onSuccess { if (serverId.isNotEmpty()) out.serverStatus(serverId, successStatus) }
-        .onFailure { e ->
-            log.error(logContext, e)
-            if (serverId.isNotEmpty()) out.serverStatus(serverId, ServerStatusUpdate.ServerStatus.UNHEALTHY)
-        }
 }

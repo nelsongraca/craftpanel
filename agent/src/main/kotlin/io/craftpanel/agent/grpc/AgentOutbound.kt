@@ -2,6 +2,7 @@ package io.craftpanel.agent.grpc
 
 import io.craftpanel.proto.*
 import kotlinx.coroutines.channels.SendChannel
+import org.slf4j.Logger
 
 /**
  * Outbound sink for agent→master messages, split into two lanes:
@@ -42,6 +43,26 @@ class AgentOutbound(private val realtime: SendChannel<AgentMessage>, private val
                 }
             }
         )
+    }
+
+    /**
+     * The one status-reporting seam: runs [block], emits [success] when it returns (or nothing when
+     * [success] is null), and emits UNHEALTHY when it throws. Best-effort — statuses go out via
+     * [tryServerStatus], so a saturated realtime lane drops them rather than blocking the caller.
+     */
+    suspend fun withStatus(
+        serverId: String,
+        success: ServerStatusUpdate.ServerStatus?,
+        log: Logger,
+        context: String,
+        block: suspend () -> Unit
+    ) {
+        runCatching { block() }
+            .onSuccess { if (success != null && serverId.isNotEmpty()) tryServerStatus(serverId, success) }
+            .onFailure { e ->
+                log.error(context, e)
+                if (serverId.isNotEmpty()) tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.UNHEALTHY)
+            }
     }
 
     fun tryConsoleOutput(requestId: String, build: ConsoleOutputKt.Dsl.() -> Unit) {

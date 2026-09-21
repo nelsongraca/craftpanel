@@ -29,7 +29,7 @@ class ContainerHandler(private val containerManager: ContainerManager, private v
         log.info("Removing container ${cmd.containerName} (force=${cmd.force})")
         val networkNames = withContext(Dispatchers.IO) { containerManager.getContainerNetworkNames(cmd.containerName) }
         val containerId = withContext(Dispatchers.IO) { containerManager.getContainerId(cmd.containerName) }
-        withStatus(out, cmd.serverId, ServerStatusUpdate.ServerStatus.STOPPED, log, "Failed to remove container ${cmd.containerName}") {
+        out.withStatus(cmd.serverId, ServerStatusUpdate.ServerStatus.STOPPED, log, "Failed to remove container ${cmd.containerName}") {
             containerManager.removeContainer(cmd.containerName, cmd.force)
             withContext(Dispatchers.IO) {
                 // Clean up from container's network list (if container existed)

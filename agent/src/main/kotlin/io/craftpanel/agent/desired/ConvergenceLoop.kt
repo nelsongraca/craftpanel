@@ -261,56 +261,40 @@ class ConvergenceLoop(
     }
 
     private suspend fun executeEnsureRunning(serverId: String, recreate: Boolean) {
-        val state = store.get(serverId)
-        val spec = state.spec
+        val spec = store.get(serverId).spec
         if (spec == null) {
             log.warn("Cannot ensure RUNNING for server $serverId — no spec stored")
             return
         }
         out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.STARTING)
-        try {
-            val created = operator.ensureRunning(spec, recreate)
+        out.withStatus(serverId, ServerStatusUpdate.ServerStatus.HEALTHY, log, "Failed to ensure RUNNING for server $serverId") {
             // Only a container that was actually created/recreated has this spec applied; a plain
             // start of an existing container must not claim it (that would hide a stale container
             // behind a matching appliedSpec and abort every future recreate).
+            val created = operator.ensureRunning(spec, recreate)
             if (created) recordAppliedSpec(serverId, spec)
-            out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.HEALTHY)
-        } catch (e: Exception) {
-            log.error("Failed to ensure RUNNING for server $serverId", e)
-            out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.UNHEALTHY)
         }
     }
 
     private suspend fun executeConditionalRestart(serverId: String, recreate: Boolean, timeoutSeconds: Int = DEFAULT_STOP_TIMEOUT, stopCommand: String = "") {
-        val state = store.get(serverId)
-        val containerName = state.spec?.containerName ?: names.container(serverId)
+        val containerName = store.get(serverId).spec?.containerName ?: names.container(serverId)
         out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.STARTING)
-        try {
+        // No success status of its own: executeEnsureRunning reports HEALTHY/UNHEALTHY.
+        out.withStatus(serverId, null, log, "Failed to restart server $serverId") {
             operator.ensureStopped(containerName, timeoutSeconds, stopCommand)
             executeEnsureRunning(serverId, recreate)
-        } catch (e: Exception) {
-            log.error("Failed to restart server $serverId", e)
-            out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.UNHEALTHY)
         }
     }
 
     private suspend fun executeEnsureStopped(serverId: String, containerName: String, timeoutSeconds: Int = DEFAULT_STOP_TIMEOUT, stopCommand: String = "") {
-        try {
+        out.withStatus(serverId, ServerStatusUpdate.ServerStatus.STOPPED, log, "Failed to stop server $serverId") {
             operator.ensureStopped(containerName, timeoutSeconds, stopCommand)
-            out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.STOPPED)
-        } catch (e: Exception) {
-            log.error("Failed to stop server $serverId", e)
-            out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.UNHEALTHY)
         }
     }
 
     private suspend fun executeForceKill(serverId: String, containerName: String) {
-        try {
+        out.withStatus(serverId, ServerStatusUpdate.ServerStatus.STOPPED, log, "Failed to force-kill server $serverId") {
             operator.forceKill(containerName)
-            out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.STOPPED)
-        } catch (e: Exception) {
-            log.error("Failed to force-kill server $serverId", e)
-            out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.UNHEALTHY)
         }
     }
 

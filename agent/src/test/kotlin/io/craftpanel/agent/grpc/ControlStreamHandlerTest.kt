@@ -18,7 +18,7 @@ import java.nio.file.Files
 class ControlStreamHandlerTest :
     FunSpec({
         val containerManager: ContainerManager = mockk(relaxed = true)
-        val metricsCollector: MetricsCollector = mockk(relaxed = true)
+        val metricsPump: MetricsPump = mockk(relaxed = true)
         val identity = NodeIdentity(nodeId = "node-1", nodeKey = "test-key")
         val symlinkTempRoot = Files.createTempDirectory("agent-symlinks")
             .toFile()
@@ -57,10 +57,9 @@ class ControlStreamHandlerTest :
         // handler's snapshot/remove/shutdown/symlink paths only; convergence behaviour is covered in
         // ConvergenceLoopTest.
         val handler = ControlStreamHandler(
-            identity,
             config,
             containerManager,
-            metricsCollector,
+            metricsPump,
             routerSupervisor,
             eventWatcher,
             CommandDispatcher(

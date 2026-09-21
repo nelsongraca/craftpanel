@@ -3,22 +3,12 @@ package io.craftpanel.agent.grpc
 import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.auth.NodeKeyStore
 import io.craftpanel.agent.config.AgentConfig
-import io.craftpanel.agent.desired.ContainerOperator
-import io.craftpanel.agent.desired.ConvergenceLoop
-import io.craftpanel.agent.desired.DesiredStateStore
-import io.craftpanel.agent.di.ConnectionScope
 import io.craftpanel.agent.docker.*
-import io.craftpanel.agent.grpc.handlers.DesiredStateHandler
-import io.craftpanel.proto.*
 import io.grpc.ManagedChannel
 import io.grpc.netty.GrpcSslContexts
 import io.grpc.netty.NettyChannelBuilder
 import kotlinx.coroutines.*
-import kotlinx.coroutines.channels.BufferOverflow
-import kotlinx.coroutines.channels.Channel
 import org.koin.core.Koin
-import org.koin.core.parameter.parametersOf
-import org.koin.core.qualifier.named
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -69,16 +59,13 @@ class ConnectionManager(
             val result = runCatching {
                 log.info("Connecting to master at ${config.masterAddress}:${config.masterPort}")
                 val channel = createChannel()
-
-                val scope = koin.createScope(
-                    scopeId = "connection-" + System.nanoTime(),
-                    qualifier = named<ConnectionScope>()
-                )
                 try {
                     val identity = NodeAuthenticator(config, metricsCollector).authenticate(channel)
                     backoffSeconds = 5L // reset on successful auth
                     Heartbeat.beat()
 
+                    // Process-scoped: the router/network supervisor is created once and reused
+                    // across reconnects.
                     if (routerSupervisor == null) {
                         val provisioner = McRouterProvisioner(
                             docker,
@@ -99,53 +86,25 @@ class ConnectionManager(
                         coroutineScope.launch { supervisor.run() }
                     }
 
-                    // Two outbound lanes: console/status/acks must not be starved by telemetry,
-                    // and telemetry must never back-pressure the metrics collector. The telemetry
-                    // lane drops its oldest sample when saturated.
-                    val realtimeChannel = Channel<AgentMessage>(capacity = 256)
-                    val telemetryChannel = Channel<AgentMessage>(capacity = 64, onBufferOverflow = BufferOverflow.DROP_OLDEST)
-                    val out = AgentOutbound(realtimeChannel, telemetryChannel, identity.nodeId)
-                    // Per-connection convergence: owns the crash-restart + status reporting for the
-                    // lifetime of this stream. Cancelled when the stream dies; the store (process-
-                    // scoped singleton) outlives it so reconnect re-pushes converge from saved intent.
-                    val convergenceScope = CoroutineScope(SupervisorJob())
-                    val loop = ConvergenceLoop(
-                        store = koin.get<DesiredStateStore>(),
-                        operator = ContainerOperator(
-                            containerManager,
-                            checkNotNull(networkManager),
-                            config,
-                            ensureRouterRunning = { checkNotNull(routerSupervisor).ensureReady() }
-                        ),
-                        containerNamePrefix = config.containerNamePrefix,
-                        gate = gate,
-                        out = out,
-                        scope = convergenceScope
-                    )
-
-                    ControlStreamHandler(
-                        identity = identity,
+                    // Per-connection graph: built once authenticated, torn down when the stream dies.
+                    val graph = ConnectionGraph.create(
+                        koin = koin,
                         config = config,
+                        docker = docker,
                         containerManager = containerManager,
                         metricsCollector = metricsCollector,
-                        routerSupervisor = checkNotNull(routerSupervisor),
-                        eventWatcher = ContainerEventWatcher(docker),
-                        dispatcher = CommandDispatcher(
-                            container = scope.get { parametersOf(checkNotNull(networkManager)) },
-                            desired = DesiredStateHandler(loop),
-                            backup = scope.get(),
-                            migration = scope.get(),
-                            file = scope.get { parametersOf(identity.nodeKey) },
-                            console = scope.get(),
-                            bulkClient = BulkDataClient(channel)
-                        ),
                         gate = gate,
-                        out = out,
-                        loop = loop,
-                        convergenceScope = convergenceScope
-                    ).run(channel, realtimeChannel, telemetryChannel)
+                        channel = channel,
+                        identity = identity,
+                        routerSupervisor = checkNotNull(routerSupervisor),
+                        networkManager = checkNotNull(networkManager),
+                    )
+                    try {
+                        graph.handler.run(graph.channel, graph.realtimeChannel, graph.telemetryChannel)
+                    } finally {
+                        graph.close()
+                    }
                 } finally {
-                    scope.close()
                     channel.shutdown()
                 }
             }
