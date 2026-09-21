@@ -8,7 +8,6 @@ import io.craftpanel.agent.docker.ContainerSpecDiff
 import io.craftpanel.agent.docker.NetworkManager
 import io.craftpanel.agent.docker.PortBindingSnapshot
 import io.craftpanel.agent.docker.SpecDiff
-import io.craftpanel.agent.grpc.handlers.ServerDataDirs
 import io.craftpanel.agent.grpc.handlers.SymlinkMaintainer
 import io.craftpanel.agent.grpc.handlers.serverDataRoot
 import io.craftpanel.common.ServerPaths
@@ -47,10 +46,6 @@ class ContainerOperator(
 
     private val log = LoggerFactory.getLogger(ContainerOperator::class.java)
 
-    fun containerExists(containerName: String): Boolean = containerManager.containerExists(containerName)
-
-    fun isRunning(containerName: String): Boolean = containerManager.isRunning(containerName)
-
     /** Inspect the live container's config, or null when it does not exist. */
     fun inspect(containerName: String): ContainerSnapshot? = containerManager.inspectContainer(containerName)
 
@@ -76,9 +71,6 @@ class ContainerOperator(
      */
     suspend fun ensureRunning(spec: StartContainerCommand, recreate: Boolean): Boolean {
         val containerName = spec.containerName
-        // Keep the path registry in step with the spec so file/backup ops resolve the same
-        // directory this container is mounted against.
-        ServerDataDirs.put(spec.serverId, spec.dataDirName)
         val dataDir = ServerPaths.dataDir(config.hostDataBasePath, spec.serverId, spec.dataDirName)
         val exists = withContext(Dispatchers.IO) { containerManager.containerExists(containerName) }
         val needsCreate = recreate || !exists
@@ -158,17 +150,12 @@ class ContainerOperator(
     }
 
     /** Graceful stop (signal/stdin stop command then Docker stop with [timeoutSeconds] timeout). */
-    suspend fun ensureStopped(containerName: String, timeoutSeconds: Int = DEFAULT_STOP_TIMEOUT_SECONDS, stopCommand: String = "") {
+    suspend fun ensureStopped(containerName: String, timeoutSeconds: Int = ContainerManager.DEFAULT_STOP_TIMEOUT_SECONDS, stopCommand: String = "") {
         withContext(Dispatchers.IO) { containerManager.stopContainer(containerName, timeoutSeconds, stopCommand) }
     }
 
     /** Immediate SIGKILL. */
     suspend fun forceKill(containerName: String) {
         withContext(Dispatchers.IO) { containerManager.killContainer(containerName) }
-    }
-
-    companion object {
-        /** Mirrors master's default stop timeout (ContainerLifecycle.stopTimeoutSeconds). */
-        const val DEFAULT_STOP_TIMEOUT_SECONDS = 45
     }
 }

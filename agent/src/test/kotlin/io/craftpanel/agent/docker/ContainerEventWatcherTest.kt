@@ -38,10 +38,9 @@ class ContainerEventWatcherTest :
             return docker
         }
 
-        test("reports graceful and crashed managed container deaths") {
+        test("reports managed container deaths regardless of exit code") {
             val latch = CountDownLatch(1)
-            val reportedStopped = CopyOnWriteArrayList<String>()
-            val reportedCrashes = CopyOnWriteArrayList<String>()
+            val reported = CopyOnWriteArrayList<String>()
             val docker = dockerWith { callback ->
                 callback.onNext(event("srv-1", "0"))
                 callback.onNext(event("srv-2", "1"))
@@ -52,13 +51,11 @@ class ContainerEventWatcherTest :
             val watcher = ContainerEventWatcher(docker, initialBackoffMs = 10, maxBackoffMs = 20).watch(
                 scope = scope,
                 shouldReport = { true },
-                onContainerCrash = reportedCrashes::add,
-                onContainerStopped = reportedStopped::add
+                onContainerDie = reported::add
             )
 
             latch.await(5, TimeUnit.SECONDS) shouldBe true
-            reportedStopped shouldContainExactly listOf("srv-1")
-            reportedCrashes shouldContainExactly listOf("srv-2")
+            reported shouldContainExactly listOf("srv-1", "srv-2")
             watcher.close()
             scope.cancel()
         }
@@ -76,7 +73,7 @@ class ContainerEventWatcherTest :
             val watcher = ContainerEventWatcher(docker, initialBackoffMs = 10, maxBackoffMs = 20).watch(
                 scope = scope,
                 shouldReport = { false },
-                onContainerCrash = reported::add
+                onContainerDie = reported::add
             )
 
             latch.await(5, TimeUnit.SECONDS) shouldBe true
@@ -107,7 +104,7 @@ class ContainerEventWatcherTest :
             val watcher = ContainerEventWatcher(docker, initialBackoffMs = 10, maxBackoffMs = 20).watch(
                 scope = scope,
                 shouldReport = { true },
-                onContainerCrash = crashes::add
+                onContainerDie = crashes::add
             )
 
             secondSubscription.await(5, TimeUnit.SECONDS) shouldBe true

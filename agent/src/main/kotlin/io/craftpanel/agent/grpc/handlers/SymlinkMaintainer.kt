@@ -1,12 +1,16 @@
 package io.craftpanel.agent.grpc.handlers
 
 import org.slf4j.LoggerFactory
+import java.io.IOException
 import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.FileVisitResult
 import java.nio.file.Files
 import java.nio.file.LinkOption
 import java.nio.file.Path
 import java.nio.file.Paths
+import java.nio.file.SimpleFileVisitor
 import java.nio.file.StandardCopyOption
+import java.nio.file.attribute.BasicFileAttributes
 
 /**
  * Maintains human-readable symlink overlays alongside the UUID-keyed canonical
@@ -105,5 +109,40 @@ object SymlinkMaintainer {
         if (Files.exists(path, LinkOption.NOFOLLOW_LINKS) && Files.isSymbolicLink(path)) {
             Files.delete(path)
         }
+    }
+
+    /**
+     * Deletes every agent-owned overlay symlink under [root] (recursively) that no longer matches
+     * [expected], a map from the symlink's own path to the canonical target it should point at.
+     * Real (non-symlink) entries are left untouched; directories left empty by pruning are removed.
+     * Shared by the servers-by-name and backups-by-server reconnect self-heal paths.
+     */
+    fun pruneStaleSymlinks(root: Path, expected: Map<Path, Path>) {
+        if (!Files.isDirectory(root)) return
+        Files.walkFileTree(
+            root,
+            object : SimpleFileVisitor<Path>() {
+                override fun visitFile(file: Path, attrs: BasicFileAttributes): FileVisitResult {
+                    if (Files.isSymbolicLink(file)) {
+                        val want = expected[file]?.normalize()
+                        val actual = runCatching { file.parent.resolve(Files.readSymbolicLink(file)).normalize() }.getOrNull()
+                        if (want == null || actual != want) {
+                            runCatching { Files.delete(file) }
+                                .onFailure { log.warn("Rebuild: failed to prune stale symlink $file", it) }
+                        }
+                    }
+                    return FileVisitResult.CONTINUE
+                }
+
+                override fun postVisitDirectory(dir: Path, exc: IOException?): FileVisitResult {
+                    if (exc != null) throw exc
+                    if (dir != root && runCatching { Files.list(dir).use { it.findAny().isEmpty } }.getOrDefault(false)) {
+                        runCatching { Files.delete(dir) }
+                            .onFailure { log.warn("Rebuild: failed to prune empty directory $dir", it) }
+                    }
+                    return FileVisitResult.CONTINUE
+                }
+            }
+        )
     }
 }

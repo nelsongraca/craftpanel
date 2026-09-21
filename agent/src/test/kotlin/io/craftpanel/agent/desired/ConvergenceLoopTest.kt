@@ -523,7 +523,7 @@ class ConvergenceLoopTest :
                 // kill the container and mark it as stopped (simulating unexpected death after initial start)
                 cm.gate.markStopping("srv-1")
                 cm.killContainer("craftpanel-srv-1")
-                loop.onContainerDie("srv-1", 1).join()
+                loop.onContainerDie("srv-1").join()
             }
 
             channel.statuses()
@@ -546,7 +546,7 @@ class ConvergenceLoopTest :
                 loop.applyDesired(desiredRunning(spec = startCmd())).join()
                 // Each die event increments the budget counter because start fails each time.
                 repeat(4) {
-                    loop.onContainerDie("srv-1", 1).join()
+                    loop.onContainerDie("srv-1").join()
                 }
             }
 
@@ -566,7 +566,7 @@ class ConvergenceLoopTest :
                 loop.applyDesired(desiredRunning(spec = startCmd())).join() // start #0 → HEALTHY
                 repeat(5) {
                     cm.killContainer("craftpanel-srv-1")
-                    loop.onContainerDie("srv-1", 2).join()
+                    loop.onContainerDie("srv-1").join()
                 }
             }
 
@@ -585,7 +585,7 @@ class ConvergenceLoopTest :
                 // Exhaust the budget: 3 crashes restarted, the 4th is not.
                 repeat(3) {
                     cm.killContainer("craftpanel-srv-1")
-                    loop.onContainerDie("srv-1", 2).join()
+                    loop.onContainerDie("srv-1").join()
                 }
                 // A user restart clears the crash history ...
                 loop.applyDesired(
@@ -593,7 +593,7 @@ class ConvergenceLoopTest :
                 ).join()
                 // ... so the next crash is restarted again rather than crash-looping instantly.
                 cm.killContainer("craftpanel-srv-1")
-                loop.onContainerDie("srv-1", 2).join()
+                loop.onContainerDie("srv-1").join()
             }
 
             channel.statuses().last().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
@@ -616,7 +616,7 @@ class ConvergenceLoopTest :
                 cm.gate.markStopping("srv-1")
                 cm.killContainer("craftpanel-srv-1")
                 cm.calls.clear()
-                loop.onContainerDie("srv-1", 1).join()
+                loop.onContainerDie("srv-1").join()
             }
 
             // Should not have attempted a restart — container remains stopped
@@ -730,7 +730,7 @@ class ConvergenceLoopTest :
                 loop.applyDesired(desiredRunning(spec = startCmd())).join()
                 cm.gate.markStopping("srv-1")
                 cm.killContainer("craftpanel-srv-1")
-                loop.onContainerDie("srv-1", 0).join()
+                loop.onContainerDie("srv-1").join()
             }
 
             channel.statuses().last().status shouldBe ServerStatusUpdate.ServerStatus.HEALTHY
@@ -752,7 +752,7 @@ class ConvergenceLoopTest :
             }
             cm.calls.clear()
 
-            runBlocking { loop.onContainerDie("srv-1", 0).join() }
+            runBlocking { loop.onContainerDie("srv-1").join() }
 
             cm.calls.any { it.startsWith("start:") } shouldBe false
         }
@@ -765,7 +765,7 @@ class ConvergenceLoopTest :
             cm.gate.markStopping("srv-1")
             cm.gate.shouldReportDie("srv-1") shouldBe false
 
-            runBlocking { loop.onContainerDie("srv-1", 0).join() }
+            runBlocking { loop.onContainerDie("srv-1").join() }
 
             cm.gate.shouldReportDie("srv-1") shouldBe true
         }

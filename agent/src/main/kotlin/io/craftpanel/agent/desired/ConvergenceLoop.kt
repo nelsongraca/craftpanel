@@ -124,8 +124,8 @@ class ConvergenceLoop(
     }
 
     /** Called by the ContainerEventWatcher on an unexpected death (gate already suppressed authored ones). */
-    fun onContainerDie(serverId: String, exitCode: Int): Job {
-        log.info("Unexpected container die event for server {} (exit {})", serverId, exitCode)
+    fun onContainerDie(serverId: String): Job {
+        log.info("Unexpected container die event for server {}", serverId)
         return trigger(serverId)
     }
 
@@ -196,12 +196,14 @@ class ConvergenceLoop(
         val state = store.get(serverId)
         if (state.desired == ServerDesiredState.Desired.DESIRED_UNSPECIFIED) return
         val containerName = state.spec?.containerName ?: names.container(serverId)
-        val containerPresent = operator.containerExists(containerName)
-        val running = containerPresent && operator.isRunning(containerName)
-        // Inspect the live container so recreate-if-diff is based on its real configuration, not only
-        // the in-memory applied spec (which is lost when the agent process restarts).
-        val specDiff = if (containerPresent && state.spec != null) {
-            operator.inspect(containerName)?.let { operator.diff(it, state.spec) }
+        // One Docker inspect answers presence, run state AND spec match — the converge decision is
+        // based on the live container, not only the in-memory applied spec (which is lost when the
+        // agent process restarts).
+        val snapshot = operator.inspect(containerName)
+        val containerPresent = snapshot != null
+        val running = snapshot?.running == true
+        val specDiff = if (snapshot != null && state.spec != null) {
+            operator.diff(snapshot, state.spec)
         } else {
             null
         }
@@ -276,19 +278,19 @@ class ConvergenceLoop(
         }
     }
 
-    private suspend fun executeConditionalRestart(serverId: String, recreate: Boolean, timeoutSeconds: Int = DEFAULT_STOP_TIMEOUT, stopCommand: String = "") {
+    private suspend fun executeConditionalRestart(serverId: String, recreate: Boolean, stopCommand: String = "") {
         val containerName = store.get(serverId).spec?.containerName ?: names.container(serverId)
         out.tryServerStatus(serverId, ServerStatusUpdate.ServerStatus.STARTING)
         // No success status of its own: executeEnsureRunning reports HEALTHY/UNHEALTHY.
         out.withStatus(serverId, null, log, "Failed to restart server $serverId") {
-            operator.ensureStopped(containerName, timeoutSeconds, stopCommand)
+            operator.ensureStopped(containerName, stopCommand = stopCommand)
             executeEnsureRunning(serverId, recreate)
         }
     }
 
-    private suspend fun executeEnsureStopped(serverId: String, containerName: String, timeoutSeconds: Int = DEFAULT_STOP_TIMEOUT, stopCommand: String = "") {
+    private suspend fun executeEnsureStopped(serverId: String, containerName: String, stopCommand: String = "") {
         out.withStatus(serverId, ServerStatusUpdate.ServerStatus.STOPPED, log, "Failed to stop server $serverId") {
-            operator.ensureStopped(containerName, timeoutSeconds, stopCommand)
+            operator.ensureStopped(containerName, stopCommand = stopCommand)
         }
     }
 
@@ -308,9 +310,5 @@ class ConvergenceLoop(
      */
     private fun recordAppliedSpec(serverId: String, appliedSpec: StartContainerCommand) {
         store.upsert(serverId) { state -> state.copy(appliedSpec = appliedSpec) }
-    }
-
-    companion object {
-        private const val DEFAULT_STOP_TIMEOUT = 45
     }
 }

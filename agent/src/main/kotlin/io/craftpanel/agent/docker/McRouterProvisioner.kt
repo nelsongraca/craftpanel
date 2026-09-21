@@ -178,27 +178,7 @@ class McRouterProvisioner(private val docker: DockerClient, private val image: S
 
     private fun connectToNetwork(containerId: String) {
         if (networkName.isEmpty()) return
-        val alreadyConnected = runCatching {
-            docker.inspectContainerCmd(containerId)
-                .exec()
-                .networkSettings
-                ?.networks
-                ?.containsKey(networkName) == true
-        }.getOrDefault(false)
-        if (alreadyConnected) return
-        runCatching {
-            docker.connectToNetworkCmd()
-                .withNetworkId(networkName)
-                .withContainerId(containerId)
-                .exec()
-        }.onFailure {
-            // Benign race: a co-located agent connected it between our inspect and this call.
-            if (it.message?.contains("already exists in network") == true) {
-                log.debug("mc-router already connected to $networkName")
-            } else {
-                log.warn("Could not connect mc-router to $networkName: ${it.message}")
-            }
-        }
+        docker.connectIfAbsent(networkName, containerId)
     }
 
     // Cached only on success: doesn't change while the agent process is alive, and

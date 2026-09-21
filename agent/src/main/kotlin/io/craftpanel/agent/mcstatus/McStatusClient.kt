@@ -1,4 +1,4 @@
-package io.craftpanel.agent
+package io.craftpanel.agent.mcstatus
 
 import kotlinx.serialization.json.*
 import org.slf4j.LoggerFactory

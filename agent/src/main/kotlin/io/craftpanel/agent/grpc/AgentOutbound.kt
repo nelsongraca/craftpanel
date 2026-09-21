@@ -1,7 +1,7 @@
 package io.craftpanel.agent.grpc
 
 import io.craftpanel.proto.*
-import kotlinx.coroutines.channels.SendChannel
+import kotlinx.coroutines.channels.Channel
 import org.slf4j.Logger
 
 /**
@@ -15,22 +15,9 @@ import org.slf4j.Logger
  *
  * The single-channel constructor is kept for tests, which can route both lanes to one channel.
  */
-class AgentOutbound(private val realtime: SendChannel<AgentMessage>, private val telemetry: SendChannel<AgentMessage>, private val nodeId: String) {
+class AgentOutbound(private val realtime: Channel<AgentMessage>, private val telemetry: Channel<AgentMessage>, private val nodeId: String) {
 
-    constructor(out: SendChannel<AgentMessage>, nodeId: String) : this(out, out, nodeId)
-
-    suspend fun serverStatus(serverId: String, status: ServerStatusUpdate.ServerStatus) {
-        val id = nodeId
-        realtime.send(
-            agentMessage {
-                this.nodeId = id
-                serverStatus = serverStatusUpdate {
-                    this.serverId = serverId
-                    this.status = status
-                }
-            }
-        )
-    }
+    constructor(out: Channel<AgentMessage>, nodeId: String) : this(out, out, nodeId)
 
     fun tryServerStatus(serverId: String, status: ServerStatusUpdate.ServerStatus) {
         val id = nodeId

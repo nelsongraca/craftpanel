@@ -48,14 +48,15 @@ data class DesiredState(
 }
 
 /**
- * Thread-safe in-memory store of per-server desired state. Mutation happens under a
- * per-server lock so [ConvergenceMachine] readers never observe a half-applied envelope.
+ * Thread-safe in-memory store of per-server desired state. Reads/writes are atomic per key; callers
+ * that must not observe a half-applied envelope serialize through [ConvergenceLoop]'s per-server
+ * lock, which is held around every read-modify-write cycle.
  */
 class DesiredStateStore {
 
     private val states = ConcurrentHashMap<String, DesiredState>()
 
-    /** Applies [upsert] under the per-server lock; returns the resulting state. */
+    /** Applies [mutate] atomically per server; returns the resulting state. */
     fun upsert(serverId: String, mutate: (DesiredState) -> DesiredState): DesiredState {
         val updated = mutate(states.getOrDefault(serverId, DesiredState.unset(serverId)))
         states[serverId] = updated

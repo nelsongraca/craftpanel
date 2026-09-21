@@ -391,14 +391,14 @@ class ContainerManagerTest :
             verify { stopCmd.exec() }
         }
 
-        test("stopContainer uses default timeout of 30 when timeout is zero") {
+        test("stopContainer uses the shared default timeout when timeout is zero") {
             val stopCmd = mockk<StopContainerCmd>(relaxed = true)
             every { docker.stopContainerCmd("craftpanel-mc") } returns stopCmd
             every { stopCmd.withTimeout(any()) } returns stopCmd
 
             manager.stopContainer("craftpanel-mc", timeoutSeconds = 0, stopCommand = "")
 
-            verify { stopCmd.withTimeout(30) }
+            verify { stopCmd.withTimeout(ContainerManager.DEFAULT_STOP_TIMEOUT_SECONDS) }
         }
 
         // stopContainer — signal stop commands (^C and similar)
@@ -604,7 +604,7 @@ class ContainerManagerTest :
                 .withDestination(Volume("/data"))
                 .withRw(true)
 
-            val inspectResponse = mockk<InspectContainerResponse>()
+            val inspectResponse = mockk<InspectContainerResponse>(relaxed = true)
             every { inspectResponse.config } returns config
             every { inspectResponse.hostConfig } returns hostConfig
             every { inspectResponse.mounts } returns listOf(mount)

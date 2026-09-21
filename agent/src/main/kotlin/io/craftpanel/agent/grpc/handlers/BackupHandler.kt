@@ -7,8 +7,6 @@ import kotlinx.coroutines.*
 import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.file.Files
-import java.nio.file.LinkOption
-import java.nio.file.Path
 import java.nio.file.Paths
 
 class BackupHandler(private val config: AgentConfig) {
@@ -151,35 +149,13 @@ class BackupHandler(private val config: AgentConfig) {
                     }
                 }.onFailure { log.warn("Rebuild: failed backups-by-server symlink for ${entry.backupId}", it) }
             }
-            pruneStaleBackupSymlinks(backups)
-        }
-    }
-
-    /** Deletes agent-owned backup overlay symlinks that no longer match the snapshot. Real entries are left alone. */
-    private fun pruneStaleBackupSymlinks(backups: List<RebuildSymlinksCommand.BackupEntry>) {
-        val root = Paths.get(config.backupsByServerRoot)
-        if (!Files.isDirectory(root)) return
-        val desired = backups
-            .filter { it.serverName.isNotBlank() && it.createdAtFormatted.isNotBlank() && Files.exists(Paths.get(it.filePath)) }
-            .associate { "${it.serverName}/${it.createdAtFormatted}.tar.gz" to Paths.get(it.filePath).normalize() }
-        Files.list(root).use { serverDirs ->
-            serverDirs.forEach serverLoop@{ serverDir ->
-                if (!Files.isDirectory(serverDir, LinkOption.NOFOLLOW_LINKS)) return@serverLoop
-                Files.list(serverDir).use { links ->
-                    links.forEach linkLoop@{ link ->
-                        if (!Files.isSymbolicLink(link)) return@linkLoop
-                        val expected = desired["${serverDir.fileName}/${link.fileName}"]
-                        val actual = runCatching { serverDir.resolve(Files.readSymbolicLink(link)).normalize() }.getOrNull()
-                        if (expected == null || actual != expected) {
-                            runCatching { Files.delete(link) }
-                                .onFailure { log.warn("Rebuild: failed to prune stale backup symlink $link", it) }
-                        }
-                    }
+            val root = Paths.get(config.backupsByServerRoot)
+            val desired = backups
+                .filter { it.serverName.isNotBlank() && it.createdAtFormatted.isNotBlank() && Files.exists(Paths.get(it.filePath)) }
+                .associate {
+                    root.resolve(it.serverName).resolve("${it.createdAtFormatted}.tar.gz") to Paths.get(it.filePath)
                 }
-                runCatching {
-                    if (Files.list(serverDir).use { it.findAny().isEmpty }) Files.delete(serverDir)
-                }
-            }
+            SymlinkMaintainer.pruneStaleSymlinks(root, desired)
         }
     }
 }

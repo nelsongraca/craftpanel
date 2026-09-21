@@ -154,12 +154,7 @@ class DockerContainerManager(
             .exec()
 
         if (craftpanelNetwork.isNotEmpty()) {
-            runCatching {
-                docker.connectToNetworkCmd()
-                    .withNetworkId(craftpanelNetwork)
-                    .withContainerId(response.id)
-                    .exec()
-            }.onFailure { log.warn("Could not connect ${cmd.containerName} to $craftpanelNetwork: ${it.message}") }
+            docker.connectIfAbsent(craftpanelNetwork, response.id)
         }
         log.info("Created container ${cmd.containerName} (server ${cmd.serverId})")
         return response.id
@@ -215,7 +210,7 @@ class DockerContainerManager(
 
     override fun stopContainer(containerName: String, timeoutSeconds: Int, stopCommand: String) {
         gate.markStopping(serverIdOf(containerName))
-        val timeout = timeoutSeconds.takeIf { it > 0 } ?: 30
+        val timeout = timeoutSeconds.takeIf { it > 0 } ?: ContainerManager.DEFAULT_STOP_TIMEOUT_SECONDS
 
         when (val action = parseStopAction(stopCommand)) {
             is StopAction.Signal -> {
@@ -382,7 +377,8 @@ class DockerContainerManager(
             cpuLimitMillicores = cpuLimitMillicoresOf(hostConfig),
             labels = config?.labels.orEmpty(),
             networkMode = hostConfig?.networkMode ?: "",
-            hostname = config?.hostName ?: ""
+            hostname = config?.hostName ?: "",
+            running = info.state?.running ?: false
         )
     }.getOrNull()
 

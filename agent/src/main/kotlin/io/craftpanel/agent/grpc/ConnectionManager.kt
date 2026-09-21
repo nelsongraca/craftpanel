@@ -1,14 +1,18 @@
 package io.craftpanel.agent.grpc
 
-import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.auth.NodeKeyStore
 import io.craftpanel.agent.config.AgentConfig
-import io.craftpanel.agent.docker.*
+import io.craftpanel.agent.di.ConnectionScope
+import io.craftpanel.agent.di.REALTIME_LANE
+import io.craftpanel.agent.di.TELEMETRY_LANE
+import io.craftpanel.proto.AgentMessage
 import io.grpc.ManagedChannel
 import io.grpc.netty.GrpcSslContexts
 import io.grpc.netty.NettyChannelBuilder
 import kotlinx.coroutines.*
+import kotlinx.coroutines.channels.Channel
 import org.koin.core.Koin
+import org.koin.core.qualifier.named
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -18,11 +22,7 @@ import kotlin.time.Duration.Companion.seconds
 
 class ConnectionManager(
     private val koin: Koin,
-    private val config: AgentConfig,
-    private val containerManager: ContainerManager,
-    private val metricsCollector: MetricsCollector,
-    private val gate: WatcherGate,
-    private val docker: DockerClient
+    private val config: AgentConfig
 ) {
 
     private val log = LoggerFactory.getLogger(ConnectionManager::class.java)
@@ -32,7 +32,7 @@ class ConnectionManager(
 
         val certPem: String? = when {
             config.tlsEnabled -> File(config.tlsCertPath).readText()
-            else -> NodeKeyStore.readCaCert(config.caCertFilePath)
+            else -> NodeKeyStore.read(config.caCertFilePath)
         }
 
         if (certPem != null) {
@@ -52,57 +52,30 @@ class ConnectionManager(
 
     suspend fun run(coroutineScope: CoroutineScope) {
         var backoffSeconds = 5L
-        var routerSupervisor: RouterSupervisor? = null
-        var networkManager: NetworkManager? = null
 
         while (true) {
             val result = runCatching {
                 log.info("Connecting to master at ${config.masterAddress}:${config.masterPort}")
                 val channel = createChannel()
                 try {
-                    val identity = NodeAuthenticator(config, metricsCollector).authenticate(channel)
+                    // Identity authenticates over the channel before any per-connection object graph
+                    // exists; the result is declared into the scope so every scoped service can inject it.
+                    val identity = koin.get<NodeAuthenticator>().authenticate(channel)
                     backoffSeconds = 5L // reset on successful auth
                     Heartbeat.beat()
 
-                    // Process-scoped: the router/network supervisor is created once and reused
-                    // across reconnects.
-                    if (routerSupervisor == null) {
-                        val provisioner = McRouterProvisioner(
-                            docker,
-                            config.mcRouterImage,
-                            config.mcRouterUpdateOnStart,
-                            config.craftpanelNetwork,
-                            config.mcRouterContainerName
-                        )
-                        networkManager = NetworkManager(
-                            docker,
-                            provisioner.containerName,
-                            config.mcRouterEnabled
-                        )
-                        metricsCollector.mcRouterContainerName =
-                            if (config.mcRouterEnabled) provisioner.containerName else ""
-                        val supervisor = RouterSupervisor(provisioner, config.mcRouterEnabled)
-                        routerSupervisor = supervisor
-                        coroutineScope.launch { supervisor.run() }
-                    }
-
-                    // Per-connection graph: built once authenticated, torn down when the stream dies.
-                    val graph = ConnectionGraph.create(
-                        koin = koin,
-                        config = config,
-                        docker = docker,
-                        containerManager = containerManager,
-                        metricsCollector = metricsCollector,
-                        gate = gate,
-                        channel = channel,
-                        identity = identity,
-                        routerSupervisor = checkNotNull(routerSupervisor),
-                        networkManager = checkNotNull(networkManager),
-                    )
+                    // Per-connection scope: built once authenticated, closed when the stream dies.
+                    // `close()` cancels the convergence scope and releases every scoped instance.
+                    val scope = koin.createScope("connection-${System.nanoTime()}", named<ConnectionScope>())
                     try {
-                        graph.handler.run(graph.channel, graph.realtimeChannel, graph.telemetryChannel)
+                        scope.declare(channel)
+                        scope.declare(identity)
+                        val handler = scope.get<ControlStreamHandler>()
+                        val realtime = scope.get<Channel<AgentMessage>>(named(REALTIME_LANE))
+                        val telemetry = scope.get<Channel<AgentMessage>>(named(TELEMETRY_LANE))
+                        handler.run(channel, realtime, telemetry)
                     } finally {
-                        graph.close()
+                        scope.close()
                     }
                 } finally {
                     channel.shutdown()

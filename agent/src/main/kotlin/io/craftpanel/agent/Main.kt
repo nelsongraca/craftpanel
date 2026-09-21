@@ -3,10 +3,9 @@ package io.craftpanel.agent
 import com.github.dockerjava.api.DockerClient
 import io.craftpanel.agent.config.AgentConfig
 import io.craftpanel.agent.di.agentModule
-import io.craftpanel.agent.docker.ContainerManager
-import io.craftpanel.agent.docker.WatcherGate
-import io.craftpanel.agent.docker.MetricsCollector
+import io.craftpanel.agent.docker.RouterSupervisor
 import io.craftpanel.agent.grpc.ConnectionManager
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.koin.core.context.startKoin
 import org.slf4j.LoggerFactory
@@ -50,9 +49,8 @@ fun main(): Unit = runBlocking {
     }
     log.info("Docker network: ${config.craftpanelNetwork}")
 
-    val containerManager = koin.get<ContainerManager>()
-    val metricsCollector = koin.get<MetricsCollector>()
-    val gate = koin.get<WatcherGate>()
+    // Process-scoped: the router supervisor is created once and reused across reconnects.
+    launch { koin.get<RouterSupervisor>().run() }
 
-    ConnectionManager(koin, config, containerManager, metricsCollector, gate, docker).run(this)
+    ConnectionManager(koin, config).run(this)
 }

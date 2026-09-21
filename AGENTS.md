@@ -174,17 +174,19 @@ Any uncaught exception inside `requests.collect { }` in `ControlServiceImpl.cont
 | `ConsoleHandler`     | stateful console session lifecycle (owns `consoleSessions` map + `DockerClient`) |
 | `AgentUtils`         | shared `nowTimestamp()` and `generateRsyncPassword()` helpers (package-internal) |
 
+**Koin wiring (`agent/src/main/kotlin/io/craftpanel/agent/di/AgentModule.kt`)** — process-scoped services (`AgentConfig`, `DockerClient`, `WatcherGate`, `DesiredStateStore`, `ContainerManager`, `McRouterProvisioner`, `NetworkManager`, `RouterSupervisor`, `MetricsCollector`, `RsyncMigrator`, `NodeAuthenticator`) are `single`s; each connection opens a `ConnectionScope` that owns the two outbound lanes, `AgentOutbound`, the convergence `CoroutineScope` (cancelled `onClose`), `ConvergenceLoop`, `ContainerOperator`, `MetricsPump`, `ContainerEventWatcher`, the dispatcher and all handlers. `ConnectionManager` declares the authenticated `ManagedChannel` + `NodeIdentity` into that scope, resolves `ControlStreamHandler`, and closes the scope when the stream dies. Pure/stateless helpers (`ContainerSpecDiff`, `SymlinkMaintainer`, `McStatusClient`, `Heartbeat`, `ServerDataDirs`, `ServerPaths`, `ContainerNames`) stay static objects — not Koin definitions.
+
 **Desired-state layer (`agent/src/main/kotlin/io/craftpanel/agent/desired/`)** — master states intent; the agent converges and owns crash restart:
 
 - `DesiredStateStore` — in-memory per-server `DesiredState` (desired, spec, appliedSpec, budget, restart counters, one-shot flags). Master re-pushes on reconnect/boot, so nothing is persisted.
 - `ConvergenceMachine` — pure next-state function (no I/O, explicit `nowMillis`); table-tested. Decides `NoOp`/`EnsureRunning(recreate)`/`EnsureStopped`/`ForceKill`/`ConditionalRestart(recreate)`/`CrashLooped`. Recreate = `spec != appliedSpec` (or container absent/unknown applied spec ⇒ start existing, never destroy).
-- `ConvergenceLoop` — per-connection orchestrator; per-server `Mutex`, all entry points return a `Job`. Entry points: `applyDesired(env)`, `onContainerDie(serverId, exit)`, `onServerRemoved(serverId)`.
+- `ConvergenceLoop` — per-connection orchestrator; per-server `Mutex`, all entry points return a `Job`. Entry points: `applyDesired(env)`, `onContainerDie(serverId)`, `onServerRemoved(serverId)`.
 - `ContainerOperator` — all Docker mechanics (create/recreate/pull/mount/symlink/start/stop/kill). `ensureRunning(spec, recreate)`.
 - `no_restart=true` (in the envelope) suppresses autonomous crash-restart while desired stays `RUNNING` (used by live migration). `force_restart` = user restart (never budget-capped). `force` = SIGKILL.
 
 **StartContainerCommand is the spec carrier** inside `ServerDesiredState.spec`; it is no longer a top-level `MasterMessage` payload (legacy start/stop/restart oneof fields are `reserved`).
 
-**`AgentOutbound`** wraps `SendChannel<AgentMessage>` + `nodeId`. Use:
+**`AgentOutbound`** wraps `Channel<AgentMessage>` + `nodeId`. Use:
 
 - `out.send { ... }` — suspend send with nodeId pre-filled
 - `out.trySend { ... }` — non-blocking send

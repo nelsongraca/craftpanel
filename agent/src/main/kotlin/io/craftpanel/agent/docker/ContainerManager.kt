@@ -25,7 +25,9 @@ data class ContainerSnapshot(
     val labels: Map<String, String>,
     val networkMode: String,
     /** Docker hostname (`Config.Hostname`) — the server name, and thus its DNS name on the network. */
-    val hostname: String
+    val hostname: String,
+    /** Whether the container is currently running (`State.Running`). */
+    val running: Boolean = false
 )
 
 data class BindSnapshot(val hostPath: String, val containerPath: String, val readOnly: Boolean)
@@ -86,4 +88,9 @@ interface ContainerManager {
     fun fetchLogs(containerName: String, tailLines: Int, callback: ResultCallback<Frame>): ResultCallback<Frame>
 
     fun shutdownAll(timeoutSeconds: Int): Pair<Int, Int>
+
+    companion object {
+        /** Default graceful-stop timeout, mirrored from master's `ContainerLifecycle.stopTimeout`. */
+        const val DEFAULT_STOP_TIMEOUT_SECONDS = 45
+    }
 }

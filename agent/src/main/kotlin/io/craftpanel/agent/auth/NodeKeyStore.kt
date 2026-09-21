@@ -40,6 +40,4 @@ object NodeKeyStore {
         }
         log.info("Node key persisted to $keyFilePath")
     }
-
-    fun readCaCert(caCertFilePath: String): String? = read(caCertFilePath)
 }

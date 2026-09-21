@@ -8,8 +8,6 @@ import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.booleans.shouldBeTrue
 import io.kotest.matchers.shouldBe
 import io.mockk.*
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
 import java.io.File
@@ -73,8 +71,7 @@ class ControlStreamHandlerTest :
             ),
             gate = WatcherGate(),
             out = mockk(relaxed = true),
-            loop = mockk(relaxed = true),
-            convergenceScope = CoroutineScope(Job())
+            loop = mockk(relaxed = true)
         )
 
         var tempDir: File = File("")

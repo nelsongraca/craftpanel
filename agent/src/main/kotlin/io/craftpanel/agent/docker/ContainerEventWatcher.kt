@@ -35,14 +35,14 @@ class ContainerEventWatcher(
     private val log = LoggerFactory.getLogger(ContainerEventWatcher::class.java)
 
     /**
-     * Opens the event stream and invokes [onContainerCrash] or [onContainerStopped] for managed
-     * container deaths. [shouldReport] gates the callback: returns false for intentional
-     * deaths (stop/remove/recreate) and for containers not owned by this agent (cross-node guard
-     * when agents share a Docker daemon). Exit code 0 → [onContainerStopped]; non-zero → [onContainerCrash].
-     * Either way the convergence loop re-decides from master intent — exit code is informational.
-     * Returns a [Closeable] that stops the stream and the resubscribe loop on disconnect.
+     * Opens the event stream and invokes [onContainerDie] for managed container deaths.
+     * [shouldReport] gates the callback: returns false for intentional deaths (stop/remove/recreate)
+     * and for containers not owned by this agent (cross-node guard when agents share a Docker
+     * daemon). The convergence loop re-decides from master intent — the exit code is informational
+     * only and is logged here. Returns a [Closeable] that stops the stream and the resubscribe loop
+     * on disconnect.
      */
-    fun watch(scope: CoroutineScope, shouldReport: (serverId: String) -> Boolean, onContainerCrash: (serverId: String) -> Unit, onContainerStopped: (serverId: String) -> Unit = {}): Closeable {
+    fun watch(scope: CoroutineScope, shouldReport: (serverId: String) -> Boolean, onContainerDie: (serverId: String) -> Unit): Closeable {
         val closed = AtomicBoolean(false)
         val current = AtomicReference<ResultCallback.Adapter<Event>?>(null)
         val job = scope.launch(Dispatchers.IO) {
@@ -56,7 +56,7 @@ class ContainerEventWatcher(
                     }
 
                     override fun onNext(event: Event) {
-                        handle(event, shouldReport, onContainerCrash, onContainerStopped)
+                        handle(event, shouldReport, onContainerDie)
                     }
 
                     override fun onError(throwable: Throwable) {
@@ -96,7 +96,7 @@ class ContainerEventWatcher(
         }
     }
 
-    private fun handle(event: Event, shouldReport: (serverId: String) -> Boolean, onContainerCrash: (serverId: String) -> Unit, onContainerStopped: (serverId: String) -> Unit) {
+    private fun handle(event: Event, shouldReport: (serverId: String) -> Boolean, onContainerDie: (serverId: String) -> Unit) {
         val serverId = event.actor?.attributes?.get("craftpanel.server.id")
             ?.takeIf { it.isNotEmpty() } ?: return
         val containerName = event.actor?.attributes?.get("name") ?: "?"
@@ -110,14 +110,8 @@ class ContainerEventWatcher(
             )
             return
         }
-        if (exitCode == 0) {
-            log.info("Container die event for server {} (container={}, exit 0) — reporting stopped", serverId, containerName)
-            runCatching { onContainerStopped(serverId) }
-                .onFailure { log.warn("Failed to report container stop for {}: {}", serverId, it.message) }
-        } else {
-            log.info("Container die event for server {} (container={}, exit {}) — reporting crash", serverId, containerName, exitCode)
-            runCatching { onContainerCrash(serverId) }
-                .onFailure { log.warn("Failed to report container crash for {}: {}", serverId, it.message) }
-        }
+        log.info("Container die event for server {} (container={}, exit {}) — converging", serverId, containerName, exitCode)
+        runCatching { onContainerDie(serverId) }
+            .onFailure { log.warn("Failed to report container die for {}: {}", serverId, it.message) }
     }
 }

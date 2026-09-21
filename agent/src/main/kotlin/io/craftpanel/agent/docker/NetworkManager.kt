@@ -11,31 +11,6 @@ class NetworkManager(private val docker: DockerClient, private val mcRouterConta
 
     /** Creates the bridge network if it does not exist yet. Call before createContainer. */
     fun ensureNetwork(networkName: String) {
-        ensureNetworkExists(networkName)
-    }
-
-    /** Attaches mc-router to the network after container creation (container already joined via withNetworkMode). */
-    fun attachToNetwork(networkName: String) {
-        attachMcRouter(networkName)
-    }
-
-    /** Detach mc-router from network and delete it if no other craftpanel containers remain. */
-    fun maybeDetachAndDelete(networkName: String, removingContainerId: String) {
-        val net = findNetwork(networkName) ?: return
-        val remainingContainers = net.containers.orEmpty()
-            .keys
-            .filter { id -> id != removingContainerId && id != getMcRouterId() }
-        if (remainingContainers.isEmpty()) {
-            detachMcRouter(networkName)
-            runCatching {
-                docker.removeNetworkCmd(net.id)
-                    .exec()
-                log.info("Deleted network $networkName (last server removed)")
-            }.onFailure { log.warn("Failed to delete network $networkName: ${it.message}") }
-        }
-    }
-
-    private fun ensureNetworkExists(networkName: String) {
         if (findNetwork(networkName) != null) return
         runCatching {
             docker.createNetworkCmd()
@@ -53,25 +28,31 @@ class NetworkManager(private val docker: DockerClient, private val mcRouterConta
         }
     }
 
-    private fun attachMcRouter(networkName: String) {
+    /** Attaches mc-router to the network after container creation (container already joined via withNetworkMode). */
+    fun attachToNetwork(networkName: String) {
         if (!mcRouterEnabled) return
         val routerId = getMcRouterId() ?: run {
             log.warn("mc-router not found — cannot attach to $networkName")
             return
         }
+        findNetwork(networkName) ?: return
+        docker.connectIfAbsent(networkName, routerId)
+    }
+
+    /** Detach mc-router from network and delete it if no other craftpanel containers remain. */
+    fun maybeDetachAndDelete(networkName: String, removingContainerId: String) {
         val net = findNetwork(networkName) ?: return
-        if (net.containers.orEmpty()
-                .containsKey(routerId)
-        ) {
-            return
+        val remainingContainers = net.containers.orEmpty()
+            .keys
+            .filter { id -> id != removingContainerId && id != getMcRouterId() }
+        if (remainingContainers.isEmpty()) {
+            detachMcRouter(networkName)
+            runCatching {
+                docker.removeNetworkCmd(net.id)
+                    .exec()
+                log.info("Deleted network $networkName (last server removed)")
+            }.onFailure { log.warn("Failed to delete network $networkName: ${it.message}") }
         }
-        runCatching {
-            docker.connectToNetworkCmd()
-                .withNetworkId(networkName)
-                .withContainerId(routerId)
-                .exec()
-            log.info("Attached mc-router to $networkName")
-        }.onFailure { log.warn("Failed to attach mc-router to $networkName: ${it.message}") }
     }
 
     private fun detachMcRouter(networkName: String) {

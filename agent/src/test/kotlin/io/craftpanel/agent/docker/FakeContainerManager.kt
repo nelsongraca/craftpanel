@@ -221,7 +221,8 @@ class FakeContainerManager(private val containerNamePrefix: String = "craftpanel
             cpuLimitMillicores = cmd.cpuLimitMillicores,
             labels = labels,
             networkMode = cmd.dockerNetwork,
-            hostname = cmd.serverName
+            hostname = cmd.serverName,
+            running = containers[containerName]?.state == State.RUNNING
         )
     }
 

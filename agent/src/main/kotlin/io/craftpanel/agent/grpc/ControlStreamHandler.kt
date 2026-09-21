@@ -21,18 +21,13 @@ class ControlStreamHandler(
     private val dispatcher: CommandDispatcher,
     private val gate: WatcherGate,
     private val out: AgentOutbound,
-    private val loop: ConvergenceLoop,
-    private val convergenceScope: CoroutineScope
+    private val loop: ConvergenceLoop
 ) {
 
     private val log = LoggerFactory.getLogger(ControlStreamHandler::class.java)
 
     suspend fun run(channel: ManagedChannel, realtimeChannel: Channel<AgentMessage>, telemetryChannel: Channel<AgentMessage>): Unit = coroutineScope {
         val stub = ControlServiceGrpcKt.ControlServiceCoroutineStub(channel)
-
-        // The desired-state convergence loop runs as long as this connection; cancel its jobs
-        // (crash-restart, pending converge) when the stream/scope dies.
-        coroutineContext.job.invokeOnCompletion { convergenceScope.cancel() }
 
         // Send NodeStateSnapshot as the first message. It is buffered on the realtime lane BEFORE
         // the request flow starts, so no telemetry frame can precede it in the stream.
@@ -84,8 +79,7 @@ class ControlStreamHandler(
         val eventStream = eventWatcher.watch(
             scope = this,
             shouldReport = gate::shouldReportDie,
-            onContainerCrash = { serverId -> loop.onContainerDie(serverId, exitCode = 1) },
-            onContainerStopped = { serverId -> loop.onContainerDie(serverId, exitCode = 0) }
+            onContainerDie = { serverId -> loop.onContainerDie(serverId) }
         )
         coroutineContext.job.invokeOnCompletion { runCatching { eventStream.close() } }
 
@@ -96,15 +90,13 @@ class ControlStreamHandler(
         }
     }
 
-    private fun isSwarmActive(): Boolean = containerManager.isSwarmActive()
-
     internal fun buildStateSnapshot(): NodeStateSnapshot {
         val containers = containerManager.listContainers()
         return nodeStateSnapshot {
             this.containers.addAll(containers)
             recordedAt = nowTimestamp()
             routerRunning = routerSupervisor.isRunning
-            swarmActive = isSwarmActive()
+            swarmActive = containerManager.isSwarmActive()
         }
     }
 }
