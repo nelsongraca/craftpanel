@@ -22,10 +22,11 @@ class DesiredStateSyncServiceTest :
             lifecycle = ContainerLifecycle(
                 gateway = gateway,
                 modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
-                serverRepository = repos.serverRepository,
+                serverIntent = ServerIntent(repos.serverRepository),
                 envVarsRepository = repos.envVarsRepository
             ),
-            serverRepository = repos.serverRepository
+            serverRepository = repos.serverRepository,
+            serverIntent = ServerIntent(repos.serverRepository)
         )
 
         fun createNode(): Uuid = transaction {

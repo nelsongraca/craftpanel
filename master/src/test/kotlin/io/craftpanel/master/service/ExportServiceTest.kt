@@ -43,7 +43,7 @@ class ExportServiceTest :
             nodeRepository = nodeRepository,
             networkRepository = networkRepository,
             settingsRepository = settingsRepository,
-            portRepository = repos.portRepository,
+            portAllocator = createTestPortAllocator(repos.portRepository),
             extraPortRepository = repos.extraPortRepository,
             envVarsRepository = repos.envVarsRepository,
             modRepository = repos.modRepository,

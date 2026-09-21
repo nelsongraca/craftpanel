@@ -3,11 +3,16 @@ package io.craftpanel.master.grpc
 import io.craftpanel.master.domain.*
 import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.service.AgentGateway
+import io.craftpanel.master.service.NodeMetadata as NodeMetadataDto
+import io.craftpanel.master.service.NodeNotActiveException
+import io.craftpanel.master.service.NodeRegistrationService
 import io.craftpanel.master.service.NodeStateReconciler
 import io.craftpanel.master.service.repo.BackupRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import io.craftpanel.master.util.formatSymlinkTimestamp
 import io.craftpanel.proto.*
+import io.grpc.Status
+import io.grpc.StatusException
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.*
 import kotlinx.coroutines.flow.*
@@ -22,7 +27,7 @@ import kotlin.uuid.Uuid
 
 class ControlServiceImpl(
     private val nodeStateReconciler: NodeStateReconciler,
-    private val nodeRegistrar: NodeRegistrar,
+    private val nodeRegistrationService: NodeRegistrationService,
     private val onNodeDisconnect: (String) -> Unit = {},
     // Shared agent events flow (passed to handlers)
     private val agentEventsFlow: MutableSharedFlow<AgentEvent>,
@@ -124,9 +129,25 @@ class ControlServiceImpl(
 
     // ── gRPC: registration / identification ──────────────────────────────────
 
-    override suspend fun registerNode(request: RegisterNodeRequest): RegisterNodeResponse = nodeRegistrar.registerNode(request)
+    override suspend fun registerNode(request: RegisterNodeRequest): RegisterNodeResponse {
+        val registered = nodeRegistrationService.register(request.bootstrapToken, request.metadata.toDto())
+        return registerNodeResponse {
+            nodeKey = registered.rawKey
+            nodeId = registered.nodeId.toString()
+        }
+    }
 
-    override suspend fun identifyNode(request: IdentifyNodeRequest): IdentifyNodeResponse = nodeRegistrar.identifyNode(request)
+    override suspend fun identifyNode(request: IdentifyNodeRequest): IdentifyNodeResponse {
+        val identified = nodeRegistrationService.identify(request.nodeKey, request.metadata.toDto())
+        return identifyNodeResponse {
+            status = when (identified.status) {
+                NodeStatus.ACTIVE -> IdentifyNodeResponse.IdentifyStatus.ACTIVE
+                NodeStatus.PENDING -> IdentifyNodeResponse.IdentifyStatus.PENDING
+                else -> IdentifyNodeResponse.IdentifyStatus.REJECTED
+            }
+            nodeId = identified.nodeId?.toString() ?: ""
+        }
+    }
 
     // ── gRPC: control stream ─────────────────────────────────────────────────
 
@@ -179,7 +200,11 @@ class ControlServiceImpl(
     }
 
     private fun authenticate(nodeId: String, outChannel: SendChannel<MasterMessage>) {
-        nodeRegistrar.requireActive(nodeId)
+        try {
+            nodeRegistrationService.requireActive(Uuid.parse(nodeId))
+        } catch (e: NodeNotActiveException) {
+            throw StatusException(Status.PERMISSION_DENIED.withDescription(e.message))
+        }
         connectedAgents[nodeId] = outChannel
         log.debug("Node $nodeId: registered in connectedAgents (channel=${System.identityHashCode(outChannel)})")
     }
@@ -277,3 +302,14 @@ class ControlServiceImpl(
         }
     }
 }
+
+private fun NodeMetadata.toDto() = NodeMetadataDto(
+    hostname = hostname,
+    publicIp = publicIp,
+    privateIp = privateIp,
+    totalRamMb = totalRamMb,
+    reservedRamMb = reservedRamMb,
+    totalCpuMillicores = totalCpuMillicores,
+    reservedCpuMillicores = reservedCpuMillicores,
+    agentVersion = agentVersion
+)

@@ -1,5 +1,6 @@
 package io.craftpanel.master
 
+import io.craftpanel.master.service.PortAllocator
 import io.craftpanel.master.service.repo.*
 import io.craftpanel.master.service.repo.impl.*
 
@@ -9,7 +10,7 @@ class TestRepositories {
     val modRepository = ModRepositoryImpl()
     val migrationRepository = MigrationRepositoryImpl()
     val portRepository = PortRepositoryImpl()
-    val extraPortRepository = ServerExtraPortRepositoryImpl()
+    val extraPortRepository = ServerExtraPortRepositoryImpl(PortAllocator(NodeRepositoryImpl(), portRepository))
     val backupRepository = BackupRepositoryImpl()
     val proxyBackendRepository = ProxyBackendRepositoryImpl()
     val containerMetricsRepository = ContainerMetricsRepositoryImpl()

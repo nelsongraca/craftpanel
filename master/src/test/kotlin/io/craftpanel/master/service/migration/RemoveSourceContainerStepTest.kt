@@ -111,7 +111,7 @@ class RemoveSourceContainerStepTest :
             return MigrationCoordinator(
                 migrationRepository = repos.migrationRepository,
                 serverRepository = repos.serverRepository,
-                portRepository = repos.portRepository,
+                portAllocator = createTestPortAllocator(repos.portRepository),
                 proxyBackendRepository = repos.proxyBackendRepository,
                 nodeRepository = NodeRepositoryImpl(),
                 gateway = gateway,
@@ -119,7 +119,7 @@ class RemoveSourceContainerStepTest :
                 lifecycle = ContainerLifecycle(
                     gateway = gateway,
                     modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
-                    serverRepository = repos.serverRepository,
+                    serverIntent = ServerIntent(repos.serverRepository),
                     envVarsRepository = repos.envVarsRepository
                 ),
                 serverExposure = ServerExposure(SettingsRepositoryImpl(), repos.serverRepository),

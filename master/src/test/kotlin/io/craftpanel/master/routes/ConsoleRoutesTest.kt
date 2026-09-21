@@ -21,8 +21,8 @@ import kotlin.uuid.Uuid
 class ConsoleRoutesTest :
     FunSpec({
         val repos = TestRepositories()
-        val noopNodeRegistrar = createTestNodeRegistrar()
-        val noopProxy = DataServiceProxy(createTestAgentDataOps(), BulkDataServiceImpl(noopNodeRegistrar), repos.serverRepository)
+        val noopNodeRegistrationService = createTestNodeRegistrationService()
+        val noopProxy = DataServiceProxy(createTestAgentDataOps(), BulkDataServiceImpl(noopNodeRegistrationService), repos.serverRepository)
         val wsAuthorization = WsAuthorization(WsTicketService(), PermissionResolver)
         val systemService = SystemService(settingsRepository = SettingsRepositoryImpl())
 

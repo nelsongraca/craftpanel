@@ -108,10 +108,6 @@ class FakeNodeRepository : NodeRepository {
         agentVersion = agentVersion, lastSeenAt = lastSeenAt?.toString()
     )
 
-    fun updateStatus(id: Uuid, status: NodeStatus) {
-        nodes[id]?.status = status.toDb()
-    }
-
     override fun findById(id: Uuid): NodeRow? = nodes[id]?.toRow()
     override fun findByTokenHash(tokenHash: String): NodeRow? = nodes.values.firstOrNull { it.tokenHash == tokenHash }
         ?.toRow()

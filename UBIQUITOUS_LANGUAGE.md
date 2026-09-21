@@ -20,6 +20,7 @@
 | **Minecraft Version** | The Minecraft game version string injected as the `VERSION` env var into the container (e.g. `1.21.4`) | itzg tag (different concept) |
 | **Needs Recreate** | A deferred flag on a server record indicating the container must be removed and recreated on next start, because a property requiring full recreation has changed | Restart, rebuild |
 | **Status** | The current runtime state of a server: `STOPPED`, `STARTING`, `HEALTHY`, `STOPPING`, `UNHEALTHY` | State, condition, health |
+| **Server Intent** | Master's recorded desired state for a Server (`desired_status`), set before a desired-state envelope is pushed and reverted if the push fails — distinct from the agent-reported **Status** | Wanted state, target state, desired state (ambiguous) |
 | **Managed Hostname** | The hostname CraftPanel provisions and owns for an exposed server: `dnsRecordName` if a DNS record already exists, else `publicSubdomain` + the resolved domain suffix | Panel hostname, subdomain hostname |
 | **Custom Hostname** | A user-supplied external hostname pointing at a server, validated against RFC-1123 and checked for collisions with other servers' hostnames and panel-managed domain suffixes | Vanity hostname, alias |
 | **Canonical Hostname** | The hostname shown in the API for a server: the Custom Hostname if set, else the Managed Hostname | Public hostname (ambiguous), display hostname |

@@ -1,6 +1,7 @@
 package io.craftpanel.master.grpc
 
 import com.google.protobuf.ByteString
+import io.craftpanel.master.service.NodeRegistrationService
 import io.craftpanel.proto.bulkChunk
 import io.craftpanel.proto.bulkTransferInit
 import io.kotest.core.spec.style.FunSpec
@@ -16,9 +17,9 @@ class BulkDataServiceImplTest :
     FunSpec({
 
         fun service(nodeKeyValid: Boolean = true): BulkDataServiceImpl {
-            val nodeRegistrar = mockk<NodeRegistrar>()
-            every { nodeRegistrar.verifyNodeKey(any()) } returns nodeKeyValid
-            return BulkDataServiceImpl(nodeRegistrar)
+            val nodeRegistrationService = mockk<NodeRegistrationService>()
+            every { nodeRegistrationService.isActive(any()) } returns nodeKeyValid
+            return BulkDataServiceImpl(nodeRegistrationService)
         }
 
         // ── download path (agent → master) ────────────────────────────────────

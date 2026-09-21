@@ -1,6 +1,7 @@
 package io.craftpanel.master.grpc
 
 import com.google.protobuf.ByteString
+import io.craftpanel.master.service.NodeRegistrationService
 import io.craftpanel.proto.*
 import io.grpc.Status
 import io.grpc.StatusException
@@ -10,7 +11,7 @@ import kotlinx.coroutines.flow.flow
 import org.slf4j.LoggerFactory
 import java.util.concurrent.ConcurrentHashMap
 
-class BulkDataServiceImpl(private val nodeRegistrar: NodeRegistrar) : BulkDataServiceGrpcKt.BulkDataServiceCoroutineImplBase() {
+class BulkDataServiceImpl(private val nodeRegistrationService: NodeRegistrationService) : BulkDataServiceGrpcKt.BulkDataServiceCoroutineImplBase() {
 
     private val log = LoggerFactory.getLogger(BulkDataServiceImpl::class.java)
 
@@ -66,7 +67,7 @@ class BulkDataServiceImpl(private val nodeRegistrar: NodeRegistrar) : BulkDataSe
                 if (transferId.isEmpty()) {
                     transferId = chunk.transferId
                     val nodeKey = chunk.nodeKey
-                    if (!nodeRegistrar.verifyNodeKey(nodeKey)) {
+                    if (!nodeRegistrationService.isActive(nodeKey)) {
                         throw StatusException(Status.UNAUTHENTICATED.withDescription("Invalid node key"))
                     }
                     authenticated = true
@@ -109,7 +110,7 @@ class BulkDataServiceImpl(private val nodeRegistrar: NodeRegistrar) : BulkDataSe
     // ── gRPC: master → agent (file upload from user perspective) ─────────────
 
     override fun receiveFromMaster(request: BulkTransferInit): Flow<BulkChunk> = flow {
-        if (!nodeRegistrar.verifyNodeKey(request.nodeKey)) {
+        if (!nodeRegistrationService.isActive(request.nodeKey)) {
             throw StatusException(Status.UNAUTHENTICATED.withDescription("Invalid node key"))
         }
 

@@ -3,7 +3,7 @@ package io.craftpanel.master.grpc
 import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
-import io.craftpanel.master.createTestNodeRegistrar
+import io.craftpanel.master.createTestNodeRegistrationService
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.domain.AgentEvent
@@ -43,7 +43,7 @@ class ControlServiceImplTest :
         val dataOpResponseHandler = DataOpResponseHandler(dataOpContext)
         val service = ControlServiceImpl(
             nodeStateReconciler = reconciler,
-            nodeRegistrar = createTestNodeRegistrar(nodeRepository = nodeRepository),
+            nodeRegistrationService = createTestNodeRegistrationService(nodeRepository = nodeRepository),
             agentEventsFlow = agentEvents,
             dataOpContext = dataOpContext,
             nodeStateHandler = nodeStateHandler,

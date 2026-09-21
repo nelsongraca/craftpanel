@@ -82,7 +82,7 @@ data class MigrationResponse(
 class MigrationService(
     private val migrationRepository: MigrationRepository,
     private val serverRepository: ServerRepository,
-    private val portRepository: PortRepository,
+    private val portAllocator: PortAllocator,
     private val proxyBackendRepository: ProxyBackendRepository,
     private val nodeRepository: NodeRepository,
     private val gateway: AgentGateway,
@@ -224,7 +224,7 @@ class MigrationService(
         val coord = MigrationCoordinator(
             migrationRepository = migrationRepository,
             serverRepository = serverRepository,
-            portRepository = portRepository,
+            portAllocator = portAllocator,
             proxyBackendRepository = proxyBackendRepository,
             nodeRepository = nodeRepository,
             gateway = gateway,

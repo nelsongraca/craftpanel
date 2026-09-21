@@ -7,16 +7,24 @@ import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.grpc.AgentDataOps
 import io.craftpanel.master.grpc.ControlServiceImpl
 import io.craftpanel.master.grpc.DataOpContext
-import io.craftpanel.master.grpc.NodeRegistrar
 import io.craftpanel.master.grpc.handlers.*
 import io.craftpanel.master.service.AgentGateway
+import io.craftpanel.master.service.NodeRegistrationService
 import io.craftpanel.master.service.NodeStateReconciler
+import io.craftpanel.master.service.PortAllocator
 import io.craftpanel.master.service.repo.NodeRepository
+import io.craftpanel.master.service.repo.PortRepository
 import io.craftpanel.master.service.repo.impl.NodeRepositoryImpl
+import io.craftpanel.master.service.repo.impl.PortRepositoryImpl
 import kotlinx.coroutines.flow.MutableSharedFlow
 import java.util.concurrent.ConcurrentHashMap
 
-fun createTestNodeRegistrar(nodeConfig: NodeConfig = NodeConfig("test-token", 50052), nodeRepository: NodeRepository = NodeRepositoryImpl()): NodeRegistrar = NodeRegistrar(nodeConfig, nodeRepository)
+fun createTestPortAllocator(
+    portRepository: PortRepository = PortRepositoryImpl(),
+    nodeRepository: NodeRepository = NodeRepositoryImpl()
+): PortAllocator = PortAllocator(nodeRepository, portRepository)
+
+fun createTestNodeRegistrationService(nodeConfig: NodeConfig = NodeConfig("test-token", 50052), nodeRepository: NodeRepository = NodeRepositoryImpl()): NodeRegistrationService = NodeRegistrationService(nodeConfig, nodeRepository)
 
 fun createTestAgentDataOps(
     dataOpContext: DataOpContext = DataOpContext(ConcurrentHashMap(), ConcurrentHashMap()),
@@ -47,7 +55,7 @@ fun createTestControlServiceImpl(
     val dataOpResponseHandler = DataOpResponseHandler(dataOpContext)
     return ControlServiceImpl(
         nodeStateReconciler = nodeStateReconciler,
-        nodeRegistrar = createTestNodeRegistrar(nodeConfig, nodeRepository),
+        nodeRegistrationService = createTestNodeRegistrationService(nodeConfig, nodeRepository),
         agentEventsFlow = agentEvents,
         dataOpContext = dataOpContext,
         nodeStateHandler = nodeStateHandler,

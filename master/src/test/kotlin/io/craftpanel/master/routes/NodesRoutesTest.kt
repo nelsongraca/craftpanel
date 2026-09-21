@@ -43,7 +43,7 @@ class NodesRoutesTest :
         val repos = TestRepositories()
 
         fun Route.configureNodesTest(gateway: TestAgentGateway = TestAgentGateway()) {
-            nodesRoutes(NodeService(gateway, NodeRepositoryImpl(), repos.serverRepository))
+            nodesRoutes(NodeService(gateway, NodeRepositoryImpl(), repos.serverRepository, createTestNodeRegistrationService()))
         }
 
         fun createUser(username: String = "admin", email: String = "admin@example.com", password: String = "hunter2"): Uuid = transaction {

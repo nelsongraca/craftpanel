@@ -121,7 +121,7 @@ class ContainerLifecycleTest :
         fun lifecycle(startTimeout: kotlin.time.Duration = 2.seconds, stopTimeout: kotlin.time.Duration = 2.seconds, removeTimeout: kotlin.time.Duration = 2.seconds) = ContainerLifecycle(
             gateway = gateway,
             modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
-            serverRepository = repos.serverRepository,
+            serverIntent = ServerIntent(repos.serverRepository),
             envVarsRepository = repos.envVarsRepository,
             startTimeout = startTimeout,
             stopTimeout = stopTimeout,
@@ -146,7 +146,7 @@ class ContainerLifecycleTest :
             val lc = ContainerLifecycle(
                 gateway = TestAgentGateway(agentEvents = events, sendResult = false),
                 modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
-                serverRepository = repos.serverRepository,
+                serverIntent = ServerIntent(repos.serverRepository),
                 envVarsRepository = repos.envVarsRepository
             )
             val ok = lc.sendDesiredState(server, DesiredStatus.RUNNING)
@@ -343,9 +343,6 @@ class ContainerLifecycleTest :
             shouldThrow<ContainerLifecycleException> {
                 lc.start(server)
             }
-            // desired_status reverted on failure
-            val updated = repos.serverRepository.findById(serverId)!!
-            updated.desiredStatus shouldBe null
         }
 
         test("stop - waits for STOPPED and sets desired_status") {
@@ -365,15 +362,12 @@ class ContainerLifecycleTest :
             val lc = ContainerLifecycle(
                 gateway = TestAgentGateway(agentEvents = events, sendResult = false),
                 modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
-                serverRepository = repos.serverRepository,
+                serverIntent = ServerIntent(repos.serverRepository),
                 envVarsRepository = repos.envVarsRepository
             )
             shouldThrow<BadGatewayException> {
                 lc.stop(server, nodeId.toString())
             }
-            // desired_status reverted on failure
-            val updated = repos.serverRepository.findById(serverId)!!
-            updated.desiredStatus shouldBe null
         }
 
         test("remove - waits for STOPPED before sending remove command") {

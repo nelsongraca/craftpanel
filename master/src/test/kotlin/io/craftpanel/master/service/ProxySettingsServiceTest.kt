@@ -26,7 +26,7 @@ class ProxySettingsServiceTest :
             envVarsRepository = repos.envVarsRepository,
             cipher = SecretCipher(ByteArray(32) { 0x42 })
         ) { _, _, _ -> }
-        val service = ProxySettingsService(serverRepository, proxyConfigPatchService, backendForwardingService) { _, _, _ -> }
+        val service = ProxySettingsService(serverRepository, ProxyPatchWriter(proxyConfigPatchService) { _, _, _ -> }, backendForwardingService)
 
         beforeTest {
             TestDatabase.initIfNeeded()

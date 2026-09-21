@@ -15,7 +15,6 @@ import io.craftpanel.master.service.repo.EnvVarsRepository
 import io.craftpanel.master.service.repo.ModRepository
 import io.craftpanel.master.service.repo.NetworkRepository
 import io.craftpanel.master.service.repo.NodeRepository
-import io.craftpanel.master.service.repo.PortRepository
 import io.craftpanel.master.service.repo.ServerExtraPortRepository
 import io.craftpanel.master.service.repo.ServerRepository
 import io.craftpanel.master.service.repo.ServerView
@@ -86,7 +85,7 @@ class ServerProvisioning(
     private val nodeRepository: NodeRepository,
     private val networkRepository: NetworkRepository,
     private val settingsRepository: SettingsRepository,
-    private val portRepository: PortRepository,
+    private val portAllocator: PortAllocator,
     private val extraPortRepository: ServerExtraPortRepository,
     private val envVarsRepository: EnvVarsRepository,
     private val modRepository: ModRepository,
@@ -219,9 +218,7 @@ class ServerProvisioning(
             CapacityResult.Ok -> {}
         }
 
-        val usedPorts = portRepository.findUsedPortsOnNode(nodeKotlinId).toSet()
-        val port = PortAllocator.pickFreePort(node.portRangeStart, node.portRangeEnd, usedPorts)
-            ?: throw ConflictException("No free ports available on node")
+        val port = portAllocator.allocate(nodeKotlinId)
 
         val platformName = settingsRepository.getAll()
             .firstOrNull { it.key == "app_name" }

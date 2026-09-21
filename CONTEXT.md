@@ -153,6 +153,43 @@ container command sequence with status-gated awaiting.
 - Depends on C1 (`agentEvents: SharedFlow<AgentEvent>`).
 - See plan `plans/c2-container-lifecycle.md`.
 
+### ServerIntent (master)
+
+The one owner of `servers.desired_status` writes and the "record intent → send → revert on
+failure" invariant. Extracted from five hand-rolled copies across `ContainerLifecycle`
+(`start`/`stop`) and `ServerLifecycleService` (`startServer`/`restartServer`/`requestStop`).
+
+- `record(serverId, desired)` — sole desired_status writer for callers that need no revert
+  (`DesiredStateSyncService` reconnect/boot sync).
+- `withIntent(serverId, desired, action: suspend () -> Boolean)` — reads the previous intent,
+  writes `desired`, runs the action; a `false` return means the agent is not connected and
+  throws `BadGatewayException("Agent not connected")`; reverts to the previous intent on ANY
+  throw (send-false or await timeout/UNHEALTHY) and rethrows.
+- Bookkeeping only — no proto/spec knowledge, and no dependency on `ContainerLifecycle` (which
+  calls back into it), so no cycle. `sendDesiredState` stays on `ContainerLifecycle` as the one
+  sender; `ContainerLifecycle.persistDesiredStatus` and both private `setDesiredStatus` copies
+  are deleted.
+- Writes via `transaction { Server.findById(...) }` (ADR-0004: the service owns the transaction;
+  no bare-setter repo method).
+- Tested at the interface with H2 + a fake action block (`ServerIntentTest`): success / `false`
+  (revert to null and to a previous value) / throw.
+- See candidate 1, `improve-codebase-architecture` review 2026-09-20.
+
+### ProxyPatchWriter (master)
+
+The one owner of the proxy patch write — filename convention, `ProxyConfigPatchService.generatePatch`,
+and the file write. Replaces three private copies (`ServerLifecycleService.writeProxyPatch`,
+`ProxyBackendService`/`ProxySettingsService.writePatchIfRunning`).
+
+- `write(server: ServerView)` — ungated, used before start/restart. No-op for non-proxy,
+  manual-mode, or no-patch.
+- `writeIfRunning(server: ServerView)` — gated on `ServerStatus.HEALTHY`.
+- Takes the `ServerView` so it can guard `serverType.isProxy` without a repository round-trip;
+  owns the `"craftpanel-patch.json"` literal (`ContainerLifecycle`'s `PATCH_DEFINITIONS` env var
+  is a separate container-path concern).
+- Tested with a fake patch service + captured `writeFile` (`ProxyPatchWriterTest`).
+- See candidate 1, `improve-codebase-architecture` review 2026-09-20.
+
 ### ServerExposure (master)
 
 The one module that answers "what is a server's hostname?" — managed hostname,
@@ -306,34 +343,30 @@ across all 12 `migration/steps/`) into two deep modules. Step signature becomes
   `MigrationRunnerTest`).
 - See candidate 1, `improve-codebase-architecture` review 2026-07-05.
 
-### NodeRepository seam — ControlServiceImpl (master) — Tier A of candidate 2
+### NodeRegistrationService (master) — node identity seam
 
-`ControlServiceImpl` no longer opens `transaction { Nodes.* }`; all four raw
-sites (`registerNode`, `identifyNode`, `control()` status read, `verifyNodeKey`)
-route through the injected `NodeRepository`. The gRPC transport stops owning
-schema — registration/identify/verify are now testable through a fake repo with
-no live DB (see the three FakeNodeRepository-backed tests in
-`ControlServiceImplTest`).
+The one owner of node identity: registration, identification, active-node enforcement, and
+node-key minting/hashing. Replaces `grpc/NodeRegistrar`, which had regressed to opening raw
+`transaction { Nodes.* }` in the transport layer and hand-projecting a 20-field `NodeRow`.
 
-- **`create()` widened**, not duplicated: gained `totalRamMb`, `totalCpuMillicores`,
-  `agentVersion`, `lastSeenAt` (all defaulted so existing callers are untouched).
-- **`updateStatus(id, NodeStatus)`** (was `String`) — folds the `NodeStatus`
-  enum (`toDb()`) in at the seam. `identifyNode` maps via
-  `NodeStatus.fromDb(row.status)` instead of stringly `when`. Callers
-  `NodeService` `ACTIVE`/`REJECTED` converted.
-- **`updateLastSeen` gained `privateIp: String? = null`** to preserve
-  `identifyNode`'s inline privateIp write under the shared null-means-skip
-  contract.
-- **Behavior note (intentional):** `identifyNode` previously wrote
-  `agentVersion` unconditionally (empty string → cleared stored version).
-  `updateLastSeen`'s null-means-skip means an empty agentVersion no longer
-  clobbers a stored value — the shared method's contract (5+ metric callers) is
-  kept; the old clobber-on-empty was incidental.
-- **portRange:** `registerNode`'s inline insert never set port range (DB column
-  default). `ControlServiceImpl` now passes explicit `DEFAULT_PORT_RANGE_START/
-  END` constants mirroring the `Nodes` schema defaults; real range assignment
-  still happens at admin approval via `NodeService.updateNode`, unchanged.
-- See candidate 2, `improve-codebase-architecture` review 2026-07-05.
+- `register(bootstrapToken, metadata: NodeMetadata): RegisteredNode` — validates the bootstrap
+  token, mints a node key, inserts the Node entity (status PENDING), returns `(nodeId, rawKey)`.
+- `identify(rawKey, metadata): IdentifiedNode` — hashes the key, refreshes identity fields +
+  `lastSeenAt`, returns `(NodeStatus, nodeId?)` (`REJECTED`/null for an unknown key).
+- `requireActive(nodeId)` — throws `NodeNotActiveException(reason)` when the node is not ACTIVE.
+- `isActive(rawKey): Boolean`; `mintKey()` / `hashKey(raw)` (SHA-256 hex).
+- Reads via `NodeRepository`; writes via Exposed entities in its own `transaction {}` (ADR-0004
+  #4). `NodeStatus` replaces the stringly `"ACTIVE"`/`"PENDING"` checks.
+- **Transport maps at the edge:** `ControlServiceImpl` maps proto ↔ `NodeMetadata`/`RegisteredNode`/
+  `IdentifiedNode` and maps `NodeNotActiveException` → `StatusException(PERMISSION_DENIED)`;
+  `BulkDataServiceImpl` calls `isActive`. `NodeService.rotateToken` delegates to `mintKey()/hashKey()`.
+- Tested at the interface with H2 + `TestDatabase` (`NodeRegistrationServiceTest`).
+- **Supersedes** the earlier "NodeRepository seam — ControlServiceImpl" entry, which documented
+  `create()`/`updateStatus()`/`updateLastSeen()` write methods on `NodeRepository` — those were
+  removed by ADR-0004's write seam (repositories are read-only + behavioural ops). The old
+  `NodeRegistrarTest`'s "no live DB" claim was false (it wrote via raw transactions); that test is
+  deleted, along with the dead 20-field projection and `FakeNodeRepository.updateStatus`.
+- See candidate 2, `improve-codebase-architecture` review 2026-09-20.
 
 **Tier B (route/scheduler leaks → existing repos):**
 - `AuthRoutes` `lookupUser`/`lookupUserById` → `UserRepository` (new
@@ -561,6 +594,31 @@ The one module that turns a `ServerProvisionSpec` into a persisted **Server**. R
   warn-skipped, never self-referenced. Single-server import resolves against existing servers.
 - Injected into `ServersRoutes` and `ExportService`. `ServerService` keeps
   update/delete/resources/expiration.
+
+### PortAllocator (master)
+
+The one owner of host-port allocation on a node. Replaces the pure `pickFreePort` object plus two
+inline `firstOrNull { it !in usedPorts }` copies — the "read the node's range and used ports, then
+pick" step was duplicated across four sites with three different error types/messages.
+
+- `allocate(nodeId, preferred: Int? = null): Int` — reads the node's range via `NodeRepository` and
+  its used ports via `PortRepository`; returns `preferred` when free, else the first free port, else
+  throws `PortExhaustedException` (mapped to HTTP 409). The node's range is an implementation
+  detail — callers ask only for a port on a node.
+- `pickFreePort(start, end, used): Int?` stays a pure companion function (internal seam, directly
+  unit-tested).
+- **Four call sites cross it:** `ServerProvisioning.provision` (primary host port),
+  `MigrationCoordinator.allocateRsyncPort` (rsync port), `AssignTargetPortStep` (target host port,
+  `preferred = existing`), and `ServerExtraPortRepositoryImpl.createExtraPort` (extra port). The
+  first three previously inlined the pick; the fourth already used the pure function.
+- **Explicit-hostPort stays a validation, not an allocation:** `createExtraPort`'s "user named a
+  specific port" branch keeps its in-transaction collision check (`ConflictException`); only the
+  auto branch calls `allocate`. The PortRegistry PK `(nodeId, port, protocol)` is the backstop.
+- Injected via Koin (`single { PortAllocator(get(), get()) }`); `ServerProvisioning` and
+  `MigrationService` take `portAllocator` instead of `portRepository`.
+- Tested at the interface with `FakeNodeRepository` + an in-memory `PortRepository`
+  (`PortAllocatorTest`), plus the pure `pickFreePort` cases.
+- See candidate 3, `improve-codebase-architecture` review 2026-09-20.
 
 ### ContainerNames (common)
 

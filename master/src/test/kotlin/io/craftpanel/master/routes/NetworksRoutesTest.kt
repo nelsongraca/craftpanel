@@ -61,7 +61,7 @@ class NetworksRoutesTest :
                         nodeRepository = NodeRepositoryImpl(),
                         networkRepository = NetworkRepositoryImpl(),
                         settingsRepository = SettingsRepositoryImpl(),
-                        portRepository = repos.portRepository,
+                        portAllocator = createTestPortAllocator(repos.portRepository),
                         extraPortRepository = repos.extraPortRepository,
                         envVarsRepository = repos.envVarsRepository,
                         modRepository = repos.modRepository,

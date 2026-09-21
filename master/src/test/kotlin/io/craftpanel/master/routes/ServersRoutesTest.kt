@@ -51,7 +51,7 @@ class ServersRoutesTest :
             val lifecycle = ContainerLifecycle(
                 gateway = gateway,
                 modService = modService,
-                serverRepository = serverRepository,
+                serverIntent = ServerIntent(serverRepository),
                 envVarsRepository = repos.envVarsRepository
             )
             val nodeRepository = NodeRepositoryImpl()
@@ -59,12 +59,16 @@ class ServersRoutesTest :
                 settingsRepository = settingsRepository,
                 serverRepository = serverRepository
             )
+            val proxyPatchWriter = ProxyPatchWriter(
+                patchService = ProxyConfigPatchService(repos.proxyBackendRepository, serverRepository),
+                writeFile = { _, _, _ -> }
+            )
             val lifecycleService = ServerLifecycleService(
                 lifecycle = lifecycle,
                 serverRepository = serverRepository,
                 serverExposure = serverExposure,
-                proxyConfigPatchService = ProxyConfigPatchService(repos.proxyBackendRepository, serverRepository),
-                writeFile = { _, _, _ -> }
+                serverIntent = ServerIntent(serverRepository),
+                proxyPatchWriter = proxyPatchWriter
             )
             val exposureService = ServerExposureService(
                 dnsProvider = null,
@@ -85,7 +89,7 @@ class ServersRoutesTest :
                 nodeRepository = nodeRepository,
                 networkRepository = networkRepository,
                 settingsRepository = settingsRepository,
-                portRepository = repos.portRepository,
+                portAllocator = createTestPortAllocator(repos.portRepository),
                 extraPortRepository = repos.extraPortRepository,
                 envVarsRepository = repos.envVarsRepository,
                 modRepository = repos.modRepository,
@@ -929,7 +933,8 @@ class ServersRoutesTest :
                 val nodeId = createNode()
                 val serverId = createServer(nodeId)
                 transaction {
-                    Server.findById(serverId)?.let { it.dataDirName = "custom-dir" }
+                    Server.findById(serverId)
+                        ?.let { it.dataDirName = "custom-dir" }
                 }
                 val resp = client.patch("/api/servers/$serverId/data-dir") {
                     bearerAuth(tokenFor(userId))
@@ -974,7 +979,8 @@ class ServersRoutesTest :
                 val a = createServer(nodeId, "dir-a")
                 val b = createServer(nodeId, "dir-b")
                 transaction {
-                    Server.findById(a)?.let { it.dataDirName = "shared-dir" }
+                    Server.findById(a)
+                        ?.let { it.dataDirName = "shared-dir" }
                 }
                 val resp = client.patch("/api/servers/$b/data-dir") {
                     bearerAuth(tokenFor(userId))
@@ -1207,7 +1213,9 @@ class ServersRoutesTest :
                 gw.sent.size shouldBe 1
                 gw.sent[0].second.serverDesiredState.forceRestart shouldBe false
                 transaction {
-                    Servers.selectAll().where { Servers.id eq serverId }.first()[Servers.restartPending]
+                    Servers.selectAll()
+                        .where { Servers.id eq serverId }
+                        .first()[Servers.restartPending]
                 } shouldBe true
             }
         }

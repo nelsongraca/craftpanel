@@ -16,6 +16,7 @@ import io.craftpanel.master.service.ForbiddenException
 import io.craftpanel.master.service.NotFoundException
 import io.craftpanel.master.service.ProxyBackendService
 import io.craftpanel.master.service.ProxyConfigPatchService
+import io.craftpanel.master.service.ProxyPatchWriter
 import io.craftpanel.master.service.ProxySettingsResponse
 import io.craftpanel.master.service.ProxySettingsService
 import io.craftpanel.master.service.UnprocessableException
@@ -51,9 +52,9 @@ class ConfigRoutesTest :
             envVarsRepository = repos.envVarsRepository,
             cipher = SecretCipher(ByteArray(32) { 0x42 })
         ) { _, _, _ -> }
-        val proxyBackendService = ProxyBackendService(repos.serverRepository, repos.proxyBackendRepository, proxyConfigPatchService, backendForwardingService) { _, _, _ -> }
+        val proxyBackendService = ProxyBackendService(repos.serverRepository, repos.proxyBackendRepository, ProxyPatchWriter(proxyConfigPatchService) { _, _, _ -> }, backendForwardingService)
         val envVarsService = EnvVarsService(repos.serverRepository, repos.envVarsRepository)
-        val proxySettingsService = ProxySettingsService(repos.serverRepository, proxyConfigPatchService, backendForwardingService) { _, _, _ -> }
+        val proxySettingsService = ProxySettingsService(repos.serverRepository, ProxyPatchWriter(proxyConfigPatchService) { _, _, _ -> }, backendForwardingService)
 
         val jwtConfig = JwtConfig(
             secret = "test-secret-that-is-at-least-32-characters!!",
@@ -102,7 +103,9 @@ class ConfigRoutesTest :
         }
 
         fun assignAdmin(userId: Uuid) = transaction {
-            val groupId = Groups.selectAll().where { Groups.name eq "Server Admin" }.first()[Groups.id]
+            val groupId = Groups.selectAll()
+                .where { Groups.name eq "Server Admin" }
+                .first()[Groups.id]
             UserGroupAssignments.insert {
                 it[UserGroupAssignments.userId] = userId
                 it[UserGroupAssignments.groupId] = groupId

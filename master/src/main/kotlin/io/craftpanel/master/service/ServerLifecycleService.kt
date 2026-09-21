@@ -1,13 +1,10 @@
 package io.craftpanel.master.service
 
-import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.ServerRepository
-import io.craftpanel.master.service.repo.ServerView
 import io.craftpanel.master.service.repo.disabledReason
 import io.craftpanel.master.service.repo.isDisabled
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.uuid.Uuid
 
 /**
@@ -20,8 +17,8 @@ class ServerLifecycleService(
     private val lifecycle: ContainerLifecycle,
     private val serverRepository: ServerRepository,
     private val serverExposure: ServerExposure,
-    private val proxyConfigPatchService: ProxyConfigPatchService,
-    private val writeFile: suspend (Uuid, String, ByteArray) -> Unit
+    private val serverIntent: ServerIntent,
+    private val proxyPatchWriter: ProxyPatchWriter
 ) {
 
     suspend fun startServer(id: Uuid) {
@@ -37,57 +34,36 @@ class ServerLifecycleService(
         val publicHostname = serverExposure.mcRouterLabel(serverRow)
         // Write the proxy patch before pushing intent: a failure here must surface loudly and leave
         // the prior intent untouched, not strand the server at a running intent with no process starting.
-        writeProxyPatch(serverRow)
+        proxyPatchWriter.write(serverRow)
         // Re-issuing a start while intent is already RUNNING means recovery from a failed/crash-looped
         // container — force a restart so the agent retries past its exhausted crash budget.
         val forceRestart = desired == DesiredStatus.RUNNING
-        val previous = serverRow.desiredStatus
-        setDesiredStatus(id, DesiredStatus.RUNNING.toDb())
-        if (!lifecycle.sendDesiredState(serverRow, DesiredStatus.RUNNING, forceRestart = forceRestart, publicHostname = publicHostname)) {
-            setDesiredStatus(id, previous)
-            throw BadGatewayException("Agent not connected")
+        serverIntent.withIntent(id, DesiredStatus.RUNNING) {
+            lifecycle.sendDesiredState(serverRow, DesiredStatus.RUNNING, forceRestart = forceRestart, publicHostname = publicHostname)
         }
     }
 
-    fun stopServer(id: Uuid) = requestStop(id, force = false)
+    suspend fun stopServer(id: Uuid) = requestStop(id, force = false)
 
-    fun forceStopServer(id: Uuid) = requestStop(id, force = true)
+    suspend fun forceStopServer(id: Uuid) = requestStop(id, force = true)
 
     suspend fun restartServer(id: Uuid) {
         val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
         if (ServerStatus.fromDb(serverRow.status).isStopped) throw ConflictException("Server is not running")
         if (serverRow.isDisabled()) throw ConflictException(serverRow.disabledReason())
-        writeProxyPatch(serverRow)
-        val previous = serverRow.desiredStatus
-        setDesiredStatus(id, DesiredStatus.RUNNING.toDb())
-        if (!lifecycle.sendDesiredState(serverRow, DesiredStatus.RUNNING, forceRestart = true, publicHostname = serverExposure.mcRouterLabel(serverRow))) {
-            setDesiredStatus(id, previous)
-            throw BadGatewayException("Agent not connected")
+        proxyPatchWriter.write(serverRow)
+        serverIntent.withIntent(id, DesiredStatus.RUNNING) {
+            lifecycle.sendDesiredState(serverRow, DesiredStatus.RUNNING, forceRestart = true, publicHostname = serverExposure.mcRouterLabel(serverRow))
         }
     }
 
-    private fun requestStop(id: Uuid, force: Boolean) {
+    private suspend fun requestStop(id: Uuid, force: Boolean) {
         val serverRow = serverRepository.findById(id) ?: throw NotFoundException("Server not found")
         if (ServerStatus.fromDb(serverRow.status) == ServerStatus.STOPPED) {
             throw ConflictException("Server is already stopped")
         }
-        val previous = serverRow.desiredStatus
-        setDesiredStatus(id, DesiredStatus.STOPPED.toDb())
-        if (!lifecycle.sendDesiredState(serverRow, DesiredStatus.STOPPED, force = force)) {
-            setDesiredStatus(id, previous)
-            throw BadGatewayException("Agent not connected")
+        serverIntent.withIntent(id, DesiredStatus.STOPPED) {
+            lifecycle.sendDesiredState(serverRow, DesiredStatus.STOPPED, force = force)
         }
-    }
-
-    private fun setDesiredStatus(id: Uuid, value: String?) {
-        transaction { Server.findById(id)?.let { it.desiredStatus = value } }
-    }
-
-    private suspend fun writeProxyPatch(server: ServerView) {
-        if (!server.serverType.isProxy) return
-        val patch = proxyConfigPatchService.generatePatch(server.id) ?: return
-        // writeFile's path is resolved relative to the server's data root (bind-mounted to
-        // container /server), which IS PATCH_DEFINITIONS' /server — so no dataContainerPath prefix here.
-        writeFile(server.id, "craftpanel-patch.json", patch.toByteArray())
     }
 }

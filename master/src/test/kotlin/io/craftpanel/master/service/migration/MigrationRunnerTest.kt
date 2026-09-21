@@ -109,7 +109,7 @@ class MigrationRunnerTest :
             coord = MigrationCoordinator(
                 migrationRepository = repos.migrationRepository,
                 serverRepository = repos.serverRepository,
-                portRepository = repos.portRepository,
+                portAllocator = createTestPortAllocator(repos.portRepository),
                 proxyBackendRepository = repos.proxyBackendRepository,
                 nodeRepository = NodeRepositoryImpl(),
                 gateway = TestAgentGateway(agentEvents = MutableSharedFlow()),
@@ -117,7 +117,7 @@ class MigrationRunnerTest :
                 lifecycle = ContainerLifecycle(
                     gateway = TestAgentGateway(),
                     modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
-                    serverRepository = repos.serverRepository,
+                    serverIntent = ServerIntent(repos.serverRepository),
                     envVarsRepository = repos.envVarsRepository
                 ),
                 serverExposure = ServerExposure(SettingsRepositoryImpl(), repos.serverRepository),
@@ -222,7 +222,7 @@ class MigrationRunnerTest :
                 }
 
                 MigrationRunner(listOf(failing), plan, coord).run()
-                val usedPorts = coord.portRepository.findUsedPortsOnNode(plan.targetNodeId)
+                val usedPorts = PortRepositoryImpl().findUsedPortsOnNode(plan.targetNodeId)
                 usedPorts shouldBe emptyList()
             }
         }
@@ -246,7 +246,7 @@ class MigrationRunnerTest :
                 val fakeCoord = object : MigrationCoordinator(
                     migrationRepository = coord.migrationRepository,
                     serverRepository = coord.serverRepository,
-                    portRepository = coord.portRepository,
+                    portAllocator = coord.portAllocator,
                     proxyBackendRepository = coord.proxyBackendRepository,
                     nodeRepository = coord.nodeRepository,
                     gateway = coord.gateway,

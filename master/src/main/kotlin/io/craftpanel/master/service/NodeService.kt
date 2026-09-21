@@ -4,14 +4,11 @@ import io.craftpanel.master.database.entity.Node
 import io.craftpanel.master.domain.NodeHealth
 import io.craftpanel.master.domain.NodeStatus
 import io.craftpanel.master.service.repo.*
-import io.craftpanel.master.util.CryptoUtils
 import io.craftpanel.proto.masterMessage
 import io.craftpanel.proto.shutdownCommand
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import org.jetbrains.exposed.v1.jdbc.transactions.transaction
-import java.security.MessageDigest
-import java.util.*
 
 @Serializable
 data class NodeResponse(
@@ -57,7 +54,12 @@ data class NodeMetricsResponse(
     @SerialName("disk_total_bytes") val diskTotalBytes: List<Long>
 )
 
-class NodeService(private val gateway: AgentGateway, private val nodeRepository: NodeRepository, private val serverRepository: ServerRepository) {
+class NodeService(
+    private val gateway: AgentGateway,
+    private val nodeRepository: NodeRepository,
+    private val serverRepository: ServerRepository,
+    private val nodeRegistrationService: NodeRegistrationService
+) {
 
     fun listNodes(): List<NodeResponse> = nodeRepository.listAll()
         .map { node ->
@@ -96,8 +98,8 @@ class NodeService(private val gateway: AgentGateway, private val nodeRepository:
 
     fun rotateToken(id: kotlin.uuid.Uuid): String {
         if (nodeRepository.findById(id) == null) throw NotFoundException("Node not found")
-        val raw = generateNodeKey()
-        val hash = sha256Hex(raw)
+        val raw = nodeRegistrationService.mintKey()
+        val hash = nodeRegistrationService.hashKey(raw)
         transaction {
             Node.findById(id)
                 ?.let { it.tokenHash = hash }
@@ -176,11 +178,3 @@ private fun NodeRow.toNodeResponse(allocatedRamMb: Int, allocatedCpuMillicores: 
     createdAt = createdAt,
     updatedAt = updatedAt
 )
-
-private fun generateNodeKey(): String = CryptoUtils.generateToken(32)
-
-private fun sha256Hex(input: String): String = HexFormat.of()
-    .formatHex(
-        MessageDigest.getInstance("SHA-256")
-            .digest(input.toByteArray())
-    )

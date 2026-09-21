@@ -3,7 +3,7 @@ package io.craftpanel.master.grpc
 import io.craftpanel.master.TestAgentGateway
 import io.craftpanel.master.TestDatabase
 import io.craftpanel.master.TestRepositories
-import io.craftpanel.master.createTestNodeRegistrar
+import io.craftpanel.master.createTestNodeRegistrationService
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.grpc.handlers.*
@@ -45,7 +45,7 @@ class DataServiceProxyTest :
             val dataOpResponseHandler = DataOpResponseHandler(dataOpContext)
             val controlSvc = ControlServiceImpl(
                 nodeStateReconciler = reconciler,
-                nodeRegistrar = createTestNodeRegistrar(nodeRepository = nodeRepository),
+                nodeRegistrationService = createTestNodeRegistrationService(nodeRepository = nodeRepository),
                 agentEventsFlow = agentEvents,
                 dataOpContext = dataOpContext,
                 nodeStateHandler = nodeStateHandler,
@@ -64,7 +64,7 @@ class DataServiceProxyTest :
                 { nodeId, msg -> controlSvc.sendToNode(nodeId, msg) },
                 { nodeId, msg -> controlSvc.sendToNodeSuspending(nodeId, msg) }
             )
-            proxy = DataServiceProxy(agentDataOps, BulkDataServiceImpl(createTestNodeRegistrar(nodeRepository = nodeRepository)), repos.serverRepository)
+            proxy = DataServiceProxy(agentDataOps, BulkDataServiceImpl(createTestNodeRegistrationService(nodeRepository = nodeRepository)), repos.serverRepository)
         }
 
         fun createNode(): Uuid = transaction {

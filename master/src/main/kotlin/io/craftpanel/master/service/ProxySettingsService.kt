@@ -1,7 +1,6 @@
 package io.craftpanel.master.service
 
 import io.craftpanel.master.database.entity.Server
-import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.domain.ServerType
 import io.craftpanel.master.service.repo.ServerRepository
 import kotlinx.serialization.SerialName
@@ -23,16 +22,15 @@ data class UpdateProxySettingsRequest(val motd: String?, @SerialName("max_player
 /**
  * Proxy-side settings (MOTD, max players, forwarding mode) stored on the proxy
  * server row. Persisting them marks a restart pending and, if the proxy is
- * currently running, writes the refreshed patch immediately via [ProxyConfigPatchService].
+ * currently running, writes the refreshed patch immediately via [ProxyPatchWriter].
  * A forwarding-mode change also fans out matching config to every eligible backend
  * via [BackendForwardingService] (#44) — backends that can't support the mode are
  * warn-skipped and surfaced back to the caller.
  */
 class ProxySettingsService(
     private val serverRepository: ServerRepository,
-    private val proxyConfigPatchService: ProxyConfigPatchService,
-    private val backendForwardingService: BackendForwardingService,
-    private val writeFile: suspend (Uuid, String, ByteArray) -> Unit
+    private val proxyPatchWriter: ProxyPatchWriter,
+    private val backendForwardingService: BackendForwardingService
 ) {
 
     fun getSettings(proxyServerId: Uuid): ProxySettingsResponse {
@@ -62,20 +60,16 @@ class ProxySettingsService(
             e.proxyForwardingMode = mode
             e.restartPending = true
         }
-        writePatchIfRunning(proxyServerId, row.status)
+        proxyPatchWriter.writeIfRunning(row)
 
         val warnings = if (mode != null) {
-            backendForwardingService.applyToAllBackends(proxyServerId, mode).map { it.reason }
-        } else {
+            backendForwardingService.applyToAllBackends(proxyServerId, mode)
+                .map { it.reason }
+        }
+        else {
             emptyList()
         }
         return getSettings(proxyServerId).copy(forwardingWarnings = warnings)
-    }
-
-    private suspend fun writePatchIfRunning(proxyServerId: Uuid, status: String) {
-        if (ServerStatus.fromDb(status) != ServerStatus.HEALTHY) return
-        val patch = proxyConfigPatchService.generatePatch(proxyServerId) ?: return
-        writeFile(proxyServerId, "craftpanel-patch.json", patch.toByteArray())
     }
 
     private fun validateForwardingMode(serverType: ServerType, mode: String?) {
@@ -87,6 +81,7 @@ class ProxySettingsService(
     }
 
     companion object {
+
         val VELOCITY_FORWARDING_MODES = setOf("NONE", "LEGACY", "MODERN", "BUNGEEGUARD")
         val BUNGEE_FORWARDING_MODES = setOf("LEGACY", "OFF")
     }

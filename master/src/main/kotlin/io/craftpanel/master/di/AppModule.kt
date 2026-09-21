@@ -27,7 +27,8 @@ val appModule = module {
     single<ModRepository> { ModRepositoryImpl() }
     single<MigrationRepository> { MigrationRepositoryImpl() }
     single<PortRepository> { PortRepositoryImpl() }
-    single<ServerExtraPortRepository> { ServerExtraPortRepositoryImpl() }
+    single { PortAllocator(nodeRepository = get(), portRepository = get()) }
+    single<ServerExtraPortRepository> { ServerExtraPortRepositoryImpl(get()) }
     single<BackupRepository> { BackupRepositoryImpl() }
     single<ProxyBackendRepository> { ProxyBackendRepositoryImpl() }
     single<ContainerMetricsRepository> { ContainerMetricsRepositoryImpl() }
@@ -51,7 +52,7 @@ val appModule = module {
     // Shared data op context (passed to AgentDataOps and DataOpResponseHandler)
     single { DataOpContext(ConcurrentHashMap(), ConcurrentHashMap()) }
 
-    single { NodeRegistrar(nodeConfig = get<AppConfig>().node, nodeRepository = get()) }
+    single { NodeRegistrationService(nodeConfig = get<AppConfig>().node, nodeRepository = get()) }
     single {
         AgentDataOps(
             dataOpContext = get(),
@@ -81,7 +82,7 @@ val appModule = module {
     single {
         ControlServiceImpl(
             nodeStateReconciler = get(),
-            nodeRegistrar = get(),
+            nodeRegistrationService = get(),
             agentEventsFlow = get(),
             dataOpContext = get(),
             nodeStateHandler = get(),
@@ -130,7 +131,7 @@ val appModule = module {
     single { AssignmentService(userRepository = get(), groupRepository = get(), serverRepository = get(), networkRepository = get()) }
     single { SystemService(settingsRepository = get()) }
     single { BrandingService(settingsRepository = get()) }
-    single { NodeService(gateway = get<AgentGateway>(), nodeRepository = get(), serverRepository = get()) }
+    single { NodeService(gateway = get<AgentGateway>(), nodeRepository = get(), serverRepository = get(), nodeRegistrationService = get()) }
     single {
         val endpoint = get<AppConfig>().docker.endpoint
         val dockerClient = if (endpoint.isNotEmpty()) MasterDockerClient.create(endpoint) else null
@@ -158,6 +159,11 @@ val appModule = module {
         val s = get<SystemService>().getSettings().settings
         ImagesConfig(s.imageMinecraft, s.imageProxy)
     }
+    single { ServerIntent(serverRepository = get()) }
+    single {
+        val dataServiceProxy = get<DataServiceProxy>()
+        ProxyPatchWriter(patchService = get(), writeFile = dataServiceProxy::writeFile)
+    }
     single {
         val budgetProvider: () -> Pair<Int, Long> = {
             val s = get<SystemService>().getSettings().settings
@@ -166,7 +172,7 @@ val appModule = module {
         ContainerLifecycle(
             gateway = get<AgentGateway>(),
             modService = get(),
-            serverRepository = get(),
+            serverIntent = get(),
             envVarsRepository = get(),
             extraPortRepository = get(),
             images = get(),
@@ -175,13 +181,12 @@ val appModule = module {
         )
     }
     single {
-        val dataServiceProxy = get<DataServiceProxy>()
         ServerLifecycleService(
             lifecycle = get(),
             serverRepository = get(),
             serverExposure = get(),
-            proxyConfigPatchService = get(),
-            writeFile = dataServiceProxy::writeFile
+            serverIntent = get(),
+            proxyPatchWriter = get()
         )
     }
     single {
@@ -212,7 +217,7 @@ val appModule = module {
             nodeRepository = get(),
             networkRepository = get(),
             settingsRepository = get(),
-            portRepository = get(),
+            portAllocator = get(),
             extraPortRepository = get(),
             envVarsRepository = get(),
             modRepository = get(),
@@ -230,7 +235,7 @@ val appModule = module {
         )
     }
     single { BackupService(get<AgentGateway>(), get(), get(), get(), get(named("containerPrefix"))) }
-    single { DesiredStateSyncService(lifecycle = get(), serverRepository = get()) }
+    single { DesiredStateSyncService(lifecycle = get(), serverRepository = get(), serverIntent = get()) }
     single {
         SecretCipher(
             java.util.Base64.getDecoder()
@@ -247,14 +252,8 @@ val appModule = module {
             writeFile = dataServiceProxy::writeFile
         )
     }
-    single {
-        val dataServiceProxy = get<DataServiceProxy>()
-        ProxyBackendService(get(), get(), get(), get(), writeFile = dataServiceProxy::writeFile)
-    }
-    single {
-        val dataServiceProxy = get<DataServiceProxy>()
-        ProxySettingsService(get(), get(), get(), writeFile = dataServiceProxy::writeFile)
-    }
+    single { ProxyBackendService(get(), get(), get(), get()) }
+    single { ProxySettingsService(get(), get(), get()) }
     single { EnvVarsService(get(), get()) }
     single { DashboardService(get(), get(), get(), get(), get()) }
     single {
@@ -274,7 +273,7 @@ val appModule = module {
         MigrationService(
             migrationRepository = get<MigrationRepository>(),
             serverRepository = get<ServerRepository>(),
-            portRepository = get<PortRepository>(),
+            portAllocator = get(),
             proxyBackendRepository = get<ProxyBackendRepository>(),
             nodeRepository = get<NodeRepository>(),
             gateway = get<AgentGateway>(),

@@ -29,7 +29,7 @@ import kotlin.uuid.Uuid
 open class MigrationCoordinator(
     val migrationRepository: MigrationRepository,
     val serverRepository: ServerRepository,
-    val portRepository: PortRepository,
+    val portAllocator: PortAllocator,
     val proxyBackendRepository: ProxyBackendRepository,
     val nodeRepository: NodeRepository,
     val gateway: AgentGateway,
@@ -147,13 +147,7 @@ open class MigrationCoordinator(
     }
 
     open fun allocateRsyncPort(plan: MigrationPlan): Int {
-        val usedPorts = portRepository.findUsedPortsOnNode(plan.targetNodeId)
-            .toSet()
-        val port = (plan.targetNodeRow.portRangeStart..plan.targetNodeRow.portRangeEnd)
-            .firstOrNull { it !in usedPorts }
-            ?: throw PortExhaustedException(
-                "No free ports in range ${plan.targetNodeRow.portRangeStart}-${plan.targetNodeRow.portRangeEnd} on node ${plan.targetNodeId}"
-            )
+        val port = portAllocator.allocate(plan.targetNodeId)
         transaction {
             PortRegistry.insert {
                 it[PortRegistry.nodeId] = EntityID(plan.targetNodeId, Nodes)

@@ -6,7 +6,6 @@ import io.craftpanel.master.database.schema.PortRegistry
 import io.craftpanel.master.database.schema.ServerExtraPorts
 import io.craftpanel.master.database.schema.Servers
 import io.craftpanel.master.service.ConflictException
-import io.craftpanel.master.service.NotFoundException
 import io.craftpanel.master.service.PortAllocator
 import io.craftpanel.master.service.repo.ServerExtraPortRepository
 import io.craftpanel.master.service.repo.ServerExtraPortRow
@@ -24,7 +23,7 @@ import org.jetbrains.exposed.v1.jdbc.update
 import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
-class ServerExtraPortRepositoryImpl : ServerExtraPortRepository {
+class ServerExtraPortRepositoryImpl(private val portAllocator: PortAllocator) : ServerExtraPortRepository {
 
     override fun findByServerId(serverId: Uuid): List<ServerExtraPortRow> = transaction {
         ServerExtraPort.find { ServerExtraPorts.serverId eq serverId }
@@ -34,24 +33,17 @@ class ServerExtraPortRepositoryImpl : ServerExtraPortRepository {
     override fun createExtraPort(serverId: Uuid, nodeId: Uuid, name: String, containerPort: Int, hostPort: Int?, protocol: String): ServerExtraPortRow = transaction {
         val protoUpper = protocol.uppercase().let { if (it == "UDP") "UDP" else "TCP" }
 
-        val nodeRow = Nodes.selectAll().where { Nodes.id eq nodeId }.singleOrNull()
-            ?: throw NotFoundException("Node not found")
-        val rangeStart = nodeRow[Nodes.portRangeStart]
-        val rangeEnd = nodeRow[Nodes.portRangeEnd]
-
-        val usedPorts = PortRegistry.selectAll()
-            .where { PortRegistry.nodeId eq nodeId }
-            .map { it[PortRegistry.port] }
-            .toSet()
-
         val allocatedHostPort = if (hostPort != null && hostPort > 0) {
+            val usedPorts = PortRegistry.selectAll()
+                .where { PortRegistry.nodeId eq nodeId }
+                .map { it[PortRegistry.port] }
+                .toSet()
             if (usedPorts.contains(hostPort)) {
                 throw ConflictException("Port $hostPort is already in use on this node")
             }
             hostPort
         } else {
-            PortAllocator.pickFreePort(rangeStart, rangeEnd, usedPorts)
-                ?: throw ConflictException("No free ports available on node")
+            portAllocator.allocate(nodeId)
         }
 
         val entity = ServerExtraPort.new {

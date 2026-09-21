@@ -28,8 +28,8 @@ class FilesRoutesTest :
         )
         val jwtManager = JwtManager(jwtConfig)
         val repos = TestRepositories()
-        val noopNodeRegistrar = createTestNodeRegistrar()
-        val noopProxy = DataServiceProxy(createTestAgentDataOps(), BulkDataServiceImpl(noopNodeRegistrar), repos.serverRepository)
+        val noopNodeRegistrationService = createTestNodeRegistrationService()
+        val noopProxy = DataServiceProxy(createTestAgentDataOps(), BulkDataServiceImpl(noopNodeRegistrationService), repos.serverRepository)
 
         beforeTest {
             TestDatabase.initIfNeeded()

@@ -192,7 +192,7 @@ class ServerSchedulerTest :
 
         test("tick stops expired running servers, leaves others untouched") {
             val lifecycle = mockk<io.craftpanel.master.service.ServerLifecycleService>()
-            every { lifecycle.stopServer(any()) } returns Unit
+            coEvery { lifecycle.stopServer(any()) } returns Unit
 
             val nodeId = createNode()
             val expiredRunning = createServerWithState(nodeId, "HEALTHY", kotlinx.datetime.LocalDateTime(2020, 1, 1, 0, 0, 0))
@@ -206,11 +206,11 @@ class ServerSchedulerTest :
                 ServerScheduler(emptyMap(), this, serverRepository, repos.serverJobRepository, lifecycle).tick(now)
             }
 
-            verify(exactly = 1) { lifecycle.stopServer(expiredRunning) }
-            verify(exactly = 1) { lifecycle.stopServer(expiredStarting) }
-            verify(exactly = 0) { lifecycle.stopServer(expiredStopped) }
-            verify(exactly = 0) { lifecycle.stopServer(aliveRunning) }
-            verify(exactly = 0) { lifecycle.stopServer(noExpiry) }
+            coVerify(exactly = 1) { lifecycle.stopServer(expiredRunning) }
+            coVerify(exactly = 1) { lifecycle.stopServer(expiredStarting) }
+            coVerify(exactly = 0) { lifecycle.stopServer(expiredStopped) }
+            coVerify(exactly = 0) { lifecycle.stopServer(aliveRunning) }
+            coVerify(exactly = 0) { lifecycle.stopServer(noExpiry) }
         }
 
         // ── start/stop ───────────────────────────────────────────────────────────

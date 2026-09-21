@@ -4,7 +4,6 @@ import io.craftpanel.master.database.entity.ProxyBackend
 import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.ProxyBackends
 import io.craftpanel.master.database.schema.Servers
-import io.craftpanel.master.domain.ServerStatus
 import io.craftpanel.master.service.repo.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
@@ -31,9 +30,8 @@ data class PutProxyBackendsRequest(val backends: List<BackendInput>)
 class ProxyBackendService(
     private val serverRepository: ServerRepository,
     private val proxyBackendRepository: ProxyBackendRepository,
-    private val proxyConfigPatchService: ProxyConfigPatchService,
-    private val backendForwardingService: BackendForwardingService,
-    private val writeFile: suspend (Uuid, String, ByteArray) -> Unit
+    private val proxyPatchWriter: ProxyPatchWriter,
+    private val backendForwardingService: BackendForwardingService
 ) {
 
     fun listBackends(proxyServerId: Uuid): ProxyBackendListResponse {
@@ -68,7 +66,8 @@ class ProxyBackendService(
         }
 
         transaction {
-            ProxyBackend.find { ProxyBackends.proxyServerId eq proxyServerId }.forEach { it.delete() }
+            ProxyBackend.find { ProxyBackends.proxyServerId eq proxyServerId }
+                .forEach { it.delete() }
             inputs.forEach { b ->
                 ProxyBackend.new {
                     this.proxyServerId = EntityID(proxyServerId, Servers)
@@ -77,21 +76,17 @@ class ProxyBackendService(
                     this.order = b.order
                 }
             }
-            Server.findById(proxyServerId)?.let { it.restartPending = true }
+            Server.findById(proxyServerId)
+                ?.let { it.restartPending = true }
         }
-        writePatchIfRunning(serverRow.id, serverRow.status)
+        proxyPatchWriter.writeIfRunning(serverRow)
 
         // New/changed backend set on an already-forwarding proxy needs matching config pushed (#44).
         val warnings = serverRow.proxyForwardingMode?.let { mode ->
-            backendForwardingService.applyToAllBackends(proxyServerId, mode).map { it.reason }
+            backendForwardingService.applyToAllBackends(proxyServerId, mode)
+                .map { it.reason }
         } ?: emptyList()
         return listBackends(proxyServerId).copy(forwardingWarnings = warnings)
-    }
-
-    private suspend fun writePatchIfRunning(proxyServerId: Uuid, status: String) {
-        if (ServerStatus.fromDb(status) != ServerStatus.HEALTHY) return
-        val patch = proxyConfigPatchService.generatePatch(proxyServerId) ?: return
-        writeFile(proxyServerId, "craftpanel-patch.json", patch.toByteArray())
     }
 }
 

@@ -2,7 +2,6 @@ package io.craftpanel.master.service
 
 import io.craftpanel.common.ContainerNames
 import io.craftpanel.master.config.ImagesConfig
-import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.domain.AgentEvent
 import io.craftpanel.master.domain.DesiredStatus
 import io.craftpanel.master.domain.ServerStatus
@@ -12,7 +11,6 @@ import io.craftpanel.master.service.repo.impl.*
 import io.craftpanel.proto.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.filterIsInstance
-import org.jetbrains.exposed.v1.jdbc.transactions.transaction
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.uuid.Uuid
@@ -20,9 +18,9 @@ import kotlin.uuid.Uuid
 class ContainerLifecycle(
     private val gateway: AgentGateway,
     private val modService: ModService,
-    private val serverRepository: ServerRepository,
+    private val serverIntent: ServerIntent,
     private val envVarsRepository: EnvVarsRepository,
-    private val extraPortRepository: ServerExtraPortRepository = ServerExtraPortRepositoryImpl(),
+    private val extraPortRepository: ServerExtraPortRepository = ServerExtraPortRepositoryImpl(PortAllocator(NodeRepositoryImpl(), PortRepositoryImpl())),
     private val images: ImagesConfig = ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy"),
     private val containerNamePrefix: String = "craftpanel",
     private val restartBudgetProvider: () -> Pair<Int, Long> = { 5 to 600L },
@@ -64,56 +62,35 @@ class ContainerLifecycle(
         )
     }
 
-    private fun setDesiredStatus(id: Uuid, value: String?) {
-        transaction { Server.findById(id)?.let { it.desiredStatus = value } }
-    }
-
-    /**
-     * Persists master's intent for a server. Used by reconciliation when a row has no recorded
-     * intent and it is re-derived from the agent-reported status (see [DesiredStateSyncService]).
-     * The public counterpart of [setDesiredStatus]; keeps the raw-null write private.
-     */
-    fun persistDesiredStatus(serverId: Uuid, desired: DesiredStatus) {
-        setDesiredStatus(serverId, desired.toDb())
-    }
-
     // ── Await-based primitives (used by MigrationService for cross-node relocation) ─
 
     /**
-     * Sets desired RUNNING and waits for the agent to report HEALTHY. Reverts the desired status on
-     * failure so a failed migration step does not strand the server in an unstartable intent.
+     * Sets desired RUNNING and waits for the agent to report HEALTHY. [ServerIntent] reverts the
+     * desired status on failure so a failed migration step does not strand an unstartable intent.
      */
     suspend fun start(server: ServerView, publicHostname: String? = null, nodeId: String = server.nodeId.toString()) {
         ensureStartable(server)
         val id = server.id
-        val previous = serverRepository.findById(id)?.desiredStatus
-        setDesiredStatus(id, DesiredStatus.RUNNING.toDb())
-        try {
+        serverIntent.withIntent(id, DesiredStatus.RUNNING) {
             awaitStatus(id.toString(), ServerStatus.HEALTHY, startTimeout) {
                 if (!sendDesiredState(server, DesiredStatus.RUNNING, nodeId, publicHostname = publicHostname)) {
                     throw BadGatewayException("Agent not connected")
                 }
             }
-        } catch (e: Exception) {
-            setDesiredStatus(id, previous)
-            throw e
+            true
         }
     }
 
-    /** Sets desired STOPPED and waits for the agent to report STOPPED. Reverts the intent on failure. */
+    /** Sets desired STOPPED and waits for the agent to report STOPPED. [ServerIntent] reverts the intent on failure. */
     suspend fun stop(server: ServerView, nodeId: String) {
         val id = server.id
-        val previous = serverRepository.findById(id)?.desiredStatus
-        setDesiredStatus(id, DesiredStatus.STOPPED.toDb())
-        try {
+        serverIntent.withIntent(id, DesiredStatus.STOPPED) {
             awaitStatus(id.toString(), ServerStatus.STOPPED, stopTimeout) {
                 if (!sendDesiredState(server, DesiredStatus.STOPPED, nodeId)) {
                     throw BadGatewayException("Agent not connected")
                 }
             }
-        } catch (e: Exception) {
-            setDesiredStatus(id, previous)
-            throw e
+            true
         }
     }
 
@@ -266,7 +243,8 @@ class ContainerLifecycle(
                 ?: throw ContainerLifecycleException(
                     "step timed out after $timeout waiting for $expected (server $serverId)"
                 )
-        } finally {
+        }
+        finally {
             job.cancel()
         }
     }

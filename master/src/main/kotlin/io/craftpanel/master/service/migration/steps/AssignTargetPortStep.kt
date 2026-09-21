@@ -4,7 +4,6 @@ import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.Nodes
 import io.craftpanel.master.database.schema.PortRegistry
 import io.craftpanel.master.database.schema.Servers
-import io.craftpanel.master.service.PortExhaustedException
 import io.craftpanel.master.service.migration.*
 import org.jetbrains.exposed.v1.core.*
 import org.jetbrains.exposed.v1.core.dao.id.EntityID
@@ -19,16 +18,7 @@ class AssignTargetPortStep : MigrationStep {
     override suspend fun execute(plan: MigrationPlan, coord: MigrationCoordinator): StepResult {
         return try {
             val existingPort = plan.serverRow.hostPort
-            val usedPorts = coord.portRepository.findUsedPortsOnNode(plan.targetNodeId)
-                .toSet()
-
-            plan.assignedPort = if (existingPort in usedPorts) {
-                val range = plan.targetNodeRow.portRangeStart..plan.targetNodeRow.portRangeEnd
-                range.firstOrNull { it !in usedPorts }
-                    ?: throw PortExhaustedException("No free ports on target node")
-            } else {
-                existingPort
-            }
+            plan.assignedPort = coord.portAllocator.allocate(plan.targetNodeId, preferred = existingPort)
 
             transaction { PortRegistry.deleteWhere { PortRegistry.serverId eq plan.serverId } }
             transaction {

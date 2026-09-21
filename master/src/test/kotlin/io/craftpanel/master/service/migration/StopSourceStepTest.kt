@@ -108,7 +108,7 @@ class StopSourceStepTest :
             coord = MigrationCoordinator(
                 migrationRepository = repos.migrationRepository,
                 serverRepository = repos.serverRepository,
-                portRepository = repos.portRepository,
+                portAllocator = createTestPortAllocator(repos.portRepository),
                 proxyBackendRepository = repos.proxyBackendRepository,
                 nodeRepository = NodeRepositoryImpl(),
                 gateway = TestAgentGateway(agentEvents = MutableSharedFlow()),
@@ -116,7 +116,7 @@ class StopSourceStepTest :
                 lifecycle = ContainerLifecycle(
                     gateway = TestAgentGateway(),
                     modService = ModService(modRepository = repos.modRepository, serverRepository = repos.serverRepository),
-                    serverRepository = repos.serverRepository,
+                    serverIntent = ServerIntent(repos.serverRepository),
                     envVarsRepository = repos.envVarsRepository
                 ),
                 serverExposure = ServerExposure(SettingsRepositoryImpl(), repos.serverRepository),

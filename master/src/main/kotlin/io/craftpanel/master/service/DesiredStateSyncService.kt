@@ -16,7 +16,12 @@ import kotlin.uuid.Uuid
  * (`RUNNING`) and persisted before the push — otherwise such rows are skipped silently and the
  * agent never converges (a stopped container then stays down until a human intervenes).
  */
-class DesiredStateSyncService(private val lifecycle: ContainerLifecycle, private val serverRepository: ServerRepository) {
+class DesiredStateSyncService(
+    private val lifecycle: ContainerLifecycle,
+    private val serverRepository: ServerRepository,
+    private val serverIntent: ServerIntent
+) {
+
     private val log = LoggerFactory.getLogger(DesiredStateSyncService::class.java)
 
     /** Push desired-state envelopes for every server on [nodeId] that has a non-null [DesiredStatus]. */
@@ -38,7 +43,8 @@ class DesiredStateSyncService(private val lifecycle: ContainerLifecycle, private
             if (ok) {
                 pushed++
                 log.info("pushAll: pushed desired={} for server {}", desired, server.id)
-            } else {
+            }
+            else {
                 log.warn("pushAll: agent not connected for server {} (node {})", server.id, server.nodeId)
             }
         }
@@ -53,7 +59,8 @@ class DesiredStateSyncService(private val lifecycle: ContainerLifecycle, private
      * report leaves intent unset (nothing to recover).
      */
     private fun resolveDesiredStatus(server: ServerView): DesiredStatus? {
-        DesiredStatus.fromDb(server.desiredStatus)?.let { return it }
+        DesiredStatus.fromDb(server.desiredStatus)
+            ?.let { return it }
         val reported = runCatching { ServerStatus.fromDb(server.status) }.getOrNull()
         if (reported == null) {
             log.warn("pushAll: server {} has no desired_status and unrecognised status '{}' — skipping", server.id, server.status)
@@ -64,7 +71,7 @@ class DesiredStateSyncService(private val lifecycle: ContainerLifecycle, private
             return null
         }
         log.info("pushAll: server {} has no desired_status (reported={}) — deriving RUNNING", server.id, reported)
-        lifecycle.persistDesiredStatus(server.id, DesiredStatus.RUNNING)
+        serverIntent.record(server.id, DesiredStatus.RUNNING)
         return DesiredStatus.RUNNING
     }
 }
