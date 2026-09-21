@@ -14,27 +14,7 @@ import kotlin.time.Clock
 import kotlin.uuid.Uuid
 
 @Serializable
-data class SettingsMap(
-    @SerialName("app_name") val appName: String,
-    @SerialName("app_logo") val appLogo: String?,
-    @SerialName("metric_retention_days") val metricRetentionDays: Int,
-    @SerialName("default_backup_max_count") val defaultBackupMaxCount: Int,
-    @SerialName("default_port_range_start") val defaultPortRangeStart: Int,
-    @SerialName("default_port_range_end") val defaultPortRangeEnd: Int,
-    @SerialName("restart_max_attempts") val restartMaxAttempts: Int,
-    @SerialName("restart_window_seconds") val restartWindowSeconds: Long,
-    @SerialName("rate_limit_login_per_minute") val rateLimitLoginPerMinute: Int,
-    @SerialName("rate_limit_refresh_per_minute") val rateLimitRefreshPerMinute: Int,
-    @SerialName("rate_limit_totp_verify_per_minute") val rateLimitTotpVerifyPerMinute: Int,
-    @SerialName("image_minecraft") val imageMinecraft: String,
-    @SerialName("image_proxy") val imageProxy: String,
-    @SerialName("console_tail_lines") val consoleTailLines: Int,
-    @SerialName("dns_domain_suffix") val dnsDomainSuffix: String?,
-    @SerialName("dns_zone_id") val dnsZoneId: String?
-)
-
-@Serializable
-data class SystemSettingsResponse(val settings: SettingsMap, @SerialName("updated_at") val updatedAt: String?, @SerialName("updated_by") val updatedBy: String?)
+data class SystemSettingsResponse(val settings: Settings, @SerialName("updated_at") val updatedAt: String?, @SerialName("updated_by") val updatedBy: String?)
 
 @Serializable
 data class PatchSettingsRequest(
@@ -141,27 +121,9 @@ class SystemService(private val settingsRepository: SettingsRepository) {
 
     private fun loadSettings(): SystemSettingsResponse {
         val rows = settingsRepository.getAll()
-        val map = rows.associate { it.key to it.value }
         val latest = rows.maxByOrNull { it.updatedAt }
         return SystemSettingsResponse(
-            settings = SettingsMap(
-                appName = map["app_name"]?.takeIf { it.isNotBlank() } ?: "CraftPanel",
-                appLogo = map["app_logo"]?.takeIf { it.isNotBlank() },
-                metricRetentionDays = map["metric_retention_days"]?.toIntOrNull() ?: 30,
-                defaultBackupMaxCount = map["default_backup_max_count"]?.toIntOrNull() ?: 10,
-                defaultPortRangeStart = map["default_port_range_start"]?.toIntOrNull() ?: 25570,
-                defaultPortRangeEnd = map["default_port_range_end"]?.toIntOrNull() ?: 26070,
-                restartMaxAttempts = map["restart_max_attempts"]?.toIntOrNull() ?: 5,
-                restartWindowSeconds = map["restart_window_seconds"]?.toLongOrNull() ?: 600L,
-                rateLimitLoginPerMinute = map["rate_limit_login_per_minute"]?.toIntOrNull() ?: 10,
-                rateLimitRefreshPerMinute = map["rate_limit_refresh_per_minute"]?.toIntOrNull() ?: 30,
-                rateLimitTotpVerifyPerMinute = map["rate_limit_totp_verify_per_minute"]?.toIntOrNull() ?: 10,
-                imageMinecraft = map["image_minecraft"] ?: "itzg/minecraft-server",
-                imageProxy = map["image_proxy"] ?: "itzg/mc-proxy",
-                consoleTailLines = map["console_tail_lines"]?.toIntOrNull() ?: 200,
-                dnsDomainSuffix = map["dns_domain_suffix"]?.takeIf { it.isNotBlank() },
-                dnsZoneId = map["dns_zone_id"]?.takeIf { it.isNotBlank() }
-            ),
+            settings = Settings.from(rows),
             updatedAt = latest?.updatedAt,
             updatedBy = latest?.updatedBy?.toString()
         )

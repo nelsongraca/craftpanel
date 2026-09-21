@@ -220,9 +220,7 @@ class ServerProvisioning(
 
         val port = portAllocator.allocate(nodeKotlinId)
 
-        val platformName = settingsRepository.getAll()
-            .firstOrNull { it.key == "app_name" }
-            ?.value?.takeIf { it.isNotBlank() } ?: "CraftPanel"
+        val platformName = Settings.from(settingsRepository.getAll()).appName
         val serverTypeDisplay = spec.serverType.lowercase()
             .replaceFirstChar { it.uppercase() }
 

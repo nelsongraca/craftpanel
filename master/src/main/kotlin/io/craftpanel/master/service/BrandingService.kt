@@ -23,16 +23,10 @@ class BrandingService(private val settingsRepository: SettingsRepository) {
         const val DEFAULT_CONTENT_TYPE = "image/svg+xml"
     }
 
-    fun hasCustomLogo(): Boolean {
-        val row = settingsRepository.getAll()
-            .firstOrNull { it.key == "app_logo" }
-        return row?.value?.isNotBlank() == true
-    }
+    fun hasCustomLogo(): Boolean = Settings.from(settingsRepository.getAll()).appLogo != null
 
     fun getLogoData(): Pair<ByteArray, String> {
-        val row = settingsRepository.getAll()
-            .firstOrNull { it.key == "app_logo" }
-        val raw = row?.value?.takeIf { it.isNotBlank() }
+        val raw = Settings.from(settingsRepository.getAll()).appLogo
         if (raw != null) {
             val m = DATA_URI_REGEX.matchEntire(raw)
             if (m != null) {

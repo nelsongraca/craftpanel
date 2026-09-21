@@ -620,6 +620,30 @@ pick" step was duplicated across four sites with three different error types/mes
   (`PortAllocatorTest`), plus the pure `pickFreePort` cases.
 - See candidate 3, `improve-codebase-architecture` review 2026-09-20.
 
+### Settings (master)
+
+The one owner of the system-settings key vocabulary: the typed snapshot every consumer reads.
+Replaces the ad-hoc `getAll().associate { key to value }` / `firstOrNull { it.key == "..." }`
+lookups that five services each re-derived, with their own key strings, defaults, and
+blank-means-unset rules.
+
+- `Settings` — immutable `@Serializable` value object (the 15 settings fields). `Settings.from(rows:
+  List<SettingsEntry>): Settings` is the pure companion that owns every key string, its default
+  (`app_name` → "CraftPanel", `metric_retention_days` → 30, `image_minecraft` →
+  "itzg/minecraft-server", …), and the blank-means-unset rule for nullable fields.
+- **`SettingsMap` is deleted**; `SystemSettingsResponse.settings` is `Settings` directly. The wire
+  shape is unchanged (same `@SerialName` fields), so the OpenAPI contract and frontend type only
+  change name (`SettingsMap` → `Settings`).
+- **Five consumers cross it:** `SystemService.loadSettings` (builds it for the response),
+  `ServerExposure.resolveGlobalDns`/`resolveSuffix`, `ServerService.deleteServer` (`dns_zone_id`),
+  `ServerProvisioning` (`app_name`), `BrandingService` (`app_logo`).
+- `updatedAt`/`updatedBy` stay on `SystemSettingsResponse` (derived from `rows.maxByOrNull`), not on
+  `Settings`.
+- No caching: `Settings.from(settingsRepository.getAll())` per call, matching prior behaviour. A
+  cached provider is a separate decision.
+- Tested pure (`SettingsTest`): defaults on empty rows, overrides, blank handling, parse fallback.
+- See candidate 4, `improve-codebase-architecture` review 2026-09-20.
+
 ### ContainerNames (common)
 
 The one owner of the Docker name convention, shared by master and agent via the `:common` module.

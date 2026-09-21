@@ -12,15 +12,14 @@ class ServerExposure(private val settingsRepository: SettingsRepository, private
 
     /** the global (zoneId, suffix), null if either is unconfigured. */
     fun resolveGlobalDns(): NetworkDns? {
-        val settings = settingsRepository.getAll().associate { it.key to it.value }
-        val zoneId = settings["dns_zone_id"]?.takeIf { it.isNotBlank() } ?: return null
-        val suffix = settings["dns_domain_suffix"]?.takeIf { it.isNotBlank() } ?: return null
+        val settings = Settings.from(settingsRepository.getAll())
+        val zoneId = settings.dnsZoneId ?: return null
+        val suffix = settings.dnsDomainSuffix ?: return null
         return NetworkDns(zoneId, suffix)
     }
 
     /** the global domain suffix, or null if unconfigured. */
-    fun resolveSuffix(): String? = settingsRepository.getAll()
-        .firstOrNull { it.key == "dns_domain_suffix" }?.value?.takeIf { it.isNotBlank() }
+    fun resolveSuffix(): String? = Settings.from(settingsRepository.getAll()).dnsDomainSuffix
 
     /** managed hostname for an exposed server (subdomain.suffix), or null. */
     fun managedHostname(row: ServerView): String? {

@@ -166,9 +166,7 @@ class ServerService(
         if (recordId != null) {
             val provider = dnsProvider
                 ?: throw ConflictException("Cannot delete server with DNS record: DNS provider not configured")
-            val settings = settingsRepository.getAll()
-                .associate { it.key to it.value }
-            val zoneId = settings["dns_zone_id"]?.takeIf { it.isNotBlank() }
+            val zoneId = Settings.from(settingsRepository.getAll()).dnsZoneId
                 ?: throw ConflictException("Cannot delete server with DNS record: no DNS zone configured")
             runCatching { provider.deleteARecord(zoneId, recordId) }
                 .onFailure { log.warn("Failed to delete DNS record $recordId during server delete", it) }

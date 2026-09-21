@@ -4,7 +4,7 @@ import {useCallback, useEffect, useRef, useState} from "react";
 import Image from "next/image";
 import PageHeader from "@/app/components/PageHeader";
 import {getSystemSettings, updateSystemSettings} from "@/lib/generated/sdk.gen";
-import type {SettingsMap} from "@/lib/types";
+import type {Settings} from "@/lib/types";
 import {BTN_PRIMARY, BTN_GHOST, Field, TextField} from "@/components/ui/form-elements";
 import {Skeleton} from "@/components/ui/skeleton";
 import {useAuth} from "@/lib/auth-context";
@@ -28,7 +28,7 @@ type FormState = {
     dns_zone_id: string;
 };
 
-function toForm(s: SettingsMap): FormState {
+function toForm(s: Settings): FormState {
     return {
         app_name: s.app_name,
         metric_retention_days: String(s.metric_retention_days),
@@ -53,7 +53,7 @@ export default function SettingsPage() {
     const canEdit = hasPermission(permissions, "system.settings");
 
     const [form, setForm] = useState<FormState | null>(null);
-    const [settingsData, setSettingsData] = useState<SettingsMap | null>(null);
+    const [settingsData, setSettingsData] = useState<Settings | null>(null);
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState("");
