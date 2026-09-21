@@ -1,11 +1,18 @@
 "use client";
 
-import {useCallback, useEffect, useState} from "react";
+import {useCallback, useState} from "react";
 import {getProxySettings, updateProxySettings} from "@/lib/generated/sdk.gen";
 import {SelectField} from "@/components/ui/form-elements";
+import {useConfigSection} from "@/lib/hooks/useConfigSection";
 import {isVelocityType} from "@/lib/server-types";
 
 const VELOCITY_FORWARDING_MODES = ["NONE", "LEGACY", "MODERN", "BUNGEEGUARD"];
+
+type ProxySettingsDraft = {
+    motd: string;
+    maxPlayers: string;
+    forwardingMode: string;
+};
 
 export function ProxySettingsSection({
     serverId,
@@ -14,60 +21,41 @@ export function ProxySettingsSection({
     serverId: string;
     serverType: string;
 }) {
-    const [motd, setMotd] = useState("");
-    const [maxPlayers, setMaxPlayers] = useState("");
-    const [forwardingMode, setForwardingMode] = useState("");
-    const [savedMotd, setSavedMotd] = useState("");
-    const [savedMaxPlayers, setSavedMaxPlayers] = useState("");
-    const [savedForwardingMode, setSavedForwardingMode] = useState("");
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     const [forwardingWarnings, setForwardingWarnings] = useState<string[]>([]);
 
     const isVelocity = isVelocityType(serverType);
 
     const load = useCallback(async () => {
-        setLoading(true);
-        setError(null);
         const res = await getProxySettings({path: {id: serverId}});
-        if (res.error) {
-            setError((res.error as { message?: string }).message ?? "Failed to load proxy settings");
-            setLoading(false);
-            return;
-        }
+        if (res.error) return {error: res.error as { message?: string }};
         const data = res.data;
-        setMotd(data?.motd ?? "");
-        setMaxPlayers(data?.max_players?.toString() ?? "");
-        setForwardingMode(data?.forwarding_mode ?? "");
-        setSavedMotd(data?.motd ?? "");
-        setSavedMaxPlayers(data?.max_players?.toString() ?? "");
-        setSavedForwardingMode(data?.forwarding_mode ?? "");
-        setLoading(false);
+        return {
+            data: {
+                motd: data?.motd ?? "",
+                maxPlayers: data?.max_players?.toString() ?? "",
+                forwardingMode: data?.forwarding_mode ?? "",
+            },
+        };
     }, [serverId]);
 
-    useEffect(() => {
-        load();
-    }, [load]);
-
-    const isDirty = motd !== savedMotd || maxPlayers !== savedMaxPlayers || forwardingMode !== savedForwardingMode;
+    const {draft, setDraft, isDirty, loading, saving, error, save, discard} = useConfigSection<ProxySettingsDraft>({
+        initial: {motd: "", maxPlayers: "", forwardingMode: ""},
+        load,
+        persist: (d) => updateProxySettings({
+            path: {id: serverId},
+            body: {
+                motd: d.motd || null,
+                max_players: d.maxPlayers ? parseInt(d.maxPlayers, 10) : null,
+                forwarding_mode: d.forwardingMode || null,
+            },
+        }),
+    });
 
     async function handleSave() {
-        setSaving(true);
-        setError(null);
-        const body = {
-            motd: motd || null,
-            max_players: maxPlayers ? parseInt(maxPlayers, 10) : null,
-            forwarding_mode: forwardingMode || null,
-        };
-        const res = await updateProxySettings({path: {id: serverId}, body});
-        if (res.error) {
-            setError((res.error as { message?: string }).message ?? "Save failed");
-        } else {
-            setForwardingWarnings(res.data?.forwarding_warnings ?? []);
-            await load();
+        const res = await save();
+        if (!res.error) {
+            setForwardingWarnings((res.data as { forwarding_warnings?: string[] } | undefined)?.forwarding_warnings ?? []);
         }
-        setSaving(false);
     }
 
     if (loading) {
@@ -87,8 +75,8 @@ export function ProxySettingsSection({
                         MOTD
                     </label>
                     <input
-                        value={motd}
-                        onChange={(e) => setMotd(e.target.value)}
+                        value={draft.motd}
+                        onChange={(e) => setDraft((p) => ({...p, motd: e.target.value}))}
                         placeholder="A Minecraft Proxy"
                         className="bg-surface-higher border border-border rounded px-2 py-1.5 text-xs font-mono text-text-primary w-full max-w-md focus:border-accent/50 focus:outline-none"
                     />
@@ -102,8 +90,8 @@ export function ProxySettingsSection({
                     <input
                         type="number"
                         min={1}
-                        value={maxPlayers}
-                        onChange={(e) => setMaxPlayers(e.target.value)}
+                        value={draft.maxPlayers}
+                        onChange={(e) => setDraft((p) => ({...p, maxPlayers: e.target.value}))}
                         placeholder="20"
                         className="bg-surface-higher border border-border rounded px-2 py-1.5 text-xs font-mono text-text-primary w-32 focus:border-accent/50 focus:outline-none"
                     />
@@ -118,8 +106,8 @@ export function ProxySettingsSection({
                         <SelectField
                             surface="surface-higher"
                             className="w-48"
-                            value={forwardingMode}
-                            onChange={(e) => setForwardingMode(e.target.value)}
+                            value={draft.forwardingMode}
+                            onChange={(e) => setDraft((p) => ({...p, forwardingMode: e.target.value}))}
                         >
                             <option value="">Default</option>
                             {VELOCITY_FORWARDING_MODES.map((m) => (
@@ -132,8 +120,8 @@ export function ProxySettingsSection({
                         <label className="flex items-center gap-2 text-xs font-mono text-text-primary">
                             <input
                                 type="checkbox"
-                                checked={forwardingMode === "LEGACY"}
-                                onChange={(e) => setForwardingMode(e.target.checked ? "LEGACY" : "OFF")}
+                                checked={draft.forwardingMode === "LEGACY"}
+                                onChange={(e) => setDraft((p) => ({...p, forwardingMode: e.target.checked ? "LEGACY" : "OFF"}))}
                                 className="accent-accent"
                             />
                             IP Forwarding
@@ -164,11 +152,7 @@ export function ProxySettingsSection({
                     <div className="flex items-center gap-2 pt-2 border-t border-border">
                         <span className="text-xs text-text-muted">Unsaved changes</span>
                         <button
-                            onClick={() => {
-                                setMotd(savedMotd);
-                                setMaxPlayers(savedMaxPlayers);
-                                setForwardingMode(savedForwardingMode);
-                            }}
+                            onClick={discard}
                             className="px-3 py-1.5 rounded text-xs font-heading font-bold uppercase tracking-widest text-text-dim border border-border hover:border-text-muted transition-colors"
                         >
                             Discard

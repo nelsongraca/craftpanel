@@ -1,8 +1,9 @@
 "use client";
 
-import {useCallback, useEffect, useState} from "react";
+import {useCallback} from "react";
 import {getEnvVars, replaceEnvVars} from "@/lib/generated/sdk.gen";
 import type {EnvVarItem} from "@/lib/types";
+import {useConfigSection} from "@/lib/hooks/useConfigSection";
 
 /**
  * The subset of a config field the editor needs: the env-var key and whether a blank value should
@@ -34,114 +35,85 @@ export interface ServerEnvConfig {
     discard: () => void;
 }
 
+type EnvDraft = {
+    form: Record<string, string>;
+    extraVars: EnvVarItem[];
+};
+
 /**
  * The one owner of a server's env-var editing: load → partition (schema-known vs extra) → dirty
- * tracking → save. `fields` are the schema-known keys; pass an empty list for server types whose
- * config is entirely extra vars (proxy, custom) so nothing is silently dropped.
+ * tracking → save. The draft/dirty/save lifecycle itself lives in [useConfigSection]; this hook
+ * adds the partition and the duplicate-key validation.
  *
  * `fields` must be a stable reference (a module-level constant) — it is a load-effect dependency,
  * so an inline array would reload on every render.
  */
 export function useServerEnvConfig(serverId: string, fields: readonly EnvField[]): ServerEnvConfig {
-    const [form, setForm] = useState<Record<string, string>>({});
-    const [savedForm, setSavedForm] = useState<Record<string, string>>({});
-    const [extraVars, setExtraVars] = useState<EnvVarItem[]>([]);
-    const [savedExtraVars, setSavedExtraVars] = useState<EnvVarItem[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
     const load = useCallback(async () => {
-        setLoading(true);
-        setError(null);
         const res = await getEnvVars({path: {id: serverId}});
-        if (res.error) {
-            setError((res.error as { message?: string }).message ?? "Failed to load env vars");
-            setLoading(false);
-            return;
-        }
+        if (res.error) return {error: res.error as { message?: string }};
         const known = new Set(fields.map((f) => f.key));
-        const nextForm: Record<string, string> = {};
-        const nextExtra: EnvVarItem[] = [];
+        const form: Record<string, string> = {};
+        const extraVars: EnvVarItem[] = [];
         for (const item of res.data?.env_vars ?? []) {
-            if (known.has(item.key)) nextForm[item.key] = item.value;
-            else nextExtra.push(item);
+            if (known.has(item.key)) form[item.key] = item.value;
+            else extraVars.push(item);
         }
-        setForm(nextForm);
-        setSavedForm(nextForm);
-        setExtraVars(nextExtra);
-        setSavedExtraVars(nextExtra);
-        setLoading(false);
+        return {data: {form, extraVars}};
     }, [serverId, fields]);
 
-    useEffect(() => {
-        void load();
-    }, [load]);
+    const {draft, saved, setDraft, isDirty, loading, saving, error, save: persistDraft, discard} = useConfigSection<EnvDraft>({
+        initial: {form: {}, extraVars: []},
+        load,
+        persist: (d) => {
+            // Known fields first, in schema order; blanks skipped (and omitted outright when the
+            // field says so), then the extra vars.
+            const known: EnvVarItem[] = [];
+            for (const field of fields) {
+                const val = d.form[field.key] ?? "";
+                if (field.omitIfEmpty && !val) continue;
+                if (val !== "") known.push({key: field.key, value: val});
+            }
+            const extra = d.extraVars.filter((r) => r.key.trim().length > 0);
+            const keys = known.map((i) => i.key).concat(extra.map((i) => i.key.trim()));
+            if (keys.length !== new Set(keys).size) {
+                return Promise.resolve({error: {message: "Duplicate env var keys"}});
+            }
+            return replaceEnvVars({path: {id: serverId}, body: {env_vars: [...known, ...extra]}});
+        },
+    });
 
     const setField = useCallback((key: string, value: string) => {
-        setForm((prev) => ({...prev, [key]: value}));
-    }, []);
+        setDraft((p) => ({...p, form: {...p.form, [key]: value}}));
+    }, [setDraft]);
 
     const updateExtra = useCallback((i: number, field: "key" | "value", val: string) => {
-        setExtraVars((prev) => prev.map((r, idx) => (idx === i ? {...r, [field]: val} : r)));
-    }, []);
+        setDraft((p) => ({...p, extraVars: p.extraVars.map((r, idx) => (idx === i ? {...r, [field]: val} : r))}));
+    }, [setDraft]);
 
     const removeExtra = useCallback((i: number) => {
-        setExtraVars((prev) => prev.filter((_, idx) => idx !== i));
-    }, []);
+        setDraft((p) => ({...p, extraVars: p.extraVars.filter((_, idx) => idx !== i)}));
+    }, [setDraft]);
 
     const addExtra = useCallback(() => {
-        setExtraVars((prev) => [...prev, {key: "", value: ""}]);
-    }, []);
-
-    const discard = useCallback(() => {
-        setForm(savedForm);
-        setExtraVars(savedExtraVars);
-    }, [savedForm, savedExtraVars]);
-
-    const save = useCallback(async () => {
-        // Known fields first, in schema order; blanks skipped (and omitted outright when the field
-        // says so), then the extra vars.
-        const known: EnvVarItem[] = [];
-        for (const field of fields) {
-            const val = form[field.key] ?? "";
-            if (field.omitIfEmpty && !val) continue;
-            if (val !== "") known.push({key: field.key, value: val});
-        }
-        const extra = extraVars.filter((r) => r.key.trim().length > 0);
-        const keys = known.map((i) => i.key).concat(extra.map((i) => i.key.trim()));
-        if (keys.length !== new Set(keys).size) {
-            setError("Duplicate env var keys");
-            return;
-        }
-        setSaving(true);
-        setError(null);
-        const res = await replaceEnvVars({path: {id: serverId}, body: {env_vars: [...known, ...extra]}});
-        if (res.error) {
-            setError((res.error as { message?: string }).message ?? "Save failed");
-        } else {
-            await load();
-        }
-        setSaving(false);
-    }, [serverId, fields, form, extraVars, load]);
-
-    const isDirty =
-        JSON.stringify(form) !== JSON.stringify(savedForm) ||
-        JSON.stringify(extraVars) !== JSON.stringify(savedExtraVars);
+        setDraft((p) => ({...p, extraVars: [...p.extraVars, {key: "", value: ""}]}));
+    }, [setDraft]);
 
     return {
-        form,
+        form: draft.form,
         setField,
-        extraVars,
+        extraVars: draft.extraVars,
         updateExtra,
         removeExtra,
         addExtra,
         isDirty,
-        hasExtraVars: extraVars.length > 0 || savedExtraVars.length > 0,
+        hasExtraVars: draft.extraVars.length > 0 || saved.extraVars.length > 0,
         loading,
         saving,
         error,
-        save,
+        save: async () => {
+            await persistDraft();
+        },
         discard,
     };
 }

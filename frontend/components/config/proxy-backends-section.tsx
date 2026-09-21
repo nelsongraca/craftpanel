@@ -1,6 +1,6 @@
 "use client";
 
-import {useCallback, useEffect, useState} from "react";
+import {useCallback, useState} from "react";
 import {ChevronDown, ChevronUp, Plus, Trash2} from "lucide-react";
 import {getProxyBackends, listServers, replaceProxyBackends} from "@/lib/generated/sdk.gen";
 import type {PutProxyBackendsRequest} from "@/lib/types";
@@ -8,6 +8,7 @@ import type {ServerResponse} from "@/lib/generated/types.gen";
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter} from "@/components/ui/dialog";
 import {Empty, EmptyDescription} from "@/components/ui/empty";
 import {SelectField} from "@/components/ui/form-elements";
+import {useConfigSection} from "@/lib/hooks/useConfigSection";
 import {isProxyType} from "@/lib/server-types";
 
 function slugify(name: string): string {
@@ -129,53 +130,59 @@ export function ProxyBackendsSection({
     networkId: string | null;
     onOpenGeneralSettings?: () => void;
 }) {
-    const [backends, setBackends] = useState<EditableBackend[]>([]);
-    const [saved, setSaved] = useState<EditableBackend[]>([]);
     const [networkServers, setNetworkServers] = useState<ServerResponse[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [saving, setSaving] = useState(false);
-    const [error, setError] = useState<string | null>(null);
     const [showAddModal, setShowAddModal] = useState(false);
     const [forwardingWarnings, setForwardingWarnings] = useState<string[]>([]);
 
     const load = useCallback(async () => {
-        setLoading(true);
-        setError(null);
         const [backendsRes, serversRes] = await Promise.all([
             getProxyBackends({path: {id: serverId}}),
             listServers(),
         ]);
+        const allServers = serversRes.data ?? [];
+        setNetworkServers(
+            networkId
+                ? allServers.filter((s) => s.network_id === networkId && s.id !== serverId)
+                : [],
+        );
         if (backendsRes.error) {
-            setError((backendsRes.error as { message?: string }).message ?? "Failed to load backends");
-            setLoading(false);
-            return;
+            return {error: backendsRes.error as { message?: string }};
         }
         const raw = backendsRes.data?.backends ?? [];
-        const allServers = serversRes.data ?? [];
-        const netServers = networkId
-            ? allServers.filter((s) => s.network_id === networkId && s.id !== serverId)
-            : [];
-        const enriched: EditableBackend[] = raw.map((b) => {
-            const match = allServers.find((s) => s.id === b.backend_server_id);
-            return {
-                id: b.id,
-                backendServerId: b.backend_server_id,
-                backendName: b.backend_name,
-                order: b.order,
-                displayName: match?.display_name ?? b.backend_server_id,
-                serverType: match?.server_type ?? "UNKNOWN",
-                status: match?.status ?? "UNKNOWN",
-            };
-        });
-        setBackends(enriched);
-        setSaved(enriched);
-        setNetworkServers(netServers);
-        setLoading(false);
+        return {
+            data: raw.map((b) => {
+                const match = allServers.find((s) => s.id === b.backend_server_id);
+                return {
+                    id: b.id,
+                    backendServerId: b.backend_server_id,
+                    backendName: b.backend_name,
+                    order: b.order,
+                    displayName: match?.display_name ?? b.backend_server_id,
+                    serverType: match?.server_type ?? "UNKNOWN",
+                    status: match?.status ?? "UNKNOWN",
+                };
+            }),
+        };
     }, [serverId, networkId]);
 
-    useEffect(() => {
-        load();
-    }, [load]);
+    const {draft: backends, setDraft: setBackends, isDirty, loading, saving, error, save, discard} = useConfigSection<EditableBackend[]>({
+        initial: [],
+        load,
+        persist: (draft) => {
+            const names = draft.map((b) => b.backendName.trim());
+            if (new Set(names).size !== names.length) {
+                return Promise.resolve({error: {message: "Backend names must be unique"}});
+            }
+            const body: PutProxyBackendsRequest = {
+                backends: draft.map((b) => ({
+                    backend_server_id: b.backendServerId,
+                    backend_name: b.backendName.trim(),
+                    order: b.order,
+                })),
+            };
+            return replaceProxyBackends({path: {id: serverId}, body});
+        },
+    });
 
     function moveUp(index: number) {
         if (index === 0) return;
@@ -219,31 +226,11 @@ export function ProxyBackendsSection({
         ]);
     }
 
-    const isDirty = JSON.stringify(backends) !== JSON.stringify(saved);
-
     async function handleSave() {
-        const names = backends.map((b) => b.backendName.trim());
-        if (new Set(names).size !== names.length) {
-            setError("Backend names must be unique");
-            return;
+        const res = await save();
+        if (!res.error) {
+            setForwardingWarnings((res.data as { forwarding_warnings?: string[] } | undefined)?.forwarding_warnings ?? []);
         }
-        setSaving(true);
-        setError(null);
-        const body: PutProxyBackendsRequest = {
-            backends: backends.map((b) => ({
-                backend_server_id: b.backendServerId,
-                backend_name: b.backendName.trim(),
-                order: b.order,
-            })),
-        };
-        const res = await replaceProxyBackends({path: {id: serverId}, body});
-        if (res.error) {
-            setError((res.error as { message?: string }).message ?? "Save failed");
-        } else {
-            setForwardingWarnings(res.data?.forwarding_warnings ?? []);
-            await load();
-        }
-        setSaving(false);
     }
 
     if (loading) {
@@ -398,7 +385,7 @@ export function ProxyBackendsSection({
                         <span className="text-xs text-text-muted">Unsaved changes</span>
                         <div className="flex gap-2">
                             <button
-                                onClick={() => setBackends(saved)}
+                                onClick={discard}
                                 className="px-3 py-1.5 rounded text-xs font-heading font-bold uppercase tracking-widest text-text-dim border border-border hover:border-text-muted transition-colors"
                             >
                                 Discard

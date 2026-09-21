@@ -129,6 +129,33 @@ each entity's list and detail views.
 - Supersedes the ResourceList note above ("mutations stay page-side").
 - See candidate 5, `improve-codebase-architecture` review 2026-09-20.
 
+### ConfigSection lifecycle hook (frontend)
+The one owner of a config section's edit lifecycle, replacing the hand-rolled
+draft/saved/dirty/save/error state in each section. Lives in
+`frontend/lib/hooks/useConfigSection.ts`.
+
+- `useConfigSection<T>({initial, load?, persist})` returns
+  `{draft, saved, setDraft, isDirty, loading, saving, error, setError, save, discard}`.
+- `load(): Promise<{data?, error?}>` runs on mount and, when present, **after a
+  successful save** (so server-normalised values / warnings are re-read).
+  Absent `load` ⇒ prop-driven: `draft = saved = initial`, and a successful save
+  snapshots the draft.
+- `persist(draft): Promise<{data?, error?}>` is the SDK call; an `error.message`
+  sets the section error, and `save()` returns the result so a caller can read
+  `data` (e.g. `forwarding_warnings`). Validation with no SDK call is expressed by
+  returning `{error: {message}}` from `persist` (env-config duplicate keys,
+  proxy-backend duplicate names).
+- `isDirty` is `JSON.stringify(draft) !== JSON.stringify(saved)`. `load` must be a
+  stable reference (memoised) — it is an effect dependency.
+- **Callers:** `stop-command-section` (`string`), `proxy-settings-section`
+  (`{motd,maxPlayers,forwardingMode}`), `proxy-backends-section`
+  (`EditableBackend[]`), and `useServerEnvConfig` (composes it with an
+  `{form, extraVars}` draft and the env partition). `config-mode-toggle` is a
+  one-shot async action with no draft and is left alone.
+- Tested at the hook interface (`useConfigSection.test.ts`); the per-section specs
+  stay as integration coverage of each section's `load`/`persist` wiring.
+- See candidate 6, `improve-codebase-architecture` review 2026-09-20.
+
 ### DataServiceProxy domain boundary (master)
 `DataServiceProxy` is now the only class that knows proto types.
 - `correlate<R>(serverId, build, extract, err)` — private generic that eliminates

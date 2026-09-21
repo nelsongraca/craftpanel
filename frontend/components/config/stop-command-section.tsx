@@ -1,7 +1,7 @@
 "use client";
 
-import {useState} from "react";
 import {updateStopCommand} from "@/lib/generated/sdk.gen";
+import {useConfigSection} from "@/lib/hooks/useConfigSection";
 
 export function StopCommandSection({
                                         serverId,
@@ -12,22 +12,10 @@ export function StopCommandSection({
     stopCommand: string;
     placeholder?: string;
 }) {
-    const [stopCmd, setStopCmd] = useState(initialStopCommand);
-    const [savedStopCmd, setSavedStopCmd] = useState(initialStopCommand);
-    const [savingStop, setSavingStop] = useState(false);
-    const [stopError, setStopError] = useState<string | null>(null);
-
-    async function handleSaveStopCmd() {
-        setSavingStop(true);
-        setStopError(null);
-        const res = await updateStopCommand({path: {id: serverId}, body: {stop_command: stopCmd}});
-        if (res.error) {
-            setStopError((res.error as { message?: string }).message ?? "Failed to save stop command");
-        } else {
-            setSavedStopCmd(stopCmd);
-        }
-        setSavingStop(false);
-    }
+    const {draft: stopCmd, setDraft: setStopCmd, isDirty, saving, error, save} = useConfigSection<string>({
+        initial: initialStopCommand,
+        persist: (value) => updateStopCommand({path: {id: serverId}, body: {stop_command: value}}),
+    });
 
     return (
         <div className="border border-border rounded">
@@ -49,18 +37,18 @@ export function StopCommandSection({
                         name. Leave empty for Docker stop.
                     </p>
                 </div>
-                {stopCmd !== savedStopCmd && (
+                {isDirty && (
                     <button
-                        onClick={handleSaveStopCmd}
-                        disabled={savingStop}
+                        onClick={() => void save()}
+                        disabled={saving}
                         className="px-3 py-1.5 rounded text-xs font-heading font-bold uppercase tracking-widest bg-accent text-bg hover:bg-accent-bright transition-colors disabled:opacity-60"
                     >
-                        {savingStop ? "Saving…" : "Save"}
+                        {saving ? "Saving…" : "Save"}
                     </button>
                 )}
             </div>
-            {stopError && (
-                <div className="px-4 pb-3 text-xs text-error">{stopError}</div>
+            {error && (
+                <div className="px-4 pb-3 text-xs text-error">{error}</div>
             )}
         </div>
     );
