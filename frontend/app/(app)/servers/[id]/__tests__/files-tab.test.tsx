@@ -483,7 +483,7 @@ describe("FilesTab", () => {
     describe("move", () => {
         async function setupMove() {
             vi.mocked(listServerFiles).mockResolvedValue({
-                data: {entries: [fileEntry("notes.txt")]},
+                data: {entries: [fileEntry("notes.txt"), dirEntry("docs")]},
             } as never);
             vi.mocked(moveServerFile).mockResolvedValue({data: {}} as never);
             render(<FilesTab serverId="s1" />);
@@ -491,18 +491,35 @@ describe("FilesTab", () => {
             return userEvent.setup();
         }
 
-        it("prompts for a destination prefilled with the current path", async () => {
+        it("opens a destination picker prefilled with the current name", async () => {
             await setupMove();
-            fireEvent.click(screen.getByTitle("Move"));
-            expect(screen.getByDisplayValue("/notes.txt")).toBeInTheDocument();
+            fireEvent.click(screen.getByRole("button", {name: "Move notes.txt"}));
+            const picker = await screen.findByTestId("directory-picker");
+            expect(within(picker).getByLabelText("Name")).toHaveValue("notes.txt");
         });
 
-        it("calls moveServerFile with the entered destination", async () => {
+        it("lists only folders in the destination folder", async () => {
+            await setupMove();
+            fireEvent.click(screen.getByRole("button", {name: "Move notes.txt"}));
+            const picker = await screen.findByTestId("directory-picker");
+            const list = within(picker).getByTestId("picker-folder-list");
+            await waitFor(() => expect(within(list).getByText("docs")).toBeInTheDocument());
+            expect(within(list).queryByText("notes.txt")).not.toBeInTheDocument();
+        });
+
+        it("navigates into a folder and moves there on confirm", async () => {
             const user = await setupMove();
-            fireEvent.click(screen.getByTitle("Move"));
-            const input = screen.getByDisplayValue("/notes.txt");
-            fireEvent.change(input, {target: {value: "/docs/notes.txt"}});
-            await user.click(within(screen.getByRole("alertdialog")).getByRole("button", {name: "Move"}));
+            fireEvent.click(screen.getByRole("button", {name: "Move notes.txt"}));
+            const picker = await screen.findByTestId("directory-picker");
+            const list = within(picker).getByTestId("picker-folder-list");
+            await waitFor(() => expect(within(list).getByText("docs")).toBeInTheDocument());
+
+            await user.click(within(list).getByText("docs"));
+
+            await waitFor(() => {
+                expect(within(picker).getByTestId("picker-breadcrumb")).toHaveTextContent("docs");
+            });
+            await user.click(within(picker).getByRole("button", {name: "Move"}));
 
             await waitFor(() => {
                 expect(moveServerFile).toHaveBeenCalledWith(
@@ -517,13 +534,34 @@ describe("FilesTab", () => {
             });
         });
 
-        it("is a no-op when the destination is unchanged", async () => {
-            const user = await setupMove();
-            fireEvent.click(screen.getByTitle("Move"));
-            await user.click(within(screen.getByRole("alertdialog")).getByRole("button", {name: "Move"}));
+        it("disables confirm when the destination is unchanged", async () => {
+            await setupMove();
+            fireEvent.click(screen.getByRole("button", {name: "Move notes.txt"}));
+            const picker = await screen.findByTestId("directory-picker");
+            expect(within(picker).getByRole("button", {name: "Move"})).toBeDisabled();
+            expect(within(picker).getByText("Choose a different location")).toBeInTheDocument();
+        });
 
-            await waitFor(() => expect(screen.queryByDisplayValue("/notes.txt")).not.toBeInTheDocument());
-            expect(moveServerFile).not.toHaveBeenCalled();
+        it("blocks moving a folder into its own descendant", async () => {
+            const user = userEvent.setup();
+            vi.mocked(listServerFiles).mockImplementation((async (opts: {query?: {path?: string}}) => {
+                if (opts.query?.path === "/world") return {data: {entries: [dirEntry("sub")]}} as never;
+                return {data: {entries: [dirEntry("world")]}} as never;
+            }) as never);
+            render(<FilesTab serverId="s1" />);
+            await waitFor(() => expect(screen.getByText("world")).toBeInTheDocument());
+
+            fireEvent.click(screen.getByRole("button", {name: "Move world"}));
+            const picker = await screen.findByTestId("directory-picker");
+            const list = within(picker).getByTestId("picker-folder-list");
+            await waitFor(() => expect(within(list).getByText("world")).toBeInTheDocument());
+
+            await user.click(within(list).getByText("world"));
+
+            await waitFor(() => {
+                expect(within(picker).getByText("A folder cannot be moved into itself")).toBeInTheDocument();
+            });
+            expect(within(picker).getByRole("button", {name: "Move"})).toBeDisabled();
         });
 
         it("shows error banner when move fails", async () => {
@@ -531,10 +569,10 @@ describe("FilesTab", () => {
             vi.mocked(moveServerFile).mockResolvedValue({
                 error: {message: "Bad path"},
             } as never);
-            fireEvent.click(screen.getByTitle("Move"));
-            const input = screen.getByDisplayValue("/notes.txt");
-            fireEvent.change(input, {target: {value: "/elsewhere.txt"}});
-            await user.click(within(screen.getByRole("alertdialog")).getByRole("button", {name: "Move"}));
+            fireEvent.click(screen.getByRole("button", {name: "Move notes.txt"}));
+            const picker = await screen.findByTestId("directory-picker");
+            fireEvent.change(within(picker).getByLabelText("Name"), {target: {value: "elsewhere.txt"}});
+            await user.click(within(picker).getByRole("button", {name: "Move"}));
 
             await waitFor(() => {
                 expect(screen.getByText("Failed to move")).toBeInTheDocument();
@@ -553,22 +591,25 @@ describe("FilesTab", () => {
             return userEvent.setup();
         }
 
-        it("prefills a -copy destination for a file", async () => {
+        it("prefills a -copy name for a file", async () => {
             await setupCopy();
-            fireEvent.click(screen.getByTitle("Copy"));
-            expect(screen.getByDisplayValue("/notes-copy.txt")).toBeInTheDocument();
+            fireEvent.click(screen.getByRole("button", {name: "Copy notes.txt"}));
+            const picker = await screen.findByTestId("directory-picker");
+            expect(within(picker).getByLabelText("Name")).toHaveValue("notes-copy.txt");
         });
 
-        it("prefills a -copy destination for a directory", async () => {
+        it("prefills a -copy name for a directory", async () => {
             await setupCopy([dirEntry("world")]);
-            fireEvent.click(screen.getByTitle("Copy"));
-            expect(screen.getByDisplayValue("/world-copy")).toBeInTheDocument();
+            fireEvent.click(screen.getByRole("button", {name: "Copy world"}));
+            const picker = await screen.findByTestId("directory-picker");
+            expect(within(picker).getByLabelText("Name")).toHaveValue("world-copy");
         });
 
         it("calls copyServerFile non-recursively for a file", async () => {
             const user = await setupCopy();
-            fireEvent.click(screen.getByTitle("Copy"));
-            await user.click(within(screen.getByRole("alertdialog")).getByRole("button", {name: "Copy"}));
+            fireEvent.click(screen.getByRole("button", {name: "Copy notes.txt"}));
+            const picker = await screen.findByTestId("directory-picker");
+            await user.click(within(picker).getByRole("button", {name: "Copy"}));
 
             await waitFor(() => {
                 expect(copyServerFile).toHaveBeenCalledWith(
@@ -586,8 +627,9 @@ describe("FilesTab", () => {
 
         it("calls copyServerFile recursively for a directory", async () => {
             const user = await setupCopy([dirEntry("world")]);
-            fireEvent.click(screen.getByTitle("Copy"));
-            await user.click(within(screen.getByRole("alertdialog")).getByRole("button", {name: "Copy"}));
+            fireEvent.click(screen.getByRole("button", {name: "Copy world"}));
+            const picker = await screen.findByTestId("directory-picker");
+            await user.click(within(picker).getByRole("button", {name: "Copy"}));
 
             await waitFor(() => {
                 expect(copyServerFile).toHaveBeenCalledWith(
@@ -607,8 +649,9 @@ describe("FilesTab", () => {
             vi.mocked(copyServerFile).mockResolvedValue({
                 error: {message: "Exists"},
             } as never);
-            fireEvent.click(screen.getByTitle("Copy"));
-            await user.click(within(screen.getByRole("alertdialog")).getByRole("button", {name: "Copy"}));
+            fireEvent.click(screen.getByRole("button", {name: "Copy notes.txt"}));
+            const picker = await screen.findByTestId("directory-picker");
+            await user.click(within(picker).getByRole("button", {name: "Copy"}));
 
             await waitFor(() => {
                 expect(screen.getByText("Failed to copy")).toBeInTheDocument();
@@ -793,8 +836,9 @@ describe("FilesTab", () => {
                 target: {files: [new File(["data"], "upload.txt")]},
             });
 
-            await waitFor(() => expect(screen.getByDisplayValue("/upload.txt")).toBeInTheDocument());
-            await user.click(screen.getByRole("button", {name: "Upload"}));
+            const picker = await screen.findByTestId("directory-picker");
+            expect(within(picker).getByLabelText("Name")).toHaveValue("upload.txt");
+            await user.click(within(picker).getByRole("button", {name: "Upload"}));
 
             await waitFor(() => {
                 expect(screen.getByText("Upload failed")).toBeInTheDocument();
@@ -841,7 +885,11 @@ describe("FilesTab", () => {
                 target: {files: [new File(["x"], "upload.txt")]},
             });
 
-            await waitFor(() => expect(screen.getByDisplayValue("/plugins/upload.txt")).toBeInTheDocument());
+            const picker = await screen.findByTestId("directory-picker");
+            await waitFor(() => {
+                expect(within(picker).getByTestId("picker-breadcrumb")).toHaveTextContent("plugins");
+            });
+            expect(within(picker).getByLabelText("Name")).toHaveValue("upload.txt");
         });
     });
 

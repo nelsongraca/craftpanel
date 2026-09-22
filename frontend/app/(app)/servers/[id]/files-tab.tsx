@@ -34,6 +34,7 @@ import {
     WrapText,
 } from "lucide-react";
 import {FileCodeEditor} from "@/components/servers/file-code-editor";
+import {DirectoryPickerDialog} from "@/components/servers/directory-picker-dialog";
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -69,11 +70,21 @@ function parentDir(path: string): string {
     return path.substring(0, path.lastIndexOf("/")) || "/";
 }
 
-function copyDefaultPath(node: TreeNode): string {
+interface PickerState {
+    title: string;
+    description: string;
+    confirmLabel: string;
+    initialDir: string;
+    initialName: string;
+    validate?: (destinationPath: string) => string | null;
+    onConfirm: (destinationPath: string) => void;
+}
+
+function copyDefaultName(node: TreeNode): string {
     const dot = node.isDirectory ? -1 : node.name.lastIndexOf(".");
     const stem = dot > 0 ? node.name.slice(0, dot) : node.name;
     const ext = dot > 0 ? node.name.slice(dot) : "";
-    return buildPath(parentDir(node.path), `${stem}-copy${ext}`);
+    return `${stem}-copy${ext}`;
 }
 
 export function FilesTab({serverId}: Props) {
@@ -91,6 +102,7 @@ export function FilesTab({serverId}: Props) {
     const {prompt, dialog: promptDialog} = usePromptDialog();
     const [renameNode, setRenameNode] = useState<{path: string; name: string} | null>(null);
     const [renameValue, setRenameValue] = useState("");
+    const [picker, setPicker] = useState<PickerState | null>(null);
     const [currentDir, setCurrentDir] = useState("/");
     const uploadRef = useRef<HTMLInputElement>(null);
     const pendingUploadDirRef = useRef<string | null>(null);
@@ -255,14 +267,18 @@ export function FilesTab({serverId}: Props) {
     }
 
     function moveEntry(node: TreeNode) {
-        prompt({
-            title: "Move",
+        setPicker({
+            title: `Move "${node.name}"`,
             description: node.path,
-            label: "Destination path",
-            defaultValue: node.path,
             confirmLabel: "Move",
+            initialDir: parentDir(node.path),
+            initialName: node.name,
+            validate: (dest) => {
+                if (dest === node.path) return "Choose a different location";
+                if (node.isDirectory && dest.startsWith(`${node.path}/`)) return "A folder cannot be moved into itself";
+                return null;
+            },
             onConfirm: async (dest) => {
-                if (dest === node.path) return;
                 const {error: err} = await moveServerFile({
                     path: {id: serverId},
                     body: {source_path: node.path, destination_path: dest},
@@ -277,12 +293,18 @@ export function FilesTab({serverId}: Props) {
     }
 
     function copyEntry(node: TreeNode) {
-        prompt({
-            title: "Copy",
+        setPicker({
+            title: `Copy "${node.name}"`,
             description: node.path,
-            label: "Destination path",
-            defaultValue: copyDefaultPath(node),
             confirmLabel: "Copy",
+            initialDir: parentDir(node.path),
+            initialName: copyDefaultName(node),
+            validate: (dest) => {
+                if (dest === node.path) return "Destination matches the source";
+                if (node.isDirectory && dest.startsWith(`${node.path}/`))
+                    return "A folder cannot be copied into itself";
+                return null;
+            },
             onConfirm: async (dest) => {
                 const {error: err} = await copyServerFile({
                     path: {id: serverId},
@@ -343,12 +365,12 @@ export function FilesTab({serverId}: Props) {
             void uploadFile(file, buildPath(pendingDir, file.name));
             return;
         }
-        prompt({
-            title: "Upload File",
-            description: `Uploading to ${currentDir}`,
-            label: "Destination path",
-            defaultValue: buildPath(currentDir, file.name),
+        setPicker({
+            title: "Upload to…",
+            description: file.name,
             confirmLabel: "Upload",
+            initialDir: currentDir,
+            initialName: file.name,
             onConfirm: (destPath) => void uploadFile(file, destPath),
         });
     }
@@ -411,6 +433,7 @@ export function FilesTab({serverId}: Props) {
                         <span className="hidden shrink-0 items-center gap-0.5 md:group-hover:flex">
                             <button
                                 title="Rename"
+                                aria-label={`Rename ${node.name}`}
                                 className="p-0.5 hover:text-accent"
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -421,6 +444,7 @@ export function FilesTab({serverId}: Props) {
                             </button>
                             <button
                                 title="Move"
+                                aria-label={`Move ${node.name}`}
                                 className="p-0.5 hover:text-accent"
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -431,6 +455,7 @@ export function FilesTab({serverId}: Props) {
                             </button>
                             <button
                                 title="Copy"
+                                aria-label={`Copy ${node.name}`}
                                 className="p-0.5 hover:text-accent"
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -442,6 +467,7 @@ export function FilesTab({serverId}: Props) {
                             {node.isDirectory && (
                                 <button
                                     title="Upload here"
+                                    aria-label={`Upload to ${node.name}`}
                                     className="p-0.5 hover:text-accent"
                                     onClick={(e) => {
                                         e.stopPropagation();
@@ -454,6 +480,7 @@ export function FilesTab({serverId}: Props) {
                             {!node.isDirectory && (
                                 <button
                                     title="Download"
+                                    aria-label={`Download ${node.name}`}
                                     className="p-0.5 hover:text-accent"
                                     onClick={(e) => {
                                         e.stopPropagation();
@@ -465,6 +492,7 @@ export function FilesTab({serverId}: Props) {
                             )}
                             <button
                                 title="Delete"
+                                aria-label={`Delete ${node.name}`}
                                 className="p-0.5 hover:text-error"
                                 onClick={(e) => {
                                     e.stopPropagation();
@@ -647,6 +675,20 @@ export function FilesTab({serverId}: Props) {
             </div>
             {dialog}
             {promptDialog}
+            {picker && (
+                <DirectoryPickerDialog
+                    open
+                    onOpenChange={(open) => !open && setPicker(null)}
+                    title={picker.title}
+                    description={picker.description}
+                    confirmLabel={picker.confirmLabel}
+                    initialDir={picker.initialDir}
+                    initialName={picker.initialName}
+                    loadDir={loadDir}
+                    validate={picker.validate}
+                    onConfirm={picker.onConfirm}
+                />
+            )}
         </>
     );
 }
