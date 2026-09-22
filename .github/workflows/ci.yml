@@ -12,7 +12,9 @@ permissions:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Don't cancel master runs: a release pushes the release commit then the prepare-next commit, and
+  # publish.yml's verify step needs the tag commit's run to complete successfully.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/master' }}
 
 jobs:
   backend:
