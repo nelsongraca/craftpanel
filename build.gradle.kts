@@ -1,3 +1,5 @@
+import craftpanel.ReleaseTask
+
 plugins {
     base
     alias(libs.plugins.kotlin.jvm) apply false
@@ -12,6 +14,57 @@ plugins {
 // Project-wide properties
 // ---------------------------------------------------------------------------
 version = project.property("craftpanel_version") as String
+
+// ---------------------------------------------------------------------------
+// Release task — local: version from Conventional Commits (minor), changelog, tag, push.
+// The tag push triggers :publish.yml (no PAT needed: it is a developer push).
+// ---------------------------------------------------------------------------
+val releaseChangelogTemplate = """
+{{#tags}}
+## [{{name}}] - {{releaseDate}}
+{{#ifContainsType commits type='feat'}}
+### Features
+{{#commits}}{{#ifCommitType . type='feat'}}
+- {{{commitDescription .}}} ({{hash}})
+{{/ifCommitType}}{{/commits}}
+{{/ifContainsType}}
+{{#ifContainsType commits type='fix'}}
+### Bug Fixes
+{{#commits}}{{#ifCommitType . type='fix'}}
+- {{{commitDescription .}}} ({{hash}})
+{{/ifCommitType}}{{/commits}}
+{{/ifContainsType}}
+{{#ifContainsType commits type='perf'}}
+### Performance
+{{#commits}}{{#ifCommitType . type='perf'}}
+- {{{commitDescription .}}} ({{hash}})
+{{/ifCommitType}}{{/commits}}
+{{/ifContainsType}}
+{{#ifContainsType commits type='refactor'}}
+### Refactoring
+{{#commits}}{{#ifCommitType . type='refactor'}}
+- {{{commitDescription .}}} ({{hash}})
+{{/ifCommitType}}{{/commits}}
+{{/ifContainsType}}
+{{#ifContainsType commits type='docs'}}
+### Documentation
+{{#commits}}{{#ifCommitType . type='docs'}}
+- {{{commitDescription .}}} ({{hash}})
+{{/ifCommitType}}{{/commits}}
+{{/ifContainsType}}
+{{/tags}}
+""".trimIndent()
+
+tasks.register<ReleaseTask>("release") {
+    group = "release"
+    description = "Compute the next minor version, update CHANGELOG.md, then commit, tag, and push."
+    repoPath.set(layout.projectDirectory.asFile.absolutePath)
+    changelogFile.set(layout.projectDirectory.file("CHANGELOG.md"))
+    changelogTemplate.set(releaseChangelogTemplate)
+    releaseVersion.set(providers.gradleProperty("releaseVersion"))
+    dryRun.set(providers.gradleProperty("releaseDryRun").map { it.toBoolean() }.orElse(false))
+    prepareNext.set(providers.gradleProperty("releasePrepareNext").map { it.toBoolean() }.orElse(true))
+}
 
 val imageVersion: String =
     findProperty("imageVersion")?.toString()

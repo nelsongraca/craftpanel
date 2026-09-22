@@ -85,7 +85,7 @@ Prerequisites: JDK 25, Node 22, Docker.
 # Build Docker images
 ./gradlew dockerBuildAll
 
-# Version defaults to mod_version in gradle.properties; override for releases
+# Version defaults to craftpanel_version in gradle.properties; override per build
 ./gradlew dockerBuildAll -PimageVersion=1.2.0
 ./gradlew dockerPushAll  -PimageVersion=1.2.0
 ```
@@ -100,6 +100,28 @@ The frontend uses a typed client generated from the backend's OpenAPI spec.
 ```
 
 Both run automatically as part of `:frontend:assembleFrontend`.
+
+## Releasing
+
+Releases are cut locally with a Gradle task. Pushing the tag triggers
+`.github/workflows/publish.yml`, which builds and pushes the images (`<version>` and `latest`) and
+creates the GitHub Release.
+
+```bash
+# First release (no prior tag to derive the version from)
+./gradlew release -PreleaseVersion=1.0.0
+
+# Later releases: version derived from Conventional Commits (minor bump only)
+./gradlew release
+
+# Preview the version and CHANGELOG.md changes without committing, tagging, or pushing
+./gradlew release -PreleaseDryRun=true
+```
+
+The task computes the next version from Conventional Commits (always a minor bump), prepends the
+new section to `CHANGELOG.md`, commits it, creates an annotated tag, and pushes the branch and tag.
+It uses the native `git` CLI, so your commit-signing configuration applies. Add
+`-PreleasePrepareNext=false` to skip the follow-up `<next-minor>.0-SNAPSHOT` commit.
 
 ## Running
 

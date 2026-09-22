@@ -1,5 +1,7 @@
 [versions]
 protobuf-plugin = "0.10.0"
+git-changelog-lib = "3.4.0"
 
 [libraries]
 protobuf-gradle-plugin = { module = "com.google.protobuf:protobuf-gradle-plugin", version.ref = "protobuf-plugin" }
+git-changelog-lib = { module = "se.bjurr.gitchangelog:git-changelog-lib", version.ref = "git-changelog-lib" }
