@@ -19,9 +19,11 @@ import {
 } from "@/lib/generated/sdk.gen";
 import type {Assignment, Group, User} from "@/lib/types";
 import {useResourceList} from "@/lib/hooks/useResourceList";
-import {BTN_PRIMARY, BTN_GHOST, Modal, Field, TextField, SelectField} from "@/components/ui/form-elements";
+import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
+import {BTN_PRIMARY, BTN_GHOST, Field, TextField, SelectField} from "@/components/ui/form-elements";
 import {IconActionButton} from "@/components/ui/list-table";
 import {SmartList, type SmartListColumn} from "@/components/ui/smart-list";
+import {Dialog, DialogContent, DialogHeader, DialogTitle} from "@/components/ui/dialog";
 
 async function loadUsers() {
     const {data} = await listUsers();
@@ -79,7 +81,9 @@ function CreateUserModal({onClose, onDone}: { onClose: () => void; onDone: () =>
     }
 
     return (
-        <Modal title="Create User" onClose={onClose}>
+        <Dialog open onOpenChange={(o) => !o && onClose()}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader><DialogTitle>Create User</DialogTitle></DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
                 <Field label="Username">
                     <TextField value={form.username} onChange={(e) => setForm((f) => ({...f, username: e.target.value}))} required/>
@@ -105,7 +109,8 @@ function CreateUserModal({onClose, onDone}: { onClose: () => void; onDone: () =>
                     <button type="submit" className={BTN_PRIMARY} disabled={saving}>{saving ? "Creating…" : "Create"}</button>
                 </div>
             </form>
-        </Modal>
+        </DialogContent>
+        </Dialog>
     );
 }
 
@@ -137,7 +142,9 @@ function EditUserModal({user, onClose, onDone}: { user: User; onClose: () => voi
     }
 
     return (
-        <Modal title="Edit User" onClose={onClose}>
+        <Dialog open onOpenChange={(o) => !o && onClose()}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader><DialogTitle>Edit User</DialogTitle></DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
                 <Field label="Username">
                     <TextField value={form.username} onChange={(e) => setForm((f) => ({...f, username: e.target.value}))} required/>
@@ -162,7 +169,8 @@ function EditUserModal({user, onClose, onDone}: { user: User; onClose: () => voi
                     <button type="submit" className={BTN_PRIMARY} disabled={saving}>{saving ? "Saving…" : "Save"}</button>
                 </div>
             </form>
-        </Modal>
+        </DialogContent>
+        </Dialog>
     );
 }
 
@@ -197,7 +205,9 @@ function ResetPasswordModal({user, onClose, onDone}: { user: User; onClose: () =
     }
 
     return (
-        <Modal title={`Reset Password - ${user.username}`} onClose={onClose}>
+        <Dialog open onOpenChange={(o) => !o && onClose()}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader><DialogTitle>{`Reset Password - ${user.username}`}</DialogTitle></DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
                 <p className="text-xs text-text-muted -mt-1">This will set a new password
                     for {user.username}. {forcePasswordChange ? "The user will be required to change it on next login and all existing sessions will be signed out." : "Any active sessions for this user will remain signed in."}</p>
@@ -222,7 +232,8 @@ function ResetPasswordModal({user, onClose, onDone}: { user: User; onClose: () =
                     <button type="submit" className={BTN_PRIMARY} disabled={saving}>{saving ? "Resetting…" : "Reset Password"}</button>
                 </div>
             </form>
-        </Modal>
+        </DialogContent>
+        </Dialog>
     );
 }
 
@@ -302,7 +313,9 @@ function AssignmentsModal({
     }
 
     return (
-        <Modal title={`Groups - ${user.username}`} onClose={onClose}>
+        <Dialog open onOpenChange={(o) => !o && onClose()}>
+            <DialogContent className="sm:max-w-2xl">
+                <DialogHeader><DialogTitle>{`Groups - ${user.username}`}</DialogTitle></DialogHeader>
             <div className="space-y-5">
                 {/* Current assignments */}
                 <div>
@@ -369,7 +382,8 @@ function AssignmentsModal({
                     <button className={BTN_PRIMARY} onClick={handleAdd}>Add</button>
                 </div>
             </div>
-        </Modal>
+        </DialogContent>
+        </Dialog>
     );
 }
 
@@ -383,8 +397,7 @@ export default function UsersPage() {
     const [editing, setEditing] = useState<User | null>(null);
     const [managingGroups, setManagingGroups] = useState<User | null>(null);
     const [resettingPassword, setResettingPassword] = useState<User | null>(null);
-    const [deleting, setDeleting] = useState<User | null>(null);
-    const [deleteError, setDeleteError] = useState("");
+    const {confirm, dialog} = useConfirmDialog();
 
     useEffect(() => {
         void listGroups().then(({data}) => {
@@ -392,16 +405,18 @@ export default function UsersPage() {
         });
     }, []);
 
-    async function handleDelete() {
-        if (!deleting) return;
-        setDeleteError("");
-        const {error} = await deleteUser({path: {id: deleting.id}});
-        if (error) {
-            setDeleteError(error.message ?? "Failed to delete user");
-            return;
-        }
-        setDeleting(null);
-        load();
+    function requestDelete(user: User) {
+        confirm({
+            title: "Delete User",
+            description: `Delete "${user.username}"? This action cannot be undone.`,
+            destructive: true,
+            confirmLabel: "Delete",
+            onConfirm: async () => {
+                const {error} = await deleteUser({path: {id: user.id}});
+                if (error) throw new Error(error.message ?? "Failed to delete user");
+                load();
+            },
+        });
     }
 
     return (
@@ -435,10 +450,7 @@ export default function UsersPage() {
                                 icon={<Trash2 size={13}/>}
                                 label="Delete"
                                 danger
-                                onClick={() => {
-                                    setDeleting(u);
-                                    setDeleteError("");
-                                }}
+                                onClick={() => requestDelete(u)}
                             />
                         </>
                     )}
@@ -467,23 +479,7 @@ export default function UsersPage() {
                 <ResetPasswordModal user={resettingPassword} onClose={() => setResettingPassword(null)} onDone={() => setResettingPassword(null)}/>
             )}
 
-            {deleting && (
-                <Modal title="Delete User" onClose={() => setDeleting(null)}>
-                    <p className="text-sm text-text-dim mb-4">
-                        Delete <span className="text-text-primary font-medium">{deleting.username}</span>? This action cannot be undone.
-                    </p>
-                    {deleteError && <p className="text-xs text-error mb-3">{deleteError}</p>}
-                    <div className="flex justify-end gap-2">
-                        <button className={BTN_GHOST} onClick={() => setDeleting(null)}>Cancel</button>
-                        <button
-                            className="px-4 py-2 rounded text-xs font-heading font-bold uppercase tracking-wider bg-error text-bg hover:opacity-90 transition-opacity"
-                            onClick={handleDelete}
-                        >
-                            Delete
-                        </button>
-                    </div>
-                </Modal>
-            )}
+            {dialog}
         </div>
     );
 }

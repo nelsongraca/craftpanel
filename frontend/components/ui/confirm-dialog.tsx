@@ -1,5 +1,6 @@
 "use client"
 
+import {useState} from "react"
 import {
     AlertDialog,
     AlertDialogAction,
@@ -18,7 +19,8 @@ interface ConfirmDialogProps {
     description: string
     confirmLabel?: string
     destructive?: boolean
-    onConfirm: () => void
+    /** Runs on confirm. The dialog stays open while it is pending and on throw (showing its message). */
+    onConfirm: () => void | Promise<void>
 }
 
 function ConfirmDialog({
@@ -30,23 +32,45 @@ function ConfirmDialog({
     destructive = false,
     onConfirm,
 }: ConfirmDialogProps) {
+    const [pending, setPending] = useState(false)
+    const [error, setError] = useState<string | null>(null)
+
+    async function handleConfirm() {
+        setPending(true)
+        setError(null)
+        try {
+            await onConfirm()
+            onOpenChange(false)
+        } catch (e) {
+            setError(e instanceof Error ? e.message : "Action failed")
+        } finally {
+            setPending(false)
+        }
+    }
+
     return (
-        <AlertDialog open={open} onOpenChange={onOpenChange}>
+        <AlertDialog
+            open={open}
+            onOpenChange={(next) => {
+                if (pending) return
+                setError(null)
+                onOpenChange(next)
+            }}
+        >
             <AlertDialogContent>
                 <AlertDialogHeader>
                     <AlertDialogTitle>{title}</AlertDialogTitle>
                     <AlertDialogDescription>{description}</AlertDialogDescription>
                 </AlertDialogHeader>
+                {error && <p className="text-xs text-error">{error}</p>}
                 <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
                     <AlertDialogAction
                         variant={destructive ? "destructive" : "default"}
-                        onClick={() => {
-                            onConfirm()
-                            onOpenChange(false)
-                        }}
+                        disabled={pending}
+                        onClick={() => void handleConfirm()}
                     >
-                        {confirmLabel}
+                        {pending ? "Working…" : confirmLabel}
                     </AlertDialogAction>
                 </AlertDialogFooter>
             </AlertDialogContent>

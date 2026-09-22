@@ -1,22 +1,6 @@
-import { describe, it, expect, vi } from 'vitest'
-import { render, screen, fireEvent } from '@testing-library/react'
-import { Modal, Field, BTN_PRIMARY, BTN_GHOST, TextField, SelectField, TextAreaField } from '../form-elements'
-
-describe('Modal', () => {
-    it('renders title, children, and close button', () => {
-        render(<Modal title="Settings" onClose={vi.fn()}>content here</Modal>)
-        expect(screen.getByText('Settings')).toBeInTheDocument()
-        expect(screen.getByText('content here')).toBeInTheDocument()
-        expect(screen.getByRole('button')).toBeInTheDocument()
-    })
-
-    it('fires onClose when close button clicked', () => {
-        const onClose = vi.fn()
-        render(<Modal title="Settings" onClose={onClose}>content</Modal>)
-        fireEvent.click(screen.getByRole('button'))
-        expect(onClose).toHaveBeenCalled()
-    })
-})
+import { describe, it, expect } from 'vitest'
+import { render, screen } from '@testing-library/react'
+import { Field, BTN_PRIMARY, BTN_GHOST, TextField, SelectField, TextAreaField } from '../form-elements'
 
 describe('Field', () => {
     it('renders label and children wrapper', () => {

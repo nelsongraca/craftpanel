@@ -27,6 +27,6 @@ test("group can be created with a permission, listed, and deleted", async ({page
     await expect(row.getByRole("cell", {name: "server.view"})).toBeVisible();
 
     await row.getByRole("button", {name: "Delete"}).click();
-    await page.getByRole("dialog", {name: "Delete Group"}).getByRole("button", {name: "Delete"}).click();
+    await page.getByRole("alertdialog", {name: "Delete Group"}).getByRole("button", {name: "Delete"}).click();
     await expect(cell).not.toBeVisible();
 });

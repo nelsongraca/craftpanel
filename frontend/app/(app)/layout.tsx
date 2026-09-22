@@ -5,6 +5,7 @@ import {usePathname, useRouter} from "next/navigation";
 import {useAuth} from "@/lib/auth-context";
 import Shell from "@/app/components/Shell";
 import {WsProvider} from "@/lib/ws-context";
+import {HealthProvider} from "@/lib/hooks/useHealth";
 import ForcePasswordChange from "@/app/(app)/force-password-change/page";
 
 const FORCE_PASSWORD_CHANGE_PATH = "/force-password-change";
@@ -38,7 +39,9 @@ export default function AppLayout({children}: { children: React.ReactNode }) {
 
     return (
         <WsProvider>
-            <Shell>{children}</Shell>
+            <HealthProvider>
+                <Shell>{children}</Shell>
+            </HealthProvider>
         </WsProvider>
     );
 }

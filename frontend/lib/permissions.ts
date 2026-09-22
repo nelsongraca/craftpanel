@@ -6,22 +6,16 @@ export function hasPermission(permissions: string[], node: string): boolean {
     });
 }
 
-export function serverPermissions(
+/**
+ * Effective permissions for a resource (`serverId` or `networkId`): the caller's globals plus any
+ * permissions scoped to that resource, de-duplicated. With no resource id, the globals alone.
+ */
+export function scopedPermissions(
     globalPermissions: string[],
     scopedPermissions: Record<string, string[]>,
-    serverId: string | undefined
+    resourceId: string | undefined
 ): string[] {
-    if (!serverId) return globalPermissions;
-    const scoped = scopedPermissions[serverId] ?? [];
-    return Array.from(new Set([...globalPermissions, ...scoped]));
-}
-
-export function networkPermissions(
-    globalPermissions: string[],
-    scopedPermissions: Record<string, string[]>,
-    networkId: string | undefined
-): string[] {
-    if (!networkId) return globalPermissions;
-    const scoped = scopedPermissions[networkId] ?? [];
+    if (!resourceId) return globalPermissions;
+    const scoped = scopedPermissions[resourceId] ?? [];
     return Array.from(new Set([...globalPermissions, ...scoped]));
 }

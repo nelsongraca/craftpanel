@@ -10,8 +10,8 @@ import {useAuth} from "@/lib/auth-context";
 import {hasPermission} from "@/lib/permissions";
 import {useWs} from "@/lib/ws-context";
 import type {Node} from "@/lib/types";
-import {timeAgo, fmtBytes, fmtMb, fmtBytesNetworkIo, fillColorBg, fmtPct, fmtCpuCores} from "@/lib/utils/format";
-import {TokenModal} from "@/components/nodes/TokenModal";
+import {timeAgo, fmtBytes, fmtMb, fillColorBg, fmtPct, fmtCpuCores} from "@/lib/utils/format";
+import {TokenModal} from "@/components/nodes/token-modal";
 import type {ServerResponse as Server} from "@/lib/generated/types.gen";
 import {HeaderActionButton} from "@/components/servers/header-action-button";
 import {useNodeActions} from "@/components/nodes/node-actions";
@@ -330,7 +330,7 @@ function MetricsTab({nodeId}: { nodeId: string }) {
                     <LineChart data={points} margin={{top: 0, right: 8, bottom: 0, left: 0}}>
                         <CartesianGrid {...chartStyle.cartesianGrid} />
                         <XAxis dataKey="t" tickFormatter={fmtAxisTime} {...chartStyle.xAxis} />
-                        <YAxis tickFormatter={(v) => fmtBytesNetworkIo(v)} {...chartStyle.yAxis} />
+                        <YAxis tickFormatter={(v) => fmtBytes(v)} {...chartStyle.yAxis} />
                         <Tooltip
                             {...chartStyle.tooltip}
                             // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -366,7 +366,7 @@ function MetricsTab({nodeId}: { nodeId: string }) {
                     <LineChart data={points} margin={{top: 0, right: 8, bottom: 0, left: 0}}>
                         <CartesianGrid {...chartStyle.cartesianGrid} />
                         <XAxis dataKey="t" tickFormatter={fmtAxisTime} {...chartStyle.xAxis} />
-                        <YAxis tickFormatter={(v) => fmtBytesNetworkIo(v)} {...chartStyle.yAxis} />
+                        <YAxis tickFormatter={(v) => fmtBytes(v)} {...chartStyle.yAxis} />
                         <Tooltip
                             {...chartStyle.tooltip}
                             // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -31,7 +31,7 @@ describe('ConfirmDialog', () => {
             />,
         )
         await user.click(screen.getByText('Cancel'))
-        expect(onOpenChange).toHaveBeenCalledWith(false, expect.anything())
+        expect(onOpenChange).toHaveBeenCalledWith(false)
     })
 
     it('Delete (destructive) button fires onConfirm then onOpenChange(false)', async () => {
@@ -82,6 +82,44 @@ describe('ConfirmDialog', () => {
         const cancelButton = screen.getByText('Cancel')
         expect(cancelButton).toBeInTheDocument()
         await user.click(cancelButton)
-        expect(onOpenChange).toHaveBeenCalledWith(false, expect.anything())
+        expect(onOpenChange).toHaveBeenCalledWith(false)
+    })
+
+    it('stays open and shows the message when an async onConfirm throws', async () => {
+        const onOpenChange = vi.fn()
+        const onConfirm = vi.fn().mockRejectedValue(new Error('Delete failed'))
+        const user = userEvent.setup()
+        render(
+            <ConfirmDialog
+                open
+                onOpenChange={onOpenChange}
+                title="Delete?"
+                description="Sure?"
+                confirmLabel="Delete"
+                onConfirm={onConfirm}
+            />,
+        )
+        await user.click(screen.getByText('Delete'))
+        expect(await screen.findByText('Delete failed')).toBeInTheDocument()
+        expect(onOpenChange).not.toHaveBeenCalled()
+    })
+
+    it('closes only after an async onConfirm resolves', async () => {
+        const onOpenChange = vi.fn()
+        const onConfirm = vi.fn().mockResolvedValue(undefined)
+        const user = userEvent.setup()
+        render(
+            <ConfirmDialog
+                open
+                onOpenChange={onOpenChange}
+                title="Delete?"
+                description="Sure?"
+                confirmLabel="Delete"
+                onConfirm={onConfirm}
+            />,
+        )
+        await user.click(screen.getByText('Delete'))
+        expect(onConfirm).toHaveBeenCalledTimes(1)
+        expect(onOpenChange).toHaveBeenCalledWith(false)
     })
 })

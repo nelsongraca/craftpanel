@@ -3,7 +3,8 @@
 import {useEffect, useState} from "react";
 import {authTotpEnable, authTotpSetup} from "@/lib/generated";
 import type {TotpSetup} from "@/lib/types";
-import {BTN_GHOST, BTN_PRIMARY, Field, Modal, TextField} from "@/components/ui/form-elements";
+import {BTN_GHOST, BTN_PRIMARY, Field, TextField} from "@/components/ui/form-elements";
+import {Dialog, DialogContent, DialogHeader, DialogTitle} from "@/components/ui/dialog";
 
 interface TotpSetupModalProps {
     onClose: () => void;
@@ -57,7 +58,9 @@ export function TotpSetupModal({onClose, onEnabled}: TotpSetupModalProps) {
     }
 
     return (
-        <Modal title="Enable TOTP" onClose={onClose}>
+        <Dialog open onOpenChange={(o) => !o && onClose()}>
+            <DialogContent className="sm:max-w-md">
+                <DialogHeader><DialogTitle>Enable TOTP</DialogTitle></DialogHeader>
             {loading ? (
                 <div className="text-xs text-text-muted">Generating secret…</div>
             ) : error && !setup ? (
@@ -166,6 +169,7 @@ export function TotpSetupModal({onClose, onEnabled}: TotpSetupModalProps) {
                     </div>
                 </div>
             )}
-        </Modal>
+            </DialogContent>
+        </Dialog>
     );
 }

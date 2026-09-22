@@ -19,6 +19,10 @@ vi.mock('@/lib/generated/sdk.gen', () => ({
     fetchServerConsoleLogs: vi.fn(),
 }))
 
+vi.mock('@/lib/client', () => ({
+    getAccessToken: vi.fn(() => 'token'),
+}))
+
 vi.mock('@xterm/xterm', () => ({
     Terminal: class {
         loadAddon = mockTerminal.loadAddon

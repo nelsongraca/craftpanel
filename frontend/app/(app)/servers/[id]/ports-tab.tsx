@@ -6,7 +6,7 @@ import { getServerPorts, addServerExtraPort, deleteServerExtraPort, updateServer
 import type { ServerPortsResponse, ServerExtraPortResponse } from "@/lib/generated/types.gen";
 import { Badge } from "@/components/ui/badge";
 import { useConfirmDialog } from "@/lib/hooks/useConfirmDialog";
-import { Modal } from "@/components/ui/form-elements";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import {Empty, EmptyDescription, EmptyMedia} from "@/components/ui/empty";
 import {isProxyType} from "@/lib/server-types";
 
@@ -359,7 +359,9 @@ export function PortsTab({
 
             {/* Add Extra Port Modal */}
             {showAddModal && (
-                <Modal title="Add Extra Port" onClose={() => setShowAddModal(false)}>
+                <Dialog open onOpenChange={(o) => !o && setShowAddModal(false)}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader><DialogTitle>Add Extra Port</DialogTitle></DialogHeader>
                     {formError && (
                         <div className="bg-error/10 border border-error/30 text-error rounded px-3 py-2 text-xs flex items-center gap-2 mb-4">
                             <AlertTriangle size={14} className="shrink-0" />
@@ -433,7 +435,8 @@ export function PortsTab({
                             </button>
                         </div>
                     </form>
-                </Modal>
+                    </DialogContent>
+                </Dialog>
             )}
         </div>
     );

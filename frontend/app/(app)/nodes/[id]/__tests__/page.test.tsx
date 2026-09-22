@@ -40,7 +40,7 @@ vi.mock("next/navigation", () => ({
     useSearchParams: () => new URLSearchParams(),
 }));
 
-vi.mock("@/components/nodes/TokenModal", () => ({
+vi.mock("@/components/nodes/token-modal", () => ({
     TokenModal: vi.fn(({nodeKey, onClose}) => (
         <div data-testid="token-modal">
             <span>New Node Key</span>
@@ -67,6 +67,7 @@ import {
     getNode, getNodeMetrics, listServers, trustNode, rotateNodeToken,
 } from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
+import {HealthProvider} from "@/lib/hooks/useHealth";
 import NodeDetailPage from "../page";
 
 function deferred<T>(): { promise: Promise<T>; resolve: (v: T) => void } {
@@ -152,7 +153,7 @@ async function renderDetail(
     }
     (vi.mocked(useAuth) as ReturnType<typeof vi.fn>).mockReturnValue({user: {permissions}});
 
-    const result = render(<NodeDetailPage/>);
+    const result = render(<HealthProvider><NodeDetailPage/></HealthProvider>);
 
     await waitFor(() => {
         expect(screen.queryByText(/Loading/i) || document.querySelector(".animate-pulse") || true).toBeTruthy();
@@ -208,7 +209,7 @@ describe("NodeDetailPage", () => {
                 }
             } as never);
 
-            render(<NodeDetailPage/>);
+            render(<HealthProvider><NodeDetailPage/></HealthProvider>);
 
             expect(document.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
 
@@ -236,7 +237,7 @@ describe("NodeDetailPage", () => {
                 }
             } as never);
 
-            render(<NodeDetailPage/>);
+            render(<HealthProvider><NodeDetailPage/></HealthProvider>);
 
             await waitFor(() => {
                 expect(screen.getByText(/Node not found/i)).toBeInTheDocument();
@@ -259,7 +260,7 @@ describe("NodeDetailPage", () => {
                 }
             } as never);
 
-            render(<NodeDetailPage/>);
+            render(<HealthProvider><NodeDetailPage/></HealthProvider>);
 
             await waitFor(() => {
                 expect(screen.getByText(/Node not found/i)).toBeInTheDocument();
@@ -282,7 +283,7 @@ describe("NodeDetailPage", () => {
                 }
             } as never);
 
-            render(<NodeDetailPage/>);
+            render(<HealthProvider><NodeDetailPage/></HealthProvider>);
 
             await waitFor(() => {
                 expect(screen.getByText(/Node not found/i)).toBeInTheDocument();
@@ -486,7 +487,7 @@ describe("NodeDetailPage", () => {
             vi.mocked(getNodeMetrics).mockReturnValue(def.promise);
             (vi.mocked(useAuth) as ReturnType<typeof vi.fn>).mockReturnValue({user: {permissions: []}});
 
-            render(<NodeDetailPage/>);
+            render(<HealthProvider><NodeDetailPage/></HealthProvider>);
 
             await waitFor(() => {
                 expect(screen.getAllByText("Node 1").length).toBeGreaterThan(0);
@@ -709,7 +710,7 @@ describe("NodeDetailPage", () => {
                 data: {timestamps: [], cpu_percent: [], ram_used_mb: [], ram_total_mb: [], disk_used_bytes: [], disk_total_bytes: [], net_in_bytes: [], net_out_bytes: []},
             } as never);
 
-            render(<NodeDetailPage/>);
+            render(<HealthProvider><NodeDetailPage/></HealthProvider>);
 
             await waitFor(() => {
                 expect(getNode).toHaveBeenCalledTimes(1);

@@ -1,5 +1,5 @@
 import {describe, it, expect, vi, beforeEach, afterEach} from 'vitest'
-import {fetchAppName, fetchBrandingConfig} from "@/lib/config"
+import {fetchBrandingConfig, resetBrandingCache} from "@/lib/config"
 
 function mockApiResponse(body: Record<string, unknown>, status = 200) {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(
@@ -10,39 +10,10 @@ function mockApiResponse(body: Record<string, unknown>, status = 200) {
     ))
 }
 
-describe('fetchAppName', () => {
-    beforeEach(() => {
-        vi.useFakeTimers()
-    })
-    afterEach(() => {
-        vi.unstubAllGlobals()
-        vi.useRealTimers()
-    })
-
-    it('returns app_name from API when present', async () => {
-        mockApiResponse({app_name: 'MyPanel'})
-        await expect(fetchAppName()).resolves.toBe('MyPanel')
-    })
-
-    it('falls back to CraftPanel when API returns blank app_name', async () => {
-        mockApiResponse({app_name: '  '})
-        await expect(fetchAppName()).resolves.toBe('CraftPanel')
-    })
-
-    it('falls back to CraftPanel on network error', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('offline')))
-        await expect(fetchAppName()).resolves.toBe('CraftPanel')
-    })
-
-    it('falls back to CraftPanel on non-ok response', async () => {
-        mockApiResponse({}, 500)
-        await expect(fetchAppName()).resolves.toBe('CraftPanel')
-    })
-})
-
 describe('fetchBrandingConfig', () => {
     beforeEach(() => {
         vi.useFakeTimers()
+        resetBrandingCache()
     })
     afterEach(() => {
         vi.unstubAllGlobals()

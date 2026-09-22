@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { fmtBytes, fmtMb, fmtBytesNetworkIo, fillColor, fillColorBg, fetchReleaseVersions, timeAgo } from './format'
+import { describe, it, expect } from 'vitest'
+import { fmtBytes, fmtMb, fillColor, fillColorBg, timeAgo } from './format'
 
 describe('fmtBytes', () => {
     it('formats bytes below 1 KB', () => {
@@ -68,13 +68,6 @@ describe('fmtMb', () => {
     })
 })
 
-describe('fmtBytesNetworkIo', () => {
-    it('B below 1000', () => { expect(fmtBytesNetworkIo(999)).toBe('999 B') })
-    it('KB at 1e3', () => { expect(fmtBytesNetworkIo(1500)).toBe('1.5 KB') })
-    it('MB at 1e6', () => { expect(fmtBytesNetworkIo(2_500_000)).toBe('2.5 MB') })
-    it('GB at 1e9', () => { expect(fmtBytesNetworkIo(1_500_000_000)).toBe('1.5 GB') })
-})
-
 describe('fillColor', () => {
     it('error at 86+', () => { expect(fillColor(86)).toBe('var(--error)') })
     it('warning at 66-85', () => { expect(fillColor(66)).toBe('var(--warning)') })
@@ -85,30 +78,4 @@ describe('fillColorBg', () => {
     it('bg-error at 86+', () => { expect(fillColorBg(100)).toBe('bg-error') })
     it('bg-warning at 66-85', () => { expect(fillColorBg(70)).toBe('bg-warning') })
     it('bg-healthy below 66', () => { expect(fillColorBg(0)).toBe('bg-healthy') })
-})
-
-describe('fetchReleaseVersions', () => {
-    afterEach(() => { vi.restoreAllMocks() })
-
-    it('filters to release versions and maps id', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-            json: async () => ({
-                versions: [
-                    { id: '1.21.5', type: 'release' },
-                    { id: '1.21.5-pre1', type: 'snapshot' },
-                    { id: '1.21.4', type: 'release' },
-                ],
-            }),
-        }))
-        const result = await fetchReleaseVersions()
-        expect(result).toEqual(['1.21.5', '1.21.4'])
-        vi.unstubAllGlobals()
-    })
-
-    it('returns [] on fetch error', async () => {
-        vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('network')))
-        const result = await fetchReleaseVersions()
-        expect(result).toEqual([])
-        vi.unstubAllGlobals()
-    })
 })

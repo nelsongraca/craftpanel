@@ -307,7 +307,7 @@ describe("UsersPage", () => {
             });
             expect(screen.getAllByText(/alice/).length).toBeGreaterThan(0);
 
-            await userEv.click(within(screen.getByRole("dialog")).getByRole("button", {name: "Delete"}));
+            await userEv.click(within(screen.getByRole("alertdialog")).getByRole("button", {name: "Delete"}));
 
             await waitFor(() => {
                 expect(deleteUser).toHaveBeenCalledWith({path: {id: "u1"}});
@@ -329,7 +329,7 @@ describe("UsersPage", () => {
                 expect(screen.getByText("Delete User")).toBeInTheDocument();
             });
 
-            await userEv.click(within(screen.getByRole("dialog")).getByRole("button", {name: "Delete"}));
+            await userEv.click(within(screen.getByRole("alertdialog")).getByRole("button", {name: "Delete"}));
 
             await waitFor(() => {
                 expect(screen.getByText("Cannot delete last admin")).toBeInTheDocument();

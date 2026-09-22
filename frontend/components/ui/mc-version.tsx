@@ -3,7 +3,7 @@
 import {useEffect, useRef, useState} from "react";
 import {SelectField, TextField} from "@/components/ui/form-elements";
 import {Skeleton} from "@/components/ui/skeleton";
-import {fetchReleaseVersions} from "@/lib/utils/format";
+import {fetchReleaseVersions} from "@/lib/minecraft-versions";
 
 interface McVersionSelectProps {
     id?: string;

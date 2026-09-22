@@ -1,6 +1,6 @@
 "use client";
 
-import {InfoRow} from "./server-info";
+import {InfoRow} from "@/components/edit/info-row";
 import {EditGeneral} from "./edit-general";
 import {EditResources} from "./edit-resources";
 import {EditExposure} from "./edit-exposure";

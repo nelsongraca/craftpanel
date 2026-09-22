@@ -44,6 +44,7 @@ import {
     rotateNodeToken, updateNode,
 } from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
+import {HealthProvider} from "@/lib/hooks/useHealth";
 import NodesPage from "../page";
 import {selectComboboxOption} from "@/lib/test-utils";
 
@@ -97,7 +98,7 @@ async function renderWith(
         user: {permissions: p},
     });
 
-    const result = render(<NodesPage/>);
+    const result = render(<HealthProvider><NodesPage/></HealthProvider>);
 
     if (nd.length > 0) {
         await waitFor(() => {
@@ -145,7 +146,7 @@ describe("NodesPage", () => {
             vi.mocked(listNodes).mockReturnValue(def.promise);
             vi.mocked(listServers).mockResolvedValue({data: []} as never);
 
-            render(<NodesPage/>);
+            render(<HealthProvider><NodesPage/></HealthProvider>);
 
             expect(document.querySelectorAll(".animate-pulse").length).toBeGreaterThan(0);
 

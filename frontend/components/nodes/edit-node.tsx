@@ -1,11 +1,11 @@
 "use client";
 
 import {useState} from "react";
-import {EditFieldRow, EditInput, EditSection} from "@/components/servers/edit-fields";
-import {InfoRow} from "@/components/servers/server-info";
+import {EditFieldRow, EditInput, EditSection} from "@/components/edit/edit-fields";
+import {InfoRow} from "@/components/edit/info-row";
 import {AgentVersion} from "@/components/nodes/agent-version";
-import {updateNode} from "@/lib/generated/sdk.gen";
 import {useHealth} from "@/lib/hooks/useHealth";
+import {useNodeEdit} from "@/lib/hooks/useNodeEdit";
 import {fmtCpuCores, fmtMb, timeAgo} from "@/lib/utils/format";
 import type {Node} from "@/lib/types";
 
@@ -13,43 +13,15 @@ import type {Node} from "@/lib/types";
 export function EditNode({node, onSaved, canEdit = true}: { node: Node; onSaved: () => void; canEdit?: boolean }) {
     const health = useHealth();
     const [editing, setEditing] = useState(false);
-    const [displayName, setDisplayName] = useState("");
-    const [portStart, setPortStart] = useState("");
-    const [portEnd, setPortEnd] = useState("");
-    const [saving, setSaving] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const {draft, setField, reset, saving, error, save} = useNodeEdit(node, onSaved);
 
     function open() {
-        setDisplayName(node.display_name);
-        setPortStart(String(node.port_range_start));
-        setPortEnd(String(node.port_range_end));
-        setError(null);
+        reset();
         setEditing(true);
     }
 
-    async function save() {
-        setSaving(true);
-        setError(null);
-        try {
-            const {error: e} = await updateNode({
-                path: {id: node.id},
-                body: {
-                    display_name: displayName || undefined,
-                    port_range_start: portStart ? parseInt(portStart) : undefined,
-                    port_range_end: portEnd ? parseInt(portEnd) : undefined,
-                },
-            });
-            if (e) {
-                setError(e.message ?? "Failed to save");
-                return;
-            }
-            onSaved();
-            setEditing(false);
-        } catch {
-            setError("Failed to save");
-        } finally {
-            setSaving(false);
-        }
+    async function handleSave() {
+        if (await save()) setEditing(false);
     }
 
     return (
@@ -60,7 +32,7 @@ export function EditNode({node, onSaved, canEdit = true}: { node: Node; onSaved:
             error={error}
             onEdit={open}
             onCancel={() => setEditing(false)}
-            onSave={() => void save()}
+            onSave={() => void handleSave()}
             canEdit={canEdit}
         >
             <div>
@@ -81,23 +53,23 @@ export function EditNode({node, onSaved, canEdit = true}: { node: Node; onSaved:
             <div className="space-y-3">
                 <EditFieldRow label="Display Name">
                     <EditInput
-                        value={displayName}
-                        onChange={(e) => setDisplayName(e.target.value)}
+                        value={draft.displayName}
+                        onChange={(e) => setField("displayName", e.target.value)}
                         placeholder={node.display_name}
                     />
                 </EditFieldRow>
                 <EditFieldRow label="Port Range Start">
                     <EditInput
                         type="number"
-                        value={portStart}
-                        onChange={(e) => setPortStart(e.target.value)}
+                        value={draft.portStart}
+                        onChange={(e) => setField("portStart", e.target.value)}
                     />
                 </EditFieldRow>
                 <EditFieldRow label="Port Range End">
                     <EditInput
                         type="number"
-                        value={portEnd}
-                        onChange={(e) => setPortEnd(e.target.value)}
+                        value={draft.portEnd}
+                        onChange={(e) => setField("portEnd", e.target.value)}
                     />
                 </EditFieldRow>
             </div>

@@ -10,6 +10,10 @@ vi.mock("@/lib/generated/sdk.gen", () => ({
     authWsTicket: vi.fn().mockResolvedValue({data: {ticket: "test-ticket"}}),
 }))
 
+vi.mock("@/lib/client", () => ({
+    getAccessToken: vi.fn(() => "token"),
+}))
+
 import { listMigrations, listNodes, startMigration } from "@/lib/generated/sdk.gen"
 
 function makeNode(overrides: Partial<{

@@ -1,6 +1,6 @@
 import {describe, it, expect} from 'vitest'
 import {render, screen} from '@testing-library/react'
-import {InfoRow} from '../server-info'
+import {InfoRow} from '../info-row'
 
 describe('InfoRow', () => {
     it('renders label and value', () => {

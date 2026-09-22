@@ -7,12 +7,14 @@ import {createNetwork, deleteNetwork, exportNetwork, importNetwork, listNetworks
 import type {Network, Node} from "@/lib/types";
 import type {ServerExportData, NetworkExportData} from "@/lib/generated/types.gen";
 import {useAuth} from "@/lib/auth-context";
-import {hasPermission, networkPermissions} from "@/lib/permissions";
+import {hasPermission, scopedPermissions} from "@/lib/permissions";
 import {useResourceList} from "@/lib/hooks/useResourceList";
+import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 
-import {BTN_PRIMARY, BTN_GHOST, Modal, Field, TextField, SelectField} from "@/components/ui/form-elements";
+import {BTN_PRIMARY, BTN_GHOST, Field, TextField, SelectField} from "@/components/ui/form-elements";
 import {IconActionButton} from "@/components/ui/list-table";
 import {SmartList, type SmartListColumn} from "@/components/ui/smart-list";
+import {Dialog, DialogContent, DialogHeader, DialogTitle} from "@/components/ui/dialog";
 
 // ── Columns ───────────────────────────────────────────────────────────────────
 
@@ -90,8 +92,7 @@ export default function NetworksPage() {
     const canCreate = hasPermission(user?.permissions ?? [], "network.create");
     const [showCreate, setShowCreate] = useState(false);
     const [editing, setEditing] = useState<Network | null>(null);
-    const [deleting, setDeleting] = useState<Network | null>(null);
-    const [deleteError, setDeleteError] = useState("");
+    const {confirm, dialog} = useConfirmDialog();
     const [showImport, setShowImport] = useState(false);
     const [nodes, setNodes] = useState<Node[]>([]);
     const importFileRef = useRef<HTMLInputElement>(null);
@@ -186,16 +187,18 @@ export default function NetworksPage() {
         load();
     }
 
-    async function handleDelete() {
-        if (!deleting) return;
-        setDeleteError("");
-        const res = await deleteNetwork({path: {id: deleting.id}});
-        if (res.error) {
-            setDeleteError((res.error as { message?: string }).message ?? "Failed to delete network");
-            return;
-        }
-        setDeleting(null);
-        load();
+    function requestDelete(network: Network) {
+        confirm({
+            title: "Delete Network",
+            description: `Delete "${network.name}"? This cannot be undone.`,
+            destructive: true,
+            confirmLabel: "Delete",
+            onConfirm: async () => {
+                const res = await deleteNetwork({path: {id: network.id}});
+                if (res.error) throw new Error((res.error as { message?: string }).message ?? "Failed to delete network");
+                load();
+            },
+        });
     }
 
     return (
@@ -229,7 +232,7 @@ export default function NetworksPage() {
                     loading={loading}
                     empty="No networks yet. Create one to group servers."
                     actions={(n) => {
-                        const perms = networkPermissions(user?.permissions ?? [], user?.network_permissions ?? {}, n.id);
+                        const perms = scopedPermissions(user?.permissions ?? [], user?.network_permissions ?? {}, n.id);
                         return (
                             <>
                                 {hasPermission(perms, "network.view") && (
@@ -244,10 +247,7 @@ export default function NetworksPage() {
                                         label={n.server_count > 0 ? "Cannot delete: has member servers" : "Delete"}
                                         danger
                                         disabled={n.server_count > 0}
-                                        onClick={() => {
-                                            setDeleting(n);
-                                            setDeleteError("");
-                                        }}
+                                        onClick={() => requestDelete(n)}
                                     />
                                 )}
                             </>
@@ -257,45 +257,37 @@ export default function NetworksPage() {
             </div>
 
             {showCreate && (
-                <Modal title="New Network" onClose={() => setShowCreate(false)}>
-                    <NetworkForm onSubmit={handleCreate} onCancel={() => setShowCreate(false)} submitLabel="Create"/>
-                </Modal>
+                <Dialog open onOpenChange={(o) => !o && setShowCreate(false)}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader><DialogTitle>New Network</DialogTitle></DialogHeader>
+                        <NetworkForm onSubmit={handleCreate} onCancel={() => setShowCreate(false)} submitLabel="Create"/>
+                    </DialogContent>
+                </Dialog>
             )}
 
             {editing && (
-                <Modal title="Edit Network" onClose={() => setEditing(null)}>
-                    <NetworkForm
-                        initial={{
-                            name: editing.name,
-                            description: editing.description ?? "",
-                        }}
-                        onSubmit={handleEdit}
-                        onCancel={() => setEditing(null)}
-                        submitLabel="Save"
-                    />
-                </Modal>
+                <Dialog open onOpenChange={(o) => !o && setEditing(null)}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader><DialogTitle>Edit Network</DialogTitle></DialogHeader>
+                        <NetworkForm
+                            initial={{
+                                name: editing.name,
+                                description: editing.description ?? "",
+                            }}
+                            onSubmit={handleEdit}
+                            onCancel={() => setEditing(null)}
+                            submitLabel="Save"
+                        />
+                    </DialogContent>
+                </Dialog>
             )}
 
-            {deleting && (
-                <Modal title="Delete Network" onClose={() => setDeleting(null)}>
-                    <p className="text-sm text-text-dim mb-4">
-                        Delete <span className="text-text-primary font-medium">{deleting.name}</span>? This cannot be undone.
-                    </p>
-                    {deleteError && <p className="text-xs text-error mb-3">{deleteError}</p>}
-                    <div className="flex justify-end gap-2">
-                        <button className={BTN_GHOST} onClick={() => setDeleting(null)}>Cancel</button>
-                        <button
-                            className="px-4 py-2 rounded text-xs font-heading font-bold uppercase tracking-wider bg-error text-bg hover:opacity-90 transition-opacity"
-                            onClick={handleDelete}
-                        >
-                            Delete
-                        </button>
-                    </div>
-                </Modal>
-            )}
+            {dialog}
 
             {showImport && (
-                <Modal title="Import Network" onClose={() => setShowImport(false)}>
+                <Dialog open onOpenChange={(o) => !o && setShowImport(false)}>
+                    <DialogContent className="sm:max-w-2xl">
+                        <DialogHeader><DialogTitle>Import Network</DialogTitle></DialogHeader>
                     <div className="space-y-4">
                         <input
                             ref={importFileRef}
@@ -351,7 +343,8 @@ export default function NetworksPage() {
                             </div>
                         )}
                     </div>
-                </Modal>
+                    </DialogContent>
+                </Dialog>
             )}
         </div>
     );

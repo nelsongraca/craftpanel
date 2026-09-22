@@ -100,7 +100,7 @@ test("deletes a user after confirming", async ({page}) => {
     await page.goto("/users");
     await page.getByRole("button", {name: "Delete"}).first().click();
 
-    const dialog = page.getByRole("dialog", {name: "Delete User"});
+    const dialog = page.getByRole("alertdialog", {name: "Delete User"});
     await expect(dialog).toBeVisible();
     await dialog.getByRole("button", {name: "Delete"}).click();
     await expect(dialog).not.toBeVisible();

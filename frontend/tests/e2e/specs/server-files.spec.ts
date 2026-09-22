@@ -84,6 +84,9 @@ test("deletes a file after confirming", async ({page, network}) => {
 
     await expect(page.getByText("Delete File?")).toBeVisible();
     await page.getByRole("button", {name: "Confirm"}).click();
+    // Wait for the confirm dialog to close before asserting the row is gone — it stays open while
+    // the delete is pending and its description also contains the filename.
+    await expect(page.getByRole("alertdialog")).toBeHidden();
     await expect(page.getByText("eula.txt")).not.toBeVisible();
 });
 

@@ -4,7 +4,7 @@ import {useState} from "react";
 import {useRouter} from "next/navigation";
 import {CopyPlus, Play, RotateCcw, Skull, Square, Trash2} from "lucide-react";
 import {deleteServer, forceStopServer, restartServer, startServer, stopServer} from "@/lib/generated/sdk.gen";
-import {hasPermission, serverPermissions} from "@/lib/permissions";
+import {hasPermission, scopedPermissions} from "@/lib/permissions";
 import type {Server} from "@/lib/types";
 import {serverDisabled} from "@/lib/status";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
@@ -114,7 +114,7 @@ export function useServerActions({
     const {confirm, dialog} = useConfirmDialog();
 
     function allowedActions(server: Server): ServerActionKind[] {
-        return allowedServerActions(server, serverPermissions(permissions, serverPermissionsMap, server.id));
+        return allowedServerActions(server, scopedPermissions(permissions, serverPermissionsMap, server.id));
     }
 
     async function run(serverId: string, action: ServerLifecycleAction) {

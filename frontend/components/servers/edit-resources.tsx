@@ -1,8 +1,8 @@
 "use client";
 
 import {useState} from "react";
-import {InfoRow} from "./server-info";
-import {EditFieldRow, EditInput, EditSection} from "./edit-fields";
+import {InfoRow} from "@/components/edit/info-row";
+import {EditFieldRow, EditInput, EditSection} from "@/components/edit/edit-fields";
 import {updateServerResources} from "@/lib/generated/sdk.gen";
 import type {Server} from "@/lib/types";
 import {fmtCpuLimit} from "@/lib/utils/format";

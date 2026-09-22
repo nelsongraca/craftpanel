@@ -7,7 +7,8 @@ export interface ConfirmState {
     title: string;
     description: string;
     destructive?: boolean;
-    onConfirm: () => void;
+    confirmLabel?: string;
+    onConfirm: () => void | Promise<void>;
 }
 
 export function useConfirmDialog() {
@@ -22,9 +23,10 @@ export function useConfirmDialog() {
             title={state?.title ?? ""}
             description={state?.description ?? ""}
             destructive={state?.destructive}
+            confirmLabel={state?.confirmLabel}
             onConfirm={state?.onConfirm ?? (() => {})}
         />
     );
 
-    return {confirm, dialog, state};
+    return {confirm, dialog};
 }

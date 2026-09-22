@@ -3,20 +3,22 @@ import { renderHook, act } from '@testing-library/react'
 import { useConfirmDialog } from '../useConfirmDialog'
 
 describe('useConfirmDialog', () => {
-    it('initial state is null', () => {
+    it('starts closed', () => {
         const { result } = renderHook(() => useConfirmDialog())
-        expect(result.current.state).toBeNull()
+        expect(result.current.dialog.props.open).toBe(false)
     })
 
-    it('confirm() sets the state', () => {
+    it('confirm() opens the dialog with the given title/description', () => {
         const { result } = renderHook(() => useConfirmDialog())
         act(() => {
             result.current.confirm({ title: 't', description: 'd', onConfirm: vi.fn() })
         })
-        expect(result.current.state).toEqual({ title: 't', description: 'd', onConfirm: expect.any(Function) })
+        expect(result.current.dialog.props.open).toBe(true)
+        expect(result.current.dialog.props.title).toBe('t')
+        expect(result.current.dialog.props.description).toBe('d')
     })
 
-    it('dialog closing (onOpenChange(false)) clears the state', () => {
+    it('dialog closing (onOpenChange(false)) closes it', () => {
         const { result } = renderHook(() => useConfirmDialog())
         act(() => {
             result.current.confirm({ title: 't', description: 'd', onConfirm: vi.fn() })
@@ -24,20 +26,18 @@ describe('useConfirmDialog', () => {
         act(() => {
             result.current.dialog.props.onOpenChange(false)
         })
-        expect(result.current.state).toBeNull()
+        expect(result.current.dialog.props.open).toBe(false)
     })
 
-    it('confirm updates title/description/destructive/onConfirm correctly', () => {
+    it('confirm carries destructive and onConfirm through', () => {
         const { result } = renderHook(() => useConfirmDialog())
         const onConfirm = vi.fn()
         act(() => {
             result.current.confirm({ title: 'Delete?', description: 'Sure?', destructive: true, onConfirm })
         })
-        expect(result.current.state).toEqual({
-            title: 'Delete?',
-            description: 'Sure?',
-            destructive: true,
-            onConfirm,
-        })
+        expect(result.current.dialog.props.title).toBe('Delete?')
+        expect(result.current.dialog.props.description).toBe('Sure?')
+        expect(result.current.dialog.props.destructive).toBe(true)
+        expect(result.current.dialog.props.onConfirm).toBe(onConfirm)
     })
 })

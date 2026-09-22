@@ -7,6 +7,7 @@ export function timeAgo(iso: string): string {
     return rtf.format(-Math.floor(secs / 86400), "day");
 }
 
+/** Bytes at binary (1024) steps — the one byte formatter (RAM/disk/network/backup all use it). */
 export function fmtBytes(bytes: number): string {
     if (bytes >= 1_073_741_824) return `${(bytes / 1_073_741_824).toFixed(1)} GB`;
     if (bytes >= 1_048_576) return `${(bytes / 1_048_576).toFixed(1)} MB`;
@@ -17,13 +18,6 @@ export function fmtBytes(bytes: number): string {
 export function fmtMb(mb: number): string {
     if (mb >= 1024) return `${(mb / 1024).toFixed(1)} GB`;
     return `${mb} MB`;
-}
-
-export function fmtBytesNetworkIo(b: number): string {
-    if (b >= 1e9) return `${(b / 1e9).toFixed(1)} GB`;
-    if (b >= 1e6) return `${(b / 1e6).toFixed(1)} MB`;
-    if (b >= 1e3) return `${(b / 1e3).toFixed(1)} KB`;
-    return `${b} B`;
 }
 
 export function fillColor(pct: number): string {
@@ -52,16 +46,4 @@ export function fmtCpuCores(millicores: number): string {
 /** CPU millicores → user-facing limit label. 0 = unlimited. */
 export function fmtCpuLimit(millicores: number): string {
     return millicores === 0 ? "Unlimited" : `${millicores / 1000} cores`;
-}
-
-type MojangVersion = { id: string; type: string };
-
-export async function fetchReleaseVersions(): Promise<string[]> {
-    try {
-        const res = await fetch("https://launchermeta.mojang.com/mc/game/version_manifest_v2.json");
-        const json = await res.json() as { versions: MojangVersion[] };
-        return json.versions.filter((v) => v.type === "release").map((v) => v.id);
-    } catch {
-        return [];
-    }
 }

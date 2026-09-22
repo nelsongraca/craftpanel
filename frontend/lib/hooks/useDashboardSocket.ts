@@ -1,21 +1,12 @@
 "use client";
 
 import {useEffect, useRef} from "react";
-import {authWsTicket} from "@/lib/generated/sdk.gen";
-import {getAccessToken} from "@/lib/client";
 import {useReconnectingSocket} from "@/lib/hooks/useReconnectingSocket";
+import {ticketWsUrl} from "@/lib/ws-url";
+import type {ServerEventMap} from "@/lib/ws-events";
 
-export type WsEventType =
-    | "snapshot"
-    | "node.metrics"
-    | "node.status"
-    | "server.metrics"
-    | "server.status"
-    | "server.players"
-    | "server.backup.progress"
-    | "server.backup.complete"
-    | "alert.fired"
-    | "alert.resolved";
+/** The dashboard WebSocket event names — the keys of the typed event map. */
+export type WsEventType = keyof ServerEventMap;
 
 interface UseDashboardSocketOptions {
     enabled?: boolean;
@@ -32,13 +23,7 @@ export function useDashboardSocket(
         onEventRef.current = onEvent;
     }, [onEvent]);
 
-    const urlFactory = async () => {
-        if (!getAccessToken()) return null;
-        const {data} = await authWsTicket();
-        if (!data?.ticket) return null;
-        const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
-        return `${protocol}//${window.location.host}/api/ws?ticket=${data.ticket}`;
-    };
+    const urlFactory = () => ticketWsUrl("/api/ws");
 
     const onMessage = (ev: MessageEvent) => {
         try {

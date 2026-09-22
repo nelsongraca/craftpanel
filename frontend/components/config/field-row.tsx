@@ -1,9 +1,10 @@
 "use client";
 
 import {useState} from "react";
-import {Plus, X} from "lucide-react";
+import {Plus} from "lucide-react";
 import {Switch} from "@/components/ui/switch";
 import {SelectField, TextAreaField, TextField} from "@/components/ui/form-elements";
+import {TagChip} from "@/components/ui/tag-chip";
 import type {FieldDef} from "./field-types";
 
 function ToggleField({
@@ -65,18 +66,7 @@ function TagInput({
         <div className="space-y-2">
             <div className="flex flex-wrap gap-1">
                 {tags.map((tag) => (
-                    <span
-                        key={tag}
-                        className="inline-flex items-center gap-1 bg-surface-higher border border-border rounded px-2 py-0.5 text-xs font-mono text-text-primary"
-                    >
-                        {tag}
-                        <button
-                            onClick={() => removeTag(tag)}
-                            className="text-text-muted hover:text-error transition-colors"
-                        >
-                            <X className="w-2.5 h-2.5"/>
-                        </button>
-                    </span>
+                    <TagChip key={tag} label={tag} onRemove={() => removeTag(tag)}/>
                 ))}
             </div>
             <div className="flex gap-2">

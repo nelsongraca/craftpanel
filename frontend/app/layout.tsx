@@ -3,7 +3,7 @@ import type {Metadata, Viewport} from "next";
 import {Barlow, Barlow_Condensed, JetBrains_Mono} from "next/font/google";
 import "./globals.css";
 import {AuthProvider} from "@/lib/auth-context";
-import {fetchAppName, fetchBrandingConfig} from "@/lib/config";
+import {fetchBrandingConfig} from "@/lib/config";
 
 const barlow = Barlow({
     variable: "--font-sans",
@@ -24,8 +24,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export async function generateMetadata(): Promise<Metadata> {
-    const appName = await fetchAppName()
     const branding = await fetchBrandingConfig()
+    const appName = branding.appName
     const icons: Metadata["icons"] = branding.hasLogo
         ? {
             icon: [{url: "/api/branding/logo", type: "image/svg+xml"}, {url: "/api/branding/icon-192.png", sizes: "192x192", type: "image/png"}],

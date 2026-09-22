@@ -84,7 +84,7 @@ test("deletes an empty network after confirming", async ({page, network}) => {
     await page.goto("/networks");
     await page.getByRole("button", {name: "Delete"}).click();
 
-    const dialog = page.getByRole("dialog", {name: "Delete Network"});
+    const dialog = page.getByRole("alertdialog", {name: "Delete Network"});
     await dialog.getByRole("button", {name: "Delete"}).click();
     await expect(page.getByText("No networks yet. Create one to group servers.")).toBeVisible();
 });

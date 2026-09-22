@@ -1,9 +1,9 @@
 import type {MetadataRoute} from "next"
-import {fetchAppName, fetchBrandingConfig} from "@/lib/config"
+import {fetchBrandingConfig} from "@/lib/config"
 
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
-    const appName = await fetchAppName()
     const branding = await fetchBrandingConfig()
+    const appName = branding.appName
 
     const icons: MetadataRoute.Manifest["icons"] = branding.hasLogo
         ? [

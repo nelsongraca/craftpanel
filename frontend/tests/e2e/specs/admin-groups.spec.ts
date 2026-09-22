@@ -89,7 +89,7 @@ test("deletes a non-system group after confirming", async ({page, network}) => {
     await page.goto("/groups");
     await page.getByRole("button", {name: "Delete"}).click();
 
-    const dialog = page.getByRole("dialog", {name: "Delete Group"});
+    const dialog = page.getByRole("alertdialog", {name: "Delete Group"});
     await dialog.getByRole("button", {name: "Delete"}).click();
     await expect(page.getByText("No groups.")).toBeVisible();
 });

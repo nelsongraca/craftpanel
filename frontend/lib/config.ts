@@ -7,7 +7,8 @@ export interface BrandingConfig {
     logoUrl: string;
 }
 
-let cachedAppName: string | null = null
+// Client-side cache only. Server renders (generateMetadata/manifest) must not cache across
+// requests, or a logo/app-name change would not surface without a restart.
 let cachedBranding: BrandingConfig | null = null
 
 function apiBase(): string {
@@ -15,31 +16,7 @@ function apiBase(): string {
     return (window as unknown as { __API_URL__?: string }).__API_URL__ ?? ""
 }
 
-export async function fetchAppName(): Promise<string> {
-    try {
-        const controller = new AbortController()
-        const timeout = setTimeout(() => controller.abort(), 2000)
-        const res = await fetch(`${apiBase()}/api/config`, {signal: controller.signal})
-        clearTimeout(timeout)
-        if (!res.ok) return APP_NAME_DEFAULT
-        const data = await res.json() as { app_name?: string }
-        return data.app_name?.trim() || APP_NAME_DEFAULT
-    } catch {
-        return APP_NAME_DEFAULT
-    }
-}
-
-export async function getAppName(): Promise<string> {
-    if (cachedAppName) return cachedAppName
-    cachedAppName = await fetchAppName()
-    return cachedAppName
-}
-
-export function resetAppNameCache() {
-    cachedAppName = null
-}
-
-export async function fetchBrandingConfig(): Promise<BrandingConfig> {
+async function loadBrandingConfig(): Promise<BrandingConfig> {
     try {
         const controller = new AbortController()
         const timeout = setTimeout(() => controller.abort(), 2000)
@@ -60,21 +37,20 @@ export async function fetchBrandingConfig(): Promise<BrandingConfig> {
     }
 }
 
-export function getBrandingConfig(): BrandingConfig | null {
-    return cachedBranding
+export async function fetchBrandingConfig(): Promise<BrandingConfig> {
+    if (cachedBranding) return cachedBranding
+    const cfg = await loadBrandingConfig()
+    if (typeof window !== "undefined") cachedBranding = cfg
+    return cfg
 }
 
-export function setBrandingConfig(cfg: BrandingConfig) {
-    cachedBranding = cfg
-}
-
+/** Drops the client-side branding cache (call after settings that change the logo/app name). */
 export function resetBrandingCache() {
     cachedBranding = null
-    cachedAppName = null
 }
 
 export function logoUrl(cfg?: BrandingConfig | null): string {
     const hash = cfg?.logoHash
     if (hash) return `/api/branding/logo?h=${hash}`
-    return `/api/branding/logo`
+    return "/api/branding/logo"
 }

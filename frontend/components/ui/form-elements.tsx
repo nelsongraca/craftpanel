@@ -2,27 +2,10 @@
 
 import type React from "react";
 import {Children, isValidElement} from "react";
-import {X} from "lucide-react";
 import {Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue} from "@/components/ui/select";
 
 const BTN_PRIMARY = "px-4 py-2 rounded text-xs font-heading font-bold uppercase tracking-wider bg-accent text-bg hover:bg-accent-bright transition-colors";
 const BTN_GHOST = "px-4 py-2 rounded text-xs font-heading font-bold uppercase tracking-wider text-text-muted hover:text-text-primary hover:bg-surface-high transition-colors border border-border";
-
-function Modal({title, onClose, children}: { title: string; onClose: () => void; children: React.ReactNode }) {
-    return (
-        <div role="dialog" aria-modal="true" aria-label={title} className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-            <div className="bg-surface border border-border rounded-md w-full max-w-md shadow-2xl max-h-[90vh] overflow-y-auto">
-                <div className="flex items-center justify-between px-5 py-4 border-b border-border sticky top-0 bg-surface z-10">
-                    <h2 className="text-sm font-heading font-bold uppercase tracking-widest text-text-primary">{title}</h2>
-                    <button onClick={onClose} className="text-text-muted hover:text-text-primary transition-colors">
-                        <X size={16}/>
-                    </button>
-                </div>
-                <div className="p-5">{children}</div>
-            </div>
-        </div>
-    );
-}
 
 function Field({label, children, htmlFor}: { label: string; children: React.ReactNode; htmlFor?: string }) {
     return (
@@ -134,4 +117,4 @@ export function TextAreaField({fieldSize, surface, className, rows, ...props}: R
     );
 }
 
-export {BTN_PRIMARY, BTN_GHOST, Modal, Field};
+export {BTN_PRIMARY, BTN_GHOST, Field};

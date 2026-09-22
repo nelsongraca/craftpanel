@@ -1,8 +1,9 @@
 "use client";
 
 import {useEffect, useRef, useState} from "react";
-import {authWsTicket, fetchServerConsoleLogs} from "@/lib/generated/sdk.gen";
+import {fetchServerConsoleLogs} from "@/lib/generated/sdk.gen";
 import {useReconnectingSocket} from "@/lib/hooks/useReconnectingSocket";
+import {ticketWsUrl} from "@/lib/ws-url";
 import Anser from "anser";
 
 interface Props {
@@ -68,16 +69,9 @@ export function ConsoleTab({serverId, serverStatus}: Props) {
 
     const urlFactory = async () => {
         if (serverStatus !== "HEALTHY") return null;
-        const res = await authWsTicket();
-        if (!res) return null;
-        const ticketErr = res.error;
-        const data = res.data;
-        if (ticketErr || !data?.ticket) {
-            setError("Failed to get WebSocket ticket");
-            return null;
-        }
-        const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-        return `${proto}//${window.location.host}/api/ws/console/${serverId}?ticket=${data.ticket}`;
+        const url = await ticketWsUrl(`/api/ws/console/${serverId}`);
+        if (!url) setError("Failed to get WebSocket ticket");
+        return url;
     };
 
     const onMessage = (evt: MessageEvent) => {

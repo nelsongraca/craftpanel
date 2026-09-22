@@ -1,8 +1,8 @@
 "use client";
 
 import {useEffect, useState} from "react";
-import {InfoRow} from "./server-info";
-import {EditFieldRow, EditInput, EditSelect, EditTextarea, EditSection} from "./edit-fields";
+import {InfoRow} from "@/components/edit/info-row";
+import {EditFieldRow, EditInput, EditSelect, EditTextarea, EditSection} from "@/components/edit/edit-fields";
 import {McVersionSelect} from "@/components/ui/mc-version";
 import {updateServer, listNetworks, updateServerExpiration, setServerDisabled, updateServerDataDir} from "@/lib/generated/sdk.gen";
 import type {Network, Server} from "@/lib/types";

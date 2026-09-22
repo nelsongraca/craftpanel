@@ -7,7 +7,7 @@ import Link from "next/link";
 import {ChevronRight, Copy, Download, MoreHorizontal, Play, RotateCcw, Shuffle, Skull, Square, Trash2, X,} from "lucide-react";
 import {exportServer, getNetwork, getNode, getServer, getServerMetrics} from "@/lib/generated/sdk.gen";
 import {useAuth} from "@/lib/auth-context";
-import {hasPermission, serverPermissions} from "@/lib/permissions";
+import {hasPermission, scopedPermissions} from "@/lib/permissions";
 import type {Network, Node, Server} from "@/lib/types";
 import {useWs} from "@/lib/ws-context";
 import {serverExpired, serverStatusLabel, serverStatusVariant} from "@/lib/status";
@@ -236,7 +236,7 @@ export default function ServerDetailPage() {
     const isCustom = isCustomType(server.server_type);
     const isPicolimbo = isPicolimboType(server.server_type);
     const isModServerType = isModLoaderType(server.server_type);
-    const serverPerms = serverPermissions(permissions, user?.server_permissions ?? {}, server.id);
+    const serverPerms = scopedPermissions(permissions, user?.server_permissions ?? {}, server.id);
     const expired = serverExpired(server.expires_at);
 
     return (

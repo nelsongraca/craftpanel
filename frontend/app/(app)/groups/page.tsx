@@ -6,9 +6,11 @@ import PageHeader from "@/app/components/PageHeader";
 import {createGroup, deleteGroup, listGroups, setGroupPermissions, updateGroup} from "@/lib/generated/sdk.gen";
 import type {Group} from "@/lib/types";
 import {useResourceList} from "@/lib/hooks/useResourceList";
-import {BTN_PRIMARY, BTN_GHOST, Modal, Field, TextField} from "@/components/ui/form-elements";
+import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
+import {BTN_PRIMARY, BTN_GHOST, Field, TextField} from "@/components/ui/form-elements";
 import {IconActionButton} from "@/components/ui/list-table";
 import {SmartList, type SmartListColumn} from "@/components/ui/smart-list";
+import {Dialog, DialogContent, DialogHeader, DialogTitle} from "@/components/ui/dialog";
 
 
 // ── Permission nodes ───────────────────────────────────────────────────────────
@@ -148,8 +150,7 @@ export default function GroupsPage() {
     const {data: groups, initialLoad: loading, reload: load} = useResourceList(listGroups, [], {pollMs: 0});
     const [showCreate, setShowCreate] = useState(false);
     const [editing, setEditing] = useState<Group | null>(null);
-    const [deleting, setDeleting] = useState<Group | null>(null);
-    const [deleteError, setDeleteError] = useState("");
+    const {confirm, dialog} = useConfirmDialog();
 
     async function handleCreate(name: string, permissions: string[]) {
         const createRes = await createGroup({body: {name}});
@@ -173,16 +174,18 @@ export default function GroupsPage() {
         load();
     }
 
-    async function handleDelete() {
-        if (!deleting) return;
-        setDeleteError("");
-        const {error} = await deleteGroup({path: {id: deleting.id}});
-        if (error) {
-            setDeleteError(error.message ?? "Failed to delete group");
-            return;
-        }
-        setDeleting(null);
-        load();
+    function requestDelete(group: Group) {
+        confirm({
+            title: "Delete Group",
+            description: `Delete "${group.name}"? All assignments for this group will be removed.`,
+            destructive: true,
+            confirmLabel: "Delete",
+            onConfirm: async () => {
+                const {error} = await deleteGroup({path: {id: group.id}});
+                if (error) throw new Error(error.message ?? "Failed to delete group");
+                load();
+            },
+        });
     }
 
     return (
@@ -212,10 +215,7 @@ export default function GroupsPage() {
                                 icon={<Trash2 size={13}/>}
                                 label="Delete"
                                 danger
-                                onClick={() => {
-                                    setDeleting(g);
-                                    setDeleteError("");
-                                }}
+                                onClick={() => requestDelete(g)}
                             />
                         </>
                     )}
@@ -223,40 +223,34 @@ export default function GroupsPage() {
             </div>
 
             {showCreate && (
-                <Modal title="New Group" onClose={() => setShowCreate(false)}>
-                    <GroupForm onSubmit={handleCreate} onCancel={() => setShowCreate(false)} submitLabel="Create"/>
-                </Modal>
+                <Dialog open onOpenChange={(o) => !o && setShowCreate(false)}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>New Group</DialogTitle>
+                        </DialogHeader>
+                        <GroupForm onSubmit={handleCreate} onCancel={() => setShowCreate(false)} submitLabel="Create"/>
+                    </DialogContent>
+                </Dialog>
             )}
 
             {editing && (
-                <Modal title="Edit Group" onClose={() => setEditing(null)}>
-                    <GroupForm
-                        initial={{name: editing.name}}
-                        initialPermissions={editing.permissions}
-                        onSubmit={handleEdit}
-                        onCancel={() => setEditing(null)}
-                        submitLabel="Save"
-                    />
-                </Modal>
+                <Dialog open onOpenChange={(o) => !o && setEditing(null)}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader>
+                            <DialogTitle>Edit Group</DialogTitle>
+                        </DialogHeader>
+                        <GroupForm
+                            initial={{name: editing.name}}
+                            initialPermissions={editing.permissions}
+                            onSubmit={handleEdit}
+                            onCancel={() => setEditing(null)}
+                            submitLabel="Save"
+                        />
+                    </DialogContent>
+                </Dialog>
             )}
 
-            {deleting && (
-                <Modal title="Delete Group" onClose={() => setDeleting(null)}>
-                    <p className="text-sm text-text-dim mb-4">
-                        Delete <span className="text-text-primary font-medium">{deleting.name}</span>? All assignments for this group will be removed.
-                    </p>
-                    {deleteError && <p className="text-xs text-error mb-3">{deleteError}</p>}
-                    <div className="flex justify-end gap-2">
-                        <button className={BTN_GHOST} onClick={() => setDeleting(null)}>Cancel</button>
-                        <button
-                            className="px-4 py-2 rounded text-xs font-heading font-bold uppercase tracking-wider bg-error text-bg hover:opacity-90 transition-opacity"
-                            onClick={handleDelete}
-                        >
-                            Delete
-                        </button>
-                    </div>
-                </Modal>
-            )}
+            {dialog}
         </div>
     );
 }

@@ -1,9 +1,9 @@
 "use client";
 
 import {type KeyboardEvent, useState} from "react";
-import {X} from "lucide-react";
-import {InfoRow} from "./server-info";
-import {EditFieldRow, EditInput, EditSection} from "./edit-fields";
+import {TagChip} from "@/components/ui/tag-chip";
+import {InfoRow} from "@/components/edit/info-row";
+import {EditFieldRow, EditInput, EditSection} from "@/components/edit/edit-fields";
 import {updateServerExposure} from "@/lib/generated/sdk.gen";
 import type {Server} from "@/lib/types";
 
@@ -16,24 +16,6 @@ interface EditExposureProps {
 function parseHostnames(raw: string | null | undefined): string[] {
     if (!raw) return [];
     return Array.from(new Set(raw.split(",").map((h) => h.trim()).filter(Boolean)));
-}
-
-function HostnameChip({hostname, onRemove}: { hostname: string; onRemove?: () => void }) {
-    return (
-        <span className="inline-flex items-center gap-1 rounded border border-border bg-surface-higher px-1.5 py-0.5 font-mono text-xs text-text-primary">
-            {hostname}
-            {onRemove && (
-                <button
-                    type="button"
-                    onClick={onRemove}
-                    aria-label={`Remove ${hostname}`}
-                    className="text-text-muted hover:text-error transition-colors"
-                >
-                    <X size={11}/>
-                </button>
-            )}
-        </span>
-    );
 }
 
 export function EditExposure({server, onSaved}: EditExposureProps) {
@@ -124,7 +106,7 @@ export function EditExposure({server, onSaved}: EditExposureProps) {
                     label="Custom Hostnames"
                     value={savedHostnames.length > 0 ? (
                         <span className="flex flex-wrap justify-end gap-1">
-                            {savedHostnames.map((h) => <HostnameChip key={h} hostname={h}/>)}
+                            {savedHostnames.map((h) => <TagChip key={h} label={h}/>)}
                         </span>
                     ) : "-"}
                 />
@@ -159,7 +141,7 @@ export function EditExposure({server, onSaved}: EditExposureProps) {
                             {customHostnames.length > 0 && (
                                 <div className="flex flex-wrap gap-1.5">
                                     {customHostnames.map((h) => (
-                                        <HostnameChip key={h} hostname={h} onRemove={() => removeHostname(h)}/>
+                                        <TagChip key={h} label={h} onRemove={() => removeHostname(h)}/>
                                     ))}
                                 </div>
                             )}

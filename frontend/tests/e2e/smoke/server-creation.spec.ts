@@ -64,7 +64,7 @@ async function deleteNetworkByName(p: Page, name: string) {
     if (!found) return;
     await expect(cell).toHaveCount(1);
     await rowByExactName(p, name).getByRole("button", {name: "Delete"}).click();
-    await p.getByRole("dialog", {name: "Delete Network"}).getByRole("button", {name: "Delete"}).click();
+    await p.getByRole("alertdialog", {name: "Delete Network"}).getByRole("button", {name: "Delete"}).click();
     await expect(cell).not.toBeVisible();
 }
 

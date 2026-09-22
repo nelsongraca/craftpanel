@@ -299,8 +299,8 @@ describe("NetworksPage", () => {
     });
 
     it("import modal shows file picker", async () => {
-        const {container} = await renderWith({networks: [network()]});
+        await renderWith({networks: [network()]});
         await userEvent.setup().click(screen.getByText("Import"));
-        expect(container.querySelector('input[type="file"]')).not.toBeNull();
+        expect(document.querySelector('input[type="file"]')).not.toBeNull();
     });
 });

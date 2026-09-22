@@ -1,40 +1,14 @@
 "use client";
 
-import {useState} from "react";
 import {X} from "lucide-react";
-import {updateNode} from "@/lib/generated/sdk.gen";
+import {useNodeEdit} from "@/lib/hooks/useNodeEdit";
 import type {Node} from "@/lib/types";
 
 export function EditNodeModal({node, onClose, onSaved}: { node: Node; onClose: () => void; onSaved: () => void }) {
-    const [displayName, setDisplayName] = useState(node.display_name);
-    const [portStart, setPortStart] = useState(String(node.port_range_start));
-    const [portEnd, setPortEnd] = useState(String(node.port_range_end));
-    const [saving, setSaving] = useState(false);
-    const [error, setError] = useState<string | null>(null);
+    const {draft, setField, saving, error, save} = useNodeEdit(node, onSaved);
 
-    async function save() {
-        setSaving(true);
-        setError(null);
-        try {
-            const {error: e} = await updateNode({
-                path: {id: node.id},
-                body: {
-                    display_name: displayName || undefined,
-                    port_range_start: portStart ? parseInt(portStart) : undefined,
-                    port_range_end: portEnd ? parseInt(portEnd) : undefined,
-                },
-            });
-            if (e) {
-                setError(e.message ?? "Failed to save");
-            } else {
-                onSaved();
-                onClose();
-            }
-        } catch {
-            setError("Failed to save");
-        } finally {
-            setSaving(false);
-        }
+    async function handleSave() {
+        if (await save()) onClose();
     }
 
     return (
@@ -53,8 +27,8 @@ export function EditNodeModal({node, onClose, onSaved}: { node: Node; onClose: (
                     <label className="block">
                         <span className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">Display Name</span>
                         <input
-                            value={displayName}
-                            onChange={(e) => setDisplayName(e.target.value)}
+                            value={draft.displayName}
+                            onChange={(e) => setField("displayName", e.target.value)}
                             className="w-full h-8 bg-surface border border-border rounded px-2.5 text-xs font-mono text-text-primary focus:outline-none focus:border-accent"
                         />
                     </label>
@@ -63,8 +37,8 @@ export function EditNodeModal({node, onClose, onSaved}: { node: Node; onClose: (
                             <span className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">Port Range Start</span>
                             <input
                                 type="number"
-                                value={portStart}
-                                onChange={(e) => setPortStart(e.target.value)}
+                                value={draft.portStart}
+                                onChange={(e) => setField("portStart", e.target.value)}
                                 className="w-full h-8 bg-surface border border-border rounded px-2.5 text-xs font-mono text-text-primary focus:outline-none focus:border-accent"
                             />
                         </label>
@@ -72,8 +46,8 @@ export function EditNodeModal({node, onClose, onSaved}: { node: Node; onClose: (
                             <span className="text-xs font-heading font-bold uppercase tracking-widest text-text-muted block mb-1">Port Range End</span>
                             <input
                                 type="number"
-                                value={portEnd}
-                                onChange={(e) => setPortEnd(e.target.value)}
+                                value={draft.portEnd}
+                                onChange={(e) => setField("portEnd", e.target.value)}
                                 className="w-full h-8 bg-surface border border-border rounded px-2.5 text-xs font-mono text-text-primary focus:outline-none focus:border-accent"
                             />
                         </label>
@@ -88,7 +62,7 @@ export function EditNodeModal({node, onClose, onSaved}: { node: Node; onClose: (
                         Cancel
                     </button>
                     <button
-                        onClick={save}
+                        onClick={() => void handleSave()}
                         disabled={saving}
                         className="px-3 py-1.5 text-xs font-heading font-bold uppercase tracking-widest bg-accent text-bg rounded hover:bg-accent-bright transition-colors disabled:opacity-40"
                     >

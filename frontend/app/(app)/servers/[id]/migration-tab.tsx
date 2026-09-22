@@ -2,10 +2,11 @@
 
 import {useCallback, useEffect, useRef, useState} from "react";
 import {ArrowRight, ChevronDown, ChevronRight, Loader2, Shuffle} from "lucide-react";
-import {authWsTicket, listMigrations, listNodes, startMigration} from "@/lib/generated/sdk.gen";
+import {listMigrations, listNodes, startMigration} from "@/lib/generated/sdk.gen";
 import type {MigrationResponse, MigrationStepData} from "@/lib/types";
 import type {Node} from "@/lib/types";
 import {useReconnectingSocket} from "@/lib/hooks/useReconnectingSocket";
+import {ticketWsUrl} from "@/lib/ws-url";
 import {Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter} from "@/components/ui/dialog";
 import {SelectField} from "@/components/ui/form-elements";
 
@@ -95,15 +96,7 @@ function ActiveMigration({migrationId, onDone}: { migrationId: string; onDone: (
     const [error, setError] = useState<string | null>(null);
     const doneRef = useRef(false);
 
-    const urlFactory = async () => {
-        const res = await authWsTicket();
-        if (!res) return null;
-        const ticketErr = res.error;
-        const data = res.data;
-        if (ticketErr || !data?.ticket) return null;
-        const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-        return `${proto}//${window.location.host}/api/migrations/${migrationId}/events?ticket=${data.ticket}`;
-    };
+    const urlFactory = () => ticketWsUrl(`/api/migrations/${migrationId}/events`);
 
     const onMessage = (e: MessageEvent) => {
         let msg: Record<string, unknown>;

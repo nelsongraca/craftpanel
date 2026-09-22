@@ -13,7 +13,8 @@ import {useResourceList} from "@/lib/hooks/useResourceList";
 import {ServerList} from "@/components/servers/server-list";
 import {ServerActions, useServerActions} from "@/components/servers/server-actions";
 import {SelectField} from "@/components/ui/form-elements";
-import {BTN_GHOST, BTN_PRIMARY, Modal, Field} from "@/components/ui/form-elements";
+import {BTN_GHOST, BTN_PRIMARY, Field} from "@/components/ui/form-elements";
+import {Dialog, DialogContent, DialogHeader, DialogTitle} from "@/components/ui/dialog";
 
 // Filter option → backend statuses that match
 const FILTER_MATCHES: Record<string, string[]> = {
@@ -244,7 +245,9 @@ export default function ServersPage() {
                 </div>
             </div>
             {showImport && (
-                <Modal title="Import Server" onClose={() => { setShowImport(false); setImportError(""); setImportFile(null); }}>
+                <Dialog open onOpenChange={(o) => { if (!o) { setShowImport(false); setImportError(""); setImportFile(null); } }}>
+                    <DialogContent className="sm:max-w-md">
+                        <DialogHeader><DialogTitle>Import Server</DialogTitle></DialogHeader>
                     <div className="space-y-4">
                         <input
                             type="file"
@@ -270,7 +273,8 @@ export default function ServersPage() {
                             </button>
                         </div>
                     </div>
-                </Modal>
+                    </DialogContent>
+                </Dialog>
             )}
             {dialog}
         </>
