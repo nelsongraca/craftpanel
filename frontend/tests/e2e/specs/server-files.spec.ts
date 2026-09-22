@@ -6,8 +6,20 @@ import {expect, test} from "../fixture";
 // regression test below.
 
 const rootEntries = [
-    {name: "server.properties", is_directory: false, size_bytes: 42, modified_at: "2025-06-20T10:00:00Z", permissions: "rw-r--r--"},
-    {name: "eula.txt", is_directory: false, size_bytes: 11, modified_at: "2025-06-20T10:00:00Z", permissions: "rw-r--r--"},
+    {
+        name: "server.properties",
+        is_directory: false,
+        size_bytes: 42,
+        modified_at: "2025-06-20T10:00:00Z",
+        permissions: "rw-r--r--",
+    },
+    {
+        name: "eula.txt",
+        is_directory: false,
+        size_bytes: 11,
+        modified_at: "2025-06-20T10:00:00Z",
+        permissions: "rw-r--r--",
+    },
     {name: "world", is_directory: true, size_bytes: 0, modified_at: "2025-06-20T10:00:00Z", permissions: "rwxr-xr-x"},
 ];
 
@@ -28,14 +40,23 @@ test("creates a folder via the prompt dialog", async ({page, network}) => {
             if (path !== "/") return HttpResponse.json({entries: []});
             return HttpResponse.json({
                 entries: created
-                    ? [...rootEntries, {name: "config", is_directory: true, size_bytes: 0, modified_at: "2025-06-20T10:00:00Z", permissions: "rwxr-xr-x"}]
+                    ? [
+                          ...rootEntries,
+                          {
+                              name: "config",
+                              is_directory: true,
+                              size_bytes: 0,
+                              modified_at: "2025-06-20T10:00:00Z",
+                              permissions: "rwxr-xr-x",
+                          },
+                      ]
                     : rootEntries,
             });
         }),
         http.post("/api/servers/srv-1/files/mkdir", () => {
             created = true;
             return new HttpResponse(null, {status: 204});
-        })
+        }),
     );
 
     await page.goto("/servers/srv-1");
@@ -64,15 +85,13 @@ test("deletes a file after confirming", async ({page, network}) => {
             const path = new URL(request.url).searchParams.get("path") ?? "/";
             if (path !== "/") return HttpResponse.json({entries: []});
             return HttpResponse.json({
-                entries: deleted
-                    ? rootEntries.filter((e) => e.name !== "eula.txt")
-                    : rootEntries,
+                entries: deleted ? rootEntries.filter((e) => e.name !== "eula.txt") : rootEntries,
             });
         }),
         http.delete("/api/servers/srv-1/files", () => {
             deleted = true;
             return new HttpResponse(null, {status: 204});
-        })
+        }),
     );
 
     await page.goto("/servers/srv-1");
@@ -98,14 +117,22 @@ test("renames a file via the inline input", async ({page, network}) => {
             if (path !== "/") return HttpResponse.json({entries: []});
             return HttpResponse.json({
                 entries: renamed
-                    ? [{name: "eula-renamed.txt", is_directory: false, size_bytes: 11, modified_at: "2025-06-20T10:00:00Z", permissions: "rw-r--r--"}]
+                    ? [
+                          {
+                              name: "eula-renamed.txt",
+                              is_directory: false,
+                              size_bytes: 11,
+                              modified_at: "2025-06-20T10:00:00Z",
+                              permissions: "rw-r--r--",
+                          },
+                      ]
                     : [rootEntries[1]],
             });
         }),
         http.post("/api/servers/srv-1/files/move", () => {
             renamed = true;
             return new HttpResponse(null, {status: 204});
-        })
+        }),
     );
 
     await page.goto("/servers/srv-1");
@@ -127,9 +154,7 @@ test("binary file shows download-only view", async ({page}) => {
     await page.getByText("world", {exact: true}).click();
     await page.getByText("level.dat").click();
 
-    await expect(
-        page.getByText("Binary file - use the download button to retrieve it.")
-    ).toBeVisible();
+    await expect(page.getByText("Binary file - use the download button to retrieve it.")).toBeVisible();
     await expect(page.getByRole("button", {name: "Download", exact: true}).last()).toBeVisible();
 });
 
@@ -157,7 +182,7 @@ test("upload here targets the selected folder", async ({page, network}) => {
             const form = await request.formData();
             uploadedPath = String(form.get("path"));
             return HttpResponse.json({path: uploadedPath, size_bytes: 1}, {status: 201});
-        })
+        }),
     );
 
     await page.goto("/servers/srv-1");
@@ -168,7 +193,9 @@ test("upload here targets the selected folder", async ({page, network}) => {
 
     const chooser = page.waitForEvent("filechooser");
     await row.getByTitle("Upload here").click();
-    await (await chooser).setFiles({
+    await (
+        await chooser
+    ).setFiles({
         name: "level.dat",
         mimeType: "application/octet-stream",
         buffer: Buffer.from("data"),
@@ -181,8 +208,8 @@ test("long text file is scrollable in the editor", async ({page, network}) => {
     const longContent = Array.from({length: 400}, (_, i) => `line ${i + 1}`).join("\n");
     network.use(
         http.get("/api/servers/srv-1/files/content", () =>
-            HttpResponse.json({encoding: "utf-8", content: longContent})
-        )
+            HttpResponse.json({encoding: "utf-8", content: longContent}),
+        ),
     );
 
     await page.goto("/servers/srv-1");
@@ -211,8 +238,8 @@ test.describe("mobile master/detail (375px)", () => {
     test("file tree is full-screen until a file is picked, then the editor + back button", async ({page, network}) => {
         network.use(
             http.get("/api/servers/srv-1/files/content", () =>
-                HttpResponse.json({encoding: "utf-8", content: "motd=hello\n"})
-            )
+                HttpResponse.json({encoding: "utf-8", content: "motd=hello\n"}),
+            ),
         );
 
         await page.goto("/servers/srv-1");
@@ -240,15 +267,13 @@ test.describe("mobile master/detail (375px)", () => {
                 const path = new URL(request.url).searchParams.get("path") ?? "/";
                 if (path !== "/") return HttpResponse.json({entries: []});
                 return HttpResponse.json({
-                    entries: deleted
-                        ? rootEntries.filter((e) => e.name !== "eula.txt")
-                        : rootEntries,
+                    entries: deleted ? rootEntries.filter((e) => e.name !== "eula.txt") : rootEntries,
                 });
             }),
             http.delete("/api/servers/srv-1/files", () => {
                 deleted = true;
                 return new HttpResponse(null, {status: 204});
-            })
+            }),
         );
 
         await page.goto("/servers/srv-1");

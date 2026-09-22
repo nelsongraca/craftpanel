@@ -14,7 +14,7 @@ frontend {
     nodeInstallDirectory.set(layout.projectDirectory.dir(".node"))
     packageJsonDirectory.set(layout.projectDirectory)
     assembleScript.set("run build")
-    checkScript.set("run lint")
+    checkScript.set("run check")
 }
 
 tasks.register<Delete>("cleanFrontend") {
@@ -47,6 +47,14 @@ tasks.register<Exec>("testFrontend") {
     } else {
         commandLine(pnpm, "run", "test")
     }
+}
+
+tasks.register<Exec>("formatFrontend") {
+    group = "build"
+    description = "Formats frontend files changed since origin/master (ratchet, mirrors Spotless)"
+    dependsOn("installFrontend")
+    workingDir = layout.projectDirectory.asFile
+    commandLine(layout.projectDirectory.file(".node/bin/pnpm").asFile, "run", "format")
 }
 
 tasks.register<Exec>("testE2eMocked") {

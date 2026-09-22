@@ -41,6 +41,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # Full history so the Prettier ratchet can diff against origin/master.
+          fetch-depth: 0
 
       - uses: ./.github/actions/setup-gradle
 

@@ -30,7 +30,7 @@ vi.mock("@/components/servers/file-code-editor", () => ({
                 }
             }}
             spellCheck={false}
-            className="w-full h-full font-mono text-xs p-4"
+            className="h-full w-full p-4 font-mono text-xs"
         />
     ),
 }));
@@ -73,12 +73,12 @@ function setEditorText(text: string) {
 
 vi.mock("@/components/ui/confirm-dialog", () => ({
     ConfirmDialog: ({
-                        open,
-                        onOpenChange,
-                        title,
-                        description,
-                        onConfirm,
-                    }: {
+        open,
+        onOpenChange,
+        title,
+        description,
+        onConfirm,
+    }: {
         open: boolean;
         onOpenChange: (open: boolean) => void;
         title: string;
@@ -100,11 +100,7 @@ vi.mock("@/components/ui/confirm-dialog", () => ({
         ) : null,
 }));
 
-function fileEntry(
-    name = "file.txt",
-    size = 1024,
-    extra?: Record<string, unknown>,
-) {
+function fileEntry(name = "file.txt", size = 1024, extra?: Record<string, unknown>) {
     return {
         name,
         is_directory: false,
@@ -131,9 +127,8 @@ describe("FilesTab", () => {
     });
 
     it("renders loading state initially", () => {
-        vi.mocked(listServerFiles).mockReturnValue(new Promise(() => {
-        }));
-        render(<FilesTab serverId="s1"/>);
+        vi.mocked(listServerFiles).mockReturnValue(new Promise(() => {}));
+        render(<FilesTab serverId="s1" />);
         expect(screen.getByText("Loading\u2026")).toBeInTheDocument();
     });
 
@@ -141,7 +136,7 @@ describe("FilesTab", () => {
         vi.mocked(listServerFiles).mockResolvedValue({
             data: {entries: [fileEntry("notes.txt", 2048), dirEntry("plugins")]},
         } as never);
-        render(<FilesTab serverId="s1"/>);
+        render(<FilesTab serverId="s1" />);
         await waitFor(() => {
             expect(screen.getByText("notes.txt")).toBeInTheDocument();
         });
@@ -152,7 +147,7 @@ describe("FilesTab", () => {
         vi.mocked(listServerFiles).mockResolvedValue({
             data: {entries: []},
         } as never);
-        render(<FilesTab serverId="s1"/>);
+        render(<FilesTab serverId="s1" />);
         await waitFor(() => {
             expect(screen.getByText("Empty directory")).toBeInTheDocument();
         });
@@ -162,7 +157,7 @@ describe("FilesTab", () => {
         vi.mocked(listServerFiles).mockResolvedValue({
             error: {message: "Agent disconnected"},
         } as never);
-        render(<FilesTab serverId="s1"/>);
+        render(<FilesTab serverId="s1" />);
         await waitFor(() => {
             expect(screen.getByText("Agent disconnected")).toBeInTheDocument();
         });
@@ -176,7 +171,7 @@ describe("FilesTab", () => {
         vi.mocked(listServerFiles).mockResolvedValueOnce({
             data: {entries: [fileEntry("region.txt")]},
         } as never);
-        render(<FilesTab serverId="s1"/>);
+        render(<FilesTab serverId="s1" />);
         await waitFor(() => expect(screen.getByText("world")).toBeInTheDocument());
 
         await user.click(screen.getByText("world"));
@@ -185,9 +180,7 @@ describe("FilesTab", () => {
             expect(screen.getByText("region.txt")).toBeInTheDocument();
         });
         expect(listServerFiles).toHaveBeenCalledTimes(2);
-        expect(listServerFiles).toHaveBeenLastCalledWith(
-            expect.objectContaining({query: {path: "/world"}}),
-        );
+        expect(listServerFiles).toHaveBeenLastCalledWith(expect.objectContaining({query: {path: "/world"}}));
     });
 
     it("collapses an expanded directory on second click", async () => {
@@ -198,7 +191,7 @@ describe("FilesTab", () => {
         vi.mocked(listServerFiles).mockResolvedValueOnce({
             data: {entries: [fileEntry("latest.log")]},
         } as never);
-        render(<FilesTab serverId="s1"/>);
+        render(<FilesTab serverId="s1" />);
         await waitFor(() => expect(screen.getByText("logs")).toBeInTheDocument());
 
         await user.click(screen.getByText("logs"));
@@ -218,10 +211,8 @@ describe("FilesTab", () => {
         vi.mocked(readServerFile).mockResolvedValue({
             data: {content: "max-players=20", encoding: "utf-8"},
         } as never);
-        render(<FilesTab serverId="s1"/>);
-        await waitFor(() =>
-            expect(screen.getByText("server.properties")).toBeInTheDocument(),
-        );
+        render(<FilesTab serverId="s1" />);
+        await waitFor(() => expect(screen.getByText("server.properties")).toBeInTheDocument());
 
         await user.click(screen.getByText("server.properties"));
 
@@ -244,7 +235,7 @@ describe("FilesTab", () => {
         vi.mocked(readServerFile).mockResolvedValue({
             data: {content: '{"ops":[]}', encoding: "utf-8"},
         } as never);
-        render(<FilesTab serverId="s1"/>);
+        render(<FilesTab serverId="s1" />);
         await waitFor(() => expect(screen.getByText("ops.json")).toBeInTheDocument());
 
         await user.click(screen.getByText("ops.json"));
@@ -258,10 +249,8 @@ describe("FilesTab", () => {
         vi.mocked(listServerFiles).mockResolvedValue({
             data: {entries: []},
         } as never);
-        render(<FilesTab serverId="s1"/>);
-        await waitFor(() =>
-            expect(screen.queryByText("Loading\u2026")).not.toBeInTheDocument(),
-        );
+        render(<FilesTab serverId="s1" />);
+        await waitFor(() => expect(screen.queryByText("Loading\u2026")).not.toBeInTheDocument());
 
         const clickSpy = vi.spyOn(HTMLInputElement.prototype, "click");
         fireEvent.click(screen.getByTitle("Upload file"));
@@ -278,12 +267,8 @@ describe("FilesTab", () => {
                 },
             } as never);
             vi.mocked(deleteServerFile).mockResolvedValue({data: {}} as never);
-            render(<FilesTab serverId="s1"/>);
-            await waitFor(() =>
-                expect(
-                    screen.getByText(isDir ? "trash" : "old.log"),
-                ).toBeInTheDocument(),
-            );
+            render(<FilesTab serverId="s1" />);
+            await waitFor(() => expect(screen.getByText(isDir ? "trash" : "old.log")).toBeInTheDocument());
             return {user};
         }
 
@@ -294,20 +279,14 @@ describe("FilesTab", () => {
             await waitFor(() => {
                 expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument();
             });
-            expect(screen.getByTestId("confirm-title")).toHaveTextContent(
-                "Delete File?",
-            );
-            expect(screen.getByTestId("confirm-description")).toHaveTextContent(
-                "/old.log",
-            );
+            expect(screen.getByTestId("confirm-title")).toHaveTextContent("Delete File?");
+            expect(screen.getByTestId("confirm-description")).toHaveTextContent("/old.log");
         });
 
         it("calls deleteServerFile on confirm for a file", async () => {
             const {user} = await setupDelete();
             fireEvent.click(screen.getByTitle("Delete"));
-            await waitFor(() =>
-                expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument(),
-            );
+            await waitFor(() => expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument());
 
             await user.click(screen.getByTestId("confirm-action"));
 
@@ -324,9 +303,7 @@ describe("FilesTab", () => {
         it("calls deleteServerFile with recursive for a directory", async () => {
             const {user} = await setupDelete(true);
             fireEvent.click(screen.getByTitle("Delete"));
-            await waitFor(() =>
-                expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument(),
-            );
+            await waitFor(() => expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument());
 
             await user.click(screen.getByTestId("confirm-action"));
 
@@ -343,16 +320,12 @@ describe("FilesTab", () => {
         it("cancel closes confirmation and does not call API", async () => {
             const {user} = await setupDelete();
             fireEvent.click(screen.getByTitle("Delete"));
-            await waitFor(() =>
-                expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument(),
-            );
+            await waitFor(() => expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument());
 
             await user.click(screen.getByTestId("confirm-cancel"));
 
             await waitFor(() => {
-                expect(
-                    screen.queryByTestId("confirm-dialog"),
-                ).not.toBeInTheDocument();
+                expect(screen.queryByTestId("confirm-dialog")).not.toBeInTheDocument();
             });
             expect(deleteServerFile).not.toHaveBeenCalled();
         });
@@ -362,15 +335,11 @@ describe("FilesTab", () => {
             vi.mocked(listServerFiles).mockResolvedValue({
                 data: {entries: [fileEntry("old.log")]},
             } as never);
-            render(<FilesTab serverId="s1"/>);
-            await waitFor(() =>
-                expect(screen.getByText("old.log")).toBeInTheDocument(),
-            );
+            render(<FilesTab serverId="s1" />);
+            await waitFor(() => expect(screen.getByText("old.log")).toBeInTheDocument());
 
             fireEvent.click(screen.getByTitle("Delete"));
-            await waitFor(() =>
-                expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument(),
-            );
+            await waitFor(() => expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument());
 
             vi.mocked(deleteServerFile).mockResolvedValue({
                 error: {message: "Permission denied"},
@@ -392,10 +361,8 @@ describe("FilesTab", () => {
                 data: {content: "editing", encoding: "utf-8"},
             } as never);
             vi.mocked(deleteServerFile).mockResolvedValue({data: {}} as never);
-            render(<FilesTab serverId="s1"/>);
-            await waitFor(() =>
-                expect(screen.getByText("open.txt")).toBeInTheDocument(),
-            );
+            render(<FilesTab serverId="s1" />);
+            await waitFor(() => expect(screen.getByText("open.txt")).toBeInTheDocument());
 
             await user.click(screen.getByText("open.txt"));
             await waitFor(() => {
@@ -403,15 +370,11 @@ describe("FilesTab", () => {
             });
 
             fireEvent.click(screen.getByTitle("Delete"));
-            await waitFor(() =>
-                expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument(),
-            );
+            await waitFor(() => expect(screen.getByTestId("confirm-dialog")).toBeInTheDocument());
             await user.click(screen.getByTestId("confirm-action"));
 
             await waitFor(() => {
-                expect(
-                    screen.queryByText("/open.txt"),
-                ).not.toBeInTheDocument();
+                expect(screen.queryByText("/open.txt")).not.toBeInTheDocument();
             });
         });
     });
@@ -421,10 +384,8 @@ describe("FilesTab", () => {
             vi.mocked(listServerFiles).mockResolvedValue({
                 data: {entries: [fileEntry("oldname.txt"), dirEntry("stuff")]},
             } as never);
-            render(<FilesTab serverId="s1"/>);
-            await waitFor(() =>
-                expect(screen.getByText("oldname.txt")).toBeInTheDocument(),
-            );
+            render(<FilesTab serverId="s1" />);
+            await waitFor(() => expect(screen.getByText("oldname.txt")).toBeInTheDocument());
             const renameButtons = screen.getAllByTitle("Rename");
             return {renameButtons};
         }
@@ -465,9 +426,7 @@ describe("FilesTab", () => {
             fireEvent.keyDown(input, {key: "Escape"});
 
             await waitFor(() => {
-                expect(
-                    screen.queryByDisplayValue("oldname.txt"),
-                ).not.toBeInTheDocument();
+                expect(screen.queryByDisplayValue("oldname.txt")).not.toBeInTheDocument();
             });
             expect(moveServerFile).not.toHaveBeenCalled();
         });
@@ -480,9 +439,7 @@ describe("FilesTab", () => {
             fireEvent.keyDown(input, {key: "Enter"});
 
             await waitFor(() => {
-                expect(
-                    screen.queryByDisplayValue("oldname.txt"),
-                ).not.toBeInTheDocument();
+                expect(screen.queryByDisplayValue("oldname.txt")).not.toBeInTheDocument();
             });
             expect(moveServerFile).not.toHaveBeenCalled();
         });
@@ -529,10 +486,8 @@ describe("FilesTab", () => {
                 data: {entries: [fileEntry("notes.txt")]},
             } as never);
             vi.mocked(moveServerFile).mockResolvedValue({data: {}} as never);
-            render(<FilesTab serverId="s1"/>);
-            await waitFor(() =>
-                expect(screen.getByText("notes.txt")).toBeInTheDocument(),
-            );
+            render(<FilesTab serverId="s1" />);
+            await waitFor(() => expect(screen.getByText("notes.txt")).toBeInTheDocument());
             return userEvent.setup();
         }
 
@@ -547,9 +502,7 @@ describe("FilesTab", () => {
             fireEvent.click(screen.getByTitle("Move"));
             const input = screen.getByDisplayValue("/notes.txt");
             fireEvent.change(input, {target: {value: "/docs/notes.txt"}});
-            await user.click(
-                within(screen.getByRole("alertdialog")).getByRole("button", {name: "Move"}),
-            );
+            await user.click(within(screen.getByRole("alertdialog")).getByRole("button", {name: "Move"}));
 
             await waitFor(() => {
                 expect(moveServerFile).toHaveBeenCalledWith(
@@ -567,13 +520,9 @@ describe("FilesTab", () => {
         it("is a no-op when the destination is unchanged", async () => {
             const user = await setupMove();
             fireEvent.click(screen.getByTitle("Move"));
-            await user.click(
-                within(screen.getByRole("alertdialog")).getByRole("button", {name: "Move"}),
-            );
+            await user.click(within(screen.getByRole("alertdialog")).getByRole("button", {name: "Move"}));
 
-            await waitFor(() =>
-                expect(screen.queryByDisplayValue("/notes.txt")).not.toBeInTheDocument(),
-            );
+            await waitFor(() => expect(screen.queryByDisplayValue("/notes.txt")).not.toBeInTheDocument());
             expect(moveServerFile).not.toHaveBeenCalled();
         });
 
@@ -585,9 +534,7 @@ describe("FilesTab", () => {
             fireEvent.click(screen.getByTitle("Move"));
             const input = screen.getByDisplayValue("/notes.txt");
             fireEvent.change(input, {target: {value: "/elsewhere.txt"}});
-            await user.click(
-                within(screen.getByRole("alertdialog")).getByRole("button", {name: "Move"}),
-            );
+            await user.click(within(screen.getByRole("alertdialog")).getByRole("button", {name: "Move"}));
 
             await waitFor(() => {
                 expect(screen.getByText("Failed to move")).toBeInTheDocument();
@@ -601,10 +548,8 @@ describe("FilesTab", () => {
                 data: {entries},
             } as never);
             vi.mocked(copyServerFile).mockResolvedValue({data: {}} as never);
-            render(<FilesTab serverId="s1"/>);
-            await waitFor(() =>
-                expect(screen.getByText(entries[0].name)).toBeInTheDocument(),
-            );
+            render(<FilesTab serverId="s1" />);
+            await waitFor(() => expect(screen.getByText(entries[0].name)).toBeInTheDocument());
             return userEvent.setup();
         }
 
@@ -623,9 +568,7 @@ describe("FilesTab", () => {
         it("calls copyServerFile non-recursively for a file", async () => {
             const user = await setupCopy();
             fireEvent.click(screen.getByTitle("Copy"));
-            await user.click(
-                within(screen.getByRole("alertdialog")).getByRole("button", {name: "Copy"}),
-            );
+            await user.click(within(screen.getByRole("alertdialog")).getByRole("button", {name: "Copy"}));
 
             await waitFor(() => {
                 expect(copyServerFile).toHaveBeenCalledWith(
@@ -644,9 +587,7 @@ describe("FilesTab", () => {
         it("calls copyServerFile recursively for a directory", async () => {
             const user = await setupCopy([dirEntry("world")]);
             fireEvent.click(screen.getByTitle("Copy"));
-            await user.click(
-                within(screen.getByRole("alertdialog")).getByRole("button", {name: "Copy"}),
-            );
+            await user.click(within(screen.getByRole("alertdialog")).getByRole("button", {name: "Copy"}));
 
             await waitFor(() => {
                 expect(copyServerFile).toHaveBeenCalledWith(
@@ -667,9 +608,7 @@ describe("FilesTab", () => {
                 error: {message: "Exists"},
             } as never);
             fireEvent.click(screen.getByTitle("Copy"));
-            await user.click(
-                within(screen.getByRole("alertdialog")).getByRole("button", {name: "Copy"}),
-            );
+            await user.click(within(screen.getByRole("alertdialog")).getByRole("button", {name: "Copy"}));
 
             await waitFor(() => {
                 expect(screen.getByText("Failed to copy")).toBeInTheDocument();
@@ -683,10 +622,8 @@ describe("FilesTab", () => {
             vi.mocked(listServerFiles).mockResolvedValue({
                 data: {entries: []},
             } as never);
-            render(<FilesTab serverId="s1"/>);
-            await waitFor(() =>
-                expect(screen.queryByText("Loading\u2026")).not.toBeInTheDocument(),
-            );
+            render(<FilesTab serverId="s1" />);
+            await waitFor(() => expect(screen.queryByText("Loading\u2026")).not.toBeInTheDocument());
             return user;
         }
 
@@ -729,9 +666,7 @@ describe("FilesTab", () => {
             await user.click(screen.getByRole("button", {name: "Create"}));
 
             await waitFor(() => {
-                expect(
-                    screen.getByText("Failed to create directory"),
-                ).toBeInTheDocument();
+                expect(screen.getByText("Failed to create directory")).toBeInTheDocument();
             });
         });
     });
@@ -745,10 +680,8 @@ describe("FilesTab", () => {
             vi.mocked(readServerFile).mockResolvedValue({
                 data: {content: "setting: value", encoding: "utf-8"},
             } as never);
-            render(<FilesTab serverId="s1"/>);
-            await waitFor(() =>
-                expect(screen.getByText("config.yml")).toBeInTheDocument(),
-            );
+            render(<FilesTab serverId="s1" />);
+            await waitFor(() => expect(screen.getByText("config.yml")).toBeInTheDocument());
             await user.click(screen.getByText("config.yml"));
             await waitFor(() => {
                 expect(getEditorText()).toBe("setting: value");
@@ -803,26 +736,16 @@ describe("FilesTab", () => {
             vi.mocked(readServerFile).mockResolvedValue({
                 data: {content: "", encoding: "binary"},
             } as never);
-            render(<FilesTab serverId="s1"/>);
-            await waitFor(() =>
-                expect(screen.getByText("icon.png")).toBeInTheDocument(),
-            );
+            render(<FilesTab serverId="s1" />);
+            await waitFor(() => expect(screen.getByText("icon.png")).toBeInTheDocument());
 
             await user.click(screen.getByText("icon.png"));
 
             await waitFor(() => {
-                expect(
-                    screen.getByText(
-                        "Binary file - use the download button to retrieve it.",
-                    ),
-                ).toBeInTheDocument();
+                expect(screen.getByText("Binary file - use the download button to retrieve it.")).toBeInTheDocument();
             });
-            expect(
-                screen.getByText("Download"),
-            ).toBeInTheDocument();
-            expect(
-                screen.queryByText("Save"),
-            ).not.toBeInTheDocument();
+            expect(screen.getByText("Download")).toBeInTheDocument();
+            expect(screen.queryByText("Save")).not.toBeInTheDocument();
         });
     });
 
@@ -835,13 +758,11 @@ describe("FilesTab", () => {
             vi.mocked(readServerFile).mockResolvedValueOnce({
                 data: {content: "previous file content", encoding: "utf-8"},
             } as never);
-            render(<FilesTab serverId="s1"/>);
+            render(<FilesTab serverId="s1" />);
             await waitFor(() => expect(screen.getByText("good.txt")).toBeInTheDocument());
 
             await user.click(screen.getByText("good.txt"));
-            await waitFor(() =>
-                expect(getEditorText()).toBe("previous file content"),
-            );
+            await waitFor(() => expect(getEditorText()).toBe("previous file content"));
 
             vi.mocked(readServerFile).mockResolvedValueOnce({
                 error: {message: "Failed to load file"},
@@ -864,21 +785,15 @@ describe("FilesTab", () => {
             vi.mocked(uploadServerFile).mockResolvedValue({
                 error: {message: "Upload failed"},
             } as never);
-            const {container} = render(<FilesTab serverId="s1"/>);
-            await waitFor(() =>
-                expect(screen.queryByText("Loading\u2026")).not.toBeInTheDocument(),
-            );
+            const {container} = render(<FilesTab serverId="s1" />);
+            await waitFor(() => expect(screen.queryByText("Loading\u2026")).not.toBeInTheDocument());
 
-            const fileInput = container.querySelector(
-                'input[type="file"]',
-            ) as HTMLInputElement;
+            const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
             fireEvent.change(fileInput, {
                 target: {files: [new File(["data"], "upload.txt")]},
             });
 
-            await waitFor(() =>
-                expect(screen.getByDisplayValue("/upload.txt")).toBeInTheDocument(),
-            );
+            await waitFor(() => expect(screen.getByDisplayValue("/upload.txt")).toBeInTheDocument());
             await user.click(screen.getByRole("button", {name: "Upload"}));
 
             await waitFor(() => {
@@ -891,15 +806,11 @@ describe("FilesTab", () => {
                 data: {entries: [dirEntry("plugins")]},
             } as never);
             vi.mocked(uploadServerFile).mockResolvedValue({data: {}} as never);
-            const {container} = render(<FilesTab serverId="s1"/>);
-            await waitFor(() =>
-                expect(screen.getByText("plugins")).toBeInTheDocument(),
-            );
+            const {container} = render(<FilesTab serverId="s1" />);
+            await waitFor(() => expect(screen.getByText("plugins")).toBeInTheDocument());
 
             fireEvent.click(screen.getByTitle("Upload here"));
-            const fileInput = container.querySelector(
-                'input[type="file"]',
-            ) as HTMLInputElement;
+            const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
             fireEvent.change(fileInput, {
                 target: {files: [new File(["x"], "plugin.jar")]},
             });
@@ -920,23 +831,17 @@ describe("FilesTab", () => {
             vi.mocked(listServerFiles).mockResolvedValue({
                 data: {entries: [dirEntry("plugins")]},
             } as never);
-            const {container} = render(<FilesTab serverId="s1"/>);
-            await waitFor(() =>
-                expect(screen.getByText("plugins")).toBeInTheDocument(),
-            );
+            const {container} = render(<FilesTab serverId="s1" />);
+            await waitFor(() => expect(screen.getByText("plugins")).toBeInTheDocument());
 
             await user.click(screen.getByText("plugins"));
 
-            const fileInput = container.querySelector(
-                'input[type="file"]',
-            ) as HTMLInputElement;
+            const fileInput = container.querySelector('input[type="file"]') as HTMLInputElement;
             fireEvent.change(fileInput, {
                 target: {files: [new File(["x"], "upload.txt")]},
             });
 
-            await waitFor(() =>
-                expect(screen.getByDisplayValue("/plugins/upload.txt")).toBeInTheDocument(),
-            );
+            await waitFor(() => expect(screen.getByDisplayValue("/plugins/upload.txt")).toBeInTheDocument());
         });
     });
 
@@ -952,10 +857,8 @@ describe("FilesTab", () => {
             const createUrl = vi.spyOn(URL, "createObjectURL").mockReturnValue("blob:mock");
             const revoke = vi.spyOn(URL, "revokeObjectURL").mockImplementation(() => {});
             const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
-            render(<FilesTab serverId="s1"/>);
-            await waitFor(() =>
-                expect(screen.getByText("backup.zip")).toBeInTheDocument(),
-            );
+            render(<FilesTab serverId="s1" />);
+            await waitFor(() => expect(screen.getByText("backup.zip")).toBeInTheDocument());
 
             await user.click(screen.getByTitle("Download"));
 
@@ -979,15 +882,11 @@ describe("FilesTab", () => {
             vi.mocked(downloadServerFile).mockResolvedValue({
                 error: {message: "No access"},
             } as never);
-            render(<FilesTab serverId="s1"/>);
-            await waitFor(() =>
-                expect(screen.getByText("backup.zip")).toBeInTheDocument(),
-            );
+            render(<FilesTab serverId="s1" />);
+            await waitFor(() => expect(screen.getByText("backup.zip")).toBeInTheDocument());
 
             await user.click(screen.getByTitle("Download"));
-            await waitFor(() =>
-                expect(screen.getByText("Failed to download file")).toBeInTheDocument(),
-            );
+            await waitFor(() => expect(screen.getByText("Failed to download file")).toBeInTheDocument());
         });
     });
 });

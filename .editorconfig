@@ -16,3 +16,12 @@ ij_kotlin_allow_trailing_comma_on_call_site = false
 ktlint_standard_string-template = enabled
 ij_kotlin_name_count_to_use_star_import = 3
 ij_kotlin_name_count_to_use_star_import_for_members = 3
+
+# Mirrors frontend/.prettierrc.json so IDEs agree with the ratchet formatter.
+[*.{ts,tsx,js,jsx,mjs,cjs,css}]
+indent_size = 4
+indent_style = space
+
+[*.{json,jsonc}]
+indent_size = 2
+indent_style = space
