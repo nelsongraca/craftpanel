@@ -12,6 +12,11 @@ import io.kotest.matchers.shouldBe
  * `docker kill --signal` instead of text on stdin. The fake-server is a JVM as PID 1, so a
  * delivered signal runs its shutdown hook and exits with `128 + signal` (130 for SIGINT,
  * 143 for SIGTERM). A text stop command exits 0 via `System.exit(0)`; a force kill exits 137.
+ *
+ * Each start waits for the fake-server's `TCP ping server listening` readiness marker before
+ * stopping. The agent reports HEALTHY as soon as the container starts, but PID 1 drops signals
+ * delivered before the JVM installs its handler (and before the shutdown hook is registered), so
+ * an immediate stop would be lost and fall back to the 45s force-stop (exit 143, no hook log).
  */
 @Isolate
 @Tags("ServerCore")
@@ -38,6 +43,7 @@ class ServerSignalStopTest : BaseSystemTest() {
                 api.updateStopCommand(serverId, PatchStopCommandRequest(stopCommand = "^C"))
                 api.startServer(serverId)
                 helper.awaitStatus(serverId, ServerStatus.HEALTHY)
+                helper.awaitContainerLog(containerName(serverId), "[fake-server] TCP ping server listening", docker)
 
                 api.stopServer(serverId)
                 helper.awaitStoppedOrGone(serverId)
@@ -52,6 +58,7 @@ class ServerSignalStopTest : BaseSystemTest() {
                 api.updateStopCommand(serverId, PatchStopCommandRequest(stopCommand = "SIGTERM"))
                 api.startServer(serverId)
                 helper.awaitStatus(serverId, ServerStatus.HEALTHY)
+                helper.awaitContainerLog(containerName(serverId), "[fake-server] TCP ping server listening", docker)
 
                 api.stopServer(serverId)
                 helper.awaitStoppedOrGone(serverId)
@@ -66,6 +73,7 @@ class ServerSignalStopTest : BaseSystemTest() {
                 api.updateStopCommand(serverId, PatchStopCommandRequest(stopCommand = "stop"))
                 api.startServer(serverId)
                 helper.awaitStatus(serverId, ServerStatus.HEALTHY)
+                helper.awaitContainerLog(containerName(serverId), "[fake-server] TCP ping server listening", docker)
 
                 api.stopServer(serverId)
                 helper.awaitStoppedOrGone(serverId)
