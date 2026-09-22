@@ -1,5 +1,5 @@
 import {describe, it, expect, vi, beforeEach} from "vitest";
-import {render, screen, waitFor, fireEvent, act} from "@testing-library/react";
+import {render, screen, waitFor, fireEvent, act, within} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {FilesTab} from "../files-tab";
 
@@ -41,6 +41,7 @@ vi.mock("@/lib/generated/sdk.gen", () => ({
     deleteServerFile: vi.fn(),
     mkdirServerFile: vi.fn(),
     moveServerFile: vi.fn(),
+    copyServerFile: vi.fn(),
     writeServerFile: vi.fn(),
     uploadServerFile: vi.fn(),
     downloadServerFile: vi.fn(),
@@ -52,6 +53,7 @@ import {
     deleteServerFile,
     mkdirServerFile,
     moveServerFile,
+    copyServerFile,
     writeServerFile,
     uploadServerFile,
     downloadServerFile,
@@ -521,6 +523,160 @@ describe("FilesTab", () => {
         });
     });
 
+    describe("move", () => {
+        async function setupMove() {
+            vi.mocked(listServerFiles).mockResolvedValue({
+                data: {entries: [fileEntry("notes.txt")]},
+            } as never);
+            vi.mocked(moveServerFile).mockResolvedValue({data: {}} as never);
+            render(<FilesTab serverId="s1"/>);
+            await waitFor(() =>
+                expect(screen.getByText("notes.txt")).toBeInTheDocument(),
+            );
+            return userEvent.setup();
+        }
+
+        it("prompts for a destination prefilled with the current path", async () => {
+            await setupMove();
+            fireEvent.click(screen.getByTitle("Move"));
+            expect(screen.getByDisplayValue("/notes.txt")).toBeInTheDocument();
+        });
+
+        it("calls moveServerFile with the entered destination", async () => {
+            const user = await setupMove();
+            fireEvent.click(screen.getByTitle("Move"));
+            const input = screen.getByDisplayValue("/notes.txt");
+            fireEvent.change(input, {target: {value: "/docs/notes.txt"}});
+            await user.click(
+                within(screen.getByRole("alertdialog")).getByRole("button", {name: "Move"}),
+            );
+
+            await waitFor(() => {
+                expect(moveServerFile).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        path: {id: "s1"},
+                        body: {
+                            source_path: "/notes.txt",
+                            destination_path: "/docs/notes.txt",
+                        },
+                    }),
+                );
+            });
+        });
+
+        it("is a no-op when the destination is unchanged", async () => {
+            const user = await setupMove();
+            fireEvent.click(screen.getByTitle("Move"));
+            await user.click(
+                within(screen.getByRole("alertdialog")).getByRole("button", {name: "Move"}),
+            );
+
+            await waitFor(() =>
+                expect(screen.queryByDisplayValue("/notes.txt")).not.toBeInTheDocument(),
+            );
+            expect(moveServerFile).not.toHaveBeenCalled();
+        });
+
+        it("shows error banner when move fails", async () => {
+            const user = await setupMove();
+            vi.mocked(moveServerFile).mockResolvedValue({
+                error: {message: "Bad path"},
+            } as never);
+            fireEvent.click(screen.getByTitle("Move"));
+            const input = screen.getByDisplayValue("/notes.txt");
+            fireEvent.change(input, {target: {value: "/elsewhere.txt"}});
+            await user.click(
+                within(screen.getByRole("alertdialog")).getByRole("button", {name: "Move"}),
+            );
+
+            await waitFor(() => {
+                expect(screen.getByText("Failed to move")).toBeInTheDocument();
+            });
+        });
+    });
+
+    describe("copy", () => {
+        async function setupCopy(entries = [fileEntry("notes.txt")]) {
+            vi.mocked(listServerFiles).mockResolvedValue({
+                data: {entries},
+            } as never);
+            vi.mocked(copyServerFile).mockResolvedValue({data: {}} as never);
+            render(<FilesTab serverId="s1"/>);
+            await waitFor(() =>
+                expect(screen.getByText(entries[0].name)).toBeInTheDocument(),
+            );
+            return userEvent.setup();
+        }
+
+        it("prefills a -copy destination for a file", async () => {
+            await setupCopy();
+            fireEvent.click(screen.getByTitle("Copy"));
+            expect(screen.getByDisplayValue("/notes-copy.txt")).toBeInTheDocument();
+        });
+
+        it("prefills a -copy destination for a directory", async () => {
+            await setupCopy([dirEntry("world")]);
+            fireEvent.click(screen.getByTitle("Copy"));
+            expect(screen.getByDisplayValue("/world-copy")).toBeInTheDocument();
+        });
+
+        it("calls copyServerFile non-recursively for a file", async () => {
+            const user = await setupCopy();
+            fireEvent.click(screen.getByTitle("Copy"));
+            await user.click(
+                within(screen.getByRole("alertdialog")).getByRole("button", {name: "Copy"}),
+            );
+
+            await waitFor(() => {
+                expect(copyServerFile).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        path: {id: "s1"},
+                        body: {
+                            source_path: "/notes.txt",
+                            destination_path: "/notes-copy.txt",
+                            recursive: false,
+                        },
+                    }),
+                );
+            });
+        });
+
+        it("calls copyServerFile recursively for a directory", async () => {
+            const user = await setupCopy([dirEntry("world")]);
+            fireEvent.click(screen.getByTitle("Copy"));
+            await user.click(
+                within(screen.getByRole("alertdialog")).getByRole("button", {name: "Copy"}),
+            );
+
+            await waitFor(() => {
+                expect(copyServerFile).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        body: expect.objectContaining({
+                            source_path: "/world",
+                            destination_path: "/world-copy",
+                            recursive: true,
+                        }),
+                    }),
+                );
+            });
+        });
+
+        it("shows error banner when copy fails", async () => {
+            const user = await setupCopy();
+            vi.mocked(copyServerFile).mockResolvedValue({
+                error: {message: "Exists"},
+            } as never);
+            fireEvent.click(screen.getByTitle("Copy"));
+            await user.click(
+                within(screen.getByRole("alertdialog")).getByRole("button", {name: "Copy"}),
+            );
+
+            await waitFor(() => {
+                expect(screen.getByText("Failed to copy")).toBeInTheDocument();
+            });
+        });
+    });
+
     describe("mkdir", () => {
         async function setupMkdir() {
             const user = userEvent.setup();
@@ -728,6 +884,59 @@ describe("FilesTab", () => {
             await waitFor(() => {
                 expect(screen.getByText("Upload failed")).toBeInTheDocument();
             });
+        });
+
+        it("uploads directly into a folder via Upload here, without prompting", async () => {
+            vi.mocked(listServerFiles).mockResolvedValue({
+                data: {entries: [dirEntry("plugins")]},
+            } as never);
+            vi.mocked(uploadServerFile).mockResolvedValue({data: {}} as never);
+            const {container} = render(<FilesTab serverId="s1"/>);
+            await waitFor(() =>
+                expect(screen.getByText("plugins")).toBeInTheDocument(),
+            );
+
+            fireEvent.click(screen.getByTitle("Upload here"));
+            const fileInput = container.querySelector(
+                'input[type="file"]',
+            ) as HTMLInputElement;
+            fireEvent.change(fileInput, {
+                target: {files: [new File(["x"], "plugin.jar")]},
+            });
+
+            await waitFor(() => {
+                expect(uploadServerFile).toHaveBeenCalledWith(
+                    expect.objectContaining({
+                        path: {id: "s1"},
+                        body: expect.objectContaining({path: "/plugins/plugin.jar"}),
+                    }),
+                );
+            });
+            expect(screen.queryByText("Upload File")).not.toBeInTheDocument();
+        });
+
+        it("prefills the upload destination with the last clicked folder", async () => {
+            const user = userEvent.setup();
+            vi.mocked(listServerFiles).mockResolvedValue({
+                data: {entries: [dirEntry("plugins")]},
+            } as never);
+            const {container} = render(<FilesTab serverId="s1"/>);
+            await waitFor(() =>
+                expect(screen.getByText("plugins")).toBeInTheDocument(),
+            );
+
+            await user.click(screen.getByText("plugins"));
+
+            const fileInput = container.querySelector(
+                'input[type="file"]',
+            ) as HTMLInputElement;
+            fireEvent.change(fileInput, {
+                target: {files: [new File(["x"], "upload.txt")]},
+            });
+
+            await waitFor(() =>
+                expect(screen.getByDisplayValue("/plugins/upload.txt")).toBeInTheDocument(),
+            );
         });
     });
 

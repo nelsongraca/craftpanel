@@ -4,9 +4,10 @@ import {useCallback, useEffect, useRef, useState} from "react";
 import {useConfirmDialog} from "@/lib/hooks/useConfirmDialog";
 import {usePromptDialog} from "@/lib/hooks/usePromptDialog";
 import {Empty, EmptyDescription} from "@/components/ui/empty";
-import {deleteServerFile, downloadServerFile, listServerFiles, mkdirServerFile, moveServerFile, readServerFile, uploadServerFile, writeServerFile,} from "@/lib/generated/sdk.gen";
-import {ArrowLeft, ChevronDown, ChevronRight, Download, File, Folder, FolderPlus, Pencil, Save, Trash2, Upload, X, WrapText} from "lucide-react";
+import {copyServerFile, deleteServerFile, downloadServerFile, listServerFiles, mkdirServerFile, moveServerFile, readServerFile, uploadServerFile, writeServerFile,} from "@/lib/generated/sdk.gen";
+import {ArrowLeft, ChevronDown, ChevronRight, Copy, Download, File, Folder, FolderPlus, MoreVertical, Move, Pencil, Save, Trash2, Upload, X, WrapText} from "lucide-react";
 import {FileCodeEditor} from "@/components/servers/file-code-editor";
+import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger} from "@/components/ui/dropdown-menu";
 
 interface FileEntry {
     name: string;
@@ -31,6 +32,17 @@ function buildPath(parent: string, name: string): string {
     return parent === "/" ? `/${name}` : `${parent}/${name}`;
 }
 
+function parentDir(path: string): string {
+    return path.substring(0, path.lastIndexOf("/")) || "/";
+}
+
+function copyDefaultPath(node: TreeNode): string {
+    const dot = node.isDirectory ? -1 : node.name.lastIndexOf(".");
+    const stem = dot > 0 ? node.name.slice(0, dot) : node.name;
+    const ext = dot > 0 ? node.name.slice(dot) : "";
+    return buildPath(parentDir(node.path), `${stem}-copy${ext}`);
+}
+
 
 export function FilesTab({serverId}: Props) {
     const [roots, setRoots] = useState<TreeNode[]>([]);
@@ -47,7 +59,9 @@ export function FilesTab({serverId}: Props) {
     const {prompt, dialog: promptDialog} = usePromptDialog();
     const [renameNode, setRenameNode] = useState<{ path: string; name: string } | null>(null);
     const [renameValue, setRenameValue] = useState("");
+    const [currentDir, setCurrentDir] = useState("/");
     const uploadRef = useRef<HTMLInputElement>(null);
+    const pendingUploadDirRef = useRef<string | null>(null);
 
     const loadDir = useCallback(async (path: string): Promise<TreeNode[]> => {
         const {data, error: err} = await listServerFiles({path: {id: serverId}, query: {path}});
@@ -85,6 +99,7 @@ export function FilesTab({serverId}: Props) {
 
     async function toggleDir(node: TreeNode) {
         if (!node.isDirectory) return;
+        setCurrentDir(node.path);
         if (!node.expanded && !node.children) {
             setRoots((prev) => updateNode(prev, node.path, {loading: true, expanded: true}));
             const children = await loadDir(node.path);
@@ -180,8 +195,7 @@ export function FilesTab({serverId}: Props) {
 
     async function commitRename() {
         if (!renameNode) return;
-        const dir = renameNode.path.substring(0, renameNode.path.lastIndexOf("/")) || "/";
-        const dest = buildPath(dir, renameValue);
+        const dest = buildPath(parentDir(renameNode.path), renameValue);
         if (dest === renameNode.path) {
             setRenameNode(null);
             return;
@@ -196,6 +210,49 @@ export function FilesTab({serverId}: Props) {
             return;
         }
         setRoots(await loadDir("/"));
+    }
+
+    function moveEntry(node: TreeNode) {
+        prompt({
+            title: "Move",
+            description: node.path,
+            label: "Destination path",
+            defaultValue: node.path,
+            confirmLabel: "Move",
+            onConfirm: async (dest) => {
+                if (dest === node.path) return;
+                const {error: err} = await moveServerFile({
+                    path: {id: serverId},
+                    body: {source_path: node.path, destination_path: dest},
+                });
+                if (err) {
+                    setError("Failed to move");
+                    return;
+                }
+                setRoots(await loadDir("/"));
+            },
+        });
+    }
+
+    function copyEntry(node: TreeNode) {
+        prompt({
+            title: "Copy",
+            description: node.path,
+            label: "Destination path",
+            defaultValue: copyDefaultPath(node),
+            confirmLabel: "Copy",
+            onConfirm: async (dest) => {
+                const {error: err} = await copyServerFile({
+                    path: {id: serverId},
+                    body: {source_path: node.path, destination_path: dest, recursive: node.isDirectory},
+                });
+                if (err) {
+                    setError("Failed to copy");
+                    return;
+                }
+                setRoots(await loadDir("/"));
+            },
+        });
     }
 
     async function handleDownload(path: string) {
@@ -229,100 +286,195 @@ export function FilesTab({serverId}: Props) {
         setRoots(await loadDir("/"));
     }
 
+    function uploadHere(dirPath: string) {
+        pendingUploadDirRef.current = dirPath;
+        uploadRef.current?.click();
+    }
+
     function handleUpload(e: React.ChangeEvent<HTMLInputElement>) {
         const file = e.target.files?.[0];
+        const pendingDir = pendingUploadDirRef.current;
+        pendingUploadDirRef.current = null;
+        if (e.target) e.target.value = "";
         if (!file) return;
+        if (pendingDir !== null) {
+            void uploadFile(file, buildPath(pendingDir, file.name));
+            return;
+        }
         prompt({
             title: "Upload File",
+            description: `Uploading to ${currentDir}`,
             label: "Destination path",
-            defaultValue: `/${file.name}`,
+            defaultValue: buildPath(currentDir, file.name),
             confirmLabel: "Upload",
             onConfirm: (destPath) => void uploadFile(file, destPath),
         });
-        if (e.target) e.target.value = "";
     }
 
     function renderTree(nodes: TreeNode[], depth = 0): React.ReactNode {
-        return nodes.map((node) => (
-            <div key={node.path}>
-                <div
-                    className={[
-                        "flex items-center gap-1.5 px-2 py-0.5 cursor-pointer text-xs rounded select-none group",
-                        selectedPath === node.path ? "bg-surface-higher text-text-primary" : "text-text-dim hover:text-text-primary hover:bg-surface-high",
-                    ].join(" ")}
-                    style={{paddingLeft: `${8 + depth * 14}px`}}
-                    onClick={() => {
-                        if (node.isDirectory) void toggleDir(node); else void openFile(node);
-                    }}
-                >
-                    {node.isDirectory ? (
-                        node.loading
-                            ? <span className="w-3 h-3 border border-text-muted border-t-accent rounded-full animate-spin shrink-0"/>
-                            : node.expanded
-                                ? <ChevronDown size={12} className="shrink-0 text-text-muted"/>
-                                : <ChevronRight size={12} className="shrink-0 text-text-muted"/>
-                    ) : (
-                        <span className="w-3"/>
-                    )}
-                    {node.isDirectory
-                        ? <Folder size={13} className="shrink-0 text-accent"/>
-                        : <File size={13} className="shrink-0 text-text-muted"/>}
-                    {renameNode?.path === node.path ? (
-                        <input
-                            autoFocus
-                            value={renameValue}
-                            onChange={(e) => setRenameValue(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === "Enter") void commitRename();
-                                if (e.key === "Escape") setRenameNode(null);
-                            }}
-                            onBlur={() => void commitRename()}
-                            className="flex-1 bg-bg border border-accent rounded px-1 text-xs font-mono outline-none"
-                            onClick={(e) => e.stopPropagation()}
-                        />
-                    ) : (
-                        <span className="flex-1 truncate font-mono">{node.name}</span>
-                    )}
-                    <span className="hidden group-hover:flex items-center gap-0.5 shrink-0">
-            <button
-                title="Rename"
-                className="p-0.5 hover:text-accent"
-                onClick={(e) => {
-                    e.stopPropagation();
-                    void startRename(node);
-                }}
-            >
-              <Pencil size={10}/>
-            </button>
-                        {!node.isDirectory && (
+        return nodes.map((node) => {
+            const isSelected = selectedPath === node.path;
+            const isCurrent = node.isDirectory && currentDir === node.path;
+            return (
+                <div key={node.path}>
+                    <div
+                        className={[
+                            "flex items-center gap-1.5 px-2 py-0.5 cursor-pointer text-xs rounded select-none group",
+                            isSelected
+                                ? "bg-surface-higher text-text-primary"
+                                : isCurrent
+                                    ? "bg-surface-high text-accent"
+                                    : "text-text-dim hover:text-text-primary hover:bg-surface-high",
+                        ].join(" ")}
+                        style={{paddingLeft: `${8 + depth * 14}px`}}
+                        onClick={() => {
+                            if (node.isDirectory) void toggleDir(node); else void openFile(node);
+                        }}
+                    >
+                        {node.isDirectory ? (
+                            node.loading
+                                ? <span className="w-3 h-3 border border-text-muted border-t-accent rounded-full animate-spin shrink-0"/>
+                                : node.expanded
+                                    ? <ChevronDown size={12} className="shrink-0 text-text-muted"/>
+                                    : <ChevronRight size={12} className="shrink-0 text-text-muted"/>
+                        ) : (
+                            <span className="w-3"/>
+                        )}
+                        {node.isDirectory
+                            ? <Folder size={13} className="shrink-0 text-accent"/>
+                            : <File size={13} className="shrink-0 text-text-muted"/>}
+                        {renameNode?.path === node.path ? (
+                            <input
+                                autoFocus
+                                value={renameValue}
+                                onChange={(e) => setRenameValue(e.target.value)}
+                                onKeyDown={(e) => {
+                                    if (e.key === "Enter") void commitRename();
+                                    if (e.key === "Escape") setRenameNode(null);
+                                }}
+                                onBlur={() => void commitRename()}
+                                className="flex-1 bg-bg border border-accent rounded px-1 text-xs font-mono outline-none"
+                                onClick={(e) => e.stopPropagation()}
+                            />
+                        ) : (
+                            <span className="flex-1 truncate font-mono">{node.name}</span>
+                        )}
+
+                        {/* ── Desktop: inline actions, revealed on hover ── */}
+                        <span className="hidden md:group-hover:flex items-center gap-0.5 shrink-0">
                             <button
-                                title="Download"
+                                title="Rename"
                                 className="p-0.5 hover:text-accent"
                                 onClick={(e) => {
                                     e.stopPropagation();
-                                    void handleDownload(node.path);
+                                    void startRename(node);
                                 }}
                             >
-                                <Download size={10}/>
+                                <Pencil size={10}/>
                             </button>
-                        )}
-                        <button
-                            title="Delete"
-                            className="p-0.5 hover:text-error"
-                            onClick={(e) => {
-                                e.stopPropagation();
-                                void deleteEntry(node.path, node.isDirectory);
-                            }}
-                        >
-              <Trash2 size={10}/>
-            </button>
-          </span>
+                            <button
+                                title="Move"
+                                className="p-0.5 hover:text-accent"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    moveEntry(node);
+                                }}
+                            >
+                                <Move size={10}/>
+                            </button>
+                            <button
+                                title="Copy"
+                                className="p-0.5 hover:text-accent"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    copyEntry(node);
+                                }}
+                            >
+                                <Copy size={10}/>
+                            </button>
+                            {node.isDirectory && (
+                                <button
+                                    title="Upload here"
+                                    className="p-0.5 hover:text-accent"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        uploadHere(node.path);
+                                    }}
+                                >
+                                    <Upload size={10}/>
+                                </button>
+                            )}
+                            {!node.isDirectory && (
+                                <button
+                                    title="Download"
+                                    className="p-0.5 hover:text-accent"
+                                    onClick={(e) => {
+                                        e.stopPropagation();
+                                        void handleDownload(node.path);
+                                    }}
+                                >
+                                    <Download size={10}/>
+                                </button>
+                            )}
+                            <button
+                                title="Delete"
+                                className="p-0.5 hover:text-error"
+                                onClick={(e) => {
+                                    e.stopPropagation();
+                                    void deleteEntry(node.path, node.isDirectory);
+                                }}
+                            >
+                                <Trash2 size={10}/>
+                            </button>
+                        </span>
+
+                        {/* ── Mobile: overflow menu (touch has no hover) ── */}
+                        <span className="flex md:hidden items-center shrink-0">
+                            <DropdownMenu>
+                                <DropdownMenuTrigger
+                                    title="Actions"
+                                    className="p-1 text-text-muted hover:text-accent"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
+                                    <MoreVertical size={14}/>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end"
+                                                     className="min-w-[160px] bg-surface-higher border-border"
+                                                     onClick={(e) => e.stopPropagation()}>
+                                    <DropdownMenuItem onClick={() => void startRename(node)}>
+                                        <Pencil size={12}/> Rename
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => moveEntry(node)}>
+                                        <Move size={12}/> Move…
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => copyEntry(node)}>
+                                        <Copy size={12}/> Copy…
+                                    </DropdownMenuItem>
+                                    {node.isDirectory && (
+                                        <DropdownMenuItem onClick={() => uploadHere(node.path)}>
+                                            <Upload size={12}/> Upload here
+                                        </DropdownMenuItem>
+                                    )}
+                                    {!node.isDirectory && (
+                                        <DropdownMenuItem onClick={() => void handleDownload(node.path)}>
+                                            <Download size={12}/> Download
+                                        </DropdownMenuItem>
+                                    )}
+                                    <DropdownMenuSeparator/>
+                                    <DropdownMenuItem variant="destructive"
+                                                       onClick={() => void deleteEntry(node.path, node.isDirectory)}>
+                                        <Trash2 size={12}/> Delete
+                                    </DropdownMenuItem>
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </span>
+                    </div>
+                    {node.isDirectory && node.expanded && node.children && (
+                        <div>{renderTree(node.children, depth + 1)}</div>
+                    )}
                 </div>
-                {node.isDirectory && node.expanded && node.children && (
-                    <div>{renderTree(node.children, depth + 1)}</div>
-                )}
-            </div>
-        ));
+            );
+        });
     }
 
     return (

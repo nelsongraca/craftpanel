@@ -145,6 +145,38 @@ test("downloads a file through the tree action", async ({page}) => {
     await downloadPromise;
 });
 
+test("upload here targets the selected folder", async ({page, network}) => {
+    let uploadedPath: string | null = null;
+    network.use(
+        http.get("/api/servers/srv-1/files", ({request}) => {
+            const path = new URL(request.url).searchParams.get("path") ?? "/";
+            if (path !== "/") return HttpResponse.json({entries: []});
+            return HttpResponse.json({entries: rootEntries});
+        }),
+        http.post("/api/servers/srv-1/files/upload", async ({request}) => {
+            const form = await request.formData();
+            uploadedPath = String(form.get("path"));
+            return HttpResponse.json({path: uploadedPath, size_bytes: 1}, {status: 201});
+        })
+    );
+
+    await page.goto("/servers/srv-1");
+    await page.getByRole("tab", {name: "Files"}).click();
+
+    const row = page.getByText("world", {exact: true}).locator("..");
+    await row.hover();
+
+    const chooser = page.waitForEvent("filechooser");
+    await row.getByTitle("Upload here").click();
+    await (await chooser).setFiles({
+        name: "level.dat",
+        mimeType: "application/octet-stream",
+        buffer: Buffer.from("data"),
+    });
+
+    await expect.poll(() => uploadedPath).toBe("/world/level.dat");
+});
+
 test("long text file is scrollable in the editor", async ({page, network}) => {
     const longContent = Array.from({length: 400}, (_, i) => `line ${i + 1}`).join("\n");
     network.use(
@@ -199,5 +231,37 @@ test.describe("mobile master/detail (375px)", () => {
         await page.getByTitle("Back to files").click();
         await expect(page.getByText("eula.txt")).toBeVisible();
         await expect(page.locator(".cm-scroller")).not.toBeVisible();
+    });
+
+    test("row actions are reachable through the overflow menu without hover", async ({page, network}) => {
+        let deleted = false;
+        network.use(
+            http.get("/api/servers/srv-1/files", ({request}) => {
+                const path = new URL(request.url).searchParams.get("path") ?? "/";
+                if (path !== "/") return HttpResponse.json({entries: []});
+                return HttpResponse.json({
+                    entries: deleted
+                        ? rootEntries.filter((e) => e.name !== "eula.txt")
+                        : rootEntries,
+                });
+            }),
+            http.delete("/api/servers/srv-1/files", () => {
+                deleted = true;
+                return new HttpResponse(null, {status: 204});
+            })
+        );
+
+        await page.goto("/servers/srv-1");
+        await page.getByRole("tab", {name: "Files"}).click();
+
+        // No hover — tap the row's ⋯ trigger and delete from the menu.
+        const row = page.getByText("eula.txt").locator("..");
+        await row.getByTitle("Actions").click();
+        await page.getByRole("menuitem", {name: "Delete"}).click();
+
+        await expect(page.getByText("Delete File?")).toBeVisible();
+        await page.getByRole("button", {name: "Confirm"}).click();
+        await expect(page.getByRole("alertdialog")).toBeHidden();
+        await expect(page.getByText("eula.txt")).not.toBeVisible();
     });
 });
