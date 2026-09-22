@@ -1,5 +1,6 @@
 package io.craftpanel.master.service
 
+import io.craftpanel.common.ContainerNames
 import io.craftpanel.master.database.entity.ServerMigration
 import io.craftpanel.master.database.schema.*
 import io.craftpanel.master.dns.DnsProvider
@@ -89,7 +90,7 @@ class MigrationService(
     private val scope: CoroutineScope,
     private val lifecycle: ContainerLifecycle,
     private val serverHostnames: ServerHostnames,
-    private val containerNamePrefix: String = "craftpanel"
+    private val containerNamePrefix: String = ContainerNames.DEFAULT_PREFIX
 ) {
 
     private val eventFlows = ConcurrentHashMap<String, MutableSharedFlow<MigrationEvent>>()

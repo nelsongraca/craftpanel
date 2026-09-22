@@ -1,5 +1,6 @@
 package io.craftpanel.agent.docker
 
+import io.craftpanel.common.DockerLabels
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.exception.ConflictException
 import com.github.dockerjava.api.model.Network
@@ -16,7 +17,7 @@ class NetworkManager(private val docker: DockerClient, private val mcRouterConta
             docker.createNetworkCmd()
                 .withName(networkName)
                 .withDriver("bridge")
-                .withLabels(mapOf("craftpanel.managed" to "true"))
+                .withLabels(mapOf(DockerLabels.MANAGED to DockerLabels.MANAGED_VALUE))
                 .exec()
             log.info("Created bridge network $networkName")
         }.onFailure { e ->

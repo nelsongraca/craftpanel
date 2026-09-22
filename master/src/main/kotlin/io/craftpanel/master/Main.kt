@@ -1,5 +1,6 @@
 package io.craftpanel.master
 
+import io.craftpanel.common.ContainerNames
 import io.craftpanel.common.BuildInfo
 import io.craftpanel.master.auth.JWT_AUTH
 import io.craftpanel.master.auth.JwtManager
@@ -87,7 +88,7 @@ fun Application.module() {
             module {
                 single { appConfig }
                 single(named("appScope")) { appScope }
-                single(named("containerPrefix")) { System.getenv("CRAFTPANEL_CONTAINER_PREFIX") ?: "craftpanel" }
+                single(named("containerPrefix")) { System.getenv("CRAFTPANEL_CONTAINER_PREFIX") ?: ContainerNames.DEFAULT_PREFIX }
                 single { DnsProviderHolder(dnsProvider) }
                 single { GrpcServer(get(), get(), get()) }
             },

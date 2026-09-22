@@ -1,5 +1,6 @@
 package io.craftpanel.agent.docker
 
+import io.craftpanel.common.DockerLabels
 import com.github.dockerjava.api.DockerClient
 import com.github.dockerjava.api.async.ResultCallback
 import com.github.dockerjava.api.model.Event
@@ -74,7 +75,7 @@ class ContainerEventWatcher(
                     docker.eventsCmd()
                         .withEventTypeFilter("container")
                         .withEventFilter("die")
-                        .withLabelFilter("craftpanel.managed=true")
+                        .withLabelFilter("${DockerLabels.MANAGED}=${DockerLabels.MANAGED_VALUE}")
                         .exec(callback)
                 }.onFailure {
                     log.warn("Failed to subscribe to container events: {} — retrying", it.message)

@@ -10,7 +10,7 @@ import java.net.Socket
 import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
-class RsyncMigrator(private val docker: DockerClient, private val craftpanelNetwork: String = "", private val containerNamePrefix: String = "craftpanel") {
+class RsyncMigrator(private val docker: DockerClient, private val craftpanelNetwork: String = "", private val containerNamePrefix: String = ContainerNames.DEFAULT_PREFIX) {
 
     private val log = LoggerFactory.getLogger(RsyncMigrator::class.java)
     private val names = ContainerNames(containerNamePrefix)

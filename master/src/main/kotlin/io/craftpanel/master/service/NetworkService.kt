@@ -2,6 +2,7 @@ package io.craftpanel.master.service
 
 import com.github.dockerjava.api.DockerClient
 import io.craftpanel.common.ContainerNames
+import io.craftpanel.common.DockerLabels
 import io.craftpanel.master.database.entity.Network
 import io.craftpanel.master.database.entity.Server
 import io.craftpanel.master.database.schema.ServerNetworks
@@ -48,7 +49,7 @@ data class PatchNetworkRequest(val name: String? = null, val description: String
 
 class NetworkService(
     private val dockerClient: DockerClient? = null,
-    private val containerNamePrefix: String = "craftpanel",
+    private val containerNamePrefix: String = ContainerNames.DEFAULT_PREFIX,
     private val networkRepository: NetworkRepository,
     private val serverRepository: ServerRepository,
     private val nodeRepository: NodeRepository,
@@ -101,7 +102,7 @@ class NetworkService(
                 .withName(name)
                 .withDriver("overlay")
                 .withAttachable(true)
-                .withLabels(mapOf("craftpanel.managed" to "true"))
+                .withLabels(mapOf(DockerLabels.MANAGED to DockerLabels.MANAGED_VALUE))
                 .exec()
             log.info("Created overlay network $name")
         }.onFailure { log.warn("Failed to create overlay network $name: ${it.message}") }

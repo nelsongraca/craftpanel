@@ -7,6 +7,7 @@ import com.github.dockerjava.api.exception.ConflictException
 import com.github.dockerjava.api.exception.NotFoundException
 import com.github.dockerjava.api.model.*
 import io.craftpanel.common.ContainerNames
+import io.craftpanel.common.DockerLabels
 import io.craftpanel.proto.*
 import org.slf4j.LoggerFactory
 import java.io.ByteArrayInputStream
@@ -28,7 +29,7 @@ class DockerContainerManager(
     private val docker: DockerClient,
     private val gate: WatcherGate,
     private val craftpanelNetwork: String = "",
-    private val containerNamePrefix: String = "craftpanel",
+    private val containerNamePrefix: String = ContainerNames.DEFAULT_PREFIX,
     private val pullMaxImageAgeHours: Long = 24
 ) : ContainerManager {
 
@@ -122,7 +123,7 @@ class DockerContainerManager(
             .withHostConfig(hostConfig)
             .withLabels(
                 buildMap {
-                    put("craftpanel.managed", "true")
+                    put(DockerLabels.MANAGED, DockerLabels.MANAGED_VALUE)
                     put("craftpanel.server.id", cmd.serverId)
                     if (cmd.publicHostname.isNotEmpty() && !isUdp) {
                         // mc-router auto-discovery labels (https://github.com/itzg/mc-router).
@@ -433,7 +434,7 @@ class DockerContainerManager(
         val containers = docker.listContainersCmd()
             .withShowAll(false)
             .exec()
-            .filter { it.labels.containsKey("craftpanel.managed") }
+            .filter { it.labels.containsKey(DockerLabels.MANAGED) }
 
         // Mark all as stopping first — prevents watcher from reporting unexpected deaths
         for (container in containers) {

@@ -21,7 +21,7 @@ class ServerService(
     private val gateway: AgentGateway,
     private val networkService: NetworkService? = null,
     private val dnsProvider: DnsProvider? = null,
-    private val containerNamePrefix: String = "craftpanel",
+    private val containerNamePrefix: String = ContainerNames.DEFAULT_PREFIX,
     private val serverRepository: ServerRepository,
     private val nodeRepository: NodeRepository,
     private val networkRepository: NetworkRepository,

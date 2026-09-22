@@ -1,5 +1,6 @@
 package io.craftpanel.agent.config
 
+import io.craftpanel.common.ContainerNames
 import io.craftpanel.common.ServerPaths
 
 data class AgentConfig(
@@ -101,7 +102,7 @@ data class AgentConfig(
                     ?.toIntOrNull()
                     ?.coerceAtLeast(0) ?: 0,
                 craftpanelNetwork = System.getenv("CRAFTPANEL_NETWORK") ?: "craftpanel",
-                containerNamePrefix = System.getenv("CRAFTPANEL_CONTAINER_PREFIX") ?: "craftpanel",
+                containerNamePrefix = System.getenv("CRAFTPANEL_CONTAINER_PREFIX") ?: ContainerNames.DEFAULT_PREFIX,
                 privateIpOverride = System.getenv("NODE_PRIVATE_IP") ?: "",
                 metricsPollIntervalSeconds = System.getenv("METRICS_POLL_INTERVAL_SECONDS")
                     ?.toIntOrNull()

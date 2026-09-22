@@ -22,7 +22,7 @@ class ContainerLifecycle(
     private val extraPortRepository: ServerExtraPortRepository,
     /** Resolved per use so a live image-settings change takes effect without a restart. */
     private val imagesProvider: () -> ImagesConfig = { ImagesConfig("itzg/minecraft-server", "itzg/mc-proxy") },
-    private val containerNamePrefix: String = "craftpanel",
+    private val containerNamePrefix: String = ContainerNames.DEFAULT_PREFIX,
     private val restartBudgetProvider: () -> Pair<Int, Long> = { 5 to 600L },
     private val stopTimeout: Duration = 45.seconds,
     private val startTimeout: Duration = 30.seconds,
