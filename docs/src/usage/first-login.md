@@ -11,6 +11,15 @@ This account is a **Super Admin** — it has every permission node.
 
 The admin seed only runs once, against an empty users table, but the credentials remain in your `.env` file afterward. Remove `ADMIN_EMAIL` and `ADMIN_PASSWORD` from `.env` after the first successful login — the seed won't run again, and leaving real credentials in a plaintext env file is an unnecessary risk.
 
+!!! note
+    The bundled `docker-compose.yml` marks these two variables as required at compose-parse time, so
+    deleting or blanking them makes `docker compose up` fail before master starts. See
+    [Retiring the admin seed credentials](troubleshooting.md#retiring-the-admin-seed-credentials)
+    for the two supported options.
+
+See [Environment Variables, Ports & Volumes](environment-variables.md) for the full list of
+admin and master variables.
+
 ## Reset the admin password
 
 If the admin password is lost, or you need to force a change, set `ADMIN_RESET_PASSWORD=true` with a new `ADMIN_PASSWORD` in `.env` and restart the stack:
@@ -43,3 +52,4 @@ Permissions can be scoped **globally**, to a **single server**, or to a **networ
 
 - [Adding a Node](adding-a-node.md)
 - [Creating a Server](creating-a-server.md)
+- [Troubleshooting](troubleshooting.md) — if the admin account or login misbehaves

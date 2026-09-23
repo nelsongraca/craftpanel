@@ -21,10 +21,7 @@ data class GrpcConfig(
     val tlsEnabled: Boolean get() = tlsCertPath.isNotBlank() && tlsKeyPath.isNotBlank()
 }
 
-data class NodeConfig(val bootstrapToken: String, val agentDataPort: Int, val agentTlsTrustCertPath: String = "") {
-
-    val agentTlsEnabled: Boolean get() = agentTlsTrustCertPath.isNotBlank()
-}
+data class NodeConfig(val bootstrapToken: String)
 
 data class DnsConfig(val provider: String, val cloudflareApiToken: String)
 
@@ -125,12 +122,7 @@ class AppConfig(config: ApplicationConfig) {
             "NODE_BOOTSTRAP_TOKEN",
             config.property("node.bootstrapToken")
                 .getString()
-        ),
-        agentDataPort = config.property("node.agentDataPort")
-            .getString()
-            .toIntOrNull() ?: 50052,
-        agentTlsTrustCertPath = config.propertyOrNull("node.agentTlsTrustCertPath")
-            ?.getString() ?: ""
+        )
     )
     val dns = DnsConfig(
         provider = config.propertyOrNull("dns.provider")

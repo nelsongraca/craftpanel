@@ -28,6 +28,10 @@ volumes:
 
 Master must be reachable on `50051` from this host — this is the port opened in the root `docker-compose.yml`'s `master` service. If master's gRPC TLS uses an auto-generated CA, the agent needs that CA cert; the simplest path is a shared volume (as in the co-located agent) or copying `grpc-ca.crt` to the new host and setting `GRPC_CA_CERT_FILE`.
 
+The snippet above sets only the values you must change. Every agent variable — including capacity
+reservations, mc-router controls, and metrics tuning — is listed in
+[Environment Variables, Ports & Volumes](environment-variables.md#agent-container-variables).
+
 ## Trust the node
 
 On first startup the agent registers itself with master using the bootstrap token and appears in the UI's **Nodes** screen with status `PENDING`. An admin (any user with `system.nodes`) must click **Trust** before the node becomes `ACTIVE` and available for server placement.
@@ -35,4 +39,6 @@ On first startup the agent registers itself with master using the bootstrap toke
 ## Next steps
 
 - [Creating a Server](creating-a-server.md)
+- [Removing a Node](removing-a-node.md)
+- [Environment Variables, Ports & Volumes](environment-variables.md#agent-container-variables) — full agent variable reference
 - Full registration protocol, agent env var reference, and data path rules: [Node Management](../nodes/index.md)

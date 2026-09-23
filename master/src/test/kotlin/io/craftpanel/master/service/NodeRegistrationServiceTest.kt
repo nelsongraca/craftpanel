@@ -16,7 +16,7 @@ import kotlin.uuid.Uuid
 
 class NodeRegistrationServiceTest :
     FunSpec({
-        val service = NodeRegistrationService(NodeConfig("test-token", 50052), NodeRepositoryImpl())
+        val service = NodeRegistrationService(NodeConfig("test-token"), NodeRepositoryImpl())
 
         fun metadata(hostname: String = "node-1") = NodeMetadata(
             hostname = hostname,

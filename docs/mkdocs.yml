@@ -49,10 +49,16 @@ nav:
   - Overview: index.md
   - Usage:
       - Deployment: usage/deployment.md
+      - Environment Variables, Ports & Volumes: usage/environment-variables.md
+      - Upgrading: usage/upgrading.md
       - First Login & Setup: usage/first-login.md
       - Adding a Node: usage/adding-a-node.md
+      - Removing a Node: usage/removing-a-node.md
       - Enabling Public Hostnames: usage/enabling-public-hostnames.md
       - Creating a Server: usage/creating-a-server.md
+      - Custom gRPC TLS: usage/custom-tls.md
+      - Reverse Proxy: usage/reverse-proxy.md
+      - Troubleshooting: usage/troubleshooting.md
   - Reference:
       - Requirements:
           - Access Control: access-control/index.md

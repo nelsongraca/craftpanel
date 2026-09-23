@@ -25,7 +25,7 @@ fun createTestPortAllocator(
     nodeRepository: NodeRepository = NodeRepositoryImpl()
 ): PortAllocator = PortAllocator(nodeRepository, portRepository)
 
-fun createTestNodeRegistrationService(nodeConfig: NodeConfig = NodeConfig("test-token", 50052), nodeRepository: NodeRepository = NodeRepositoryImpl()): NodeRegistrationService = NodeRegistrationService(nodeConfig, nodeRepository)
+fun createTestNodeRegistrationService(nodeConfig: NodeConfig = NodeConfig("test-token"), nodeRepository: NodeRepository = NodeRepositoryImpl()): NodeRegistrationService = NodeRegistrationService(nodeConfig, nodeRepository)
 
 fun createTestAgentDataOps(
     dataOpContext: DataOpContext = DataOpContext(ConcurrentHashMap(), ConcurrentHashMap()),
@@ -34,7 +34,7 @@ fun createTestAgentDataOps(
 ): AgentDataOps = AgentDataOps(dataOpContext, sendToNode, sendToNodeSuspending)
 
 fun createTestControlServiceImpl(
-    nodeConfig: NodeConfig = NodeConfig("test-token", 50052),
+    nodeConfig: NodeConfig = NodeConfig("test-token"),
     nodeStateReconciler: NodeStateReconciler,
     nodeRepository: NodeRepository = NodeRepositoryImpl(),
     agentGateway: AgentGateway = TestAgentGateway(),

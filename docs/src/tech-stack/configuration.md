@@ -75,9 +75,16 @@ Supported `_FILE` variables:
 | `auth.secureCookies`   | `AUTH_SECURE_COOKIES`             | No       | `true`                  | Set `Secure` flag on auth cookies (disable in dev behind plain HTTP)                    |
 | `auth.cookieDomain`    | `AUTH_COOKIE_DOMAIN`              | No       | —                       | Shared parent domain for the refresh-token cookie (e.g. `.example.com`), only needed for a split-subdomain deploy — see [Split-subdomain deploy](../usage/deployment.md#split-subdomain-deploy-optional) |
 | `node.bootstrapToken`  | `NODE_BOOTSTRAP_TOKEN`            | Yes      | —                       | Token agents use to register for the first time (min 16 chars)                          |
-| `node.agentDataPort`   | `AGENT_DATA_PORT`                 | No       | `50052`                 | Port for agent bulk-data transfers                                                      |
 | `docker.endpoint`      | `DOCKER_ENDPOINT`                 | No       | —                       | Docker host for Swarm overlay network management (e.g. `unix:///var/run/docker.sock`). When set, master creates/deletes overlay networks for Server Networks and allows cross-node membership. |
 | `forwarding.key`       | `FORWARDING_KEY` (or `_FILE`)     | Yes      | —                       | Base64-encoded 32-byte AES-256 key, encrypts the forwarding secret at rest — see [Forwarding key](#forwarding-key) |
+| _(env-only)_           | `CRAFTPANEL_CONTAINER_PREFIX`     | No       | `craftpanel`            | Prefix master applies to the Docker resource names it tracks. Read directly from the environment, not from `application.conf`. Keep in sync with the agent's prefix. |
+
+!!! note
+    `rateLimit.loginPerMinute`, `rateLimit.refreshPerMinute`, and `rateLimit.totpVerifyPerMinute`
+    are read by master but have **no environment-variable mapping** — they cannot be set via env.
+    The user-configurable equivalents (`rate_limit_login_per_minute`,
+    `rate_limit_refresh_per_minute`) are DB-backed runtime settings edited from the **Settings**
+    page; see [Runtime settings](#runtime-settings-db-backed-editable-in-the-ui).
 
 ## Forwarding key
 
@@ -169,8 +176,12 @@ The agent process (one per node) reads its own environment variables, separate f
 | `dockerSocketPath`             | `DOCKER_SOCKET`                     | No             | `unix:///var/run/docker.sock` | Docker daemon socket used to manage containers on this node                                                                                  |
 | `dataBasePath`                 | `DATA_PATH`                         | No             | `/data`                       | Path inside the agent container where server data lives                                                                                       |
 | `hostDataBasePath`             | `HOST_DATA_PATH`                    | No             | value of `DATA_PATH`          | Host path Docker uses when bind-mounting data into Minecraft server containers — must be an absolute path that exists on the host            |
-| `mcRouterImage`                | `MCROUTER_IMAGE`                    | No             | `itzg/mc-router:latest`       | Image used for the shared mc-router container                                                                                                 |
+| `serversByNameRoot`           | `SERVERS_BY_NAME_PATH`              | No             | `$DATA_PATH/servers-by-name`  | Root of the human-readable `servers-by-name/<name>` symlink overlay                                                                          |
+| `backupsByServerRoot`         | `BACKUPS_BY_SERVER_PATH`            | No             | `$DATA_PATH/backups-by-server` | Root of the `backups-by-server/<name>/<timestamp>.tar.gz` symlink overlay                                                                   |
+| `mcRouterImage`                | `MCROUTER_IMAGE`                    | No             | `itzg/mc-router:latest`       | Image used for the shared mc-router container                                                                                                |
 | `mcRouterUpdateOnStart`        | `MCROUTER_UPDATE_ON_START`          | No             | `true`                        | Whether to pull a fresh mc-router image on agent start                                                                                        |
+| `mcRouterContainerName`        | `MCROUTER_CONTAINER_NAME`           | No             | `craftpanel-mc-router`        | Overrides the mc-router container name                                                                                                        |
+| `mcRouterEnabled`              | `MCROUTER_ENABLED`                  | No             | `true`                        | When `false`, the agent never provisions, attaches, detaches, or metrics-queries mc-router                                                    |
 | `publicIpUrl`                  | `PUBLIC_IP_URL`                     | No             | —                              | External service used to detect this node's public IP                                                                                        |
 | `hostnameOverride`             | `NODE_HOSTNAME`                     | No             | —                              | Overrides the hostname the agent reports to master (useful when container hostname differs from actual node hostname)                        |
 | `systemReservedRamMb`          | `SYSTEM_RESERVED_RAM_MB`            | No             | `0`                            | RAM (MB) reserved for the host OS, excluded from server allocation capacity                                                                   |
@@ -181,6 +192,7 @@ The agent process (one per node) reads its own environment variables, separate f
 | `publicIpOverride`             | `NODE_PUBLIC_IP`                    | No             | —                              | Overrides the public IP the agent reports to master; takes priority over `PUBLIC_IP_URL`                                                      |
 | `metricsPollIntervalSeconds`   | `METRICS_POLL_INTERVAL_SECONDS`     | No             | `5`                            | Polling interval for container metrics                                                                                                        |
 | `metricsCollectionConcurrency` | `METRICS_COLLECTION_CONCURRENCY`    | No             | `8`                            | Max server containers collected in parallel per metrics tick                                                                                  |
+| `reconcileIntervalSeconds`     | `AGENT_RECONCILE_INTERVAL_SECONDS`  | No             | `30`                          | Cadence of the convergence backstop sweep; `0` disables it                                                                                    |
 | `pullMaxImageAgeHours`         | `PULL_MAX_IMAGE_AGE_HOURS`          | No             | `24`                           | Max age of a locally-cached image before a fresh pull is attempted                                                                             |
 
 ## Frontend configuration
@@ -189,3 +201,6 @@ The agent process (one per node) reads its own environment variables, separate f
 |---------------|---------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `MASTER_URL` | `http://localhost:8080` | Server-side base URL used by the frontend's `/healthz` route (master version check) and the `/api/*` catch-all proxy route (`app/api/[...path]/route.ts`). Both compose files set this to `http://master:8080` (the internal Docker network address) — it is never `localhost` inside a container. |
 | `PUBLIC_API_URL` | — (same-origin) | Browser-facing master origin, e.g. `https://api.example.com`. Only needed for a split-subdomain deploy where the frontend and master are on different hosts/subdomains — see [Split-subdomain deploy](../usage/deployment.md#split-subdomain-deploy-optional). Leave unset for the default single-domain deploy, where the browser calls `/api` on its own origin. |
+| `NEXT_PUBLIC_CRAFTPANEL_BUILD_VERSION` | `unknown` | Build-time only. The version string baked into the bundle by the Gradle build; reported by `/healthz`. Not set at runtime. |
+| `DEV_ALLOWED_ORIGINS` | — | Dev-only (`next dev`): comma-separated extra origins allowed to load HMR/client chunks (e.g. a LAN IP). |
+| `DEV_API_PROXY` | — | Dev-only (`next dev`): proxies `/api/*` to a running master (e.g. `http://localhost:8080`). |

@@ -6,7 +6,7 @@ CraftPanel ships as three Docker images (`master`, `frontend`, `agent`) plus Pos
 
 - A host with Docker and the Compose plugin installed
 - A domain name pointed at the host's public IP
-- Ports `80`, `443` open (HTTP/HTTPS via Traefik); `50051` open if you plan to attach agents on other hosts
+- Ports `80` and `443` open (HTTP/HTTPS via Traefik), and `25565` open for Minecraft player ingress. Open `50051` only if you plan to attach agents on other hosts. See [Ports](environment-variables.md#ports) for the full list.
 - An empty directory on the host for server data (e.g. `/opt/craftpanel/data`)
 
 ## Configure
@@ -29,6 +29,10 @@ HOST_DATA_PATH=/opt/craftpanel/data
 #CF_API_TOKEN=<Cloudflare API token>
 ```
 
+This is the minimum set. Every variable — compose `.env`, plus the master, agent, and frontend
+container variables — is documented in
+[Environment Variables, Ports & Volumes](environment-variables.md).
+
 The `DNS_PROVIDER` / `CF_API_TOKEN` pair enables automatic A-record management for externally-exposed servers via Cloudflare. Leave them commented to skip DNS integration (servers are then reachable only by node IP + port). See [Enabling Public Hostnames](enabling-public-hostnames.md) for the one-time Cloudflare setup walkthrough.
 
 `FORWARDING_KEY` must be a Base64-encoded 32-byte (256-bit) key. Generate one on Linux/macOS with:
@@ -39,7 +43,7 @@ openssl rand -base64 32
 
 Master uses this key to encrypt the Velocity/BungeeCord player-forwarding secret it stores in the database (see [Configuration & Secrets](../tech-stack/configuration.md#forwarding-key)). Losing this key after servers are configured for forwarding breaks proxy↔backend authentication until reconfigured — back it up along with your other secrets.
 
-See [Configuration & Secrets](../tech-stack/configuration.md) for the full environment variable reference, including the `_FILE` secret pattern for production deployments that prefer mounted secrets over plain env vars.
+See [Environment Variables, Ports & Volumes](environment-variables.md) for the full environment variable reference, including the `_FILE` secret pattern for production deployments that prefer mounted secrets over plain env vars. The architecture-level notes live in [Configuration & Secrets](../tech-stack/configuration.md).
 
 ## Start the stack
 
@@ -75,9 +79,14 @@ their respective subdomains instead of the shared `Host(${DOMAIN})` rule.
 
 ## Next steps
 
+- [Environment Variables, Ports & Volumes](environment-variables.md) — complete configuration reference
 - [First Login & Setup](first-login.md)
 - [Adding a Node](adding-a-node.md)
+- [Removing a Node](removing-a-node.md)
 - [Enabling Public Hostnames](enabling-public-hostnames.md) — optional Cloudflare DNS integration for per-server hostnames
+- [Upgrading](upgrading.md) — deploying a new image version
+- [Reverse Proxy](reverse-proxy.md) — if you're not using the bundled Traefik
+- [Troubleshooting](troubleshooting.md) — startup and connectivity problems
 
 ## Building from source
 

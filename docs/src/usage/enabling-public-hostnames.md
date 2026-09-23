@@ -36,6 +36,11 @@ DNS_PROVIDER=cloudflare
 CF_API_TOKEN=<the token from Step 1>
 ```
 
+!!! note
+    These two variables are **not** wired into the bundled `docker-compose.yml`'s `master` service —
+    add them yourself, then restart master. Both are documented in
+    [Environment Variables, Ports & Volumes](environment-variables.md#master-container-variables).
+
 For production deployments that mount secrets rather than inline env vars, use the `_FILE` variant pointing at a file containing the token:
 
 ```bash
